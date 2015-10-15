@@ -336,13 +336,17 @@ namespace dmHttpClient
             int sent_bytes = 0;
 
             while (total_sent_bytes < length) {
+                dmSocket::Result r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
 
+                if( r == dmSocket::RESULT_WOULDBLOCK )
+                {
+                    r = dmSocket::RESULT_TRY_AGAIN;
+                }
                 if( HasRequestTimedOut(response->m_Client) )
                 {
-                    return dmSocket::RESULT_TIMEDOUT;
+                    r = dmSocket::RESULT_WOULDBLOCK;
                 }
 
-                dmSocket::Result r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
                 if (r == dmSocket::RESULT_TRY_AGAIN)
                     continue;
 
@@ -372,7 +376,8 @@ namespace dmHttpClient
                 uint64_t start = dmTime::GetTime();
                 r = ssl_read(response->m_SSLConnection, &buf);
                 uint64_t end = dmTime::GetTime();
-                if ((end - start) > SOCKET_TIMEOUT) {
+                uint64_t timeout = response->m_Client->m_RequestTimeout;
+                if (timeout > 0 && (end - start) > SOCKET_TIMEOUT) {
                     return dmSocket::RESULT_WOULDBLOCK;
                 }
             } while (r == SSL_OK);
@@ -476,14 +481,19 @@ namespace dmHttpClient
                 return RESULT_HTTP_HEADERS_ERROR;
             }
 
-            if( HasRequestTimedOut(client) )
-            {
-                return RESULT_TIMEOUT;
-            }
-
             int recv_bytes;
             dmSocket::Result r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
-            if (r == dmSocket::RESULT_TRY_AGAIN || r == dmSocket::RESULT_WOULDBLOCK)
+
+            if( r == dmSocket::RESULT_WOULDBLOCK )
+            {
+                r = dmSocket::RESULT_TRY_AGAIN;
+            }
+            if( HasRequestTimedOut(client) )
+            {
+                r = dmSocket::RESULT_WOULDBLOCK;
+            }
+
+            if (r == dmSocket::RESULT_TRY_AGAIN)
                 continue;
 
             if (r != dmSocket::RESULT_OK)
@@ -630,11 +640,6 @@ bail:
 
         while (true)
         {
-            if( HasRequestTimedOut(response->m_Client) )
-            {
-                return RESULT_TIMEOUT;
-            }
-
             int n;
             if (to_transfer == -1) {
                 // Unknown "Content-Length". Read as much as we can.
@@ -668,6 +673,16 @@ bail:
 
             int recv_bytes;
             dmSocket::Result sock_res = Receive(response, client->m_Buffer, BUFFER_SIZE, &recv_bytes);
+
+            if( sock_res == dmSocket::RESULT_WOULDBLOCK )
+            {
+                sock_res = dmSocket::RESULT_TRY_AGAIN;
+            }
+            if( HasRequestTimedOut(response->m_Client) )
+            {
+                sock_res = dmSocket::RESULT_WOULDBLOCK;
+            }
+
             if (sock_res == dmSocket::RESULT_OK)
             {
                 if (recv_bytes == 0)
@@ -778,11 +793,6 @@ bail:
             int chunk_number = 0;
             while(true)
             {
-                if( HasRequestTimedOut(response->m_Client) )
-                {
-                    return RESULT_TIMEOUT;
-                }
-
                 chunk_size = 0;
                 // NOTE: We have an extra byte for null-termination so no buffer overrun here.
                 client->m_Buffer[response->m_TotalReceived] = '\0';
@@ -826,7 +836,17 @@ bail:
 
                     int recv_bytes;
                     dmSocket::Result sock_r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
-                    if (sock_r == dmSocket::RESULT_TRY_AGAIN || sock_r == dmSocket::RESULT_WOULDBLOCK)
+
+                    if( sock_r == dmSocket::RESULT_WOULDBLOCK )
+                    {
+                        sock_r = dmSocket::RESULT_TRY_AGAIN;
+                    }
+                    if( HasRequestTimedOut(response->m_Client) )
+                    {
+                        sock_r = dmSocket::RESULT_WOULDBLOCK;
+                    }
+
+                    if (sock_r == dmSocket::RESULT_TRY_AGAIN)
                         continue;
 
                     if (sock_r != dmSocket::RESULT_OK)
@@ -852,11 +872,6 @@ bail:
         dmSocket::Result sock_res;
 
         sock_res = SendRequest(client, &response, path, method);
-
-        if (HasRequestTimedOut(client))
-        {
-            return RESULT_TIMEOUT;
-        }
 
         if (sock_res != dmSocket::RESULT_OK)
         {
