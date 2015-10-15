@@ -40,7 +40,7 @@ ordinary paths."
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-node [project node-id resource]
+(defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
       (try
@@ -49,7 +49,7 @@ ordinary paths."
         (load-fn project node-id resource)
         (catch java.io.IOException e
           (log/warn :exception e)
-          (g/mark-defective node-id (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+          (g/mark-defective node-id node-type (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
 (defn- load-nodes! [project node-ids]
@@ -57,7 +57,7 @@ ordinary paths."
     (for [node-id node-ids
           :when (g/has-output? (g/node-type* node-id) :resource)
           :let [resource (g/node-value node-id :resource)]]
-      (load-node project node-id resource))))
+      (load-node project node-id (g/node-type* node-id) resource))))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -76,7 +76,7 @@ ordinary paths."
           (for [[consumer connection-labels] connections]
             (connect-if-output node-type node consumer connection-labels))
           (if load?
-            (load-node project node resource)
+            (load-node project node node-type resource)
             []))
         (g/connect node :_node-id project :nodes)))))
 
@@ -374,7 +374,7 @@ ordinary paths."
     (if-let [node (get-resource-node project resource)]
       (concat
         (if *load-cache*
-          (load-node project node resource)
+          (load-node project node (g/node-type* node) resource)
           [])
         (connect-if-output (g/node-type* node) node consumer-node connections))
       (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]

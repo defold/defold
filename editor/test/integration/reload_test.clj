@@ -1,5 +1,6 @@
 (ns integration.reload-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system undo-stack]]
             [editor.math :as math]
@@ -57,6 +58,9 @@
       (Thread/sleep 1100))
     (spit f content))
   (workspace/fs-sync workspace))
+
+(defn- read-file [name]
+  (slurp (str *project-path* name)))
 
 (defn- add-file [workspace name]
   (write-file workspace name (template workspace name)))
@@ -185,6 +189,32 @@
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (write-file workspace img-path "this is not png format")
       (is (error? :invalid-content (g/node-value atlas-node-id :anim-data))))))
+
+
+(defn- first-child [parent]
+  (get-in (g/node-value parent :node-outline) [:children 0 :node-id]))
+
+(defn- tile-source [node]
+  (project/get-resource-node (project/get-project node) (g/node-value node :tile-source)))
+
+(deftest resource-reference-error
+  (with-clean-system
+    (let [[workspace project] (setup world)]
+      (testing "Tile source ok before writing broken content"
+        (let [pfx-node (project/get-resource-node project "/test.particlefx")
+              ts-node (tile-source (first-child pfx-node))]
+          (is (not (g/error? (g/node-value ts-node :extrude-borders))))
+          (is (= nil (g/node-value ts-node :_output-jammers)))))
+      (testing "Externally modifying to refer to non existing tile source results in defective node"
+        (let [test-content (read-file "/test.particlefx")
+              broken-content (str/replace test-content
+                                          "tile_source: \"/builtins/graphics/particle_blob.tilesource\""
+                                          "tile_source: \"/builtins/graphics/particle_blob_does_not_exist.tilesource\"")]
+          (log/without-logging (write-file workspace "/test.particlefx" broken-content))
+          (let [pfx-node (project/get-resource-node project "/test.particlefx")
+                ts-node (tile-source (first-child pfx-node))]
+            (is (g/error? (g/node-value ts-node :extrude-borders)))
+            (is (seq (keys (g/node-value ts-node :_output-jammers))))))))))
 
 (defn- dump-all-nodes
   [project]
