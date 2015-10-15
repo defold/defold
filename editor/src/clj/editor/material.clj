@@ -6,6 +6,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.gl.texture :as texture]
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -18,7 +19,7 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]
+           [javax.vecmath Vector4d Matrix4d Point3d Quat4d]
            [editor.gl.shader ShaderLifecycle]))
 
 (def pb-def {:ext "material"
@@ -97,7 +98,7 @@
          {:path [:samplers]
           :label "Samplers"
           :type :table
-          :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$ConstantType)
+          :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
                          min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
                          mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
                      [{:path [:name] :label "Name" :type :string}
@@ -132,6 +133,18 @@
              :fragment-program (resource/resource->proj-path fragment-program))]
     (protobuf-forms/produce-form-data _node-id pb def form-data)))
 
+(defn- constant->val [constant]
+  (case (:type constant)
+    :constant-type-user (let [[x y z w] (:value constant)]
+                          (Vector4d. x y z w))
+    :constant-type-viewproj :view-proj
+    :constant-type-world :world
+    :constant-type-texture :texture
+    :constant-type-view :view
+    :constant-type-projection :projection
+    :constant-type-normal :normal
+    :constant-type-worldview :world-view))
+
 (g/defnode MaterialNode
   (inherits project/ResourceNode)
 
@@ -159,27 +172,41 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/always {}))
-  (output shader ShaderLifecycle (g/fnk [_node-id vertex-source fragment-source]
-                                   (shader/make-shader _node-id vertex-source fragment-source))))
+  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
+                                           (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
+                                             (shader/make-shader _node-id vertex-source fragment-source uniforms))))
+  (output sampler-data {g/Keyword g/Any} (g/fnk [_node-id pb]
+                                           {:magerial-id _node-id
+                                            :samplers (:samplers pb)})))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
+(def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
+                                :wrap-v :wrap-mode-clamp-to-edge
+                                :filter-min :filter-mode-min-linear
+                                :filter-mag :filter-mode-mag-linear})
+
 (defn load-material [project self resource]
   (let [def pb-def
-        pb (protobuf/read-text (:pb-class def) resource)]
-   (concat
-    (g/set-property self :pb pb)
-    (g/set-property self :def def)
-    (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
-    (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-    (for [res (:resource-fields def)]
-      (if (vector? res)
-        (for [v (get pb (first res))]
-          (let [path (if (second res) (get v (second res)) v)]
-            (connect-build-targets project self resource path)))
-        (connect-build-targets project self resource (get pb res)))))))
+        pb (protobuf/read-text (:pb-class def) resource)
+        pb (-> pb
+             (update :samplers into
+              (mapv (fn [tex] (assoc default-sampler :name tex))
+                (:textures pb)))
+             (dissoc :textures))]
+    (concat
+      (g/set-property self :pb pb)
+      (g/set-property self :def def)
+      (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
+      (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
+      (for [res (:resource-fields def)]
+        (if (vector? res)
+          (for [v (get pb (first res))]
+            (let [path (if (second res) (get v (second res)) v)]
+              (connect-build-targets project self resource path)))
+          (connect-build-targets project self resource (get pb res)))))))
 
 (defn- register [workspace def]
   (workspace/register-resource-type workspace
@@ -195,3 +222,33 @@
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
+
+(def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
+                              :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
+                              :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
+
+(def ^:private filter-mode-min->gl {:filter-mode-min-nearest GL2/GL_NEAREST
+                                    :filter-mode-min-linear GL2/GL_LINEAR
+                                    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
+                                    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
+                                    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
+                                    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR})
+
+(def ^:private filter-mode-mag->gl {:filter-mode-mag-nearest GL2/GL_NEAREST
+                                    :filter-mode-mag-linear GL2/GL_LINEAR})
+
+(defn- sampler->tex-params [sampler]
+  {:wrap-s (wrap-mode->gl (:wrap-u sampler))
+   :wrap-t (wrap-mode->gl (:wrap-v sampler))
+   :min-filter (filter-mode-min->gl (:filter-min sampler))
+   :mag-filter (filter-mode-mag->gl (:filter-mag sampler))})
+
+(defn make-textures [image-data sampler-data]
+  (let [samplers (:samplers sampler-data)
+        samplers (cond-> samplers
+                   (< (count samplers) (count image-data))
+                   (concat samplers (repeat (- (count image-data) (count samplers)) default-sampler)))]
+    (assert (= (count samplers) (count image-data)) (format "sampler count (%d) and image count (%d) differ" (count samplers) (count image-data)))
+    (let [material-id (:material-id sampler-data)]
+      (mapv (fn [img-data [index params]] (texture/image-texture [material-id (:image-id img-data)] (:image img-data) params index))
+        image-data (map-indexed vector (map sampler->tex-params samplers))))))

@@ -216,11 +216,22 @@
 (defn- render-sort [renderables camera viewport]
   (sort-by :render-key renderables))
 
+(defn- generic-render-args [glu viewport camera]
+  (let [view (c/camera-view-matrix camera)
+        proj (c/camera-projection-matrix camera)
+        view-proj (doto (Matrix4d. proj) (.mul view))
+        world (doto (Matrix4d.) (.setIdentity))
+        world-view (doto (Matrix4d. view) (.mul world))
+        texture (doto (Matrix4d.) (.setIdentity))
+        normal (doto (math/affine-inverse world-view) (.transpose))]
+    {:glu glu :camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
+     :world-view world-view :texture texture :normal normal}))
+
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables tool-renderables]
   (when-let [^GLContext context (make-current viewport drawable)]
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
-          render-args {:glu glu :camera camera :viewport viewport}
+          render-args (generic-render-args glu viewport camera)
           renderables (apply merge-with (fn [renderables tool-renderables] (apply conj renderables tool-renderables)) renderables tool-renderables)]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
@@ -275,7 +286,7 @@
     (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:glu glu :camera camera :viewport viewport}
+            render-args (generic-render-args glu viewport camera)
             selection-set (set selection)]
         (flatten
           (for [pass pass/selection-passes
@@ -295,7 +306,7 @@
     (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:gl gl :glu glu :camera camera :viewport viewport}
+            render-args (generic-render-args glu viewport camera)
             tool-renderables (apply merge-with into tool-renderables)
             passes [pass/manipulator-selection pass/overlay-selection]]
         (flatten
