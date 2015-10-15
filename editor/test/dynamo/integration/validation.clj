@@ -124,3 +124,47 @@
         ; - "message"
         ; possibly even transforming the structure into the "resource-list"
         ))))
+
+
+(g/defnk validate-tile-width [tile-width tile-margin]
+  (if-let [max-width 200]
+    (let [total-width (+ tile-width tile-margin)]
+      (when (> total-width max-width)
+        (g/error-severe (format "The total tile width (including margin) %d is greater than the image width %d" total-width max-width))))))
+
+(g/defnk validate-tile-height [tile-height tile-margin]
+  (if-let [max-height 200]
+    (let [total-height (+ tile-height tile-margin)]
+      (when (> total-height max-height)
+        (g/error-severe (format "The total tile height (including margin) %d is greater than the image height %d" total-height max-height))))))
+
+(g/defnk validate-tile-dimensions [tile-width tile-height tile-margin :as all]
+  (or (validate-tile-width all)
+      (validate-tile-height all)))
+
+(g/defnode TileSourceNode
+  (property tile-width g/Int
+            (default 0)
+            (validate validate-tile-width))
+
+  (property tile-height g/Int
+            (default 0)
+            (validate validate-tile-height))
+
+  (property tile-margin g/Int
+            (default 0)
+            (validate validate-tile-dimensions)))
+
+(defn- prop [node label]
+  (get-in (g/node-value node :_properties) [:properties label :value]))
+
+(defn- prop! [node label val]
+  (g/transact
+    (g/set-property node label val)))
+
+(deftest test-cyclic-validation
+  (with-clean-system
+    (let [[ts] (tx-nodes (g/make-nodes world [ts [TileSourceNode :tile-width 1000 :tile-height 164 :tile-margin 100]]))]
+      (is (g/error? (g/node-value ts :tile-width)))
+      (is (g/error? (g/node-value ts :tile-height)))
+      (is (g/error? (g/node-value ts :tile-margin))))))
