@@ -16,9 +16,15 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.AlarmManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.NotificationCompat;
@@ -31,6 +37,7 @@ import com.google.android.gms.gcm.GoogleCloudMessaging;
 public class Push {
 
     public static final String TAG = "push";
+    public static final String DEFOLD_ACTIVITY = "com.dynamo.android.DefoldActivity";
     public static final String ACTION_FORWARD_PUSH = "com.defold.push.FORWARD";
     public static final String SAVED_PUSH_MESSAGE_NAME = "saved_push_message";
     public static final String SAVED_LOCAL_MESSAGE_NAME = "saved_local_message";
@@ -84,6 +91,8 @@ public class Push {
         extras.putString("title", title);
         extras.putString("message", message);
         extras.putInt("priority", priority);
+        extras.putInt("smallIcon", activity.getResources().getIdentifier("push_icon_small", "drawable", activity.getPackageName()));
+        extras.putInt("largeIcon", activity.getResources().getIdentifier("push_icon_large", "drawable", activity.getPackageName()));
         extras.putString("payload", payload);
         intent.putExtras(extras);
         intent.setAction("uid" + uid);
@@ -263,7 +272,19 @@ public class Push {
         GoogleCloudMessaging gcm = GoogleCloudMessaging.getInstance(context);
         String messageType = gcm.getMessageType(intent);
 
-        if (!extras.isEmpty()) {
+        // Note in regards to the 'from' != "google.com/iid" check:
+        // - In mid/late 2015 Google updated their push service. During this
+        //   change "ghost" messages began popping up in Defold, some even
+        //   the first time the apps were run. The reason was Google sending
+        //   some of their own messages to the devices with "commands", for
+        //   example telling the GCM-library to request a new device token.
+        //   These commands where not handled in our GCM-library version,
+        //   thus we simply forwarded them below as normal pushes.
+        //   More info: JIRA issue DEF-1354
+        //              http://stackoverflow.com/questions/30479424/
+        if (!extras.isEmpty() &&
+            !extras.getString("from").equals("google.com/iid")) {
+
             if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
                 JSONObject o = toJson(extras);
                 String msg = o.toString();
@@ -304,18 +325,63 @@ public class Push {
         PendingIntent contentIntent = PendingIntent.getActivity(context, id,
                 intent, 0);
 
-        String alert = extras.getString("alert");
-        if (alert == null) {
-            Log.w(TAG, "Missing alert field in push message");
-            alert = "New message";
+        String fieldTitle = null;
+        String fieldText = null;
+
+        // Try to find field names from manifest file
+        PackageManager pm = context.getPackageManager();
+        try {
+            ComponentName cn = new ComponentName(context, DEFOLD_ACTIVITY);
+            ActivityInfo activityInfo = pm.getActivityInfo(cn, PackageManager.GET_META_DATA);
+
+            Bundle bundle = activityInfo.metaData;
+            if (bundle != null) {
+                fieldTitle = bundle.getString("com.defold.push.field_title", null);
+                fieldText = bundle.getString("com.defold.push.field_text", "alert");
+            } else {
+                Log.w(TAG, "Bundle was null, could not get meta data from manifest.");
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.w(TAG, "Could not get activity info, needed to get push field conversion.");
         }
 
         ApplicationInfo info = context.getApplicationInfo();
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(
-                context).setSmallIcon(info.icon)
-                .setContentTitle(info.loadLabel(context.getPackageManager()))
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(alert))
-                .setContentText(alert);
+        String title = info.loadLabel(pm).toString();
+        if (fieldTitle != null && extras.getString(fieldTitle) != null) {
+            title = extras.getString(fieldTitle);
+        }
+
+        String text = extras.getString(fieldText);
+        if (text == null) {
+            Log.w(TAG, "Missing text field in push message");
+            text = "New message";
+        }
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+                .setContentTitle(title)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                .setContentText(text);
+
+        // Find icons if they were supplied, fallback to app icon
+        int smallIconId = context.getResources().getIdentifier("push_icon_small", "drawable", context.getPackageName());
+        int largeIconId = context.getResources().getIdentifier("push_icon_large", "drawable", context.getPackageName());
+        if (smallIconId == 0) {
+            smallIconId = info.icon;
+        }
+        if (largeIconId == 0) {
+            largeIconId = info.icon;
+        }
+
+        // Get bitmap for large icon resource
+        try {
+            Resources resources = pm.getResourcesForApplication(info);
+            Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
+            builder.setLargeIcon(largeIconBitmap);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.w(TAG, "Could not get application resources.");
+        }
+
+        builder.setSmallIcon(smallIconId);
 
         builder.setContentIntent(contentIntent);
         Notification notification = builder.build();
