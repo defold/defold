@@ -583,15 +583,16 @@
   Example:
 
   `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
-  [node-id defective-value]
-  (let [node-type (node-type* node-id)
-        outputs   (keys (gt/transforms node-type))
-        externs   (gt/externs node-type)]
-    (list
-     (set-property node-id :_output-jammers
-                   (zipmap (remove externs outputs)
-                           (repeat (always defective-value))))
-     (invalidate node-id))))
+  ([node-id defective-value]
+   (mark-defective node-id (node-type* node-id) defective-value))
+  ([node-id node-type defective-value]
+   (let [outputs   (keys (gt/transforms node-type))
+         externs   (gt/externs node-type)]
+     (list
+      (set-property node-id :_output-jammers
+                    (zipmap (remove externs outputs)
+                            (repeat (always defective-value))))
+      (invalidate node-id)))))
 
 (defn mark-defective!
   "Creates the transaction step to mark a node as _defective_.
