@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
-           [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc Material$MaterialDesc$ConstantType]
+           [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.render.proto Render$DisplayProfiles]
            [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]))
 
@@ -33,7 +33,7 @@
     (name val)
     display-name))
 
-(defn- make-options [enum-values]
+(defn make-options [enum-values]
   (map (juxt first display-name-or-default) enum-values))
 
 (defn- default-form-ops [node-id]
@@ -49,47 +49,6 @@
     (make-values pb keys)))
 
 (defmulti protobuf-form-data (fn [node-id pb def] (:pb-class def)))
-
-(defmethod protobuf-form-data Material$MaterialDesc [node-id pb def]
-  (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-    {
-     :sections
-     [
-      {
-       :title "Material"
-       :fields
-       [
-        {:path [:name]
-         :label "Name"
-         :type :string
-         :default "New Material"}
-        {:path [:vertex-program]
-         :label "Vertex Program"
-         :type :resource :filter "vp"}
-        {:path [:fragment-program]
-         :label "Fragment Program"
-         :type :resource :filter "fp"}
-        {:path [:vertex-constants]
-         :label "Vertex Constants"
-         :type :table
-         :columns [{:path [:name] :label "Name" :type :string}
-                   {:path [:type]
-                    :label "Type"
-                    :type :choicebox
-                    :options (make-options constant-values)
-                    :default (ffirst constant-values)
-                    }
-                   {:path [:value] :label "Value" :type :vec4}]
-         }
-        {:path [:tags]
-         :label "Tags"
-         :type :list
-         :element {:type :string :default "New Tag"}
-         }
-        ]
-       }
-      ]
-     }))
 
 (defmethod protobuf-form-data Input$InputBinding [node-id pb def]
   (let [key-values (butlast (protobuf/enum-values Input$Key)) ; skip MAX_KEY_COUNT
@@ -493,10 +452,12 @@
     ]
    })
 
-(defn produce-form-data [node-id pb def]
-  (let [form-data (merge (default-form-ops node-id)
-                         (protobuf-form-data node-id pb def))]
-    (if (contains? form-data :values)
-      form-data
-      (assoc form-data :values (form-values form-data pb)))))
-
+(defn produce-form-data 
+  ([node-id pb def]
+    (produce-form-data node-id pb def (protobuf-form-data node-id pb def)))
+  ([node-id pb def form-data]
+    (let [form-data (merge (default-form-ops node-id)
+                      form-data)]
+      (if (contains? form-data :values)
+        form-data
+        (assoc form-data :values (form-values form-data pb))))))

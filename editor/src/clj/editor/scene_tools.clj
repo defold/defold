@@ -117,7 +117,7 @@
                 :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
                       color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
                 :when (> vertex-count 0)]
-          (gl/with-gl-bindings gl [shader vertex-binding]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (shader/set-uniform shader gl "color" color)
             (gl/gl-draw-arrays gl mode 0 vertex-count)))))))
 
