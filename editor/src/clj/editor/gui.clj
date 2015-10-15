@@ -19,7 +19,8 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
-            [editor.outline :as outline])
+            [editor.outline :as outline]
+            [editor.material :as material])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]
            [editor.types AABB]
@@ -133,13 +134,12 @@
         vcount (count vs)]
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::lines (->color-vtx-vb vs colors vcount) line-shader)]
-        (gl/with-gl-bindings gl [line-shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
-  (let [gpu-texture (get-in (first renderables) [:user-data :gpu-texture])
+  (let [gpu-texture (or (get-in (first renderables) [:user-data :gpu-texture]) texture/white-pixel)
         scene-shader (get-in (first renderables) [:user-data :scene-shader])
-        _ (prn "scene-shader" scene-shader)
         [vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
                                   (let [user-data (:user-data renderable)
                                         world-transform (:world-transform renderable)
@@ -150,9 +150,11 @@
                           [[] [] []] renderables)
         vcount (count vs)]
     (when (> vcount 0)
-      (let [shader (if gpu-texture (or scene-shader shader) (or scene-shader line-shader))
+      (let [shader (if (types/selection? (:pass render-args))
+                     shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
+                     (or scene-shader shader))
             vertex-binding (vtx/use-with ::tris (->uv-color-vtx-vb vs uvs colors vcount) shader)]
-        (gl/with-gl-bindings gl [shader vertex-binding gpu-texture]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
 
 (defn- pivot-offset [pivot size]
@@ -495,7 +497,7 @@
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id image] (texture/image-texture _node-id image)))
+  (output packed-image BufferedImage (g/fnk [image] image))
   (output anim-data g/Any (g/fnk [image]
                             {nil {:width (.getWidth image)
                                   :height (.getHeight image)
@@ -507,9 +509,10 @@
 
   (property name g/Str)
   (input texture (g/protocol resource/Resource))
-  (input gpu-texture g/Any)
+  (input image BufferedImage)
   (input anim-data g/Any)
   (input image-texture g/NodeID :cascade-delete)
+  (input sampler-data {g/Keyword g/Any})
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
                                     (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output node-outline outline/OutlineData (g/fnk [_node-id name]
@@ -521,7 +524,8 @@
                           :texture (proj-path texture)}))
   (output texture-data g/Any (g/fnk [_node-id anim-data]
                                [_node-id (keys anim-data)]))
-  (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture)))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id image sampler-data]
+                                      (first (material/make-textures [{:image-id _node-id :image image}] sampler-data)))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -693,7 +697,8 @@
   (property material (g/protocol resource/Resource)
     (value (g/fnk [material-resource] material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
-                                       [:shader :material-shader]])))
+                                       [:shader :material-shader]
+                                       [:sampler-data :sampler-data]])))
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
@@ -724,6 +729,8 @@
   (input material-resource (g/protocol resource/Resource))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (input sampler-data {g/Keyword g/Any})
+  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
   (output aabb AABB (g/fnk [scene-dims child-scenes]
                            (let [w (:width scene-dims)
                                  h (:height scene-dims)
@@ -769,7 +776,8 @@
     (g/connect texture :texture-data self :texture-data)
     (g/connect texture :pb-msg self :texture-msgs)
     (g/connect texture :name self :texture-names)
-    (g/connect texture :node-outline textures-node :child-outlines)))
+    (g/connect texture :node-outline textures-node :child-outlines)
+    (g/connect self :sampler-data texture :sampler-data)))
 
 (defn- attach-layer [self layers-node layer]
   (concat
@@ -820,7 +828,7 @@
           (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name]]
             (attach-texture scene parent node)
             (project/connect-resource-node project resource node [[:resource :texture]
-                                                                  [:gpu-texture :gpu-texture]
+                                                                  [:packed-image :image]
                                                                   [:anim-data :anim-data]])
             (project/select project [node])))))))
 
@@ -964,12 +972,12 @@
                           (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc)]]
                             (attach-texture self textures-node texture)
                             (project/connect-resource-node project resource texture [[:resource :texture]
-                                                                                     [:gpu-texture :gpu-texture]
+                                                                                     [:packed-image :image]
                                                                                      [:anim-data :anim-data]]))
                           (g/make-nodes graph-id [img-texture [ImageTextureNode]
                                                   texture [TextureNode :name (:name texture-desc)]]
                             (g/connect img-texture :_node-id texture :image-texture)
-                            (g/connect img-texture :gpu-texture texture :gpu-texture)
+                            (g/connect img-texture :packed-image texture :image)
                             (g/connect img-texture :anim-data texture :anim-data)
                             (project/connect-resource-node project resource img-texture [[:content :image]])
                             (project/connect-resource-node project resource texture [[:resource :texture]])

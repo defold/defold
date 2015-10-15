@@ -142,7 +142,7 @@
     (cond
       (= pass pass/outline)
       (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
-        (gl/with-gl-bindings gl [outline-shader outline-vertex-binding]
+        (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
 
       (= pass pass/transparent)
@@ -150,7 +150,7 @@
             user-data (:user-data (first renderables))
             gpu-texture (:gpu-texture user-data)
             blend-mode (:blend-mode user-data)]
-        (gl/with-gl-bindings gl [gpu-texture shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
           (case blend-mode
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
@@ -161,7 +161,7 @@
 
       (= pass pass/selection)
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
-        (gl/with-gl-bindings gl [shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 ; Node defs

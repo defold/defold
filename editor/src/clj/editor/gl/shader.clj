@@ -370,30 +370,38 @@ This must be submitted to the driver for compilation before you can use it. See
   (when (not= 0 shader)
     (.glDeleteShader gl shader)))
 
-(defrecord ShaderLifecycle [request-id verts frags]
+(defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
-  (bind [this gl]
-    (let [program (scene-cache/request-object! ::shader request-id gl [verts frags])]
-      (.glUseProgram ^GL2 gl program)))
+  (bind [this gl render-args]
+    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
+      (.glUseProgram ^GL2 gl program)
+      (doseq [[name val] uniforms
+              :let [val (if (keyword? val)
+                          (get render-args val)
+                          val)
+                    loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
+        (set-uniform-at-index gl program loc val))))
 
   (unbind [this gl]
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
   (get-attrib-location [this gl name]
-    (when-let [program (scene-cache/request-object! ::shader request-id gl [verts frags])]
+    (when-let [[program _] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
       (gl/gl-get-attrib-location ^GL2 gl program name)))
 
   (set-uniform [this gl name val]
-    (when-let [program (scene-cache/request-object! ::shader request-id gl [verts frags])]
-      (let [loc (.glGetUniformLocation ^GL2 gl program name)]
+    (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
+      (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
         (set-uniform-at-index gl program loc val)))))
 
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
 of GLSL strings and returns an object that satisfies GlBind and GlEnable."
-  [request-id verts frags]
-  (->ShaderLifecycle request-id verts frags))
+  ([request-id verts frags]
+    (make-shader request-id verts frags {}))
+  ([request-id verts frags uniforms]
+    (->ShaderLifecycle request-id verts frags uniforms)))
 
 (defn load-shaders
   "Load a shader from files. Takes a PathManipulation that can be used to
@@ -463,20 +471,21 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (for [def shader-defs]
     (register workspace def)))
 
-(defn- make-shader-program [^GL2 gl [verts frags]]
+(defn- make-shader-program [^GL2 gl [verts frags uniforms]]
   (let [vs     (make-vertex-shader gl verts)
         fs      (make-fragment-shader gl frags)
-        program (make-program gl vs fs)]
+        program (make-program gl vs fs)
+        uniform-locs (into {} (map (fn [[name val]] [name (.glGetUniformLocation ^GL2 gl program name)]) uniforms))]
     (delete-shader gl vs)
     (delete-shader gl fs)
-    program))
+    [program uniform-locs]))
 
-(defn- update-shader-program [^GL2 gl program data]
+(defn- update-shader-program [^GL2 gl [program uniform-locs] data]
   (delete-shader gl program)
   (make-shader-program gl data))
 
 (defn- destroy-shader-programs [^GL2 gl programs]
-  (doseq [program programs]
+  (doseq [[program _] programs]
     (delete-shader gl program)))
 
 (scene-cache/register-object-cache! ::shader make-shader-program update-shader-program destroy-shader-programs)
