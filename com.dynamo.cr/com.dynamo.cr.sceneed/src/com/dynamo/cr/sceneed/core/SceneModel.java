@@ -143,14 +143,12 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             this.defaultFontRendererHandle = new FontRendererHandle();
             try {
                 loadFont("/builtins/fonts/system_font.font", this.defaultFontRendererHandle);
-            } catch (CoreException e) {
-                logger.error("Could not load default font");
-            } catch (IOException e) {
+            } catch (CoreException | IOException e) {
                 logger.error("Could not load default font");
             }
         }
 
-        if (this.defaultFontRendererHandle.isLoaded()) {
+        if (this.defaultFontRendererHandle.isValid()) {
             return this.defaultFontRendererHandle;
         }
         return null;
@@ -537,9 +535,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
             try {
                 loadFont(path, font);
-            } catch (CoreException e) {
-                logger.error("Could not load font " + path, e);
-            } catch (IOException e) {
+            } catch (CoreException | IOException e) {
                 logger.error("Could not load font " + path, e);
             }
 

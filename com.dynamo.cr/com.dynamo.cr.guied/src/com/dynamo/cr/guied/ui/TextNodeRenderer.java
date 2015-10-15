@@ -187,12 +187,12 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         FontRendererHandle textRenderHandle = null;
         textRenderHandle = node.getFontRendererHandle(gl);
 
-        if (textRenderHandle == null || !textRenderHandle.isLoaded()) {
+        if (textRenderHandle == null || !textRenderHandle.isValid()) {
             textRenderHandle = node.getDefaultFontRendererHandle();
             actualText = String.format("Error: Font '%s' not found", node.getFont());
         }
 
-        if (textRenderHandle == null || !textRenderHandle.isLoaded()) {
+        if (textRenderHandle == null || !textRenderHandle.isValid()) {
             // Failed to load default font renderer
             return;
         }

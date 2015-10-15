@@ -19,12 +19,11 @@ public class FontRendererHandle {
 
     private static Logger logger = LoggerFactory.getLogger(FontRendererHandle.class);
 
-    private FontMap fontMap;
-    private BufferedImage image;
+    private FontMap fontMap = null;
+    private BufferedImage image = null;
     private Fontc.InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
-    private Texture texture;
+    private Texture texture = null;
     private boolean reloadTexture = false;
-    private boolean loaded = false;
     private boolean awaitClear = false;
 
     private HashMap<Integer, FontMap.Glyph> glyphLookup;
@@ -43,7 +42,6 @@ public class FontRendererHandle {
             this.texture.destroy(gl);
             this.texture = null;
         }
-        this.loaded = false;
         this.awaitClear = false;
     }
 
@@ -59,8 +57,6 @@ public class FontRendererHandle {
             FontMap.Glyph g = this.fontMap.getGlyphs(i);
             this.glyphLookup.put(g.getCharacter(), g);
         }
-
-        this.loaded = true;
     }
 
     public Texture getTexture(GL2 gl) {
@@ -99,8 +95,8 @@ public class FontRendererHandle {
         return this.awaitClear;
     }
 
-    public boolean isLoaded() {
-        return this.loaded;
+    public boolean isValid() {
+        return (this.image != null && this.fontMap != null);
     }
 
     public FontMap getFontMap() {

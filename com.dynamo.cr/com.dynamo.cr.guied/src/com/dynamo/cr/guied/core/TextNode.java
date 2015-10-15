@@ -223,8 +223,14 @@ public class TextNode extends GuiNode {
                 }
             }
 
-            if (this.fontNode != null &&
-                !this.fontNode.getFont().equals(this.fontPath)) {
+            if ( this.fontNode != null &&
+                !this.fontNode.getId().equals(this.font)) {
+                this.fontRendererHandle = null;
+                this.fontPath = "";
+                updateFont();
+            }
+
+            if (this.fontNode != null && !this.fontNode.getFont().equals(this.fontPath)) {
                 this.fontRendererHandle = null;
                 this.fontPath = this.fontNode.getFont();
             }

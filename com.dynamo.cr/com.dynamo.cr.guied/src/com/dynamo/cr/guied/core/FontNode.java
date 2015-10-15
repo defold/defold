@@ -35,11 +35,6 @@ public class FontNode extends Node implements Identifiable {
     }
 
     @Override
-    public void setModel(ISceneModel model) {
-        super.setModel(model);
-    }
-
-    @Override
     public String getId() {
         return this.id;
     }
