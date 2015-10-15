@@ -155,7 +155,7 @@
                                                 (geom/scale [scale-f scale-f 1] vs-screen)
                                                 vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
-        (gl/with-gl-bindings gl [line-shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry
@@ -546,10 +546,10 @@
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
-(defn- render-emitter [emitter-sim-data ^GL gl vtx-binding view-proj emitter-index blend-mode v-index v-count]
+(defn- render-emitter [emitter-sim-data ^GL gl render-args vtx-binding view-proj emitter-index blend-mode v-index v-count]
   (let [gpu-texture (:gpu-texture (get emitter-sim-data emitter-index))
         blend-mode (convert-blend-mode blend-mode)]
-    (gl/with-gl-bindings gl [gpu-texture plib/shader vtx-binding]
+    (gl/with-gl-bindings gl render-args [gpu-texture plib/shader vtx-binding]
       (case blend-mode
         :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
         (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
@@ -571,7 +571,7 @@
             camera (:camera render-args)
             view-proj (doto (Matrix4d.)
                         (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
-        (plib/render pfx-sim (partial render-emitter-fn gl vtx-binding view-proj))))))
+        (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj))))))
 
 (g/defnk produce-scene [_node-id child-scenes rt-pb-data fetch-anim-fn render-emitter-fn]
   {:node-id _node-id
