@@ -25,8 +25,6 @@
                ; One component and game object under the game object
                (is (= 2 (count (:children (second (:children outline))))))))))
 
-(hierarchical-outline)
-
 (deftest hierarchical-scene
   (testing "Hierarchical scene"
            (with-clean-system
