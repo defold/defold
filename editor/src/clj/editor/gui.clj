@@ -810,7 +810,7 @@
   (FilenameUtils/getBaseName ^String (resource/resource-name resource)))
 
 (defn- add-gui-node-handler [project {:keys [scene parent node-type]}]
-  (let [index (inc (reduce max (g/node-value parent :child-indices)))
+  (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))
         id (outline/resolve-id (subs (name node-type) 5) (g/node-value scene :node-ids))]
     (g/transact
       (concat
