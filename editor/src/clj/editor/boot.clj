@@ -33,6 +33,7 @@
             [editor.spine :as spine]
             [editor.json :as json]
             [editor.mesh :as mesh]
+            [editor.material :as material]
             [editor.particlefx :as particlefx]
             [editor.gui :as gui]
             [editor.text :as text]
@@ -158,6 +159,7 @@
       (spine/register-resource-types workspace)
       (json/register-resource-types workspace)
       (mesh/register-resource-types workspace)
+      (material/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
       (gui/register-resource-types workspace)))
     workspace))

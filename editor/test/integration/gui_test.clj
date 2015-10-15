@@ -63,3 +63,10 @@
      (is (= "atlas_texture/anim" (prop atlas-gui-node :texture)))
      (prop! atlas-tex :name "new-name")
      (is (= "new-name/anim" (prop atlas-gui-node :texture))))))
+
+(deftest gui-shaders
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")]
+     (is (some? (g/node-value node-id :material-shader))))))
