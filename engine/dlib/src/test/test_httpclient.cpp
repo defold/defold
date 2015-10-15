@@ -373,14 +373,6 @@ TEST_P(dmHttpClientTest, ServerTimeout)
     }
 }
 
-::testing::AssertionResult IsSocketResultOkOrTimedout(dmSocket::Result r)
-{
-  if (r == dmSocket::RESULT_OK || r == dmSocket::RESULT_TIMEDOUT)
-    return ::testing::AssertionSuccess();
-  else
-    return ::testing::AssertionFailure() << r << " is not dmSocket::RESULT_OK or dmSocket::RESULT_TIMEDOUT";
-}
-
 TEST_P(dmHttpClientTest, ClientTimeout)
 {
     char buf[128];
@@ -393,9 +385,8 @@ TEST_P(dmHttpClientTest, ClientTimeout)
         r = dmHttpClient::Get(m_Client, "/sleep/10000"); // milliseconds
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
-        ASSERT_EQ(dmHttpClient::RESULT_TIMEOUT, r);
         ASSERT_EQ(-1, m_StatusCode);
-        ASSERT_TRUE(IsSocketResultOkOrTimedout( dmHttpClient::GetLastSocketResult(m_Client) ));
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
 
         m_Content = "";
         sprintf(buf, "/add/%d/1000", i);
@@ -404,6 +395,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
         ASSERT_EQ(200, m_StatusCode);
     }
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0);
 }
 
 TEST_P(dmHttpClientTest, ServerClose)
