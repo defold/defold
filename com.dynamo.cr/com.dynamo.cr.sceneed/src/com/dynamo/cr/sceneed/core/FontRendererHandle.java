@@ -59,17 +59,20 @@ public class FontRendererHandle {
             FontMap.Glyph g = this.fontMap.getGlyphs(i);
             this.glyphLookup.put(g.getCharacter(), g);
         }
-        
+
         this.loaded = true;
     }
 
     public Texture getTexture(GL2 gl) {
-        
+
         try {
 
             if (this.reloadTexture) {
                 this.reloadTexture = false;
 
+                if (this.texture != null) {
+                    this.texture.destroy(gl);
+                }
                 generateTexture(gl);
             }
 
@@ -87,19 +90,19 @@ public class FontRendererHandle {
         }
         return g;
     }
-    
-    public void setShoudClear() {
+
+    public void setDeferredClear() {
         this.awaitClear = true;
     }
-    
-    public boolean getShoudClear() {
+
+    public boolean getDeferredClear() {
         return this.awaitClear;
     }
 
     public boolean isLoaded() {
         return this.loaded;
     }
-    
+
     public FontMap getFontMap() {
         return fontMap;
     }

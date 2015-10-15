@@ -24,9 +24,9 @@ import com.dynamo.proto.DdfMath.Vector4;
 
 @SuppressWarnings("serial")
 public class TextNode extends GuiNode {
-    
+
     private static Logger logger = LoggerFactory.getLogger(TextNode.class);
-    
+
     @Property
     private String text = "";
 
@@ -51,11 +51,22 @@ public class TextNode extends GuiNode {
     private double shadowAlpha = 1.0;
 
     private transient String fontPath = "";
+    private transient FontNode fontNode = null;
     private transient FontRendererHandle fontRendererHandle = null;
 
     public TextNode() {
         super();
         updateFont();
+    }
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        if (this.fontRendererHandle != null &&
+            this.fontRendererHandle.getDeferredClear()) {
+            this.fontRendererHandle.clear(gl);
+            this.fontRendererHandle = null;
+        }
     }
 
     public String getText() {
@@ -192,83 +203,76 @@ public class TextNode extends GuiNode {
         return GuiNodeStateBuilder.isFieldOverridden(this, "ShadowAlpha", (float)this.shadowAlpha);
     }
 
-    private String findFontPathByName(List<Node> fontNodes) {
+    private FontNode findFontByName(List<Node> fontNodes) {
         for (Node n : fontNodes) {
             FontNode fontNode = (FontNode) n;
             if (fontNode.getId().equals(this.font)) {
-                return fontNode.getFont();
+                return fontNode;
             }
         }
         return null;
     }
-    
+
     public FontRendererHandle getFontRendererHandle(GL2 gl) {
-        
-//        String curr = getFontResourcePath();
-//        if ( !this.fontPath.equals(curr) ) {
-//            this.fontRendererHandle = null;
-//        }
-//        
-        if (this.fontRendererHandle != null) {
-            
-            if (this.fontRendererHandle.getShoudClear()) {
-                this.fontRendererHandle.clear(gl);
-                this.fontRendererHandle = null;
-            } else {
-                return this.fontRendererHandle;
+        if (getModel() != null) {
+
+            if (this.fontRendererHandle != null) {
+                if (this.fontRendererHandle.getDeferredClear()) {
+                    this.fontRendererHandle.clear(gl);
+                    this.fontRendererHandle = null;
+                }
             }
+
+            if (this.fontNode != null &&
+                !this.fontNode.getFont().equals(this.fontPath)) {
+                this.fontRendererHandle = null;
+                this.fontPath = this.fontNode.getFont();
+            }
+
+            if (this.fontRendererHandle == null &&
+                !this.fontPath.isEmpty()) {
+                this.fontRendererHandle = getModel().getFont(this.fontPath);
+
+            }
+
         }
-        
-//        this.fontPath = curr;
-        
-        if (!this.fontPath.isEmpty() && getModel() != null) {
-            logger.error("getting new font: " + this.fontPath);
-            this.fontRendererHandle = getModel().getFont(this.fontPath);
-            logger.error("got: " + this.fontRendererHandle);
-        }
+
         return this.fontRendererHandle;
     }
 
-    
+
     public FontRendererHandle getDefaultFontRendererHandle() {
         if (getModel() != null) {
             return getModel().getDefaultFontRendererHandle();
         }
         return null;
     }
-    
-    private String getFontResourcePath() {
-        if (!this.font.isEmpty() && getModel() != null) {
-            GuiSceneNode scene = getScene();
-            String font = this.findFontPathByName(scene.getFontsNode().getChildren());
-            if(this.fontPath == null) {
-                TemplateNode parentTemplate = this.getParentTemplateNode();
-                if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-                    font = this.findFontPathByName(parentTemplate.getTemplateScene().getFontsNode().getChildren());
-                }
-            }
-            
-            return font;
-        }
-        
-        return null;
-    }
 
     private void updateFont() {
         if (!this.font.isEmpty() && getModel() != null) {
+
             GuiSceneNode scene = getScene();
-            String newFontPath = this.findFontPathByName(scene.getFontsNode().getChildren());
-            if(this.fontPath == null) {
+            this.fontNode = this.findFontByName(scene.getFontsNode().getChildren());
+            if(fontNode == null) {
                 TemplateNode parentTemplate = this.getParentTemplateNode();
                 if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-                    newFontPath = this.findFontPathByName(parentTemplate.getTemplateScene().getFontsNode().getChildren());
+                    this.fontNode = this.findFontByName(parentTemplate.getTemplateScene().getFontsNode().getChildren());
                 }
             }
-            
-            if (newFontPath == null || this.fontPath.equals(newFontPath)) {
+
+            String newFontPath = null;
+            if (this.fontNode != null) {
+                newFontPath = this.fontNode.getFont();
+            }
+
+            if (newFontPath == null) {
+                newFontPath = "";
+            }
+
+            if (!this.fontPath.equals(newFontPath)) {
                 this.fontRendererHandle = null;
             }
-            
+
         }
     }
 

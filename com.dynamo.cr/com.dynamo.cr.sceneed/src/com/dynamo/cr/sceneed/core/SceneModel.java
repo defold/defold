@@ -77,7 +77,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     private final Map<String, BufferedImage> imageCache = new HashMap<String, BufferedImage>();
     private final Map<String, TextureHandle> textureCache = new HashMap<String, TextureHandle>();
     private final Map<String, FontRendererHandle> fontCache = new HashMap<String, FontRendererHandle>();
-    private final FontRendererHandle defaultFontRendererHandle = new FontRendererHandle();
+    private FontRendererHandle defaultFontRendererHandle = null;
 
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
 
@@ -134,24 +134,28 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     @Inject
     public void init() {
         this.history.addOperationHistoryListener(this);
-        
-        try {
-            loadFont("/builtins/fonts/system_font.font", this.defaultFontRendererHandle);
-        } catch (CoreException e) {
-            logger.error("Could not load default font");
-        } catch (IOException e) {
-            logger.error("Could not load default font");
-        }
-        
+
     }
-    
+
     public FontRendererHandle getDefaultFontRendererHandle() {
+
+        if (this.defaultFontRendererHandle == null) {
+            this.defaultFontRendererHandle = new FontRendererHandle();
+            try {
+                loadFont("/builtins/fonts/system_font.font", this.defaultFontRendererHandle);
+            } catch (CoreException e) {
+                logger.error("Could not load default font");
+            } catch (IOException e) {
+                logger.error("Could not load default font");
+            }
+        }
+
         if (this.defaultFontRendererHandle.isLoaded()) {
             return this.defaultFontRendererHandle;
         }
         return null;
     }
-    
+
 
     public void dispose(GL2 gl) {
         if (this.root != null) {
@@ -314,6 +318,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         @Override
         public boolean visit(IResourceDelta delta) throws CoreException {
             IResource resource = delta.getResource();
+
             if (resource instanceof IFile) {
                 String path = EditorUtil.makeResourcePath(contentRoot, resource);
                 // Remove from cache so we guarantee reload
@@ -325,20 +330,20 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
                         // Clearing image means texture will be disposed at next access
                         texture.setImage(null);
                     }
-                    
+
                 }
-                
+
                 if (fontCache.containsKey(path)) {
-                    logger.error("a font will be unloaded/reloaded: " + path);
                     FontRendererHandle font = fontCache.get(path);
                     fontCache.remove(path);
                     fontCache.put(path, null);
+
+                    // Need to wait to clear font, needs active GL to dispose of texture
                     if (font != null) {
-                        logger.error("setting should clear: " + path);
-                        font.setShoudClear();
+                        font.setDeferredClear();
                     }
                 }
-                
+
                 if (loaderContext != null) {
                     loaderContext.removeFromCache(path);
                 }
@@ -469,7 +474,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         }
         return texture;
     }
-    
+
     private void loadFont(String fontPath, FontRendererHandle handle) throws CoreException, IOException {
         IProject project = EditorUtil.getProject();
         final IContainer contentRoot = EditorUtil.getContentRoot(project);
@@ -522,15 +527,14 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         handle.setFont(fontMapBuilder.build(), image, fontc.getInputFormat());
 
     }
-    
+
     @Override
     public FontRendererHandle getFont(String path) {
         FontRendererHandle font = this.fontCache.get(path);
         if (font == null) {
-            logger.error("font " + path + " not found in cache, creating");
             font = new FontRendererHandle();
             this.fontCache.put(path, font);
-            
+
             try {
                 loadFont(path, font);
             } catch (CoreException e) {
@@ -538,7 +542,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             } catch (IOException e) {
                 logger.error("Could not load font " + path, e);
             }
-            
+
         }
         return font;
     }
