@@ -373,21 +373,29 @@ TEST_P(dmHttpClientTest, ServerTimeout)
     }
 }
 
+::testing::AssertionResult IsSocketResultOkOrTimedout(dmSocket::Result r)
+{
+  if (r == dmSocket::RESULT_OK || r == dmSocket::RESULT_TIMEDOUT)
+    return ::testing::AssertionSuccess();
+  else
+    return ::testing::AssertionFailure() << r << " is not dmSocket::RESULT_OK or dmSocket::RESULT_TIMEDOUT";
+}
+
 TEST_P(dmHttpClientTest, ClientTimeout)
 {
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_SEND_TIMEOUT, 100 * 1000);
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_RECEIVE_TIMEOUT, 100 * 1000);
     char buf[128];
     for (int i = 0; i < 10; ++i)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
         m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, ((i+1) * 100) * 1000); // microseconds
+        r = dmHttpClient::Get(m_Client, "/sleep/10000"); // milliseconds
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_EQ(dmHttpClient::RESULT_TIMEOUT, r);
         ASSERT_EQ(-1, m_StatusCode);
-        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
+        ASSERT_TRUE(IsSocketResultOkOrTimedout( dmHttpClient::GetLastSocketResult(m_Client) ));
 
         m_Content = "";
         sprintf(buf, "/add/%d/1000", i);
