@@ -634,6 +634,11 @@
                               (ip/getter-for (gt/property-type node-type prop))
                               `(get-in ~propmap-sym [~prop :internal.property/value]))))
 
+(defn defer-value-validation
+  [ctx-name forms]
+  `(let [~ctx-name (assoc ~ctx-name :skip-validation true)]
+     ~forms))
+
 (defn collect-property-value
   [self-name ctx-name node-type-name node-type propmap-sym prop]
   (let [property-definition (gt/property-type node-type prop)
@@ -651,7 +656,7 @@
            ~'v
            (if (ie/error? ~'v)
              ~'v
-             ~validate-expr)))
+             ~(defer-value-validation ctx-name validate-expr))))
       get-expr)))
 
 (defn- node-input-forms
@@ -798,11 +803,6 @@
   (for [transform (ordinary-output-labels node-type)]
     (node-output-value-function self-name ctx-name record-name node-type-name node-type transform)))
 
-(defn defer-value-validation
-  [ctx-name forms]
-  `(let [~ctx-name (assoc ~ctx-name :skip-validation true)]
-     ~forms))
-
 (defn- has-dynamics? [ptype] (not (nil? (gt/dynamic-attributes ptype))))
 
 (defn attach-property-dynamics
@@ -859,11 +859,12 @@
 
 (defn merge-problems
   [value-map validation-map]
-  (let [merger (fn [value problem]
-                 (let [original-value (:value value)
-                       problem        (assoc problem :value original-value)]
-                   (assoc value :validation-problems problem :value problem)))]
-    (merge-with merger value-map validation-map)))
+  (let [validation-map (into {} (filter (comp not nil? second) validation-map))]
+    (let [merger (fn [value problem]
+                   (let [original-value (:value value)
+                         problem (assoc problem :value original-value)]
+                     (assoc value :validation-problems problem :value problem)))]
+      (merge-with merger value-map validation-map))))
 
 (defn- assemble-properties-map
   [value-sym validation-sym display-sym]
