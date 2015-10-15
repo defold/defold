@@ -24,7 +24,6 @@ namespace dmHttpClient
         RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
         RESULT_HANDSHAKE_FAILED = -9,             //!< RESULT_HANDSHAKE_FAILED
         RESULT_INVAL = -10,                       //!< RESULT_INVAL
-        RESULT_TIMEOUT = -11,                     //!< RESULT_TIMEOUT
         RESULT_UNKNOWN = -1000,                   //!< RESULT_UNKNOWN
     };
 
