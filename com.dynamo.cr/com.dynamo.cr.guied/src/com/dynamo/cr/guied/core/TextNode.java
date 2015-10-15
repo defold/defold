@@ -269,7 +269,7 @@ public class TextNode extends GuiNode {
                 newFontPath = "";
             }
 
-            if (!this.fontPath.equals(newFontPath)) {
+            if (this.fontPath != null && !this.fontPath.equals(newFontPath)) {
                 this.fontRendererHandle = null;
             }
 
