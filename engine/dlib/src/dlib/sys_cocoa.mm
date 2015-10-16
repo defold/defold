@@ -19,6 +19,16 @@
 
 namespace dmSys
 {
+    static inline void PatchSystemName(char *system_name, uint32_t buffer_size)
+    {
+        // Apple have in iOS 9.1 beta changed from "iPhone OS" to "iOS" as part of their rebranding sceme.
+        // In case this beta reached a public release, we patch "iOS" to "iPhone OS" as system name to guarantee continuity on existing products.
+        if(dmStrCaseCmp(system_name, "iOS")==0)
+        {
+            dmStrlCpy(system_name, "iPhone OS", buffer_size);
+        }
+    }
+
 #if defined(__arm__) || defined(__arm64__)
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
@@ -146,6 +156,7 @@ namespace dmSys
         dmStrlCpy(info->m_Manufacturer, "Apple", sizeof(info->m_Manufacturer));
         dmStrlCpy(info->m_DeviceModel, uts.machine, sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, [d.systemName UTF8String], sizeof(info->m_SystemName));
+        PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));
 
         NSLocale* locale = [NSLocale currentLocale];
@@ -195,6 +206,7 @@ namespace dmSys
         uname(&uts);
 
         dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
+        PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
 
