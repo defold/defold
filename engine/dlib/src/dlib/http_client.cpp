@@ -29,8 +29,6 @@ namespace dmHttpClient
 
     const uint32_t MAX_POOL_CONNECTIONS = 32;
 
-    const int SOCKET_TIMEOUT = 500 * 1000;
-
     // TODO: This is not good. Singleton like stuff
     // that requires a lock for initialization
     // See comment in GetPool()
@@ -158,8 +156,8 @@ namespace dmHttpClient
         HttpWrite           m_HttpWrite;
         HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
-        uint64_t            m_RequestTimeout;
-        uint64_t            m_RequestStart;
+        uint64_t            m_SendTimeout;
+        uint64_t            m_ReceiveTimeout;
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
@@ -181,8 +179,8 @@ namespace dmHttpClient
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
             m_SSLConnection = (SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
 
-            dmSocket::SetSendTimeout(m_Socket, SOCKET_TIMEOUT);
-            dmSocket::SetReceiveTimeout(m_Socket, SOCKET_TIMEOUT);
+            dmSocket::SetSendTimeout(m_Socket, this->m_Client->m_SendTimeout);
+            dmSocket::SetReceiveTimeout(m_Socket, this->m_Client->m_ReceiveTimeout);
 
             return RESULT_OK;
         } else {
@@ -251,8 +249,8 @@ namespace dmHttpClient
         client->m_HttpWrite = params->m_HttpWrite;
         client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
         client->m_MaxGetRetries = 4;
-        client->m_RequestTimeout = 0;
-        client->m_RequestStart = 0;
+        client->m_SendTimeout = 0;
+        client->m_ReceiveTimeout = 0;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
@@ -274,8 +272,11 @@ namespace dmHttpClient
                     return RESULT_INVAL_ERROR;
                 client->m_MaxGetRetries = (int) value;
                 break;
-            case OPTION_REQUEST_TIMEOUT:
-                client->m_RequestTimeout = (uint64_t) value;
+            case OPTION_SEND_TIMEOUT:
+                client->m_SendTimeout = (uint64_t) value;
+                break;
+            case OPTION_RECEIVE_TIMEOUT:
+                client->m_ReceiveTimeout = (uint64_t) value;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
@@ -293,14 +294,6 @@ namespace dmHttpClient
     dmSocket::Result GetLastSocketResult(HClient client)
     {
         return client->m_SocketResult;
-    }
-
-    static bool HasRequestTimedOut(HClient client)
-    {
-        if( client->m_RequestTimeout == 0 )
-            return false;
-        uint64_t currenttime = dmTime::GetTime();
-        return (currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
     }
 
     static dmSocket::Result SSLToSocket(int r) {
@@ -337,16 +330,6 @@ namespace dmHttpClient
 
             while (total_sent_bytes < length) {
                 dmSocket::Result r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
-
-                if( r == dmSocket::RESULT_WOULDBLOCK )
-                {
-                    r = dmSocket::RESULT_TRY_AGAIN;
-                }
-                if( HasRequestTimedOut(response->m_Client) )
-                {
-                    r = dmSocket::RESULT_WOULDBLOCK;
-                }
-
                 if (r == dmSocket::RESULT_TRY_AGAIN)
                     continue;
 
@@ -376,8 +359,8 @@ namespace dmHttpClient
                 uint64_t start = dmTime::GetTime();
                 r = ssl_read(response->m_SSLConnection, &buf);
                 uint64_t end = dmTime::GetTime();
-                uint64_t timeout = response->m_Client->m_RequestTimeout;
-                if (timeout > 0 && (end - start) > SOCKET_TIMEOUT) {
+                uint64_t timeout = response->m_Client->m_ReceiveTimeout;
+                if (timeout > 0 && (end - start) > timeout) {
                     return dmSocket::RESULT_WOULDBLOCK;
                 }
             } while (r == SSL_OK);
@@ -483,16 +466,6 @@ namespace dmHttpClient
 
             int recv_bytes;
             dmSocket::Result r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
-
-            if( r == dmSocket::RESULT_WOULDBLOCK )
-            {
-                r = dmSocket::RESULT_TRY_AGAIN;
-            }
-            if( HasRequestTimedOut(client) )
-            {
-                r = dmSocket::RESULT_WOULDBLOCK;
-            }
-
             if (r == dmSocket::RESULT_TRY_AGAIN)
                 continue;
 
@@ -673,16 +646,6 @@ bail:
 
             int recv_bytes;
             dmSocket::Result sock_res = Receive(response, client->m_Buffer, BUFFER_SIZE, &recv_bytes);
-
-            if( sock_res == dmSocket::RESULT_WOULDBLOCK )
-            {
-                sock_res = dmSocket::RESULT_TRY_AGAIN;
-            }
-            if( HasRequestTimedOut(response->m_Client) )
-            {
-                sock_res = dmSocket::RESULT_WOULDBLOCK;
-            }
-
             if (sock_res == dmSocket::RESULT_OK)
             {
                 if (recv_bytes == 0)
@@ -836,16 +799,6 @@ bail:
 
                     int recv_bytes;
                     dmSocket::Result sock_r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
-
-                    if( sock_r == dmSocket::RESULT_WOULDBLOCK )
-                    {
-                        sock_r = dmSocket::RESULT_TRY_AGAIN;
-                    }
-                    if( HasRequestTimedOut(response->m_Client) )
-                    {
-                        sock_r = dmSocket::RESULT_WOULDBLOCK;
-                    }
-
                     if (sock_r == dmSocket::RESULT_TRY_AGAIN)
                         continue;
 
@@ -867,7 +820,7 @@ bail:
         return r;
     }
 
-    static Result DoDoRequest(HClient client, Response& response, const char* path, const char* method)
+    Result DoDoRequest(HClient client, Response& response, const char* path, const char* method)
     {
         dmSocket::Result sock_res;
 
@@ -946,7 +899,7 @@ bail:
         return r;
     }
 
-    static Result DoRequest(HClient client, const char* path, const char* method)
+    Result DoRequest(HClient client, const char* path, const char* method)
     {
         // Theoretically we can be in a state where every
         // connections in the pool is closed by the remote peer
@@ -1023,7 +976,6 @@ bail:
     Result Get(HClient client, const char* path)
     {
         DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
-        client->m_RequestStart = dmTime::GetTime();
 
         Result r;
 
@@ -1079,7 +1031,6 @@ bail:
             return Get(client, path);
         } else {
             DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
-            client->m_RequestStart = dmTime::GetTime();
             Result r = DoRequest(client, path, method);
             return r;
         }
