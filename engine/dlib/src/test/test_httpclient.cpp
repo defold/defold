@@ -375,13 +375,14 @@ TEST_P(dmHttpClientTest, ServerTimeout)
 
 TEST_P(dmHttpClientTest, ClientTimeout)
 {
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 100 * 1000); // microseconds
+
     char buf[128];
     for (int i = 0; i < 10; ++i)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
         m_Content = "";
-        dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, ((i+1) * 100) * 1000); // microseconds
         r = dmHttpClient::Get(m_Client, "/sleep/10000"); // milliseconds
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
