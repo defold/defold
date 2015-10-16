@@ -9,8 +9,7 @@
         font-map-builder (Font$FontMap/newBuilder)
         font-res-resolver (reify Fontc$FontResourceResolver
                             (getResource [this resource-name]
-                              (prn "resource" resource-name)
-                              (io/input-stream (resolver resource-name))))]
+                              (io/input-stream (resolver (str "/" resource-name)))))]
     (with-open [font-stream (io/input-stream font-path)]
       (let [image (-> (Fontc.)
                     (.compile font-stream font-desc font-map-builder font-res-resolver))]
