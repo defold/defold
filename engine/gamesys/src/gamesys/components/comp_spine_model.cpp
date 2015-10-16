@@ -1048,9 +1048,10 @@ namespace dmGameSystem
                     dmTransform::Transform parent_t_local = parent_t;
                     dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
                     const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
+                    dmTransform::Transform parent_parent_t;
                     if(parent_parent_index != INVALID_BONE_INDEX)
                     {
-                        dmTransform::Transform parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
+                        parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
                         parent_t = dmTransform::Mul(parent_parent_t, parent_t);
                         target_t = dmTransform::Mul(parent_parent_t, target_t);
                     }
@@ -1088,6 +1089,8 @@ namespace dmGameSystem
                         user_target_position -=  t.GetTranslation();
                         Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(component->m_Instance) * component->m_Transform.GetRotation());
                         user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(component->m_Instance));
+                        if(parent_parent_index != INVALID_BONE_INDEX)
+                            user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
 
                         // blend default target pose and target pose
                         target_position = target_mix == 1.0f ? user_target_position : dmTransform::lerp(target_mix, target_position, user_target_position);
