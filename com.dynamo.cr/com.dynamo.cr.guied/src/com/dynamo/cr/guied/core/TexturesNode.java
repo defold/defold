@@ -45,6 +45,11 @@ public class TexturesNode extends LabelNode {
                     continue;
                 }
 
+                if (textureSetNode == null) {
+                    logger.error("Failed loading resource: " + textureNode.getTexture());
+                    continue;
+                }
+
                 List<String> animationsIds = textureSetNode.getAnimationIds();
                 for(String animationsId : animationsIds) {
                     textures.add(textureNode.getId() + "/" + animationsId);
