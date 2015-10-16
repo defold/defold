@@ -155,6 +155,16 @@
       (.set out-rotation mat3)
       (.set out-scale scale))))
 
+(defn affine-inverse ^Matrix4d [^Matrix4d mat]
+  (let [t (Vector3d.)
+        rs (Matrix3d.)]
+    (.get mat t)
+    (.getRotationScale mat rs)
+    (.transpose rs)
+    (.negate t)
+    (.transform rs t)
+    (doto (Matrix4d.) (.set t) (.setRotationScale rs))))
+
 (defprotocol VecmathConverter
   (clj->vecmath [this v])
   (vecmath->clj [this]))
