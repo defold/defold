@@ -11,7 +11,7 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -264,6 +264,10 @@
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
 
 (extend-type ButtonBase
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+
+(extend-type ColorPicker
   HasAction
   (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
 

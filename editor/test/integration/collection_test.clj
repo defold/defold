@@ -23,7 +23,7 @@
                ; Two game objects under the collection
                (is (= 2 (count (:children outline))))
                ; One component and game object under the game object
-               (is (= 2 (count (:children (first (:children outline))))))))))
+               (is (= 2 (count (:children (second (:children outline))))))))))
 
 (deftest hierarchical-scene
   (testing "Hierarchical scene"

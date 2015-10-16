@@ -66,8 +66,8 @@
 (def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
 
 (defn render-texture-set
-  [gl vertex-binding gpu-texture]
-  (gl/with-gl-bindings gl [gpu-texture atlas-shader vertex-binding]
+  [gl render-args vertex-binding gpu-texture]
+  (gl/with-gl-bindings gl render-args [gpu-texture atlas-shader vertex-binding]
     (shader/set-uniform atlas-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
 
@@ -171,8 +171,7 @@
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id child-outlines] {:node-id _node-id
                                          :label id
-                                         :sort-by-fn :order
-                                         :children child-outlines
+                                         :children (sort-by :order child-outlines)
                                          :icon animation-icon
                                          :child-reqs [{:node-type AtlasImage
                                                        :tx-attach-fn tx-attach-image-to-animation}]}))
@@ -236,7 +235,7 @@
                                (let [pass (:pass render-args)]
                                  (cond
                                    (= pass pass/overlay)     (render-overlay gl width height)
-                                   (= pass pass/transparent) (render-texture-set gl vertex-binding gpu-texture))))
+                                   (= pass pass/transparent) (render-texture-set gl render-args vertex-binding gpu-texture))))
                   :passes [pass/overlay pass/transparent]}}))
 
 (g/defnk produce-texture-set-data [animations images margin inner-padding extrude-borders]
@@ -312,11 +311,11 @@
   (output aabb             AABB                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output texture-set-data g/Any               :cached produce-texture-set-data)
+  (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
   (output anim-data        g/Any               :cached produce-anim-data)
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id
                                                                                          :label "Atlas"
-                                                                                         :sort-by-fn atlas-outline-sort-by-fn
-                                                                                         :children child-outlines
+                                                                                         :children (sort-by atlas-outline-sort-by-fn child-outlines)
                                                                                          :icon atlas-icon
                                                                                          :child-reqs [{:node-type AtlasImage
                                                                                                        :tx-attach-fn tx-attach-image-to-atlas

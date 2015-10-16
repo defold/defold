@@ -152,8 +152,7 @@
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Tile Source"
-   :children child-outlines
-   :sort-by-fn (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)])
+   :children (sort-by (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)]) child-outlines)
    :child-reqs [{:node-type TileAnimationNode
                  :tx-attach-fn attach-animation-node}
                 {:node-type CollisionGroupNode
@@ -201,8 +200,8 @@
            (conj! [x0 y0 0 1 0 1])))))
 
 (defn- render-texture-set
-  [^GL2 gl vertex-binding gpu-texture]
-  (gl/with-gl-bindings gl [gpu-texture tile-shader vertex-binding]
+  [^GL2 gl render-args vertex-binding gpu-texture]
+  (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vertex-binding]
     (shader/set-uniform tile-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
                         
@@ -216,7 +215,7 @@
      :renderable {:render-fn (fn [gl render-args renderables count]
                                (let [pass (:pass render-args)]
                                  (condp = pass
-                                   pass/transparent (render-texture-set gl vertex-binding gpu-texture))))
+                                   pass/transparent (render-texture-set gl render-args vertex-binding gpu-texture))))
                   :passes [pass/transparent]
                   }
      }))
@@ -247,6 +246,7 @@
   (output pb g/Any :cached produce-pb)
   (output save-data g/Any :cached produce-save-data)
   (output texture-set-data g/Any :cached produce-texture-set-data)
+  (output packed-image BufferedImage (g/fnk [texture-set-data] (:image texture-set-data)))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output anim-data g/Any :cached produce-anim-data)) 
