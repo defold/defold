@@ -21,6 +21,4 @@
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/fonts/score.font")
           scene (g/node-value node-id :scene)]
-      (prn "scene" scene))))
-
-(load-material-render-data)
+      (is (not (nil? scene))))))
