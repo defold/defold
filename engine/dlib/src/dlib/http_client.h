@@ -85,8 +85,10 @@ namespace dmHttpClient
     {
         /// Maximum number of retries for GET-request. Default is 4.
         OPTION_MAX_GET_RETRIES,
-        /// Request timeout in us
-        OPTION_REQUEST_TIMEOUT,
+        /// Send timeout in us
+        OPTION_SEND_TIMEOUT,
+        /// Receive timeout in us
+        OPTION_RECEIVE_TIMEOUT,
     };
 
     /**
