@@ -13,6 +13,7 @@
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
+            [editor.outline :as outline]
             [editor.protobuf :as protobuf])
   (:import [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -102,8 +103,10 @@
     (into {} (map #(do [(:id %) (->anim-data % tex-coords uv-transforms)]) animations))))
 
 (g/defnode CollisionGroupNode
+  (inherits outline/OutlineNode)
   (property id g/Str)
-  (output outline g/Any (g/fnk [_node-id id] {:node-id _node-id :label id :icon collision-icon})))
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id id] {:node-id _node-id :label id :icon collision-icon})))
 
 (defn- boolean->int [b]
   (if b 1 0))
@@ -115,6 +118,7 @@
       (update :flip-vertical boolean->int)))
 
 (g/defnode TileAnimationNode
+  (inherits outline/OutlineNode)
   (property id g/Str)
   (property start-tile g/Int)
   (property end-tile g/Int)
@@ -136,20 +140,19 @@
 (defn- attach-animation-node [self animation-node]
   (concat
    (g/connect animation-node :_node-id self :nodes)
-   (g/connect animation-node :outline self :animation-outlines)
+   (g/connect animation-node :node-outline self :child-outlines)
    (g/connect animation-node :ddf-message self :animation-ddfs)))
 
 (defn- attach-collision-group-node [self collision-group-node]
   (concat
    (g/connect collision-group-node :_node-id self :nodes)
-   (g/connect collision-group-node :outline self :collision-group-outlines)
+   (g/connect collision-group-node :node-outline self :child-outlines)
    (g/connect collision-group-node :id self :collision-groups)))
 
-(g/defnk produce-tile-source-outline [_node-id animation-outlines collision-group-outlines]
+(g/defnk produce-tile-source-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Tile Source"
-   :children (concat (sort-by :label animation-outlines)
-                     (sort-by :label collision-group-outlines))
+   :children (sort-by (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)]) child-outlines)
    :child-reqs [{:node-type TileAnimationNode
                  :tx-attach-fn attach-animation-node}
                 {:node-type CollisionGroupNode
@@ -197,8 +200,8 @@
            (conj! [x0 y0 0 1 0 1])))))
 
 (defn- render-texture-set
-  [^GL2 gl vertex-binding gpu-texture]
-  (gl/with-gl-bindings gl [gpu-texture tile-shader vertex-binding]
+  [^GL2 gl render-args vertex-binding gpu-texture]
+  (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vertex-binding]
     (shader/set-uniform tile-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
                         
@@ -212,7 +215,7 @@
      :renderable {:render-fn (fn [gl render-args renderables count]
                                (let [pass (:pass render-args)]
                                  (condp = pass
-                                   pass/transparent (render-texture-set gl vertex-binding gpu-texture))))
+                                   pass/transparent (render-texture-set gl render-args vertex-binding gpu-texture))))
                   :passes [pass/transparent]
                   }
      }))
@@ -227,34 +230,26 @@
   (property tile-spacing g/Int (default 0))
   (property collision (g/protocol workspace/Resource)) ; optional
   (property material-tag g/Str (default "tile"))
-
   (property convex-hulls g/Any (dynamic visible (g/always false)))
   (property convex-hull-points g/Any (dynamic visible (g/always false)))
-
-  (input collision-groups g/Str :array)
-  (input animation-ddfs g/Any :array)
-
-  (input animation-outlines g/Any :array)
-  (input collision-group-outlines g/Any :array)
-
   (property extrude-borders g/Int (default 0))
   (property inner-padding g/Int (default 0))
 
+  (input collision-groups g/Str :array)
+  (input animation-ddfs g/Any :array)
   (input image-content BufferedImage)
   (input collision-content BufferedImage)
 
-  (output aabb AABB produce-aabb)
-
-  (output scene g/Any produce-scene)
-
-  (output outline g/Any produce-tile-source-outline)
-  
-  (output pb g/Any produce-pb)
-  (output save-data g/Any        :cached produce-save-data)
+  (output aabb AABB :cached produce-aabb)
+  (output scene g/Any :cached produce-scene)
+  (output node-outline outline/OutlineData :cached produce-tile-source-outline)
+  (output pb g/Any :cached produce-pb)
+  (output save-data g/Any :cached produce-save-data)
   (output texture-set-data g/Any :cached produce-texture-set-data)
-  (output build-targets g/Any    :cached produce-build-targets)
-  (output gpu-texture g/Any      :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
-  (output anim-data g/Any        :cached produce-anim-data))
+  (output packed-image BufferedImage (g/fnk [texture-set-data] (:image texture-set-data)))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
+  (output anim-data g/Any :cached produce-anim-data)) 
 
 (defn- disconnect-all [node-id label]
   (for [[src-node-id src-label] (g/sources-of node-id label)]
@@ -350,8 +345,3 @@
               ]))
   (run [selection user-data]
     ((:action user-data) (first selection))))
-           
-
-               
-         
-

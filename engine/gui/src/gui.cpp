@@ -41,7 +41,7 @@ namespace dmGui
     const uint32_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
     const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
-    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
+    inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity);
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -1032,7 +1032,7 @@ namespace dmGui
 
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
-        c->m_RenderColors.SetSize(0);
+        c->m_RenderOpacities.SetSize(0);
         c->m_StencilClippingNodes.SetSize(0);
         c->m_StencilScopes.SetSize(0);
         c->m_StencilScopeIndices.SetSize(0);
@@ -1041,7 +1041,7 @@ namespace dmGui
         {
             c->m_RenderNodes.SetCapacity(capacity);
             c->m_RenderTransforms.SetCapacity(capacity);
-            c->m_RenderColors.SetCapacity(capacity);
+            c->m_RenderOpacities.SetCapacity(capacity);
             c->m_SceneTraversalCache.m_Data.SetCapacity(capacity);
             c->m_SceneTraversalCache.m_Data.SetSize(capacity);
             c->m_StencilClippingNodes.SetCapacity(capacity);
@@ -1060,15 +1060,16 @@ namespace dmGui
         uint32_t node_count = c->m_RenderNodes.Size();
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
         Matrix4 transform;
-        Vector4 color;
+
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const RenderEntry& entry = c->m_RenderNodes[i];
             uint16_t index = entry.m_Node & 0xffff;
             InternalNode* n = &scene->m_Nodes[index];
-            CalculateNodeTransformAndColorCached(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, color);
+            float opacity = 1.0f;
+            CalculateNodeTransformAndAlphaCached(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, opacity);
             c->m_RenderTransforms.Push(transform);
-            c->m_RenderColors.Push(color);
+            c->m_RenderOpacities.Push(opacity);
             if (n->m_ClipperIndex != INVALID_INDEX) {
                 InternalClippingNode* clipper = &c->m_StencilClippingNodes[n->m_ClipperIndex];
                 if (clipper->m_NodeIndex == index) {
@@ -1091,7 +1092,7 @@ namespace dmGui
         }
 
         scene->m_ResChanged = 0;
-        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderColors.Begin(), (const StencilScope**)c->m_StencilScopes.Begin(), c->m_RenderNodes.Size(), context);
+        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderOpacities.Begin(), (const StencilScope**)c->m_StencilScopes.Begin(), c->m_RenderNodes.Size(), context);
     }
 
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
@@ -2889,7 +2890,7 @@ namespace dmGui
         }
     }
 
-    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, Matrix4& out_transform, float& out_alpha, SceneTraversalCache& traversal_cache)
+    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, Matrix4& out_transform, float& out_opacity, SceneTraversalCache& traversal_cache)
     {
         const Node& node = n->m_Node;
         uint16_t cache_index;
@@ -2915,34 +2916,31 @@ namespace dmGui
         else if(cached)
         {
             out_transform = cache_data.m_Transform;
-            out_alpha = cache_data.m_Alpha;
+            out_opacity = cache_data.m_Opacity;
             return;
         }
         out_transform = node.m_LocalTransform;
 
+        out_opacity = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
+
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
-            float parent_alpha;
+            float parent_opacity;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_alpha, traversal_cache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_opacity, traversal_cache);
             out_transform = parent_trans * out_transform;
-            out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
             if (node.m_InheritAlpha)
             {
-                out_alpha *=  parent_alpha;
+                out_opacity *= parent_opacity;
             }
-        }
-        else
-        {
-            out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
         }
 
         cache_data.m_Transform = out_transform;
-        cache_data.m_Alpha = out_alpha;
+        cache_data.m_Opacity = out_opacity;
     }
 
-    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color)
+    inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)
@@ -2952,26 +2950,18 @@ namespace dmGui
         out_transform = node.m_LocalTransform;
         CalculateNodeExtents(node, flags, out_transform);
 
+        out_opacity = node.m_Properties[dmGui::PROPERTY_COLOR].getW();
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
-            float parent_alpha;
+            float parent_opacity;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_alpha, scene->m_Context->m_SceneTraversalCache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_opacity, scene->m_Context->m_SceneTraversalCache);
             out_transform = parent_trans * out_transform;
             if (node.m_InheritAlpha)
             {
-                Vector4 c(node.m_Properties[dmGui::PROPERTY_COLOR]);
-                out_color = Vector4(c.getX(), c.getY(), c.getZ(), c.getW()*parent_alpha);
+                out_opacity *= parent_opacity;
             }
-            else
-            {
-                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
-            }
-        }
-        else
-        {
-            out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
         }
     }
 

@@ -115,10 +115,10 @@ public class GuiTemplateBuilder  {
         for(Node n : templateChildren) {
             templateScene.getNodesNode().removeChild(n);
         }
+        int childIndex = 0;
         for(Node n : templateChildren) {
-            node.addChild(n);
+            node.addChild(childIndex++, n);
         }
-        node.sortChildren();
 
         return true;
     }
@@ -159,7 +159,7 @@ public class GuiTemplateBuilder  {
         // reset old template
         node.clearChildren();
         node.setTemplateScene(null);
-        
+
         // load the scene from builder
         if(!loadScene(node, sceneBuilder)) {
             return false;
