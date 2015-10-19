@@ -31,7 +31,7 @@
                                    (g/make-node world ProducerNode))]
     (g/transact
      (g/connect node2 :produces-value node1 :consumes-value))
-    (g/copy [node1] {:include? (constantly true)})))
+    (g/copy [node1] {:traverse? (constantly true)})))
 
 (deftest simple-copy
   (ts/with-clean-system
@@ -95,7 +95,7 @@
       (g/connect node3 :produces-value node1 :consumes-value)
       (g/connect node4 :produces-value node3 :consumes-value)
       (g/connect node4 :produces-value node2 :consumes-value)])
-    (g/copy [node1] {:include? (constantly true)})))
+    (g/copy [node1] {:traverse? (constantly true)})))
 
 (deftest diamond-copy
   (ts/with-clean-system
@@ -123,7 +123,6 @@
       (is (= 4 (count new-nodes-added)))
       (is (= (g/node-value new-root :produces-value) "A string A string")))))
 
-
 (deftest short-circuit
   (ts/with-clean-system
     (let [[node1 node2 node3] (ts/tx-nodes (g/make-node world ConsumerNode)
@@ -133,7 +132,7 @@
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node2 :produces-value node3 :consumes-value)])
-      (let [fragment            (g/copy [node1] (constantly true))
+      (let [fragment            (g/copy [node1] {:traverse? (constantly true)})
             fragment-nodes      (:nodes fragment)
             paste-data          (g/paste world fragment {})
             paste-tx-data       (:tx-data paste-data)
@@ -151,8 +150,7 @@
           (is (= #{"internal.copy-paste-test/ConsumeAndProduceNode"}
                  (into #{} (map #(:name (g/node-type %)) [newleaf1 newleaf2]))))
           (is (g/connected? (g/now) (g/node-id newleaf1) :produces-value (g/node-id newleaf2) :consumes-value))
-          (is (g/connected? (g/now) (g/node-id newleaf2) :produces-value (g/node-id newleaf1) :consumes-value)))
-))))
+          (is (g/connected? (g/now) (g/node-id newleaf2) :produces-value (g/node-id newleaf1) :consumes-value)))))))
 
 (deftest cross-graph-copy
   (ts/with-clean-system
@@ -164,7 +162,7 @@
       (g/transact
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)])
-      (let [fragment            (g/copy [node1] (constantly true))
+      (let [fragment            (g/copy [node1] {:traverse? (constantly true)})
             fragment-nodes      (:nodes fragment)]
         (is (= 1 (count (:arcs fragment))))
         (is (= 2 (count fragment-nodes)))))))
@@ -175,7 +173,7 @@
 (deftest no-functions
   (ts/with-clean-system
     (let [[node1]       (ts/tx-nodes (g/make-node world FunctionPropertyNode :a-function (fn [] false)))
-          fragment      (g/copy [node1] (constantly false))
+          fragment      (g/copy [node1] {:traverse? (constantly false)})
           fragment-node (first (:nodes fragment))]
       (is (not (contains? (:properties fragment-node) :a-function))))))
 
@@ -186,8 +184,8 @@
   (input  discards-value g/Str)
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
-(defn- stop-at-stoppers [node]
-  (not (= StopperNode (g/node-type node))))
+(defn- stop-at-stoppers [[src src-label tgt tgt-label]]
+  (not (g/node-instance? StopperNode tgt)))
 
 (defrecord Standin [original-id])
 
@@ -203,7 +201,7 @@
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node4 :produces-value node3 :discards-value)])
-      [node3 (g/copy [node1] {:include? (comp stop-at-stoppers)
+      [node3 (g/copy [node1] {:traverse? (comp stop-at-stoppers)
                               :serializer (fn [node]
                                             (if (= StopperNode (g/node-type node))
                                               (serialize-stopper node)
@@ -251,7 +249,7 @@
 
 (defn rich-value-fragment [world]
   (let [[node] (ts/tx-nodes (g/make-node world RichNode))]
-    (g/copy [node] (constantly true))))
+    (g/copy [node] {:traverse? (constantly true)})))
 
 (deftest roundtrip-serialization-deserialization
   (ts/with-clean-system
@@ -266,3 +264,18 @@
         ConsumerNode
         simple-fragment
         rich-fragment))))
+
+(g/defnode SetterNode
+  (property producer g/NodeID
+    (value (g/fnk [_node-id]
+             (g/node-feeding-into _node-id :value)))
+    (set (fn [basis self old-value new-value]
+           (g/connect new-value :produces-value self :value))))
+  (input value g/Str))
+
+(deftest setter-called
+  (ts/with-clean-system
+    (let [[producer setter] (ts/tx-nodes (g/make-nodes world [producer ProducerNode
+                                                              setter [SetterNode :producer producer]]))
+          [new-setter] (ts/tx-nodes (:tx-data (g/paste world (g/copy [setter] {}) {})))]
+      (is (= producer (g/node-value new-setter :producer))))))

@@ -8,6 +8,7 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.outline :as outline]
             [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
@@ -18,17 +19,20 @@ ordinary paths."
 
 (def ^:dynamic *load-cache* nil)
 
+(def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+
 (g/defnode ResourceNode
   (inherits core/Scope)
-
-  (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
+  (inherits outline/OutlineNode)
+  (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
-  (output outline g/Any :cached (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
-                                                            {:node-id _node-id
-                                                             :label (or (:label rt) (:ext rt))
-                                                             :icon (:icon rt)}))))
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
+                                {:node-id _node-id
+                                 :label (or (:label rt) (:ext rt) "unknown")
+                                 :icon (or (:icon rt) unknown-icon)}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -36,7 +40,7 @@ ordinary paths."
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-node [project node-id resource]
+(defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
       (try
@@ -45,7 +49,7 @@ ordinary paths."
         (load-fn project node-id resource)
         (catch java.io.IOException e
           (log/warn :exception e)
-          (g/mark-defective node-id (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+          (g/mark-defective node-id node-type (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
 (defn- load-nodes! [project node-ids]
@@ -53,7 +57,7 @@ ordinary paths."
     (for [node-id node-ids
           :when (g/has-output? (g/node-type* node-id) :resource)
           :let [resource (g/node-value node-id :resource)]]
-      (load-node project node-id resource))))
+      (load-node project node-id (g/node-type* node-id) resource))))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -72,7 +76,7 @@ ordinary paths."
           (for [[consumer connection-labels] connections]
             (connect-if-output node-type node consumer connection-labels))
           (if load?
-            (load-node project node resource)
+            (load-node project node node-type resource)
             []))
         (g/connect node :_node-id project :nodes)))))
 
@@ -370,7 +374,7 @@ ordinary paths."
     (if-let [node (get-resource-node project resource)]
       (concat
         (if *load-cache*
-          (load-node project node resource)
+          (load-node project node (g/node-type* node) resource)
           [])
         (connect-if-output (g/node-type* node) node consumer-node connections))
       (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
@@ -434,3 +438,11 @@ ordinary paths."
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
+
+(defn gen-resource-setter [connections]
+  (fn [basis self _ new-value]
+      (if new-value
+        (let [project (get-project self)]
+          (connect-resource-node project new-value self connections))
+        (for [tgt-label (map second connections)]
+          (g/disconnect-sources basis self tgt-label)))))

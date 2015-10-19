@@ -59,8 +59,8 @@
 (def cubemap-shader (shader/make-shader ::cubemap-shader pos-norm-vert pos-norm-frag))
 
 (defn render-cubemap
-  [^GL2 gl camera gpu-texture vertex-binding]
-  (gl/with-gl-bindings gl [gpu-texture cubemap-shader vertex-binding]
+  [^GL2 gl render-args camera gpu-texture vertex-binding]
+  (gl/with-gl-bindings gl render-args [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (types/position camera))
     (shader/set-uniform cubemap-shader gl "envMap" 0)
@@ -92,7 +92,7 @@
      :aabb       aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
                                (let [camera (:camera render-args)]
-                                 (render-cubemap gl camera gpu-texture vertex-binding)))
+                                 (render-cubemap gl render-args camera gpu-texture vertex-binding)))
                   :passes [pass/transparent]}}))
 
 (g/defnode CubemapNode
