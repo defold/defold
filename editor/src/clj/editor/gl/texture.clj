@@ -45,7 +45,7 @@
 
 (defrecord TextureLifecycle [request-id cache-id unit params img-data]
   GlBind
-  (bind [this gl]
+  (bind [this gl _]
     (let [^Texture texture (scene-cache/request-object! cache-id request-id gl img-data)]
       (.glActiveTexture ^GL2 gl unit)
       (apply-params gl texture params)
@@ -60,7 +60,7 @@
 (def
   ^{:doc "If you do not supply parameters to `image-texture`, these will be used as defaults."}
   default-image-texture-params
-  {:min-filter gl/linear-mipmap-linear
+  {:min-filter gl/linear
    :mag-filter gl/linear
    :wrap-s     gl/clamp
    :wrap-t     gl/clamp})
@@ -78,11 +78,17 @@ then defaults in `default-image-texture-params` are used.
 
 If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0."
   ([request-id img]
-   (image-texture request-id GL/GL_TEXTURE0 default-image-texture-params img))
+   (image-texture request-id img default-image-texture-params 0))
   ([request-id img params]
-   (image-texture request-id GL/GL_TEXTURE0 params img))
-  ([request-id unit params ^BufferedImage img]
-    (->TextureLifecycle request-id ::texture unit params (or img (:contents placeholder-image)))))
+   (image-texture request-id img params 0))
+  ([request-id ^BufferedImage img params unit-index]
+    (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
+    (let [unit (+ unit-index GL2/GL_TEXTURE0)]
+      (->TextureLifecycle request-id ::texture unit params (or img (:contents placeholder-image))))))
+
+(def white-pixel (image-texture ::white (-> (img/blank-image 1 1) (img/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
+                                                                                             :min-filter GL2/GL_NEAREST
+                                                                                             :mag-filter GL2/GL_NEAREST)))
 
 (def default-cubemap-texture-params
   ^{:doc "If you do not supply parameters to `image-cubemap-texture`, these will be used as defaults."}

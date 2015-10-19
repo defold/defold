@@ -19,6 +19,7 @@
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
+            [editor.outline :as outline]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -65,8 +66,8 @@
 (def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
 
 (defn render-texture-set
-  [gl vertex-binding gpu-texture]
-  (gl/with-gl-bindings gl [gpu-texture atlas-shader vertex-binding]
+  [gl render-args vertex-binding gpu-texture]
+  (gl/with-gl-bindings gl render-args [gpu-texture atlas-shader vertex-binding]
     (shader/set-uniform atlas-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
 
@@ -86,6 +87,8 @@
                          :playback        :playback-once-forward}))
 
 (g/defnode AtlasImage
+  (inherits outline/OutlineNode)
+
   (property order g/Int (dynamic visible (g/always false)) (default 0))
   (input src-resource (g/protocol workspace/Resource))
   (input src-image BufferedImage)
@@ -93,10 +96,10 @@
   (output path g/Str (g/fnk [src-resource] (workspace/proj-path src-resource)))
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline g/Any (g/fnk [_node-id path order] {:node-id _node-id
-                                                      :label (format "%s - %s" (path->id path) path)
-                                                      :order order
-                                                      :icon image-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id path order] {:node-id _node-id
+                                                                                 :label (format "%s - %s" (path->id path) path)
+                                                                                 :order order
+                                                                                 :icon image-icon}))
   (output ddf-message g/Any :cached (g/fnk [path order] {:image path :order order})))
 
 (defn- sort-by-and-strip-order [images]
@@ -115,18 +118,18 @@
 (defn- attach-image [parent tgt-label image-node src-label scope-node image-order]
   (concat
    (g/set-property image-node :order image-order)
-   (g/connect image-node :image-order parent      :image-order)
-   (g/connect image-node :_node-id    scope-node   :nodes)
-   (g/connect image-node src-label    parent      tgt-label)
-   (g/connect image-node :outline     parent      :outline)
-   (g/connect image-node :ddf-message parent      :img-ddf)))
+   (g/connect image-node :image-order  parent     :image-order)
+   (g/connect image-node :_node-id     scope-node :nodes)
+   (g/connect image-node src-label     parent     tgt-label)
+   (g/connect image-node :node-outline parent     :child-outlines)
+   (g/connect image-node :ddf-message  parent     :img-ddf)))
 
 (defn- attach-animation [atlas-node animation-node]
   (concat
-   (g/connect animation-node :_node-id    atlas-node :nodes)
-   (g/connect animation-node :animation   atlas-node :animations)
-   (g/connect animation-node :outline     atlas-node :outline)
-   (g/connect animation-node :ddf-message atlas-node :anim-ddf)))
+   (g/connect animation-node :_node-id     atlas-node :nodes)
+   (g/connect animation-node :animation    atlas-node :animations)
+   (g/connect animation-node :node-outline atlas-node :child-outlines)
+   (g/connect animation-node :ddf-message  atlas-node :anim-ddf)))
 
 (defn- next-image-order [parent]
   (inc (apply max -1 (map second (g/node-value parent :image-order)))))
@@ -140,6 +143,8 @@
                 (next-image-order animation-node)))
 
 (g/defnode AtlasAnimation
+  (inherits outline/OutlineNode)
+
   (property id  g/Str)
   (property fps g/Int
             (default 30)
@@ -157,21 +162,19 @@
                                                      (map (comp :display-name second) options))}))))
 
   (input frames Image :array)
-  (input outline g/Any :array)
   (input img-ddf g/Any :array)
 
   (input image-order g/Any :array)
 
   (output animation Animation (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
                                      (types/->Animation id frames fps flip-horizontal flip-vertical playback)))
-  (output outline g/Any (g/fnk [_node-id id outline] {:node-id _node-id
-                                                      :label id
-                                                      :sort-by-fn :order
-                                                      :children outline
-                                                      :icon animation-icon
-                                                      :child-reqs [{:node-type AtlasImage
-                                                                    :tx-attach-fn tx-attach-image-to-animation}]
-                                                      }))
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id id child-outlines] {:node-id _node-id
+                                         :label id
+                                         :children (sort-by :order child-outlines)
+                                         :icon animation-icon
+                                         :child-reqs [{:node-type AtlasImage
+                                                       :tx-attach-fn tx-attach-image-to-animation}]}))
   (output ddf-message g/Any :cached produce-anim-ddf))
 
 (g/defnk produce-save-data [resource margin inner-padding extrude-borders img-ddf anim-ddf]
@@ -232,7 +235,7 @@
                                (let [pass (:pass render-args)]
                                  (cond
                                    (= pass pass/overlay)     (render-overlay gl width height)
-                                   (= pass pass/transparent) (render-texture-set gl vertex-binding gpu-texture))))
+                                   (= pass pass/transparent) (render-texture-set gl render-args vertex-binding gpu-texture))))
                   :passes [pass/overlay pass/transparent]}}))
 
 (g/defnk produce-texture-set-data [animations images margin inner-padding extrude-borders]
@@ -299,30 +302,29 @@
                         (g/error-info "Extrude borders must be greater than or equal to zero")))))
 
   (input animations Animation :array)
-  (input outline g/Any :array)
   (input img-ddf g/Any :array)
   (input anim-ddf g/Any :array)
 
   (input image-order g/Any :array)
 
-  (output images           [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb             AABB           (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
-  (output gpu-texture      g/Any          :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
-  (output texture-set-data g/Any          :cached produce-texture-set-data)
-  (output anim-data        g/Any          :cached produce-anim-data)
-  (output outline          g/Any          :cached (g/fnk [_node-id outline] {:node-id _node-id
-                                                                             :label "Atlas"
-                                                                             :sort-by-fn atlas-outline-sort-by-fn
-                                                                             :children outline
-                                                                             :icon atlas-icon
-                                                                             :child-reqs [{:node-type AtlasImage
-                                                                                           :tx-attach-fn tx-attach-image-to-atlas
-                                                                                           }
-                                                                                          {:node-type AtlasAnimation
-                                                                                           :tx-attach-fn attach-animation
-                                                                                           }
-                                                                                          ]
-                                                                             }))
+  (output images           [Image]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
+  (output aabb             AABB                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
+  (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
+  (output texture-set-data g/Any               :cached produce-texture-set-data)
+  (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
+  (output anim-data        g/Any               :cached produce-anim-data)
+  (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id
+                                                                                         :label "Atlas"
+                                                                                         :children (sort-by atlas-outline-sort-by-fn child-outlines)
+                                                                                         :icon atlas-icon
+                                                                                         :child-reqs [{:node-type AtlasImage
+                                                                                                       :tx-attach-fn tx-attach-image-to-atlas
+                                                                                                       }
+                                                                                                      {:node-type AtlasAnimation
+                                                                                                       :tx-attach-fn attach-animation
+                                                                                                       }
+                                                                                                      ]
+                                                                                         }))
   (output save-data        g/Any          :cached produce-save-data)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output scene            g/Any          :cached produce-scene))

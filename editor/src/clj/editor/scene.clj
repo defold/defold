@@ -216,11 +216,22 @@
 (defn- render-sort [renderables camera viewport]
   (sort-by :render-key renderables))
 
+(defn- generic-render-args [glu viewport camera]
+  (let [view (c/camera-view-matrix camera)
+        proj (c/camera-projection-matrix camera)
+        view-proj (doto (Matrix4d. proj) (.mul view))
+        world (doto (Matrix4d.) (.setIdentity))
+        world-view (doto (Matrix4d. view) (.mul world))
+        texture (doto (Matrix4d.) (.setIdentity))
+        normal (doto (math/affine-inverse world-view) (.transpose))]
+    {:glu glu :camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
+     :world-view world-view :texture texture :normal normal}))
+
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables tool-renderables]
   (when-let [^GLContext context (make-current viewport drawable)]
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
-          render-args {:glu glu :camera camera :viewport viewport}
+          render-args (generic-render-args glu viewport camera)
           renderables (apply merge-with (fn [renderables tool-renderables] (apply conj renderables tool-renderables)) renderables tool-renderables)]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
@@ -275,7 +286,7 @@
     (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:glu glu :camera camera :viewport viewport}
+            render-args (generic-render-args glu viewport camera)
             selection-set (set selection)]
         (flatten
           (for [pass pass/selection-passes
@@ -295,7 +306,7 @@
     (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:gl gl :glu glu :camera camera :viewport viewport}
+            render-args (generic-render-args glu viewport camera)
             tool-renderables (apply merge-with into tool-renderables)
             passes [pass/manipulator-selection pass/overlay-selection]]
         (flatten
@@ -702,6 +713,35 @@
   (scene-tools/rotate [self delta] (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (:rotation self))) (.mul delta))
                                          new-euler (math/quat->euler new-rotation)]
                                      (g/set-property (g/node-id self) :rotation new-euler))))
+
+(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [transform (Matrix4d. rotation position 1.0)
+        s [(.x scale) (.y scale) (.z scale)]
+        col (Vector4d.)]
+    (doseq [^Integer i (range 3)
+            :let [s (nth s i)]]
+      (.getColumn transform i col)
+      (.scale col s)
+      (.setColumn transform i col))
+    transform))
+
+(g/defnode ScalableSceneNode
+  (inherits SceneNode)
+
+  (property scale types/Vec3 (default [1 1 1]))
+
+  (display-order [SceneNode :scale])
+
+  (output scale Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4d :cached produce-transform)
+
+  scene-tools/Scalable
+  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
+                                        ^Vector3d d delta]
+                                    (.setX s (* (.x s) (.x d)))
+                                    (.setY s (* (.y s) (.y d)))
+                                    (.setZ s (* (.z s) (.z d)))
+                                    (g/set-property (g/node-id self) :scale [(.x s) (.y s) (.z s)]))))
 
 (defn- make-text-renderer [^GL2 gl data]
   (let [[font-family font-style font-size] data]

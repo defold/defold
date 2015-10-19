@@ -606,7 +606,7 @@ namespace dmGameSystem
     void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
-                         const Vector4* node_colors,
+                         const float* node_opacities,
                          const dmGui::StencilScope** stencil_scopes,
                          uint32_t node_count,
                          void* context)
@@ -617,7 +617,7 @@ namespace dmGameSystem
         {
             dmGui::HNode node = entries[i].m_Node;
 
-            const Vector4& color = node_colors[i];
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
 
@@ -625,9 +625,10 @@ namespace dmGameSystem
             assert(node_type == dmGui::NODE_TYPE_TEXT);
 
             dmRender::DrawTextParams params;
-            params.m_FaceColor = color;
-            params.m_OutlineColor = outline;
-            params.m_ShadowColor = shadow;
+            float opacity = node_opacities[i];
+            params.m_FaceColor = Vector4(color.getXYZ(), opacity);
+            params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
+            params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
             params.m_Depth = 0;
@@ -686,7 +687,7 @@ namespace dmGameSystem
     void RenderBoxNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
-                        const Vector4* node_colors,
+                        const float* node_opacities,
                         const dmGui::StencilScope** stencil_scopes,
                         uint32_t node_count,
                         void* context)
@@ -742,14 +743,11 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            const Vector4& color = node_colors[i];
             const dmGui::HNode node = entries[i].m_Node;
+        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
-            Vector4 pm_color(color);
-            pm_color.setX(color.getX() * color.getW());
-            pm_color.setY(color.getY() * color.getW());
-            pm_color.setZ(color.getZ() * color.getW());
+            Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
             uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
@@ -904,7 +902,7 @@ namespace dmGameSystem
     void RenderPieNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
-                        const Vector4* node_colors,
+                        const float* node_opacities,
                         const dmGui::StencilScope** stencil_scopes,
                         uint32_t node_count,
                         void* context)
@@ -958,18 +956,16 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            const Vector4& color = node_colors[i];
             const dmGui::HNode node = entries[i].m_Node;
             const Point3 size = dmGui::GetNodeSize(scene, node);
 
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
+        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+
             // Pre-multiplied alpha
-            Vector4 pm_color(color);
-            pm_color.setX(color.getX() * color.getW());
-            pm_color.setY(color.getY() * color.getW());
-            pm_color.setZ(color.getZ() * color.getW());
+            Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
             uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
             const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, node));
@@ -1106,7 +1102,7 @@ namespace dmGameSystem
     void RenderNodes(dmGui::HScene scene,
                     const dmGui::RenderEntry* entries,
                     const Matrix4* node_transforms,
-                    const Vector4* node_colors,
+                    const float* node_opacities,
                     const dmGui::StencilScope** stencil_scopes,
                     uint32_t node_count,
                     void* context)
@@ -1145,13 +1141,13 @@ namespace dmGameSystem
                 switch (prev_node_type)
                 {
                     case dmGui::NODE_TYPE_TEXT:
-                        RenderTextNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                        RenderTextNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                         break;
                     case dmGui::NODE_TYPE_BOX:
-                        RenderBoxNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                        RenderBoxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                         break;
                     case dmGui::NODE_TYPE_PIE:
-                        RenderPieNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                        RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                         break;
                     default:
                         break;
@@ -1173,13 +1169,13 @@ namespace dmGameSystem
             switch (prev_node_type)
             {
                 case dmGui::NODE_TYPE_TEXT:
-                    RenderTextNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                    RenderTextNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 case dmGui::NODE_TYPE_BOX:
-                    RenderBoxNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                    RenderBoxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 case dmGui::NODE_TYPE_PIE:
-                    RenderPieNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                    RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 default:
                     break;

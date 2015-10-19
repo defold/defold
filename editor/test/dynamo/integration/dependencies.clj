@@ -35,3 +35,58 @@
                  [anode-id :b-output]
                  [gnode-id :cake-output]}
                (set (g/dependencies (g/now) [[anode-id :b-output]]))))))))
+
+(defn- find-node [self path]
+  (let [graph (g/node-id->graph-id self)
+        nodes (g/graph-value graph :nodes)]
+    (get nodes path)))
+
+(def OutlineData {g/Keyword g/Any})
+
+(g/defnode OutlineNode
+  (input child-outlines OutlineData :array)
+  (output node-outline OutlineData :abstract))
+
+(g/defnode ResourceNode
+  (property resource g/Keyword)
+  (inherits OutlineNode)
+  (output node-outline OutlineData :cached (g/fnk [_node-id child-outlines]
+                                             {:node-id _node-id :children child-outlines})))
+
+(g/defnode SpriteNode
+  (inherits ResourceNode))
+
+(g/defnode GameObjectNode
+  (inherits ResourceNode)
+  (output node-outline OutlineData :cached (g/fnk [_node-id child-outlines]
+                                             {:node-id _node-id :children child-outlines})))
+
+(g/defnode ComponentNode
+  (inherits OutlineNode)
+
+  (property resource g/Keyword
+    (value (g/fnk [source-resource] source-resource))
+    (set (fn [basis self old-value new-value]
+           (let [node (find-node self new-value)]
+             (concat
+               (g/connect node :resource self :source-resource)
+               (g/connect node :node-outline self :node-outline))))))
+
+  (input source-resource g/Keyword)
+  (input node-outline OutlineData)
+  (output node-outline OutlineData :cached (g/fnk [_node-id node-outline] (assoc node-outline :node-id _node-id))))
+
+(deftest test-dependencies-across-super-types-and-setters
+  (with-clean-system
+    ; Simulate node creation
+    (let [[go-node sprite-node] (tx-nodes
+                                  (g/make-nodes world [go-node [GameObjectNode :resource :game-object]
+                                                       sprite-node [SpriteNode :resource :sprite]]))]
+      (g/set-graph-value! world :nodes {:game-object go-node :sprite sprite-node})
+      ; Simulate node loading
+      (let [[comp-node] (tx-nodes
+                          (g/make-nodes world [comp-node [ComponentNode :resource :sprite]]
+                            (g/connect comp-node :node-outline go-node :child-outlines)))]
+        (is (= 1 (count (:children (g/node-value go-node :node-outline)))))
+        (g/transact (g/delete-node comp-node))
+        (is (= 0 (count (:children (g/node-value go-node :node-outline)))))))))

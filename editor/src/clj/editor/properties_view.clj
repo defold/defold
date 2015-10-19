@@ -21,7 +21,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label Slider TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
@@ -150,14 +150,17 @@
   (let [fields [{:path [:points 0 :y]}]]
     (create-multi-keyed-textfield! fields property-fn)))
 
-#_(defmethod create-property-control! types/Color [_ _ on-new-value]
-   (let [color-picker (ColorPicker.)
-         refresher (fn [val _] (.setValue color-picker (Color. (nth val 0) (nth val 1) (nth val 2) (nth val 3))))
-         handler (ui/event-handler event
-                                   (let [^Color c (.getValue color-picker)]
-                                     (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)] refresher)))]
-     (.setOnAction color-picker handler)
-     [color-picker refresher]))
+(defmethod create-property-control! types/Color [_ _ property-fn]
+ (let [color-picker (ColorPicker.)
+       update-ui-fn (fn [values] (let [v (properties/unify-values values)]
+                                   (if (nil? v)
+                                     (.setValue color-picker nil)
+                                     (let [[r g b a] v]
+                                       (.setValue color-picker (Color. r g b a))))))]
+   (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
+                                             v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
+                                         (properties/set-values! (property-fn) (repeat v)))))
+   [color-picker update-ui-fn]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
@@ -192,6 +195,35 @@
                                                    (workspace/file-resource workspace path))]
                                   (properties/set-values! (property-fn) (repeat resource)))))
     (ui/children! box [text button])
+    [box update-ui-fn]))
+
+(defmethod create-property-control! :slider [edit-type workspace property-fn]
+  (let [box (HBox. 4.0)
+        [textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
+        min (:min edit-type 0.0)
+        max (:max edit-type 1.0)
+        val (:value edit-type max)
+        precision (:precision edit-type)
+        slider (Slider. min max val)
+        update-ui-fn (fn [values]
+                       (tf-update-ui-fn values)
+                       (binding [*programmatic-setting* true]
+                         (if-let [v (properties/unify-values values)]
+                           (doto slider
+                             (.setDisable false)
+                             (.setValue v))
+                           (.setDisable slider true))))]
+    (HBox/setHgrow slider Priority/ALWAYS)
+    (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
+    (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
+                                                  (ui/user-data! slider ::op-seq (gensym))))
+    (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
+                                          (when-not *programmatic-setting*
+                                            (let [val (if precision
+                                                        (* precision (Math/round (/ new-val precision)))
+                                                        new-val)]
+                                              (properties/set-values! (property-fn) (repeat val) (ui/user-data slider ::op-seq))))))
+    (ui/children! box [textfield slider])
     [box update-ui-fn]))
 
 (defmethod create-property-control! :default [_ _ _]
@@ -297,7 +329,7 @@
 (defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         stage         (.. parent getScene getWindow)
-        refresh-timer (ui/->timer 1 (fn [now] (g/node-value view-id :pane)))]
+        refresh-timer (ui/->timer 10 (fn [now] (g/node-value view-id :pane)))]
     (g/connect! project :selected-node-properties view-id :selected-node-properties)
     (ui/timer-stop-on-close! stage refresh-timer)
     (ui/timer-start! refresh-timer)
