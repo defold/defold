@@ -199,7 +199,7 @@
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
 
 (defn- pairs [v]
-  (filter (fn [[v0 v1]] (> (Math/abs (- v1 v0)) 0)) (partition 2 1 v)))
+  (filter (fn [[v0 v1]] (> (Math/abs (double (- v1 v0))) 0)) (partition 2 1 v)))
 
 (g/defnk produce-node-scene [_node-id type aabb transform pivot size color slice9 pie-data inherit-alpha texture gpu-texture anim-data scene-shader child-scenes]
   (let [offset (pivot-offset pivot size)
@@ -233,8 +233,8 @@
                                                         vs (pie-circling perimeter-vertices pie-fill-angle outer-rect? [[1 0 0]])
                                                         vs-outer (if outer-rect?
                                                                    (mapv (fn [[x y z]]
-                                                                           (let [abs-x (Math/abs x)
-                                                                                 abs-y (Math/abs y)]
+                                                                           (let [abs-x (Math/abs (double x))
+                                                                                 abs-y (Math/abs (double y))]
                                                                              (if (< abs-x abs-y)
                                                                                [(/ x abs-y) (/ y abs-y) z]
                                                                                [(/ x abs-x) (/ y abs-x) z]))) vs)
@@ -502,7 +502,7 @@
 (g/defnode ImageTextureNode
   (input image BufferedImage)
   (output packed-image BufferedImage (g/fnk [image] image))
-  (output anim-data g/Any (g/fnk [image]
+  (output anim-data g/Any (g/fnk [^BufferedImage image]
                             {nil {:width (.getWidth image)
                                   :height (.getHeight image)
                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
