@@ -202,12 +202,12 @@
   (filter (fn [[v0 v1]] (> (Math/abs (- v1 v0)) 0)) (partition 2 1 v)))
 
 (g/defnk produce-node-scene [_node-id type aabb transform pivot size color slice9 pie-data inherit-alpha texture gpu-texture anim-data scene-shader child-scenes]
-  (let [[geom-data uv-data line-data] (case type
+  (let [offset (pivot-offset pivot size)
+        [geom-data uv-data line-data] (case type
                                         :type-box (let [[w h _] size
                                                         order [0 1 3 3 1 2]
                                                         x-vals (pairs [0 (get slice9 0) (- w (get slice9 2)) w])
                                                         y-vals (pairs [0 (get slice9 3) (- h (get slice9 1)) h])
-                                                        offset (pivot-offset pivot size)
                                                         corners (for [[x0 x1] x-vals
                                                                       [y0 y1] y-vals]
                                                                   (geom/transl offset [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]]))
@@ -225,6 +225,7 @@
                                                         lines (vec (mapcat #(interleave % (drop 1 (cycle %))) corners))]
                                                     [vs uvs lines])
                                         :type-pie (let [[w h _] size
+                                                        offset (mapv + offset [(* 0.5 w) (* 0.5 h) 0])
                                                         {:keys [outer-bounds inner-radius perimeter-vertices pie-fill-angle]} pie-data
                                                         outer-rect? (= :piebounds-rectangle outer-bounds)
                                                         cut-off? (< pie-fill-angle 360)
@@ -235,8 +236,8 @@
                                                                            (let [abs-x (Math/abs x)
                                                                                  abs-y (Math/abs y)]
                                                                              (if (< abs-x abs-y)
-                                                                              [(/ x abs-y) (/ y abs-y) z]
-                                                                              [(/ x abs-x) (/ y abs-x) z]))) vs)
+                                                                               [(/ x abs-y) (/ y abs-y) z]
+                                                                               [(/ x abs-x) (/ y abs-x) z]))) vs)
                                                                    vs)
                                                         vs-inner (if (> inner-radius 0)
                                                                    (let [xs (/ inner-radius w)
@@ -246,7 +247,8 @@
                                                         lines (->> (cond-> (vec (apply concat (partition 2 1 vs-outer)))
                                                                      hole? (into (apply concat (partition 2 1 vs-inner)))
                                                                      cut-off? (into [(first vs-outer) (first vs-inner) (last vs-outer) (last vs-inner)]))
-                                                                (geom/scale [(* 0.5 w) (* 0.5 h) 1]))
+                                                                (geom/scale [(* 0.5 w) (* 0.5 h) 1])
+                                                                (geom/transl offset))
                                                         vs (if hole?
                                                              (reduce into []
                                                                (concat
@@ -259,7 +261,9 @@
                                                               (geom/scale [0.5 -0.5])
                                                               (geom/transl [0 1])
                                                               (geom/uv-trans (get-in anim-data [texture :uv-transforms 0])))
-                                                        vs (geom/scale [(* 0.5 w) (* 0.5 h) 1] vs)]
+                                                        vs (->> vs
+                                                             (geom/scale [(* 0.5 w) (* 0.5 h) 1])
+                                                             (geom/transl offset))]
                                                     [vs uvs lines])
                                         [[] [] []])]
     {:node-id _node-id
