@@ -199,7 +199,7 @@
 
 (defmethod create-property-control! :slider [edit-type workspace property-fn]
   (let [box (HBox. 4.0)
-        [textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
+        [^TextField textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
         val (:value edit-type max)
@@ -220,7 +220,7 @@
     (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
                                           (when-not *programmatic-setting*
                                             (let [val (if precision
-                                                        (* precision (Math/round (/ new-val precision)))
+                                                        (* precision (Math/round (double (/ new-val precision))))
                                                         new-val)]
                                               (properties/set-values! (property-fn) (repeat val) (ui/user-data slider ::op-seq))))))
     (ui/children! box [textfield slider])
