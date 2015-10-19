@@ -179,7 +179,7 @@
   (property outline-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                                (= type :defold)))))
   (property outline-width g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                       (or (= type :defold) (= type :distance-field))))))
+                                                                               (or (= type :defold) (= type :distance-field))))))
   (property shadow-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                               (= type :defold)))))
   (property shadow-blur g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
@@ -188,7 +188,8 @@
                                                                           (= type :defold)))))
   (property shadow-y g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                           (= type :defold)))))
-  (property extra-characters g/Str)
+  (property extra-characters g/Str (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                                                  (or (= type :defold) (= type :distance-field))))))
   (property output-format g/Keyword
     (dynamic edit-type (g/always (properties/->pb-choicebox Font$FontTextureFormat))))
 
