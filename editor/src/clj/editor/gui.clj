@@ -139,7 +139,7 @@
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [gpu-texture (or (get-in (first renderables) [:user-data :gpu-texture]) texture/white-pixel)
-        scene-shader (get-in (first renderables) [:user-data :scene-shader])
+        material-shader (get-in (first renderables) [:user-data :material-shader])
         [vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
                                   (let [user-data (:user-data renderable)
                                         world-transform (:world-transform renderable)
@@ -152,7 +152,7 @@
     (when (> vcount 0)
       (let [shader (if (types/selection? (:pass render-args))
                      shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
-                     (or scene-shader shader))
+                     (or material-shader shader))
             vertex-binding (vtx/use-with ::tris (->uv-color-vtx-vb vs uvs colors vcount) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
@@ -277,7 +277,7 @@
                               :color color
                               :gpu-texture gpu-texture
                               :inherit-alpha inherit-alpha
-                              :scene-shader scene-shader}
+                              :material-shader material-shader}
                   :batch-key [gpu-texture]
                   :select-batch-key _node-id}
      :children child-scenes}))
@@ -327,9 +327,10 @@
     (g/connect gui-node :id self :node-ids)
     (g/connect self :layers gui-node :layers)
     (g/connect self :textures gui-node :textures)
-    (g/connect self :material-shader gui-node :scene-shader)
     (case type
-      (:type-box :type-pie) (g/connect self :textures gui-node :textures)
+      (:type-box :type-pie) (concat
+                              (g/connect self :textures gui-node :textures)
+                              (g/connect self :material-shader gui-node :material-shader))
       :type-text (g/connect self :fonts gui-node :fonts)
       [])))
 
@@ -344,6 +345,11 @@
     node
     (let [[_ _ scene _] (first (filter (fn [[_ label _ _]] (= label :_node-id)) (g/outputs node)))]
       scene)))
+
+(def ^:private font-connections [[:name :font-input]
+                                 [:gpu-texture :gpu-texture]
+                                 [:font-map :font-map]
+                                 [:font-shader :material-shader]])
 
 (g/defnode GuiNode
   (inherits scene/ScalableSceneNode)
@@ -372,9 +378,18 @@
   ; Text
   (property text g/Str (dynamic visible text?) (default ""))
   (property line-break g/Bool (dynamic visible text?) (default false))
-  (property font g/Str
-            (dynamic edit-type (g/fnk [fonts] (properties/->choicebox fonts)))
-            (dynamic visible text?))
+  (property font g/Str (dynamic visible text?)
+    (dynamic edit-type (g/fnk [fonts] (properties/->choicebox fonts)))
+    (value (g/fnk [font-input] font-input))
+    (set (fn [basis self _ new-value]
+           (let [fonts (g/node-value self :fonts :basis basis)]
+             (for [label (map second font-connections)]
+               (g/disconnect-sources self label))
+             (if (contains? fonts new-value)
+               (for [[from to] font-connections
+                     :let [font-node (fonts new-value)]]
+                 (g/connect font-node from self to))
+               [])))))
   (property outline types/Color (dynamic visible text?) (default [1 1 1 1]))
   (property outline-alpha g/Num (dynamic visible text?) (default 1.0)
     (value (g/fnk [outline] (get outline 3)))
@@ -455,13 +470,14 @@
   (input parent g/Str)
   (input layers [g/Str])
   (input texture-input g/Str)
+  (input font-input g/Str)
   (input gpu-texture g/Any)
   (input anim-data g/Any)
   (input textures {g/Str g/NodeID})
-  (input fonts [g/Str])
+  (input fonts {g/Str g/NodeID})
+  (input material-shader ShaderLifecycle)
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
-  (input scene-shader ShaderLifecycle)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id index child-outlines type]
       (let [reqs (if (= type :type-template)
@@ -534,14 +550,27 @@
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (property font (g/protocol resource/Resource))
+  (property font (g/protocol resource/Resource)
+    (value (g/fnk [font-resource] font-resource))
+    (set (project/gen-resource-setter [[:resource :font-resource]
+                                       [:font-map :font-map]
+                                       [:gpu-texture :gpu-texture]
+                                       [:material-shader :font-shader]])))
+  (input font-resource (g/protocol resource/Resource))
+  (input font-map g/Any)
+  (input font-shader ShaderLifecycle)
+  (input gpu-texture g/Any)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon font-icon}))
   (output pb-msg g/Any (g/fnk [name font]
                               {:name name
-                               :font (proj-path font)})))
+                               :font (proj-path font)}))
+  (output font-map g/Any (g/fnk [font-map] font-map))
+  (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
+  (output font-shader ShaderLifecycle (g/fnk [font-shader] font-shader))
+  (output font-data {g/NodeID g/Str} (g/fnk [_node-id name] {_node-id name})))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -728,7 +757,7 @@
 
   (input layers g/Any :array)
   (input texture-data g/Any :array)
-  (input fonts g/Any :array)
+  (input font-data g/Any :array)
 
   (input material-resource (g/protocol resource/Resource))
   (input material-shader ShaderLifecycle)
@@ -751,10 +780,10 @@
                                           (let [w (get project-settings ["display" "width"])
                                                 h (get project-settings ["display" "height"])]
                                             {:width w :height h})))
-  (output layers [g/Str] (g/fnk [layers] layers))
-  (output textures {g/Str g/NodeID} (g/fnk [texture-data]
-                                      (into {} (mapcat (fn [[_node-id anims]] (map #(vector % _node-id) anims)) texture-data))))
-  (output fonts [g/Str] (g/fnk [fonts] fonts)))
+  (output layers [g/Str] :cached (g/fnk [layers] layers))
+  (output textures {g/Str g/NodeID} :cached (g/fnk [texture-data]
+                                              (into {} (mapcat (fn [[_node-id anims]] (map #(vector % _node-id) anims)) texture-data))))
+  (output fonts {g/Str g/NodeID} :cached (g/fnk [font-data] (into {} font-data))))
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
@@ -769,7 +798,7 @@
 (defn- attach-font [self fonts-node font]
   (concat
     (g/connect font :_node-id self :nodes)
-    (g/connect font :name self :fonts)
+    (g/connect font :font-data self :font-data)
     (g/connect font :pb-msg self :font-msgs)
     (g/connect font :name self :font-names)
     (g/connect font :node-outline fonts-node :child-outlines)))
@@ -1027,7 +1056,6 @@
                                                             :color color
                                                             :blend-mode (:blend-mode node-desc)
                                                             :text (:text node-desc)
-                                                            :font (:font node-desc)
                                                             :x-anchor (:xanchor node-desc)
                                                             :y-anchor (:yanchor node-desc)
                                                             :pivot (:pivot node-desc)
@@ -1051,7 +1079,9 @@
                             (let [parent (if (empty? (:parent node-desc)) nodes-node (id->node (:parent node-desc)))]
                               (attach-gui-node self parent gui-node (:type node-desc)))
                             ; Needs to be done after attaching so textures etc can be fetched
-                            (g/set-property gui-node :texture (:texture node-desc)))
+                            (g/set-property gui-node
+                              :texture (:texture node-desc)
+                              :font (:font node-desc)))
                   node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
             (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
             all-tx-data))))))

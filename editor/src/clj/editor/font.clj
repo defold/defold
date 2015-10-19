@@ -217,6 +217,7 @@
                         (geom/null-aabb))))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-image material-sampler]
                                       (first (material/make-textures [{:image-id _node-id :image font-image}] material-sampler))))
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (output type g/Keyword produce-font-type))
 
 (defn load-font [project self resource]
