@@ -339,7 +339,7 @@ public class TestHttpServer extends AbstractHandler
 
             server.start();
             Thread.sleep(1000 * 400);
-            System.out.println("ERROR: HTTP server wasn't terminated by the tests after 400 seconds. Quiting...");
+            System.out.println("ERROR: HTTP server wasn't terminated by the tests after 400 seconds. Quitting...");
             System.exit(1);
         }
         catch (Throwable e)
