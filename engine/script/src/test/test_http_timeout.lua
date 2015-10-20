@@ -8,12 +8,14 @@ requests_left = 1
 
 function test_http_timeout()
     local headers = {}
+    local options = {}
+    options['timeout'] = 1000000
     http.request("http://localhost:" .. PORT .. "/sleep", "GET",
         function(response)
             assert(response.status == 0)
             requests_left = requests_left - 1
         end,
-    headers)
+    headers, '', options)
 end
 
 functions = { test_http_timeout = test_http_timeout }
