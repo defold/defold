@@ -116,6 +116,7 @@ public class LoginOAuthResource extends BaseResource {
 
             AuthorizationCodeRequestUrl authorizationUrl = flow.newAuthorizationUrl();
             authorizationUrl.setRedirectUri(getRedirectURL(req));
+            authorizationUrl.set("prompt", "select_account");
             String loginToken = authenticator.newLoginToken();
             JsonNodeFactory factory = JsonNodeFactory.instance;
             ObjectNode node = new ObjectNode(factory);
