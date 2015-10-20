@@ -199,8 +199,7 @@ namespace dmHttpService
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         if (worker->m_Client) {
-            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_SEND_TIMEOUT, request->m_Timeout);
-            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_RECEIVE_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
 
             worker->m_Request = request;
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
