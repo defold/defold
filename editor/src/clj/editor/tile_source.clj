@@ -134,7 +134,7 @@
   (property flip-vertical g/Bool (default false))
   (property cues g/Any (dynamic visible (g/always false)))
 
-  (output outline g/Any (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
   (output ddf-message g/Any produce-animation-ddf))
 
 (defn- attach-animation-node [self animation-node]
