@@ -203,8 +203,6 @@ namespace dmConnectionPool
         uint32_t n = pool->m_Connections.Size();
         for (uint32_t i = 0; i < n; ++i) {
             Connection* c = &pool->m_Connections[i];
-            bool c_ssl = c->m_SSLConnection != 0;
-
             if (c->m_State == STATE_CONNECTED && c->m_ID == id) {
                 c->m_State = STATE_INUSE;
                 c->m_ReuseCount++;
