@@ -168,9 +168,18 @@ namespace dmSys
 
 #endif
 
-#if defined(__MACH__)
+#if defined(__TVOS__)
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        // TODO: Hack
+        dmStrlCpy(path, ".", path_len);
+        return RESULT_OK;
+    }
+
+#elif defined(__MACH__)
 
 #if !defined(__arm__) && !defined(__arm64__)
+
     // NOTE: iOS implementation in sys_cocoa.mm
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -377,7 +386,7 @@ namespace dmSys
         }
     }
 
-#elif defined(__AVM2__) || defined(__TVOS__)
+#elif defined(__AVM2__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         // TODO: Hack

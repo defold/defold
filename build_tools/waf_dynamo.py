@@ -1197,8 +1197,6 @@ def configure(conf):
 
 old = Build.BuildContext.exec_command
 def exec_command(self, cmd, **kw):
-    # debug
-    print ' '.join(cmd)
     if getattr(Options.options, 'eclipse', False):
         if isinstance(cmd, list):
             print >>sys.stderr, ' '.join(cmd)
