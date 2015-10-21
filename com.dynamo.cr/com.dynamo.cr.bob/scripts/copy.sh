@@ -15,6 +15,7 @@ mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/armv7-android
 mkdir -p libexec/js-web
+mkdir -p libexec/arm64-tvos
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -65,6 +66,8 @@ copy armv7-darwin/dmengine armv7-darwin/dmengine
 copy armv7-darwin/dmengine_release armv7-darwin/dmengine_release
 copy arm64-darwin/dmengine arm64-darwin/dmengine
 copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
+copy arm64-tvos/dmengine arm64-tvos/dmengine
+copy arm64-tvos/dmengine_release arm64-tvos/dmengine_release
 copy armv7-android/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
 copy js-web/dmengine.js js-web/dmengine.js
