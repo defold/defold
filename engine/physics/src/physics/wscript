@@ -13,4 +13,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_physics.py')
 
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')

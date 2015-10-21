@@ -377,7 +377,7 @@ namespace dmSys
         }
     }
 
-#elif defined(__AVM2__)
+#elif defined(__AVM2__) || defined(__TVOS__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         // TODO: Hack
@@ -423,7 +423,7 @@ namespace dmSys
 #endif
     }
 
-#if ((defined(__arm__) || defined(__arm64__)) && defined(__MACH__))
+#if (!defined(__TVOS__) && (defined(__arm__) || defined(__arm64__)) && defined(__MACH__))
     // NOTE: iOS implementation in sys_cocoa.mm
 
 #elif defined(__ANDROID__)

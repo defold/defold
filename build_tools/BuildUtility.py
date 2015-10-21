@@ -26,7 +26,8 @@ class BuildUtility:
                             {'platform': 'arm64-darwin', 'os': 'ios', 'arch': 'arm64'},
                             {'platform': 'armv7-android', 'os': 'android', 'arch': 'armv7'},
                             {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
-                            {'platform': 'as3-web', 'os': 'web', 'arch': 'as3'}
+                            {'platform': 'as3-web', 'os': 'web', 'arch': 'as3'},
+                            {'platform': 'arm64-tvos', 'os': 'tvos', 'arch': 'arm64'}
                             ]
 
     def __init__(self, platform_id, build_platform_id, dynamo_home = None):

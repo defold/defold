@@ -69,7 +69,7 @@ namespace dmEngineVersion
     sound_lib = 'sound2'
     if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif operating_sys == 'ios':
+    elif operating_sys == 'ios' or  operating_sys == 'tvos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For Facebook SDK...
         conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
@@ -120,7 +120,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'
 
-    if operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
+    if operating_sys != 'ios' and operating_sys != 'tvos' and operating_sys != 'android' and operating_sys != 'web':
         conf.env['STATICLIB_RECORD'] = 'record'
         conf.env['LIB_VPX'] = 'vpx'
     else:

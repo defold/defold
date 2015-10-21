@@ -35,6 +35,8 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
     elif re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+    elif re.match('arm.*?tvos', platform):
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux" or platform == "x86_64-linux":
@@ -48,7 +50,7 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('lib')
-    bld.add_subdirs('examples')
+    #bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
 
     if 'android' in bld.env['PLATFORM']:

@@ -6,7 +6,7 @@ def set_options(opt):
     pass
 
 def build(bld):
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')
     bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
@@ -69,7 +69,7 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-    elif 'darwin' in bld.env.PLATFORM:
+    elif 'darwin' in bld.env.PLATFORM or 'tvos' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:
         source_dirs.append('dlib/win32')

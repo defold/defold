@@ -19,4 +19,4 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')

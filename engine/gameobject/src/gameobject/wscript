@@ -17,7 +17,7 @@ def build(bld):
     gameobject.find_sources_in_dirs(['.', '../../proto'])
     bld.add_group()
 
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')
 
     bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
                      target = 'go_doc.sdoc',

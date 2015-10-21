@@ -7,7 +7,7 @@ def set_options(opt):
 
 def build(bld):
     bld.add_subdirs('ddf')
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
     bld.install_files('${PREFIX}/bin', 'ddfc.py', chmod=493)
