@@ -117,21 +117,6 @@
   (let [dirty-deps (-> (ig/node-by-id-at (:basis ctx) node-id) gt/node-type gt/input-dependencies (get input-label))]
     (update-in ctx [:nodes-affected node-id] into dirty-deps)))
 
-(defn- mark-all-activated [ctx targets]
-  (loop [ctx ctx
-         targets targets]
-    (if-let [[target-id target-label] (first targets)]
-      (recur (mark-activated ctx target-id target-label) (rest targets))
-      ctx)))
-
-(defn- activate-all-outputs
-  [ctx node-id node]
-  (let [all-labels  (-> node gt/node-type gt/output-labels)
-        all-targets (into #{[node-id nil]} (mapcat #(gt/targets (:basis ctx) node-id %) all-labels))]
-    (-> ctx
-      (update-in [:nodes-affected node-id] into all-labels)
-      (mark-all-activated all-targets))))
-
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
   actions within a transaction. This is for internal use, not intended
@@ -190,6 +175,11 @@
   (disconnect-stale ctx node-id old-node new-node gt/output-labels disconnect-outputs))
 
 (def ^:private replace-node (comp first gt/replace-node))
+
+(defn- activate-all-outputs
+  [ctx node-id node]
+  (let [all-labels (map vector (repeat node-id) (-> node gt/node-type gt/output-labels))]
+    (update ctx :outputs-modified into all-labels)))
 
 (defmethod perform :become
   [ctx {:keys [node-id to-node]}]
@@ -393,6 +383,7 @@
    :nodes-added         []
    :nodes-modified      #{}
    :nodes-deleted       {}
+   :outputs-modified    []
    :graphs-modified     #{}
    :properties-modified {}
    :successors-changed  #{}
