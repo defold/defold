@@ -116,6 +116,28 @@ function cmi() {
             cmi_cross $1 arm-darwin
             ;;
 
+	arm64-tvos)
+            # Same environment vars as arm64-darwin 
+
+            [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
+            # NOTE: We set this PATH in order to use libtool from iOS SDK
+            # Otherwise we get the following error "malformed object (unknown load command 1)"
+            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export CPPFLAGS="-arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CFLAGS="${CPPFLAGS}"
+            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
+            # Wrong include-directories and defines are selected.
+            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
+            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            cmi_cross $1 arm-darwin
+            ;;
+
         arm64-darwin)
             # Essentially the same environment vars as armv7-darwin but with "-arch arm64".
 

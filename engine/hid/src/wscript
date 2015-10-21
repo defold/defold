@@ -16,7 +16,7 @@ def build(bld):
                                 target = 'hid_null',
                                 source = 'hid.cpp hid_null.cpp')
 
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
     bld.install_files('${PREFIX}/include/hid', 'hid_glfw_defines.h')

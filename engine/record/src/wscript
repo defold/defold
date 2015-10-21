@@ -6,4 +6,4 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('record')
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')

@@ -21,6 +21,7 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
+PACKAGES_TVOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_WIN32="PVRTexLib-4.5".split()
 PACKAGES_LINUX="PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
@@ -249,6 +250,9 @@ class Configuration(object):
 
         for p in PACKAGES_IOS_64:
                 self._extract_tgz(make_path('arm64-darwin'), self.ext)
+
+        for p in PACKAGES_TVOS:
+                self._extract_tgz(make_path('arm64-tvos'), self.ext)
 
         for p in PACKAGES_WIN32:
                 self._extract_tgz(make_path('win32'), self.ext)
@@ -1118,7 +1122,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
+                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'arm64-tvos'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

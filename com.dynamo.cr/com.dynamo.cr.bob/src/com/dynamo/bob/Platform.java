@@ -15,7 +15,8 @@ public enum Platform {
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
-    JsWeb("js", "web", ".js", "", "lib", "");
+    JsWeb("js", "web", ".js", "", "lib", ""),
+    Arm64TvOS("arm64", "tvos", "", "", "lib", ".so");
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
@@ -26,6 +27,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^arm((v7)|(64))-darwin$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^armv7-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^js-web$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_TVOS,    "^arm64-tvos$");
     }
 
 

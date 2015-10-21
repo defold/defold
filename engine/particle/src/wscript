@@ -24,4 +24,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
 
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')

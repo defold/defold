@@ -44,12 +44,16 @@ def new_copy_task(name, input_ext, output_ext):
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 IOS_SDK_VERSION="8.1"
+TVOS_SDK_VERSION="9.0"
+
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 # Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
 MIN_IOS_SDK_VERSION="5.1"
 
 MIN_OSX_SDK_VERSION="10.7"
+
+MIN_TVOS_SDK_VERSION="9.0"
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -92,6 +96,15 @@ def default_flags(self):
             # Force libstdc++ for now
             self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+    elif 'tvos' == build_util.get_target_os() and ('arm64' == build_util.get_target_architecture()):
+        #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-D__TVOS__=1'])
+            self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_TVOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, TVOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, TVOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_TVOS_SDK_VERSION])
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -441,8 +454,9 @@ Task.task_type_from_func('app_bundle',
 @after('apply_link')
 @feature('cprogram')
 def create_app_bundle(self):
-    if not re.match('arm.*?darwin', self.env['PLATFORM']):
+    if not re.match('arm.*?darwin', self.env['PLATFORM']) and not re.match('arm.*?tvos', self.env['PLATFORM']) :
         return
+
     Utils.def_attrs(self, bundleid = None, provision = None, entitlements = None)
 
     app_bundle_task = self.create_task('app_bundle', self.env)
@@ -1003,7 +1017,6 @@ def js_web_web_link_flags(self):
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
-
     s = '#!/bin/sh\n'
     # NOTE:  -Qunused-arguments to make clang happy (clang: warning: argument unused during compilation)
     s += "%s -Qunused-arguments $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
@@ -1036,6 +1049,8 @@ def detect(conf):
         build_platform = "linux"
     elif sys.platform == "win32":
         build_platform = "win32"
+    elif sys.platform == "tvos":
+        build_platform = "tvos"
     else:
         conf.fatal("Unable to determine host platform")
 
@@ -1059,7 +1074,7 @@ def detect(conf):
         os.environ['CXX'] = 'clang++'
 
 
-    if 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    if ('tvos' == build_util.get_target_os() or 'ios' == build_util.get_target_os()) and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
@@ -1165,7 +1180,7 @@ def detect(conf):
     if build_util.get_target_platform() == 'x86_64-linux':
         # TODO: LuaJIT is currently broken on x86_64-linux
         use_vanilla = True
-    if build_util.get_target_platform() == 'arm64-darwin':
+    if build_util.get_target_platform() == 'arm64-darwin' or build_util.get_target_platform() == 'arm64-tvos':
         # TODO: LuaJIT is currently not supported on arm64
         # Note: There is some support in the head branch for LuaJit 2.1
         use_vanilla = True
@@ -1182,6 +1197,8 @@ def configure(conf):
 
 old = Build.BuildContext.exec_command
 def exec_command(self, cmd, **kw):
+    # debug
+    print ' '.join(cmd)
     if getattr(Options.options, 'eclipse', False):
         if isinstance(cmd, list):
             print >>sys.stderr, ' '.join(cmd)

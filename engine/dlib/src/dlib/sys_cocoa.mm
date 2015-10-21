@@ -13,13 +13,18 @@
 #import <AdSupport/AdSupport.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #else
+#if !defined(__TVOS__)
 #import <AppKit/NSWorkspace.h>
+#endif
 #import <Foundation/NSLocale.h>
 #endif
 
 namespace dmSys
 {
-#if defined(__arm__) || defined(__arm64__)
+#define STRING2(x) #x
+#define STRING(x) STRING2(x)
+#pragma message(STRING(__TVOS__))
+#if !defined(__TVOS__) && (defined(__arm__) || defined(__arm64__))
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
     static SCNetworkReachabilityRef reachability_ref = 0;
@@ -225,6 +230,9 @@ namespace dmSys
 
     Result OpenURL(const char* url)
     {
+#if defined(__TVOS__)
+        return RESULT_UNKNOWN;
+#else
         NSString* ns_url = [NSString stringWithUTF8String: url];
         BOOL ret = [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString: ns_url]];
         if (ret == YES)
@@ -235,6 +243,7 @@ namespace dmSys
         {
             return RESULT_UNKNOWN;
         }
+#endif
     }
 
     void SetNetworkConnectivityHost(const char* host)

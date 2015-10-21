@@ -78,4 +78,4 @@ def build(bld):
     if bld.env.PLATFORM == 'js-web':
         bld.install_files('${PREFIX}/lib/js-web/js', '../lib/js/library_script.js', postpone = False)
 
-    bld.add_subdirs('test')
+    #bld.add_subdirs('test')
