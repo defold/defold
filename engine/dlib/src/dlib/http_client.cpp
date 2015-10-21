@@ -787,6 +787,8 @@ bail:
     {
         Result r = RESULT_OK;
 
+        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0);
+
         if (response->m_Chunked)
         {
             // Chunked encoding

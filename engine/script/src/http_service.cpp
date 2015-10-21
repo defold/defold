@@ -79,6 +79,13 @@ namespace dmHttpService
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
         dmArray<char>& r = worker->m_Response;
+
+        if (!content_data && !content_data_size)
+        {
+            r.SetSize(0);
+            return;
+        }
+
         uint32_t left = r.Capacity() - r.Size();
         if (left < content_data_size) {
             r.OffsetCapacity((int32_t) dmMath::Max(content_data_size - left, 128U * 1024U));
