@@ -431,16 +431,11 @@
     (dynamic label (g/always "Image"))
     (value (g/fnk [tile-source-resource] tile-source-resource))
     (validate (validation/validate-resource tile-source-resource "Missing image" [texture-set-data gpu-texture anim-data]))
-    (set (fn [basis self _ new-value]
-           (let [connections [[:resource :tile-source-resource]
-                              [:texture-set-data :texture-set-data]
-                              [:gpu-texture :gpu-texture]
-                              [:anim-data :anim-data]]]
-             (if new-value
-               (let [project (project/get-project self)]
-                 (project/connect-resource-node project new-value self connections))
-               (for [label (map second connections)]
-                 (g/disconnect-sources basis self label)))))))
+    (set (project/gen-resource-setter [[:resource :tile-source-resource]
+                                       [:texture-set-data :texture-set-data]
+                                       [:gpu-texture :gpu-texture]
+                                       [:anim-data :anim-data]])))
+
   (property animation g/Str
             (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
@@ -451,11 +446,8 @@
             (validate (g/fnk [material-resource]
                              (when (nil? material-resource)
                                (g/error-warning "Missing material"))))
-            (set (fn [basis self _ new-value]
-                   (if new-value
-                     (let [project (project/get-project self)]
-                       (project/connect-resource-node project new-value self [[:resource :material-resource]]))
-                     (g/disconnect-sources basis self :material-resource)))))
+            (set (project/gen-resource-setter [[:resource :material-resource]])))
+
   (property blend-mode g/Keyword
     (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
     (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
