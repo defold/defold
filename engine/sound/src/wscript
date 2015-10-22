@@ -31,7 +31,7 @@ def build(bld):
         include = 'openal/include'
         defines = 'TREMOLO_SCORE=10'
 
-    if re.match('arm.*?darwin', bld.env['PLATFORM']) or re.match('arm.*?tvos', bld.env['PLATFORM']):
+    if re.match('arm.*?darwin', bld.env['PLATFORM']):
         source.append('sound_ios.cpp')
         source2.append('sound_ios.cpp')
         defines = 'TREMOLO_SCORE=10'

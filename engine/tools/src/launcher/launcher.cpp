@@ -165,6 +165,7 @@ int Launch(int argc, char **argv) {
     return exit_code;
 #else
 
+#if !defined(__TVOS__)
     pid_t pid = fork();
     if (pid == 0) {
         int er = execv(args[0], (char *const *) args);
@@ -187,6 +188,7 @@ int Launch(int argc, char **argv) {
     } else {
         return 127;
     }
+#endif
 #endif
 }
 

@@ -64,7 +64,9 @@ namespace dmCrash
         stack.ss_size = sizeof(stack_buffer);
         stack.ss_sp = stack_buffer;
         stack.ss_flags = 0;
+#if !defined(__TVOS__)
         sigaltstack(&stack, NULL);
+#endif
 
         InstallOnSignal(SIGSEGV);
         InstallOnSignal(SIGBUS);
