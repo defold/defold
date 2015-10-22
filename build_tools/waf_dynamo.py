@@ -41,8 +41,9 @@ def new_copy_task(name, input_ext, output_ext):
         out = node.change_ext(output_ext)
         task.set_outputs(out)
 
-IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
-ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
+IOS_TOOLCHAIN_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+ARM_DARWIN_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
+ARM_TVOS_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
 IOS_SDK_VERSION="8.1"
 TVOS_SDK_VERSION="9.0"
 
@@ -103,8 +104,8 @@ def default_flags(self):
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_TVOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, TVOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, TVOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_TVOS_SDK_VERSION])
+            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-mtvos-version-min=%s' % MIN_TVOS_SDK_VERSION, '-isysroot', '%s/SDKs/AppleTVOS.sdk' % (ARM_TVOS_ROOT)])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-mtvos-version-min=%s' % MIN_TVOS_SDK_VERSION, '-fobjc-link-runtime', '-isysroot', '%s/SDKs/AppleTVOS.sdk' % (ARM_TVOS_ROOT), '-dead_strip'])
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -1197,6 +1198,7 @@ def configure(conf):
 
 old = Build.BuildContext.exec_command
 def exec_command(self, cmd, **kw):
+    print >>sys.stderr, ' '.join(cmd)
     if getattr(Options.options, 'eclipse', False):
         if isinstance(cmd, list):
             print >>sys.stderr, ' '.join(cmd)
