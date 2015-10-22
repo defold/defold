@@ -1,5 +1,6 @@
 (ns editor.tile-source
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.workspace :as workspace]
             [editor.project :as project]
             [editor.handler :as handler]
@@ -14,7 +15,8 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
             [editor.outline :as outline]
-            [editor.protobuf :as protobuf])
+            [editor.protobuf :as protobuf]
+            [editor.validation :as validation])
   (:import [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.google.protobuf ByteString]
@@ -220,13 +222,40 @@
                   }
      }))
 
+(g/defnk validate-tile-width [tile-width tile-margin ^BufferedImage image-content ^BufferedImage collision-content]
+  (if-let [max-width (or (and image-content (.getWidth image-content))
+                         (and collision-content (.getWidth collision-content)))]
+    (let [total-width (+ tile-width tile-margin)]
+      (when (> total-width max-width)
+        (g/error-severe (format "The total tile width (including margin) %d is greater than the image width %d" total-width max-width))))))
+
+(g/defnk validate-tile-height [tile-height tile-margin ^BufferedImage image-content ^BufferedImage collision-content]
+  (if-let [max-height (or (and image-content (.getHeight image-content))
+                          (and collision-content (.getHeight collision-content)))]
+    (let [total-height (+ tile-height tile-margin)]
+      (when (> total-height max-height)
+        (g/error-severe (format "The total tile height (including margin) %d is greater than the image height %d" total-height max-height))))))
+
+(g/defnk validate-tile-dimensions [tile-width tile-height tile-margin image-content collision-content :as all]
+  (validation/error-aggregate [(validate-tile-width all) (validate-tile-height all)]))
+
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
 
   (property image (g/protocol workspace/Resource))
-  (property tile-width g/Int (default 0))
-  (property tile-height g/Int (default 0))
-  (property tile-margin g/Int (default 0))
+
+  (property tile-width g/Int
+            (default 0)
+            (validate validate-tile-width))
+
+  (property tile-height g/Int
+            (default 0)
+            (validate validate-tile-height))
+  
+  (property tile-margin g/Int
+            (default 0)
+            (validate validate-tile-dimensions))
+  
   (property tile-spacing g/Int (default 0))
   (property collision (g/protocol workspace/Resource)) ; optional
   (property material-tag g/Str (default "tile"))

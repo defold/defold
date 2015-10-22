@@ -16,6 +16,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.resource :as resource]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -101,29 +102,36 @@
   (let [collection (core/scope go-id)]
     (g/node-value collection :ids)))
 
-(g/defnk produce-go-outline [_node-id id path embedded source-outline child-outlines]
+(g/defnk produce-go-outline [_node-id id source-resource embedded source-outline child-outlines]
   (let [coll-id (core/scope _node-id)]
     (merge-with concat
-      (merge source-outline
-        {:node-id _node-id
-         :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path path)))
-         :icon game-object/game-object-icon
-         :children (vec (sort-by :label (:children source-outline)))})
-      {:children (vec (sort-by :label child-outlines))
-       :child-reqs [{:node-type GameObjectInstanceNode
-                     :values {:embedded (comp not true?)}
-                     :tx-attach-fn (fn [self-id child-id]
-                                     (concat
-                                       (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                       (child-go-go self-id child-id)
-                                       (attach-coll-ref-go coll-id child-id)))}
-                    {:node-type GameObjectInstanceNode
-                     :values {:embedded true?}
-                     :tx-attach-fn (fn [self-id child-id]
-                                     (concat
-                                       (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                       (child-go-go self-id child-id)
-                                       (attach-coll-embedded-go coll-id child-id)))}]})))
+                (merge source-outline
+                       {:node-id _node-id
+                        :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path source-resource)))
+                        :icon game-object/game-object-icon
+                        :children (vec (sort-by :label (:children source-outline)))})
+                {:children child-outlines
+                 :child-reqs [{:node-type GameObjectInstanceNode
+                               :values {:embedded (comp not true?)}
+                               :tx-attach-fn (fn [self-id child-id]
+                                               (concat
+                                                (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                                 (child-go-go self-id child-id)
+                                                 (attach-coll-ref-go coll-id child-id)))}
+                              {:node-type GameObjectInstanceNode
+                               :values {:embedded true?}
+                               :tx-attach-fn (fn [self-id child-id]
+                                               (concat
+                                                (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                                 (child-go-go self-id child-id)
+                                                 (attach-coll-embedded-go coll-id child-id)))}]})))
+
+(defn- source-outline-subst [err]
+  ;; TODO: embed error so can warn in outline
+  ;; outline content not really used, only children if any.
+  {:node-id 0
+   :icon ""
+   :label ""})
 
 (g/defnode GameObjectInstanceNode
   (inherits scene/ScalableSceneNode)
@@ -132,18 +140,12 @@
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (value (g/fnk [source-resource] source-resource))
-    (set (fn [basis self old-value new-value]
-           (let [connections [[:_node-id      :source]
-                              [:resource      :source-resource]
-                              [:node-outline  :source-outline]
-                              [:save-data     :save-data]
-                              [:build-targets :build-targets]
-                              [:scene         :scene]]]
-             (if new-value
-               (let [project (project/get-project self)]
-                 (project/connect-resource-node project new-value self connections))
-               (for [tgt-label (map second connections)]
-                 (g/disconnect-sources basis self tgt-label)))))))
+    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (set (project/gen-resource-setter [[:_node-id      :source]
+                                       [:resource      :source-resource]
+                                       [:node-outline  :source-outline]
+                                       [:build-targets :build-targets]
+                                       [:scene         :scene]])))
 
   (property embedded g/Bool (dynamic visible (g/always false)))
 
@@ -156,6 +158,9 @@
   (input child-scenes g/Any :array)
   (input child-ids g/Str :array)
 
+  (input source-outline outline/OutlineData :substitute source-outline-subst)
+  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
@@ -167,7 +172,7 @@
                                                                                                             :transform transform})])))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes embedded]
-                                     (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (:aabb scene) child-scenes)
+                                     (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
                                        (merge-with concat
                                                    (assoc (assoc-deep scene :node-id _node-id)
@@ -297,7 +302,7 @@
                                                                        (% source child-id))))
                             ; TODO - temp blocked because of risk for graph cycles
                             ; If it's dropped on another instance referencing the same collection, it blows up
-                            (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs))))))
+                                (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs))))))
 
 (g/defnode CollectionInstanceNode
   (inherits scene/ScalableSceneNode)
@@ -305,24 +310,21 @@
 
   (property path (g/protocol resource/Resource)
     (value (g/fnk [source-resource] source-resource))
-    (set (fn [basis self old-value new-value]
-           (let [connections [[:_node-id      :source]
-                              [:resource      :source-resource]
-                              [:node-outline  :source-outline]
-                              [:save-data     :save-data]
-                              [:scene         :scene]
-                              [:build-targets :build-targets]]]
-             (if new-value
-               (let [project (project/get-project self)]
-                 (project/connect-resource-node project new-value self connections))
-               (for [tgt-label (map second connections)]
-                 (g/disconnect-sources basis self tgt-label)))))))
+    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (set (project/gen-resource-setter [[:_node-id      :source]
+                                       [:resource      :source-resource]
+                                       [:node-outline  :source-outline]
+                                       [:scene         :scene]
+                                       [:build-targets :build-targets]])))
+
 
   (input source g/Any)
   (input source-resource (g/protocol resource/Resource))
-  (input save-data g/Any)
   (input scene g/Any)
   (input build-targets g/Any)
+
+  (input source-outline outline/OutlineData :substitute source-outline-subst)
+  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
@@ -334,7 +336,7 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc (assoc-deep scene :node-id _node-id)
                                            :transform transform
-                                           :aabb (geom/aabb-transform (:aabb scene) transform)
+                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
                                            :renderable {:passes [pass/selection]})))
   (output build-targets g/Any produce-coll-inst-build-targets))
 
@@ -345,6 +347,7 @@
         (if (empty? (filter #(= id %) ids))
           id
           (recur (inc postfix)))))))
+
 
 (defn- make-ref-go [self project source-resource id position rotation scale child?]
   (g/make-nodes (g/node-id->graph-id self)
