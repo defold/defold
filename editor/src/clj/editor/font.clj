@@ -1,5 +1,6 @@
 (ns editor.font
-  (:require [editor.protobuf :as protobuf]
+  (:require [clojure.string :as s]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -89,6 +90,56 @@
                              (doseq [v vs]
                                (conj! vb (concat v df-colors)))
                              (persistent! vb)))))
+
+(defn- measure-line [glyphs line]
+  (let [w (reduce + 0 (map (fn [c] (get-in glyphs [(int c) :advance] 0)) line))]
+    (if-let [last (get glyphs (and (last line) (int (last line))))]
+      (- (+ w (:left-bearing last) (:width last)) (:advance last))
+      w)))
+
+(defn- break-line [^String line glyphs max-width]
+  (loop [b (dec (count line))]
+    (if (> b 0)
+      (let [c (.charAt line b)]
+        (if (= c \ )
+          (let [l1 (s/trim (subs line 0 b))
+                l2 (s/trim (subs line b))
+                w (measure-line glyphs l1)]
+            (if (> w max-width)
+              (recur (dec b))
+              [l1 l2]))
+          (recur (dec b))))
+      [line nil])))
+
+(defn- break-lines [lines glyphs max-width]
+  (reduce (fn [result line]
+            (let [w (measure-line glyphs line)]
+              (if (> w max-width)
+                (let [[l1 l2] (break-line line glyphs max-width)]
+                  (if l2
+                    (recur (conj result l1) l2)
+                    (conj result line)))
+                (conj result line)))) [] lines))
+
+(defn measure
+  ([font-map text]
+    (measure font-map text false 0))
+  ([font-map text line-break? max-width]
+    (if (or (nil? font-map) (nil? text) (= (count text) 0))
+      [0 0]
+      (let [glyphs (into {} (map (fn [g] [(:character g) g]) (:glyphs font-map)))
+            lines (cond-> (map s/trim (s/split-lines text))
+                    line-break? (break-lines glyphs max-width))
+            line-height (+ (:max-descent font-map) (:max-ascent font-map))
+            line-widths (map (partial measure-line glyphs) lines)
+            max-width (reduce max 0 line-widths)]
+        [max-width (* (count lines) line-height)]))))
+
+(def Font {:type g/Keyword
+           :font-map g/Any})
+
+(defn gen-vertex-buffer [{:keys [font-map]} text-entries]
+  nil)
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font font-map ^BufferedImage font-image material-shader type]
   (let [w (.getWidth font-image)
@@ -218,7 +269,8 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-image material-sampler]
                                       (first (material/make-textures [{:image-id _node-id :image font-image}] material-sampler))))
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
-  (output type g/Keyword produce-font-type))
+  (output type g/Keyword produce-font-type)
+  (output font Font :cached (g/fnk [font-map] {:font-map font-map})))
 
 (defn load-font [project self resource]
   (let [font (protobuf/read-text Font$FontDesc resource)
