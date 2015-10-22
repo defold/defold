@@ -138,20 +138,14 @@
   (inherits InstanceNode)
 
   (property path (g/protocol resource/Resource)
-            (dynamic visible (g/fnk [embedded] (not embedded)))
-            (value (g/fnk [source-resource] source-resource))
-            (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
-            (set (fn [basis self old-value new-value]
-                   (let [connections [[:_node-id      :source]
-                                      [:resource      :source-resource]
-                                      [:node-outline  :source-outline]
-                                      [:build-targets :build-targets]
-                                      [:scene         :scene]]]
-                     (if new-value
-                       (let [project (project/get-project self)]
-                         (project/connect-resource-node project new-value self connections))
-                       (for [tgt-label (map second connections)]
-                         (g/disconnect-sources basis self tgt-label)))))))
+    (dynamic visible (g/fnk [embedded] (not embedded)))
+    (value (g/fnk [source-resource] source-resource))
+    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (set (project/gen-resource-setter [[:_node-id      :source]
+                                       [:resource      :source-resource]
+                                       [:node-outline  :source-outline]
+                                       [:build-targets :build-targets]
+                                       [:scene         :scene]])))
 
   (property embedded g/Bool (dynamic visible (g/always false)))
 
@@ -315,19 +309,14 @@
   (inherits InstanceNode)
 
   (property path (g/protocol resource/Resource)
-            (value (g/fnk [source-resource] source-resource))
-            (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
-            (set (fn [basis self old-value new-value]
-                   (let [connections [[:_node-id      :source]
-                                      [:resource      :source-resource]
-                                      [:node-outline  :source-outline]
-                                      [:scene         :scene]
-                                      [:build-targets :build-targets]]]
-                     (if new-value
-                       (let [project (project/get-project self)]
-                         (project/connect-resource-node project new-value self connections))
-                       (for [tgt-label (map second connections)]
-                         (g/disconnect-sources basis self tgt-label)))))))
+    (value (g/fnk [source-resource] source-resource))
+    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (set (project/gen-resource-setter [[:_node-id      :source]
+                                       [:resource      :source-resource]
+                                       [:node-outline  :source-outline]
+                                       [:scene         :scene]
+                                       [:build-targets :build-targets]])))
+
 
   (input source g/Any)
   (input source-resource (g/protocol resource/Resource))
@@ -364,8 +353,7 @@
   (g/make-nodes (g/node-id->graph-id self)
                 [go-node [GameObjectInstanceNode :id id :path source-resource
                           :position position :rotation rotation :scale scale]]
-                (do
-                  (attach-coll-ref-go self go-node))
+                (attach-coll-ref-go self go-node)
                 (if child?
                   (child-coll-any self go-node)
                   [])

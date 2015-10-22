@@ -92,18 +92,12 @@
     (dynamic enabled (g/always false))
     (value (g/fnk [source-resource] source-resource))
     (validate (validation/validate-resource source-resource "Missing component" [build-targets]))
-    (set (fn [basis self old-value new-value]
-           (let [connections [[:_node-id :source-id]
-                              [:resource :source-resource]
-                              [:node-outline :source-outline]
-                              [:user-properties :user-properties]
-                              [:scene :scene]
-                              [:build-targets :build-targets]]]
-             (if new-value
-               (let [project (project/get-project self)]
-                 (project/connect-resource-node project new-value self connections))
-               (for [label (map second connections)]
-                 (g/disconnect-sources basis self label)))))))
+    (set (project/gen-resource-setter [[:_node-id :source-id]
+                                       [:resource :source-resource]
+                                       [:node-outline :source-outline]
+                                       [:user-properties :user-properties]
+                                       [:scene :scene]
+                                       [:build-targets :build-targets]])))
 
   (property properties g/Any
     (dynamic link (g/fnk [source-properties] source-properties))
