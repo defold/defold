@@ -106,7 +106,9 @@ void HttpPostThread(void* params)
     HttpTestContext* http_ctx = (HttpTestContext*) params;
     char cmd[256];
     DM_SNPRINTF(cmd, sizeof(cmd), "python src/test/%s %d", http_ctx->m_Script, http_ctx->m_Port);
+#if !defined(__TVOS__)
     g_PostExitResult = system(cmd);
+#endif
 }
 
 static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)

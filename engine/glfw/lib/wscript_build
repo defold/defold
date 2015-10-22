@@ -12,8 +12,8 @@ elif re.match('arm.*?darwin', platform):
     dmglfw.find_sources_in_dirs('. ios')
     dmglfw.includes = '. ios'
 elif re.match('arm64-tvos', platform):
-    dmglfw.find_sources_in_dirs('. ios')
-    dmglfw.includes = '. ios'
+    dmglfw.find_sources_in_dirs('. tvos')
+    dmglfw.includes = '. tvos'
 elif re.match('arm.*?android', platform):
     dmglfw.find_sources_in_dirs('. android')
     dmglfw.includes = '. android'
