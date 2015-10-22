@@ -466,6 +466,10 @@ namespace dmGui
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
         luaL_unref(L, LUA_REGISTRYINDEX, ref);
 
+        curve->release_callback = 0x0;
+        curve->userdata1 = 0x0;
+        curve->userdata2 = 0x0;
+
         assert(top == lua_gettop(L));
     }
 

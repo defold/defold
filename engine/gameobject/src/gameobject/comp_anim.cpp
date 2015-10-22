@@ -299,11 +299,6 @@ namespace dmGameObject
             Animation* anim = &world->m_Animations[i];
             if (!anim->m_Playing)
             {
-                if (anim->m_Easing.release_callback != 0x0)
-                {
-                    anim->m_Easing.release_callback(&anim->m_Easing);
-                }
-
                 if (anim->m_AnimationStopped != 0x0)
                 {
                     uint32_t orig_size = size;
@@ -314,6 +309,11 @@ namespace dmGameObject
                     if (size != orig_size)
                         anim = &world->m_Animations[i];
                     RemoveAnimationCallback(world, anim);
+
+                    if (anim->m_Easing.release_callback != 0x0)
+                    {
+                        anim->m_Easing.release_callback(&anim->m_Easing);
+                    }
                 }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
@@ -447,6 +447,7 @@ namespace dmGameObject
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;
 
+
         if (0x0 != animation_stopped)
         {
             index_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
@@ -471,10 +472,10 @@ namespace dmGameObject
     }
 
     static bool PlayCompositeAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
-            dmhash_t property_id, Playback playback, float duration, float delay, AnimationStopped animation_stopped,
+            dmhash_t property_id, Playback playback, float duration, float delay, dmEasing::Curve easing, AnimationStopped animation_stopped,
             void* userdata1, void* userdata2)
     {
-        return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+        return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, easing,
                 duration, delay, animation_stopped, userdata1, userdata2, true);
     }
 
@@ -530,7 +531,7 @@ namespace dmGameObject
         if (element_count > 1)
         {
             if (!PlayCompositeAnimation(world, instance, component_id, property_id, playback,
-                    duration, delay, animation_stopped, userdata1, userdata2))
+                    duration, delay, easing, animation_stopped, userdata1, userdata2))
                 return PROPERTY_RESULT_BUFFER_OVERFLOW;
             float* v = prop_desc.m_Variant.m_V4;
             for (uint32_t i = 0; i < element_count; ++i)
