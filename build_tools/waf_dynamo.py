@@ -41,9 +41,9 @@ def new_copy_task(name, input_ext, output_ext):
         out = node.change_ext(output_ext)
         task.set_outputs(out)
 
-IOS_TOOLCHAIN_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
-ARM_DARWIN_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
-ARM_TVOS_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
+IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
+ARM_TVOS_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
 IOS_SDK_VERSION="8.1"
 TVOS_SDK_VERSION="9.0"
 
