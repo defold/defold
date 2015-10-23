@@ -16,6 +16,15 @@ function test_http_timeout()
             requests_left = requests_left - 1
         end,
     headers, '', options)
+
+    -- The config file also specifies a timeout value, let's test that too
+    http.request("http://localhost:" .. PORT .. "/sleep", "GET",
+        function(response)
+            assert(response.status == 0)
+            requests_left = requests_left - 1
+        end,
+    headers)
+
 end
 
 functions = { test_http_timeout = test_http_timeout }
