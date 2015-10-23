@@ -336,6 +336,12 @@ namespace dmConfigFile
         if (status_code != 200)
             return;
 
+        if (!content_data && !content_data_size)
+        {
+            context->m_Buffer.SetSize(0);
+            return;
+        }
+
         dmArray<char>& buffer = context->m_Buffer;
         if (buffer.Remaining() < content_data_size)
         {
