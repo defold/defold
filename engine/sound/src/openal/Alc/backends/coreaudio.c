@@ -31,7 +31,7 @@
 #include <unistd.h>
 #include <AudioUnit/AudioUnit.h>
 #include <AudioToolbox/AudioToolbox.h>
-
+#include <AVFoundation/AVFoundation.h>
 
 typedef struct {
     AudioUnit audioUnit;
