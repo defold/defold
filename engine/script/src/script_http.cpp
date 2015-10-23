@@ -39,7 +39,7 @@ namespace dmScript
      * @param callback response callback
      * @param [headers] optional lua-table with custom headers
      * @param [post_data] optional data to send
-     * @param [options] optional lua-table with request parameters. Supported entries: 'timeout'=<number> (in microseconds)
+     * @param [options] optional lua-table with request parameters. Supported entries: 'timeout'=<number> (in seconds)
      * @note If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is 0. (0 == blocks indefinitely)
      * @examples
      * <p>
@@ -125,7 +125,7 @@ namespace dmScript
                     const char* attr = lua_tostring(L, -2);
                     if( strcmp(attr, "timeout") == 0 )
                     {
-                        timeout = luaL_checknumber(L, -1);
+                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
                     }
                     lua_pop(L, 1);
                 }
