@@ -202,7 +202,7 @@
         vs (concat (reduce into [] (map glyph-fn xforms glyphs)))
         colors (cond->> [1.0 1.0 1.0 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0]
                  (= type :distance-field) (into [(:sdf-scale font-map) (:sdf-offset font-map) (:sdf-outline font-map) 1.0]))
-        vs (mapv #(into colors %) vs)]
+        vs (mapv #(into % colors) vs)]
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-font
