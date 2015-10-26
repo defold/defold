@@ -39,11 +39,12 @@
            :matrix4-value (into [] (map double (range 16)))
            :sub-msg-value {:uint-value 1}
            :enum-value :enum-val0
-           :bool-value true}
+           :bool-value false}
         new-m (round-trip TestDdf$Msg m)]
     (is (= 1 (:uint-value new-m)))
     (is (= 2 (:int-value new-m)))
     (is (= "three" (:string-value new-m)))
+    (is (identical? java.lang.Boolean/FALSE (:bool-value new-m)))
     (is (= m new-m))))
 
 (deftest default-vals
