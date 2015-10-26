@@ -651,11 +651,13 @@ return value."
     []))
 
 (defprotocol Future
-  (cancel [this]))
+  (cancel [this])
+  (restart [this]))
 
 (extend-type Timeline
   Future
-  (cancel [this] (.stop this)))
+  (cancel [this] (.stop this))
+  (restart [this] (.playFromStart this)))
 
 (defn ->future [delay run-fn]
   (let [^EventHandler handler (event-handler e (run-fn))
