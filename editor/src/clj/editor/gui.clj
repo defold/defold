@@ -151,12 +151,16 @@
                                     [[] [] []] renderables)]
         (->uv-color-vtx-vb vs uvs colors (count vs)))
       (if (contains? user-data :text-data)
-        (font/gen-vertex-buffer (get user-data :font) (map #(get-in % [:user-data :text-data]) renderables))
+        (font/gen-vertex-buffer (get-in user-data [:text-data :font-data]) (map (fn [r] (assoc (get-in r [:user-data :text-data])
+                                                                                               :world-transform (:world-transform r)))
+                                                                                renderables))
         nil))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
-  (let [gpu-texture (or (get-in (first renderables) [:user-data :gpu-texture]) texture/white-pixel)
-        material-shader (get-in (first renderables) [:user-data :material-shader])
+  (let [user-data (get-in renderables [0 :user-data])
+        gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
+        material-shader (get user-data :material-shader)
+        blend-mode (get user-data :blend-mode)
         vb (gen-vb renderables)
         vcount (count vb)]
     (when (> vcount 0)
@@ -165,7 +169,12 @@
                      (or material-shader shader))
             vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
+          (case blend-mode
+            :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+            (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+            :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
 (defn- pivot-offset [pivot size]
   (let [xs (case pivot
@@ -211,7 +220,7 @@
 (defn- pairs [v]
   (filter (fn [[v0 v1]] (> (Math/abs (double (- v1 v0))) 0)) (partition 2 1 v)))
 
-(g/defnk produce-node-scene [_node-id type aabb transform pivot size color slice9 pie-data text-data inherit-alpha texture gpu-texture anim-data material-shader child-scenes]
+(g/defnk produce-node-scene [_node-id type aabb transform pivot size color blend-mode slice9 pie-data text-data inherit-alpha texture gpu-texture anim-data material-shader child-scenes]
   (let [min (types/min-p aabb)
         max (types/max-p aabb)
         size (if (= type :type-text) [(- (.x max) (.x min)) (- (.y max) (.y min))] size)
@@ -219,7 +228,9 @@
         offset (pivot-offset pivot size)
         userdata (if (= type :type-text)
                    (let [lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
-                     {:text-data text-data
+                     {:text-data (assoc text-data :offset (let [[x y] offset]
+                                                            [x (+ y (- h (get-in text-data [:font-data :font-map :max-ascent])))])
+                                        :color color)
                       :line-data lines})
                    (let [[geom-data uv-data line-data] (case type
                                                          :type-box (let [order [0 1 3 3 1 2]
@@ -289,14 +300,15 @@
         userdata (assoc userdata
                         :gpu-texture gpu-texture
                         :inherit-alpha inherit-alpha
-                        :material-shader material-shader)]
+                        :material-shader material-shader
+                        :blend-mode blend-mode)]
     {:node-id _node-id
      :aabb aabb
      :transform transform
      :renderable {:render-fn render-nodes
                   :passes [pass/transparent pass/selection pass/outline]
                   :user-data userdata
-                  :batch-key [gpu-texture]
+                  :batch-key [gpu-texture blend-mode]
                   :select-batch-key _node-id}
      :children child-scenes}))
 
@@ -349,7 +361,7 @@
       (:type-box :type-pie) (concat
                               (g/connect self :textures gui-node :textures)
                               (g/connect self :material-shader gui-node :material-shader))
-      :type-text (g/connect self :fonts gui-node :fonts)
+      :type-text (g/connect self :font-ids gui-node :font-ids)
       [])))
 
 (defn- disconnect-all [node-id label]
@@ -367,7 +379,7 @@
 (def ^:private font-connections [[:name :font-input]
                                  [:gpu-texture :gpu-texture]
                                  [:font-map :font-map]
-                                 [:vertex-buffer-gen :vertex-buffer-gen]
+                                 [:font-data :font-data]
                                  [:font-shader :material-shader]])
 
 (g/defnode GuiNode
@@ -398,15 +410,15 @@
   (property text g/Str (dynamic visible text?) (default ""))
   (property line-break g/Bool (dynamic visible text?) (default false))
   (property font g/Str (dynamic visible text?)
-    (dynamic edit-type (g/fnk [fonts] (properties/->choicebox (map first fonts))))
+    (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
     (value (g/fnk [font-input] font-input))
     (set (fn [basis self _ new-value]
-           (let [fonts (g/node-value self :fonts :basis basis)]
+           (let [font-ids (g/node-value self :font-ids :basis basis)]
              (for [label (map second font-connections)]
                (g/disconnect-sources self label))
-             (if (contains? fonts new-value)
+             (if (contains? font-ids new-value)
                (for [[from to] font-connections
-                     :let [font-node (fonts new-value)]]
+                     :let [font-node (font-ids new-value)]]
                  (g/connect font-node from self to))
                [])))))
   (property outline types/Color (dynamic visible text?) (default [1 1 1 1]))
@@ -491,11 +503,11 @@
   (input texture-input g/Str)
   (input font-input g/Str)
   (input font-map g/Any)
-  (input vertex-buffer-gen Runnable)
+  (input font-data font/FontData)
   (input gpu-texture g/Any)
   (input anim-data g/Any)
   (input textures {g/Str g/NodeID})
-  (input fonts {g/Str g/NodeID})
+  (input font-ids {g/Str g/NodeID})
   (input material-shader ShaderLifecycle)
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
@@ -539,9 +551,9 @@
   (output pie-data {g/Keyword g/Any} (g/fnk [outer-bounds inner-radius perimeter-vertices pie-fill-angle]
                                        {:outer-bounds outer-bounds :inner-radius inner-radius
                                         :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle}))
-  (output text-data {g/Keyword g/Any} (g/fnk [text vertex-buffer-gen line-break outline shadow]
-                                        {:text text :vertex-buffer-gen vertex-buffer-gen
-                                         :line-break line-break :outline outline :shadow shadow})))
+  (output text-data {g/Keyword g/Any} (g/fnk [text font-data line-break outline shadow size]
+                                        {:text text :font-data font-data
+                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)})))
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
@@ -582,12 +594,12 @@
     (value (g/fnk [font-resource] font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]
                                        [:font-map :font-map]
-                                       [:vertex-buffer-gen :vertex-buffer-gen]
+                                       [:font-data :font-data]
                                        [:gpu-texture :gpu-texture]
                                        [:material-shader :font-shader]])))
   (input font-resource (g/protocol resource/Resource))
   (input font-map g/Any)
-  (input vertex-buffer-gen Runnable)
+  (input font-data font/FontData)
   (input font-shader ShaderLifecycle)
   (input gpu-texture g/Any)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
@@ -598,9 +610,10 @@
                               {:name name
                                :font (proj-path font)}))
   (output font-map g/Any (g/fnk [font-map] font-map))
+  (output font-data font/FontData (g/fnk [font-data] font-data))
   (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
   (output font-shader ShaderLifecycle (g/fnk [font-shader] font-shader))
-  (output font-data {g/Str g/NodeID} (g/fnk [_node-id name] {name _node-id})))
+  (output font-id {g/Str g/NodeID} (g/fnk [_node-id name] {name _node-id})))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -787,7 +800,7 @@
 
   (input layers g/Any :array)
   (input texture-data g/Any :array)
-  (input font-data {g/Str g/NodeID} :array)
+  (input font-ids {g/Str g/NodeID} :array)
 
   (input material-resource (g/protocol resource/Resource))
   (input material-shader ShaderLifecycle)
@@ -813,7 +826,7 @@
   (output layers [g/Str] :cached (g/fnk [layers] layers))
   (output textures {g/Str g/NodeID} :cached (g/fnk [texture-data]
                                               (into {} (mapcat (fn [[_node-id anims]] (map #(vector % _node-id) anims)) texture-data))))
-  (output fonts {g/Str g/NodeID} :cached (g/fnk [font-data] (into {} font-data))))
+  (output font-ids {g/Str g/NodeID} :cached (g/fnk [font-ids] (into {} font-ids))))
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
@@ -828,7 +841,7 @@
 (defn- attach-font [self fonts-node font]
   (concat
     (g/connect font :_node-id self :nodes)
-    (g/connect font :font-data self :font-data)
+    (g/connect font :font-id self :font-ids)
     (g/connect font :pb-msg self :font-msgs)
     (g/connect font :name self :font-names)
     (g/connect font :node-outline fonts-node :child-outlines)))

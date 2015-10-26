@@ -79,5 +79,3 @@
          outline (g/node-value node-id :node-outline)
          font-node (get-in outline [:children 2 :children 0 :node-id])]
      (is (some? (g/node-value font-node :font-map))))))
-
-(gui-fonts)
