@@ -254,11 +254,14 @@
 
 (defmethod create-property-control! :default [_ _ _]
   (let [text (TextField.)
+        wrapper (HBox.)
         update-ui-fn (fn [values message]
                        (ui/text! text (properties/unify-values (map str values)))
-                       (update-field-message [text] message))]
+                       (update-field-message [wrapper] message))]
+    (HBox/setHgrow text Priority/ALWAYS)
+    (ui/children! wrapper [text])
     (.setDisable text true)
-    [text update-ui-fn]))
+    [wrapper update-ui-fn]))
 
 (defn- ^Point2D node-screen-coords [^Node node ^Point2D offset]
   (let [scene (.getScene node)
