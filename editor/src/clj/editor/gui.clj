@@ -923,7 +923,7 @@
       (g/transact
         (concat
           (g/operation-label "Add Font")
-          (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name]]
+          (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name :font resource]]
             (attach-font scene parent node)
             (project/select project [node])))))))
 
