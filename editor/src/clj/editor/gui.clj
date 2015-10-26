@@ -138,6 +138,10 @@
         (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
+(defn- premul [color]
+  (let [[r g b a] color]
+    [(* r a) (* g a) (* b a) a]))
+
 (defn- gen-vb [renderables]
   (let [user-data (get-in renderables [0 :user-data])]
     (if (contains? user-data :geom-data)
@@ -147,12 +151,17 @@
                                             vcount (count (:geom-data user-data))]
                                         [(into vs (geom/transf-p world-transform (:geom-data user-data)))
                                          (into uvs (:uv-data user-data))
-                                         (into colors (repeat vcount (:color user-data)))]))
+                                         (into colors (repeat vcount (premul (:color user-data))))]))
                                     [[] [] []] renderables)]
         (->uv-color-vtx-vb vs uvs colors (count vs)))
       (if (contains? user-data :text-data)
-        (font/gen-vertex-buffer (get-in user-data [:text-data :font-data]) (map (fn [r] (assoc (get-in r [:user-data :text-data])
-                                                                                               :world-transform (:world-transform r)))
+        (font/gen-vertex-buffer (get-in user-data [:text-data :font-data]) (map (fn [r] (let [alpha (get-in r [:user-data :color 3])
+                                                                                              text-data (get-in r [:user-data :text-data])]
+                                                                                          (-> text-data
+                                                                                            (assoc :world-transform (:world-transform r)
+                                                                                                   :color (get-in r [:user-data :color]))
+                                                                                            (update-in [:outline 3] * alpha)
+                                                                                            (update-in [:shadow 3] * alpha))))
                                                                                 renderables))
         nil))))
 
@@ -229,9 +238,9 @@
         userdata (if (= type :type-text)
                    (let [lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                      {:text-data (assoc text-data :offset (let [[x y] offset]
-                                                            [x (+ y (- h (get-in text-data [:font-data :font-map :max-ascent])))])
-                                        :color color)
-                      :line-data lines})
+                                                            [x (+ y (- h (get-in text-data [:font-data :font-map :max-ascent])))]))
+                      :line-data lines
+                      :color color})
                    (let [[geom-data uv-data line-data] (case type
                                                          :type-box (let [order [0 1 3 3 1 2]
                                                                          x-vals (pairs [0 (get slice9 0) (- w (get slice9 2)) w])
