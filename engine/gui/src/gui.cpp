@@ -1180,10 +1180,6 @@ namespace dmGui
                             anim->m_Backwards ^= 1;
                         }
                     } else {
-                        if (anim->m_Easing.release_callback != 0x0)
-                        {
-                            anim->m_Easing.release_callback(&anim->m_Easing);
-                        }
                         if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                         {
                             // NOTE: Very important to set m_AnimationCompleteCalled to 1
@@ -1191,6 +1187,11 @@ namespace dmGui
                             // start a new animation that could reuse the same animation slot.
                             anim->m_AnimationCompleteCalled = 1;
                             anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
+
+                            if (anim->m_Easing.release_callback != 0x0)
+                            {
+                                anim->m_Easing.release_callback(&anim->m_Easing);
+                            }
                         }
                     }
                 }

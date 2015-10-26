@@ -136,7 +136,7 @@ namespace dmScript
                     const char* attr = lua_tostring(L, -2);
                     if( strcmp(attr, "timeout") == 0 )
                     {
-                        timeout = luaL_checknumber(L, -1);
+                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
                     }
                     lua_pop(L, 1);
                 }

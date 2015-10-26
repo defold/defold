@@ -8,6 +8,7 @@
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
@@ -241,12 +242,18 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol workspace/Resource))
+  (property image (g/protocol workspace/Resource)
+            (validate (g/fnk [image]
+                             (when (nil? image)
+                               (g/error-severe "The image could not be loaded")))))
+  
   (property default-animation g/Str
+            (validate (validation/validate-animation default-animation anim-data))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material (g/protocol workspace/Resource))
-  (property blend-mode g/Any (default :BLEND_MODE_ALPHA)
+  (property blend-mode g/Any (default :blend_mode_alpha)
+            (validate (validation/validate-blend-mode blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/always
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                   {:type :choicebox

@@ -1,0 +1,56 @@
+key_trigger {
+  input: KEY_ENTER
+  action: "ok"
+}
+key_trigger {
+  input: KEY_DOWN
+  action: "move_down"
+}
+key_trigger {
+  input: KEY_UP
+  action: "move_up"
+}
+key_trigger {
+  input: KEY_LEFT
+  action: "move_left"
+}
+key_trigger {
+  input: KEY_RIGHT
+  action: "move_right"
+}
+key_trigger {
+  input: KEY_SPACE
+  action: "profiler_toggle"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_DOWN
+  action: "ok"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_RIGHT
+  action: "back"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_LEFT
+  action: "move_left"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_RIGHT
+  action: "move_right"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_UP
+  action: "move_up"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_DOWN
+  action: "move_down"
+}
+gamepad_trigger {
+  input: GAMEPAD_START
+  action: "start"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_CLICK
+  action: "profiler_toggle"
+}
