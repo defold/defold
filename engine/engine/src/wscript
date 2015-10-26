@@ -16,7 +16,7 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     additional_libs = ['CRASH']
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt']
+    exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
     if 'js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
@@ -41,7 +41,6 @@ def build(bld):
         exported_symbols.append('FacebookExt')
     elif 'js-web' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL'
-        exported_symbols.append('NullSoundDevice')
         exported_symbols.append('FacebookExt')
     else:
         sound_lib = 'SOUND OPENAL'
