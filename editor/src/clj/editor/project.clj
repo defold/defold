@@ -9,12 +9,14 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
+            [editor.validation :as validation]
             [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
+           [editor.resource FileResource]
            [com.defold.editor Platform]))
 
 (def ^:dynamic *load-cache* nil)
@@ -46,10 +48,13 @@ ordinary paths."
       (try
         (when *load-cache*
           (swap! *load-cache* conj node-id))
-        (load-fn project node-id resource)
+        (concat
+         (load-fn project node-id resource)
+         (when (instance? FileResource resource)
+           (g/connect node-id :save-data project :save-data)))
         (catch java.io.IOException e
           (log/warn :exception e)
-          (g/mark-defective node-id node-type (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+          (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
 (defn- load-nodes! [project node-ids]
@@ -88,8 +93,7 @@ ordinary paths."
               resource resources]
           (if (not= (workspace/source-type resource) :folder)
             (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
-                                                                               [:resource :node-resources]
-                                                                               [:save-data :save-data]]})
+                                                                               [:resource :node-resources]]})
             []))))))
 
 (defn load-project
@@ -104,12 +108,19 @@ ordinary paths."
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
+(defn save-data [project]
+  (g/node-value project :save-data :skip-validation true))
+
 (defn save-all [project]
-  (let [save-data (g/node-value project :save-data)]
-    (doseq [{:keys [resource content]} save-data
-            :when (not (workspace/read-only? resource))]
-      (spit resource content)))
-  (workspace/fs-sync (g/node-value project :workspace) false))
+  (let [save-data (save-data project)]
+    (if-not (g/error? save-data)
+      (do
+        (doseq [{:keys [resource content]} save-data
+                :when (not (workspace/read-only? resource))]
+          (spit resource content))
+        (workspace/fs-sync (g/node-value project :workspace) false))
+      ;; TODO: error message somewhere...
+      (println (validation/error-message save-data)))))
 
 (handler/defhandler :save-all :global
     (enabled? [] true)
@@ -266,7 +277,7 @@ ordinary paths."
             outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/error-fatal {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))
@@ -378,9 +389,8 @@ ordinary paths."
           [])
         (connect-if-output (g/node-type* node) node consumer-node connections))
       (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
-                                                                                        [:resource :node-resources]
-                                                                                        [:save-data :save-data]]
-                                                 consumer-node connections}))
+                                                                                        [:resource :node-resources]]
+                                                                               consumer-node connections}))
     []))
 
 (defn select
