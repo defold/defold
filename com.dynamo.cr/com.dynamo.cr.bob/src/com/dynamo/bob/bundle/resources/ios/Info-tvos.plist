@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
         <key>BuildMachineOSBuild</key>
-        <string>13A603</string>
+        <string>15A284</string>
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
@@ -56,7 +56,7 @@
         <string>????</string>
         <key>CFBundleSupportedPlatforms</key>
         <array>
-                <string>iPhoneOS</string>
+                <string>AppleTVOS</string>
         </array>
         <key>CFBundleVersion</key>
         <string>{{project.version}}</string>
@@ -65,27 +65,26 @@
         <key>DTPlatformBuild</key>
         <string>11B508</string>
         <key>DTPlatformName</key>
-        <string>iphoneos</string>
+        <string>appletvos</string>
         <key>DTPlatformVersion</key>
-        <string>7.0</string>
+        <string>9.0</string>
         <key>DTSDKBuild</key>
-        <string>11B508</string>
+        <string>13T5347l</string>
         <key>DTSDKName</key>
-        <string>iphoneos7.0</string>
+        <string>appletvos9.0</string>
         <key>DTXcode</key>
-        <string>0501</string>
+        <string>0710</string>
         <key>DTXcodeBuild</key>
-        <string>5A2053</string>
+        <string>7B60</string>
         <key>UIFileSharingEnabled</key>
         <{{project.write_log}}/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
-        <string>5.1.1</string>
+        <string>9.0</string>
         <key>UIDeviceFamily</key>
         <array>
-                <integer>1</integer>
-                <integer>2</integer>
+                <integer>3</integer>
         </array>
         <key>UIStatusBarHidden</key>
         <true/>
@@ -93,7 +92,7 @@
         <false/>
         <key>UIRequiredDeviceCapabilities</key>
         <array>
-                <string>armv7</string>
+                <string>arm64</string>
                 <string>opengles-2</string>
         </array>
         <key>UISupportedInterfaceOrientations</key>

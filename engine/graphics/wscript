@@ -41,9 +41,9 @@ def configure(conf):
         conf.fatal("DYNAMO_HOME not set")
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
-    if platform == "tvos" or platform == "darwin" or platform == 'x86_64-darwin':
+    if platform == "darwin" or platform == 'x86_64-darwin':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
-    elif platform == "armv7-darwin":
+    elif platform == "armv7-darwin" or platform == "arm64-tvos":
         pass
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])

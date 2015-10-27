@@ -11,8 +11,10 @@
 #include "thread.h"
 #include "math.h"
 #include "time.h"
+#include "time.h"
 #include "path.h"
 #include "sys.h"
+#include "output.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -441,12 +443,15 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
     g_TotalBytesLogged += actual_n;
 
+    DebugOutput::print(str_buf);
+
 #ifdef ANDROID
     __android_log_print(ToAndroidPriority(severity), "defold", str_buf);
 #else
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
     va_end(lst);
+
 
     if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;

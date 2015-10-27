@@ -59,18 +59,18 @@ namespace dmCrash
 
     void InstallHandler()
     {
+#if !defined(__TVOS__)
         stack_t stack;
         memset(&stack, 0, sizeof(stack));
         stack.ss_size = sizeof(stack_buffer);
         stack.ss_sp = stack_buffer;
         stack.ss_flags = 0;
-#if !defined(__TVOS__)
         sigaltstack(&stack, NULL);
-#endif
 
         InstallOnSignal(SIGSEGV);
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);
         InstallOnSignal(SIGILL);
+#endif
     }
 }
