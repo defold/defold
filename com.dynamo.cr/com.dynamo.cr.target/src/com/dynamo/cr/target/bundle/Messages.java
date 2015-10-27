@@ -18,5 +18,10 @@ public class Messages extends NLS {
     public static String BundleiOSPresenter_PROFILE_NOT_FOUND;
     public static String BundleiOSPresenter_NO_IDENTITY_FOUND;
 
+    public static String BundleTVOSPresenter_NO_ICONS_SPECIFIED;
+    public static String BundleTVOSPresenter_DIALOG_MESSAGE;
+    public static String BundleTVOSPresenter_PROFILE_NOT_FOUND;
+    public static String BundleTVOSPresenter_NO_IDENTITY_FOUND;
+
     public static String BundleAndroidPresenter_DIALOG_MESSAGE;
 }
