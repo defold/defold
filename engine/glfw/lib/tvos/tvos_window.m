@@ -139,18 +139,15 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 }
 
 - (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"forwardInvocation");
     BOOL invoked = NO;
     if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]]) {
         [anInvocation invokeWithTarget: g_ApplicationDelegate];
-        NSLog(@"forwardInvocation exit 1");
         invoked = YES;
     }
 
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
         if ([g_AppDelegates[i] respondsToSelector: [anInvocation selector]]) {
             [anInvocation invokeWithTarget: g_AppDelegates[i]];
-            NSLog(@"forwardInvocation exit 2");
             invoked = YES;
         }
     }
@@ -158,40 +155,31 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
     if (!invoked) {
         [super forwardInvocation:anInvocation];
     }
-    NSLog(@"forwardInvocation exit 3");
 }
 
 - (BOOL)respondsToSelector:(SEL)aSelector {
-    NSLog(@"respondsToSelector");
 
     if ([g_ApplicationDelegate respondsToSelector: aSelector]) {
-        NSLog(@"respondsToSelector exit 1");
         return YES;
     }
 
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
         if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
-            NSLog(@"respondsToSelector exit 2");
             return YES;
         }
     }
 
-    NSLog(@"respondsToSelector exit 3");
     return [super respondsToSelector: aSelector];
 }
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
-    NSLog(@"methodSignatureForSelector");
     NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
 
     if (!signature)
     {
-        NSLog(@"methodSignatureForSelector has signature");
         for (int i = 0; i < g_AppDelegatesCount; ++i) {
-            NSLog(@"methodSignatureForSelector iter");
             if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
-            NSLog(@"methodSignatureForSelector found!");
                 return [g_AppDelegates[i] methodSignatureForSelector:aSelector];
             }
         }
@@ -203,7 +191,6 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
 {
-    NSLog(@"glfwRegisterUIApplicationDelegate");
     if (g_AppDelegatesCount >= MAX_APP_DELEGATES) {
         printf("Max UIApplicationDelegates reached (%d)", MAX_APP_DELEGATES);
     } else {
@@ -213,7 +200,6 @@ GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
 
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
 {
-    NSLog(@"glfwUnregisterUIApplicationDelegate");
     assert(g_AppDelegatesCount > 0);
     for (int i = 0; i < g_AppDelegatesCount; ++i)
     {
@@ -277,7 +263,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (id) init {
 
-    NSLog(@"init");
   self = [super init];
   if (self != nil) {
       [self setSwapInterval: 1];
@@ -292,12 +277,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (id)initWithFrame:(CGRect)frame
 {
-    NSLog(@"initwithframe");
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _glfwWin.view = self;
     if ((self = [super initWithFrame:frame]))
     {
-    NSLog(@"initwithframe ok");
         // Get the layer
         CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
 
@@ -320,9 +303,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)swapBuffers
 {
-    NSLog(@"swapBuffers");
     if (g_StartupPhase == COMPLETE) {
-        NSLog(@"swapBuffers complete");
         // Do not poll event before startup sequence is completed
         NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
         while (countDown > 0)
@@ -340,7 +321,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     // At least when running in frame-rates < 60
     if (!_glfwWin.iconified && g_StartupPhase == COMPLETE)
     {
-        NSLog(@"swapBuffers complete 2");
         const GLenum discards[]  = {GL_DEPTH_ATTACHMENT};
         glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
         glDiscardFramebufferEXT(GL_FRAMEBUFFER, 1, discards);
@@ -348,8 +328,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         [context presentRenderbuffer:GL_RENDERBUFFER];
     }
-
-    NSLog(@"swapBuffers leave");
 }
 
 - (void)newFrame
@@ -598,7 +576,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)layoutSubviews
 {
-    NSLog(@"layoutSubviews");
     [EAGLContext setCurrentContext:context];
     [self destroyFramebuffer];
     [self createFramebuffer];
@@ -607,7 +584,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (BOOL)createFramebuffer
 {	
-    NSLog(@"createFrameBuffer");
     glGenFramebuffers(1, &viewFramebuffer);
     glGenRenderbuffers(1, &viewRenderbuffer);
 
@@ -724,7 +700,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)viewDidLoad
 {
-    NSLog(@"viewDidLoad");
     [super viewDidLoad];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
@@ -734,7 +709,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)createGlView
 {
-	NSLog(@"createGlView");
     EAGLContext* glContext = nil;
     if (glView) {
         // We must recycle the GL context, since the engine will be performing operations
@@ -849,7 +823,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)viewDidAppear:(BOOL)animated
 {
-    NSLog(@"viewDidAppear");
     // NOTE: We rely on an active OpenGL-context as we have no concept of Begin/End rendering
     // As we replace view-controller and view when re-opening the "window" we must ensure that we always
     // have an active context (context is set to nil when view is deallocated)
@@ -927,12 +900,10 @@ _GLFWwin g_Savewin;
 
 - (void)forceDeviceOrientation;
 {
-    NSLog(@"forceDeviceOrientation");
 }
 
 - (void)reinit:(UIApplication *)application
 {
-	NSLog(@"reinit");
     g_IsReboot = 1;
 
     // Restore window data
@@ -969,7 +940,6 @@ _GLFWwin g_Savewin;
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
-    NSLog(@"didFinishLaunchingWithOptions");
     [self forceDeviceOrientation];
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
@@ -995,39 +965,27 @@ _GLFWwin g_Savewin;
     if (!setjmp(_glfwWin.finishInitBuf))
     {
         g_StartupPhase = INIT1;
-        NSLog(@"longjmp INIT1");
         longjmp(_glfwWin.bailEventLoopBuf, 1);
     }
     else
     {
-        NSLog(@"longjmp INIT2 b");
         g_StartupPhase = INIT2;
     }
 
     BOOL handled = NO;
 
-    NSLog(@"g_AppDelegatesCount=%d", g_AppDelegatesCount);
-
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        NSLog(@"iteration");
         if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
-            NSLog(@"responds!");
             if ([g_AppDelegates[i] application:application didFinishLaunchingWithOptions:launchOptions]) {
                 handled = YES;
-                NSLog(@"handled!");
             }
         }
     }
-    NSLog(@"didFinishLaunchingWithOptions %d", handled);
-
-        NSLog(@"didFinishLaunchingWithOptions %d", handled);
-
     return handled;
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
 {
-    NSLog(@"applicationWillResignActive");
     // We should pause the update loop when this message is sent
     _glfwWin.iconified = GL_TRUE;
 
@@ -1037,20 +995,15 @@ _GLFWwin g_Savewin;
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
-    NSLog(@"applicationDidEnterBackground");
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
 {
-    NSLog(@"applicationWillEnterForeground");
 }
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
-    NSLog(@"applicationDidBecomeActive");
-
     if (g_StartupPhase == INIT2) {
-        NSLog(@"longjmp INIT2 a");
         longjmp(_glfwWin.bailEventLoopBuf, 1);
     }
 
@@ -1059,12 +1012,10 @@ _GLFWwin g_Savewin;
 
 - (void)applicationWillTerminate:(UIApplication *)application
 {
-    NSLog(@"applicationWillTerminate");
 }
 
 - (void)dealloc
 {
-    NSLog(@"dealloc");
     [window release];
     [super dealloc];
 }
@@ -1086,12 +1037,10 @@ int  _glfwPlatformOpenWindow( int width, int height,
      * Instead we reinit the app and return and keep application and windows as is
      * We should either move application creation to glfwInit or skip glfw altogether.
      */
-    NSLog(@"openwindow");
 
     UIApplication* app = [UIApplication sharedApplication];
     if (app)
     {
-	   NSLog(@"reinit call");
         [g_ApplicationDelegate reinit: app];
         return GL_TRUE;
     }
@@ -1115,7 +1064,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
     g_ReservedStack = alloca(stack_size);
     if (!setjmp(_glfwWin.bailEventLoopBuf) )
     {
-        NSLog(@"UIApplicationMain");
         char* argv[] = { "dummy" };
         int retVal = UIApplicationMain(1, argv, nil, @"AppDelegate");
         (void) retVal;
@@ -1188,7 +1136,6 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    NSLog(@"_glfwPlatformSwapBuffers");
     [ _glfwWin.view swapBuffers ];
 }
 
@@ -1215,28 +1162,21 @@ void _glfwPlatformRefreshWindowParams( void )
 
 void _glfwPlatformPollEvents( void )
 {
-    NSLog(@"poll events");
     if (g_StartupPhase == INIT1 && g_SwapCount > 1) {
         if (!setjmp(_glfwWin.bailEventLoopBuf))
         {
-            NSLog(@"longjump finishInitBuf");
             longjmp(_glfwWin.finishInitBuf, 1);
         }
         else
         {
-            NSLog(@"g_StartupPhase COMPLETE");
             g_StartupPhase = COMPLETE;
         }
-        NSLog(@"poll events: leave");
         return;
     }
 
     if (g_StartupPhase != COMPLETE) {
-        NSLog(@"poll events: not complete yet");
         return;
     }
-
-    NSLog(@"poll events: complete");
 
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     SInt32 result;
