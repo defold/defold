@@ -350,8 +350,9 @@
       (remove nil?)
       (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
+
 (defn extend-menu [id location menu]
-  (swap! *menus* update id concat (list {:location location :menu menu})))
+  (swap! *menus* update id (comp distinct concat) (list {:location location :menu menu})))
 
 (defn- collect-menu-extensions []
   (->>
