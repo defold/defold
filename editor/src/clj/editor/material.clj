@@ -2,6 +2,7 @@
   (:require [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -12,6 +13,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.resource :as resource]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -180,14 +182,17 @@
   (property def g/Any (dynamic visible (g/always false)))
   (property vertex-program (g/protocol resource/Resource)
     (dynamic visible (g/always false))
-    (value (g/fnk [vertex-resource] vertex-resource))
+    (value (gu/passthrough vertex-resource))
     (set (project/gen-resource-setter [[:resource :vertex-resource]
-                                       [:full-source :vertex-source]])))
+                                       [:full-source :vertex-source]]))
+    (validate (validation/validate-resource vertex-program)))
+
   (property fragment-program (g/protocol resource/Resource)
     (dynamic visible (g/always false))
-    (value (g/fnk [fragment-resource] fragment-resource))
+    (value (gu/passthrough fragment-resource))
     (set (project/gen-resource-setter [[:resource :fragment-resource]
-                                       [:full-source :fragment-source]])))
+                                       [:full-source :fragment-source]]))
+    (validate (validation/validate-resource fragment-program)))
 
   (output form-data g/Any :cached produce-form-data)
 

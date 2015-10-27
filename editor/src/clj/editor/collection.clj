@@ -140,13 +140,15 @@
 
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
-    (value (gu/proxy-value source-resource))
+    (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:build-targets :build-targets]
                                        [:scene         :scene]]))
-    (validate (validation/validate-resource-unless embedded path "Missing prototype" [scene])))
+    (validate (g/fnk [embedded path scene]
+                (when (and (not embedded) (nil? path))
+                  (g/error-warning "Missing prototype")))))
 
   (property embedded g/Bool (dynamic visible (g/always false)))
 
@@ -310,7 +312,7 @@
   (inherits InstanceNode)
 
   (property path (g/protocol resource/Resource)
-    (value (gu/proxy-value source-resource))
+    (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
