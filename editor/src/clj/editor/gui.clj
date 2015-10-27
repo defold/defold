@@ -237,10 +237,11 @@
         offset (pivot-offset pivot size)
         userdata (if (= type :type-text)
                    (let [lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
-                     {:text-data (assoc text-data :offset (let [[x y] offset]
-                                                            [x (+ y (- h (get-in text-data [:font-data :font-map :max-ascent])))]))
-                      :line-data lines
-                      :color color})
+                     (when-let [font-data (get text-data :font-data)]
+                       {:text-data (assoc text-data :offset (let [[x y] offset]
+                                                              [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))
+                        :line-data lines
+                        :color color}))
                    (let [[geom-data uv-data line-data] (case type
                                                          :type-box (let [order [0 1 3 3 1 2]
                                                                          x-vals (pairs [0 (get slice9 0) (- w (get slice9 2)) w])
@@ -416,7 +417,7 @@
   (property inherit-alpha g/Bool (default true))
 
   ; Text
-  (property text g/Str (dynamic visible text?) (default ""))
+  (property text g/Str (dynamic visible text?))
   (property line-break g/Bool (dynamic visible text?) (default false))
   (property font g/Str (dynamic visible text?)
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
@@ -847,13 +848,19 @@
 (defn- tx-node-id [tx-entry]
   (get-in tx-entry [:node :_node-id]))
 
-(defn- attach-font [self fonts-node font]
-  (concat
-    (g/connect font :_node-id self :nodes)
-    (g/connect font :font-id self :font-ids)
-    (g/connect font :pb-msg self :font-msgs)
-    (g/connect font :name self :font-names)
-    (g/connect font :node-outline fonts-node :child-outlines)))
+(defn- attach-font
+  ([self fonts-node font]
+    (attach-font self fonts-node font false))
+  ([self fonts-node font default?]
+    (concat
+      (g/connect font :_node-id self :nodes)
+      (g/connect font :font-id self :font-ids)
+      (if (not default?)
+        (concat
+          (g/connect font :name self :font-names)
+          (g/connect font :pb-msg self :font-msgs)
+          (g/connect font :node-outline fonts-node :child-outlines))
+        []))))
 
 (defn- attach-texture [self textures-node texture]
   (concat
@@ -902,6 +909,9 @@
         (g/operation-label "Add Gui Node")
         (g/make-nodes (g/node-id->graph-id scene) [gui-node [GuiNode :id id :index index :type node-type :size [200.0 100.0 0.0]]]
           (attach-gui-node scene parent gui-node node-type)
+          (if (= node-type :type-text)
+            (g/set-property gui-node :text "<text>" :font "")
+            [])
           (project/select project [gui-node]))))))
 
 (defn- add-texture-handler [project {:keys [scene parent node-type]}]
@@ -1039,6 +1049,10 @@
                     (g/connect fonts-node :_node-id self :fonts-node)
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :node-outline self :child-outlines)
+                    (g/make-nodes graph-id [font [FontNode
+                                                  :name ""
+                                                  :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                                    (attach-font self fonts-node font true))
                     (for [font-desc (:fonts scene)]
                       (g/make-nodes graph-id [font [FontNode
                                                     :name (:name font-desc)
@@ -1175,9 +1189,7 @@
         (g/set-property node-id :index index)))))
 
 (defn- single-gui-node? [selection]
-  (and (= 1 (count selection))
-       (let [selected (first selection)]
-         (g/node-instance? GuiNode selected))))
+  (handler/single-selection? selection GuiNode))
 
 (handler/defhandler :move-up :global
   (enabled? [selection] (single-gui-node? selection))
