@@ -168,15 +168,7 @@ namespace dmSys
 
 #endif
 
-#if defined(__TVOS__)
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        // TODO: Hack
-        dmStrlCpy(path, ".", path_len);
-        return RESULT_OK;
-    }
-
-#elif defined(__MACH__)
+#if defined(__MACH__)
 
 #if !defined(__arm__) && !defined(__arm64__)
 

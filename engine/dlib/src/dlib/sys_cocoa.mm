@@ -24,6 +24,52 @@ namespace dmSys
 #define STRING2(x) #x
 #define STRING(x) STRING2(x)
 #pragma message(STRING(__TVOS__))
+
+#if defined(__TVOS__)
+
+    // Only on iOS for now. No autorelease pool etc setup on OSX in dlib
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        assert(path_len > 0);
+        NSFileManager* shared_fm = [NSFileManager defaultManager];
+        NSArray* urls = [shared_fm URLsForDirectory:NSCachesDirectory
+                                          inDomains:NSUserDomainMask];
+
+
+        if ([urls count] > 0)
+        {
+            NSURL* app_support_dir = [urls objectAtIndex:0];
+            dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
+
+            path[path_len-1] = '\0';
+
+            if (dmStrlCat(path, "/", path_len) >= path_len)
+                return RESULT_INVAL;
+            if (dmStrlCat(path, application_name, path_len) >= path_len)
+                return RESULT_INVAL;
+
+            NSString* ns_path = [NSString stringWithUTF8String: path];
+            Result r;
+            if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+            {
+                r = RESULT_OK;
+            }
+            else
+            {
+                r = RESULT_UNKNOWN;
+            }
+            return r;
+        }
+        else
+        {
+            dmLogError("Unable to locate NSApplicationSupportDirectory");
+            return RESULT_UNKNOWN;
+        }
+    }
+
+#endif
+
+
 #if !defined(__TVOS__) && (defined(__arm__) || defined(__arm64__))
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
