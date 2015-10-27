@@ -41,9 +41,9 @@ def new_copy_task(name, input_ext, output_ext):
         out = node.change_ext(output_ext)
         task.set_outputs(out)
 
-IOS_TOOLCHAIN_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
-ARM_DARWIN_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
-ARM_TVOS_ROOT='/Applications/Xcode-beta.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
+IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
+ARM_TVOS_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
 IOS_SDK_VERSION="8.1"
 TVOS_SDK_VERSION="9.0"
 
@@ -382,7 +382,7 @@ def codesign(task):
     entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
+    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -1198,7 +1198,7 @@ def configure(conf):
 
 old = Build.BuildContext.exec_command
 def exec_command(self, cmd, **kw):
-    #print >>sys.stderr, ' '.join(cmd)
+    print >>sys.stderr, ' '.join(cmd)
     if getattr(Options.options, 'eclipse', False):
         if isinstance(cmd, list):
             print >>sys.stderr, ' '.join(cmd)
