@@ -229,6 +229,11 @@
                   label="HTML5 Application..."
                   style="push">
             </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleTVOS"
+                  label="tvOS Application..."
+                  style="push">
+            </command>
          </menu>
       </menuContribution>
       <menuContribution
@@ -380,6 +385,11 @@
             defaultHandler="com.dynamo.cr.editor.handlers.BundleHTML5Handler"
             id="com.dynamo.cr.target.commands.bundleHTML5"
             name="Bundle HTML5 Application">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleTVOSHandler"
+            id="com.dynamo.cr.target.commands.bundleTVOS"
+            name="Bundle tvOS Application">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"
