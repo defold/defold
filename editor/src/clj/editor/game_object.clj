@@ -92,14 +92,16 @@
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (dynamic enabled (g/always false))
-    (value (gu/proxy-value source-resource))
+    (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id :source-id]
                                        [:resource :source-resource]
                                        [:node-outline :source-outline]
                                        [:user-properties :user-properties]
                                        [:scene :scene]
                                        [:build-targets :build-targets]]))
-    (validate (validation/validate-resource-unless embedded path "Missing component" [build-targets scene])))
+    (validate (g/fnk [embedded path build-targets scene]
+                (when (and (not embedded) (nil? path))
+                  (g/error-warning "Missing component")))))
 
   (property properties g/Any
     (dynamic link (g/fnk [source-properties] source-properties))
