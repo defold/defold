@@ -82,11 +82,13 @@
     :distance-field))
 
 (defn- vertex-buffer [vs type font-map]
-  (let [vb (case type
-             (:defold :bitmap) (->DefoldVertex (count vs))
-             :distance-field (->DFVertex (count vs)))]
-    (reduce conj! vb vs)
-    (persistent! vb)))
+  (let [vcount (count vs)]
+    (when (> vcount 0)
+      (let [vb (case type
+                 (:defold :bitmap) (->DefoldVertex vcount)
+                 :distance-field (->DFVertex vcount))]
+        (reduce conj! vb vs)
+        (persistent! vb)))))
 
 (defn- measure-line [glyphs line]
   (let [w (reduce + 0 (map (fn [c] (get-in glyphs [(int c) :advance] 0)) line))]

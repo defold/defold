@@ -237,6 +237,7 @@
       (= type (Descriptors$FieldDescriptor$JavaType/FLOAT)) (float val)
       (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) (double val)
       (= type (Descriptors$FieldDescriptor$JavaType/STRING)) (str val)
+      ;; The reason we convert to Boolean object is for symmetry - the protobuf system do this when loading from protobuf files
       (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (java.lang.Boolean. (boolean val))
       (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) val
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (kw->enum desc val)
