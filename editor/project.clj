@@ -24,7 +24,7 @@
                      [ch.qos.logback/logback-classic              "1.1.3"]
                      [joda-time/joda-time                         "2.8.1"]
                      [commons-io/commons-io                       "2.4"]
-                     [org.clojure/tools.nrepl                     "0.2.10" :exclusions [org.clojure/clojure]]
+                     [org.clojure/tools.nrepl                     "0.2.11"]
                      [cider/cider-nrepl                           "0.9.1" :exclusions [org.clojure/tools.nrepl]]
                      [refactor-nrepl                              "1.1.0"]
                      [org.clojure/data.json                       "0.2.6"]
