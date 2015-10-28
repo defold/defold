@@ -70,3 +70,22 @@
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")]
      (is (some? (g/node-value node-id :material-shader))))))
+
+(deftest gui-fonts
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         font-node (get-in outline [:children 2 :children 0 :node-id])]
+     (is (some? (g/node-value font-node :font-map))))))
+
+(deftest gui-text-node
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+         text-node (get nodes "hexagon_text")]
+     (is (= false (g/node-value text-node :line-break))))))
