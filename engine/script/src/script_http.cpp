@@ -174,6 +174,11 @@ namespace dmScript
         {0, 0}
     };
 
+    void SetHttpRequestTimeout(uint64_t timeout)
+    {
+        g_Timeout = timeout;
+    }
+
     void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
     {
 // TODO: Port
