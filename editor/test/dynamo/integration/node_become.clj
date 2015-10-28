@@ -1,8 +1,8 @@
 (ns dynamo.integration.node-become
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
-
+            [support.test-support :refer [with-clean-system tx-nodes]]
+            [dynamo.integration.node-become-support :refer :all]))
 
 (g/defnode InputOutputNode
   (output output-a g/Str (g/always "Cake is tasty"))
@@ -23,6 +23,10 @@
   (property b-property g/Str (default "foo"))
   (input input-a g/Str)
   (output output-a g/Str (g/fnk [input-a] (str "new: " input-a))))
+
+(g/defnode CachedOutputNode
+  (property number g/Any (default (atom 0)))
+  (output output-a g/Str :cached (g/fnk [number] (str "val" (swap! number inc)))))
 
 (deftest test-become
 
@@ -103,3 +107,29 @@
         (g/transact (g/become node (g/construct NewNode)))
         (is (= "passthrough: " (g/node-value io-node :passthrough-a)))
         (is (not (g/connected? (g/now) node :z-property io-node :input-a)))))))
+
+(deftest test-caching
+  (testing "caching is invalidated during become"
+    (with-clean-system
+      (let [[out-node in-node] (tx-nodes (g/make-nodes world [out-node CachedOutputNode
+                                                              in-node NewNode]
+                                           (g/connect out-node :output-a in-node :input-a)))
+            val-fn (fn [] (g/node-value in-node :output-a))
+            original-val (val-fn)]
+        (is (= original-val (val-fn)))
+        (g/transact (g/become out-node (g/construct CachedOutputNode)))
+        (is (not= original-val (val-fn)))))))
+
+(deftest test-reload
+  (with-clean-system
+    (require 'dynamo.integration.node-become-support :reload)
+      (let [[node-a node-b] (tx-nodes (g/make-nodes world [node-a NodeA
+                                                           node-b NodeB]
+                                        (g/connect node-a :output-a node-b :input-b)
+                                        (g/connect node-b :output-b node-a :input-a)))
+            node-a-type (g/node-type* node-a)]
+        (is (g/node-instance? NodeA node-a))
+        ;; RELOAD
+        (require 'dynamo.integration.node-become-support :reload)
+        (is (g/node-instance? NodeA node-a))
+        (is (not= node-a-type (g/node-type* node-a))))))

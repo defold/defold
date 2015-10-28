@@ -1,5 +1,6 @@
 (ns editor.font
-  (:require [editor.protobuf :as protobuf]
+  (:require [clojure.string :as s]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -21,7 +22,7 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]))
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private resource-fields #{:font :material})
@@ -55,19 +56,22 @@
 
 (def ^:private vertex-order [0 1 2 1 3 2])
 
-(defn- glyph->quad [w h su sv glyph]
+(defn- glyph->quad [su sv ^Matrix4d transform glyph]
   (let [u0 (* su (+ (:x glyph) (:left-bearing glyph)))
         v0 (* sv (- (:y glyph) (:ascent glyph)))
         u1 (+ u0 (* su (:width glyph)))
         v1 (+ v0 (* sv (+ (:ascent glyph) (:descent glyph))))
-        x0 (- (+ (:x glyph) (:left-bearing glyph)) (* 0.5 w))
+        x0 (:left-bearing glyph)
         x1 (+ x0 (:width glyph))
-        y1 (- (+ (- h (:y glyph)) (:ascent glyph)) (* 0.5 h))
+        y1 (:ascent glyph)
         y0 (- y1 (:ascent glyph) (:descent glyph))
-        vs [[x0 y0 0 u0 v1]
-            [x1 y0 0 u1 v1]
-            [x0 y1 0 u0 v0]
-            [x1 y1 0 u1 v0]]]
+        p (Point3d.)
+        vs (vec (for [[y v] [[y0 v1] [y1 v0]]
+                      [x u] [[x0 u0] [x1 u1]]]
+                  (do
+                    (.set p x y 0.0)
+                    (.transform transform p)
+                    [(.x p) (.y p) (.z p) u v])))]
     (mapv #(get vs %) vertex-order)))
 
 (defn- font-type [font output-format]
@@ -78,17 +82,105 @@
     :distance-field))
 
 (defn- vertex-buffer [vs type font-map]
-  (let [colors [1.0 1.0 1.0 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0]
-        df-colors (into [(:sdf-scale font-map) (:sdf-offset font-map) (:sdf-outline font-map) 1.0] colors)]
-    (case type
-           (:defold :bitmap) (let [vb (->DefoldVertex (count vs))]
-                               (doseq [v vs]
-                                 (conj! vb (concat v colors)))
-                               (persistent! vb))
-           :distance-field (let [vb (->DFVertex (count vs))]
-                             (doseq [v vs]
-                               (conj! vb (concat v df-colors)))
-                             (persistent! vb)))))
+  (let [vcount (count vs)]
+    (when (> vcount 0)
+      (let [vb (case type
+                 (:defold :bitmap) (->DefoldVertex vcount)
+                 :distance-field (->DFVertex vcount))]
+        (reduce conj! vb vs)
+        (persistent! vb)))))
+
+(defn- measure-line [glyphs line]
+  (let [w (reduce + 0 (map (fn [c] (get-in glyphs [(int c) :advance] 0)) line))]
+    (if-let [last (get glyphs (and (last line) (int (last line))))]
+      (- (+ w (:left-bearing last) (:width last)) (:advance last))
+      w)))
+
+(defn- break-line [^String line glyphs max-width]
+  (loop [b (dec (count line))]
+    (if (> b 0)
+      (let [c (.charAt line b)]
+        (if (= c \ )
+          (let [l1 (s/trim (subs line 0 b))
+                l2 (s/trim (subs line b))
+                w (measure-line glyphs l1)]
+            (if (> w max-width)
+              (recur (dec b))
+              [l1 l2]))
+          (recur (dec b))))
+      [line nil])))
+
+(defn- break-lines [lines glyphs max-width]
+  (reduce (fn [result line]
+            (let [w (measure-line glyphs line)]
+              (if (> w max-width)
+                (let [[l1 l2] (break-line line glyphs max-width)]
+                  (if l2
+                    (recur (conj result l1) l2)
+                    (conj result line)))
+                (conj result line)))) [] lines))
+
+(defn- split-text [glyphs text line-break? max-width]
+  (cond-> (map s/trim (s/split-lines text))
+    line-break? (break-lines glyphs max-width)))
+
+(defn- font-map->glyphs [font-map]
+  (into {} (map (fn [g] [(:character g) g]) (:glyphs font-map))))
+
+(defn measure
+  ([font-map text]
+    (measure font-map text false 0))
+  ([font-map text line-break? max-width]
+    (if (or (nil? font-map) (nil? text) (= (count text) 0))
+      [0 0]
+      (let [glyphs (font-map->glyphs font-map)
+            lines (split-text glyphs text line-break? max-width)
+            line-height (+ (:max-descent font-map) (:max-ascent font-map))
+            line-widths (map (partial measure-line glyphs) lines)
+            max-width (reduce max 0 line-widths)]
+        [max-width (* (count lines) line-height)]))))
+
+(def FontData {:type g/Keyword
+               :font-map g/Any})
+
+(defn gen-vertex-buffer [{:keys [type font-map]} text-entries]
+  (let [w (:width font-map)
+        h (:height font-map)
+        glyph-fn (partial glyph->quad (/ 1 w) (/ 1 h))
+        glyphs (font-map->glyphs font-map)
+        char->glyph (comp glyphs int)
+        line-height (+ (:max-ascent font-map) (:max-descent font-map))
+        sdf-params [(:sdf-scale font-map) (:sdf-offset font-map) (:sdf-outline font-map) 1.0]
+        vs (loop [vs (transient [])
+                  text-entries text-entries]
+             (if-let [entry (first text-entries)]
+               (let [colors (repeat (cond->> (into (:color entry) (concat (:outline entry) (:shadow entry)))
+                                      (= type :distance-field) (into sdf-params)))
+                     offset (:offset entry)
+                     xform (doto (Matrix4d.)
+                             (.set (let [[x y] offset]
+                                     (Vector3d. x y 0.0))))
+                     _ (.mul xform ^Matrix4d (:world-transform entry) xform)
+                     lines (split-text glyphs (:text entry) (:line-break entry) (:max-width entry))
+                     vs (loop [vs vs
+                               lines lines
+                               line-no 0]
+                          (if-let [line (first lines)]
+                            (let [y (* line-no (- line-height))
+                                  vs (loop [vs vs
+                                            glyphs (map char->glyph line)
+                                            x 0.0]
+                                       (if-let [glyph (first glyphs)]
+                                         (let [cursor (doto (Matrix4d.) (.set (Vector3d. x y 0.0)))
+                                               cursor (doto cursor (.mul xform cursor))
+                                               vs (reduce conj! vs (map into (glyph-fn cursor glyph) colors))]
+                                           (recur vs (rest glyphs) (+ x (:advance glyph))))
+                                         vs))]
+                              (recur vs (rest lines) (inc line-no)))
+                            vs))]
+                 (recur vs (rest text-entries)))
+               (persistent! vs)))]
+    (vertex-buffer vs type font-map)))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font font-map ^BufferedImage font-image material-shader type]
   (let [w (.getWidth font-image)
@@ -98,8 +190,21 @@
             [0 h 0 0 0]
             [w h 0 1 0]]
         vs (mapv #(get vs %) [0 1 2 1 3 2])
-        glyph-fn (partial glyph->quad w h (/ 1 w) (/ 1 h))
-        vs (concat (reduce into [] (map glyph-fn (:glyphs font-map))))]
+        transform (doto
+                    (Matrix4d.)
+                    (.set (Vector3d. (- (* w 0.5)) (- (* h 0.5)) 0.0)))
+        glyph-fn (partial glyph->quad (/ 1 w) (/ 1 h))
+        glyphs (:glyphs font-map)
+        v3 (Vector3d.)
+        xforms (mapv (fn [g] (let [xform (doto (Matrix4d.)
+                                           (.set (do (.set v3 (:x g) (- h (:y g)) 0) v3)))]
+                               (.mul xform transform xform)
+                               xform))
+                     glyphs)
+        vs (concat (reduce into [] (map glyph-fn xforms glyphs)))
+        colors (cond->> [1.0 1.0 1.0 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0]
+                 (= type :distance-field) (into [(:sdf-scale font-map) (:sdf-offset font-map) (:sdf-outline font-map) 1.0]))
+        vs (mapv #(into % colors) vs)]
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-font
@@ -217,7 +322,9 @@
                         (geom/null-aabb))))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-image material-sampler]
                                       (first (material/make-textures [{:image-id _node-id :image font-image}] material-sampler))))
-  (output type g/Keyword produce-font-type))
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (output type g/Keyword produce-font-type)
+  (output font-data FontData :cached (g/fnk [type font-map] {:type type :font-map font-map})))
 
 (defn load-font [project self resource]
   (let [font (protobuf/read-text Font$FontDesc resource)
