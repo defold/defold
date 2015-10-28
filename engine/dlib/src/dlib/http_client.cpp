@@ -329,7 +329,7 @@ namespace dmHttpClient
             int r = ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length);
 
             // In order to mimic the http code path, we return the same error number
-            if( HasRequestTimedOut(response->m_Client) )
+            if( (r == length) && HasRequestTimedOut(response->m_Client) )
             {
                 return dmSocket::RESULT_WOULDBLOCK;
             }
@@ -349,7 +349,7 @@ namespace dmHttpClient
                 {
                     r = dmSocket::RESULT_TRY_AGAIN;
                 }
-                if( HasRequestTimedOut(response->m_Client) )
+                if( (r == dmSocket::RESULT_OK || r == dmSocket::RESULT_TRY_AGAIN) && HasRequestTimedOut(response->m_Client) )
                 {
                     r = dmSocket::RESULT_WOULDBLOCK;
                 }
@@ -495,7 +495,7 @@ namespace dmHttpClient
             {
                 r = dmSocket::RESULT_TRY_AGAIN;
             }
-            if( HasRequestTimedOut(client) )
+            if( (r == dmSocket::RESULT_OK || r == dmSocket::RESULT_TRY_AGAIN) && HasRequestTimedOut(client) )
             {
                 r = dmSocket::RESULT_WOULDBLOCK;
             }
@@ -685,7 +685,7 @@ bail:
             {
                 sock_res = dmSocket::RESULT_TRY_AGAIN;
             }
-            if( HasRequestTimedOut(response->m_Client) )
+            if( (sock_res == dmSocket::RESULT_OK || sock_res == dmSocket::RESULT_TRY_AGAIN) && HasRequestTimedOut(client) )
             {
                 sock_res = dmSocket::RESULT_WOULDBLOCK;
             }
@@ -850,7 +850,7 @@ bail:
                     {
                         sock_r = dmSocket::RESULT_TRY_AGAIN;
                     }
-                    if( HasRequestTimedOut(response->m_Client) )
+                    if( (sock_r == dmSocket::RESULT_OK || sock_r == dmSocket::RESULT_TRY_AGAIN) && HasRequestTimedOut(client) )
                     {
                         sock_r = dmSocket::RESULT_WOULDBLOCK;
                     }
