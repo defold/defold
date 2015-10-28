@@ -48,12 +48,10 @@ public class TVOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
-        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("debug"));
+        String exeArm64TVOS = Bob.getDmengineExe(Platform.Arm64TvOS, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         
-        System.out.println("Using " + exeArmv7);
-        System.out.println("Using " + exeArm64);
+        System.out.println("Using " + exeArm64TVOS);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
@@ -148,23 +146,14 @@ public class TVOSBundler implements IBundler {
         }
         properties.put("orientation-support", orientationSupport);
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Darwin, bundleDir, ".app");
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64TvOS, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
-/*
-        // Create fat/universal binary
-        File tmpFile = File.createTempFile("dmengine", "");
-        tmpFile.deleteOnExit();
 
-        String exe = tmpFile.getPath();
-
-        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
-*/
         // Copy Executable
-        FileUtils.copyFile(new File(exeArm64), new File(appDir, title));
+        FileUtils.copyFile(new File(exeArm64TVOS), new File(appDir, title));
 
         // Sign
         if (identity != null && provisioningProfile != null) {

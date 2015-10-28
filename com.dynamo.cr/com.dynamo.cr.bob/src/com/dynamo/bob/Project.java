@@ -34,6 +34,7 @@ import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.IOSBundler;
 import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.bundle.OSXBundler;
+import com.dynamo.bob.bundle.TVOSBundler;
 import com.dynamo.bob.bundle.Win32Bundler;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
@@ -358,6 +359,7 @@ public class Project {
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
+        bundlers.put(Platform.Arm64TvOS, TVOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
     }
 
