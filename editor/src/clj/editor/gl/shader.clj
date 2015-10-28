@@ -447,8 +447,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (g/defnode ShaderNode
   (inherits project/ResourceNode)
 
-  (property code g/Str)
-  (property def g/Any)
+  (property code g/Str (dynamic visible (g/always false)))
+  (property def g/Any (dynamic visible (g/always false)))
   (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
 
   (output build-targets g/Any produce-build-targets)
