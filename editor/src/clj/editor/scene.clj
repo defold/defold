@@ -92,8 +92,6 @@
    (.restore psm gl)
    image))
 
-(def INDEX_SHIFT 4)
-
 (def outline-color colors/bright-grey)
 (def selected-outline-color colors/defold-turquoise)
 
@@ -118,9 +116,7 @@
     (long (* Integer/MAX_VALUE (.z p)))))
 
 (defn render-key [camera viewport renderable tmp-p3d]
-  (- Long/MAX_VALUE
-     (+ (z-distance camera viewport renderable tmp-p3d)
-        (bit-shift-left (:index renderable 0) INDEX_SHIFT))))
+  (:index renderable (- Long/MAX_VALUE (z-distance camera viewport renderable tmp-p3d))))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
