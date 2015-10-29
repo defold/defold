@@ -4,7 +4,9 @@
             [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
-            [editor.project :as project])
+            [editor.project :as project]
+            [editor.gui :as gui]
+            [internal.render.pass :as pass])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
@@ -14,6 +16,14 @@
 
 (defn- prop! [node-id label val]
   (g/transact (g/set-property node-id label val)))
+
+(defn- gui-node [scene id]
+  (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
+                   (tree-seq (constantly true) :children)
+                   (map :node-id)
+                   (map (fn [node-id] [(g/node-value node-id :id) node-id]))
+                   (into {}))]
+    (id->node id)))
 
 (deftest load-gui
   (with-clean-system
@@ -89,3 +99,25 @@
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
+
+(defn- render-order [renderer]
+  (let [renderables (g/node-value renderer :renderables)]
+    (->> (get renderables pass/transparent)
+      (map :node-id)
+      (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
+      (map #(g/node-value % :id))
+      vec)))
+
+(deftest gui-layers
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/layers.gui")
+          view (test-util/open-scene-view! project app-view node-id 16 16)
+          renderer (g/graph-value (g/node-id->graph-id view) :renderer)]
+      (is (= ["box" "pie" "box1" "text"] (render-order renderer)))
+      (g/set-property! (gui-node node-id "box") :layer "layer1")
+      (is (= ["pie" "box1" "box" "text"] (render-order renderer)))
+      (g/set-property! (gui-node node-id "box") :layer "")
+      (is (= ["box" "pie" "box1" "text"] (render-order renderer))))))
