@@ -34,6 +34,7 @@
 #import <OpenGLES/ES2/glext.h>
 #import <OpenGLES/EAGLDrawable.h>
 #import <QuartzCore/QuartzCore.h>
+#import <GameController/GameController.h>
 
 #include "internal.h"
 #include "platform.h"
@@ -48,6 +49,7 @@ enum StartupPhase
 
 enum StartupPhase g_StartupPhase = INITIAL;
 void* g_ReservedStack = 0;
+id g_rootViewController = 0;
 int g_SwapCount = 0;
 
 static int g_IsReboot = 0;
@@ -249,7 +251,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (BOOL) createFramebuffer;
 - (void) destroyFramebuffer;
-
 @end
 
 @implementation EAGLView
@@ -271,8 +272,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     viewFramebuffer = 0;
     depthStencilRenderbuffer = 0;
 
-  _glfwInput.MouseEmulationTouch = 0;
-  return self;
+    _glfwInput.MouseEmulationTouch = 0;
+    return self;
 }
 
 - (id)initWithFrame:(CGRect)frame
@@ -299,10 +300,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)setupView
 {
-}
+
+ }
 
 - (void)swapBuffers
 {
+
     if (g_StartupPhase == COMPLETE) {
         // Do not poll event before startup sequence is completed
         NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
@@ -327,6 +330,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         [context presentRenderbuffer:GL_RENDERBUFFER];
+
+        [g_rootViewController pollControllers];
     }
 }
 
@@ -479,19 +484,29 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 }
 
+
+- (void) handleTapFrom: (UITapGestureRecognizer *)recognizer
+{
+    NSLog(@"handleTapFrom");
+}
+
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesMoved");
+
     _glfwInput.TouchCount = [self fillTouch: event];
     if( _glfwWin.touchCallback )
     {
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
 
-    [self updateMouseEmulation];
+   // [self updateMouseEmulation];
 }
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesBegan");
+
     if (self.keyboardActive && self.autoCloseKeyboard) {
         // Implicitly hide keyboard
         _glfwShowKeyboard(0, 0, 0);
@@ -503,17 +518,19 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
 
-    [self updateMouseEmulation];
+ //   [self updateMouseEmulation];
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesEnded");
+
     _glfwInput.TouchCount = [self fillTouch: event];
     if( _glfwWin.touchCallback )
     {
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
-    [self updateMouseEmulation];
+  //  [self updateMouseEmulation];
 }
 
 - (BOOL)canBecomeFirstResponder
@@ -571,7 +588,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
-    [self updateMouseEmulation];
+//    [self updateMouseEmulation];
 }
 
 - (void)layoutSubviews
@@ -669,7 +686,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 // View controller
 
-@interface ViewController : UIViewController<UIContentContainer>
+@interface ViewController : GCEventViewController<UIContentContainer>
 {
     EAGLView *glView;
     CGSize cachedViewSize;
@@ -683,6 +700,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (CGPoint)getIntendedFrameOrigin:(CGSize)size;
 - (BOOL)shouldUpdateViewFrame;
 - (void)updateViewFramesWorkaround;
+- (void)pollControllers;
+
+@property (nonatomic, assign) BOOL controllerConnected;
+@property (nonatomic, strong) GCController * gameController;
+@property (nonatomic, assign) int controllerType;
+@property (nonatomic, assign) float mouseX;
+@property (nonatomic, assign) float mouseY;
+@property (nonatomic, assign) int mouseBtn;
 
 @property (nonatomic, retain) IBOutlet EAGLView *glView;
 
@@ -700,11 +725,74 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)viewDidLoad
 {
+    self.mouseX = 0;
+    self.mouseY = 0;
+    self.mouseBtn = 0;
     [super viewDidLoad];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
 
     [self createGlView];
+}
+
+-(void)pollControllers {
+    if (self.controllerConnected) {
+        if (self.controllerType == 3) {
+            GCMicroGamepad *profile = [self gameController].microGamepad;
+
+            self.mouseX += profile.dpad.xAxis.value * 7.5f;
+            self.mouseY -= profile.dpad.yAxis.value * 7.5f;
+
+            if (self.mouseX < 0) {
+                self.mouseX = 0;
+            }
+            if (self.mouseY < 0) {
+                self.mouseY = 0;
+            }
+            if (self.mouseX > _glfwWin.width) {
+                self.mouseX = _glfwWin.width;
+            }
+            if (self.mouseY > _glfwWin.height) {
+                self.mouseY = _glfwWin.height;
+            }
+
+            _glfwInput.MousePosX = (int)self.mouseX;
+            _glfwInput.MousePosY = (int)self.mouseY;
+
+            if (profile.buttonA.isPressed) {
+                if (self.mouseBtn == 0) {
+                    _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+                    self.mouseBtn = 1;
+                }
+            } else if (self.mouseBtn == 1) {
+                _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+                self.mouseBtn = 0;
+            }
+        }
+    }
+}
+
+-(void)controllerStateChanged {
+    
+    NSLog(@"controllerStateChanged count %ld", [[GCController controllers] count]);
+    if ([[GCController controllers] count] > 0) {
+        self.controllerConnected = YES;
+        
+        self.gameController = [GCController controllers][0];
+        if (self.gameController.microGamepad == nil) {
+            if (self.gameController.extendedGamepad == nil) {
+                self.controllerType = 1;
+            } else {
+                self.controllerType = 2;
+            }
+        }
+        else {
+            self.controllerType = 3;
+        }
+        
+    } else {
+        self.controllerConnected = NO;
+    }
 }
 
 - (void)createGlView
@@ -747,6 +835,17 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
+
+
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidConnectNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidDisconnectNotification object:nil];
+    
+    [GCController startWirelessControllerDiscoveryWithCompletionHandler:^{
+        [self controllerStateChanged];
+    }];        
+
+
 
     [glView createFramebuffer];
 }
@@ -836,36 +935,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [super viewDidUnload];
 }
 
-- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
-{
-    // NOTE: For iOS < 6
-    if (_glfwWin.portrait)
-    {
-        return   interfaceOrientation == UIInterfaceOrientationPortrait
-              || interfaceOrientation == UIInterfaceOrientationPortraitUpsideDown;
-    }
-    else
-    {
-        return   interfaceOrientation == UIInterfaceOrientationLandscapeRight
-              || interfaceOrientation == UIInterfaceOrientationLandscapeLeft;
-    }
-}
-
-- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
-{
-
-}
-
--(BOOL)shouldAutorotate{
-    // NOTE: Only for iOS6
-    return YES;
-}
-
--(NSUInteger)supportedInterfaceOrientations {
-    // NOTE: Only for iOS6
-    return 0;
-}
-
 #pragma mark UIContentContainer
 
 // Introduced in iOS8.0
@@ -949,6 +1018,8 @@ _GLFWwin g_Savewin;
 
     window = [[UIWindow alloc] initWithFrame:bounds];
     window.rootViewController = [[[ViewController alloc] init] autorelease];
+    g_rootViewController = window.rootViewController;
+
     [window makeKeyAndVisible];
 
     UIApplication* app = [UIApplication sharedApplication];
