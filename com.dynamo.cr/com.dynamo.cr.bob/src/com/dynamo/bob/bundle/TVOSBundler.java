@@ -51,7 +51,7 @@ public class TVOSBundler implements IBundler {
         String exeArm64TVOS = Bob.getDmengineExe(Platform.Arm64TvOS, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         
-        System.out.println("Using " + exeArm64TVOS);
+        System.out.println("Using engine from " + exeArm64TVOS);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
@@ -128,23 +128,6 @@ public class TVOSBundler implements IBundler {
 
         Map<String, Object> properties = new HashMap<String, Object>();
         properties.put("url-schemes", urlSchemes);
-
-        List<String> orientationSupport = new ArrayList<String>();
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                orientationSupport.add("LandscapeRight");
-            } else {
-                orientationSupport.add("Portrait");
-            }
-        } else {
-            orientationSupport.add("Portrait");
-            orientationSupport.add("PortraitUpsideDown");
-            orientationSupport.add("LandscapeLeft");
-            orientationSupport.add("LandscapeRight");
-        }
-        properties.put("orientation-support", orientationSupport);
 
         BundleHelper helper = new BundleHelper(project, Platform.Arm64TvOS, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
