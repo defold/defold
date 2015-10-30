@@ -229,7 +229,7 @@
 (defn- pairs [v]
   (filter (fn [[v0 v1]] (> (Math/abs (double (- v1 v0))) 0)) (partition 2 1 v)))
 
-(g/defnk produce-node-scene [_node-id type aabb transform pivot size color blend-mode slice9 pie-data text-data inherit-alpha texture gpu-texture anim-data material-shader child-scenes]
+(g/defnk produce-node-scene [_node-id type index layer-index aabb transform pivot size color blend-mode slice9 pie-data text-data inherit-alpha texture gpu-texture anim-data material-shader child-scenes]
   (let [min (types/min-p aabb)
         max (types/max-p aabb)
         size (if (= type :type-text) [(- (.x max) (.x min)) (- (.y max) (.y min))] size)
@@ -319,7 +319,9 @@
                   :passes [pass/transparent pass/selection pass/outline]
                   :user-data userdata
                   :batch-key [gpu-texture blend-mode]
-                  :select-batch-key _node-id}
+                  :select-batch-key _node-id
+                  :index index
+                  :layer-index (if layer-index (inc layer-index) 0)}
      :children child-scenes}))
 
 (defn- proj-path [resource]
@@ -337,7 +339,7 @@
 (defn- v3->v4 [v3]
   (conj v3 1.0))
 
-(g/defnk produce-node-msg [type parent _declared-properties]
+(g/defnk produce-node-msg [type parent index _declared-properties]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
                     :outer-bounds :outerBounds
@@ -347,7 +349,8 @@
         v3-fields [:position :rotation :scale :size]
         props (:properties _declared-properties)
         msg (-> (into {:parent parent
-                       :type type}
+                       :type type
+                       :index index}
                       (map (fn [[k v]] [k (:value v)])
                            (filter (fn [[k v]] (and (get v :visible true)
                                                     (not (contains? (set (keys pb-renames)) k))))
@@ -365,7 +368,7 @@
     (g/connect gui-node :index parent :child-indices)
     (g/connect gui-node :pb-msg self :node-msgs)
     (g/connect gui-node :id self :node-ids)
-    (g/connect self :layers gui-node :layers)
+    (g/connect self :layer-ids gui-node :layer-ids)
     (g/connect self :textures gui-node :textures)
     (case type
       (:type-box :type-pie) (concat
@@ -391,6 +394,8 @@
                                  [:font-map :font-map]
                                  [:font-data :font-data]
                                  [:font-shader :material-shader]])
+(def ^:private layer-connections [[:name :layer-input]
+                                  [:index :layer-index]])
 
 (g/defnode GuiNode
   (inherits scene/ScalableSceneNode)
@@ -424,13 +429,14 @@
     (value (g/fnk [font-input] font-input))
     (set (fn [basis self _ new-value]
            (let [font-ids (g/node-value self :font-ids :basis basis)]
-             (for [label (map second font-connections)]
-               (g/disconnect-sources self label))
-             (if (contains? font-ids new-value)
-               (for [[from to] font-connections
-                     :let [font-node (font-ids new-value)]]
-                 (g/connect font-node from self to))
-               [])))))
+             (concat
+               (for [label (map second font-connections)]
+                 (g/disconnect-sources self label))
+               (if (contains? font-ids new-value)
+                 (let [font-node (font-ids new-value)]
+                   (for [[from to] font-connections]
+                     (g/connect font-node from self to)))
+                 []))))))
   (property outline types/Color (dynamic visible text?) (default [1 1 1 1]))
   (property outline-alpha g/Num (dynamic visible text?) (default 1.0)
     (value (g/fnk [outline] (get outline 3)))
@@ -480,7 +486,19 @@
   (property perimeter-vertices g/Num (dynamic visible pie?) (default 10.0))
   (property pie-fill-angle g/Num (dynamic visible pie?) (default 360.0))
 
-  (property layer g/Str (dynamic edit-type (g/fnk [layers] (properties/->choicebox layers))) (default ""))
+  (property layer g/Str
+            (dynamic edit-type (g/fnk [layer-ids] (properties/->choicebox (cons "" (map first layer-ids)))))
+            (value (g/fnk [layer-input] (or layer-input "")))
+            (set (fn [basis self _ new-value]
+                   (let [layer-ids (g/node-value self :layer-ids :basis basis)]
+                     (concat
+                       (for [label (map second layer-connections)]
+                         (g/disconnect-sources self label))
+                       (if (contains? layer-ids new-value)
+                         (let [layer-node (layer-ids new-value)]
+                           (for [[from to] layer-connections]
+                             (g/connect layer-node from self to)))
+                         []))))))
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$BlendMode)))
             (dynamic visible box-pie-text?))
@@ -509,7 +527,9 @@
   (display-order [:id scene/ScalableSceneNode])
 
   (input parent g/Str)
-  (input layers [g/Str])
+  (input layer-ids {g/Str g/NodeID})
+  (input layer-input g/Str)
+  (input layer-index g/Int)
   (input texture-input g/Str)
   (input font-input g/Str)
   (input font-map g/Any)
@@ -628,12 +648,16 @@
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
+  (property index g/Int (dynamic visible (g/always false)) (default 0))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name index]
                                                           {:node-id _node-id
                                                            :label name
-                                                           :icon layer-icon}))
-  (output pb-msg g/Any (g/fnk [name]
-                              {:name name})))
+                                                           :icon layer-icon
+                                                           :index index}))
+  (output pb-msg g/Any (g/fnk [name index]
+                              {:name name
+                               :index index}))
+  (output layer-id {g/Str g/NodeID} (g/fnk [_node-id name] {name _node-id})))
 
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
@@ -692,12 +716,13 @@
 
 (g/defnode LayersNode
   (inherits outline/OutlineNode)
+  (input child-indices g/Int :array)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                           {:node-id _node-id
                                                            :label "Layers"
                                                            :icon virtual-icon
                                                            :order 3
-                                                           :children child-outlines})))
+                                                           :children (vec (sort-by :index child-outlines))})))
 
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
@@ -717,23 +742,44 @@
           (update :children #(mapv (partial apply-alpha alpha) %))))
       (update scene :children #(mapv (partial apply-alpha scene-alpha) %)))))
 
-(g/defnk produce-scene [scene-dims aabb child-scenes]
+(defn- sorted-children [scene]
+  (sort-by (comp :index :renderable) (:children scene)))
+
+(defn- sort-children [node-order scene]
+  (-> scene
+    (assoc-in [:renderable :index] (node-order (:node-id scene)))
+    (update :children (partial mapv (partial sort-children node-order)))))
+
+(defn- sort-scene [scene]
+  (let [node-order (->> scene
+                     (tree-seq (constantly true) sorted-children)
+                     (group-by (fn [n] (get-in n [:renderable :layer-index] 0)))
+                     (sort-by first) ; sort by layer-index
+                     (map second)
+                     (reduce into) ; unify the vectors
+                     (map-indexed (fn [index s] [(:node-id s) index]))
+                     (into {}))]
+    (sort-children node-order scene)))
+
+(g/defnk produce-scene [_node-id scene-dims aabb child-scenes]
   (let [w (:width scene-dims)
-        h (:height scene-dims)]
-    {:aabb aabb
-     :renderable {:render-fn render-lines
-                  :passes [pass/transparent]
-                  :batch-key []
-                  :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
-                              :line-color colors/defold-white}}
-     :children (mapv (partial apply-alpha 1.0) child-scenes)}))
+        h (:height scene-dims)
+        scene {:node-id _node-id
+               :aabb aabb
+               :renderable {:render-fn render-lines
+                            :passes [pass/transparent]
+                            :batch-key []
+                            :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
+                                        :line-color colors/defold-white}}
+               :children (mapv (partial apply-alpha 1.0) child-scenes)}]
+    (sort-scene scene)))
 
 (g/defnk produce-pb-msg [script material adjust-reference node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
   {:script (proj-path script)
    :material (proj-path material)
    :adjust-reference adjust-reference
-   :nodes node-msgs
-   :layers layer-msgs
+   :nodes (map #(dissoc % :index) (sort-by :index node-msgs))
+   :layers (map #(dissoc % :index) (sort-by :index layer-msgs))
    :fonts font-msgs
    :textures texture-msgs
    :layouts layout-msgs})
@@ -808,9 +854,9 @@
   (input layer-names g/Str :array)
   (input layout-names g/Str :array)
 
-  (input layers g/Any :array)
   (input texture-data g/Any :array)
   (input font-ids {g/Str g/NodeID} :array)
+  (input layer-ids {g/Str g/NodeID} :array)
 
   (input material-resource (g/protocol resource/Resource))
   (input material-shader ShaderLifecycle)
@@ -836,7 +882,8 @@
   (output layers [g/Str] :cached (g/fnk [layers] layers))
   (output textures {g/Str g/NodeID} :cached (g/fnk [texture-data]
                                               (into {} (mapcat (fn [[_node-id anims]] (map #(vector % _node-id) anims)) texture-data))))
-  (output font-ids {g/Str g/NodeID} :cached (g/fnk [font-ids] (into {} font-ids))))
+  (output font-ids {g/Str g/NodeID} :cached (g/fnk [font-ids] (into {} font-ids)))
+  (output layer-ids {g/Str g/NodeID} :cached (g/fnk [layer-ids] (into {} layer-ids))))
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
@@ -874,10 +921,11 @@
 (defn- attach-layer [self layers-node layer]
   (concat
     (g/connect layer :_node-id self :nodes)
-    (g/connect layer :name self :layers)
+    (g/connect layer :layer-id self :layer-ids)
     (g/connect layer :pb-msg self :layer-msgs)
     (g/connect layer :name self :layer-names)
-    (g/connect layer :node-outline layers-node :child-outlines)))
+    (g/connect layer :node-outline layers-node :child-outlines)
+    (g/connect layer :index layers-node :child-indices)))
 
 (defn- attach-layout [self layouts-node layout]
   (concat
@@ -938,11 +986,12 @@
             (project/select project [node])))))))
 
 (defn- add-layer-handler [project {:keys [scene parent node-type]}]
-  (let [name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
+  (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))
+        name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
     (g/transact
       (concat
         (g/operation-label "Add Layer")
-        (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name]]
+        (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name :index index]]
           (attach-layer scene parent node)
           (project/select project [node]))))))
 
@@ -1085,10 +1134,16 @@
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :node-outline self :child-outlines)
-                    (for [layer-desc (:layers scene)]
-                      (g/make-nodes graph-id [layer [LayerNode
-                                                     :name (:name layer-desc)]]
-                                    (attach-layer self layers-node layer))))
+                    (loop [layer-descs (:layers scene)
+                           tx-data []
+                           index 0]
+                      (if-let [layer-desc (first layer-descs)]
+                        (let [tx-data (conj tx-data (g/make-nodes graph-id [layer [LayerNode
+                                                                                :name (:name layer-desc)
+                                                                                :index index]]
+                                                               (attach-layer self layers-node layer)))]
+                          (recur (rest layer-descs) tx-data (inc index)))
+                        tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
                    (g/connect layouts-node :_node-id self :layouts-node)
                    (g/connect layouts-node :_node-id self :nodes)
@@ -1129,7 +1184,6 @@
                                                             :shadow shadow
                                                             :adjust-mode (:adjust-mode node-desc)
                                                             :line-break (:line-break node-desc)
-                                                            :layer (:layer node-desc)
                                                             :alpha (:alpha node-desc)
                                                             :inherit-alpha (:inherit-alpha node-desc)
                                                             :slice9 (:slice9 node-desc)
@@ -1147,7 +1201,8 @@
                             ; Needs to be done after attaching so textures etc can be fetched
                             (g/set-property gui-node
                               :texture (:texture node-desc)
-                              :font (:font node-desc)))
+                              :font (:font node-desc)
+                              :layer (:layer node-desc)))
                   node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
             (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
             all-tx-data))))))
@@ -1191,14 +1246,17 @@
 (defn- single-gui-node? [selection]
   (handler/single-selection? selection GuiNode))
 
+(defn- single-layer-node? [selection]
+  (handler/single-selection? selection LayerNode))
+
 (handler/defhandler :move-up :global
-  (enabled? [selection] (single-gui-node? selection))
+  (enabled? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected -1))))
 
 (handler/defhandler :move-down :global
-  (enabled? [selection] (single-gui-node? selection))
+  (enabled? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected 1))))
