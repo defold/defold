@@ -1,6 +1,7 @@
 #include "script.h"
 #include <dlib/hashtable.h>
 #include <dlib/align.h>
+#include <dlib/log.h>
 
 #include <string.h>
 extern "C"
@@ -550,9 +551,20 @@ namespace dmScript
     {
         PushDDF(L, d, data, false);
     }
+    
+    static int g_push_ddf = 0;
+    static int g_push_ddf_lazy = 0;
+    
+    static void tbl_stats(int d, int l)
+    {
+        g_push_ddf += d;
+        g_push_ddf_lazy += l;
+        dmLogWarning("ddf:%d ddf-lazy:%d", g_push_ddf, g_push_ddf_lazy);
+    }
 
     void PushDDF(lua_State*L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
+        tbl_stats(1, 0);
         MessageDecoder* decoder = g_Decoders.Get((uintptr_t) d);
         if (decoder) {
             Result r = (*decoder)(L, d, data);
@@ -575,6 +587,75 @@ namespace dmScript
                 lua_rawset(L, -3);
             }
         }
+    }
+
+    struct DDFTable
+    {
+        const dmDDF::Descriptor* descriptor;
+        uintptr_t ptr_offset;
+        char* data;
+    };
+
+    static const char *DDFMessage_Name = "DDFMessage";
+
+    static int DDF_Index(lua_State *L)
+    {
+        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
+        const char *field = lua_tostring(L, 2);
+
+        for (uint8_t i=0;i!=d->descriptor->m_FieldCount;i++)
+        {
+            const dmDDF::FieldDescriptor* fd = &d->descriptor->m_Fields[i];
+            if (!strcmp(fd->m_Name, field))
+            {
+                DDFToLuaValue(L, fd, d->data, d->ptr_offset);
+                return 1;
+            }
+        }
+
+        lua_pushnil(L);
+        return 1;
+    }
+
+    static int DDF_Gc(lua_State *L)
+    {
+        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
+        free((void*)d->data);
+        return 0;
+    }
+    
+    void PushDDFLazy(lua_State *L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets)
+    {
+        tbl_stats(0, 1);
+    
+        int top = lua_gettop(L);
+
+        DDFTable* table = (DDFTable*) lua_newuserdata(L, sizeof(DDFTable));
+
+        table->descriptor = descriptor;
+        table->data = (char*) malloc(descriptor->m_Size);
+        table->ptr_offset = pointers_are_offsets ? (uintptr_t) table->data : 0;
+        memcpy(table->data, data, descriptor->m_Size);
+
+        luaL_getmetatable(L, DDFMessage_Name);
+        lua_setmetatable(L, -2);
+
+        assert(lua_gettop(L) == (top+1));
+    }
+
+    static const luaL_reg DDF_Meta[] = {
+        {"__gc",       DDF_Gc},
+        {"__index",    DDF_Index},
+        {0, 0}
+    };
+
+    void InitializeDDF(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_newmetatable(L, DDFMessage_Name);
+        luaL_register(L, 0, DDF_Meta);
+        lua_pop(L, 1);
+        assert(lua_gettop(L) == top);
     }
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder)

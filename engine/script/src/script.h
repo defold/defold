@@ -143,6 +143,16 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
+    /**
+     * Push lazy DDF message to Lua stack
+     * @param L Lua state
+     * @param descriptor Field descriptor
+     * @param pointers_are_offets if pointers are offsets
+     * @param data DDF data
+     */
+    void PushDDFLazy(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
+
+
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
     /**

@@ -100,6 +100,44 @@ TEST_F(ScriptDDFTest, TransformToLua)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptDDFTest, TransformToLuaLazy)
+{
+    int top = lua_gettop(L);
+
+    TestScript::Transform* t = new TestScript::Transform;
+    t->m_Position.setX(1.0f);
+    t->m_Position.setY(2.0f);
+    t->m_Position.setZ(3.0f);
+    t->m_Rotation.setX(4.0f);
+    t->m_Rotation.setY(5.0f);
+    t->m_Rotation.setZ(6.0f);
+    t->m_Rotation.setW(7.0f);
+
+    dmScript::PushDDFLazy(L, TestScript::Transform::m_DDFDescriptor, (const char*) t, true);
+
+    lua_getfield(L, -1, "position");
+    Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, -1);
+    lua_getfield(L, -2, "rotation");
+    Vectormath::Aos::Quat* rotation = dmScript::CheckQuat(L, -1);
+    ASSERT_NE((void*)0x0, (void*)position);
+    ASSERT_NE((void*)0x0, (void*)rotation);
+    ASSERT_EQ(1.0f, position->getX());
+    ASSERT_EQ(2.0f, position->getY());
+    ASSERT_EQ(3.0f, position->getZ());
+    ASSERT_EQ(4.0f, rotation->getX());
+    ASSERT_EQ(5.0f, rotation->getY());
+    ASSERT_EQ(6.0f, rotation->getZ());
+    ASSERT_EQ(7.0f, rotation->getW());
+
+    delete t;
+
+    lua_pop(L, 3);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+
+
 TEST_F(ScriptDDFTest, MessageInMessageToDDF)
 {
     int top = lua_gettop(L);

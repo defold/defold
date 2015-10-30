@@ -477,9 +477,13 @@ namespace dmScript
         }
         return buffer;
     }
+    
+    static int s_c =0 ;
 
     int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
     {
+        dmLogWarning("push-table: %d", ++s_c);
+        
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;

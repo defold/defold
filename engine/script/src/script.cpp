@@ -17,6 +17,7 @@
 #include "script_http.h"
 #include "script_zlib.h"
 #include "script_luasocket.h"
+#include "script_ddf.h"
 
 extern "C"
 {
@@ -109,6 +110,7 @@ namespace dmScript
         return 0;
     }
 
+
     void Initialize(HContext context)
     {
         lua_State* L = context->m_LuaState;
@@ -127,6 +129,7 @@ namespace dmScript
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
         InitializeLuasocket(L);
+        InitializeDDF(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
