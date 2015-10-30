@@ -113,7 +113,7 @@ TEST_F(ScriptDDFTest, TransformToLuaLazy)
     t->m_Rotation.setZ(6.0f);
     t->m_Rotation.setW(7.0f);
 
-    dmScript::PushDDFLazy(L, TestScript::Transform::m_DDFDescriptor, (const char*) t, true);
+    dmScript::PushDDFLazy(L, TestScript::Transform::m_DDFDescriptor, (const char*) t, sizeof(TestScript::Transform), true);
 
     lua_getfield(L, -1, "position");
     Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, -1);

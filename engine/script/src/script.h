@@ -150,8 +150,9 @@ namespace dmScript
      * @param pointers_are_offets if pointers are offsets
      * @param data DDF data
      */
-    void PushDDFLazy(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
-
+    void PushDDFLazy(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, uint32_t size, bool pointers_are_offsets);
+    
+    bool CheckLazyDDF(lua_State *L, int index, const dmDDF::Descriptor** desc, const char** data, uint32_t* size);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 

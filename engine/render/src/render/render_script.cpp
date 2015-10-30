@@ -2049,7 +2049,7 @@ bail:
                     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
-                    dmScript::PushDDF(L, descriptor, (const char*)message->m_Data, true);
+                    dmScript::PushDDFLazy(L, descriptor, (const char*)message->m_Data, message->m_DataSize, true);
                 }
                 else if (message->m_DataSize > 0)
                 {

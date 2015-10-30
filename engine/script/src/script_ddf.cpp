@@ -559,7 +559,6 @@ namespace dmScript
     {
         g_push_ddf += d;
         g_push_ddf_lazy += l;
-        dmLogWarning("ddf:%d ddf-lazy:%d", g_push_ddf, g_push_ddf_lazy);
     }
 
     void PushDDF(lua_State*L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
@@ -594,6 +593,7 @@ namespace dmScript
         const dmDDF::Descriptor* descriptor;
         uintptr_t ptr_offset;
         char* data;
+        uint32_t size;
     };
 
     static const char *DDFMessage_Name = "DDFMessage";
@@ -617,6 +617,42 @@ namespace dmScript
         return 1;
     }
 
+    static int DDF_NewIndex(lua_State *L)
+    {
+        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
+        const char *field = lua_tostring(L, 2);
+
+        for (uint8_t i=0;i!=d->descriptor->m_FieldCount;i++)
+        {
+            const dmDDF::FieldDescriptor* fd = &d->descriptor->m_Fields[i];
+            char *data = d->data + fd->m_Offset;
+            
+            if (!strcmp(fd->m_Name, field))
+            {
+                if (fd->m_Label != dmDDF::LABEL_REPEATED)
+                {
+                    bool nil = lua_isnil(L, 3);
+                    switch (fd->m_Type)
+                    {
+                        case dmDDF::TYPE_INT32:
+                        case dmDDF::TYPE_UINT32:
+                            {
+                                uint32_t* val = (uint32_t*) data;
+                                *val = nil ? 0 : (uint32_t)luaL_checkinteger(L, 3);
+                                return 0;
+                            }
+                        default:
+                            luaL_error(L, "Cannot set field [%s] because it is read-only", field);
+                            return 0;
+                    }
+                }
+            }
+        }
+        
+        luaL_error(L, "Field [%s] cannot be set in message.", field);
+        return 0;
+    }
+
     static int DDF_Gc(lua_State *L)
     {
         DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
@@ -624,8 +660,35 @@ namespace dmScript
         return 0;
     }
     
-    void PushDDFLazy(lua_State *L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets)
+    bool CheckLazyDDF(lua_State *L, int index, const dmDDF::Descriptor** desc, const char** data, uint32_t* size)
     {
+        if (lua_isuserdata(L, index))
+        {
+            DDFTable* d = (DDFTable*) lua_touserdata(L, index);
+            *desc = d->descriptor;
+            *data = d->data;
+            *size = d->size;
+            return true;
+        }
+        else
+        {
+            return false;
+        }    
+    }
+    
+    
+    void PushDDFLazy(lua_State *L, const dmDDF::Descriptor* descriptor, const char* data, uint32_t size, bool pointers_are_offsets)
+    {
+        // Use decoder always first.
+        MessageDecoder* decoder = g_Decoders.Get((uintptr_t) descriptor);
+        if (decoder) {
+            Result r = (*decoder)(L, descriptor, data);
+            if (r != RESULT_OK) {
+                luaL_error(L, "Failed to decode %s message (%d)", descriptor->m_Name, r);
+            }
+            return;
+        }
+    
         tbl_stats(0, 1);
     
         int top = lua_gettop(L);
@@ -633,9 +696,10 @@ namespace dmScript
         DDFTable* table = (DDFTable*) lua_newuserdata(L, sizeof(DDFTable));
 
         table->descriptor = descriptor;
-        table->data = (char*) malloc(descriptor->m_Size);
+        table->data = (char*) malloc(size);
+        table->size = size;
         table->ptr_offset = pointers_are_offsets ? (uintptr_t) table->data : 0;
-        memcpy(table->data, data, descriptor->m_Size);
+        memcpy(table->data, data, size);
 
         luaL_getmetatable(L, DDFMessage_Name);
         lua_setmetatable(L, -2);
@@ -646,6 +710,7 @@ namespace dmScript
     static const luaL_reg DDF_Meta[] = {
         {"__gc",       DDF_Gc},
         {"__index",    DDF_Index},
+        {"__newindex", DDF_NewIndex},
         {0, 0}
     };
 

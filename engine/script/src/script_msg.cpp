@@ -8,6 +8,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
+#include <dlib/log.h>
 
 #include <ddf/ddf.h>
 
@@ -448,6 +449,19 @@ namespace dmScript
             {
                 if (top > 2)
                 {
+                    // check if lazy
+                    const char *tmp_data;
+                    if (CheckLazyDDF(L, 3, &desc, &tmp_data, &data_size))
+                    {
+                        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, tmp_data, data_size);
+                        if (result != dmMessage::RESULT_OK)
+                        {
+                            return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));
+                        }
+                        return 0;
+                    }
+                    
+                
                     if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
                     {
                         return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);

@@ -251,7 +251,7 @@ namespace dmGameObject
             {
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
-                dmScript::PushDDFLazy(L, (const dmDDF::Descriptor*)params.m_Message->m_Descriptor, (const char*) params.m_Message->m_Data, true);
+                dmScript::PushDDFLazy(L, (const dmDDF::Descriptor*)params.m_Message->m_Descriptor, (const char*) params.m_Message->m_Data, params.m_Message->m_DataSize, true);
             }
             else
             {
