@@ -694,6 +694,28 @@ return value."
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
+(defn anim!
+  ([duration anim-fn end-fn]
+    (let [duration (long (* 1e9 duration))
+          start (System/nanoTime)
+          end (+ start (long duration))]
+      (doto (proxy [AnimationTimer] []
+             (handle [now]
+               (if (< now end)
+                 (let [t (/ (double (- now start)) duration)]
+                   (try
+                     (anim-fn t)
+                     (catch Exception e
+                       (.stop ^AnimationTimer this)
+                       (throw e))))
+                 (do
+                   (end-fn)
+                   (.stop ^AnimationTimer this)))))
+        (.start)))))
+
+(defn anim-stop! [^AnimationTimer anim]
+  (.stop anim))
+
 (defprotocol Closeable
   (on-close-request [this])
   (on-close-request! [this f]))
