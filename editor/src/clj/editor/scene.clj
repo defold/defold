@@ -324,6 +324,7 @@
 (defn flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables camera viewport tmp-p3d]
  (let [renderable (:renderable scene)
        ^Matrix4d trans (or (:transform scene) geom/Identity4d)
+       parent-world world-transform
        world-transform (doto (Matrix4d. world-transform) (.mul trans))
        selected (contains? selection-set (:node-id scene))
        new-renderable (-> scene
@@ -332,7 +333,8 @@
                                :world-transform world-transform
                                :selected selected
                                :user-data (:user-data renderable)
-                               :batch-key (:batch-key renderable))
+                               :batch-key (:batch-key renderable)
+                               :aabb (geom/aabb-transform ^t/AABB (:aabb scene) parent-world))
                         (assoc :render-key (render-key camera viewport renderable tmp-p3d)))]
    (doseq [pass (:passes renderable)]
      (conj! (get out-renderables pass) new-renderable)
@@ -377,6 +379,7 @@
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
+  (output selected-aabb AABB :cached (g/fnk [selected-renderables] (reduce geom/aabb-union (geom/null-aabb) (map :aabb selected-renderables))))
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                                    (into {} [(first (map (fn [r] [(:node-id r) r]) (filter :updatable selected-renderables)))])))
   (output updatables g/Any :cached (g/fnk [renderables]
@@ -406,6 +409,7 @@
   (input selected-tool-renderables g/Any)
   (input active-tool g/Keyword)
   (input updatables g/Any)
+  (input selected-aabb AABB)
   (input selected-updatables g/Any)
   (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
   (output active-updatables g/Any (g/fnk [updatables active-updatable-ids]
@@ -414,8 +418,9 @@
   (output scene g/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view]
                                              (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
-  (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb)))) ; TODO - base aabb on selection
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb))))
   (output selection g/Any (g/fnk [selection] selection))
+  (output selected-aabb AABB :cached (g/fnk [selected-aabb scene] (if (= selected-aabb (geom/null-aabb)) (:aabb scene) selected-aabb)))
   (output picking-rect Rect (g/fnk [picking-rect] picking-rect)))
 
 (defn scene-view-dispose [node-id]
@@ -511,10 +516,35 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
+(defn- frame-selection [app-view]
+  (when-let [view (active-scene-view app-view)]
+    (let [graph (g/node-id->graph-id view)
+          camera (g/graph-value graph :camera)
+          aabb (g/node-value view :selected-aabb)
+          viewport (g/node-value view :viewport)
+          local-cam (g/node-value camera :local-camera)
+          end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)
+          duration 0.5]
+      (ui/anim! duration
+                (fn [t] (let [t (- (* t t 3) (* t t t 2))
+                              cam (c/interpolate local-cam end-camera t)]
+                          (g/transact
+                            (g/set-property camera :local-camera cam))))
+                (fn [])))))
+
+(handler/defhandler :frame-selection :global
+  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
+                         (let [selected (g/node-value view :selection)]
+                           (not (empty? selected)))))
+  (run [app-view] (frame-selection app-view)))
+
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Scene"
                   :id ::scene
-                  :children [{:label "Play"
+                  :children [{:label "Frame"
+                              :acc "Shortcut+."
+                              :command :frame-selection}
+                             {:label "Play"
                               :acc "Shortcut+P"
                               :command :scene-play}
                              {:label "Stop"
@@ -603,6 +633,7 @@
   (input input-handlers Runnable :array)
   (input active-tool g/Keyword)
   (input updatables g/Any)
+  (input selected-aabb AABB)
   (input selected-updatables g/Any)
   (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
 
@@ -611,6 +642,7 @@
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb))))
   (output selection g/Any :cached (g/fnk [selection] selection))
+  (output selected-aabb AABB :cached (g/fnk [selected-aabb scene] (if (= selected-aabb (geom/null-aabb)) (:aabb scene) selected-aabb)))
   (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect)))
 
 (defn make-preview-view [graph width height]
@@ -656,6 +688,7 @@
                   (g/connect renderer             :selected-tool-renderables view-id          :selected-tool-renderables)
                   (g/connect renderer             :updatables                view-id          :updatables)
                   (g/connect renderer             :selected-updatables       view-id          :selected-updatables)
+                  (g/connect renderer             :selected-aabb             view-id          :selected-aabb)
 
                   (g/connect grid                 :renderable                renderer         :aux-renderables)
                   (g/connect camera               :camera                    grid             :camera)
