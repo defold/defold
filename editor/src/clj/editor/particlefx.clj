@@ -18,7 +18,7 @@
             [internal.render.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
-            [editor.validation :as validation]
+            [editor.definition :as definition]
             [editor.camera :as camera]
             [editor.handler :as handler]
             [editor.core :as core])
@@ -427,17 +427,18 @@
   (property space g/Keyword
             (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/always "Emission Space")))
+
   (property tile-source (g/protocol resource/Resource)
     (dynamic label (g/always "Image"))
-    (value (g/fnk [tile-source-resource] tile-source-resource))
-    (validate (validation/validate-resource tile-source-resource "Missing image" [texture-set-data gpu-texture anim-data]))
+    (value (definition/proxy-value tile-source-resource))
     (set (project/gen-resource-setter [[:resource :tile-source-resource]
                                        [:texture-set-data :texture-set-data]
                                        [:gpu-texture :gpu-texture]
-                                       [:anim-data :anim-data]])))
+                                       [:anim-data :anim-data]]))
+    (validate (definition/validate-resource tile-source "Missing image" [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
-            (validate (validation/validate-animation animation anim-data))
+            (validate (definition/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
@@ -449,7 +450,7 @@
             (set (project/gen-resource-setter [[:resource :material-resource]])))
 
   (property blend-mode g/Keyword
-    (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
+    (validate (definition/validate-blend-mode blend-mode Particle$BlendMode))
     (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
   (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)

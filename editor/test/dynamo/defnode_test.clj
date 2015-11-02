@@ -610,11 +610,13 @@
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
 
+(def AugmentedProperties (assoc g/Properties :augmented g/Bool))
+
 (g/defnode PropertyAugmentNode
   (property a-property g/Int (default 0))
   (property b-property g/Str (default ""))
 
-  (output _properties g/Properties
+  (output _properties AugmentedProperties
           (g/fnk [_declared-properties]
                  (assoc _declared-properties :augmented true))))
 
