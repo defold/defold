@@ -229,7 +229,7 @@
           (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
      (catch java.lang.Exception e
        (log/warn :exception e)
-       (g/mark-defective self (g/error-fatal {:type :invalid-content :message (.getMessage e)}))))
+       (g/mark-defective self (g/error-severe {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 
 (defn- settings-with-value [settings]

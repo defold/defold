@@ -143,3 +143,11 @@
   (let [entries (load-zip file-name)]
     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
       (mapv (fn [x] (->zip-resources workspace "" x))))))
+
+(g/defnode ResourceNode
+  (extern resource (g/protocol Resource) (dynamic visible (g/always false))))
+
+(defn resource->proj-path [resource]
+  (if resource
+    (proj-path resource)
+    ""))

@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/chained_easing.scriptc"
+}

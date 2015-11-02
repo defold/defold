@@ -38,7 +38,9 @@ namespace dmScript
      * @param method HTTP method, e.g. GET/PUT/POST/DELETE/...
      * @param callback response callback
      * @param [headers] optional lua-table with custom headers
-     * @param [post_data] option data to send
+     * @param [post_data] optional data to send
+     * @param [options] optional lua-table with request parameters. Supported entries: 'timeout'=<number> (in seconds)
+     * @note If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is 0. (0 == blocks indefinitely)
      * @examples
      * <p>
      * Basic HTTP-GET request. The callback receives a table with the response
@@ -115,6 +117,21 @@ namespace dmScript
                 request_data_length = len;
             }
 
+            uint64_t timeout = g_Timeout;
+            if (top > 5) {
+                lua_pushvalue(L, 6);
+                lua_pushnil(L);
+                while (lua_next(L, -2)) {
+                    const char* attr = lua_tostring(L, -2);
+                    if( strcmp(attr, "timeout") == 0 )
+                    {
+                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                    }
+                    lua_pop(L, 1);
+                }
+                lua_pop(L, 1);
+            }
+
             // Really arbitrary length.
             // TODO: Warn if the buffer isn't long enough
             const uint32_t string_buf_len = 1024;
@@ -131,7 +148,7 @@ namespace dmScript
             request->m_HeadersLength = headers_length;
             request->m_Request = (uint64_t) request_data;
             request->m_RequestLength = request_data_length;
-            request->m_Timeout = g_Timeout;
+            request->m_Timeout = timeout;
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + max_method_len + url_len + 1;
             dmMessage::URL receiver;
@@ -156,6 +173,11 @@ namespace dmScript
         {"request", Http_Request},
         {0, 0}
     };
+
+    void SetHttpRequestTimeout(uint64_t timeout)
+    {
+        g_Timeout = timeout;
+    }
 
     void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
     {

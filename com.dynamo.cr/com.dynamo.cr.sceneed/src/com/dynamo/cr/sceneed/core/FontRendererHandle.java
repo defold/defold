@@ -19,11 +19,12 @@ public class FontRendererHandle {
 
     private static Logger logger = LoggerFactory.getLogger(FontRendererHandle.class);
 
-    private FontMap fontMap;
-    private BufferedImage image;
+    private FontMap fontMap = null;
+    private BufferedImage image = null;
     private Fontc.InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
-    private Texture texture;
+    private Texture texture = null;
     private boolean reloadTexture = false;
+    private boolean awaitClear = false;
 
     private HashMap<Integer, FontMap.Glyph> glyphLookup;
 
@@ -33,6 +34,15 @@ public class FontRendererHandle {
         } else {
             this.texture.updateImage(gl, AWTTextureIO.newTextureData(GLProfile.getGL2GL3(), this.image, true));
         }
+    }
+
+    public void clear(GL2 gl) {
+        this.image = null;
+        if (this.texture != null) {
+            this.texture.destroy(gl);
+            this.texture = null;
+        }
+        this.awaitClear = false;
     }
 
     public void setFont(FontMap fontMap, BufferedImage image, Fontc.InputFontFormat inputFormat) {
@@ -50,11 +60,15 @@ public class FontRendererHandle {
     }
 
     public Texture getTexture(GL2 gl) {
+
         try {
 
             if (this.reloadTexture) {
                 this.reloadTexture = false;
 
+                if (this.texture != null) {
+                    this.texture.destroy(gl);
+                }
                 generateTexture(gl);
             }
 
@@ -71,6 +85,18 @@ public class FontRendererHandle {
             g = this.glyphLookup.get(126); // Fallback to ~
         }
         return g;
+    }
+
+    public void setDeferredClear() {
+        this.awaitClear = true;
+    }
+
+    public boolean getDeferredClear() {
+        return this.awaitClear;
+    }
+
+    public boolean isValid() {
+        return (this.image != null && this.fontMap != null);
     }
 
     public FontMap getFontMap() {

@@ -130,7 +130,7 @@ public:
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
 
-    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
             const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
     {
         dmGuiTest* self = (dmGuiTest*) context;
@@ -518,7 +518,7 @@ static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t w
 {
 }
 
-static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*) context;
@@ -2490,7 +2490,7 @@ TEST_F(dmGuiTest, ScriptPicking)
 }
 
 // This render function simply flags a provided boolean when called
-static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     if (node_count > 0)
@@ -2563,7 +2563,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
-static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
@@ -2722,7 +2722,7 @@ TEST_F(dmGuiTest, MoveNodesScript)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-static void RenderNodesCount(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+static void RenderNodesCount(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*)context;
@@ -2934,7 +2934,7 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(1u, order[n3]);
 }
 
-void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms,  const Vectormath::Aos::Vector4* node_colors,
+void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
@@ -3032,17 +3032,17 @@ TEST_F(dmGuiTest, HierarchicalTransforms)
 struct TransformColorData
 {
     Vectormath::Aos::Matrix4 m_Transform;
-    Vectormath::Aos::Vector4 m_Color;
+    float m_Opacity;
 };
 
-void RenderNodesStoreColorAndTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+void RenderNodesStoreOpacityAndTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     TransformColorData* out_data = (TransformColorData*) context;
     for(uint32_t i = 0; i < node_count; i++)
     {
         out_data[i].m_Transform = node_transforms[i];
-        out_data[i].m_Color = node_colors[i];
+        out_data[i].m_Opacity = node_opacities[i];
     }
 }
 
@@ -3056,11 +3056,6 @@ void RenderNodesStoreColorAndTransform(dmGui::HScene scene, const dmGui::RenderE
  *     - n6
  *
  */
-#define ASSERT_COLOR_EQ(expected, actual)\
-    ASSERT_EQ(expected.getX(), actual.getX());\
-    ASSERT_EQ(expected.getY(), actual.getY());\
-    ASSERT_EQ(expected.getZ(), actual.getZ());\
-    ASSERT_EQ(expected.getW(), actual.getW());
 
 TEST_F(dmGuiTest, HierarchicalColors)
 {
@@ -3074,13 +3069,6 @@ TEST_F(dmGuiTest, HierarchicalColors)
         dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
     }
 
-    // test child tree
-    dmGui::SetNodeParent(m_Scene, node[4], node[3]);
-    dmGui::SetNodeParent(m_Scene, node[5], node[4]);
-    dmGui::SetNodeProperty(m_Scene, node[3], dmGui::PROPERTY_COLOR, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
-    dmGui::SetNodeProperty(m_Scene, node[4], dmGui::PROPERTY_COLOR, Vector4(1.0f, 0.5f, 1.0f, 0.5f));
-    dmGui::SetNodeProperty(m_Scene, node[5], dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
-
     // test siblings
     dmGui::SetNodeParent(m_Scene, node[1], node[0]);
     dmGui::SetNodeParent(m_Scene, node[2], node[0]);
@@ -3088,16 +3076,33 @@ TEST_F(dmGuiTest, HierarchicalColors)
     dmGui::SetNodeProperty(m_Scene, node[1], dmGui::PROPERTY_COLOR, Vector4(1.0f, 0.5f, 1.0f, 0.5f));
     dmGui::SetNodeProperty(m_Scene, node[2], dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
 
+    // test child tree
+    dmGui::SetNodeParent(m_Scene, node[4], node[3]);
+    dmGui::SetNodeParent(m_Scene, node[5], node[4]);
+    dmGui::SetNodeProperty(m_Scene, node[3], dmGui::PROPERTY_COLOR, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, node[4], dmGui::PROPERTY_COLOR, Vector4(1.0f, 0.5f, 1.0f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, node[5], dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
+
+    dmGui::SetNodeProperty(m_Scene, node[3], dmGui::PROPERTY_OUTLINE, Vector4(0.3f, 0.3f, 0.3f, 0.8f));
+    dmGui::SetNodeProperty(m_Scene, node[4], dmGui::PROPERTY_OUTLINE, Vector4(0.4f, 0.4f, 0.4f, 0.6f));
+    dmGui::SetNodeProperty(m_Scene, node[5], dmGui::PROPERTY_OUTLINE, Vector4(0.5f, 0.5f, 0.5f, 0.4f));
+
+    dmGui::SetNodeProperty(m_Scene, node[3], dmGui::PROPERTY_SHADOW, Vector4(0.3f, 0.3f, 0.3f, 0.6f));
+    dmGui::SetNodeProperty(m_Scene, node[4], dmGui::PROPERTY_SHADOW, Vector4(0.4f, 0.4f, 0.4f, 0.4f));
+    dmGui::SetNodeProperty(m_Scene, node[5], dmGui::PROPERTY_SHADOW, Vector4(0.5f, 0.5f, 0.5f, 0.2f));
+
     TransformColorData cbres[node_count];
-    dmGui::RenderScene(m_Scene, RenderNodesStoreColorAndTransform, &cbres);
+    dmGui::RenderScene(m_Scene, RenderNodesStoreOpacityAndTransform, &cbres);
 
-    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.5000f), cbres[0].m_Color);
-    ASSERT_COLOR_EQ(Vector4(1.0000f, 0.5000f, 1.0000f, 0.2500f), cbres[1].m_Color);
-    ASSERT_COLOR_EQ(Vector4(1.0000f, 1.0000f, 1.0000f, 0.1250f), cbres[2].m_Color);
+    // siblings
+    ASSERT_EQ(0.5000f, cbres[0].m_Opacity);
+    ASSERT_EQ(0.2500f, cbres[1].m_Opacity);
+    ASSERT_EQ(0.1250f, cbres[2].m_Opacity);
 
-    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.5000f), cbres[3].m_Color);
-    ASSERT_COLOR_EQ(Vector4(1.0000f, 0.5000f, 1.0000f, 0.2500f), cbres[4].m_Color);
-    ASSERT_COLOR_EQ(Vector4(1.0000f, 1.0000f, 1.0000f, 0.0625f), cbres[5].m_Color);
+    // tree
+    ASSERT_EQ(0.5000f, cbres[3].m_Opacity);
+    ASSERT_EQ(0.2500f, cbres[4].m_Opacity);
+    ASSERT_EQ(0.0625f, cbres[5].m_Opacity);
 }
 
 /**
@@ -3132,24 +3137,24 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
         dummy_node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
     }
 
-    float c,a;
-    c = a = 1.0f;
+    float a;
+    a = 1.0f;
     for(uint32_t i = 0; i < node_count_h; ++i)
     {
         node[i] = dmGui::NewNode(m_Scene, Point3(1.0f, 1.0f, 1.0f), size, dmGui::NODE_TYPE_BOX);
         dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
         dmGui::SetNodePivot(m_Scene, node[i], dmGui::PIVOT_SW);
-        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, a));
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(1, 1, 1, a));
         if(i == 0)
             a = 0.5f;
     }
-    c = a = 0.5f;
+    a = 0.5f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
         node[i] = dmGui::NewNode(m_Scene, Point3(0.5f, 0.5f, 0.5f), size, dmGui::NODE_TYPE_BOX);
         dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
         dmGui::SetNodePivot(m_Scene, node[i], dmGui::PIVOT_SW);
-        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, a));
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(1, 1, 1, a));
         if(i == node_count_h)
             a = 0.5f;
     }
@@ -3166,9 +3171,9 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
     TransformColorData cbres[node_count];
     memset(cbres, 0x0, sizeof(TransformColorData)*node_count);
-    dmGui::RenderScene(m_Scene, RenderNodesStoreColorAndTransform, &cbres);
+    dmGui::RenderScene(m_Scene, RenderNodesStoreOpacityAndTransform, &cbres);
 
-    c = a = 1.0f;
+    a = 1.0f;
     for(uint32_t i = 0; i < node_count_h; ++i)
     {
         if(i > 0)
@@ -3176,10 +3181,10 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+1.0f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        ASSERT_EQ(a, cbres[i].m_Opacity);
         a *= 0.5f;
     }
-    c = a = 0.5f;
+    a = 0.5f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
         if(i > node_count_h)
@@ -3187,14 +3192,14 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+0.5f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        ASSERT_EQ(a, cbres[i].m_Opacity);
         a *= 0.5f;
     }
 
-    c = a = 1.0f;
+    a = 1.0f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
-        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, a));
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(1, 1, 1, a));
         dmGui::SetNodePosition(m_Scene, node[i], Point3(0.25f, 0.25f, 0.25f));
         if(i == node_count_h)
             a = 0.25f;
@@ -3202,9 +3207,9 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
     dmGui::DeleteNode(m_Scene, node[3]);
     dmGui::DeleteNode(m_Scene, node[2]);
-    dmGui::RenderScene(m_Scene, RenderNodesStoreColorAndTransform, &cbres);
+    dmGui::RenderScene(m_Scene, RenderNodesStoreOpacityAndTransform, &cbres);
 
-    c = a = 1.0f;
+    a = 1.0f;
     for(uint32_t i = 0; i < node_count_h-2; ++i)
     {
         if(i > 0)
@@ -3212,10 +3217,10 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+1.0f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        ASSERT_EQ(a, cbres[i].m_Opacity);
         a *= 0.5f;
     }
-    c = a = 1.0f;
+    a = 1.0f;
     for(uint32_t i = node_count_h-2; i < node_count-2; ++i)
     {
         if(i > node_count_h-2)
@@ -3223,12 +3228,10 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+0.25f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        ASSERT_EQ(a, cbres[i].m_Opacity);
         a *= 0.25f;
     }
 }
-
-#undef ASSERT_COLOR_EQ
 
 TEST_F(dmGuiTest, ScriptClippingFunctions)
 {

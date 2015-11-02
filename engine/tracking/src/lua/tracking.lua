@@ -271,7 +271,7 @@ end
 
 function proto_headers()
     local hdr = {}
-    hdr["x-gather-version"] = "1"
+    hdr["x-gather-version"] = "2"
     hdr["x-app"] = app_id
     return hdr;
 end
@@ -346,9 +346,9 @@ function json_str_field(name, value)
 end
 
 function json_array(t, insert)
-    local n = table.getn(t)
     local out = "["
     local sep = ""
+    local n = table.getn(t)
     for i=1,n do
         out = out .. sep .. insert(t[i])
         sep = ","
@@ -356,17 +356,36 @@ function json_array(t, insert)
     return out .. "]"
 end
 
-function json_event(evt)
-    local mk_attr = function(attr)
-        return "{" .. json_str_field(attr.key, attr.value) .. "}"
+function json_map(t, value_fn)
+    local out = "{"
+    local sep = ""
+    for k,v in pairs(t) do
+        out = out .. sep .. value_fn(k, v)
+        sep = ","
     end
-    local mk_metric = function(metric)
-        return "{" .. json_field(metric.key, metric.value) .. "}"
+    return out .. "}"
+end
+
+function array_to_map(t, insert_fn)
+    local n = table.getn(t)
+    local out = { }
+    for i=1,n do
+        insert_fn(out, t[i])
+    end
+    return out
+end
+
+function json_event(evt)
+    local mk_attr = function(obj, attr)
+        obj[attr.key] = attr.value
+    end
+    local mk_metric = function(obj, attr)
+        obj[attr.key] = attr.value
     end
     return "{" .. json_str_field("type", evt.type) .. "," ..
            json_field("time_stamp", evt.time_stamp) .. "," ..
-           json_field("attributes", json_array(evt.attributes, mk_attr)) .. "," ..
-           json_field("metrics", json_array(evt.metrics, mk_metric)) .. "}"
+           json_field("attributes", json_map(array_to_map(evt.attributes, mk_attr), json_str_field)) .. "," ..
+           json_field("metrics", json_map(array_to_map(evt.metrics, mk_metric), json_field)) .. "}"
 end
 
 local msg_seq = 0

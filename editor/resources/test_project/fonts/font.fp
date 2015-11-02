@@ -1,19 +1,15 @@
-struct pixel_in
-{
-    float4 position : POSITION;
-    float2 texcoord : TEXCOORD0;
-};
+varying mediump vec4 position;
+varying mediump vec2 var_texcoord0;
+varying lowp vec4 var_face_color;
+varying lowp vec4 var_outline_color;
+varying lowp vec4 var_shadow_color;
 
-void main(pixel_in IN,
-          uniform sampler2D texture : TEXUNIT0,
-          uniform float4 face_color     : C0,
-          uniform float4 outline_color  : C1,
-          uniform float4 shadow_color   : C2,
-          out float4 out_color          : COLOR)
+uniform lowp vec4 texture_size_recip;
+uniform lowp sampler2D texture;
+
+void main()
 {
-    float4 t = tex2D(texture, IN.texcoord.xy);
-    face_color.w *= t.x;
-    outline_color.w *= t.y;
-    shadow_color.w *= t.z;
-    out_color = face_color + outline_color + shadow_color;
+    // Outline
+    lowp vec2 t = texture2D(texture, var_texcoord0.xy).xy;
+    gl_FragColor = vec4(var_face_color.xyz, 1.0) * t.x * var_face_color.w + vec4(var_outline_color.xyz * t.y * var_outline_color.w, t.y * var_outline_color.w) * (1.0 - t.x);
 }

@@ -83,7 +83,7 @@
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
                     <globmapper from="darwin/luajit-2.0.3" to="x86-darwin/luajit"/>
-                    <globmapper from="linux/luajit-2-0.3" to="x86-linux/luajit"/>
+                    <globmapper from="linux/luajit-2.0.3" to="x86-linux/luajit"/>
                     <globmapper from="win32/luajit-2.0.3" to="x86-win32/luajit"/>
                 </compositemapper>
             </chainedmapper>

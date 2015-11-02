@@ -41,6 +41,10 @@ public class GuiTextureNode {
         if(this.IsValidResource(texturePath)) {
             try {
                 Node n = node.getModel().loadNode(texturePath);
+                if (n == null) {
+                    logger.error("Failed loading resource: " + texturePath);
+                    return;
+                }
                 n.setModel(node.getModel());
                 this.textureSetNode = (TextureSetNode) n;
             } catch (Exception e) {

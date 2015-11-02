@@ -84,7 +84,6 @@ end
 function test_has_event(evt)
     for i=__tail,(__head-1) do
         local req = json.decode(__requests[i].post_data)
-        local hdr = __requests[i].headers
         for k,v in pairs(req.events) do
             if v.type == evt then
                 return true
@@ -94,8 +93,40 @@ function test_has_event(evt)
     return false
 end
 
+function test_get_metric(metric)
+    for i=__tail,(__head-1) do
+        local req = json.decode(__requests[i].post_data)
+        for k,v in pairs(req.events) do
+            if v.metrics[metric] ~= nil then
+                 return v.metrics[metric]
+            end
+        end
+    end
+    return nil
+end
+
+function test_get_attribute(attr)
+    for i=__tail,(__head-1) do
+        local req = json.decode(__requests[i].post_data)
+        for k,v in pairs(req.events) do
+            if v.attributes[attr] ~= nil then
+                return v.attributes[attr]
+            end
+        end
+    end
+    return nil
+end
+
 function test_assert_request_has_event(evt)
     assert(test_has_event(evt))
+end
+
+function test_assert_request_has_attribute(name, value)
+    assert(test_get_attribute(name) == value)
+end
+
+function test_assert_request_has_metric(name, value)
+    assert(math.abs(test_get_metric(name) - value) < 0.00001)
 end
 
 function test_assert_max_saves(count)

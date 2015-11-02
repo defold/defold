@@ -750,6 +750,7 @@ int Facebook_Me(lua_State* L)
  *   <li><code>data</code> (string)</li>
  *   <li><code>object_id</code> (string)</li>
  *   <li><code>suggestions</code> (table)</li>
+ *   <li><code>recipients</code> (table)</li>
  *   <li><code>to</code> (string)</li>
  * </ul>
  *
@@ -835,12 +836,20 @@ static int Facebook_ShowDialog(lua_State* L)
         content.filters    = convertGameRequestFilters([GetTableValue(L, 2, @[@"filters"], LUA_TNUMBER) unsignedIntValue]);
         content.data       = GetTableValue(L, 2, @[@"data"], LUA_TSTRING);
         content.objectID   = GetTableValue(L, 2, @[@"object_id"], LUA_TSTRING);
-        content.recipientSuggestions = GetTableValue(L, 2, @[@"suggestions"], LUA_TTABLE);
+
+        NSArray* suggestions = GetTableValue(L, 2, @[@"suggestions"], LUA_TTABLE);
+        if (suggestions != nil) {
+            content.recipientSuggestions = suggestions;
+        }
 
         // comply with JS way of specifying recipients/to
-        NSString* recipients = GetTableValue(L, 2, @[@"to"], LUA_TTABLE);
-        if (recipients != nil && [recipients respondsToSelector:@selector(componentsSeparatedByString:)]) {
-            content.recipients = [recipients componentsSeparatedByString:@","];
+        NSString* to = GetTableValue(L, 2, @[@"to"], LUA_TSTRING);
+        if (to != nil && [to respondsToSelector:@selector(componentsSeparatedByString:)]) {
+            content.recipients = [to componentsSeparatedByString:@","];
+        }
+        NSArray* recipients = GetTableValue(L, 2, @[@"recipients"], LUA_TTABLE);
+        if (recipients != nil) {
+            content.recipients = recipients;
         }
 
         [FBSDKGameRequestDialog showWithContent:content delegate:g_Facebook.m_Delegate];

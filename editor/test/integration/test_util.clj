@@ -21,8 +21,10 @@
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.particlefx :as particlefx]
+            [editor.gui :as gui]
             [editor.json :as json]
-            [editor.mesh :as mesh])
+            [editor.mesh :as mesh]
+            [editor.material :as material])
   (:import [java.io File]
            [javax.imageio ImageIO]))
 
@@ -56,7 +58,9 @@
         (spine/register-resource-types workspace)
         (json/register-resource-types workspace)
         (mesh/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)))
+        (particlefx/register-resource-types workspace)
+        (gui/register-resource-types workspace)
+        (material/register-resource-types workspace)))
       workspace)))
 
 (defn setup-project!

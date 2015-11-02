@@ -342,19 +342,18 @@ public class FacebookActivity implements PseudoActivity {
                     }
 
                     // comply with JS way of specifying recipients/to
-                    String recipientsString = null;
-                    String[] recipients = null;
-                    // FB SDK is weird, special case on Android, recipients/to
-                    // can only be one person. We pick the first one in the list,
-                    // if multiple are supplied...
-                    if (dialogParams.getString("to") != null) {
-                        recipients = dialogParams.getString("to").split(",");
+                    String toString = null;
+
+                    // Recipients field does not exist in FB SDK 4.3 for Android.
+                    // For now we fill the "to" field with the comma separated user ids,
+                    // but when we upgrade to a newer version with the recipients field
+                    // we should fill the correct recipients field instead.
+                    if (dialogParams.getString("to", null) != null) {
+                        toString = dialogParams.getString("to");
                     }
-                    if (recipients != null) {
-                        recipientsString = recipients[0];
-                        if (recipients.length > 1) {
-                            Log.d(TAG, "Facebook SDK for Android only supports one recipient ('to' field) for GameRequestDialog, only the first one will be used.");
-                        }
+
+                    if (dialogParams.getString("recipients", null) != null) {
+                        toString = dialogParams.getString("recipients");
                     }
 
                     GameRequestContent.Builder content = new GameRequestContent.Builder()
@@ -373,8 +372,8 @@ public class FacebookActivity implements PseudoActivity {
 
                     // recipients, filters and suggestions are mutually exclusive
                     int filters = Integer.parseInt(dialogParams.getString("filters", "-1"));
-                    if (recipientsString != null) {
-                        content.setTo(recipientsString);
+                    if (toString != null) {
+                        content.setTo(toString);
                     } else if (filters != -1) {
                         content.setFilters(convertGameRequestFilters(filters));
                     } else {

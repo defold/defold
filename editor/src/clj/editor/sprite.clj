@@ -8,6 +8,7 @@
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
@@ -142,7 +143,7 @@
     (cond
       (= pass pass/outline)
       (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
-        (gl/with-gl-bindings gl [outline-shader outline-vertex-binding]
+        (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
 
       (= pass pass/transparent)
@@ -150,7 +151,7 @@
             user-data (:user-data (first renderables))
             gpu-texture (:gpu-texture user-data)
             blend-mode (:blend-mode user-data)]
-        (gl/with-gl-bindings gl [gpu-texture shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
           (case blend-mode
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
@@ -161,7 +162,7 @@
 
       (= pass pass/selection)
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
-        (gl/with-gl-bindings gl [shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 ; Node defs
@@ -241,12 +242,18 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol workspace/Resource))
+  (property image (g/protocol workspace/Resource)
+            (validate (g/fnk [image]
+                             (when (nil? image)
+                               (g/error-severe "The image could not be loaded")))))
+  
   (property default-animation g/Str
+            (validate (validation/validate-animation default-animation anim-data))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material (g/protocol workspace/Resource))
-  (property blend-mode g/Any (default :BLEND_MODE_ALPHA)
+  (property blend-mode g/Any (default :blend_mode_alpha)
+            (validate (validation/validate-blend-mode blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/always
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                   {:type :choicebox
@@ -268,7 +275,6 @@
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
-  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Sprite" :icon sprite-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))

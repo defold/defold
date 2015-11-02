@@ -25,6 +25,7 @@
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
+                   :view-types [:code]
                    :tags #{:component}}
                   {:ext "render_script"
                    :label "Render Script"
@@ -36,11 +37,17 @@
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"}])
 
+(def ^:private status-errors
+  {:ok nil
+   :invalid-args (g/error-severe "Invalid arguments to go.property call") ; TODO: not used for now
+   :invalid-value (g/error-severe "Invalid value in go.property call")})
+
 (g/defnk produce-user-properties [script-properties]
-  (let [script-props (filter #(= :ok (:status %)) script-properties)
+  (let [script-props (filter (comp #{:ok :invalid-value} :status) script-properties)
         props (into {} (map (fn [p]
                               (let [key (:name p)
                                     prop (-> (select-keys p [:value])
+                                           (assoc :validation-problems (status-errors (:status p)))
                                            (assoc :edit-type {:type (properties/go-prop-type->clj-type (:type p))
                                                               :go-prop-type (:type p)}))]
                                 [key prop]))
@@ -49,9 +56,9 @@
     {:properties props
      :display-order display-order}))
 
-(g/defnk produce-save-data [resource content]
+(g/defnk produce-save-data [resource code]
   {:resource resource
-   :content content})
+   :content code})
 
 (defn- lua-module->path [module]
   (str "/" (string/replace module #"\." "/") ".lua"))
@@ -71,11 +78,11 @@
                                                       :resources (mapv lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource content user-properties modules]
+(g/defnk produce-build-targets [_node-id resource code user-properties modules]
   [{:node-id   _node-id
     :resource  (workspace/make-build-resource resource)
     :build-fn  build-script
-    :user-data {:content content :user-properties user-properties :modules modules}
+    :user-data {:content code :user-properties user-properties :modules modules}
     :deps      (mapcat (fn [mod]
                          (let [path     (lua-module->path mod)
                                mod-node (project/get-resource-node (project/get-project _node-id) path)]
@@ -84,24 +91,23 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property content g/Any (dynamic visible (g/always false)))
+  (property code g/Str (dynamic visible (g/always false)))
+  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
 
-  (output modules g/Any :cached (g/fnk [content] (lua-scan/src->modules content)))
-  (output script-properties g/Any :cached (g/fnk [content] (lua-scan/src->properties content)))
+  (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
+  (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))
   (output user-properties g/Any :cached produce-user-properties)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-script [project self resource]
-  (let [content  (slurp resource)]
-    (concat
-      (g/set-property self :content content))))
+  (g/set-property self :code (slurp resource)))
 
 (defn- register [workspace def]
   (let [args (merge def
-                    {:node-type ScriptNode
-                     :load-fn load-script})]
-    (apply workspace/register-resource-type workspace (flatten (seq args)))))
+               {:node-type ScriptNode
+                :load-fn load-script})]
+    (apply workspace/register-resource-type workspace (mapcat seq (seq args)))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs]

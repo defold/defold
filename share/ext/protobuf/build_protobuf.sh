@@ -5,7 +5,7 @@ readonly FILE_URL=protobuf-2.3.0.tar.gz
 readonly PRODUCT=protobuf
 readonly VERSION=2.3.0
 
-readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc"
+readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc --disable-shared"
 
 . ../common.sh
 
@@ -26,4 +26,3 @@ popd >/dev/null
 cmi $1
 
 rm -rf cross_tmp
-

@@ -1,7 +1,6 @@
 (ns editor.outline
   (:require [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.project :as project]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
@@ -46,35 +45,32 @@
         (recur (parent item-iterator) root-nodes)))
     nil))
 
-(defrecord ResourceReference [path])
+(def OutlineData {:node-id g/NodeID
+                  :label g/Str
+                  :icon g/Str
+                  (g/optional-key :children) [(g/recursive #'OutlineData)]
+                  (g/optional-key :child-reqs) [g/Any]
+                  g/Keyword g/Any})
 
-(core/register-record-type! ResourceReference)
+(g/defnode OutlineNode
+  (input source-outline OutlineData)
+  (input child-outlines OutlineData :array)
+  (output node-outline OutlineData :abstract))
 
-(defn file-node?
-  [node]
-  (and (g/node-instance? project/ResourceNode (g/node-id node))
-       (or (instance? FileResource (:resource node))
-           (instance? ZipResource  (:resource node)))))
+(defn- default-copy-traverse [[src-node src-label tgt-node tgt-label]]
+  (and (g/node-instance? OutlineNode tgt-node)
+    (or (= :child-outlines tgt-label)
+      (= :source-outline tgt-label))
+    (not (and (g/node-instance? resource/ResourceNode src-node)
+           (some? (resource/path (g/node-value src-node :resource)))))))
 
-(defn- actual-path [node]
-  (workspace/proj-path (:resource node)))
-
-(defn- make-reference [node]
-  (when-let [project-path (actual-path node)]
-    (ResourceReference. project-path)))
-
-(defn- resolve-reference [basis project reference]
-  (let [resource (workspace/resolve-workspace-resource (project/workspace project) (:path reference))]
-     (g/node-by-id-at basis (project/get-resource-node project resource))))
-
-(defn copy [src-item-iterators]
-  (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
-        fragment (g/copy root-ids {:include?  (comp not file-node?)
-                                   :serializer (fn [node]
-                                                 (if (file-node? node)
-                                                   (make-reference node)
-                                                   (g/default-node-serializer node)))})]
-    (serialize fragment)))
+(defn copy
+  ([src-item-iterators]
+    (copy src-item-iterators default-copy-traverse))
+  ([src-item-iterators traverse?]
+    (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
+          fragment (g/copy root-ids {:traverse? traverse?})]
+      (serialize fragment))))
 
 (defn cut? [src-item-iterators]
   (loop [src-item-iterators src-item-iterators]
@@ -100,14 +96,8 @@
   [text]
   (g/read-graph text (core/read-handlers)))
 
-(defn- paste [project fragment]
-  (let [graph (project/graph project)]
-    (g/paste graph (deserialize fragment)
-             {:deserializer
-              (fn [basis graph-id record]
-                (if (instance? ResourceReference record)
-                  (resolve-reference basis project record)
-                  (g/default-node-deserializer basis graph-id record)))})))
+(defn- paste [graph fragment]
+  (g/paste graph (deserialize fragment) {}))
 
 (defn- root-nodes [paste-data]
   (let [nodes (into {} (map #(let [n (:node %)] [(:_node-id n) n]) (filter #(= (:type %) :create-node) (:tx-data paste-data))))]
@@ -122,19 +112,19 @@
           (tx-attach-fn target node)
           [])))))
 
-(defn paste! [project item-iterator data]
-  (let [paste-data (paste project data)
+(defn paste! [graph item-iterator data select-fn]
+  (let [paste-data (paste graph data)
         root-nodes (root-nodes paste-data)]
-        (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-          (g/transact
-            (concat
-              (g/operation-label "Paste")
-              (build-tx-data item reqs paste-data)
-              (project/select project (mapv :_node-id root-nodes)))))))
+    (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
+      (g/transact
+        (concat
+          (g/operation-label "Paste")
+          (build-tx-data item reqs paste-data)
+          (select-fn (mapv :_node-id root-nodes)))))))
 
-(defn paste? [project item-iterator data]
+(defn paste? [graph item-iterator data]
   (try
-    (let [paste-data (paste project data)
+    (let [paste-data (paste graph data)
          root-nodes (root-nodes paste-data)]
      (some? (find-target-item item-iterator root-nodes)))
     (catch Exception e
@@ -145,7 +135,7 @@
 (defn- root? [item-iterator]
   (nil? (parent item-iterator)))
 
-(defn drag? [project item-iterators]
+(defn drag? [graph item-iterators]
   (not-any? root? item-iterators))
 
 (defn- descendant? [src-item item-iterator]
@@ -155,7 +145,7 @@
       (recur src-item (parent item-iterator)))
     false))
 
-(defn drop? [project src-item-iterators item-iterator data]
+(defn drop? [graph src-item-iterators item-iterator data]
   (and
     ; target is not parent of source
     (let [tgt (value item-iterator)]
@@ -166,17 +156,35 @@
                                  (descendant? (value it) item-iterator)))
               false src-item-iterators))
     ; pasting is allowed
-    (paste? project item-iterator data)))
+    (paste? graph item-iterator data)))
 
-(defn drop! [project src-item-iterators item-iterator data]
-  (when (drop? project src-item-iterators item-iterator data)
-    (let [paste-data (paste project data)
+(defn drop! [graph src-item-iterators item-iterator data select-fn]
+  (when (drop? graph src-item-iterators item-iterator data)
+    (let [paste-data (paste graph data)
           root-nodes (root-nodes paste-data)]
       (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-        (g/transact
-          (concat
-            (g/operation-label "Drop")
-            (build-tx-data item reqs paste-data)
-            (for [it src-item-iterators]
-              (g/delete-node (:node-id (value it))))
-            (project/select project (mapv :_node-id root-nodes))))))))
+        (let [op-seq (gensym)]
+          (g/transact
+            (concat
+              (g/operation-label "Drop")
+              (g/operation-sequence op-seq)
+              (for [it src-item-iterators]
+                (g/delete-node (:node-id (value it))))))
+          (g/transact
+            (concat
+              (g/operation-label "Drop")
+              (g/operation-sequence op-seq)
+              (build-tx-data item reqs paste-data)
+              (select-fn (mapv :_node-id root-nodes)))))))))
+
+(defn resolve-id [id ids]
+  (let [ids (set ids)]
+    (if (ids id)
+      (let [prefix id]
+        (loop [suffix ""
+               index 1]
+          (let [id (str prefix suffix)]
+            (if (contains? ids id)
+              (recur (str index) (inc index))
+              id))))
+      id)))

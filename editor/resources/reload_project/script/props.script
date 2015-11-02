@@ -1,0 +1,7 @@
+go.property("number", 1)
+go.property("hash", hash("hash"))
+go.property("url", msg.url())
+go.property("vec3", vmath.vector3(0.0, 0.0, 0.0))
+go.property("quat", vmath.quat(0.0, 0.0, 0.0, 1.0))
+go.property("vec4", vmath.vector4(0.0, 0.0, 0.0, 0.0))
+go.property("bool", false)

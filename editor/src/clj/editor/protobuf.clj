@@ -139,6 +139,9 @@
                        (= (.getType descriptor) Descriptors$FieldDescriptor$Type/ENUM)
                        (if repeated? (vec (map pb-enum->val value)) (pb-enum->val value))
 
+                       (= (.getJavaType descriptor) Descriptors$FieldDescriptor$JavaType/BOOLEAN)
+                       (if repeated? (vec (map boolean value)) (boolean value))
+
                        :else
                        (if repeated? (vec value) value))))
         all-fields (.getFields (.getDescriptorForType pb))]
@@ -234,7 +237,8 @@
       (= type (Descriptors$FieldDescriptor$JavaType/FLOAT)) (float val)
       (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) (double val)
       (= type (Descriptors$FieldDescriptor$JavaType/STRING)) (str val)
-      (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (boolean val)
+      ;; The reason we convert to Boolean object is for symmetry - the protobuf system do this when loading from protobuf files
+      (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (java.lang.Boolean. (boolean val))
       (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) val
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (kw->enum desc val)
       (= type (Descriptors$FieldDescriptor$JavaType/MESSAGE)) (map->pb (.getMessageType desc) val)

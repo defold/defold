@@ -36,20 +36,32 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
         try {
             PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
 
-            // get application icon
             ApplicationInfo info = context.getApplicationInfo();
-            PackageManager pm = context.getPackageManager();
-            Resources resources = pm.getResourcesForApplication(info);
-            Bitmap appIconBitmap = BitmapFactory.decodeResource(resources, info.icon);
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
-                .setLargeIcon(appIconBitmap)
-                .setSmallIcon(info.icon)
                 .setContentTitle(extras.getString("title"))
                 .setContentText(extras.getString("message"))
                 .setWhen(System.currentTimeMillis())
                 .setContentIntent(contentIntent)
                 .setPriority(extras.getInt("priority"));
+
+            // Find icons, if they were supplied
+            int smallIconId = extras.getInt("smallIcon");
+            int largeIconId = extras.getInt("largeIcon");
+            if (smallIconId == 0) {
+                smallIconId = info.icon;
+            }
+            if (largeIconId == 0) {
+                largeIconId = info.icon;
+            }
+
+            // Get bitmap for large icon resource
+            PackageManager pm = context.getPackageManager();
+            Resources resources = pm.getResourcesForApplication(info);
+            Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
+
+            builder.setSmallIcon(smallIconId);
+            builder.setLargeIcon(largeIconBitmap);
 
             Notification notification = builder.build();
             notification.defaults = Notification.DEFAULT_ALL;

@@ -79,6 +79,13 @@ namespace dmHttpService
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
         dmArray<char>& r = worker->m_Response;
+
+        if (!content_data && !content_data_size)
+        {
+            r.SetSize(0);
+            return;
+        }
+
         uint32_t left = r.Capacity() - r.Size();
         if (left < content_data_size) {
             r.OffsetCapacity((int32_t) dmMath::Max(content_data_size - left, 128U * 1024U));
@@ -199,8 +206,7 @@ namespace dmHttpService
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         if (worker->m_Client) {
-            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_SEND_TIMEOUT, request->m_Timeout);
-            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_RECEIVE_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
 
             worker->m_Request = request;
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
@@ -208,7 +214,7 @@ namespace dmHttpService
                 SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
             } else {
                 // TODO: Error codes to lua?
-                dmLogError("HTTP request to '%s' failed (%d)", request->m_Url, r);
+                dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
                 SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
             }
         } else {

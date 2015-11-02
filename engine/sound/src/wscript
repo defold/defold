@@ -8,7 +8,7 @@ def build(bld):
     bld.add_subdirs('openal')
 
     source =  'sound_common.cpp sound.cpp sound_codec.cpp sound_decoder.cpp'.split()
-    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp sound_decoder.cpp'.split()
+    source2 =  'devices/device_null.cpp sound_common.cpp sound2.cpp sound_codec.cpp sound_decoder.cpp'.split()
     source_null = 'devices/device_null.cpp sound_common.cpp sound_null.cpp sound_decoder.cpp sound_codec.cpp sound_generic.cpp'.split()
 
     stb_vorbis = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()

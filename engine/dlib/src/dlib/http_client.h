@@ -45,7 +45,8 @@ namespace dmHttpClient
     typedef void (*HttpHeader)(HResponse response, void* user_data, int status_code, const char* key, const char* value);
 
     /**
-     * HTTP-content call-back.
+     * HTTP-content call-back. Called with both content_data and content_data_size set to 0 indicates the start of a response.
+     * During a request retry this might occur more than once when the request starts over.
      * @param response Response handle
      * @param user_data User data
      * @param status_code Status code, eg 200
@@ -85,10 +86,8 @@ namespace dmHttpClient
     {
         /// Maximum number of retries for GET-request. Default is 4.
         OPTION_MAX_GET_RETRIES,
-        /// Send timeout in us
-        OPTION_SEND_TIMEOUT,
-        /// Receive timeout in us
-        OPTION_RECEIVE_TIMEOUT,
+        /// Request timeout in us
+        OPTION_REQUEST_TIMEOUT,
     };
 
     /**

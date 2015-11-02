@@ -152,7 +152,7 @@ public:
         dmScript::DeleteContext(m_ScriptContext);
     }
 
-    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* entries, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* entries, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
             const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
     {
         dmGuiClippingTest* self = (dmGuiClippingTest*) context;

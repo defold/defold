@@ -19,6 +19,12 @@
   (:require clojure.string)
   (:import (org.slf4j LoggerFactory)))
 
+(def ^:dynamic *logging-suppressed* false)
+
+(defmacro without-logging [& body]
+  `(binding [*logging-suppressed* true]
+     ~@body))
+
 (defn- log-expr [form level keyvals]
   ;; Pull out :exception, otherwise preserve order
   (let [exception' (:exception (apply array-map keyvals))
@@ -30,17 +36,18 @@
                                      (clojure.string/capitalize (name level))
                                      "Enabled"))
         log-method' (symbol (str "." (name level)))]
-    `(let [~logger' (LoggerFactory/getLogger ~(name (ns-name *ns*)))]
-       (when (~enabled-method' ~logger')
-         (let [~string' (binding [*print-length* 80]
-                          (pr-str (array-map :line ~(:line (meta form)) ~@keyvals')))]
-           ~(if exception'
-              `(~log-method' ~logger'
-                             ~(with-meta string'
-                                {:tag 'java.lang.String})
-                             ~(with-meta exception'
-                                {:tag 'java.lang.Throwable}))
-              `(~log-method' ~logger' ~string')))))))
+    `(when-not *logging-suppressed*
+       (let [~logger' (LoggerFactory/getLogger ~(name (ns-name *ns*)))]
+         (when (~enabled-method' ~logger')
+           (let [~string' (binding [*print-length* 80]
+                            (pr-str (array-map :line ~(:line (meta form)) ~@keyvals')))]
+             ~(if exception'
+                `(~log-method' ~logger'
+                               ~(with-meta string'
+                                  {:tag 'java.lang.String})
+                               ~(with-meta exception'
+                                  {:tag 'java.lang.Throwable}))
+                `(~log-method' ~logger' ~string'))))))))
 
 (defmacro trace [& keyvals] (log-expr &form :trace keyvals))
 

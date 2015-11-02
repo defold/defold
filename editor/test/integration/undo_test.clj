@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.project :as project]
+            [editor.outline :as outline]
             [editor.switcher :as switcher]
             [integration.test-util :as test-util]))
 
@@ -54,7 +55,7 @@
                (g/undo! project-graph)
                (is (= 10 (g/node-value atlas-node :margin)))))))
 
-(defn outline-children [node-id] (:children (g/node-value node-id :outline)))
+(defn outline-children [node-id] (:children (g/node-value node-id :node-outline)))
 
 (deftest redo-undone-deletion-still-deletes
  (with-clean-system
@@ -78,7 +79,8 @@
      (is (= 0 (count (outline-children go-node)))))))
 
 (g/defnode DummyComponent
-  (output outline g/Any (g/fnk [_node-id] {:node-id _node-id :label "dummy" :icon nil :children []})))
+  (inherits outline/OutlineNode)
+  (output node-outline outline/OutlineData (g/fnk [_node-id] {:node-id _node-id :label "dummy" :icon "" :children []})))
 
 (g/defnode OutlineViewSimulator
   (input outline g/Any)
@@ -111,7 +113,7 @@
                        (g/operation-sequence op-seq)
                        (g/make-nodes proj-graph
                                      [comp-node DummyComponent]
-                                     (g/connect comp-node :outline go-node-id :outline))))))]
+                                     (g/connect comp-node :node-outline go-node-id :child-outlines))))))]
     (g/transact
      (concat
       (g/operation-sequence op-seq)
@@ -130,7 +132,7 @@
          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
          component  (add-component! project go-node)]
 
-     (g/transact (g/connect go-node :outline outline-id :outline))
+     (g/transact (g/connect go-node :node-outline outline-id :outline))
 
      (let [original-outline (remove-fns (g/node-value outline-id :outline))]
        (g/reset-undo! proj-graph)
@@ -169,8 +171,8 @@
          ;; :outline should be re-produced yet again
          (is (= outline-without-component (remove-fns (g/node-value outline-id :outline)))))))))
 
-(defn- child-count [go-node]
-  (count (outline-children go-node)))
+(defn- child-count [outline-id]
+  (count (:children (g/node-value outline-id :outline))))
 
 (deftest add-undo-updated-outline
  (with-clean-system
@@ -181,7 +183,7 @@
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]
-     (g/transact (g/connect go-node :outline outline-id :outline))
+     (g/transact (g/connect go-node :node-outline outline-id :outline))
      (is (= 1 (child-count outline-id)))
      (let [component (add-component! project go-node)]
        (is (= 2 (child-count outline-id)))

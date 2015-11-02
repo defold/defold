@@ -7,11 +7,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
@@ -26,7 +23,6 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.pipeline.GameProjectBuilder;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -42,6 +38,11 @@ public class AndroidBundler implements IBundler {
             return true;
         }
         return false;
+    }
+
+    private boolean copyIconDPI(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName, String dpi)
+            throws IOException {
+            return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
     @Override
@@ -93,6 +94,20 @@ public class AndroidBundler implements IBundler {
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
             iconCount++;
+
+        // Copy push notification icons
+        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_small", "drawable/push_icon_small.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_large", "drawable/push_icon_large.png"))
+            iconCount++;
+
+        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
+        for (String dpi : dpis) {
+            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_small", "push_icon_small.png", dpi))
+                iconCount++;
+            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_large", "push_icon_large.png", dpi))
+                iconCount++;
+        }
 
         File manifestFile = new File(appDir, "AndroidManifest.xml");
 

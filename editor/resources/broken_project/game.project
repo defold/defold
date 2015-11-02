@@ -1,0 +1,6 @@
+[project]
+title = Broken
+<<<<<<<<<
+[bootstrap]
+main_collection = missing_go.collectionc
+

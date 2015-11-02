@@ -442,6 +442,92 @@ TEST_F(dmTrackingTest, TestDDFMessage)
     free(evt);
 }
 
+TEST_F(dmTrackingTest, TestAttribute)
+{
+    StartAndProvideConfigAndStid("stid-1234");
+
+    const char *type = "evt-1";
+    const char *attr_key = "test-attr";
+    const char *attr_value = "testvalue";
+
+    uintptr_t ofs[6];
+    ofs[0] = 0;
+    ofs[1] = sizeof(dmTrackingDDF::TrackingEvent);
+    ofs[2] = ofs[1] + sizeof(dmTrackingDDF::TrackingAttribute);
+    ofs[3] = ofs[2] + strlen(type) + 1;
+    ofs[4] = ofs[3] + strlen(attr_key) + 1;
+    ofs[5] = ofs[4] + strlen(attr_value) + 1; // size
+
+    char *msg = (char*) malloc(ofs[5]);
+    memset(msg, 0x00, ofs[5]);
+
+    dmTrackingDDF::TrackingEvent* evt = (dmTrackingDDF::TrackingEvent*) msg;
+    evt->m_Attributes.m_Count = 1;
+    evt->m_Attributes.m_Data = (dmTrackingDDF::TrackingAttribute*) ofs[1];
+    evt->m_Type = (const char*) ofs[2];
+
+    dmTrackingDDF::TrackingAttribute* attr = (dmTrackingDDF::TrackingAttribute*) (msg + ofs[1]);
+    attr->m_Key = (const char*) ofs[3];
+    attr->m_Value = (const char*) ofs[4];
+
+    strcpy(msg + ofs[2], type);
+    strcpy(msg + ofs[3], attr_key);
+    strcpy(msg + ofs[4], attr_value);
+
+    dmMessage::URL url;
+    url.m_Socket = dmTracking::GetSocket(m_Tracking);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[5]);
+    dmTracking::Update(m_Tracking, 1.0f);
+
+    lua_getglobal(m_LuaState, "test_assert_request_has_attribute");
+    lua_pushstring(m_LuaState, attr_key);
+    lua_pushstring(m_LuaState, attr_value);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 2, 0));
+    free(msg);
+}
+
+TEST_F(dmTrackingTest, TestMetric)
+{
+    StartAndProvideConfigAndStid("stid-1234");
+
+    const char *type = "evt-1";
+    const char *metric_key = "test-metric";
+    float metric_value = 1234.56f;
+
+    uintptr_t ofs[5];
+    ofs[0] = 0;
+    ofs[1] = sizeof(dmTrackingDDF::TrackingEvent);
+    ofs[2] = ofs[1] + sizeof(dmTrackingDDF::TrackingMetric);
+    ofs[3] = ofs[2] + strlen(type) + 1;
+    ofs[4] = ofs[3] + strlen(metric_key) + 1;
+
+    char *msg = (char*) malloc(ofs[4]);
+    memset(msg, 0x00, ofs[4]);
+
+    dmTrackingDDF::TrackingEvent* evt = (dmTrackingDDF::TrackingEvent*) msg;
+    evt->m_Metrics.m_Count = 1;
+    evt->m_Metrics.m_Data = (dmTrackingDDF::TrackingMetric*) ofs[1];
+    evt->m_Type = (const char*) ofs[2];
+
+    dmTrackingDDF::TrackingMetric* metric = (dmTrackingDDF::TrackingMetric*) (msg + ofs[1]);
+    metric->m_Key = (const char*) ofs[3];
+    metric->m_Value = metric_value;
+
+    strcpy(msg + ofs[2], type);
+    strcpy(msg + ofs[3], metric_key);
+
+    dmMessage::URL url;
+    url.m_Socket = dmTracking::GetSocket(m_Tracking);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[4]);
+    dmTracking::Update(m_Tracking, 1.0f);
+
+    lua_getglobal(m_LuaState, "test_assert_request_has_metric");
+    lua_pushstring(m_LuaState, metric_key);
+    lua_pushnumber(m_LuaState, metric_value);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 2, 0));
+    free(msg);
+}
+
 TEST_F(dmTrackingTest, TestSimpleEvent)
 {
     StartAndProvideConfigAndStid("stid-1234");

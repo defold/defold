@@ -236,7 +236,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout) {
-        HashMap<String, NodeDesc> nodeMapDefault = parentSceneNodeMap.get("");
+        HashMap<String, NodeDesc> nodeMapDefault = layoutNodes == null ? parentSceneNodeMap.get("") : layoutNodes;
         HashMap<String, NodeDesc> nodeMap = parentSceneNodeMap.get(layout);
         ArrayList<NodeDesc> newNodes = new ArrayList<NodeDesc>(nodes.size());
         for(NodeDesc n : nodes) {
@@ -400,25 +400,28 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     templateLayouts.add(layout.getName());
                 }
                 for(LayoutDesc layout : sceneBuilder.getLayoutsList()) {
-                    if(templateLayouts.contains(layout.getName())) {
-                        LayoutDesc templateLayout = null;
+                    String templateLayoutName = null;
+                    HashMap<String, NodeDesc> layoutNodes = null;
+                    if(templateLayouts.contains(layout.getName()))
+                    {
                         for(LayoutDesc tl : templateBuilder.getLayoutsList()) {
                             if(tl.getName().equals(layout.getName())) {
-                                templateLayout = tl;
+                                templateLayoutName = tl.getName();
+                                layoutNodes = new HashMap<String, NodeDesc>(tl.getNodesCount());
+                                for(NodeDesc n : tl.getNodesList()) {
+                                    layoutNodes.put(n.getId(), n);
+                                }
                                 break;
                             }
                         }
-                        HashMap<String, NodeDesc> layoutNodes = new HashMap<String, NodeDesc>(templateLayout.getNodesCount());
-                        for(NodeDesc n : templateLayout.getNodesList()) {
-                            layoutNodes.put(n.getId(), n);
-                        }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayout.getName());
+                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName);
                     } else {
-                        HashMap<String, NodeDesc> layoutNodes = new HashMap<String, NodeDesc>(layout.getNodesCount());
-                        for(NodeDesc n : layout.getNodesList()) {
+                        templateLayoutName = "";
+                        layoutNodes = new HashMap<String, NodeDesc>(templateBuilder.getNodesCount());
+                        for(NodeDesc n : templateBuilder.getNodesList()) {
                             layoutNodes.put(n.getId(), n);
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, layout.getName());
+                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName());
                     }
 
                     ArrayList<NodeDesc> layoutNodeList = newScene.get(layout.getName());

@@ -191,6 +191,12 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
     SResourceFactory* factory = (SResourceFactory*) user_data;
     (void) status_code;
 
+    if (!content_data && content_data_size)
+    {
+        factory->m_HttpBuffer->SetSize(0);
+        return;
+    }
+
     // We must set http-status here. For direct cached result HttpHeader is not called.
     factory->m_HttpStatus = status_code;
 

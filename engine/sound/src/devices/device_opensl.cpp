@@ -147,13 +147,14 @@ namespace dmDeviceOpenSL
         }
     };
 
-    static void CheckAndPrintError(SLresult res)
+    static bool CheckAndPrintError(SLresult res)
     {
         if (res != SL_RESULT_SUCCESS)
         {
             dmLogError("OpenSL error: %d", res);
-            assert(0);
+            return true;
         }
+        return false;
     }
 
     static void BufferQueueCallback(SLBufferQueueItf queueItf, void *context)
@@ -206,38 +207,51 @@ namespace dmDeviceOpenSL
 
     dmSound::Result DeviceOpenSLOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
-        const int rate = GetSampleRate();
-
         SLObjectItf sl = 0;
         SLEngineItf engine = 0;
         SLObjectItf output_mix = 0;
+        SLObjectItf player = 0;
+        SLPlayItf play = 0;
+        SLBufferQueueItf buffer_queue = 0;
+        SLVolumeItf volume = 0;
 
         SLEngineOption options[] = {
                 { (SLuint32) SL_ENGINEOPTION_THREADSAFE,
                   (SLuint32) SL_BOOLEAN_FALSE }
         };
 
-        SLresult res = slCreateEngine(&sl, 1, options, 0, NULL, NULL);
-        CheckAndPrintError(res);
-
-        res = (*sl)->Realize(sl, SL_BOOLEAN_FALSE);
-        CheckAndPrintError(res);
-
-        res = (*sl)->GetInterface(sl, SL_IID_ENGINE, &engine);
-        CheckAndPrintError(res);
-
         const SLboolean required[] = { };
         SLInterfaceID ids[] = { };
+
+        const SLboolean required_player[] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
+        SLInterfaceID ids_player[] = {SL_IID_VOLUME, SL_IID_BUFFERQUEUE};
+        assert(sizeof(required_player)/sizeof(required_player[0]) == sizeof(ids_player)/sizeof(ids_player[0]));
+
+        OpenSLDevice* opensl = 0;
+
+        // Actual initalization starts here.
+
+        const int rate = GetSampleRate();
+
+        SLresult res = slCreateEngine(&sl, 1, options, 0, NULL, NULL);
+        if (CheckAndPrintError(res))
+            return dmSound::RESULT_UNKNOWN_ERROR;
+
+        res = (*sl)->Realize(sl, SL_BOOLEAN_FALSE);
+        if (CheckAndPrintError(res))
+            goto cleanup_sl;
+
+        res = (*sl)->GetInterface(sl, SL_IID_ENGINE, &engine);
+        if (CheckAndPrintError(res))
+            goto cleanup_sl;
+
         res = (*engine)->CreateOutputMix(engine, &output_mix, 0, ids, required);
-        CheckAndPrintError(res);
+        if (CheckAndPrintError(res))
+            goto cleanup_sl;
 
         res = (*output_mix)->Realize(output_mix, SL_BOOLEAN_FALSE);
-        CheckAndPrintError(res);
-
-        SLObjectItf player = 0;
-        SLPlayItf play = 0;
-        SLBufferQueueItf buffer_queue = 0;
-        SLVolumeItf volume = 0;
+        if (CheckAndPrintError(res))
+            goto cleanup_mix;
 
         SLDataLocator_BufferQueue locator;
         locator.locatorType = SL_DATALOCATOR_BUFFERQUEUE;
@@ -267,29 +281,29 @@ namespace dmDeviceOpenSL
         sink.pFormat = NULL;
         sink.pLocator = &locator_out_mix;
 
-        const SLboolean required_player[] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
-        SLInterfaceID ids_player[] = {SL_IID_VOLUME, SL_IID_BUFFERQUEUE};
-
-        assert(sizeof(required_player)/sizeof(required_player[0]) == sizeof(ids_player)/sizeof(ids_player[0]));
-
         res = (*engine)->CreateAudioPlayer(engine, &player, &data_source, &sink, sizeof(required_player) / sizeof(required_player[0]), ids_player, required_player);
         if (res != SL_RESULT_SUCCESS) {
             dmLogError("Failed to create player: %d", res);
-            (*output_mix)->Destroy(output_mix);
-            (*sl)->Destroy(sl);
-            return dmSound::RESULT_UNKNOWN_ERROR;
+            goto cleanup_mix;
         }
 
         res = (*player)->Realize(player, SL_BOOLEAN_FALSE);
-        CheckAndPrintError(res);
-        res = (*player)->GetInterface(player, SL_IID_PLAY, (void*)&play);
-        CheckAndPrintError(res);
-        res = (*player)->GetInterface(player, SL_IID_BUFFERQUEUE, (void*)&buffer_queue);
-        CheckAndPrintError(res);
-        res = (*player)->GetInterface(player, SL_IID_VOLUME, (void*)&volume);
-        CheckAndPrintError(res);
+        if (CheckAndPrintError(res))
+            goto cleanup_player;
 
-        OpenSLDevice* opensl = new OpenSLDevice;
+        res = (*player)->GetInterface(player, SL_IID_PLAY, (void*)&play);
+        if (CheckAndPrintError(res))
+            goto cleanup_player;
+
+        res = (*player)->GetInterface(player, SL_IID_BUFFERQUEUE, (void*)&buffer_queue);
+        if (CheckAndPrintError(res))
+            goto cleanup_player;
+
+        res = (*player)->GetInterface(player, SL_IID_VOLUME, (void*)&volume);
+        if (CheckAndPrintError(res))
+            goto cleanup_player;
+
+        opensl = new OpenSLDevice;
         opensl->m_MixRate = rate;
 
         opensl->m_Free.SetSize(params->m_BufferCount);
@@ -315,7 +329,8 @@ namespace dmDeviceOpenSL
         opensl->m_Mutex = dmMutex::New();
 
         res = (*buffer_queue)->RegisterCallback(buffer_queue, BufferQueueCallback, opensl);
-        CheckAndPrintError(res);
+        if (CheckAndPrintError(res))
+            goto cleanup_device;
 
         *device = opensl;
 
@@ -323,6 +338,17 @@ namespace dmDeviceOpenSL
         CheckAndPrintError(res);
 
         return dmSound::RESULT_OK;
+
+cleanup_device:
+        dmMutex::Delete(opensl->m_Mutex);
+        delete opensl;
+cleanup_player:
+        (*player)->Destroy(player);
+cleanup_mix:
+        (*output_mix)->Destroy(output_mix);
+cleanup_sl:
+        (*sl)->Destroy(sl);
+        return dmSound::RESULT_UNKNOWN_ERROR;
     }
 
     void DeviceOpenSLClose(dmSound::HDevice device)

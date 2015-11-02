@@ -132,29 +132,6 @@ public class TemplateNode extends GuiNode {
         }
     }
 
-    public void sortChildren() {
-        sortChildren(new Comparator<Node>() {
-            @Override
-            public int compare(Node o1, Node o2) {
-                if (o1 instanceof GuiNode && o2 instanceof GuiNode) {
-                    String id1 = ((GuiNode)o1).getId();
-                    String id2 = ((GuiNode)o2).getId();
-                    return id1.compareTo(id2);
-                } else if (o1 instanceof ComponentNode && o2 instanceof ComponentNode) {
-                    String id1 = ((ComponentNode)o1).getId();
-                    String id2 = ((ComponentNode)o2).getId();
-                    return id1.compareTo(id2);
-                } else {
-                    if (o1 instanceof ComponentNode) {
-                        return 1;
-                    } else {
-                        return -1;
-                    }
-                }
-            }
-        });
-    }
-
     @Override
     public void setModel(ISceneModel model) {
         if(model != this.getModel()) {

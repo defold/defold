@@ -613,6 +613,19 @@ TEST_F(AnimTest, ScriptedCustomEasing)
     }
 }
 
+TEST_F(AnimTest, ScriptedChainedEasing)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/chained_easing.goc", hash("chained_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 20; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
 // Test that the 3 component scale can be animated as a uniform scale (legacy)
 TEST_F(AnimTest, UniformScale)
 {

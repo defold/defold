@@ -621,3 +621,15 @@ Defold Orange       #fd6623             Guides etc
 .form .editing-cell {
     -fx-padding: 0;
 }
+
+.form .field-error {
+    -fx-border-width: 1;
+    -fx-border-color: -defold-red;
+    -fx-effect: dropshadow(three-pass-box, -defold-red, 3, 0.5, 0, 0)
+}
+
+.form .field-warning {
+    -fx-border-width: 1;
+    -fx-border-color: -defold-yellow;
+    -fx-effect: dropshadow(three-pass-box, -defold-yellow, 3, 0.5, 0, 0)
+}

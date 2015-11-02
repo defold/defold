@@ -1,11 +1,13 @@
 (ns editor.properties
   (:require [clojure.set :as set]
+            [clojure.string :as str]
             [cognitect.transit :as transit]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
+            [editor.validation :as validation]
             [editor.core :as core])
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d]))
@@ -239,6 +241,7 @@
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
                                               :values (mapv :value v)
+                                              :validation-problems (mapv :validation-problems v)
                                               :edit-type (property-edit-type (first v))
                                               :label (:label (first v))}
                                         default-vals (mapv :default-value (filter #(contains? % :default-value) v))
@@ -249,9 +252,15 @@
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
-  (if (contains? property :default-values)
-    (mapv (fn [v d-v] (if (nil? v) d-v v)) (:values property) (:default-values property))
-    (:values property)))
+  (mapv (fn [value default-value validation-problem]
+          (if-not (nil? validation-problem)
+            (:value validation-problem)
+            (if-not (nil? value)
+              value
+              default-value)))
+        (:values property)
+        (:default-values property (repeat nil))
+        (:validation-problems property)))
 
 (defn- set-values [property values]
   (let [key (:key property)]
@@ -270,11 +279,15 @@
          camel/->Camel_Snake_Case_String
          (clojure.string/replace "_" " ")))))
 
-(defn set-values! [property values]
-  (g/transact
-    (concat
-      (g/operation-label (str "Set " (label property)))
-      (set-values property values))))
+(defn set-values!
+  ([property values]
+    (set-values! property values (gensym)))
+  ([property values op-seq]
+    (g/transact
+      (concat
+        (g/operation-label (str "Set " (label property)))
+        (g/operation-sequence op-seq)
+        (set-values property values)))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -303,6 +316,10 @@
 (defn overridden? [property]
   (and (contains? property :default-values) (not-every? nil? (:values property))))
 
+(defn validation-message [property]
+  (when-let [err (validation/error-aggregate (:validation-problems property))]
+    {:severity (:severity err) :message (validation/error-message err)}))
+
 (defn clear-override! [property]
   (when (overridden? property)
     (g/transact
@@ -311,3 +328,13 @@
         (let [key (:key property)]
           (for [node-id (:node-ids property)]
             (g/update-property node-id (first key) dissoc-in (rest key))))))))
+
+(defn ->choicebox [vals]
+  {:type :choicebox
+   :options (zipmap vals vals)})
+
+(defn ->pb-choicebox [cls]
+  (let [options (protobuf/enum-values cls)]
+    {:type :choicebox
+     :options (zipmap (map first options)
+                      (map (comp :display-name second) options))}))

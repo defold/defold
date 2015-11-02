@@ -480,7 +480,7 @@ the `do-gl` macro from `editor.gl`."
 
 (defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   GlBind
-  (bind [this gl]
+  (bind [this gl _]
     (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
       (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
       (let [attributes  (:attributes (.layout vertex-buffer))

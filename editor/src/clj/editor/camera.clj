@@ -5,7 +5,7 @@
             [editor.math :as math]
             [editor.types :as types])
   (:import [editor.types Camera Region AABB]
-           [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))
+           [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -289,20 +289,22 @@
           proj-height (Math/abs (- (.y max-proj) (.y min-proj)))]
       (if (or (< proj-width math/epsilon) (< proj-height math/epsilon))
         (:fov camera)
-        (let [factor-x    (Math/abs (/ proj-width  (- (.right viewport) (.left viewport))))
-              factor-y    (Math/abs (/ proj-height (- (.top viewport) (.bottom viewport))))
-              factor-y    (* factor-y (:aspect camera))
+        (let [w (- (.right viewport) (.left viewport))
+              h (- (.bottom viewport) (.top viewport))
+              aspect (/ w h)
+              factor-x    (/ proj-width w)
+              factor-y    (/ proj-height h)
               fov-x-prim  (* factor-x (:fov camera))
-              fov-y-prim  (* factor-y (:fov camera))
-              y-aspect    (/ fov-y-prim (:aspect camera))]
-          (* 1.1 (Math/max y-aspect fov-x-prim)))))))
+              fov-y-prim  (* (* factor-y (:fov camera)) aspect)
+              fov-prim (Math/max fov-y-prim fov-x-prim)]
+          (* 1.1 fov-prim))))))
 
 (g/s-defn camera-orthographic-frame-aabb :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (-> camera
-    (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))
-    (camera-set-center aabb)))
+    (camera-set-center aabb)
+    (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))))
 
 (defn reframe-camera-tx [id local-camera viewport aabb]
   (if aabb
@@ -378,3 +380,17 @@
   (output camera Camera produce-camera)
 
   (output input-handler Runnable (g/always handle-input)))
+
+(defn- lerp [a b t]
+  (let [d (- b a)]
+    (+ a (* t d))))
+
+(defn interpolate ^Camera [^Camera from ^Camera to ^double t]
+  (types/->Camera (:type to)
+            (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
+            (doto (Quat4d.) (.interpolate ^Quat4d (:rotation from) ^Quat4d (:rotation to) t))
+            (lerp (:z-near from) (:z-near to) t)
+            (lerp (:z-far from) (:z-far to) t)
+            (lerp (:aspect from) (:aspect to) t)
+            (lerp (:fov from) (:fov to) t)
+            (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))))

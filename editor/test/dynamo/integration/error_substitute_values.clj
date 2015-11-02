@@ -202,3 +202,41 @@
         (g/transact (g/connect onode :my-output tnode1 :my-input))
         (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
         (is (= ["beans"] (g/node-value atnode2 :passthrough)))))))
+
+(g/defnode BaseInputNode
+  (input the-input g/Str)
+  (output the-input g/Str (g/fnk [the-input] the-input)))
+
+(g/defnode DerivedSubstInputNode
+  (inherits BaseInputNode)
+  (input the-input g/Str :substitute "substitute")
+  (output the-input g/Str (g/fnk [the-input] the-input)))
+
+(deftest derived-can-substitute
+  (testing "base node does no substitution"
+    (with-clean-system
+      (let [[err base] (tx-nodes (g/make-node world ErrorOutputNode)
+                                 (g/make-node world BaseInputNode))]
+        (g/transact (g/connect err :my-output base :the-input))
+        (is (g/error? (g/node-value base :the-input))))))
+  (testing "derived does substitution"
+    (with-clean-system
+      (let [[err der] (tx-nodes (g/make-node world ErrorOutputNode)
+                                (g/make-node world DerivedSubstInputNode))]
+        (g/transact (g/connect err :my-output der :the-input))
+        (is (= "substitute" (g/node-value der :the-input)))))))
+
+(defn subst-fn [err] "substitute")
+
+(g/defnode NamedSubstFn
+  (input the-input g/Str :substitute subst-fn)
+  (output the-input g/Str (g/fnk [the-input] the-input)))
+
+(deftest substitute-fn-can-be-defn
+  (testing "substitute function can be a defn"
+    (with-clean-system
+      (let [[err sub] (tx-nodes (g/make-node world ErrorOutputNode)
+                                (g/make-node world NamedSubstFn))]
+        (g/transact (g/connect err :my-output sub :the-input))
+        (is (= "substitute" (g/node-value sub :the-input)))))))
+

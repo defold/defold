@@ -12,10 +12,7 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import org.eclipse.swt.graphics.RGB;
-import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.font.Fontc.InputFontFormat;
 import com.dynamo.cr.guied.core.ClippingNode;
@@ -37,8 +34,6 @@ import com.dynamo.render.proto.Font.FontTextureFormat;
 import com.jogamp.opengl.util.texture.Texture;
 
 public class TextNodeRenderer implements INodeRenderer<TextNode> {
-
-    private static Logger logger = LoggerFactory.getLogger(TextNodeRenderer.class);
 
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
@@ -190,16 +185,16 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         String actualText = node.getText();
 
         FontRendererHandle textRenderHandle = null;
-        try {
-            textRenderHandle = node.getTextRendererHandle();
+        textRenderHandle = node.getFontRendererHandle(gl);
 
-            //
-            if (textRenderHandle == null) {
-                textRenderHandle = node.getDefaultTextRendererHandle();
-                actualText = String.format("Error: Font '%s' not found", node.getFont());
-            }
-        } catch (Exception e) {
-            logger.error("Failed to load default font.", e);
+        if (textRenderHandle == null || !textRenderHandle.isValid()) {
+            textRenderHandle = node.getDefaultFontRendererHandle();
+            actualText = String.format("Error: Font '%s' not found", node.getFont());
+        }
+
+        if (textRenderHandle == null || !textRenderHandle.isValid()) {
+            // Failed to load default font renderer
+            return;
         }
 
         boolean clipping = renderData.getUserData() != null;
@@ -269,7 +264,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 shader = this.shaderPlain;
                 shader.enable(gl);
 
-                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha()));
+                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha() * color[3]));
 
             } else if (textRenderHandle.getInputFormat() == InputFontFormat.FORMAT_TRUETYPE &&
                     fontMap.getImageFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
@@ -280,7 +275,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 float sdf_world_scale = (float) Math.sqrt(node.getScale().getX() * node.getScale().getX() + node.getScale().getY() * node.getScale().getY());
                 float [] sdfParams = new float[] { sdf_world_scale * fontMap.getSdfScale(), sdf_world_scale * fontMap.getSdfOffset(), sdf_world_scale * fontMap.getSdfOutline(), 1.0f  };
                 shader.setUniforms(gl, "uni_sdf_params", sdfParams);
-                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha()));
+                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha() * color[3]));
 
             } else {
                 shader = this.shaderBMFont;

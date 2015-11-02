@@ -48,10 +48,10 @@
 (def platformer-shader (shader/make-shader ::platformer-shader pos-uv-vert pos-uv-frag))
 
 (defn render-platformer
-  [^GL2 gl base-texture vertex-buffer]
+  [^GL2 gl render-args base-texture vertex-buffer]
   (let [vcount (count vertex-buffer)
         vertex-binding (vtx/use-with ::platformer vertex-buffer platformer-shader)]
-    (gl/with-gl-bindings gl [base-texture platformer-shader vertex-binding]
+    (gl/with-gl-bindings gl render-args [base-texture platformer-shader vertex-binding]
       (shader/set-uniform platformer-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
 
@@ -149,7 +149,7 @@
         vertex-buffer (gen-vertex-buffer control-points)]
     (if vertex-buffer
       (assoc scene :renderable {:render-fn (fn [gl render-args renderables count]
-                                             (render-platformer gl base-texture-tex vertex-buffer))
+                                             (render-platformer gl render-args base-texture-tex vertex-buffer))
                                 :passes [pass/transparent]})
      scene)))
 

@@ -44,6 +44,9 @@ public interface ISceneModel extends IPropertyObjectWorld {
 
     BufferedImage getImage(String path);
     TextureHandle getTexture(String path);
+    FontRendererHandle getFont(String path);
+    
+    FontRendererHandle getDefaultFontRendererHandle();
 
     ProjectProperties getProjectProperties();
 }
