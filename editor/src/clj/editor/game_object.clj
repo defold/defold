@@ -13,7 +13,9 @@
             [editor.sound :as sound]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.properties :as properties])
+            [editor.properties :as properties]
+            [editor.validation :as validation]
+            [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
@@ -28,16 +30,16 @@
            [org.apache.commons.io FilenameUtils]))
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
+(def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
 
-(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties user-properties save-data]
+(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties user-properties path]
   (let [props (map (fn [[k v]] {:id k :type (get-in v [:edit-type :go-prop-type])}) user-properties)
         props (mapv (fn [p] (assoc p :value (properties/go-prop->str (get properties (:id p)) (:type p))))
                     (filter #(contains? properties (:id %)) props))]
     {:id id
      :position (math/vecmath->clj position)
      :rotation (math/vecmath->clj rotation)
-     :component (or (and (:resource save-data) (workspace/proj-path (:resource save-data)))
-                    ".unknown")
+     :component (resource/resource->proj-path path)
      :properties props}))
 
 (defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation save-data]
@@ -68,36 +70,61 @@
         target)
       target)))
 
+(defn- source-properties-subst [err]
+  {:properties {}
+   :display-order []})
+
+(defn- source-outline-subst [err]
+  ;; TODO: embed error
+  {:node-id 0
+   :icon ""
+   :label ""})
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
+  (inherits outline/OutlineNode)
 
   (property id g/Str)
 
   (property embedded g/Bool (dynamic visible (g/always false)))
-  (property path g/Str
-            (dynamic visible (g/fnk [embedded] (false? embedded)))
-            (dynamic enabled (g/always false)))
+  (property path (g/protocol resource/Resource)
+    (dynamic visible (g/fnk [embedded] (not embedded)))
+    (dynamic enabled (g/always false))
+    (value (g/fnk [source-resource] source-resource))
+    (validate (validation/validate-resource source-resource "Missing component" [build-targets]))
+    (set (project/gen-resource-setter [[:_node-id :source-id]
+                                       [:resource :source-resource]
+                                       [:node-outline :source-outline]
+                                       [:user-properties :user-properties]
+                                       [:scene :scene]
+                                       [:build-targets :build-targets]])))
+
   (property properties g/Any
-            (dynamic link (g/fnk [source-properties] source-properties))
-            (dynamic override (g/fnk [user-properties] user-properties)))
+    (dynamic link (g/fnk [source-properties] source-properties))
+    (dynamic override (g/fnk [user-properties] user-properties)))
 
   (display-order [:id :path scene/SceneNode])
 
   (input source-id g/NodeID)
+  (input source-resource (g/protocol resource/Resource))
   (input source-properties g/Any)
-  (input user-properties g/Any)
+  (input user-properties g/Any :substitute source-properties-subst)
   (input project-id g/NodeID)
-  (input outline g/Any)
   (input save-data g/Any)
   (input scene g/Any)
   (input build-targets g/Any)
 
-  (output outline g/Any :cached (g/fnk [_node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
-                                                                            (assoc outline :node-id _node-id :label (str id suffix)))))
-  (output ddf-message g/Any :cached (g/fnk [id embedded position rotation properties user-properties save-data]
+  (input source-outline outline/OutlineData :substitute source-outline-subst)
+  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id embedded path id source-outline]
+      (let [source-outline (or source-outline {:icon unknown-icon})]
+        (assoc source-outline :node-id _node-id :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path path)))))))
+  (output ddf-message g/Any :cached (g/fnk [id embedded path position rotation properties user-properties save-data]
                                            (if embedded
                                              (gen-embed-ddf id position rotation save-data)
-                                             (gen-ref-ddf id position rotation properties (:properties user-properties) save-data))))
+                                             (gen-ref-ddf id position rotation properties (:properties user-properties) path))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (-> scene
                                        (assoc :node-id _node-id
@@ -152,7 +179,7 @@
    :children child-scenes})
 
 (defn- attach-component [self-id comp-id]
-  (let [conns [[:outline :outline]
+  (let [conns [[:node-outline :child-outlines]
                [:properties :component-properties]
                [:_node-id :nodes]
                [:build-targets :dep-build-targets]
@@ -163,7 +190,7 @@
       (g/connect comp-id from self-id to))))
 
 (defn- attach-embedded-component [self-id comp-id]
-  (let [conns [[:outline :outline]
+  (let [conns [[:node-outline :child-outlines]
                [:ddf-message :embed-ddf]
                [:id :child-ids]
                [:scene :child-scenes]
@@ -172,10 +199,21 @@
     (for [[from to] conns]
       (g/connect comp-id from self-id to))))
 
+(g/defnk produce-go-outline [_node-id child-outlines]
+  {:node-id _node-id
+   :label "Game Object"
+   :icon game-object-icon
+   :children child-outlines
+   :child-reqs [{:node-type ComponentNode
+                 :values {:embedded (comp not true?)}
+                 :tx-attach-fn attach-component}
+                {:node-type ComponentNode
+                 :values {:embedded true?}
+                 :tx-attach-fn attach-embedded-component}]})
+
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
 
-  (input outline g/Any :array)
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
   (input child-scenes g/Any :array)
@@ -183,17 +221,7 @@
   (input dep-build-targets g/Any :array)
   (input component-properties g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [_node-id outline]
-                                       {:node-id _node-id
-                                        :label "Game Object"
-                                        :icon game-object-icon
-                                        :children outline
-                                        :child-reqs [{:node-type ComponentNode
-                                                      :values {:embedded (comp not true?)}
-                                                      :tx-attach-fn attach-component}
-                                                     {:node-type ComponentNode
-                                                      :values {:embedded true?}
-                                                      :tx-attach-fn attach-embedded-component}]}))
+  (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
@@ -213,19 +241,10 @@
           (recur (inc postfix)))))))
 
 (defn- add-component [self project source-resource id position rotation properties]
-  (let [path (workspace/proj-path source-resource)
-        properties (into {} (map (fn [p] [(:id p) (properties/str->go-prop (:value p) (:type p))]) properties))]
+  (let [properties (into {} (map (fn [p] [(:id p) (properties/str->go-prop (:value p) (:type p))]) properties))]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ComponentNode :id id :position position :rotation rotation :path path :properties properties]]
-                  (attach-component self comp-node)
-                  (project/connect-resource-node project
-                                                 source-resource comp-node
-                                                 [[:outline :outline]
-                                                  [:_node-id :source-id]
-                                                  [:user-properties :user-properties]
-                                                  [:save-data :save-data]
-                                                  [:scene :scene]
-                                                  [:build-targets :build-targets]]))))
+                  [comp-node [ComponentNode :id id :position position :rotation rotation :path source-resource :properties properties]]
+                  (attach-component self comp-node))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -262,7 +281,7 @@
         [])
       (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :source-id]
                                                                                         [:_properties :source-properties]
-                                                                                        [:outline :outline]
+                                                                                        [:node-outline :source-outline]
                                                                                         [:save-data :save-data]
                                                                                         [:scene :scene]
                                                                                         [:build-targets :build-targets]]

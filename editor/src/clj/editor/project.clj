@@ -8,27 +8,33 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.outline :as outline]
+            [editor.validation :as validation]
             [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
+           [editor.resource FileResource]
            [com.defold.editor Platform]))
 
 (def ^:dynamic *load-cache* nil)
 
+(def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+
 (g/defnode ResourceNode
   (inherits core/Scope)
-
-  (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
+  (inherits outline/OutlineNode)
+  (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
-  (output outline g/Any :cached (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
-                                                            {:node-id _node-id
-                                                             :label (or (:label rt) (:ext rt))
-                                                             :icon (:icon rt)}))))
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
+                                {:node-id _node-id
+                                 :label (or (:label rt) (:ext rt) "unknown")
+                                 :icon (or (:icon rt) unknown-icon)}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -36,16 +42,19 @@ ordinary paths."
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-node [project node-id resource]
+(defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
       (try
         (when *load-cache*
           (swap! *load-cache* conj node-id))
-        (load-fn project node-id resource)
+        (concat
+         (load-fn project node-id resource)
+         (when (instance? FileResource resource)
+           (g/connect node-id :save-data project :save-data)))
         (catch java.io.IOException e
           (log/warn :exception e)
-          (g/mark-defective node-id (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+          (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
 (defn- load-nodes! [project node-ids]
@@ -53,7 +62,7 @@ ordinary paths."
     (for [node-id node-ids
           :when (g/has-output? (g/node-type* node-id) :resource)
           :let [resource (g/node-value node-id :resource)]]
-      (load-node project node-id resource))))
+      (load-node project node-id (g/node-type* node-id) resource))))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -72,7 +81,7 @@ ordinary paths."
           (for [[consumer connection-labels] connections]
             (connect-if-output node-type node consumer connection-labels))
           (if load?
-            (load-node project node resource)
+            (load-node project node node-type resource)
             []))
         (g/connect node :_node-id project :nodes)))))
 
@@ -84,8 +93,7 @@ ordinary paths."
               resource resources]
           (if (not= (workspace/source-type resource) :folder)
             (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
-                                                                               [:resource :node-resources]
-                                                                               [:save-data :save-data]]})
+                                                                               [:resource :node-resources]]})
             []))))))
 
 (defn load-project
@@ -100,12 +108,19 @@ ordinary paths."
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
+(defn save-data [project]
+  (g/node-value project :save-data :skip-validation true))
+
 (defn save-all [project]
-  (let [save-data (g/node-value project :save-data)]
-    (doseq [{:keys [resource content]} save-data
-            :when (not (workspace/read-only? resource))]
-      (spit resource content)))
-  (workspace/fs-sync (g/node-value project :workspace) false))
+  (let [save-data (save-data project)]
+    (if-not (g/error? save-data)
+      (do
+        (doseq [{:keys [resource content]} save-data
+                :when (not (workspace/read-only? resource))]
+          (spit resource content))
+        (workspace/fs-sync (g/node-value project :workspace) false))
+      ;; TODO: error message somewhere...
+      (println (validation/error-message save-data)))))
 
 (handler/defhandler :save-all :global
     (enabled? [] true)
@@ -262,7 +277,7 @@ ordinary paths."
             outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/error-fatal {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))
@@ -370,13 +385,12 @@ ordinary paths."
     (if-let [node (get-resource-node project resource)]
       (concat
         (if *load-cache*
-          (load-node project node resource)
+          (load-node project node (g/node-type* node) resource)
           [])
         (connect-if-output (g/node-type* node) node consumer-node connections))
       (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
-                                                                                        [:resource :node-resources]
-                                                                                        [:save-data :save-data]]
-                                                 consumer-node connections}))
+                                                                                        [:resource :node-resources]]
+                                                                               consumer-node connections}))
     []))
 
 (defn select
@@ -434,3 +448,11 @@ ordinary paths."
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
+
+(defn gen-resource-setter [connections]
+  (fn [basis self _ new-value]
+      (if new-value
+        (let [project (get-project self)]
+          (connect-resource-node project new-value self connections))
+        (for [tgt-label (map second connections)]
+          (g/disconnect-sources basis self tgt-label)))))

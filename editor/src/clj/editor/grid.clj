@@ -1,10 +1,11 @@
 (ns editor.grid
   (:require [dynamo.graph :as g]
-            [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.types :as types]
+            [editor.camera :as c]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [editor.types AABB Camera]
            [javax.media.opengl GL GL2]
@@ -164,10 +165,6 @@
   (property auto-grid  g/Bool)
   (property fixed-grid-size g/Int
             (default 0)
-            (validate
-             (g/fnk [fixed-grid-size]
-                    (when (neg? fixed-grid-size)
-                      (g/error-info "Grid size must be positive")))))
-
+            (validate (validation/validate-positive fixed-grid-size "Grid size must be positive")))
   (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData  grid-renderable))

@@ -6,3 +6,5 @@
 /share/ext/download
 /go/pkg
 /go/bin
+
+/.ccache

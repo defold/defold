@@ -113,17 +113,17 @@
 
 ; Rendering
 
-(defn render-palette [ctx ^GL2 gl gpu-texture vertex-binding layout]
+(defn render-palette [^GL2 gl render-args gpu-texture vertex-binding layout]
   (doseq [group layout]
     (scene/overlay-text gl (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group)))))
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)]
-   (gl/with-gl-bindings gl [gpu-texture shader vertex-binding]
+   (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
     (shader/set-uniform shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
 
-(defn render-level [^GL2 gl level gpu-texture vertex-binding layout]
+(defn render-level [^GL2 gl render-args level gpu-texture vertex-binding layout]
   (let [cell-count (count layout)]
-    (gl/with-gl-bindings gl [gpu-texture shader vertex-binding]
+    (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
       (shader/set-uniform shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
 
@@ -183,11 +183,11 @@
 (g/defnk produce-controller-renderable
   [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
   {pass/overlay [{:world-transform geom/Identity4d
-                  :render-fn (fn [ctx gl glu]
-                               (render-palette ctx gl gpu-texture palette-vertex-binding palette-layout))}]
+                  :render-fn (fn [gl render-args renderables count]
+                               (render-palette gl render-args gpu-texture palette-vertex-binding palette-layout))}]
    pass/transparent [{:world-transform geom/Identity4d
-                   :render-fn (fn [ctx gl glu]
-                                (render-level gl level gpu-texture level-vertex-binding level-layout))}]})
+                   :render-fn (fn [gl render-args renderables count]
+                                (render-level gl render-args level gpu-texture level-vertex-binding level-layout))}]})
 
 (defn- hit? [cell pos cell-size-half]
   (let [xc (:x cell)
@@ -254,7 +254,7 @@
          level-vertex-binding (vtx/use-with ::switcher (gen-level-vertex-buffer anim-data level-layout cell-size-half) shader)]
      {:id _node-id
       :aabb aabb
-      :renderable {:render-fn (fn [gl render-args renderables count] (render-level gl level gpu-texture level-vertex-binding level-layout))
+      :renderable {:render-fn (fn [gl render-args renderables count] (render-level gl render-args level gpu-texture level-vertex-binding level-layout))
                    :passes [pass/transparent]}}))
 
 (g/defnode SwitcherNode

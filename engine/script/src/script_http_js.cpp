@@ -128,6 +128,21 @@ namespace dmScript
                 request_data_length = len;
             }
 
+            uint64_t timeout = g_Timeout;
+            if (top > 5) {
+                lua_pushvalue(L, 6);
+                lua_pushnil(L);
+                while (lua_next(L, -2)) {
+                    const char* attr = lua_tostring(L, -2);
+                    if( strcmp(attr, "timeout") == 0 )
+                    {
+                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                    }
+                    lua_pop(L, 1);
+                }
+                lua_pop(L, 1);
+            }
+
             dmMessage::URL* requester = new dmMessage::URL;
             *requester = sender;
 

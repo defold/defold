@@ -33,8 +33,11 @@
             [editor.spine :as spine]
             [editor.json :as json]
             [editor.mesh :as mesh]
+            [editor.material :as material]
             [editor.particlefx :as particlefx]
+            [editor.gui :as gui]
             [editor.text :as text]
+            [editor.code-view :as code-view]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [service.log :as log])
@@ -135,6 +138,7 @@
     (g/transact
       (concat
         (text/register-view-types workspace)
+        (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)))
     (g/transact
@@ -157,7 +161,9 @@
       (spine/register-resource-types workspace)
       (json/register-resource-types workspace)
       (mesh/register-resource-types workspace)
-      (particlefx/register-resource-types workspace)))
+      (material/register-resource-types workspace)
+      (particlefx/register-resource-types workspace)
+      (gui/register-resource-types workspace)))
     workspace))
 
 (defn open-project
