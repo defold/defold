@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "script.h"
+#include "script_http.h" // to set the timeout
 
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
@@ -54,6 +55,7 @@ public:
     lua_State* L;
     dmMessage::URL m_DefaultURL;
     dmConfigFile::HConfig m_ConfigFile;
+    int m_NumberOfFails;
 
 protected:
 
@@ -86,7 +88,7 @@ protected:
         assert(top == lua_gettop(L));
 
         m_WebServerPort = 9001;
-
+        m_NumberOfFails = 0;
     }
 
     virtual void TearDown()
@@ -142,6 +144,7 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 
     dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);
     int ret = dmScript::PCall(L, 1, 0);
+    test->m_NumberOfFails += ret == 0 ? 0 : 1;
     ASSERT_EQ(0, ret);
 }
 
@@ -184,11 +187,21 @@ TEST_F(ScriptHttpTest, TestPost)
             break;
         }
 
+        // One issue causing intermittent failures (SOCKET_ERROR+WOULDBLOCK), was the fact that the connection creation times
+        // could peak above 250ms. However, this was when we had the config script timeout set at 0.3 seconds.
+        // Increasing that timeout value should make it robust again. /MAWE
+        if( m_NumberOfFails )
+        {
+            break;
+        }
+
         dmTime::Sleep(10 * 1000);
 
         uint64_t now = dmTime::GetTime();
         uint64_t elapsed = now - start;
+
         if (elapsed / 1000000 > 4) {
+            dmLogError("The test timed out\n");
             ASSERT_TRUE(0);
         }
     }
@@ -196,8 +209,22 @@ TEST_F(ScriptHttpTest, TestPost)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+struct SHttpRequestTimeoutGuard // Makes sure it gets reset after gtest returns
+{
+    SHttpRequestTimeoutGuard(uint64_t timeout)
+    {
+        dmScript::SetHttpRequestTimeout(timeout);
+    }
+    ~SHttpRequestTimeoutGuard()
+    {
+        dmScript::SetHttpRequestTimeout(0);
+    }
+};
+
 TEST_F(ScriptHttpTest, TestTimeout)
 {
+    SHttpRequestTimeoutGuard timeoutguard(1000 * 1000);
+
     int top = lua_gettop(L);
 
     ASSERT_TRUE(RunFile(L, "test_http_timeout.luac"));
@@ -234,11 +261,17 @@ TEST_F(ScriptHttpTest, TestTimeout)
             break;
         }
 
+        if( m_NumberOfFails )
+        {
+            break;
+        }
+
         dmTime::Sleep(10 * 1000);
 
         uint64_t now = dmTime::GetTime();
         uint64_t elapsed = now - start;
         if (elapsed / 1000000 > 4) {
+            dmLogError("The test timed out\n");
             ASSERT_TRUE(0);
         }
     }
@@ -248,6 +281,8 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
 TEST_F(ScriptHttpTest, TestDeletedSocket)
 {
+    SHttpRequestTimeoutGuard timeoutguard(300 * 1000);
+
     int top = lua_gettop(L);
 
     ASSERT_TRUE(RunFile(L, "test_http.luac"));
