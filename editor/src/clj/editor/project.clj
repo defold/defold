@@ -9,7 +9,7 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
-            [editor.validation :as validation]
+            [editor.definition :as definition]
             [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
@@ -120,7 +120,7 @@ ordinary paths."
           (spit resource content))
         (workspace/fs-sync (g/node-value project :workspace) false))
       ;; TODO: error message somewhere...
-      (println (validation/error-message save-data)))))
+      (println (definition/error-message save-data)))))
 
 (handler/defhandler :save-all :global
     (enabled? [] true)

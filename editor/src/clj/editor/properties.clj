@@ -7,7 +7,7 @@
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.validation :as validation]
+            [editor.definition :as definition]
             [editor.core :as core])
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d]))
@@ -317,8 +317,8 @@
   (and (contains? property :default-values) (not-every? nil? (:values property))))
 
 (defn validation-message [property]
-  (when-let [err (validation/error-aggregate (:validation-problems property))]
-    {:severity (:severity err) :message (validation/error-message err)}))
+  (when-let [err (definition/error-aggregate (:validation-problems property))]
+    {:severity (:severity err) :message (definition/error-message err)}))
 
 (defn clear-override! [property]
   (when (overridden? property)

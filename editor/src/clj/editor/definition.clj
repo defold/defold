@@ -1,4 +1,4 @@
-(ns editor.validation
+(ns editor.definition
   (:require [dynamo.graph :as g]
             [clojure.string :as str]))
 
@@ -18,7 +18,7 @@
 
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
-    (-> (g/error-aggregate errors))))
+    (g/error-aggregate errors)))
 
 (defmacro validate-positive [field message]
   `(g/fnk [~field]
@@ -34,12 +34,25 @@
                          (options# :blend-mode-add-alpha) (options# :blend-mode-add)))))))
 
 (defmacro validate-resource [field message inputs]
-  `(g/fnk [~field ~@inputs :as all#]
-     (if (nil? ~field)
-       (g/error-warning ~message)
-       (error-aggregate (vals all#)))))
+  `(g/fnk [~field ~@inputs]
+     (when (nil? ~field)
+       (g/error-warning ~message))))
+
+(defmacro validate-resource-unless [cond field message inputs]
+  `(g/fnk [~cond ~field ~@inputs]
+     (when-not ~cond
+       (when (nil? ~field)
+         (g/error-warning ~message)))))
 
 (defmacro validate-animation [animation anim-data]
   `(g/fnk [~animation ~anim-data]
-     (when (or (g/error? ~anim-data) (not (contains? ~anim-data ~animation)))
+     (when (not (contains? ~anim-data ~animation))
        (g/error-severe (format "The animation \"%s\" could not be found in the specified image" ~animation)))))
+
+(defmacro proxy-set [field]
+  (let [field-kw (keyword field)]
+    (fn [basis self _ new-value]
+      (g/set-property self field-kw new-value))))
+
+(defmacro proxy-value [field]
+  `(g/fnk [~field] ~field))

@@ -14,7 +14,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
-            [editor.validation :as validation]
+            [editor.definition :as definition]
             [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -87,17 +87,18 @@
   (property id g/Str)
 
   (property embedded g/Bool (dynamic visible (g/always false)))
+
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (dynamic enabled (g/always false))
-    (value (g/fnk [source-resource] source-resource))
-    (validate (validation/validate-resource source-resource "Missing component" [build-targets]))
+    (value (definition/proxy-value source-resource))
     (set (project/gen-resource-setter [[:_node-id :source-id]
                                        [:resource :source-resource]
                                        [:node-outline :source-outline]
                                        [:user-properties :user-properties]
                                        [:scene :scene]
-                                       [:build-targets :build-targets]])))
+                                       [:build-targets :build-targets]]))
+    (validate (definition/validate-resource-unless embedded path "Missing component" [build-targets scene])))
 
   (property properties g/Any
     (dynamic link (g/fnk [source-properties] source-properties))
@@ -118,13 +119,13 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id embedded path id source-outline]
+    (g/fnk [_node-id embedded source-resource id source-outline]
       (let [source-outline (or source-outline {:icon unknown-icon})]
-        (assoc source-outline :node-id _node-id :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path path)))))))
-  (output ddf-message g/Any :cached (g/fnk [id embedded path position rotation properties user-properties save-data]
+        (assoc source-outline :node-id _node-id :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path source-resource)))))))
+  (output ddf-message g/Any :cached (g/fnk [id embedded source-resource position rotation properties user-properties save-data]
                                            (if embedded
                                              (gen-embed-ddf id position rotation save-data)
-                                             (gen-ref-ddf id position rotation properties (:properties user-properties) path))))
+                                             (gen-ref-ddf id position rotation properties (:properties user-properties) source-resource))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (-> scene
                                        (assoc :node-id _node-id
