@@ -435,7 +435,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                               ""])}])
 
 (defn- build-shader [self basis resource dep-resources user-data]
-  {:resource resource :content (.getBytes (:source user-data))})
+  {:resource resource :content (.getBytes ^String (:source user-data))})
 
 (g/defnk produce-build-targets [_node-id resource full-source def]
   [{:node-id _node-id
@@ -447,16 +447,17 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (g/defnode ShaderNode
   (inherits project/ResourceNode)
 
-  (property source g/Str)
-  (property def g/Any)
+  (property code g/Str (dynamic visible (g/always false)))
+  (property def g/Any (dynamic visible (g/always false)))
+  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
 
   (output build-targets g/Any produce-build-targets)
-  (output full-source g/Str (g/fnk [source def] (str (get def :prefix) source))))
+  (output full-source g/Str (g/fnk [code def] (str (get def :prefix) code))))
 
 (defn- load-shader [project self input def]
   (let [source (slurp input)]
     (concat
-      (g/set-property self :source source)
+      (g/set-property self :code source)
       (g/set-property self :def def))))
 
 (defn- register [workspace def]
@@ -465,7 +466,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                    :label (:label def)
                                    :node-type ShaderNode
                                    :load-fn (fn [project self resource] (load-shader project self resource def))
-                                   :icon (:icon def)))
+                                   :icon (:icon def)
+                                   :view-types [:code]))
 
 (defn register-resource-types [workspace]
   (for [def shader-defs]

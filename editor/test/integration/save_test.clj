@@ -13,7 +13,7 @@
              (with-clean-system
                (let [workspace (test-util/setup-workspace! world)
                      project   (test-util/setup-project! workspace)
-                     save-data (group-by :resource (g/node-value project :save-data))]
+                     save-data (group-by :resource (project/save-data project))]
                  (doseq [query queries]
                    (let [[resource _] (first (project/find-resources project query))
                          save (first (get save-data resource))

@@ -121,10 +121,15 @@
   (.getScene node))
 
 (defn add-style! [^Node node ^String class]
-  (.add (.getStyleClass node) class))
+  (let [styles (.getStyleClass node)]
+    (when-not (.contains styles class)
+      (.add styles class))))
+
+(defn remove-styles! [^Node node ^java.util.Collection classes]
+  (.removeAll (.getStyleClass node) classes))
 
 (defn remove-style! [^Node node ^String class]
-  (.remove (.getStyleClass node) class))
+  (remove-styles! node (java.util.Collections/singleton class)))
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
@@ -165,6 +170,11 @@
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                               (fn e)))))
+
+(defn on-mouse! [^Node node fn]
+  (.setOnMouseEntered node (when fn (event-handler e (fn :enter e))))
+  (.setOnMouseExited node (when fn (event-handler e (fn :exit e))))
+  (.setOnMouseMoved node (when fn (event-handler e (fn :move e)))))
 
 (defn on-key! [^Node node key-fn]
   (.setOnKeyPressed node (event-handler e (key-fn (.getCode ^KeyEvent e)))))
@@ -340,8 +350,9 @@
       (remove nil?)
       (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
+
 (defn extend-menu [id location menu]
-  (swap! *menus* update id concat (list {:location location :menu menu})))
+  (swap! *menus* update id (comp distinct concat) (list {:location location :menu menu})))
 
 (defn- collect-menu-extensions []
   (->>
@@ -641,11 +652,13 @@ return value."
     []))
 
 (defprotocol Future
-  (cancel [this]))
+  (cancel [this])
+  (restart [this]))
 
 (extend-type Timeline
   Future
-  (cancel [this] (.stop this)))
+  (cancel [this] (.stop this))
+  (restart [this] (.playFromStart this)))
 
 (defn ->future [delay run-fn]
   (let [^EventHandler handler (event-handler e (run-fn))
@@ -680,6 +693,28 @@ return value."
 
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
+
+(defn anim!
+  ([duration anim-fn end-fn]
+    (let [duration (long (* 1e9 duration))
+          start (System/nanoTime)
+          end (+ start (long duration))]
+      (doto (proxy [AnimationTimer] []
+             (handle [now]
+               (if (< now end)
+                 (let [t (/ (double (- now start)) duration)]
+                   (try
+                     (anim-fn t)
+                     (catch Exception e
+                       (.stop ^AnimationTimer this)
+                       (throw e))))
+                 (do
+                   (end-fn)
+                   (.stop ^AnimationTimer this)))))
+        (.start)))))
+
+(defn anim-stop! [^AnimationTimer anim]
+  (.stop anim))
 
 (defprotocol Closeable
   (on-close-request [this])

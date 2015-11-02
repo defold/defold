@@ -160,7 +160,7 @@
         input-type    (gt/node-type (node-by-id-at basis tgt-id))
         input-schema  (gt/input-type input-type tgt-label)]
     (assert output-schema
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output, input, or property named %s"
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
                     src-id (:name output-type) src-label
                     tgt-id (:name input-type) tgt-label
                     (:name output-type) src-label))

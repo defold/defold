@@ -37,6 +37,7 @@
             [editor.particlefx :as particlefx]
             [editor.gui :as gui]
             [editor.text :as text]
+            [editor.code-view :as code-view]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [service.log :as log])
@@ -137,6 +138,7 @@
     (g/transact
       (concat
         (text/register-view-types workspace)
+        (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)))
     (g/transact
