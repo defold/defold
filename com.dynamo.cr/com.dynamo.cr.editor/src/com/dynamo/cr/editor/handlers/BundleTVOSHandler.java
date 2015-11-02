@@ -49,7 +49,7 @@ public class BundleTVOSHandler extends AbstractBundleHandler {
         String identity = presenter.getIdentity();
         options.put("mobileprovisioning", profile);
         options.put("identity", identity);
-        options.put("platform", "arm64-tvos"); // TODO: IS THIS VALID?? WAS armv7-darwin
+        options.put("platform", "arm64-tvos");
         if(!presenter.isReleaseMode()) {
             options.put("debug", "true");
         }
