@@ -307,7 +307,7 @@
 
 (deftest node-validate-input-production-functions
   (testing "inputs to production functions are validated to be the same type as expected to the fnk"
-    (with-redefs [in/warn (constantly "noop")]
+    (binding [in/*suppress-schema-warnings* true]
      (with-clean-system
        (let [[source target] (tx-nodes
                               (g/make-node world AKeywordNode :prop "a-string")

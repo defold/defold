@@ -16,7 +16,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.resource :as resource]
-            [editor.validation :as validation]
+            [editor.definition :as definition]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -139,13 +139,13 @@
 
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
-    (value (g/fnk [source-resource] source-resource))
-    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (value (definition/proxy-value source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:build-targets :build-targets]
-                                       [:scene         :scene]])))
+                                       [:scene         :scene]]))
+    (validate (definition/validate-resource-unless embedded path "Missing prototype" [scene])))
 
   (property embedded g/Bool (dynamic visible (g/always false)))
 
@@ -162,10 +162,10 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-go-outline)
-  (output ddf-message g/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+  (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
                                              (gen-embed-ddf id child-ids position rotation scale save-data)
-                                             (gen-ref-ddf id child-ids position rotation scale path))))
+                                             (gen-ref-ddf id child-ids position rotation scale source-resource))))
   (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
                                                                              [(assoc target :instance-data {:resource (:resource target)
                                                                                                             :instance-msg ddf-message
@@ -292,10 +292,10 @@
         child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
     (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids) instance-data))))
 
-(g/defnk produce-coll-inst-outline [_node-id id path source-outline source]
+(g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source]
   (-> source-outline
     (assoc :node-id _node-id
-      :label (format "%s (%s)" id (resource/resource->proj-path path))
+      :label (format "%s (%s)" id (resource/resource->proj-path source-resource))
       :icon collection-icon)
     (update :child-reqs (fn [reqs]
                           (mapv (fn [req] (update req :tx-attach-fn #(fn [self-id child-id]
@@ -309,14 +309,13 @@
   (inherits InstanceNode)
 
   (property path (g/protocol resource/Resource)
-    (value (g/fnk [source-resource] source-resource))
-    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (value (definition/proxy-value source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:scene         :scene]
-                                       [:build-targets :build-targets]])))
-
+                                       [:build-targets :build-targets]]))
+    (validate (definition/validate-resource path "Missing prototype" [scene])))
 
   (input source g/Any)
   (input source-resource (g/protocol resource/Resource))
@@ -327,9 +326,9 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
-  (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (output ddf-message g/Any :cached (g/fnk [id source-resource ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            {:id id
-                                            :collection (resource/resource->proj-path path)
+                                            :collection (resource/resource->proj-path source-resource)
                                             :position (math/vecmath->clj position)
                                             :rotation (math/vecmath->clj rotation)
                                             :scale3 (math/vecmath->clj scale)}))
