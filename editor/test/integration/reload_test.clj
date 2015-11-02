@@ -30,16 +30,19 @@
            [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils FileUtils]))
 
-(def ^:dynamic *project-path*)
+(def ^:dynamic *project-path* "resources/reload_project")
+(def ^:dynamic *temp-project-path*)
 
-(defn- setup [ws-graph]
-  (alter-var-root #'*project-path* (fn [_] (-> (Files/createTempDirectory "foo" (into-array FileAttribute []))
-                                             (.toFile)
-                                             (.getAbsolutePath))))
-  (FileUtils/copyDirectory (File. "resources/reload_project") (File. *project-path*))
-  (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
-        project (test-util/setup-project! workspace)]
-    [workspace project]))
+(defn- setup
+  ([ws-graph] (setup ws-graph *project-path*))
+  ([ws-graph project-path]
+   (alter-var-root #'*temp-project-path* (fn [_] (-> (Files/createTempDirectory "foo" (into-array FileAttribute []))
+                                                   (.toFile)
+                                                   (.getAbsolutePath))))
+   (FileUtils/copyDirectory (File. project-path) (File. *temp-project-path*))
+   (let [workspace (test-util/setup-workspace! ws-graph *temp-project-path*)
+         project (test-util/setup-project! workspace)]
+     [workspace project])))
 
 (defn- mkdirs [^File f]
   (let [parent (.getParentFile f)]
@@ -51,7 +54,7 @@
     (workspace/template (workspace/resource-type resource))))
 
 (defn- write-file [workspace name content]
-  (let [f (File. (File. *project-path*) name)]
+  (let [f (File. (File. *temp-project-path*) name)]
     (mkdirs f)
     (if (not (.exists f))
       (.createNewFile f)
@@ -60,30 +63,30 @@
   (workspace/fs-sync workspace))
 
 (defn- read-file [name]
-  (slurp (str *project-path* name)))
+  (slurp (str *temp-project-path* name)))
 
 (defn- add-file [workspace name]
   (write-file workspace name (template workspace name)))
 
 (defn- delete-file [workspace name]
-  (let [f (File. (File. *project-path*) name)]
+  (let [f (File. (File. *temp-project-path*) name)]
     (.delete f))
   (workspace/fs-sync workspace))
 
 (defn- copy-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (File. *project-path*) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (File. *temp-project-path*) %) [name new-name])]
     (FileUtils/copyFile f new-f))
   (workspace/fs-sync workspace))
 
 (defn- move-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (File. *project-path*) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (File. *temp-project-path*) %) [name new-name])]
     (FileUtils/moveFile f new-f)
     (workspace/fs-sync workspace true [[f new-f]])))
 
 (defn- add-img [workspace name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
-        f (File. (File. *project-path*) name)]
+        f (File. (File. *temp-project-path*) name)]
     (when (.exists f)
       (Thread/sleep 1100))
     (ImageIO/write img type f)
@@ -267,3 +270,19 @@
       (is (= (format "props (%s)" coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label])))
       (move-file workspace coll-path new-coll-path)
       (is (= (format "props (%s)" new-coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label]))))))
+
+(deftest project-with-missing-parts-can-be-saved
+  ;; missing embedded game object, sub collection
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world "resources/missing_project"))]
+      (is (not (g/error? (project/save-data project)))))))
+
+(deftest project-with-nil-parts-can-be-saved
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world "resources/nil_project"))]
+      (is (not (g/error? (project/save-data project)))))))
+
+(deftest broken-project-cannot-be-saved
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world "resources/broken_project"))]
+      (is (g/error? (project/save-data project))))))

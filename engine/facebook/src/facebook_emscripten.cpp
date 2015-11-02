@@ -268,7 +268,7 @@ int Facebook_Login(lua_State* L)
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    dmFacebookDoLogin(dmFacebook::STATE_OPEN, dmFacebook::STATE_CLOSED, dmFacebook::STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, L);
+    dmFacebookDoLogin(dmFacebook::STATE_OPEN, dmFacebook::STATE_CLOSED, dmFacebook::STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, dmScript::GetMainThread(L));
 
     assert(top == lua_gettop(L));
     return 0;
@@ -335,7 +335,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     char permissions[512];
     AppendArray(L, permissions, 512, top-1);
 
-    dmFacebookRequestReadPermissions(permissions, (OnRequestReadPermissionsCallback) OnRequestReadPermissionsComplete, L);
+    dmFacebookRequestReadPermissions(permissions, (OnRequestReadPermissionsCallback) OnRequestReadPermissionsComplete, dmScript::GetMainThread(L));
 
     assert(top == lua_gettop(L));
     return 0;
@@ -368,7 +368,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     char permissions[512];
     AppendArray(L, permissions, 512, top-2);
 
-    dmFacebookRequestPublishPermissions(permissions, audience, (OnRequestPublishPermissionsCallback) OnRequestPublishPermissionsComplete, L);
+    dmFacebookRequestPublishPermissions(permissions, audience, (OnRequestPublishPermissionsCallback) OnRequestPublishPermissionsComplete, dmScript::GetMainThread(L));
 
     assert(top == lua_gettop(L));
     return 0;
@@ -495,7 +495,7 @@ int Facebook_ShowDialog(lua_State* L)
     }
     dmStrlCat(params_json, "}", sizeof(params_json));
 
-    dmFacebookShowDialog(params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, L);
+    dmFacebookShowDialog(params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, dmScript::GetMainThread(L));
 
     assert(top == lua_gettop(L));
     return 0;

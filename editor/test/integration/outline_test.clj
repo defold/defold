@@ -1,15 +1,20 @@
 (ns integration.outline-test
   (:require [clojure.test :refer :all]
+            [service.log :as log]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.project :as project]
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
-(defn- setup [world]
-  (let [workspace       (test-util/setup-workspace! world)
-        project         (test-util/setup-project! workspace)]
-    [workspace project]))
+(def ^:dynamic *project-path* test-util/project-path)
+
+(defn- setup
+  ([world] (setup world *project-path*))
+  ([world project-path]
+   (let [workspace       (test-util/setup-workspace! world project-path)
+         project         (test-util/setup-project! workspace)]
+     [workspace project])))
 
 (defn- outline
   ([node]
@@ -78,7 +83,10 @@
   ([node]
     (child-count node []))
   ([node path]
-    (count (:children (outline node path)))))
+   (count (:children (outline node path)))))
+
+(defn- outline-seq [root]
+  (tree-seq :children :children (g/node-value root :node-outline)))
 
 (deftest copy-paste-double-embed
   (with-clean-system
@@ -190,3 +198,48 @@
           (drag! root [0 0 0])
           (drop! project root [0])
           (is (= second-id (get (outline root [0 1]) :label))))))))
+
+(deftest outline-shows-missing-parts
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world "resources/missing_project"))]  ; no logging as purposely partially broken project
+      (testing "Missing go file visible in collection outline"
+        (let [root (test-util/resource-node project "/missing_go.collection")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith (:label (outline root [0])) "non-existent"))))
+      (testing "Missing sub collection visible in collection outline"
+        (let [root (test-util/resource-node project "/missing_collection.collection")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith  (:label (outline root [0])) "non-existent"))))
+      (testing "Missing script visible in go outline"
+        (let [root (test-util/resource-node project "/missing_component.go")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith (:label (outline root [0])) "non-existent"))))
+      (testing "Missing script visible in collection-go-outline"
+        (let [root (test-util/resource-node project "/missing_go_component.collection")
+              labels (map :label (outline-seq root))
+              expected-prefixes ["Collection" "missing_component" "non-existent"]]
+          (is (= 3 (count labels))) ; collection + go + script
+          (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
+
+(deftest outline-shows-nil-parts
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world "resources/nil_project"))]  ; no logging as purposely partially broken project
+      (testing "Nil go file visible in collection outline"
+        (let [root (test-util/resource-node project "/nil_go.collection")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith (:label (outline root [0])) "nil-go"))))
+      (testing "Nil sub collection visible in collection outline"
+        (let [root (test-util/resource-node project "/nil_collection.collection")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith  (:label (outline root [0])) "nil-collection"))))
+      (testing "Nil script visible in go outline"
+        (let [root (test-util/resource-node project "/nil_component.go")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith (:label (outline root [0])) "nil-component"))))
+      (testing "Nil script visible in collection-go-outline"
+        (let [root (test-util/resource-node project "/nil_go_component.collection")
+              labels (map :label (outline-seq root))
+              expected-prefixes ["Collection" "nil-go" "nil-component"]]
+          (is (= 3 (count labels))) ; collection + go + script
+          (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
+  

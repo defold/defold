@@ -859,6 +859,10 @@ namespace dmGameObject
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
         luaL_unref(L, LUA_REGISTRYINDEX, ref);
 
+        curve->release_callback = 0x0;
+        curve->userdata1 = 0x0;
+        curve->userdata2 = 0x0;
+
         assert(top == lua_gettop(L));
     }
 
@@ -887,6 +891,7 @@ namespace dmGameObject
 
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
+            assert(lua_type(L, -4) == LUA_TFUNCTION);
             dmScript::PCall(L, 3, 0);
 
             lua_pushnil(L);
