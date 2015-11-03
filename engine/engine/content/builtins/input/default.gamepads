@@ -186,3 +186,15 @@ driver
     map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 6 }
     map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 3 }
 }
+driver
+{
+    device: "AppleTV Remote"
+    platform: "tvos"
+    dead_zone: 0.200
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 1 }
+}

@@ -736,6 +736,53 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 }
 
 -(void)pollControllers {
+    for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
+        if (tvosJoystick[i].present != 0) {
+            
+            if ([GCController controllers][i].microGamepad == nil) {
+                if ([GCController controllers][i].extendedGamepad == nil) {
+                    GCGamepad* profile =[GCController controllers][i].gamepad;
+                    tvosJoystick[i].axes[0] = profile.dpad.xAxis.value;
+                    tvosJoystick[i].axes[1] = profile.dpad.yAxis.value;
+                    
+                    tvosJoystick[i].buttons[0] = profile.buttonA.isPressed;
+                    tvosJoystick[i].buttons[1] = profile.buttonB.isPressed;
+                    tvosJoystick[i].buttons[2] = profile.buttonX.isPressed;
+                    tvosJoystick[i].buttons[3] = profile.buttonY.isPressed;
+                    tvosJoystick[i].buttons[4] = profile.leftShoulder.isPressed;
+                    tvosJoystick[i].buttons[5] = profile.rightShoulder.isPressed;
+
+                } else {
+                    GCExtendedGamepad* profile =[GCController controllers][i].extendedGamepad;
+
+                    tvosJoystick[i].axes[0] = profile.dpad.xAxis.value;
+                    tvosJoystick[i].axes[1] = profile.dpad.yAxis.value;
+                    tvosJoystick[i].axes[2] = profile.leftThumbstick.xAxis.value;
+                    tvosJoystick[i].axes[3] = profile.leftThumbstick.yAxis.value;
+                    tvosJoystick[i].axes[4] = profile.rightThumbstick.xAxis.value;
+                    tvosJoystick[i].axes[5] = profile.rightThumbstick.yAxis.value;
+                    
+                    tvosJoystick[i].buttons[0] = profile.buttonA.isPressed;
+                    tvosJoystick[i].buttons[1] = profile.buttonB.isPressed;
+                    tvosJoystick[i].buttons[2] = profile.buttonX.isPressed;
+                    tvosJoystick[i].buttons[3] = profile.buttonY.isPressed;
+                    tvosJoystick[i].buttons[4] = profile.leftShoulder.isPressed;
+                    tvosJoystick[i].buttons[5] = profile.rightShoulder.isPressed;
+                    tvosJoystick[i].buttons[6] = profile.leftTrigger.isPressed;
+                    tvosJoystick[i].buttons[7] = profile.rightTrigger.isPressed;
+                }
+            }
+            else {
+                GCMicroGamepad* profile =[GCController controllers][i].microGamepad;
+
+                tvosJoystick[i].axes[0] = profile.dpad.xAxis.value;
+                tvosJoystick[i].axes[1] = profile.dpad.yAxis.value;
+                tvosJoystick[i].buttons[0] = profile.buttonA.isPressed;
+                tvosJoystick[i].buttons[1] = profile.buttonX.isPressed;
+            }
+        }
+    }
+/*
     if (self.controllerConnected) {
         if (self.controllerType == 3) {
             GCMicroGamepad *profile = [self gameController].microGamepad;
@@ -770,29 +817,43 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
             }
         }
     }
+*/
 }
 
--(void)controllerStateChanged {
+
+- (void)controllerStateChanged {
     
-    NSLog(@"controllerStateChanged count %ld", [[GCController controllers] count]);
-    if ([[GCController controllers] count] > 0) {
-        self.controllerConnected = YES;
-        
-        self.gameController = [GCController controllers][0];
-        if (self.gameController.microGamepad == nil) {
-            if (self.gameController.extendedGamepad == nil) {
-                self.controllerType = 1;
-            } else {
-                self.controllerType = 2;
+    NSLog(@"controllerStateChanged\n");
+
+    // TODO: Handle disconnects!
+    for(unsigned long i=0,l=[[GCController controllers] count]; i<l; ++i) {
+        if ([GCController controllers][i]) {
+            if (tvosJoystick[i].present == 0) {
+                tvosJoystick[i].present = 1;
+
+                NSLog(@"joystick %d present\n", i);
+
+                if ([GCController controllers][i].microGamepad == nil) {
+                    if ([GCController controllers][i].extendedGamepad == nil) {
+                        tvosJoystick[i].numAxes = 6;
+                        tvosJoystick[i].numButtons = 8;
+                    } else {
+                        tvosJoystick[i].numAxes = 2;
+                        tvosJoystick[i].numButtons = 6;
+                    }
+                }
+                else {
+                    tvosJoystick[i].numAxes = 2;
+                    tvosJoystick[i].numButtons = 2;
+                }
+                tvosJoystick[i].axes = (float*)malloc(sizeof(float) * tvosJoystick[i].numAxes);
+                tvosJoystick[i].buttons = (unsigned char*)malloc(sizeof(char) * tvosJoystick[i].numButtons);
+
+                NSLog(@"joystick %d axes %d buttons\n", tvosJoystick[i].numAxes, tvosJoystick[i].numButtons);
             }
         }
-        else {
-            self.controllerType = 3;
-        }
-        
-    } else {
-        self.controllerConnected = NO;
     }
+
 }
 
 - (void)createGlView
@@ -836,6 +897,11 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
 
+    for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
+        tvosJoystick[i].present = 0;
+        tvosJoystick[i].axes = 0;
+        tvosJoystick[i].buttons = 0;
+    }
 
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidConnectNotification object:nil];
