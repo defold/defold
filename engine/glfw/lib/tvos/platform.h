@@ -46,6 +46,7 @@ typedef void *id;
 #endif
 
 #include <pthread.h>
+#include <hid/hid_glfw_defines.h>
 
 #include "../../include/GL/glfw.h"
 
@@ -239,6 +240,9 @@ GLFWGLOBAL struct {
 } _glfwThrd;
 
 
+
+
+
 //========================================================================
 // Macros for encapsulating critical code sections (i.e. making parts
 // of GLFW thread safe)
@@ -253,5 +257,19 @@ pthread_mutex_lock( &_glfwThrd.CriticalSection );
 #define LEAVE_THREAD_CRITICAL_SECTION \
 pthread_mutex_unlock( &_glfwThrd.CriticalSection );
 
+
+//========================================================================
+// Joystick
+//========================================================================
+
+struct tvosJoystickData {
+    char present;
+    int numAxes;
+    int numButtons;
+    float* axes;
+    unsigned char* buttons;
+};
+
+struct tvosJoystickData tvosJoystick[HID_MAX_GAMEPAD_COUNT];
 
 #endif // _platform_h_

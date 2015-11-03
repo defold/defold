@@ -130,7 +130,7 @@ public class TVOSBundler implements IBundler {
         properties.put("url-schemes", urlSchemes);
 
         BundleHelper helper = new BundleHelper(project, Platform.Arm64TvOS, bundleDir, ".app");
-        helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
+        helper.format(properties, "tvos", "infoplist", "resources/tvos/Info.plist", new File(appDir, "Info.plist"));
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
