@@ -224,6 +224,9 @@ public class AsyncCopier {
         end(readPixels);
 
         end(begin);
+
+
+        //gl.glDrawBuffer(GL2.GL_BACK);
     }
 
     public void endFrame(GL2 gl) {
@@ -246,7 +249,7 @@ public class AsyncCopier {
                 PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
 
                 Sample setPixels = begin("setPixels", swap.pbo);
-                swap.image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), 0);
+                swap.image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
                 end(setPixels);
 
                 gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, swap.pbo);
