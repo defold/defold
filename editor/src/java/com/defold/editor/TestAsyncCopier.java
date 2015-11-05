@@ -6,14 +6,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import javax.media.opengl.GL2;
+import javax.media.opengl.GLAutoDrawable;
 import javax.media.opengl.GLCapabilities;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
+import javax.media.opengl.GLEventListener;
 import javax.media.opengl.GLOffscreenAutoDrawable;
 import javax.media.opengl.GLProfile;
 
+import com.jogamp.opengl.util.awt.Screenshot;
+
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.event.EventHandler;
 import javafx.scene.Scene;
 import javafx.scene.image.ImageView;
@@ -44,6 +49,7 @@ public class TestAsyncCopier extends Application {
         cap.setDoubleBuffered(false);
 
         drawable = factory.createOffscreenAutoDrawable(null, cap, null, width, height, null);
+        //drawable.setAutoSwapBufferMode(false);
         context = drawable.getContext();
         context.makeCurrent();
 
@@ -52,6 +58,64 @@ public class TestAsyncCopier extends Application {
         copier = new AsyncCopier(gl, threadPool, imageView, width, height);
         context.release();
 
+        drawable.addGLEventListener(new GLEventListener() {
+
+            @Override
+            public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
+                gl.glViewport(x, y, width, height);
+                System.out.println("reshape");
+
+            }
+
+            @Override
+            public void init(GLAutoDrawable drawable) {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void dispose(GLAutoDrawable drawable) {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void display(GLAutoDrawable drawable) {
+                //System.out.println("display");
+                GL2 gl = (GL2) context.getGL();
+                draw(gl);
+
+
+            }
+        });
+        //drawable.display();
+        //drawable.an
+        //FPSAnimator animator = new FPSAnimator(drawable, 60);
+        //animator.start();
+
+        gl.glViewport(0, 0, width, height);
+
+        /*Thread t = new Thread() {
+            @Override
+            public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(16);
+                    } catch (InterruptedException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                    GL2 gl = (GL2) context.getGL();
+                    //gl.getContext().makeCurrent();
+                    draw(gl);
+                }
+            }
+        };
+        t.start();*/
+
+
+        //gl.getContext().makeCurrent();
+
         red = 0.0f;
         redDelta = 0.01f;
         new AnimationTimer() {
@@ -59,34 +123,9 @@ public class TestAsyncCopier extends Application {
             @Override
             public void handle(long now) {
                 GL2 gl = (GL2) context.getGL();
+                draw(gl);
+                //drawable.display();
 
-                copier.beginFrame2(gl);
-
-                red += redDelta;
-                if (red > 1.0f) {
-                    redDelta *= -1;
-                    red = 1.0f;
-                } else if (red < 0.0f) {
-                    red = 0.0f;
-                    redDelta *= -1;
-                }
-
-                if (frames == 50) {
-                    try {
-                        copier.dumpSamples("misc/timeseries.csv", 0);
-                        System.out.println("timeseries written");
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-                frames++;
-
-
-                gl.glClearColor(red, 0, 0, 1);
-                gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
-
-
-                copier.endFrame(gl);
             }
         }.start();;
 
@@ -115,40 +154,94 @@ public class TestAsyncCopier extends Application {
         });
 
 
-
-        int w = 100;
-        int h = 100;
-
-        BufferedImage bufImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int i = 0; i < w; i++) {
-            for (int j = 0; j < h; j++) {
-                bufImage.setRGB(i, j, 0xff00ffff);
-            }
-
-        }
-        //WritableImage image = new WritableImage(w, h);
-        /*if (false) {
-            imageView.setImage(SwingFXUtils.toFXImage(bufImage, null));
-        } else {
-            imageView.setImage(SwingFXUtils.toFXImage(glImage, null));
-        }*/
-        //imageView.setImage(image);
-
-/*        Button btn = new Button();
-        btn.setText("Say 'Hello World'");
-        btn.setOnAction(new EventHandler<ActionEvent>() {
-
-            @Override
-            public void handle(ActionEvent event) {
-                System.out.println("Hello World!");
-            }
-        });*/
-
         StackPane root = new StackPane();
         root.getChildren().add(imageView);
-        primaryStage.setScene(new Scene(root, 512, 512));
+        primaryStage.setScene(new Scene(root, width, height));
         primaryStage.show();
 
         setup();
+    }
+
+    private void draw(GL2 gl) {
+        if (true) {
+            copier.beginFrame2(gl);
+        }
+
+        red += redDelta;
+        if (red > 1.0f) {
+            redDelta *= -1;
+            red = 1.0f;
+        } else if (red < 0.0f) {
+            red = 0.0f;
+            redDelta *= -1;
+        }
+
+
+        if (frames == 50) {
+            try {
+                copier.dumpSamples("misc/timeseries.csv", 0);
+                System.out.println("timeseries written");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        frames++;
+
+        gl.glClearColor(red, 0, 0, 1);
+        gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
+
+        gl.glMatrixMode(GL2.GL_PROJECTION);
+        gl.glLoadIdentity();
+        gl.glOrtho(-1, 1, -1, 1, -1, 1);
+
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
+        gl.glLoadIdentity();
+
+
+        //gl.glCullFace(GL2.GL_FRONT_AND_BACK);
+
+        gl.glBegin(GL2.GL_QUADS);
+        float z = 0.0f;
+        float w = 1.0f;
+        float alpha = 1.0f;
+        gl.glColor4f(1,0,0,alpha);
+        gl.glVertex3f(-w, -w, z);
+
+        gl.glColor4f(0,1,0,alpha);
+        gl.glVertex3f(-w, w, z);
+
+        gl.glColor4f(0,0,1,alpha);
+        gl.glVertex3f(w, w, z);
+
+        gl.glColor4f(0,0,0,alpha);
+        gl.glVertex3f(w, -w*0.5f, z);
+
+        gl.glEnd();
+/*
+        gl.glBegin(GL2.GL_POLYGON);
+        gl.glVertex3d(0.0, 0.0, 0.0);
+        gl.glVertex3d(0.5, 0.0, 0.0);
+        gl.glVertex3d(0.5, 0.5, 0.0);
+        gl.glVertex3d(0.0, 0.5, 0.0);
+        gl.glEnd();
+*/
+
+        if (true) {
+            copier.endFrame(gl);
+        } else {
+            BufferedImage img = Screenshot.readToBufferedImage(0, 0, width, height, true);
+            imageView.setImage(SwingFXUtils.toFXImage(img, null));
+        }
+
+        /*
+        try {
+            ImageIO.write(img,"png",new File("/tmp/im.png"));
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }*/
+
+        //drawable.swapBuffers();
+
     }
 }
