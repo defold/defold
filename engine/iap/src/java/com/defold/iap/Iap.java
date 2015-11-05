@@ -368,7 +368,6 @@ public class Iap implements Handler.Callback {
             }
 
             purchaseListener.onPurchaseResult(responseCode, purchaseData);
-            this.purchaseListener = null;
         } else if (action == Action.RESTORE) {
             Bundle items = bundle.getBundle("items");
             ArrayList<String> ownedSkus = items.getStringArrayList(RESPONSE_INAPP_ITEM_LIST);
