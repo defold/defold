@@ -164,7 +164,7 @@ public class TestAsyncCopier extends Application {
 
     private void draw(GL2 gl) {
         if (true) {
-            copier.beginFrame2(gl);
+            copier.beginFrame3(gl);
         }
 
         red += redDelta;
@@ -227,7 +227,7 @@ public class TestAsyncCopier extends Application {
 */
 
         if (true) {
-            copier.endFrame(gl);
+            copier.endFrame3(gl);
         } else {
             BufferedImage img = Screenshot.readToBufferedImage(0, 0, width, height, true);
             imageView.setImage(SwingFXUtils.toFXImage(img, null));

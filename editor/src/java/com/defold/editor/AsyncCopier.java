@@ -229,7 +229,7 @@ public class AsyncCopier {
         //gl.glDrawBuffer(GL2.GL_BACK);
     }
 
-    public void endFrame(GL2 gl) {
+    public void endFrame2(GL2 gl) {
         gl.getContext().release();
 
         Sample end = begin("end", -1);
@@ -262,6 +262,85 @@ public class AsyncCopier {
                     public void run() {
                         Sample setImage = begin("setImage", swap.pbo);
                         imageView.setImage(swap.image);
+                        end(setImage);
+                    }
+                });
+
+                return null;
+            }
+        };
+        threadPool.submit(task);
+        end(end);
+    }
+
+    public void beginFrame3(GL2 gl)  {
+
+        Sample begin = begin("begin", -1);
+        if (frame != null) {
+            end(frame);
+        }
+        frame = begin("frame", -1);
+
+        if (task != null) {
+            try {
+                Sample wait = begin("wait", -1);
+                task.get();
+                end(wait);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        gl.getContext().makeCurrent();
+
+        end(begin);
+
+        //gl.glDrawBuffer(GL2.GL_BACK);
+    }
+
+    public void endFrame3(GL2 gl) {
+
+        Sample end = begin("end", -1);
+
+        pboIndex = (pboIndex + 1) % N_BUFFERS;
+        Buffer readTo = buffers.get(pboIndex);
+        gl.glReadBuffer(GL2.GL_FRONT);
+        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
+        int type = GL2.GL_UNSIGNED_INT_8_8_8_8_REV;
+        Sample readPixels = begin("readPixels", readTo.pbo);
+        gl.glReadPixels(0, 0, width, height, GL2.GL_BGRA, type, 0);
+        end(readPixels);
+
+        gl.getContext().release();
+
+        task = new Task<Void>() {
+
+            @Override
+            protected Void call() throws Exception {
+                gl.getContext().makeCurrent();
+                gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
+                Sample mapBuffer = begin("mapBuffer", readTo.pbo);
+                ByteBuffer buffer = gl.glMapBuffer(GL2.GL_PIXEL_PACK_BUFFER, GL2.GL_READ_ONLY);
+                end(mapBuffer);
+
+                PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
+
+                Sample setPixels = begin("setPixels", readTo.pbo);
+                readTo.image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
+                end(setPixels);
+
+                gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
+                gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
+                gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
+                gl.getContext().release();
+
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        Sample setImage = begin("setImage", readTo.pbo);
+                        imageView.setImage(readTo.image);
                         end(setImage);
                     }
                 });
