@@ -21,10 +21,22 @@ import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 
-// TODO: Dispose
 public class AsyncCopier {
 
     private static final int N_BUFFERS = 2;
+
+    private static class Sample {
+        String name;
+        long start;
+        long end;
+        int index;
+
+        public Sample(String name, long start, int index) {
+            this.name = name;
+            this.start = start;
+            this.index = index;
+        }
+    }
 
     private List<Buffer> buffers = new ArrayList<>();
     private int pboIndex = 0;
@@ -32,6 +44,10 @@ public class AsyncCopier {
     private int height;
     private ExecutorService threadPool;
     private ImageView imageView;
+
+    private ArrayList<Sample> samples = new ArrayList<>();
+    private Task<Void> task;
+    private Sample frame;
 
     private static class Buffer {
         int pbo;
@@ -64,27 +80,6 @@ public class AsyncCopier {
         }
         setSize(gl, width, height);
     }
-
-    static class Sample {
-
-        String name;
-        long start;
-        long end;
-        int index;
-
-        public Sample(String name, long start, int index) {
-            this.name = name;
-            this.start = start;
-            this.index = index;
-        }
-
-    }
-
-    ArrayList<Sample> samples = new ArrayList<>();
-
-    private Task<Void> task;
-
-    private Sample frame;
 
     Sample begin(String name, int index) {
         return new Sample(name, System.currentTimeMillis(), index);
@@ -123,157 +118,7 @@ public class AsyncCopier {
         }
     }
 
-    public void beginFrame(GL2 gl) throws InterruptedException {
-
-        Sample swapSample = begin("swap", -1);
-
-        if (task != null) {
-            try {
-                Sample wait = begin("wait", -1);
-                task.get();
-                end(wait);
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-            }
-        }
-
-        pboIndex = (pboIndex + 1) % N_BUFFERS;
-        int nextPboIndex = (pboIndex + 1) % N_BUFFERS;
-
-        Buffer readTo = buffers.get(pboIndex);
-        Buffer swap = buffers.get(nextPboIndex);
-
-        gl.glReadBuffer(GL2.GL_FRONT);
-        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
-        int type = GL2.GL_UNSIGNED_INT_8_8_8_8_REV;
-        Sample readPixelsSample = begin("readPixels", readTo.pbo);
-        gl.glReadPixels(0, 0, width, height, GL2.GL_BGRA, type, 0);
-        end(readPixelsSample);
-
-        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, swap.pbo);
-        Sample mapBuffer = begin("mapBuffer", swap.pbo);
-        ByteBuffer buffer = gl.glMapBuffer(GL2.GL_PIXEL_PACK_BUFFER, GL2.GL_READ_ONLY);
-        /*ByteBuffer buffer = gl.glMapBufferRange(GL2.GL_PIXEL_PACK_BUFFER, 0, width * height * 4, GL2.GL_MAP_READ_BIT | GL2.GL_MAP_INVALIDATE_BUFFER_BIT);
-        if (buffer == null) {
-            int e = gl.glGetError();
-            System.out.println(e);
-            return;
-        }*/
-        end(mapBuffer);
-
-        PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
-
-        task = new Task<Void>() {
-
-            @Override
-            protected Void call() throws Exception {
-                Sample setPixels = begin("setPixels", swap.pbo);
-                swap.image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), 0);
-                end(setPixels);
-
-                Platform.runLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        Sample setImage = begin("setImage", swap.pbo);
-                        imageView.setImage(swap.image);
-                        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, swap.pbo);
-                        gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
-                        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
-                        end(setImage);
-                    }
-                });
-
-                return null;
-            }
-        };
-        threadPool.submit(task);
-        end(swapSample);
-    }
-
-    public void beginFrame2(GL2 gl)  {
-
-        Sample begin = begin("begin", -1);
-        if (frame != null) {
-            end(frame);
-        }
-        frame = begin("frame", -1);
-
-        if (task != null) {
-            try {
-                Sample wait = begin("wait", -1);
-                task.get();
-                end(wait);
-            } catch (ExecutionException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        gl.getContext().makeCurrent();
-
-        pboIndex = (pboIndex + 1) % N_BUFFERS;
-
-        Buffer readTo = buffers.get(pboIndex);
-
-        gl.glReadBuffer(GL2.GL_FRONT);
-        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
-        int type = GL2.GL_UNSIGNED_INT_8_8_8_8_REV;
-        Sample readPixels = begin("readPixels", readTo.pbo);
-        gl.glReadPixels(0, 0, width, height, GL2.GL_BGRA, type, 0);
-        end(readPixels);
-
-        end(begin);
-
-
-        //gl.glDrawBuffer(GL2.GL_BACK);
-    }
-
-    public void endFrame2(GL2 gl) {
-        gl.getContext().release();
-
-        Sample end = begin("end", -1);
-
-        int nextPboIndex = (pboIndex + 1) % N_BUFFERS;
-        Buffer swap = buffers.get(nextPboIndex);
-        task = new Task<Void>() {
-
-            @Override
-            protected Void call() throws Exception {
-                gl.getContext().makeCurrent();
-                gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, swap.pbo);
-                Sample mapBuffer = begin("mapBuffer", swap.pbo);
-                ByteBuffer buffer = gl.glMapBuffer(GL2.GL_PIXEL_PACK_BUFFER, GL2.GL_READ_ONLY);
-                end(mapBuffer);
-
-                PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
-
-                Sample setPixels = begin("setPixels", swap.pbo);
-                swap.image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
-                end(setPixels);
-
-                gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, swap.pbo);
-                gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
-                gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
-                gl.getContext().release();
-
-                Platform.runLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        Sample setImage = begin("setImage", swap.pbo);
-                        imageView.setImage(swap.image);
-                        end(setImage);
-                    }
-                });
-
-                return null;
-            }
-        };
-        threadPool.submit(task);
-        end(end);
-    }
-
-    public void beginFrame3(GL2 gl)  {
+    public void beginFrame(GL2 gl)  {
 
         Sample begin = begin("begin", -1);
         if (frame != null) {
@@ -296,17 +141,14 @@ public class AsyncCopier {
         gl.getContext().makeCurrent();
 
         end(begin);
-
-        //gl.glDrawBuffer(GL2.GL_BACK);
     }
 
-    public void endFrame3(GL2 gl) {
+    public void endFrame(GL2 gl) {
 
         Sample end = begin("end", -1);
 
         pboIndex = (pboIndex + 1) % N_BUFFERS;
         Buffer readTo = buffers.get(pboIndex);
-        gl.glReadBuffer(GL2.GL_FRONT);
         gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
         int type = GL2.GL_UNSIGNED_INT_8_8_8_8_REV;
         Sample readPixels = begin("readPixels", readTo.pbo);
