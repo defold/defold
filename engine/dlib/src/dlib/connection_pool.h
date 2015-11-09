@@ -94,11 +94,12 @@ namespace dmConnectionPool
      * @param host host
      * @param port port
      * @param ssl true for ssl connection
+     * @param sslhandshaketimeout The timeout (micro seconds) for the ssl handshake. Only used if ssl is true.
      * @param connection connection (out)
      * @param sock_res socket-result code on failure
      * @return RESULT_OK on success
      */
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, HConnection* connection, dmSocket::Result* sock_res);
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int sslhandshaketimeout, HConnection* connection, dmSocket::Result* sock_res);
 
     /**
      * Return connection to pool
