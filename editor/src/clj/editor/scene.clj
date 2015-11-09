@@ -44,7 +44,11 @@
            [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
-           [sun.awt.image IntegerComponentRaster]))
+           [sun.awt.image IntegerComponentRaster]
+           [java.util.concurrent Executors]
+           [com.defold.editor AsyncCopier]))
+
+(def ^:private executor (Executors/newFixedThreadPool 1))
 
 (set! *warn-on-reflection* true)
 
@@ -223,25 +227,29 @@
     {:glu glu :camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
      :world-view world-view :texture texture :normal normal}))
 
-(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables tool-renderables]
-  (when-let [^GLContext context (make-current viewport drawable)]
-    (let [gl ^GL2 (.getGL context)
-          glu ^GLU (GLU.)
-          render-args (generic-render-args glu viewport camera)
-          renderables (apply merge-with (fn [renderables tool-renderables] (apply conj renderables tool-renderables)) renderables tool-renderables)]
-      (.glClearColor gl 0.0 0.0 0.0 1.0)
-      (gl/gl-clear gl 0.0 0.0 0.0 1)
-      (.glColor4f gl 1.0 1.0 1.0 1.0)
-      (gl-viewport gl viewport)
-      (doseq [pass pass/render-passes
-              :let [render-args (assoc render-args :pass pass)]]
-        (setup-pass context gl glu pass camera viewport)
-        (batch-render gl render-args (get renderables pass) false :batch-key))
-      (let [[w h] (vp-dims viewport)
-            buf-image (read-to-buffered-image w h)]
-        (scene-cache/prune-object-caches! gl)
-        (.release context)
-        buf-image))))
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables tool-renderables ^AsyncCopier async-copier]
+  (when async-copier
+    (when-let [^GLContext context (.getContext drawable) #_(make-current viewport drawable)]
+     (let [gl ^GL2 (.getGL context)
+           glu ^GLU (GLU.)
+           render-args (generic-render-args glu viewport camera)
+           renderables (apply merge-with (fn [renderables tool-renderables] (apply conj renderables tool-renderables)) renderables tool-renderables)]
+       (.beginFrame async-copier gl)
+       (.glClearColor gl 0.0 0.0 0.0 1.0)
+       (gl/gl-clear gl 0.0 0.0 0.0 1)
+       (.glColor4f gl 1.0 1.0 1.0 1.0)
+       (gl-viewport gl viewport)
+       (doseq [pass pass/render-passes
+               :let [render-args (assoc render-args :pass pass)]]
+         (setup-pass context gl glu pass camera viewport)
+         (batch-render gl render-args (get renderables pass) false :batch-key))
+       (let [[w h] (vp-dims viewport)
+             #_buf-image #_(read-to-buffered-image w h)]
+         (scene-cache/prune-object-caches! gl)
+         (.endFrame async-copier gl)
+         #_(.release context)
+         #_buf-image
+         nil)))))
 
 (def pick-buffer-size 4096)
 
@@ -368,6 +376,7 @@
   (input tool-renderables pass/RenderData :array)
   (input picking-rect Rect)
   (input tool-picking-rect Rect)
+  (input image-view ImageView)
 
   (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:all-renderables render-data)))
@@ -385,7 +394,15 @@
   (output updatables g/Any :cached (g/fnk [renderables]
                                           (let [flat-renderables (apply concat (map second renderables))]
                                             (into {} (map (fn [r] [(:node-id r) r]) (filter :updatable flat-renderables))))))
-  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
+  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
+  (output async-copier AsyncCopier :cached (g/fnk [^GLAutoDrawable drawable viewport image-view]
+                                                  (when (and drawable (vp-not-empty? viewport))
+                                                    (let [context ^GLContext (make-current viewport drawable)
+                                                          gl ^GL2 (.getGL context)
+                                                          [w h] (vp-dims viewport)
+                                                          copier (AsyncCopier. gl executor image-view w h)]
+                                                      (.release context)
+                                                      copier)))))
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action [node-id label]]
@@ -426,9 +443,13 @@
 (defn scene-view-dispose [node-id]
   (when-let [scene (g/node-by-id node-id)]
     (when-let [^GLAutoDrawable drawable (g/node-value node-id :gl-drawable)]
-      (scene-cache/drop-context! (.getGL drawable) false)
+      (let [gl (.getGL drawable)]
+        (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
+          (.dispose copier gl)
+          (g/set-property! node-id :async-copier nil))
+      (scene-cache/drop-context! gl false)
       (.destroy drawable)
-      (g/set-property! node-id :gl-drawable nil))))
+      (g/set-property! node-id :gl-drawable nil)))))
 
 (def ^Integer min-pick-size 10)
 
@@ -604,10 +625,13 @@
                                       (g/invalidate! (g/sources-of view-id :frame)))))
                                 (scene-cache/prune-object-caches! nil)
                                 (try
-                                  (let [image-view ^ImageView (g/node-value view-id :image-view)
-                                        image (g/node-value view-id :image)]
-                                    (when (not= image (.getImage image-view))
-                                      (.setImage image-view image)))
+                                  (let [view-graph (g/node-id->graph-id view-id)
+                                        renderer (g/graph-value view-graph :renderer)]
+                                    (g/node-value renderer :frame))
+                                  #_(let [image-view ^ImageView (g/node-value view-id :image-view)
+                                         image (g/node-value view-id :image)]
+                                     (when (not= image (.getImage image-view))
+                                       (.setImage image-view image)))
                                   (catch Exception e
                                     (.setImage image-view nil)
                                     (throw e))))))]
@@ -677,10 +701,11 @@
                   (g/connect view-id              :viewport                  camera           :viewport)
                   (g/connect view-id              :viewport                  renderer         :viewport)
                   (g/connect view-id              :scene                     renderer         :scene)
+                  (g/connect view-id              :image-view                renderer         :image-view)
 
                   (g/connect project              :selected-node-ids         view-id          :selection)
                   (g/connect view-id              :selection                 renderer         :selection)
-                  (g/connect renderer             :frame                     view-id          :frame)
+                  #_(g/connect renderer             :frame                     view-id          :frame)
 
                   (g/connect tool-controller      :input-handler             view-id          :input-handlers)
 
