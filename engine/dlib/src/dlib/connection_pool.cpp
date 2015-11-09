@@ -80,7 +80,9 @@ namespace dmConnectionPool
             // mechanism as we can't load every possible certificate for
             // every connections. It's possible to introspect the SSL object
             // to find out which certificates to load.
-            int options = SSL_SERVER_VERIFY_LATER;
+
+            // We set SSL_CONNECT_IN_PARTS to make the socket non blocking during the ssl handshake
+            int options = SSL_SERVER_VERIFY_LATER | SSL_CONNECT_IN_PARTS;
 
             // NOTE: CONFIG_SSL_CTX_MUTEXING must be configured as the
             // ssl-context is shared among all threads
@@ -276,16 +278,41 @@ namespace dmConnectionPool
         return RESULT_OK;
     }
 
-    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, Connection* c, dmSocket::Result* sr)
+    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, int ssl_handshake_timeout, Connection* c, dmSocket::Result* sr)
     {
         Result r = ConnectSocket(pool, address, port, ssl, c, sr);
         if (r == RESULT_OK) {
+
             if (ssl) {
+                uint64_t handshakestart = dmTime::GetTime();
+
+                // In order to not have it block (unless timeout == 0)
+                dmSocket::SetSendTimeout(c->m_Socket, ssl_handshake_timeout);
+                dmSocket::SetReceiveTimeout(c->m_Socket, ssl_handshake_timeout);
+
                 // NOTE: No session resume support. We would require a pool of session-id's or similar.
                 SSL* ssl = ssl_client_new(pool->m_SSLContext,
                                           dmSocket::GetFD(c->m_Socket),
                                           0,
                                           0);
+
+                *sr = dmSocket::RESULT_UNKNOWN;
+
+                // Since the socket is non blocking (and the way axtls is implemented)
+                // we need do the hand shake ourselves
+                while( ssl_handshake_status(ssl) != SSL_OK )
+                {
+                    int ret = ssl_read(ssl, 0);
+                    if( ret < 0 )
+                        break;
+
+                    uint64_t currenttime = dmTime::GetTime();
+                    if( ssl_handshake_timeout > 0 && (currenttime-handshakestart) > (uint64_t)ssl_handshake_timeout )
+                    {
+                        *sr = dmSocket::RESULT_WOULDBLOCK;
+                        break;
+                    }
+                }
 
                 int hs = ssl_handshake_status(ssl);
                 if (hs != SSL_OK) {
@@ -295,7 +322,10 @@ namespace dmConnectionPool
                     ssl = 0;
                     dmSocket::Delete(c->m_Socket);
                     c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                    *sr = dmSocket::RESULT_UNKNOWN;
+                }
+                else
+                {
+                    *sr = dmSocket::RESULT_OK;
                 }
                 c->m_SSLConnection = ssl;
             }
@@ -303,7 +333,7 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, HConnection* connection, dmSocket::Result* sock_res)
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int ssl_handshake_timeout, HConnection* connection, dmSocket::Result* sock_res)
     {
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
@@ -331,7 +361,7 @@ namespace dmConnectionPool
             return RESULT_OUT_OF_RESOURCES;
         }
 
-        Result r = Connect(pool, address, port, ssl, c, sock_res);
+        Result r = Connect(pool, address, port, ssl, ssl_handshake_timeout, c, sock_res);
         if (r == RESULT_OK) {
             *connection = MakeHandle(pool, index, c);
             c->m_ID = conn_id;
