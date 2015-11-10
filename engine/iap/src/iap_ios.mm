@@ -45,13 +45,21 @@ struct IAP
 
 IAP g_IAP;
 
-static void PushError(lua_State*L, NSError* error)
+NS_ENUM(NSInteger, ErrorReason)
 {
-    // Could be extended with error codes etc
+    REASON_ERROR = 0,
+    REASON_USER_CANCELED = 1,
+};
+
+static void PushError(lua_State*L, NSError* error, NSInteger reason)
+{
     if (error != 0) {
         lua_newtable(L);
         lua_pushstring(L, "error");
         lua_pushstring(L, [error.localizedDescription UTF8String]);
+        lua_rawset(L, -3);
+        lua_pushstring(L, "reason");
+        lua_pushnumber(L, reason);
         lua_rawset(L, -3);
     } else {
         lua_pushnil(L);
@@ -163,14 +171,14 @@ static void PushError(lua_State*L, NSError* error)
 
     if (!dmScript::IsInstanceValid(L))
     {
-        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        dmLogError("Could not run iap callback because the instance has been deleted.");
         lua_pop(L, 2);
         assert(top == lua_gettop(L));
         return;
     }
 
     lua_pushnil(L);
-    PushError(L, error);
+    PushError(L, error, REASON_ERROR);
 
     int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
     if (ret != 0) {
@@ -253,7 +261,11 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
     PushTransaction(L, transaction);
 
     if (transaction.transactionState == SKPaymentTransactionStateFailed) {
-        PushError(L, transaction.error);
+        if (transaction.error.code == SKErrorPaymentCancelled) {
+            PushError(L, transaction.error, REASON_USER_CANCELED);
+        } else {
+            PushError(L, transaction.error, REASON_ERROR);
+        }
     } else {
         lua_pushnil(L);
     }
@@ -383,7 +395,7 @@ int IAP_List(lua_State* L)
  *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_RESTORED
  *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED
  *     else
- *         print(error.error)
+ *         print(error.error, error.reason)
  *     end
  * end
  * function example(self)
@@ -504,6 +516,18 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
+/*# generic error reason
+ *
+ * @name iap.REASON_ERROR
+ * @variable
+ */
+
+/*# user canceled reason
+ *
+ * @name iap.REASON_USER_CANCELED
+ * @variable
+ */
+
 dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
     // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
@@ -524,6 +548,9 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     SETCONSTANT(TRANS_STATE_PURCHASED, SKPaymentTransactionStatePurchased);
     SETCONSTANT(TRANS_STATE_FAILED, SKPaymentTransactionStateFailed);
     SETCONSTANT(TRANS_STATE_RESTORED, SKPaymentTransactionStateRestored);
+
+    SETCONSTANT(REASON_ERROR, REASON_ERROR);
+    SETCONSTANT(REASON_USER_CANCELED, REASON_USER_CANCELED);
 
 #undef SETCONSTANT
 
