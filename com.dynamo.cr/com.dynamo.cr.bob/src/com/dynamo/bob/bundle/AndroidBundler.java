@@ -51,7 +51,7 @@ public class AndroidBundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
-        String exeName = debug ? "dmengine" : "dmengine_release";
+        String exeName = Bob.getDmengineExeName(Platform.Armv7Android, debug);
         String exe = Bob.getDmengineExe(Platform.Armv7Android, debug);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
@@ -207,11 +207,26 @@ public class AndroidBundler implements IBundler {
                 FileUtils.copyFile(source, zipOut);
             }
 
+            // Strip executable
+            String strippedpath = exe;
+            if( !debug )
+            {
+                File tmp = File.createTempFile(title, "." + FilenameUtils.getName(exe) + ".stripped");
+                tmp.deleteOnExit();
+                strippedpath = tmp.getAbsolutePath();
+                FileUtils.copyFile(new File(exe), tmp);
+
+                res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
+                if (res.ret != 0) {
+                    throw new IOException(new String(res.stdOutErr));
+                }
+            }
+
             // Copy executable
             String filename = FilenameUtils.concat("lib/armeabi-v7a", FilenameUtils.getName(exe));
             filename = FilenameUtils.normalize(filename, true);
             zipOut.putNextEntry(new ZipEntry(filename));
-            FileUtils.copyFile(new File(exe), zipOut);
+            FileUtils.copyFile(new File(strippedpath), zipOut);
         } finally {
             IOUtils.closeQuietly(zipIn);
             IOUtils.closeQuietly(zipOut);
