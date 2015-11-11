@@ -96,11 +96,14 @@ public class IapActivity extends Activity {
                 return true;
             } else {
                 Log.e(Iap.TAG, String.format("Failed to consume purchase (%d)", consumeResponse));
+                sendBuyError(consumeResponse);
             }
         } catch (RemoteException e) {
             Log.e(Iap.TAG, "Failed to consume purchase", e);
+            sendBuyError(Iap.BILLING_RESPONSE_RESULT_ERROR);
         } catch (JSONException e) {
             Log.e(Iap.TAG, "Failed to consume purchase", e);
+            sendBuyError(Iap.BILLING_RESPONSE_RESULT_ERROR);
         }
         return false;
     }
