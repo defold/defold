@@ -49,7 +49,7 @@ TEST_F(dmConnectionPoolTest, Connect)
 {
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
     dmConnectionPool::Close(pool, c);
 }
@@ -63,7 +63,7 @@ TEST_F(dmConnectionPoolTest, MaxConnections)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
     }
@@ -73,7 +73,7 @@ TEST_F(dmConnectionPoolTest, MaxConnections)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -95,7 +95,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
         dmSocket::Address a;
@@ -109,7 +109,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -124,7 +124,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
 
         dmSocket::Address a;
@@ -157,7 +157,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
 
@@ -172,7 +172,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -189,7 +189,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         dmSocket::Address a;
         uint16_t p;
@@ -217,7 +217,7 @@ TEST_F(dmConnectionPoolTest, ConnectFailed)
 {
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", 1111, false, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", 1111, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_SOCKET_ERROR, r);
 }
 
