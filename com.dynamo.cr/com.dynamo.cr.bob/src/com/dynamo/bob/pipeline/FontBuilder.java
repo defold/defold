@@ -37,13 +37,7 @@ public class FontBuilder extends Builder<Void>  {
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(fontDesc.getFont()))
-                .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt("_tex0.texturec"));
-
-        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
-            task.addInput(this.project.getResource(textureProfilesPath));
-        }
+                .addOutput(input.changeExt(params.outExt()));
 
         return task.build();
     }
@@ -51,8 +45,6 @@ public class FontBuilder extends Builder<Void>  {
     @Override
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
-
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
 
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.input(0), fontDescbuilder);
@@ -68,8 +60,7 @@ public class FontBuilder extends Builder<Void>  {
         try {
 
             // Run fontc, fills the fontmap builder and returns an image
-            FontMap.Builder fontMapBuilder = FontMap.newBuilder();
-            outputImage = fontc.compile(fontStream, fontDesc, fontMapBuilder, new FontResourceResolver() {
+            FontMap fontMap = fontc.compile(fontStream, fontDesc, new FontResourceResolver() {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
@@ -86,30 +77,12 @@ public class FontBuilder extends Builder<Void>  {
                 }
             });
 
-            // Generate texture from font image
-            TextureImage texture = TextureGenerator.generate(outputImage, texProfile);
-            ByteArrayOutputStream textureOutputStream = new ByteArrayOutputStream(1024 * 1024);
-            texture.writeTo(textureOutputStream);
-            textureOutputStream.close();
-            task.output(1).setContent(textureOutputStream.toByteArray());
-
-            String texturePath = task.input(0).changeExt("_tex0.texturec").output().getPath();
-            texturePath = texturePath.substring(project.getBuildDirectory().length());
-            fontMapBuilder.addTextures(texturePath);
-
             // Save fontmap file
-            task.output(0).setContent(fontMapBuilder.build().toByteArray());
-
-            BuilderUtil.checkResource(project, task.output(0), "texture", task.output(1).getPath());
+            task.output(0).setContent(fontMap.toByteArray());
 
         } catch (FontFormatException e) {
             task.output(0).remove();
-            task.output(1).remove();
             throw new CompileExceptionError(task.input(0), 0, e.getMessage());
-        } catch (TextureGeneratorException e) {
-            task.output(0).remove();
-            task.output(1).remove();
-            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         } finally {
             fontStream.close();
         }

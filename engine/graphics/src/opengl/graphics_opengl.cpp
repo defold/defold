@@ -1390,9 +1390,13 @@ static void LogFrameBufferError(GLenum status)
          * For RGA-textures the row-alignment may not be a multiple of 4.
          * OpenGL doesn't like this by default
          */
-        if (params.m_Format == TEXTURE_FORMAT_RGB)
+        if (params.m_Format != TEXTURE_FORMAT_RGBA)
         {
-            uint32_t bytes_per_row = params.m_Width * 3;
+            uint32_t bytes_per_row = 1;
+            if (params.m_Format == TEXTURE_FORMAT_RGB) {
+                bytes_per_row = params.m_Width * 3;
+            }
+
             if (bytes_per_row % 4 == 0) {
                 // Ok
             } else if (bytes_per_row % 2 == 0) {
@@ -1412,7 +1416,9 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
 
         texture->m_Params = params;
-        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+        if (!params.m_SubUpdate) {
+            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+        }
 
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
@@ -1473,7 +1479,11 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
             if (texture->m_Type == TEXTURE_TYPE_2D) {
-                glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
+                if (params.m_SubUpdate) {
+                    glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
+                } else {
+                    glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
+                }
             } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                 const char* p = (const char*) params.m_Data;
                 glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
@@ -1505,7 +1515,10 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB_ETC1:
             if (params.m_DataSize > 0) {
                 if (texture->m_Type == TEXTURE_TYPE_2D) {
-                    glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
+                    if (params.m_SubUpdate) {
+                    } else {
+                        glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
+                    }
                     CHECK_GL_ERROR
                 } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                     const char* p = (const char*) params.m_Data;
@@ -1540,6 +1553,16 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR
         }
+    }
+
+    uint8_t* GetTextureData(HTexture texture)
+    {
+        uint8_t* asd = (uint8_t*)malloc(sizeof(uint8_t) * texture->m_Width * texture->m_Height * 3);
+        // glBindTexture(TEXTURE_TYPE_2D, texture->m_Texture);
+        // glGetTexImage(TEXTURE_TYPE_2D, 0, DMGRAPHICS_TEXTURE_FORMAT_RGB, DMGRAPHICS_TYPE_UNSIGNED_BYTE, (void*)asd);
+        // glBindTexture(TEXTURE_TYPE_2D, 0);
+
+        return asd;
     }
 
     uint16_t GetTextureWidth(HTexture texture)

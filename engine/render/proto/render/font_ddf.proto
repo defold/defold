@@ -27,6 +27,10 @@ message FontDesc
     optional float shadow_y = 11 [default = 0.0];
     optional string extra_characters = 12 [default = ""];
     optional FontTextureFormat output_format = 13 [default = TYPE_BITMAP];
+
+    optional bool all_chars = 14 [default = false];
+    optional uint32 cache_width = 15 [default = 0];
+    optional uint32 cache_height = 16 [default = 0];
 }
 
 message FontMap
@@ -41,6 +45,9 @@ message FontMap
         optional uint32 descent = 6 [default = 0];
         optional int32 x = 7 [default = 0];
         optional int32 y = 8 [default = 0];
+
+        optional uint64 glyph_data_offset = 9;
+        optional uint64 glyph_data_size = 10;
     }
 
     repeated Glyph glyphs = 1;
@@ -54,5 +61,20 @@ message FontMap
     optional float sdf_scale = 11 [default = 1];
     optional float sdf_offset = 12 [default = 0];
     optional float sdf_outline = 13 [default = 0];
-    repeated string textures = 14 [(resource)=true];
+    //repeated string textures = 14 [(resource)=true];
+
+    optional uint32 cache_width = 14 [default = 0];
+    optional uint32 cache_height = 15 [default = 0];
+    optional uint64 glyph_padding = 16; // total uncompressed size
+
+    optional uint32 cache_cell_width = 17;
+    optional uint32 cache_cell_height = 18;
+
+    optional uint32 glyph_channels = 19;
+
+    optional bytes glyph_data = 20; // glyph data may be compressed
+    optional uint64 glyph_data_size = 21; // total uncompressed size
+
+
+
 }

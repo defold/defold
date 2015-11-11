@@ -25,6 +25,7 @@ import java.awt.image.Kernel;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -43,10 +44,6 @@ import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
-import com.dynamo.bob.pipeline.TextureGenerator;
-import com.dynamo.bob.pipeline.TextureGeneratorException;
-import com.dynamo.bob.util.PathUtil;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
@@ -55,7 +52,7 @@ import com.google.protobuf.TextFormat;
 
 class Glyph {
     int index;
-    char c;
+    int c;
     int width;
     int advance;
     int leftBearing;
@@ -63,6 +60,8 @@ class Glyph {
     int descent;
     int x;
     int y;
+    int cache_entry_offset;
+    int cache_entry_size;
     GlyphVector vector;
 };
 
@@ -113,99 +112,176 @@ public class Fontc {
         FORMAT_TRUETYPE, FORMAT_BMFONT
     };
 
-    private int imageWidth = 1024;
-    private int imageHeight = 2048; // Enough. Will be cropped later
     private InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
     private Stroke outlineStroke = null;
-    private StringBuffer characters;
-    private FontRenderContext fontRendererContext;
-    private BufferedImage image;
     private FontDesc fontDesc;
-    static final int imageType = BufferedImage.TYPE_3BYTE_BGR;
-
-
+    private FontMap.Builder fontMapBuilder;
+    private ArrayList<Glyph> glyphs = new ArrayList<Glyph>();
+    
+    private Font font;
+    private BMFont bmfont;
 
     public interface FontResourceResolver {
         public InputStream getResource(String resourceName) throws FileNotFoundException;
     }
 
     public Fontc() {
+        
     }
 
     public InputFontFormat getInputFormat() {
         return inputFormat;
     }
 
-    public void builderTTF(InputStream fontStream, FontDesc fontDesc, FontMap.Builder builder) throws FontFormatException, IOException {
+    public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
 
-        // 7-bit ASCII. Note inclusive range [32,126]
-        for (int i = 32; i <= 126; ++i)
-            this.characters.append((char) i);
+        ArrayList<Integer> characters = new ArrayList<Integer>();
 
-        String extraCharacters = fontDesc.getExtraCharacters();
-        for (int i = 0; i < extraCharacters.length(); i++) {
-            char c = extraCharacters.charAt(i);
-            this.characters.append(c);
+        if (!fontDesc.getAllChars()) {
+
+            // 7-bit ASCII. Note inclusive range [32,126]
+            for (int i = 32; i <= 126; ++i) {
+                characters.add(i);
+            }
+
+            String extraCharacters = fontDesc.getExtraCharacters();
+            for (int i = 0; i < extraCharacters.length(); i++) {
+                char c = extraCharacters.charAt(i);
+                characters.add((int)c);
+            }
+
         }
 
-        this.fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.getAntialias() != 0, fontDesc.getAntialias() != 0);
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
             outlineStroke = new BasicStroke(fontDesc.getOutlineWidth());
         }
 
-        Font font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
+        font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
         font = font.deriveFont(Font.PLAIN, fontDesc.getSize());
-        for (int i = 0; i < this.characters.length(); ++i) {
-            char ch = this.characters.charAt(i);
-            if (!font.canDisplay(ch)) {
-                this.characters.deleteCharAt(i);
-                i--;
+
+
+        FontRenderContext fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.getAntialias() != 0, fontDesc.getAntialias() != 0);
+
+        int loopEnd = characters.size();
+        if (fontDesc.getAllChars()) {
+            assert(0 == loopEnd);
+            loopEnd = 0x10FFFF;
+        }
+        for (int i = 0; i < loopEnd; ++i) {
+
+            int codePoint = i;
+            if (!fontDesc.getAllChars()) {
+                codePoint = characters.get(i);
+            }
+
+            if (font.canDisplay(codePoint)) {
+                String s = new String(Character.toChars(codePoint));
+
+                GlyphVector glyphVector = font.createGlyphVector(fontRendererContext, s);
+                Rectangle visualBounds = glyphVector.getOutline().getBounds();
+
+                GlyphMetrics metrics = glyphVector.getGlyphMetrics(0);
+
+                Glyph glyph = new Glyph();
+                glyph.ascent = (int)Math.ceil(-visualBounds.getMinY());
+                glyph.descent = (int)Math.ceil(visualBounds.getMaxY());
+
+                glyph.c = codePoint;
+                glyph.index = i;
+                glyph.advance = Math.round(metrics.getAdvance());
+                float leftBearing = metrics.getLSB();
+                glyph.leftBearing = (int)Math.floor(leftBearing);
+                glyph.width = visualBounds.width;
+                if (leftBearing != 0.0f) {
+                    glyph.width += 1;
+                }
+
+                glyph.vector = glyphVector;
+
+                glyphs.add(glyph);
             }
         }
-
-        image = new BufferedImage(this.imageWidth, this.imageHeight, Fontc.imageType);
-        Graphics2D g = image.createGraphics();
+        
+        BufferedImage image;
+        Graphics2D g;
+        image = new BufferedImage(1024, 1024, BufferedImage.TYPE_3BYTE_BGR);
+        g = image.createGraphics();
         g.setBackground(fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? Color.WHITE : Color.BLACK);
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
-
+        
         FontMetrics fontMetrics = g.getFontMetrics(font);
         int maxAscent = fontMetrics.getMaxAscent();
         int maxDescent = fontMetrics.getMaxDescent();
+        fontMapBuilder.setMaxAscent(maxAscent)
+                      .setMaxDescent(maxDescent)
+                      .setShadowX(fontDesc.getShadowX())
+                      .setShadowY(fontDesc.getShadowY());
 
-        ArrayList<Glyph> glyphs = new ArrayList<Glyph>();
-        for (int i = 0; i < this.characters.length(); ++i) {
-            String s = this.characters.substring(i, i+1);
+    }
+    
 
-            GlyphVector glyphVector = font.createGlyphVector(this.fontRendererContext, s);
-            Rectangle visualBounds = glyphVector.getOutline().getBounds();
-            GlyphMetrics metrics = glyphVector.getGlyphMetrics(0);
+    public void FNTBuilder(InputStream fontStream) throws FontFormatException, IOException {
+        this.inputFormat = InputFontFormat.FORMAT_BMFONT;
+
+        bmfont = new BMFont();
+
+        // parse BMFont file
+        try {
+            bmfont.parse(fontStream);
+        } catch (BMFontFormatException e) {
+            throw new FontFormatException(e.getMessage());
+        }
+        
+        int maxAscent = 0;
+        int maxDescent = 0;
+        for (int i = 0; i < bmfont.charArray.size(); ++i) {
+
+            Char c = bmfont.charArray.get(i);
+            
+            int ascent = bmfont.base - (int)c.yoffset;
+            int descent = c.height - ascent;
+
+            maxAscent = Math.max(ascent, maxAscent);
+            maxDescent = Math.max(descent, maxDescent);
 
             Glyph glyph = new Glyph();
-            glyph.ascent = (int)Math.ceil(-visualBounds.getMinY());
-            glyph.descent = (int)Math.ceil(visualBounds.getMaxY());
+            glyph.ascent = ascent;
+            glyph.descent = descent;
 
-            glyph.c = s.charAt(0);
+            glyph.x = c.x;
+            glyph.y = c.y;
+            glyph.c = c.id;
             glyph.index = i;
-            glyph.advance = Math.round(metrics.getAdvance());
-            float leftBearing = metrics.getLSB();
-            glyph.leftBearing = (int)Math.floor(leftBearing);
-            glyph.width = visualBounds.width;
-            if (leftBearing != 0.0f) {
-                glyph.width += 1;
-            }
-
-            glyph.vector = glyphVector;
+            glyph.advance = (int) c.xadvance;
+            glyph.leftBearing = (int) c.xoffset;
+            glyph.width = c.width;
 
             glyphs.add(glyph);
         }
+        
+        fontMapBuilder.setMaxAscent(maxAscent)
+                      .setMaxDescent(maxDescent);
+    }
+    
+    private void repeatedWrite(ByteArrayOutputStream dataOut, int repeat, int value) {
+        for (int i = 0; i < repeat; i++) {
+            dataOut.write(value);
+        }
+    }
 
-        int i = 0;
-        float totalY = 0.0f;
+    public void generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException {
+
+        ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
+        
+        int cellWidth = 0;
+        int cellHeight = 0;
+        
         // Margin is set to 1 since the font map is an atlas, this removes sampling artifacts (neighbouring texels outside the sample-area being used)
         int margin = 1;
         int padding = 0;
+        int cell_padding = 1;
         float sdf_scale = 0;
         float sdf_offset = 0;
         if (fontDesc.getAntialias() != 0)
@@ -215,14 +291,14 @@ public class Fontc {
             // need sqrt(2) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
             // for interpolation across texels in the output. The extra is for smoothstep room.
             float sqrt2 = 1.4142f;
-            sdf_scale = 1.0f / (1 + 2.0f * sqrt2 + this.fontDesc.getOutlineWidth());
+            sdf_scale = 1.0f / (1 + 2.0f * sqrt2 + fontDesc.getOutlineWidth());
             sdf_offset = sdf_scale * sqrt2; // where glyph ends
         }
-        Color faceColor = new Color(this.fontDesc.getAlpha(), 0.0f, 0.0f);
-        Color outlineColor = new Color(0.0f, this.fontDesc.getOutlineAlpha(), 0.0f);
+        Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
+        Color outlineColor = new Color(0.0f, fontDesc.getOutlineAlpha(), 0.0f);
         ConvolveOp shadowConvolve = null;
         Composite blendComposite = new BlendComposite();
-        if (this.fontDesc.getShadowAlpha() > 0.0f) {
+        if (fontDesc.getShadowAlpha() > 0.0f) {
             float[] kernelData = {
                     0.0625f, 0.1250f, 0.0625f,
                     0.1250f, 0.2500f, 0.1250f,
@@ -234,67 +310,212 @@ public class Fontc {
             hints.put(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_DISABLE);
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
-        while (i < this.characters.length()) {
-            float x = margin;
-            float maxY = 0.0f;
-            int j = i;
-            while (j < this.characters.length() && x < this.imageWidth ) {
-                Glyph glyph = glyphs.get(j);
-                int width = glyph.width + margin + padding * 2;
-                if (x + width < this.imageWidth) {
-                    maxY = Math.max(maxY, glyph.ascent + glyph.descent);
-                    x += width;
-                } else {
-                    break;
-                }
-                ++j;
-            }
-
-            g.translate(0, margin);
-
-            for (int k = i; k < j; ++k) {
-                Glyph glyph = glyphs.get(k);
-
-                g.translate(margin, 0);
-
-                if (glyph.width > 0.0f) {
-                    BufferedImage glyphImage;
-                    if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP)
-                        glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
-                    else
-                        glyphImage = makeDistanceField(glyph, padding, sdf_scale, sdf_offset, font);
-                    g.drawImage(glyphImage, 0, 0, null);
-                    glyph.x += g.getTransform().getTranslateX();
-                    glyph.y += g.getTransform().getTranslateY();
-
-                    g.translate(glyphImage.getWidth(), 0);
-                }
-            }
-            g.translate(-g.getTransform().getTranslateX(), maxY + padding * 2);
-            totalY += maxY + margin + 2 * padding;
-            i = j;
-        }
-        totalY += margin;
-
-        int newHeight = (int) (Math.log(totalY) / Math.log(2));
-        newHeight = (int) Math.pow(2, newHeight + 1);
-        this.image = this.image.getSubimage(0, 0, this.imageWidth, newHeight);
-
-        builder.setShadowX(fontDesc.getShadowX())
-               .setShadowY(fontDesc.getShadowY())
-               .setMaxAscent(maxAscent)
-               .setMaxDescent(maxDescent);
-
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             // sdf_scale has up until now been the value to scale with.
             // Now recompute their inverses to be used for unpacking it.
-            builder.setSdfScale(1.0f / sdf_scale);
-            builder.setSdfOffset(-sdf_offset / sdf_scale);
-            builder.setSdfOutline(this.fontDesc.getOutlineWidth());
-
+            fontMapBuilder.setSdfScale(1.0f / sdf_scale);
+            fontMapBuilder.setSdfOffset(-sdf_offset / sdf_scale);
+            fontMapBuilder.setSdfOutline(this.fontDesc.getOutlineWidth());
+        }
+        
+        // Load external image resource for BMFont files
+        BufferedImage imageBMFont = null;
+        if (inputFormat == InputFontFormat.FORMAT_BMFONT) {
+            String origPath = Paths.get(FilenameUtils.normalize(bmfont.page.get(0))).getFileName().toString();
+            InputStream inputImageStream = null;
+            try {
+                inputImageStream = resourceResolver.getResource(origPath);
+                imageBMFont = ImageIO.read(inputImageStream);
+                inputImageStream.close();
+            } catch (FileNotFoundException e) {
+                throw new FontFormatException("Could not find BMFont image resource: " + origPath);
+            } catch (IOException e) {
+                throw new FontFormatException("Error while reading BMFont image resource: " + e.getMessage());
+            }
+        }
+        
+        // Calculate channel count depending on both input and output format
+        int channelCount = 3;
+        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
+            inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
+            
+            // If font has outline, we need all three channels
+            if (fontDesc.getOutlineWidth() > 0.0f && this.fontDesc.getOutlineAlpha() > 0.0f) {
+                channelCount = 3;
+            } else {
+                channelCount = 1;                
+            }
+            
+        } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
+                   inputFormat == InputFontFormat.FORMAT_BMFONT) {
+            channelCount = 4;
+        } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
+                   inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
+            channelCount = 1;
         }
 
-        i = 0;
+        
+        // Generate "old style" texture preview
+        if (preview) {
+
+            /*
+            while (i < this.characters.length()) {
+                float x = margin;
+                float maxY = 0.0f;
+                int j = i;
+                while (j < this.characters.length() && x < imageWidth ) {
+                    Glyph glyph = glyphs.get(j);
+                    int width = glyph.width + margin + padding * 2;
+                    if (x + width < imageWidth) {
+                        maxY = Math.max(maxY, glyph.ascent + glyph.descent);
+                        x += width;
+                    } else {
+                        break;
+                    }
+                    ++j;
+                }
+
+                g.translate(0, margin);
+
+                for (int k = i; k < j; ++k) {
+                    Glyph glyph = glyphs.get(k);
+
+                    g.translate(margin, 0);
+
+                    if (glyph.width > 0.0f) {
+                        BufferedImage glyphImage;
+                        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP)
+                            glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
+                        else
+                            glyphImage = makeDistanceField(glyph, padding, sdf_scale, sdf_offset, font);
+                        g.drawImage(glyphImage, 0, 0, null);
+                        glyph.x += g.getTransform().getTranslateX();
+                        glyph.y += g.getTransform().getTranslateY();
+
+                        g.translate(glyphImage.getWidth(), 0);
+                    }
+                }
+                g.translate(-g.getTransform().getTranslateX(), maxY + padding * 2);
+                totalY += maxY + margin + 2 * padding;
+                i = j;
+
+            }
+            totalY += margin;
+
+            int newHeight = (int) (Math.log(totalY) / Math.log(2));
+            newHeight = (int) Math.pow(2, newHeight + 1);
+            image = image.getSubimage(0, 0, this.imageWidth, newHeight);
+            */
+
+        // Generate glyph data bank
+        } else {
+
+            // Keep track of offset into the glyph data bank
+            int dataOffset = 0;
+            
+            for (int i = 0; i < glyphs.size(); i++) {
+
+                Glyph glyph = glyphs.get(i);
+                if (glyph.width <= 0.0f) {
+                    continue;
+                }
+                glyph.cache_entry_offset = dataOffset;
+
+                // Find max width, height for each glyph to lock down cache cell sizes
+                // Includes cell padding
+                int width = glyph.width + padding * 2 + cell_padding * 2;
+                int height = glyph.ascent + glyph.descent + padding * 2 + cell_padding * 2;
+                cellWidth = Math.max(cellWidth, width);
+                cellHeight = Math.max(cellHeight, height);
+
+                // Generate bitmap for each glyph depending on format
+                BufferedImage glyphImage = null;
+                int clearData = 0;
+                if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
+                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
+                    glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
+                } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
+                           inputFormat == InputFontFormat.FORMAT_BMFONT) {
+                    glyphImage = drawBMFontGlyph(glyph, imageBMFont);
+                } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
+                           inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
+                    glyphImage = makeDistanceField(glyph, padding, sdf_scale, sdf_offset, font);
+                    clearData = 255;
+                } else {
+                    throw new FontFormatException("Invalid font format combination!");
+                }
+
+                // Get raster data from rendered glyph and store in glyph data bank
+                int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
+                for (int y = 0; y < glyphImage.getHeight(); y++) {
+                    if (y == 0) {
+                        repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
+                    }
+                    for (int x = 0; x < glyphImage.getWidth(); x++) {
+                        
+                        if (x == 0) {
+                            repeatedWrite(glyphDataBank, channelCount, clearData);
+                        }
+                        
+                        int color = glyphImage.getRGB(x, y);
+                        int blue  = (color);
+                        int green = (blue >> 8);
+                        int red   = (green >> 8);
+
+                        glyphDataBank.write((byte)(red & 0x000000ff));
+
+                        if (channelCount > 1) {
+                            glyphDataBank.write((byte)(green & 0x000000ff));
+                            glyphDataBank.write((byte)(blue & 0x000000ff));
+                            
+                            if (channelCount > 3) {
+                                int alpha = (red >> 8);
+                                glyphDataBank.write((byte)(alpha & 0x000000ff));
+                            }
+                        }
+                        
+                        if (x == glyphImage.getWidth()-1) {
+                            repeatedWrite(glyphDataBank, channelCount, clearData);
+                        }
+
+                    }
+                    if (y == glyphImage.getHeight()-1) {
+                        repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
+                    }
+                }
+                dataOffset += dataSizeOut;
+                glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
+
+            }
+
+        }
+        
+        
+        // Start filling the rest of FontMap        
+        int cache_width = 1024;
+        int cache_height = 2048;
+        if (fontDesc.getCacheWidth() > 0) {
+            cache_width = fontDesc.getCacheWidth(); 
+        }
+        if (fontDesc.getCacheHeight() > 0) {
+            cache_height = fontDesc.getCacheHeight(); 
+        }
+        
+        fontMapBuilder.setGlyphPadding(cell_padding);
+        fontMapBuilder.setCacheWidth(cache_width);
+        fontMapBuilder.setCacheHeight(cache_height);
+        fontMapBuilder.setGlyphData(ByteString.copyFrom(glyphDataBank.toByteArray()));
+        fontMapBuilder.setCacheCellWidth(cellWidth);
+        fontMapBuilder.setCacheCellHeight(cellHeight);
+        fontMapBuilder.setGlyphChannels(channelCount);
+
+        // Sanity check
+        // Some fonts don't include ASCII range and trying to compile a font without
+        // setting "all_chars" could result in an empty glyph list.
+        if (glyphs.size() == 0) {
+            throw new FontFormatException("No character glyphs where included! Maybe turn on 'all_chars'?");
+        }
+        
         for (Glyph glyph : glyphs) {
             FontMap.Glyph.Builder glyphBuilder = FontMap.Glyph.newBuilder()
                 .setCharacter(glyph.c)
@@ -303,79 +524,33 @@ public class Fontc {
                 .setLeftBearing(glyph.leftBearing - padding)
                 .setAscent(glyph.ascent + padding)
                 .setDescent(glyph.descent + padding)
-                .setX(glyph.x)
-                .setY(glyph.y);
-            builder.addGlyphs(glyphBuilder);
+                .setGlyphDataOffset(glyph.cache_entry_offset)
+                .setGlyphDataSize(glyph.cache_entry_size);
+            fontMapBuilder.addGlyphs(glyphBuilder);
         }
 
     }
 
-    public void builderFNT(InputStream fontStream, FontDesc fontDesc, FontMap.Builder builder, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
-        this.inputFormat = InputFontFormat.FORMAT_BMFONT;
 
-        BMFont bmfont = new BMFont();
-
-        // parse BMFont file
-        try {
-            bmfont.parse(fontStream);
-        } catch (BMFontFormatException e) {
-            throw new FontFormatException(e.getMessage());
-        }
-
-        // fill glyphs
-        int maxAscent = 0;
-        int maxDescent = 0;
-        for (int i = 0; i < bmfont.charArray.size(); ++i) {
-            Char c = bmfont.charArray.get(i);
-
-            int ascent = bmfont.base - (int)c.yoffset;
-            int descent = c.height - ascent;
-
-            maxAscent = Math.max(ascent, maxAscent);
-            maxDescent = Math.max(descent, maxDescent);
-
-            FontMap.Glyph.Builder glyphBuilder = FontMap.Glyph.newBuilder()
-                .setCharacter(c.id)
-                .setWidth(c.width)
-                .setAdvance(c.xadvance)
-                .setLeftBearing(c.xoffset)
-                .setAscent(ascent)
-                .setDescent(descent)
-                .setX(c.x - (int)c.xoffset)
-                .setY(c.y + ascent);
-            builder.addGlyphs(glyphBuilder);
-        }
-
-        // fill FontMap
-        builder.setMaxAscent(maxAscent)
-               .setMaxDescent(maxDescent);
-
-        // copy to new texture
-        String origPath = Paths.get(FilenameUtils.normalize(bmfont.page.get(0))).getFileName().toString();
-        InputStream inputImageStream = null;
-        try {
-            inputImageStream = resourceResolver.getResource(origPath);
-        } catch (FileNotFoundException e) {
-            throw new IOException("Could not find BMFont image resource: " + origPath);
-        }
-        BufferedImage origImage = ImageIO.read(inputImageStream);
-        inputImageStream.close();
-        this.image = origImage;
-    }
-
-    public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, FontMap.Builder fontMapBuilder, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
-        this.characters = new StringBuffer();
+    public FontMap compile(InputStream fontStream, FontDesc fontDesc, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
         this.fontDesc = fontDesc;
+        this.fontMapBuilder = FontMap.newBuilder();
 
         if (fontDesc.getFont().toLowerCase().endsWith("fnt")) {
-            builderFNT(fontStream, fontDesc, fontMapBuilder, resourceResolver);
+            FNTBuilder(fontStream);
         } else {
-            builderTTF(fontStream, fontDesc, fontMapBuilder);
+            TTFBuilder(fontStream);
         }
         fontMapBuilder.setMaterial(fontDesc.getMaterial() + "c");
         fontMapBuilder.setImageFormat(fontDesc.getOutputFormat());
 
-        return this.image;
+        generateGlyphData(false, resourceResolver);
+
+        return this.fontMapBuilder.build(); // TODO
+    }
+    
+    private BufferedImage drawBMFontGlyph(Glyph glyph, BufferedImage imageBMFontInput) {
+        return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
 
     private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_scale, float sdf_offset, Font font) {
@@ -430,7 +605,7 @@ public class Fontc {
         double kx = 1 / (double)width;
         double ky = 1 / (double)height;
 
-        BufferedImage image = new BufferedImage(width, height, Fontc.imageType);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
         for (int v=0;v<height;v++) {
             int ofs = v * width;
             for (int u=0;u<width;u++) {
@@ -463,7 +638,7 @@ public class Fontc {
         glyph.x = dx;
         glyph.y = dy;
 
-        BufferedImage image = new BufferedImage(width, height, Fontc.imageType);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
         Graphics2D g = image.createGraphics();
         setHighQuality(g);
         g.setBackground(Color.BLACK);
@@ -502,7 +677,7 @@ public class Fontc {
         } else {
             g.setPaint(faceColor);
             g.setFont(font);
-            g.drawString(Character.toString(glyph.c), 0, 0);
+            g.drawString(new String(Character.toChars(glyph.c)), 0, 0);
         }
 
         return image;
@@ -541,9 +716,10 @@ public class Fontc {
     }
 
     public static BufferedImage compileToImage(InputStream fontStream, FontDesc fontDesc, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
-        Fontc fontc = new Fontc();
-        FontMap.Builder builder = FontMap.newBuilder();
-        return fontc.compile(fontStream, fontDesc, builder, resourceResolver);
+//        Fontc fontc = new Fontc();
+//        FontMap.Builder builder = FontMap.newBuilder();
+        //return fontc.compile(fontStream, fontDesc, builder, resourceResolver);
+        return null; // TODO
     }
 
     public static void main(String[] args) throws FontFormatException {
@@ -588,8 +764,7 @@ public class Fontc {
             Fontc fontc = new Fontc();
             String fontInputFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontInputStream = new BufferedInputStream(new FileInputStream(fontInputFile));
-            FontMap.Builder fontmapBuilder = FontMap.newBuilder();
-            BufferedImage image = fontc.compile(fontInputStream, fontDesc, fontmapBuilder, new FontResourceResolver() {
+            FontMap fontMap = fontc.compile(fontInputStream, fontDesc, new FontResourceResolver() {
 
                 @Override
                 public InputStream getResource(String resourceName) throws FileNotFoundException {
@@ -601,26 +776,11 @@ public class Fontc {
             });
             fontInputStream.close();
 
-            // Construct "internal" project root relative path, ie. /builtins/fonts/foobar_tex0.texturec
-            String internalPath = args[0].substring(basedir.length());
-            internalPath = FilenameUtils.removeExtension(internalPath) + "_tex0.texturec";
-            fontmapBuilder.addTextures(FilenameUtils.separatorsToUnix(internalPath));
-
-            // Generate texture (and save to disk) from font image
-            String textureFilename = FilenameUtils.removeExtension(Paths.get(outfile).normalize().toString()) + "_tex0.texturec";
-            TextureImage texture = TextureGenerator.generate(image, null);
-            FileOutputStream textureOutputStream = new FileOutputStream( textureFilename );
-            texture.writeTo(textureOutputStream);
-            textureOutputStream.close();
-
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
-            fontmapBuilder.build().writeTo(fontMapOutputStream);
+            fontMap.writeTo(fontMapOutputStream);
             fontMapOutputStream.close();
 
-        } catch (TextureGeneratorException e) {
-            System.err.println(e.getMessage());
-            System.exit(1);
         } catch (IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
