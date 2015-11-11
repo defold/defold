@@ -12,6 +12,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.project :as project]
+            [editor.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
@@ -239,13 +240,15 @@
        (gl/gl-clear gl 0.0 0.0 0.0 1)
        (.glColor4f gl 1.0 1.0 1.0 1.0)
        (gl-viewport gl viewport)
-       (doseq [pass pass/render-passes
-               :let [render-args (assoc render-args :pass pass)]]
-         (setup-pass context gl glu pass camera viewport)
-         (batch-render gl render-args (get renderables pass) false :batch-key))
+       (profiler/profile "render" -1
+                         (doseq [pass pass/render-passes
+                                 :let [render-args (assoc render-args :pass pass)]]
+                           (setup-pass context gl glu pass camera viewport)
+                           (batch-render gl render-args (get renderables pass) false :batch-key)))
        (let [[w h] (vp-dims viewport)
              #_buf-image #_(read-to-buffered-image w h)]
-         (scene-cache/prune-object-caches! gl)
+         (profiler/profile "prune" -1
+                           (scene-cache/prune-object-caches! gl))
          (.endFrame async-copier gl)
          #_(.release context)
          #_buf-image
@@ -352,17 +355,18 @@
      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d))))
 
 (defn produce-render-data [scene selection aux-renderables camera viewport]
-  (let [selection-set (set selection)
-        out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
-        out-selected-renderables (transient [])
-        world-transform (doto (Matrix4d.) (.setIdentity))
-        tmp-p3d (Point3d.)
-        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d)
-        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
-        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
-        out-selected-renderables (persistent! out-selected-renderables)]
-    {:all-renderables out-renderables
-     :selected-renderables out-selected-renderables}))
+  (profiler/profile "data" -1
+                    (let [selection-set (set selection)
+                          out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
+                          out-selected-renderables (transient [])
+                          world-transform (doto (Matrix4d.) (.setIdentity))
+                          tmp-p3d (Point3d.)
+                          render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d)
+                          out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
+                          out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
+                          out-selected-renderables (persistent! out-selected-renderables)]
+                      {:all-renderables out-renderables
+                       :selected-renderables out-selected-renderables})))
 
 (g/defnode SceneRenderer
   (property name g/Keyword (default :renderer))
@@ -613,16 +617,17 @@
                               (when (.isSelected tab)
                                 (when *fps-debug* (send-off fps-counter tick dt))
                                 ; Fixed dt for deterministic playback
-                                (let [dt 1/60]
-                                  (let [updatables (g/node-value view-id :active-updatables)
-                                        context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
-                                    (doseq [updatable updatables
-                                            :let [node-path (:node-path updatable)
-                                                  context (assoc context
-                                                                 :world-transform (:world-transform updatable))]]
-                                      ((get-in updatable [:updatable :update-fn]) context))
-                                    (when (not (empty? updatables))
-                                      (g/invalidate! (g/sources-of view-id :frame)))))
+                                (profiler/profile "updatables" -1
+                                                  (let [dt 1/60]
+                                                   (let [updatables (g/node-value view-id :active-updatables)
+                                                         context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
+                                                     (doseq [updatable updatables
+                                                             :let [node-path (:node-path updatable)
+                                                                   context (assoc context
+                                                                                  :world-transform (:world-transform updatable))]]
+                                                       ((get-in updatable [:updatable :update-fn]) context))
+                                                     (when (not (empty? updatables))
+                                                       (g/invalidate! (g/sources-of view-id :frame))))))
                                 (scene-cache/prune-object-caches! nil)
                                 (try
                                   (let [view-graph (g/node-id->graph-id view-id)
