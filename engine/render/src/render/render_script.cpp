@@ -106,8 +106,10 @@ namespace dmRender
 
     /*# create a new constant buffer.
      *
-     * Constant buffers are used to set shader program variables and are optionally passed to the render.draw function. The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate
+     * Constant buffers are used to set shader program variables and are optionally passed to the <code>render.draw()</code> 
+     * function. The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate
      * over them with pairs() or ipairs().
+     * 
      * @name render.constant_buffer
      * @return new constant buffer
      * @examples
@@ -877,9 +879,15 @@ namespace dmRender
      */
 
     /*# clears the active render target
+     * Clear buffers in the currently enabled render target with specified value.
      *
      * @name render.clear
-     * @param buffers Table specifying which buffers to clear. Available keys are: render.BUFFER_COLOR_BIT, render.BUFFER_DEPTH_BIT and render.BUFFER_STENCIL_BIT.
+     * @param buffers Table with keys specifying which buffers to clear and values set to clear values. Available keys are:
+     * <ul>
+     *     <li><code>render.BUFFER_COLOR_BIT</code></li>
+     *     <li><code>render.BUFFER_DEPTH_BIT</code></li>
+     *     <li><code>render.BUFFER_STENCIL_BIT</code></li>
+     * </ul>
      * @examples
      * <pre>
      * render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1})
@@ -940,10 +948,27 @@ namespace dmRender
     }
 
     /*# draws all objects matching a predicate
-     *
+     * Draws all objects that match a specified predicate. An optional constants buffer can be
+     * provided to override the default constants. If no constants buffer is provided, a default
+     * system constants buffer is used containing constants as defined in materials and set through
+     * <code>*.set_constant()</code> and <code>*.reset_constant()</code> on visual components.
+     * 
      * @name render.draw
      * @param predicate predicate to draw for (predicate)
-     * @param constants constants to use while rendering (constants buffer)
+     * @param constants optional constants to use while rendering (constants buffer)
+     * @examples
+     * <pre>
+     * function init(self)
+     *     self.tile_pred = render.predicate({"tile"})
+     *     ...
+     * end
+     *
+     * function update(self)
+     *     ...
+     *     render.draw(self.tile_pred)
+     *     ...
+     * end
+     * </pre>
      */
     int RenderScript_Draw(lua_State* L)
     {
