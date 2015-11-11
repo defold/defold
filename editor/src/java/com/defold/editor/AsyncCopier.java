@@ -3,7 +3,6 @@ package com.defold.editor;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -39,7 +38,6 @@ public class AsyncCopier {
 
     private static class Buffer {
         int pbo;
-        //WritableImage image;
 
         Buffer(int pbo) {
             this.pbo = pbo;
@@ -50,7 +48,6 @@ public class AsyncCopier {
             gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, pbo);
             gl.glBufferData(GL2.GL_PIXEL_PACK_BUFFER, data_size, null, GL2.GL_STREAM_READ);
             gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
-          //  image = new WritableImage(width, height);
         }
     }
 
@@ -123,7 +120,6 @@ public class AsyncCopier {
         }
 
         gl.getContext().makeCurrent();
-
         Profiler.add(begin);
     }
 
@@ -157,44 +153,18 @@ public class AsyncCopier {
                     Profiler.add(mapBuffer);
 
                     PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
-
-                    /*
-                    if (readTo.image == imageView.getImage()) {
-                        System.out.println("Image in use...");
-                        gl.getContext().release();
-                        return null;
-                    }
-
-                    if (buffer == null) {
-                        System.out.println("Buffer is null...");
-                        gl.getContext().release();
-                        return null;
-                    }
-    */
-
                     Sample setPixels = Profiler.begin("setPixels", readTo.pbo);
-                    //readTo.image = new WritableImage(width, height);
 
-                    WritableImage tmpImage = freeImages.poll(1, TimeUnit.MILLISECONDS);
-                    if (tmpImage != null) {
-                        if (tmpImage.getWidth() != width || tmpImage.getHeight() != height) {
-                            tmpImage = new WritableImage(width, height);
+                    WritableImage image = freeImages.poll(1, TimeUnit.MILLISECONDS);
+                    if (image != null) {
+                        if (image.getWidth() != width || image.getHeight() != height) {
+                            image = new WritableImage(width, height);
                         }
-                        tmpImage.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
+                        image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
                     } else {
                         System.out.println("no image available");
                     }
 
-                    WritableImage image = tmpImage;
-
-                    /*
-                    synchronized (AsyncCopier.this) {
-                        if (readTo.image != imageView.getImage()) {
-                            readTo.image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
-                        } else {
-                            System.out.println("image in use");
-                        }
-                    }*/
                     Profiler.add(setPixels);
 
                     gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
@@ -212,24 +182,6 @@ public class AsyncCopier {
                             @Override
                             public void run() {
                                 displayImage();
-                                /*
-                                Sample setImage = Profiler.begin("setImage", readTo.pbo);
-                                //readTo.image.set
-                                Image oldImage = imageView.getImage();
-                                if (oldImage != null) {
-                                    try {
-                                        freeImages.put((WritableImage) oldImage);
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-                                imageView.setImage(image);
-                                */
-
-                                /*synchronized (AsyncCopier.this) {
-                                    imageView.setImage(readTo.image);
-                                }*/
-                                //Profiler.add(setImage);
                             }
                         });
                     }
