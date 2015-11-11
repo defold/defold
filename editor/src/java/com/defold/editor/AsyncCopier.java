@@ -3,6 +3,7 @@ package com.defold.editor;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -32,6 +33,7 @@ public class AsyncCopier {
     private ImageView imageView;
 
     private BlockingQueue<WritableImage> freeImages = new ArrayBlockingQueue<>(N_BUFFERS);
+    private ArrayList<WritableImage> readyImages = new ArrayList<>();
     private Task<Void> task;
     private Sample frame;
 
@@ -68,6 +70,35 @@ public class AsyncCopier {
         setSize(gl, width, height);
     }
 
+    private void displayImage() {
+        synchronized (readyImages) {
+            if (!readyImages.isEmpty()) {
+
+                Sample setImage = Profiler.begin("setImage", -1);
+                Image oldImage = imageView.getImage();
+                if (oldImage != null) {
+                    try {
+                        freeImages.put((WritableImage) oldImage);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                imageView.setImage(readyImages.remove(readyImages.size() - 1));
+                Profiler.add(setImage);
+            }
+
+            for (WritableImage image : readyImages) {
+                try {
+                    freeImages.put(image);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            readyImages.clear();
+        }
+    }
+
     public void beginFrame(GL2 gl)  {
         Profiler.beginFrame();
         Sample begin = Profiler.begin("begin", -1);
@@ -75,6 +106,8 @@ public class AsyncCopier {
             Profiler.add(frame);
         }
         frame = Profiler.begin("frame", -1);
+
+        displayImage();
 
         if (task != null) {
             try {
@@ -168,10 +201,18 @@ public class AsyncCopier {
                     gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
                     gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
 
+                    synchronized (readyImages) {
+                        if (image != null) {
+                            readyImages.add(image);
+                        }
+                    }
+
                     if (image != null) {
                         Platform.runLater(new Runnable() {
                             @Override
                             public void run() {
+                                displayImage();
+                                /*
                                 Sample setImage = Profiler.begin("setImage", readTo.pbo);
                                 //readTo.image.set
                                 Image oldImage = imageView.getImage();
@@ -183,11 +224,12 @@ public class AsyncCopier {
                                     }
                                 }
                                 imageView.setImage(image);
+                                */
 
                                 /*synchronized (AsyncCopier.this) {
                                     imageView.setImage(readTo.image);
                                 }*/
-                                Profiler.add(setImage);
+                                //Profiler.add(setImage);
                             }
                         });
                     }
