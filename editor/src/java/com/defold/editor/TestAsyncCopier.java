@@ -111,7 +111,7 @@ public class TestAsyncCopier extends Application {
 
         if (frames == 100) {
             try {
-                copier.dumpSamples("misc/timeseries.csv", 0);
+                Profiler.dump("misc/timeseries.csv");
                 System.out.println("timeseries written");
             } catch (IOException e) {
                 e.printStackTrace();
