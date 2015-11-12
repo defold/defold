@@ -1,15 +1,11 @@
 package com.dynamo.bob.pipeline;
 
 import java.awt.FontFormatException;
-import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -18,11 +14,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontMap;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends Builder<Void>  {
@@ -56,7 +48,6 @@ public class FontBuilder extends Builder<Void>  {
 
         Fontc fontc = new Fontc();
         BufferedInputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(inputFontFile.getContent()));
-        BufferedImage outputImage = null;
         try {
 
             // Run fontc, fills the fontmap builder and returns an image

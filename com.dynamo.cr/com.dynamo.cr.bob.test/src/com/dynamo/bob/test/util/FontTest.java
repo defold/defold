@@ -346,7 +346,7 @@ public class FontTest {
         // Check "old" texture sizes
         assertEquals(previewImage.getWidth(), 1024);
         assertEquals(previewImage.getHeight(), 2048);
-        
+
         // For previews we don't inlcude all glyphs
         assertTrue(fontMap.getGlyphsCount() < 1519);
         System.out.println("fontMap.getGlyphsCount(): " + fontMap.getGlyphsCount());
