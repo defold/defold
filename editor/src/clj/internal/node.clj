@@ -617,7 +617,7 @@
                                             (ip/getter-for (gt/property-type node-type prop))
                                             `(get-in ~propmap-sym [~prop :internal.property/value]))))
 
-(defn ^:dynamic collect-property-value
+(defn collect-property-value
   [self-name ctx-name node-type-name node-type propmap-sym prop]
   (let [property-definition (gt/property-type node-type prop)
         default?            (ip/default-getter? property-definition)
