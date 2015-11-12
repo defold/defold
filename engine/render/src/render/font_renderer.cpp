@@ -105,8 +105,6 @@ namespace dmRender
         uint32_t                m_CacheCellWidth;
         uint32_t                m_CacheCellHeight;
         uint8_t                 m_CacheCellPadding;
-
-        // uint32_t                m_Frame; // frame usage id
     };
 
     struct GlyphVertex
@@ -184,24 +182,14 @@ namespace dmRender
         tex_create_params.m_OriginalHeight = params.m_CacheHeight;
         tex_params.m_Format = font_map->m_CacheFormat;
 
-        uint32_t tmp_size = sizeof(uint8_t) * params.m_CacheWidth * params.m_CacheHeight * params.m_GlyphChannels;
-        uint8_t* tmp_data = (uint8_t*)malloc(tmp_size);
-        if (params.m_GlyphChannels == 1) {
-            memset(tmp_data, 255, tmp_size);
-        } else {
-            memset(tmp_data, 0, tmp_size);
-        }
-
-        tex_params.m_Data = tmp_data;
-        tex_params.m_DataSize = tmp_size;
+        tex_params.m_Data = 0;
+        tex_params.m_DataSize = 0;
         tex_params.m_Width = params.m_CacheWidth;
         tex_params.m_Height = params.m_CacheHeight;
         tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-
-        free(tmp_data);
 
         return font_map;
     }
@@ -415,12 +403,12 @@ namespace dmRender
         }
 
         uint32_t text_len = strlen(params.m_Text);
-        if (text_context->m_TextBuffer.Capacity() < (text_len + 1)) {
+        uint32_t offset = text_context->m_TextBuffer.Size();
+        if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
             dmLogWarning("Out of text-render buffer");
             return;
         }
 
-        uint32_t offset = text_context->m_TextBuffer.Size();
         text_context->m_TextBuffer.PushArray(params.m_Text, text_len);
         text_context->m_TextBuffer.Push('\0');
 
@@ -615,8 +603,6 @@ namespace dmRender
                         if (!g->m_InCache) {
                             if (missing_cursor < 256) {
                                 missing_glyphs[missing_cursor++] = g;
-                            } else {
-                                dmLogError("Too many missing glyphs!");
                             }
                         } else {
                             g->m_Frame = text_context.m_Frame;

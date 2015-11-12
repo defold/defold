@@ -205,13 +205,14 @@ public class FontTest {
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
         final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
 
-        FontMap fontMap = fontc.compile(fontInputStream, fontDesc, new FontResourceResolver() {
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
+        FontMap fontMap = fontc.getFontMap();
         fontMap.writeTo(fontOutputStream);
 
         fontInputStream.close();
@@ -250,13 +251,14 @@ public class FontTest {
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
         final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
 
-        FontMap fontMap = fontc.compile(fontInputStream, fontDesc, new FontResourceResolver() {
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
+        FontMap fontMap = fontc.getFontMap();
         fontMap.writeTo(fontOutputStream);
 
         fontInputStream.close();
@@ -292,13 +294,14 @@ public class FontTest {
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
         final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
 
-        FontMap fontMap = fontc.compile(fontInputStream, fontDesc, new FontResourceResolver() {
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
+        FontMap fontMap = fontc.getFontMap();
         fontMap.writeTo(fontOutputStream);
 
         fontInputStream.close();
@@ -332,13 +335,14 @@ public class FontTest {
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
         final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
         try {
-            FontMap fontMap = fontc.compile(fontInputStream, fontDesc, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+            fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                    @Override
+                    public InputStream getResource(String resourceName)
+                            throws FileNotFoundException {
+                        return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                    }
+                });
+            FontMap fontMap = fontc.getFontMap();
             fontMap.writeTo(fontOutputStream);
         } catch (FontFormatException e) {
             success = false;
@@ -377,7 +381,7 @@ public class FontTest {
         Fontc fontc = new Fontc();
         FileInputStream fontInputStream = new FileInputStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        FontMap fontMap = fontc.compile(fontInputStream, fontDesc, new FontResourceResolver() {
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
 
             @Override
             public InputStream getResource(String resourceName)
@@ -385,7 +389,7 @@ public class FontTest {
                 return new FileInputStream(Paths.get(tmpDir.toString(), resourceName).toString());
             }
         });
-
+        FontMap fontMap = fontc.getFontMap();
         fontMap.writeTo(fontOutputStream);
         fontInputStream.close();
         fontOutputStream.close();

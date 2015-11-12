@@ -497,12 +497,11 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         // Compile to FontMap
         final IFile fontInputFile = contentRoot.getFile(new Path(fontDesc.getFont()));
         final String searchPath = new Path(fontDesc.getFont()).removeLastSegments(1).toString();
-        //BufferedImage image;
-        FontMap fontMap = null;
+        BufferedImage image;
         Fontc fontc = new Fontc();
 
         try {
-            fontMap = fontc.compile(fontInputFile.getContents(), fontDesc, new FontResourceResolver() {
+            image = fontc.compile(fontInputFile.getContents(), fontDesc, true, new FontResourceResolver() {
 
                 @Override
                 public InputStream getResource(String resourceName)
@@ -522,8 +521,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             throw new IOException(e.getMessage());
         }
 
-        //handle.setFont(fontMapBuilder.build(), image, fontc.getInputFormat());
-        // TODO FIXME!!!!
+        handle.setFont(fontc.getFontMap(), image, fontc.getInputFormat());
 
     }
 

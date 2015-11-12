@@ -60,7 +60,7 @@ public class FontBuilder extends Builder<Void>  {
         try {
 
             // Run fontc, fills the fontmap builder and returns an image
-            FontMap fontMap = fontc.compile(fontStream, fontDesc, new FontResourceResolver() {
+            fontc.compile(fontStream, fontDesc, false, new FontResourceResolver() {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
@@ -78,7 +78,7 @@ public class FontBuilder extends Builder<Void>  {
             });
 
             // Save fontmap file
-            task.output(0).setContent(fontMap.toByteArray());
+            task.output(0).setContent(fontc.getFontMap().toByteArray());
 
         } catch (FontFormatException e) {
             task.output(0).remove();
