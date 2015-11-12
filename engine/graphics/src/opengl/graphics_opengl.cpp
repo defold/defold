@@ -1516,7 +1516,8 @@ static void LogFrameBufferError(GLenum status)
             if (params.m_DataSize > 0) {
                 if (texture->m_Type == TEXTURE_TYPE_2D) {
                     if (params.m_SubUpdate) {
-                    } else {
+                        glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
+                    } else {
                         glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
                     }
                     CHECK_GL_ERROR
@@ -1553,16 +1554,6 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR
         }
-    }
-
-    uint8_t* GetTextureData(HTexture texture)
-    {
-        uint8_t* asd = (uint8_t*)malloc(sizeof(uint8_t) * texture->m_Width * texture->m_Height * 3);
-        // glBindTexture(TEXTURE_TYPE_2D, texture->m_Texture);
-        // glGetTexImage(TEXTURE_TYPE_2D, 0, DMGRAPHICS_TEXTURE_FORMAT_RGB, DMGRAPHICS_TYPE_UNSIGNED_BYTE, (void*)asd);
-        // glBindTexture(TEXTURE_TYPE_2D, 0);
-
-        return asd;
     }
 
     uint16_t GetTextureWidth(HTexture texture)

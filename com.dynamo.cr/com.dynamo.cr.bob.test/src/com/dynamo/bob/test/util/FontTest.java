@@ -232,7 +232,7 @@ public class FontTest {
 
     @Test
     public void testTTFJapaneseAllChars() throws Exception {
-        
+
         // create "font file"
         FontDesc fontDesc = FontDesc.newBuilder()
             .setFont("DroidSansJapanese.ttf")
@@ -317,6 +317,54 @@ public class FontTest {
     }
 
     @Test
+    public void testTTFPreview() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(32)
+            .setAllChars(true)
+            .build();
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, true, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+        FontMap fontMap = fontc.getFontMap();
+
+        fontInputStream.close();
+
+        // Check "old" texture sizes
+        assertEquals(previewImage.getWidth(), 1024);
+        assertEquals(previewImage.getHeight(), 2048);
+        
+        // For previews we don't inlcude all glyphs
+        assertTrue(fontMap.getGlyphsCount() < 1519);
+        System.out.println("fontMap.getGlyphsCount(): " + fontMap.getGlyphsCount());
+
+        // Check that all glyphs are inside cache space
+        for (int i = 0; i < fontMap.getGlyphsCount(); i++) {
+            Glyph g = fontMap.getGlyphs(i);
+            System.out.println("i: " + i);
+            System.out.println("x: " + g.getX());
+            System.out.println("y: " + g.getY());
+            assertTrue(g.getX() >= 0);
+            assertTrue(g.getY() >= 0);
+            assertTrue(g.getX() + g.getWidth() < fontMap.getCacheWidth());
+            assertTrue(g.getY() + g.getAscent() + g.getDescent() < fontMap.getCacheHeight());
+        }
+    }
+
+    @Test
     public void testBinaryFNT() throws Exception {
 
         FontDesc fontDesc = FontDesc.newBuilder()
@@ -394,30 +442,8 @@ public class FontTest {
         fontInputStream.close();
         fontOutputStream.close();
 
-        // verify data
-        /*
-        assertTrue(image != null);
-        assertTrue(image.getHeight() > 0);
-        assertTrue(image.getWidth() > 0);
-        */
-
         // verify glyphs
         BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
         fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
-
-        // TODO need to change this to work with streaming fonts (will not generate a preview texture by default)
-        /*
-        assertEquals(96, fontMap.getGlyphsCount());
-        for (int i = 0; i < fontMap.getGlyphsCount(); i++) {
-            Glyph g = fontMap.getGlyphs(i);
-
-            // verify that the glyphs are inside the image
-            assertTrue( g.getX() + g.getLeftBearing() >= 0.0);
-            assertTrue( g.getY() - g.getAscent() >= 0.0);
-
-            assertTrue( g.getX() + g.getLeftBearing() + g.getWidth() <= image.getWidth());
-            assertTrue( g.getY() + g.getDescent() <= image.getHeight());
-        }
-        */
     }
 }

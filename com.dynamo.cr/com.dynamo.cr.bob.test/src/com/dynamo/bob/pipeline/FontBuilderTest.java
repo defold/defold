@@ -22,24 +22,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.material", src.toString());
     }
 
-    // TODO need to fix this since Fontc will not generate a texture!
-    /*
-    @Test
-    public void testTTF() throws Exception {
-
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/Tuffy.ttf\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
-        FontMap fontMap = (FontMap)build("/test.font", src.toString()).get(0);
-
-        assertEquals(fontMap.getMaterial(), "/test.materialc");
-        assertEquals(fontMap.getTexturesCount(), 1);
-        assertEquals(fontMap.getTextures(0), "/test_tex0.texturec");
-
-    }
-    */
-
     @Test
     public void testTTF() throws Exception {
 

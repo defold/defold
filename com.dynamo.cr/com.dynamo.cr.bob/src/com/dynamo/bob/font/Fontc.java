@@ -115,7 +115,6 @@ public class Fontc {
 
     private InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
     private Stroke outlineStroke = null;
-    private int padding = 0;
     private int channelCount = 3;
     private FontDesc fontDesc;
     private FontMap.Builder fontMapBuilder;
@@ -201,7 +200,7 @@ public class Fontc {
                 }
 
                 glyph.vector = glyphVector;
-
+                
                 glyphs.add(glyph);
             }
         }
@@ -268,6 +267,7 @@ public class Fontc {
                       .setMaxDescent(maxDescent);
     }
     
+    // We use repeatedWrite to create a (cell) padding around the glyph bitmap data 
     private void repeatedWrite(ByteArrayOutputStream dataOut, int repeat, int value) {
         for (int i = 0; i < repeat; i++) {
             dataOut.write(value);
@@ -278,10 +278,9 @@ public class Fontc {
 
         ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
         
-        int cellWidth = 0;
-        int cellHeight = 0;
-        
-        // Margin is set to 1 since the font map is an atlas, this removes sampling artifacts (neighbouring texels outside the sample-area being used)
+        // Padding is the pixel amount needed to get a good antialiasing around the glyphs, while cell padding
+        // is the extra padding added to the bitmap data to avoid filtering glitches when rendered.
+        int padding = 0;
         int cell_padding = 1;
         float sdf_scale = 0;
         float sdf_offset = 0;
@@ -354,23 +353,58 @@ public class Fontc {
             channelCount = 1;
         }
 
-        // Keep track of offset into the glyph data bank
+        // We keep track of offset into the glyph data bank,
+        // this is saved for each glyph to know where their bitmap data is stored.
         int dataOffset = 0;
         
+        // Find max width, height for each glyph to lock down cache cell sizes,
+        // this includes cell padding.
+        int cell_width = 0;
+        int cell_height = 0;
         for (int i = 0; i < glyphs.size(); i++) {
-
             Glyph glyph = glyphs.get(i);
             if (glyph.width <= 0.0f) {
                 continue;
             }
-            glyph.cache_entry_offset = dataOffset;
-
-            // Find max width, height for each glyph to lock down cache cell sizes
-            // Includes cell padding
             int width = glyph.width + padding * 2 + cell_padding * 2;
             int height = glyph.ascent + glyph.descent + padding * 2 + cell_padding * 2;
-            cellWidth = Math.max(cellWidth, width);
-            cellHeight = Math.max(cellHeight, height);
+            cell_width = Math.max(cell_width, width);
+            cell_height = Math.max(cell_height, height);
+        }
+        
+        // We do an early cache size calculation before we create the glyph bitmaps
+        // This is so that we can know when we have created enough glyphs to fill
+        // the cache when creating a preview image.
+        int cache_width = 1024;
+        int cache_height = 0;
+        if (fontDesc.getCacheWidth() > 0) {
+            cache_width = fontDesc.getCacheWidth(); 
+        }
+        int cache_columns = cache_width / cell_width;
+        
+        if (fontDesc.getCacheHeight() > 0) {
+            cache_height = fontDesc.getCacheHeight(); 
+        } else {
+            // No "static" height set, guess height size for all to fit
+            int tot_rows = (int)Math.ceil((double)glyphs.size() / (double)cache_columns);
+            int tot_height = tot_rows * cell_height;
+            tot_height = (int) (Math.log(tot_height) / Math.log(2));
+            tot_height = (int) Math.pow(2, tot_height + 1);
+            cache_height = Math.min(tot_height,  2048);
+        }
+        int cache_rows = cache_height / cell_height;
+        
+        int include_glyph_count = glyphs.size();
+        if (preview) {
+            include_glyph_count = cache_rows * cache_columns;
+        }
+        for (int i = 0; i < include_glyph_count; i++) {
+
+            Glyph glyph = glyphs.get(i);
+            if (glyph.width <= 0 || glyph.ascent + glyph.descent <= 0) {
+                continue;
+            }
+            glyph.cache_entry_offset = dataOffset;
 
             // Generate bitmap for each glyph depending on format
             BufferedImage glyphImage = null;
@@ -398,6 +432,7 @@ public class Fontc {
                 // Get raster data from rendered glyph and store in glyph data bank
                 int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
                 for (int y = 0; y < glyphImage.getHeight(); y++) {
+                    
                     if (y == 0) {
                         repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
                     }
@@ -436,10 +471,10 @@ public class Fontc {
                 dataOffset += dataSizeOut;
                 glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
             }
-
+            
         }
         
-        // Sanity check
+        // Sanity check;
         // Some fonts don't include ASCII range and trying to compile a font without
         // setting "all_chars" could result in an empty glyph list.
         if (glyphs.size() == 0) {
@@ -447,30 +482,14 @@ public class Fontc {
         }
         
         // Start filling the rest of FontMap
-        int cache_width = 1024;
-        int cache_height = 0;
-        if (fontDesc.getCacheWidth() > 0) {
-            cache_width = fontDesc.getCacheWidth(); 
-        }
-        if (fontDesc.getCacheHeight() > 0) {
-            cache_height = fontDesc.getCacheHeight(); 
-        } else {
-            // Guess cache size for all to fit
-            int cache_columns = cache_width / cellWidth;
-            int tot_rows = (int)Math.ceil((double)glyphs.size() / (double)cache_columns); 
-            int tot_height = tot_rows * cellHeight;
-            tot_height = (int) (Math.log(tot_height) / Math.log(2));
-            tot_height = (int) Math.pow(2, tot_height + 1);
-            cache_height = Math.min(tot_height,  2048);
-        }
-        
         fontMapBuilder.setGlyphPadding(cell_padding);
         fontMapBuilder.setCacheWidth(cache_width);
         fontMapBuilder.setCacheHeight(cache_height);
         fontMapBuilder.setGlyphData(ByteString.copyFrom(glyphDataBank.toByteArray()));
-        fontMapBuilder.setCacheCellWidth(cellWidth);
-        fontMapBuilder.setCacheCellHeight(cellHeight);
+        fontMapBuilder.setCacheCellWidth(cell_width);
+        fontMapBuilder.setCacheCellHeight(cell_height);
         fontMapBuilder.setGlyphChannels(channelCount);
+        
         
         BufferedImage previewImage = null;
         if (preview) {
@@ -481,7 +500,8 @@ public class Fontc {
             }
         }
         
-        for (Glyph glyph : glyphs) {
+        for (int i = 0; i < include_glyph_count; i++) {
+            Glyph glyph = glyphs.get(i);
             FontMap.Glyph.Builder glyphBuilder = FontMap.Glyph.newBuilder()
                 .setCharacter(glyph.c)
                 .setWidth(glyph.width + (glyph.width > 0 ? padding * 2 : 0))
@@ -492,6 +512,7 @@ public class Fontc {
                 .setGlyphDataOffset(glyph.cache_entry_offset)
                 .setGlyphDataSize(glyph.cache_entry_size);
             
+            // "Static" cache positions is only used for previews currently
             if (preview) {
                 glyphBuilder.setX(glyph.x);
                 glyphBuilder.setY(glyph.y);
@@ -692,14 +713,8 @@ public class Fontc {
     public BufferedImage generatePreviewImage() throws IOException {
 
         Graphics2D g;
-        int t = BufferedImage.TYPE_3BYTE_BGR;
-//        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-//            t = BufferedImage.TYPE_BYTE_GRAY;
-//        }
-        BufferedImage previewImage = new BufferedImage(fontMapBuilder.getCacheWidth(), fontMapBuilder.getCacheHeight(), t);
+        BufferedImage previewImage = new BufferedImage(fontMapBuilder.getCacheWidth(), fontMapBuilder.getCacheHeight(), BufferedImage.TYPE_3BYTE_BGR);
         g = previewImage.createGraphics();
-        Composite blendComposite = new BlendComposite();
-        //g.setComposite(blendComposite);
         g.setBackground(fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? Color.WHITE : Color.BLACK);
         g.clearRect(0, 0, previewImage.getWidth(), previewImage.getHeight());
         setHighQuality(g);
