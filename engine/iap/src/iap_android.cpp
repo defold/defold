@@ -26,7 +26,7 @@ enum TransactionState
 
 enum ErrorReason
 {
-	REASON_ERROR = 0,
+	REASON_UNSPECIFIED = 0,
 	REASON_USER_CANCELED = 1,
 };
 
@@ -379,13 +379,13 @@ void HandleProductResult(const Command* cmd)
         } else {
             dmLogError("Failed to parse product response (%d)", r);
             lua_pushnil(L);
-            PushError(L, "failed to parse product response", REASON_ERROR);
+            PushError(L, "failed to parse product response", REASON_UNSPECIFIED);
         }
         dmJson::Free(&doc);
     } else {
         dmLogError("Google Play error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
-        PushError(L, "failed to fetch product", REASON_ERROR);
+        PushError(L, "failed to fetch product", REASON_UNSPECIFIED);
     }
 
     dmScript::PCall(L, 3, LUA_MULTRET);
@@ -433,7 +433,7 @@ void HandlePurchaseResult(const Command* cmd)
         } else {
             dmLogError("Failed to parse purchase response (%d)", r);
             lua_pushnil(L);
-            PushError(L, "failed to parse purchase response", REASON_ERROR);
+            PushError(L, "failed to parse purchase response", REASON_UNSPECIFIED);
         }
         dmJson::Free(&doc);
     } else if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_USER_CANCELED) {
@@ -442,7 +442,7 @@ void HandlePurchaseResult(const Command* cmd)
     } else {
         dmLogError("Google Play error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
-        PushError(L, "failed to buy product", REASON_ERROR);
+        PushError(L, "failed to buy product", REASON_UNSPECIFIED);
     }
 
     dmScript::PCall(L, 3, LUA_MULTRET);
@@ -539,7 +539,7 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     SETCONSTANT(TRANS_STATE_FAILED)
     SETCONSTANT(TRANS_STATE_RESTORED)
 
-    SETCONSTANT(REASON_ERROR)
+    SETCONSTANT(REASON_UNSPECIFIED)
     SETCONSTANT(REASON_USER_CANCELED)
 
 #undef SETCONSTANT
