@@ -349,14 +349,10 @@ public class FontTest {
 
         // For previews we don't inlcude all glyphs
         assertTrue(fontMap.getGlyphsCount() < 1519);
-        System.out.println("fontMap.getGlyphsCount(): " + fontMap.getGlyphsCount());
 
         // Check that all glyphs are inside cache space
         for (int i = 0; i < fontMap.getGlyphsCount(); i++) {
             Glyph g = fontMap.getGlyphs(i);
-            System.out.println("i: " + i);
-            System.out.println("x: " + g.getX());
-            System.out.println("y: " + g.getY());
             assertTrue(g.getX() >= 0);
             assertTrue(g.getY() >= 0);
             assertTrue(g.getX() + g.getWidth() < fontMap.getCacheWidth());
@@ -445,5 +441,8 @@ public class FontTest {
         // verify glyphs
         BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
         fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+
+        int expectedCharCount = 96; // Taken from bmfont.fnt
+        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
     }
 }

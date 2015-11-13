@@ -396,7 +396,7 @@ public class Fontc {
 
         int include_glyph_count = glyphs.size();
         if (preview) {
-            include_glyph_count = cache_rows * cache_columns;
+            include_glyph_count = Math.min(glyphs.size(), cache_rows * cache_columns);
         }
         for (int i = 0; i < include_glyph_count; i++) {
 

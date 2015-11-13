@@ -213,7 +213,6 @@ namespace dmRender
         if (font_map->m_GlyphData) {
             free(font_map->m_GlyphData);
             free(font_map->m_Cache);
-            dmGraphics::DeleteTexture(font_map->m_Texture);
         }
 
         font_map->m_ShadowX = params.m_ShadowX;

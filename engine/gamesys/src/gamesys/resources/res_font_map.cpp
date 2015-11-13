@@ -75,7 +75,6 @@ namespace dmGameSystem
 
         dmRender::SetFontMapMaterial(font_map, material);
 
-        // free(params.m_GlyphData);
         dmDDF::FreeMessage(ddf);
 
         *font_map_out = font_map;
