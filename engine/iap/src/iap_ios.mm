@@ -47,7 +47,7 @@ IAP g_IAP;
 
 NS_ENUM(NSInteger, ErrorReason)
 {
-    REASON_ERROR = 0,
+    REASON_UNSPECIFIED = 0,
     REASON_USER_CANCELED = 1,
 };
 
@@ -178,7 +178,7 @@ static void PushError(lua_State*L, NSError* error, NSInteger reason)
     }
 
     lua_pushnil(L);
-    PushError(L, error, REASON_ERROR);
+    PushError(L, error, REASON_UNSPECIFIED);
 
     int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
     if (ret != 0) {
@@ -264,7 +264,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
         if (transaction.error.code == SKErrorPaymentCancelled) {
             PushError(L, transaction.error, REASON_USER_CANCELED);
         } else {
-            PushError(L, transaction.error, REASON_ERROR);
+            PushError(L, transaction.error, REASON_UNSPECIFIED);
         }
     } else {
         lua_pushnil(L);
@@ -516,9 +516,9 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# generic error reason
+/*# unspecified error reason
  *
- * @name iap.REASON_ERROR
+ * @name iap.REASON_UNSPECIFIED
  * @variable
  */
 
@@ -549,7 +549,7 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     SETCONSTANT(TRANS_STATE_FAILED, SKPaymentTransactionStateFailed);
     SETCONSTANT(TRANS_STATE_RESTORED, SKPaymentTransactionStateRestored);
 
-    SETCONSTANT(REASON_ERROR, REASON_ERROR);
+    SETCONSTANT(REASON_UNSPECIFIED, REASON_UNSPECIFIED);
     SETCONSTANT(REASON_USER_CANCELED, REASON_USER_CANCELED);
 
 #undef SETCONSTANT
