@@ -24,6 +24,12 @@ enum TransactionState
     TRANS_STATE_RESTORED,
 };
 
+enum ErrorReason
+{
+	REASON_UNSPECIFIED = 0,
+	REASON_USER_CANCELED = 1,
+};
+
 enum BillingResponse
 {
     BILLING_RESPONSE_RESULT_OK = 0,
@@ -277,13 +283,15 @@ static int ToLua(lua_State*L, dmJson::Document* doc, int index)
 extern "C" {
 #endif
 
-static void PushError(lua_State*L, const char* error)
+static void PushError(lua_State*L, const char* error, int reason)
 {
-    // Could be extended with error codes etc
     if (error != 0) {
         lua_newtable(L);
         lua_pushstring(L, "error");
         lua_pushstring(L, error);
+        lua_rawset(L, -3);
+        lua_pushstring(L, "reason");
+        lua_pushinteger(L, reason);
         lua_rawset(L, -3);
     } else {
         lua_pushnil(L);
@@ -371,14 +379,13 @@ void HandleProductResult(const Command* cmd)
         } else {
             dmLogError("Failed to parse product response (%d)", r);
             lua_pushnil(L);
-            PushError(L, "failed to parse product response");
+            PushError(L, "failed to parse product response", REASON_UNSPECIFIED);
         }
         dmJson::Free(&doc);
     } else {
         dmLogError("Google Play error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
-        // TODO: Add error code to table
-        PushError(L, "failed to fetch product");
+        PushError(L, "failed to fetch product", REASON_UNSPECIFIED);
     }
 
     dmScript::PCall(L, 3, LUA_MULTRET);
@@ -426,14 +433,16 @@ void HandlePurchaseResult(const Command* cmd)
         } else {
             dmLogError("Failed to parse purchase response (%d)", r);
             lua_pushnil(L);
-            PushError(L, "failed to parse purchase response");
+            PushError(L, "failed to parse purchase response", REASON_UNSPECIFIED);
         }
         dmJson::Free(&doc);
+    } else if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_USER_CANCELED) {
+        lua_pushnil(L);
+        PushError(L, "user canceled purchase", REASON_USER_CANCELED);
     } else {
         dmLogError("Google Play error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
-        // TODO: Add error code to table
-        PushError(L, "failed to buy product");
+        PushError(L, "failed to buy product", REASON_UNSPECIFIED);
     }
 
     dmScript::PCall(L, 3, LUA_MULTRET);
@@ -529,6 +538,9 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     SETCONSTANT(TRANS_STATE_PURCHASED)
     SETCONSTANT(TRANS_STATE_FAILED)
     SETCONSTANT(TRANS_STATE_RESTORED)
+
+    SETCONSTANT(REASON_UNSPECIFIED)
+    SETCONSTANT(REASON_USER_CANCELED)
 
 #undef SETCONSTANT
 
