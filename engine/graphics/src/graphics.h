@@ -294,6 +294,9 @@ namespace dmGraphics
         , m_MipMap(0)
         , m_Width(0)
         , m_Height(0)
+        , m_SubUpdate(false)
+        , m_X(0)
+        , m_Y(0)
         {}
 
         TextureFormat m_Format;
@@ -306,6 +309,11 @@ namespace dmGraphics
         uint16_t m_MipMap;
         uint16_t m_Width;
         uint16_t m_Height;
+
+        // For sub texture updates
+        bool m_SubUpdate;
+        uint32_t m_X;
+        uint32_t m_Y;
     };
 
     // Parameters structure for OpenWindow
@@ -549,6 +557,7 @@ namespace dmGraphics
      * @param params
      */
     void SetTexture(HTexture texture, const TextureParams& params);
+    uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);

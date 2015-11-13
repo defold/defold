@@ -802,6 +802,10 @@ namespace dmGraphics
         memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
     }
 
+    uint8_t* GetTextureData(HTexture texture) {
+        return 0x0;
+    }
+
     uint16_t GetTextureWidth(HTexture texture)
     {
         return texture->m_Width;

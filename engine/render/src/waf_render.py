@@ -29,5 +29,3 @@ def font_file(self, node):
     obj_ext = '.fontc'
     out = node.change_ext(obj_ext)
     fontmap.set_outputs(out)
-    out_tex = node.change_ext("_tex0.texturec")
-    fontmap.set_outputs(out_tex)
