@@ -446,6 +446,11 @@ public class Fontc {
                         int blue  = (color) & 0xff;
                         int green = (color >> 8) & 0xff;
                         int red   = (color >> 16) & 0xff;
+                        int alpha = (color >> 24) & 0xff;
+                        blue = (blue * alpha) / 255;
+                        green = (green * alpha) / 255;
+                        red = (red * alpha) / 255;
+                        
 
                         glyphDataBank.write((byte)red);
 
@@ -454,7 +459,7 @@ public class Fontc {
                             glyphDataBank.write((byte)blue);
 
                             if (channelCount > 3) {
-                                int alpha = (color >> 24) & 0xff;
+                                
                                 glyphDataBank.write((byte)alpha);
                             }
                         }

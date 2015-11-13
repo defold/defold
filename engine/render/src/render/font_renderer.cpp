@@ -34,7 +34,6 @@ namespace dmRender
     , m_CacheWidth(0)
     , m_CacheHeight(0)
     , m_GlyphData(0)
-    , m_GlyphDataSize(0)
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
     , m_GlyphChannels(1)
@@ -56,7 +55,6 @@ namespace dmRender
         , m_CacheWidth(0)
         , m_CacheHeight(0)
         , m_GlyphData(0)
-        , m_GlyphDataSize(0)
         , m_Cache(0)
         , m_CacheCursor(0)
         , m_CacheColumns(0)
@@ -93,7 +91,6 @@ namespace dmRender
         uint32_t                m_CacheWidth;
         uint32_t                m_CacheHeight;
         void*                   m_GlyphData;
-        uint64_t                m_GlyphDataSize;
 
         Glyph**                 m_Cache;
         uint32_t                m_CacheCursor;
@@ -142,7 +139,6 @@ namespace dmRender
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
         font_map->m_GlyphData = params.m_GlyphData;
-        font_map->m_GlyphDataSize = params.m_GlyphDataSize;
 
         font_map->m_CacheCellWidth = params.m_CacheCellWidth;
         font_map->m_CacheCellHeight = params.m_CacheCellHeight;
@@ -167,7 +163,6 @@ namespace dmRender
                 dmLogError("Invalid channel count for glyph data!");
                 delete font_map;
                 return 0x0;
-            break;
         };
 
         font_map->m_Cache = (Glyph**)malloc(sizeof(Glyph*) * cell_count);
@@ -202,8 +197,8 @@ namespace dmRender
     void SetFontMap(HFontMap font_map, FontMapParams& params)
     {
         const dmArray<Glyph>& glyphs = params.m_Glyphs;
-        font_map->m_Glyphs.SetCapacity((3 * glyphs.Size()) / 2, glyphs.Size());
         font_map->m_Glyphs.Clear();
+        font_map->m_Glyphs.SetCapacity((3 * glyphs.Size()) / 2, glyphs.Size());
         for (uint32_t i = 0; i < glyphs.Size(); ++i) {
             const Glyph& g = glyphs[i];
             font_map->m_Glyphs.Put(g.m_Character, g);
@@ -226,7 +221,6 @@ namespace dmRender
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
         font_map->m_GlyphData = params.m_GlyphData;
-        font_map->m_GlyphDataSize = params.m_GlyphDataSize;
 
         font_map->m_CacheCellWidth = params.m_CacheCellWidth;
         font_map->m_CacheCellHeight = params.m_CacheCellHeight;
@@ -251,7 +245,6 @@ namespace dmRender
                 dmLogError("Invalid channel count for glyph data!");
                 delete font_map;
                 return;
-            break;
         };
 
         font_map->m_Cache = (Glyph**)malloc(sizeof(Glyph*) * cell_count);
@@ -687,15 +680,11 @@ namespace dmRender
                     Glyph* candidate = font_map->m_Cache[cur];
                     font_map->m_CacheCursor = font_map->m_CacheCursor % (font_map->m_CacheColumns * font_map->m_CacheRows);
 
-                    // Empty cell
-                    if (candidate == 0x0) {
-                        candidate = g;
-                        candidate->m_Frame = !text_context.m_Frame;
-                    }
+                    if (candidate == 0x0 || text_context.m_Frame != candidate->m_Frame) {
 
-                    if (text_context.m_Frame != candidate->m_Frame) {
-
-                        candidate->m_InCache = false;
+                        if (candidate) {
+                            candidate->m_InCache = false;
+                        }
                         font_map->m_Cache[cur] = g;
 
                         uint32_t col = cur % font_map->m_CacheColumns;

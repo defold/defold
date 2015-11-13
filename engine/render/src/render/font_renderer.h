@@ -67,7 +67,6 @@ namespace dmRender
         uint32_t m_CacheHeight;
         uint8_t m_GlyphChannels;
         void* m_GlyphData;
-        uint64_t m_GlyphDataSize;
 
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;

@@ -61,11 +61,10 @@ message FontMap
     optional float sdf_scale = 11 [default = 1];
     optional float sdf_offset = 12 [default = 0];
     optional float sdf_outline = 13 [default = 0];
-    //repeated string textures = 14 [(resource)=true];
 
     optional uint32 cache_width = 14 [default = 0];
     optional uint32 cache_height = 15 [default = 0];
-    optional uint64 glyph_padding = 16; // total uncompressed size
+    optional uint64 glyph_padding = 16;
 
     optional uint32 cache_cell_width = 17;
     optional uint32 cache_cell_height = 18;
@@ -73,8 +72,5 @@ message FontMap
     optional uint32 glyph_channels = 19;
 
     optional bytes glyph_data = 20; // glyph data may be compressed
-    optional uint64 glyph_data_size = 21; // total uncompressed size
-
-
 
 }

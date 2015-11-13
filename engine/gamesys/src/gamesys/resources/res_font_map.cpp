@@ -53,7 +53,6 @@ namespace dmGameSystem
 
         params.m_CacheWidth = ddf->m_CacheWidth;
         params.m_CacheHeight = ddf->m_CacheHeight;
-        params.m_GlyphDataSize = ddf->m_GlyphDataSize;
 
         params.m_GlyphChannels = ddf->m_GlyphChannels;
 
