@@ -443,19 +443,19 @@ public class Fontc {
                         }
 
                         int color = glyphImage.getRGB(x, y);
-                        int blue  = (color);
-                        int green = (blue >> 8);
-                        int red   = (green >> 8);
+                        int blue  = (color) & 0xff;
+                        int green = (color >> 8) & 0xff;
+                        int red   = (color >> 16) & 0xff;
 
-                        glyphDataBank.write((byte)(red & 0x000000ff));
+                        glyphDataBank.write((byte)red);
 
                         if (channelCount > 1) {
-                            glyphDataBank.write((byte)(green & 0x000000ff));
-                            glyphDataBank.write((byte)(blue & 0x000000ff));
+                            glyphDataBank.write((byte)green);
+                            glyphDataBank.write((byte)blue);
 
                             if (channelCount > 3) {
-                                int alpha = (red >> 8);
-                                glyphDataBank.write((byte)(alpha & 0x000000ff));
+                                int alpha = (color >> 24) & 0xff;
+                                glyphDataBank.write((byte)alpha);
                             }
                         }
 
