@@ -599,18 +599,6 @@ public class Fontc {
             });
             fontInputStream.close();
 
-            // Construct "internal" project root relative path, ie. /builtins/fonts/foobar_tex0.texturec
-            String internalPath = args[0].substring(basedir.length());
-            internalPath = FilenameUtils.removeExtension(internalPath) + "_tex0.texturec";
-            fontmapBuilder.addTextures(FilenameUtils.separatorsToUnix(internalPath));
-
-            // Generate texture (and save to disk) from font image
-            String textureFilename = FilenameUtils.removeExtension(Paths.get(outfile).normalize().toString()) + "_tex0.texturec";
-            TextureImage texture = TextureGenerator.generate(image, null);
-            FileOutputStream textureOutputStream = new FileOutputStream( textureFilename );
-            texture.writeTo(textureOutputStream);
-            textureOutputStream.close();
-
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
             fontmapBuilder.build().writeTo(fontMapOutputStream);
