@@ -135,6 +135,7 @@ namespace dmRender
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
         dmHashTable64<int32_t>              m_Batches;
         dmArray<TextEntry>                  m_TextEntries;
+        uint32_t                            m_Frame;
     };
 
     struct RenderTargetSetup
