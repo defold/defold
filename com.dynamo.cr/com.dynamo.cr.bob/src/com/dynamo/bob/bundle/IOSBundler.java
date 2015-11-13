@@ -122,7 +122,12 @@ public class IOSBundler implements IBundler {
         List<String> urlSchemes = new ArrayList<String>();
 
         if (facebookAppId != null) {
-            urlSchemes.add(facebookAppId);
+            urlSchemes.add("fb" + facebookAppId);
+        }
+
+        String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
+        if (bundleId != null) {
+            urlSchemes.add(bundleId);
         }
 
         Map<String, Object> properties = new HashMap<String, Object>();

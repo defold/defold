@@ -1,0 +1,16 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    test_iac = bld.new_task_gen(features = 'cxx cprogram test',
+                                includes = '../../../src .',
+                                uselib = 'GTEST EXTENSION RESOURCE DDF DLIB LUA SCRIPT',
+                                uselib_local = 'iacext',
+                                target = 'test_iac',
+                                source = ['test_iac.cpp', '../iac.cpp'])
+
+    test_iac.install_path = None
