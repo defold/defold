@@ -492,6 +492,10 @@
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))
 
+(defn- mesh->aabb [aabb mesh]
+  (let [positions (partition 3 (:positions mesh))]
+    (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
+
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
@@ -509,7 +513,9 @@
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets)
-  (output spine-scene-pb g/Any produce-spine-scene-pb))
+  (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
+                                                      (reduce mesh->aabb (geom/null-aabb) meshes)))))
 
 (defn load-spine-scene [project self resource]
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
