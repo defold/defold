@@ -367,106 +367,19 @@
              {} skin))
 
 (defn- build-spine-scene [self basis resource dep-resources user-data]
-  (let [anim-data (:anim-data user-data)
-        scene (:spine-scene user-data)
-        sample-rate (:sample-rate user-data)
-        spf (/ 1.0 sample-rate)
-        ; Bone data
-        bones (map (fn [b]
-                     {:id (protobuf/hash64 (get b "name"))
-                      :parent (when (contains? b "parent") (protobuf/hash64 (get b "parent")))
-                      :position [(get b "x" 0) (get b "y" 0) 0]
-                      :rotation (angle->clj-quat (get b "rotation" 0))
-                      :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
-                      :inherit-scale (get b "inheritScale" true)}) (get scene "bones"))
-        indexed-bone-children (reduce (fn [m [i b]] (update-in m [(:parent b)] conj [i b])) {} (map-indexed (fn [i b] [i b]) bones))
-        ordered-bones (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) (first (get indexed-bone-children nil)))
-        bones-remap (into {} (map-indexed (fn [i [first-i b]] [first-i i]) ordered-bones))
-        bones (mapv second ordered-bones)
-        bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
-        bones (mapv #(assoc % :parent (get bone-id->index (:parent %) 0xffff)) bones)
-        bone-world-transforms (loop [bones bones
-                                     wt []]
-                                (if-let [bone (first bones)]
-                                  (let [local-t ^SpineScene$Transform (bone->transform bone)
-                                        world-t (if (not= 0xffff (:parent bone))
-                                                  (let [world-t (doto (SpineScene$Transform. (get wt (:parent bone)))
-                                                                  (.mul local-t))]
-                                                    ; Reset scale when not inheriting
-                                                    (when (not (:inherit-scale bone))
-                                                      (doto (.scale world-t)
-                                                        (.set (.scale local-t))))
-                                                    world-t)
-                                                  local-t)]
-                                    (recur (rest bones) (conj wt world-t)))
-                                  wt))
-        ; Slot data
-        slots (get scene "slots" [])
-        slots-data (into {} (map-indexed (fn [i slot]
-                                           (let [bone-index (bone-id->index (protobuf/hash64 (get slot "bone")))]
-                                             [(get slot "name")
-                                              {:bone-index bone-index
-                                               :bone-world (get bone-world-transforms bone-index)
-                                               :draw-order i
-                                               :color (hex->color (get slot "color" "FFFFFFFF"))
-                                               :attachment (get slot "attachment")}])) slots))
-        ; Skin data
-        mesh-sort-fn (fn [[k v]] (:draw-order v))
-        flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
-        skins (get scene "skins" {})
-        generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-world-transforms)
-        new-skins {"" (flatten-meshes generic-meshes)}
-        new-skins (reduce (fn [m [skin slots]]
-                            (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-world-transforms)]
-                              (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
-                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
-        slot->track-data (reduce-kv (fn [m skin meshes]
-                                      (let [skin-id (protobuf/hash64 skin)]
-                                        (reduce (fn [m [[slot att] mesh]]
-                                                  (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
-                                                m meshes)))
-                                    {} new-skins)
-        ; Protobuf
-        pb {:skeleton {:bones bones}
-            :animation-set (let [events (into {} (get scene "events" []))
-                                 animations (mapv (fn [[name a]]
-                                                    (let [duration (anim-duration a)]
-                                                      {:id (protobuf/hash64 name)
-                                                      :sample-rate sample-rate
-                                                      :duration duration
-                                                      :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
-                                                      :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
-                                                      :event-tracks (mapv (fn [[event-name keys]]
-                                                                            (let [default (merge {"int" 0 "float" 0 "string" ""} (get events event-name))]
-                                                                              {:event-id (protobuf/hash64 event-name)
-                                                                              :keys (mapv (fn [k]
-                                                                                            {:t (get k "time")
-                                                                                             :integer (get k "int" (get default "int"))
-                                                                                             :float (get k "float" (get default "float"))
-                                                                                             :string (protobuf/hash64 (get k "string" (get default "string")))})
-                                                                                          keys)}))
-                                                                          (reduce (fn [m e]
-                                                                                    (update-in m [(get e "name")] conj e))
-                                                                                  {} (get a "events")))}))
-                                                  (get scene "animations"))]
-                             {:animations animations})
-             :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
-                                              {:id (protobuf/hash64 skin)
-                                               :meshes (mapv second meshes)}) new-skins)}}
+  (let [pb (:spine-scene-pb user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
-(g/defnk produce-scene-build-targets [_node-id resource spine-scene atlas sample-rate anim-data dep-build-targets]
+(g/defnk produce-scene-build-targets [_node-id resource spine-scene-pb atlas dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:texture-set atlas]])]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-scene
-      :user-data {:spine-scene spine-scene
-                  :sample-rate sample-rate
-                  :dep-resources dep-resources
-                  :anim-data anim-data}
+      :user-data {:spine-scene-pb spine-scene-pb
+                  :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
 (defn- connect-atlas [project node-id atlas]
@@ -493,6 +406,92 @@
         (disconnect-all self :dep-build-targets)
         (connect-atlas project self atlas)))))
 
+(g/defnk produce-spine-scene-pb [spine-scene anim-data sample-rate]
+  (let [spf (/ 1.0 sample-rate)
+        ; Bone data
+        bones (map (fn [b]
+                     {:id (protobuf/hash64 (get b "name"))
+                      :parent (when (contains? b "parent") (protobuf/hash64 (get b "parent")))
+                      :position [(get b "x" 0) (get b "y" 0) 0]
+                      :rotation (angle->clj-quat (get b "rotation" 0))
+                      :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
+                      :inherit-scale (get b "inheritScale" true)}) (get spine-scene "bones"))
+        indexed-bone-children (reduce (fn [m [i b]] (update-in m [(:parent b)] conj [i b])) {} (map-indexed (fn [i b] [i b]) bones))
+        ordered-bones (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) (first (get indexed-bone-children nil)))
+        bones-remap (into {} (map-indexed (fn [i [first-i b]] [first-i i]) ordered-bones))
+        bones (mapv second ordered-bones)
+        bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
+        bones (mapv #(assoc % :parent (get bone-id->index (:parent %) 0xffff)) bones)
+        bone-world-transforms (loop [bones bones
+                                     wt []]
+                                (if-let [bone (first bones)]
+                                  (let [local-t ^SpineScene$Transform (bone->transform bone)
+                                        world-t (if (not= 0xffff (:parent bone))
+                                                  (let [world-t (doto (SpineScene$Transform. (get wt (:parent bone)))
+                                                                  (.mul local-t))]
+                                                    ; Reset scale when not inheriting
+                                                    (when (not (:inherit-scale bone))
+                                                      (doto (.scale world-t)
+                                                        (.set (.scale local-t))))
+                                                    world-t)
+                                                  local-t)]
+                                    (recur (rest bones) (conj wt world-t)))
+                                  wt))
+        ; Slot data
+        slots (get spine-scene "slots" [])
+        slots-data (into {} (map-indexed (fn [i slot]
+                                           (let [bone-index (bone-id->index (protobuf/hash64 (get slot "bone")))]
+                                             [(get slot "name")
+                                              {:bone-index bone-index
+                                               :bone-world (get bone-world-transforms bone-index)
+                                               :draw-order i
+                                               :color (hex->color (get slot "color" "FFFFFFFF"))
+                                               :attachment (get slot "attachment")}])) slots))
+        ; Skin data
+        mesh-sort-fn (fn [[k v]] (:draw-order v))
+        flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
+        skins (get spine-scene "skins" {})
+        generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-world-transforms)
+        new-skins {"" (flatten-meshes generic-meshes)}
+        new-skins (reduce (fn [m [skin slots]]
+                            (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-world-transforms)]
+                              (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
+                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
+        slot->track-data (reduce-kv (fn [m skin meshes]
+                                      (let [skin-id (protobuf/hash64 skin)]
+                                        (reduce (fn [m [[slot att] mesh]]
+                                                  (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
+                                                m meshes)))
+                                    {} new-skins)
+        ; Protobuf
+        pb {:skeleton {:bones bones}
+            :animation-set (let [events (into {} (get spine-scene "events" []))
+                                 animations (mapv (fn [[name a]]
+                                                    (let [duration (anim-duration a)]
+                                                      {:id (protobuf/hash64 name)
+                                                      :sample-rate sample-rate
+                                                      :duration duration
+                                                      :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
+                                                      :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
+                                                      :event-tracks (mapv (fn [[event-name keys]]
+                                                                            (let [default (merge {"int" 0 "float" 0 "string" ""} (get events event-name))]
+                                                                              {:event-id (protobuf/hash64 event-name)
+                                                                              :keys (mapv (fn [k]
+                                                                                            {:t (get k "time")
+                                                                                             :integer (get k "int" (get default "int"))
+                                                                                             :float (get k "float" (get default "float"))
+                                                                                             :string (protobuf/hash64 (get k "string" (get default "string")))})
+                                                                                          keys)}))
+                                                                          (reduce (fn [m e]
+                                                                                    (update-in m [(get e "name")] conj e))
+                                                                                  {} (get a "events")))}))
+                                                  (get spine-scene "animations"))]
+                             {:animations animations})
+             :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
+                                              {:id (protobuf/hash64 skin)
+                                               :meshes (mapv second meshes)}) new-skins)}}]
+    pb))
+
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
@@ -509,7 +508,8 @@
   (input spine-scene g/Any)
 
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached produce-scene-build-targets))
+  (output build-targets g/Any :cached produce-scene-build-targets)
+  (output spine-scene-pb g/Any produce-spine-scene-pb))
 
 (defn load-spine-scene [project self resource]
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
