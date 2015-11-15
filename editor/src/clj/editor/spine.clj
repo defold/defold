@@ -9,6 +9,7 @@
             [editor.gl.vertex :as vtx]
             [editor.project :as project]
             [editor.scene :as scene]
+            [editor.render :as render]
             [editor.workspace :as workspace]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [internal.render.pass :as pass])
@@ -492,6 +493,64 @@
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))
 
+(defn- renderable->meshes [renderable]
+  (filter :visible (:meshes (first (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])))))
+
+(defn- mesh->verts [mesh]
+  (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
+    (map (partial get verts) (:indices mesh))))
+
+(defn- gen-vb [renderables rcount]
+  (let [meshes (sort-by :draw-order (mapcat renderable->meshes renderables))
+        vcount (reduce + 0 (map (comp count :indices) meshes))]
+    (when (> vcount 0)
+      (let [vb (render/->vtx-pos-tex-col vcount)
+            verts (mapcat mesh->verts meshes)]
+        (persistent! (reduce conj! vb verts))))))
+
+(defn render-spine-scenes [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (cond
+      (= pass pass/outline)
+      (let [outline-vertex-binding (vtx/use-with ::spine-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
+        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+      
+      (= pass pass/transparent)
+      (when-let [vb (gen-vb renderables rcount)]
+        (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
+              user-data (:user-data (first renderables))
+              gpu-texture (:gpu-texture user-data)
+              blend-mode (:blend-mode user-data)]
+          (gl/with-gl-bindings gl render-args [gpu-texture render/shader-tex-tint vertex-binding]
+            (case blend-mode
+              :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+              (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+              :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+            (shader/set-uniform render/shader-tex-tint gl "texture" 0)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+
+      (= pass pass/selection)
+      (when-let [vb (gen-vb renderables rcount)]
+        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
+          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
+
+(g/defnk produce-scene [_node-id aabb gpu-texture spine-scene-pb]
+  (let [scene {:node-id _node-id
+               :aabb aabb}]
+    (if gpu-texture
+      (let [blend-mode :blend-mode-alpha]
+        (assoc scene :renderable {:render-fn render-spine-scenes
+                                  :batch-key gpu-texture
+                                  :select-batch-key _node-id
+                                  :user-data {:spine-scene-pb spine-scene-pb
+                                              :gpu-texture gpu-texture
+                                              :blend-mode blend-mode}
+                                  :passes [pass/transparent pass/selection pass/outline]}))
+      scene)))
+
 (defn- mesh->aabb [aabb mesh]
   (let [positions (partition 3 (:positions mesh))]
     (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
@@ -514,6 +573,7 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
+  (output scene g/Any :cached produce-scene)
   (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
                                                       (reduce mesh->aabb (geom/null-aabb) meshes)))))
 
@@ -535,4 +595,5 @@
                                     :node-type SpineSceneNode
                                     :load-fn load-spine-scene
                                     :icon spine-scene-icon
-                                    :tags #{:component}))
+                                    :view-types [:scene]
+                                    :view-opts {:scene {:grid true}}))
