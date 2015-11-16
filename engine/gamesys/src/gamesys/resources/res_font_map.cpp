@@ -16,30 +16,8 @@ namespace dmGameSystem
     {
         *font_map_out = 0;
 
-        if (reload)
-        {
-            // Will pick up the actual pointer when running get. This is a poor man's rebuild dependency
-            // tracking. The editor could in theory send a reload command for the texture as well, but for
-            // now trigger it manually here.
-            dmResource::Result r = dmResource::ReloadResource(factory, ddf->m_Textures[0], 0);
-            if (r != dmResource::RESULT_OK)
-            {
-                dmDDF::FreeMessage(ddf);
-                return r;
-            }
-        }
-
         dmRender::HMaterial material;
         dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
-        if (result != dmResource::RESULT_OK)
-        {
-            dmDDF::FreeMessage(ddf);
-            return result;
-        }
-
-        dmGraphics::HTexture texture;
-        assert(ddf->m_Textures.m_Count > 0);
-        result = dmResource::Get(factory, ddf->m_Textures[0], (void**) &texture);
         if (result != dmResource::RESULT_OK)
         {
             dmDDF::FreeMessage(ddf);
@@ -59,8 +37,11 @@ namespace dmGameSystem
             o_g.m_Descent = i_g.m_Descent;
             o_g.m_LeftBearing = i_g.m_LeftBearing;
             o_g.m_Width = i_g.m_Width;
-            o_g.m_X = i_g.m_X;
-            o_g.m_Y = i_g.m_Y;
+
+            o_g.m_InCache = false;
+            o_g.m_GlyphDataOffset = i_g.m_GlyphDataOffset;
+            o_g.m_GlyphDataSize = i_g.m_GlyphDataSize;
+
         }
         params.m_ShadowX = ddf->m_ShadowX;
         params.m_ShadowY = ddf->m_ShadowY;
@@ -70,16 +51,27 @@ namespace dmGameSystem
         params.m_SdfScale = ddf->m_SdfScale;
         params.m_SdfOutline = ddf->m_SdfOutline;
 
+        params.m_CacheWidth = ddf->m_CacheWidth;
+        params.m_CacheHeight = ddf->m_CacheHeight;
+
+        params.m_GlyphChannels = ddf->m_GlyphChannels;
+
+        params.m_CacheCellWidth = ddf->m_CacheCellWidth;
+        params.m_CacheCellHeight = ddf->m_CacheCellHeight;
+        params.m_CacheCellPadding = ddf->m_GlyphPadding;
+
+        // Copy and unpack glyphdata
+        params.m_GlyphData = malloc(ddf->m_GlyphData.m_Count);
+        memcpy(params.m_GlyphData, ddf->m_GlyphData.m_Data, ddf->m_GlyphData.m_Count);
+
         if (font_map == 0)
             font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);
         else
         {
             dmRender::SetFontMap(font_map, params);
             dmResource::Release(factory, dmRender::GetFontMapMaterial(font_map));
-            dmResource::Release(factory, dmRender::GetFontMapTexture(font_map));
         }
 
-        dmRender::SetFontMapTexture(font_map, texture);
         dmRender::SetFontMapMaterial(font_map, material);
 
         dmDDF::FreeMessage(ddf);
@@ -103,8 +95,6 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(hint_info, ddf->m_Material);
-        assert(ddf->m_Textures.m_Count > 0);
-        dmResource::PreloadHint(hint_info, ddf->m_Textures[0]);
 
         *preload_data = ddf;
         return dmResource::RESULT_OK;
@@ -139,7 +129,6 @@ namespace dmGameSystem
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)resource->m_Resource;
         dmResource::Release(factory, (void*)dmRender::GetFontMapMaterial(font_map));
-        dmResource::Release(factory, (void*)dmRender::GetFontMapTexture(font_map));
         dmRender::DeleteFontMap(font_map);
 
         return dmResource::RESULT_OK;
