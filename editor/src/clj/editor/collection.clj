@@ -3,6 +3,7 @@
             [editor.core :as core]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
@@ -16,7 +17,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.resource :as resource]
-            [editor.definition :as definition]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -139,13 +140,13 @@
 
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
-    (value (definition/proxy-value source-resource))
+    (value (gu/proxy-value source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:build-targets :build-targets]
                                        [:scene         :scene]]))
-    (validate (definition/validate-resource-unless embedded path "Missing prototype" [scene])))
+    (validate (validation/validate-resource-unless embedded path "Missing prototype" [scene])))
 
   (property embedded g/Bool (dynamic visible (g/always false)))
 
@@ -309,13 +310,13 @@
   (inherits InstanceNode)
 
   (property path (g/protocol resource/Resource)
-    (value (definition/proxy-value source-resource))
+    (value (gu/proxy-value source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:scene         :scene]
                                        [:build-targets :build-targets]]))
-    (validate (definition/validate-resource path "Missing prototype" [scene])))
+    (validate (validation/validate-resource path "Missing prototype" [scene])))
 
   (input source g/Any)
   (input source-resource (g/protocol resource/Resource))

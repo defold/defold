@@ -16,7 +16,7 @@
             [editor.scene :as scene]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
-            [editor.definition :as definition])
+            [editor.validation :as validation])
   (:import [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.google.protobuf ByteString]
@@ -237,7 +237,7 @@
         (g/error-severe (format "The total tile height (including margin) %d is greater than the image height %d" total-height max-height))))))
 
 (g/defnk validate-tile-dimensions [tile-width tile-height tile-margin image-content collision-content :as all]
-  (definition/error-aggregate [(validate-tile-width all) (validate-tile-height all)]))
+  (validation/error-aggregate [(validate-tile-width all) (validate-tile-height all)]))
 
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
