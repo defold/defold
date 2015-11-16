@@ -159,6 +159,12 @@ public class IOSBundler implements IBundler {
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
         Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
 
+        // Strip executable
+        if( !project.hasOption("debug") )
+        {
+            Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
+        }
+
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, title));
 

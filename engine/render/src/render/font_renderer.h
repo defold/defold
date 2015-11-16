@@ -16,7 +16,7 @@ namespace dmRender
      */
     struct Glyph
     {
-        uint16_t    m_Character;
+        uint32_t    m_Character;
         /// Width of the glyph
         uint32_t    m_Width;
         /// Total advancement of the glyph, measured from left to the next glyph
@@ -31,6 +31,11 @@ namespace dmRender
         int32_t     m_X;
         /// Y coordinate of the glyph in the map
         int32_t     m_Y;
+
+        bool        m_InCache;
+        uint64_t    m_GlyphDataOffset;
+        uint64_t    m_GlyphDataSize;
+        uint32_t    m_Frame;
     };
 
     /**
@@ -57,6 +62,15 @@ namespace dmRender
         float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
+        ///
+        uint32_t m_CacheWidth;
+        uint32_t m_CacheHeight;
+        uint8_t m_GlyphChannels;
+        void* m_GlyphData;
+
+        uint32_t m_CacheCellWidth;
+        uint32_t m_CacheCellHeight;
+        uint8_t m_CacheCellPadding;
     };
 
     /**
@@ -92,13 +106,6 @@ namespace dmRender
      * @param params Parameters to update
      */
     void SetFontMap(HFontMap font_map, FontMapParams& params);
-
-    /**
-     * Set font map texture
-     * @param font_map Font map handle
-     * @param texture Texture handle
-     */
-    void SetFontMapTexture(HFontMap font_map, dmGraphics::HTexture texture);
 
     /**
      * Get texture from a font map

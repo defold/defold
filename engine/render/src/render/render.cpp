@@ -305,6 +305,7 @@ namespace dmRender
         context->m_TextContext.m_RenderObjectIndex = 0;
         context->m_TextContext.m_VertexIndex = 0;
         context->m_TextContext.m_VerticesFlushed = 0;
+        context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
         context->m_TextContext.m_Batches.Clear();
         context->m_TextContext.m_TextEntries.SetSize(0);
