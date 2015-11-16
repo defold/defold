@@ -481,6 +481,52 @@ namespace dmRender
         return g;
     }
 
+    void AddGlyphToCache(HFontMap font_map, TextContext& text_context, Glyph* g) {
+        uint32_t prev_cache_cursor = font_map->m_CacheCursor;
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_SubUpdate = true;
+        tex_params.m_MipMap = 0;
+        tex_params.m_Format = font_map->m_CacheFormat;
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+
+        // Locate a cache cell candidate
+        do {
+            uint32_t cur = font_map->m_CacheCursor++;
+            Glyph* candidate = font_map->m_Cache[cur];
+            font_map->m_CacheCursor = font_map->m_CacheCursor % (font_map->m_CacheColumns * font_map->m_CacheRows);
+            if (candidate == 0x0 || text_context.m_Frame != candidate->m_Frame) {
+
+                if (candidate) {
+                    candidate->m_InCache = false;
+                }
+                font_map->m_Cache[cur] = g;
+
+                uint32_t col = cur % font_map->m_CacheColumns;
+                uint32_t row = cur / font_map->m_CacheColumns;
+
+                g->m_X = col * font_map->m_CacheCellWidth;
+                g->m_Y = row * font_map->m_CacheCellHeight;
+                g->m_Frame = text_context.m_Frame;
+                g->m_InCache = true;
+
+                // Upload glyph data to GPU
+                tex_params.m_X = g->m_X;
+                tex_params.m_Y = g->m_Y;
+                tex_params.m_Width = g->m_Width + font_map->m_CacheCellPadding*2;
+                tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
+                tex_params.m_Data = (uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+                SetTexture(font_map->m_Texture, tex_params);
+                break;
+            }
+
+        } while (prev_cache_cursor != font_map->m_CacheCursor);
+
+        if (prev_cache_cursor == font_map->m_CacheCursor) {
+            dmLogError("Out of available cache cells! Consider increasing cache_width or cache_height for the font.");
+        }
+    }
+
     void CreateFontVertexData(HRenderContext render_context, const uint64_t* key, int32_t* batch)
     {
         DM_PROFILE(Render, "CreateFontVertexData");
@@ -518,9 +564,6 @@ namespace dmRender
 
         const uint32_t max_lines = 128;
         TextLine lines[max_lines];
-
-        Glyph* missing_glyphs[256];
-        uint16_t missing_cursor = 0;
 
         while (entry_key != -1) {
             const TextEntry& te = text_context.m_TextEntries[entry_key];
@@ -593,10 +636,10 @@ namespace dmRender
                     {
 
                         if (!g->m_InCache) {
-                            if (missing_cursor < 256) {
-                                missing_glyphs[missing_cursor++] = g;
-                            }
-                        } else {
+                            AddGlyphToCache(font_map, text_context, g);
+                        }
+
+                        if (g->m_InCache) {
                             g->m_Frame = text_context.m_Frame;
 
                             GlyphVertex& v1 = vertices[text_context.m_VertexIndex];
@@ -654,64 +697,6 @@ namespace dmRender
                 }
             }
             entry_key = te.m_Next;
-        }
-
-        // Upload missing glyphs
-        if (missing_cursor > 0) {
-            uint32_t prev_cache_cursor = font_map->m_CacheCursor;
-            dmGraphics::TextureParams tex_params;
-            tex_params.m_SubUpdate = true;
-            tex_params.m_MipMap = 0;
-            tex_params.m_Format = font_map->m_CacheFormat;
-            tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-            tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-
-            while (missing_cursor > 0) {
-                Glyph* g = missing_glyphs[--missing_cursor];
-
-                // Check if glyph is already uploaded
-                if (g->m_InCache) {
-                    continue;
-                }
-
-                // Locate a cache cell candidate
-                do {
-                    uint32_t cur = font_map->m_CacheCursor++;
-                    Glyph* candidate = font_map->m_Cache[cur];
-                    font_map->m_CacheCursor = font_map->m_CacheCursor % (font_map->m_CacheColumns * font_map->m_CacheRows);
-
-                    if (candidate == 0x0 || text_context.m_Frame != candidate->m_Frame) {
-
-                        if (candidate) {
-                            candidate->m_InCache = false;
-                        }
-                        font_map->m_Cache[cur] = g;
-
-                        uint32_t col = cur % font_map->m_CacheColumns;
-                        uint32_t row = cur / font_map->m_CacheColumns;
-
-                        g->m_X = col * font_map->m_CacheCellWidth;
-                        g->m_Y = row * font_map->m_CacheCellHeight;
-                        g->m_Frame = text_context.m_Frame;
-                        g->m_InCache = true;
-
-                        // Upload glyph data to GPU
-                        tex_params.m_X = g->m_X;
-                        tex_params.m_Y = g->m_Y;
-                        tex_params.m_Width = g->m_Width + font_map->m_CacheCellPadding*2;
-                        tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
-                        tex_params.m_Data = (uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
-                        SetTexture(font_map->m_Texture, tex_params);
-                        break;
-                    }
-
-                } while (prev_cache_cursor != font_map->m_CacheCursor);
-
-                if (prev_cache_cursor == font_map->m_CacheCursor) {
-                    dmLogError("Out of available cache cells! Consider increasing cache_width or cache_height for the font.");
-                    break;
-                }
-            }
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
