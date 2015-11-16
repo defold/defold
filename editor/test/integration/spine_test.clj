@@ -19,9 +19,16 @@
 (defn- prop! [node-id label val]
   (g/transact (g/set-property node-id label val)))
 
-(deftest load-spine
+(deftest load-spine-scene
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/spine/player/spineboy.spinescene")]
+      (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.)))))))
+
+(deftest load-spine-model
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/spine/player/spineboy.spinemodel")]
       (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.)))))))
