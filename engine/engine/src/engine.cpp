@@ -977,6 +977,7 @@ bail:
 
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
 
+
                     dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
 
