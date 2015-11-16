@@ -1,6 +1,7 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.colors :as colors]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -18,7 +19,7 @@
             [internal.render.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
-            [editor.definition :as definition]
+            [editor.validation :as validation]
             [editor.camera :as camera]
             [editor.handler :as handler]
             [editor.core :as core])
@@ -430,15 +431,15 @@
 
   (property tile-source (g/protocol resource/Resource)
     (dynamic label (g/always "Image"))
-    (value (definition/proxy-value tile-source-resource))
+    (value (gu/proxy-value tile-source-resource))
     (set (project/gen-resource-setter [[:resource :tile-source-resource]
                                        [:texture-set-data :texture-set-data]
                                        [:gpu-texture :gpu-texture]
                                        [:anim-data :anim-data]]))
-    (validate (definition/validate-resource tile-source "Missing image" [texture-set-data gpu-texture anim-data])))
+    (validate (validation/validate-resource tile-source "Missing image" [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
-            (validate (definition/validate-animation animation anim-data))
+            (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
@@ -450,7 +451,7 @@
             (set (project/gen-resource-setter [[:resource :material-resource]])))
 
   (property blend-mode g/Keyword
-    (validate (definition/validate-blend-mode blend-mode Particle$BlendMode))
+    (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
     (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
   (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)

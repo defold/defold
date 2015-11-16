@@ -1,4 +1,4 @@
-(ns editor.definition
+(ns editor.validation
   (:require [dynamo.graph :as g]
             [clojure.string :as str]))
 
@@ -48,11 +48,3 @@
   `(g/fnk [~animation ~anim-data]
      (when (not (contains? ~anim-data ~animation))
        (g/error-severe (format "The animation \"%s\" could not be found in the specified image" ~animation)))))
-
-(defmacro proxy-set [field]
-  (let [field-kw (keyword field)]
-    (fn [basis self _ new-value]
-      (g/set-property self field-kw new-value))))
-
-(defmacro proxy-value [field]
-  `(g/fnk [~field] ~field))

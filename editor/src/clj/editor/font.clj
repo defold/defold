@@ -14,7 +14,7 @@
             [editor.resource :as resource]
             [editor.properties :as properties]
             [editor.material :as material]
-            [editor.definition :as definition]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -271,7 +271,7 @@
   (property font (g/protocol resource/Resource)
     (value (g/fnk [font-resource] font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]]))
-    (validate (definition/validate-resource font "Missing font" [])))
+    (validate (validation/validate-resource font "Missing font" [])))
 
   (property material (g/protocol resource/Resource)
     (value (g/fnk [material-resource] material-resource))

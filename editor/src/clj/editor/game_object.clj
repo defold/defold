@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
@@ -14,7 +15,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
-            [editor.definition :as definition]
+            [editor.validation :as validation]
             [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -91,14 +92,14 @@
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (dynamic enabled (g/always false))
-    (value (definition/proxy-value source-resource))
+    (value (gu/proxy-value source-resource))
     (set (project/gen-resource-setter [[:_node-id :source-id]
                                        [:resource :source-resource]
                                        [:node-outline :source-outline]
                                        [:user-properties :user-properties]
                                        [:scene :scene]
                                        [:build-targets :build-targets]]))
-    (validate (definition/validate-resource-unless embedded path "Missing component" [build-targets scene])))
+    (validate (validation/validate-resource-unless embedded path "Missing component" [build-targets scene])))
 
   (property properties g/Any
     (dynamic link (g/fnk [source-properties] source-properties))
