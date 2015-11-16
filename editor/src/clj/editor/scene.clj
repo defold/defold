@@ -334,8 +334,8 @@
                                :selected selected
                                :user-data (:user-data renderable)
                                :batch-key (:batch-key renderable)
-                               :aabb (geom/aabb-transform ^t/AABB (:aabb scene) parent-world))
-                        (assoc :render-key (render-key camera viewport renderable tmp-p3d)))]
+                               :aabb (geom/aabb-transform ^t/AABB (:aabb scene) parent-world)))
+       new-renderable (assoc new-renderable :render-key (render-key camera viewport new-renderable tmp-p3d))]
    (doseq [pass (:passes renderable)]
      (conj! (get out-renderables pass) new-renderable)
      (when (and selected (types/selection? pass))
