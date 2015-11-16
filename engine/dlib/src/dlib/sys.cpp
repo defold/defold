@@ -560,6 +560,8 @@ namespace dmSys
             env->ReleaseStringUTFChars(languageObj, language);
         }
 
+        FillTimeZone(info);
+
         jclass build_class = env->FindClass("android/os/Build");
         jstring manufacturerObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MANUFACTURER", "Ljava/lang/String;"));
         jstring modelObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MODEL", "Ljava/lang/String;"));
