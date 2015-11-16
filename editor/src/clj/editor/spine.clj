@@ -8,20 +8,23 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.project :as project]
+            [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.render :as render]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]))
+           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -493,15 +496,30 @@
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))
 
+(defn- transform-positions [^Matrix4d transform mesh]
+  (let [p (Point3d.)]
+    (update mesh :positions (fn [positions]
+                              (->> positions
+                                (partition 3)
+                                (mapcat (fn [[x y z]]
+                                          (.set p x y z)
+                                          (.transform transform p)
+                                          [(.x p) (.y p) (.z p)])))))))
+
 (defn- renderable->meshes [renderable]
-  (filter :visible (:meshes (first (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])))))
+  (->> (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
+    (first)
+    (:meshes)
+    (filter :visible)
+    (sort-by :draw-order)
+    (map (partial transform-positions (:world-transform renderable)))))
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
     (map (partial get verts) (:indices mesh))))
 
 (defn- gen-vb [renderables rcount]
-  (let [meshes (sort-by :draw-order (mapcat renderable->meshes renderables))
+  (let [meshes (mapcat renderable->meshes renderables)
         vcount (reduce + 0 (map (comp count :indices) meshes))]
     (when (> vcount 0)
       (let [vb (render/->vtx-pos-tex-col vcount)
@@ -515,7 +533,7 @@
       (let [outline-vertex-binding (vtx/use-with ::spine-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
         (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
-      
+
       (= pass pass/transparent)
       (when-let [vb (gen-vb renderables rcount)]
         (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
@@ -588,12 +606,103 @@
       (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
       (connect-atlas project self atlas))))
 
+(g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
+  {:spine-scene (workspace/proj-path spine-scene-resource)
+   :default-animation default-animation
+   :skin skin
+   :material (workspace/proj-path material-resource)
+   :blend-mode blend-mode})
+
+(g/defnk produce-model-save-data [resource model-pb]
+  {:resource resource
+   :content (protobuf/map->str Spine$SpineModelDesc model-pb)})
+
+(defn- build-spine-model [self basis resource dep-resources user-data]
+  (let [pb (:proto-msg user-data)
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+    {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
+
+(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets]
+  (let [dep-build-targets (flatten dep-build-targets)
+        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])]
+    [{:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-spine-model
+      :user-data {:proto-msg model-pb
+                  :dep-resources dep-resources}
+      :deps dep-build-targets}]))
+
+(g/defnode SpineModelNode
+  (inherits project/ResourceNode)
+
+  (property spine-scene (g/protocol resource/Resource)
+            (value (g/fnk [spine-scene-resource] spine-scene-resource))
+            (set (project/gen-resource-setter [[:resource :spine-scene-resource]
+                                               [:scene :spine-scene-scene]
+                                               [:aabb :aabb]
+                                               [:build-targets :dep-build-targets]])))
+  (property blend-mode g/Any (default :blend_mode_alpha)
+            (validate (validation/validate-blend-mode blend-mode Spine$SpineModelDesc$BlendMode))
+            (dynamic edit-type (g/always
+                                 (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
+                                   {:type :choicebox
+                                    :options (zipmap (map first options)
+                                                     (map (comp :display-name second) options))}))))
+  (property material (g/protocol resource/Resource)
+            (value (g/fnk [material-resource] material-resource))
+            (set (project/gen-resource-setter [[:resource :material-resource]
+                                               [:shader :material-shader]
+                                               [:sampler-data :sampler-data]
+                                               [:build-targets :dep-build-targets]])))
+  (property default-animation g/Str
+            #_(validate (validation/validate-animation default-animation anim-data))
+            #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
+                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+  (property skin g/Str
+            #_(validate (validation/validate-skin default-animation anim-data))
+            #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
+                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+
+  (input dep-build-targets g/Any :array)
+  (input spine-scene-resource (g/protocol resource/Resource))
+  (input spine-scene-scene g/Any)
+  (input aabb AABB)
+  (input material-resource (g/protocol resource/Resource))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (input sampler-data {g/Keyword g/Any})
+  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
+  (output scene g/Any :cached (g/fnk [spine-scene-scene] spine-scene-scene))
+  (output model-pb g/Any :cached produce-model-pb)
+  (output save-data g/Any :cached produce-model-save-data)
+  (output build-targets g/Any :cached produce-model-build-targets)
+  (output aabb AABB (g/fnk [aabb] aabb)))
+
+(defn load-spine-model [project self resource]
+  (let [resolve-fn (partial workspace/resolve-resource resource)
+        spine (-> (protobuf/read-text Spine$SpineModelDesc resource)
+                (update :spine-scene resolve-fn)
+                (update :material resolve-fn))]
+    (for [[k v] spine]
+      (g/set-property self k v))))
+
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :ext "spinescene"
-                                    :label "Spine Scene"
-                                    :node-type SpineSceneNode
-                                    :load-fn load-spine-scene
-                                    :icon spine-scene-icon
-                                    :view-types [:scene]
-                                    :view-opts {:scene {:grid true}}))
+  (concat
+    (workspace/register-resource-type workspace
+                                     :ext "spinescene"
+                                     :label "Spine Scene"
+                                     :node-type SpineSceneNode
+                                     :load-fn load-spine-scene
+                                     :icon spine-scene-icon
+                                     :view-types [:scene]
+                                     :view-opts {:scene {:grid true}})
+    (workspace/register-resource-type workspace
+                                     :ext "spinemodel"
+                                     :label "Spine Model"
+                                     :node-type SpineModelNode
+                                     :load-fn load-spine-model
+                                     :icon spine-model-icon
+                                     :view-types [:scene]
+                                     :view-opts {:scene {:grid true}}
+                                     :tags #{:component})))
