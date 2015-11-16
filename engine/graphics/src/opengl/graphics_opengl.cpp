@@ -49,6 +49,7 @@ typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat
 typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
 typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
+typedef void (APIENTRY * PFNGLCOMPRTEXSUB2DPROC) (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
 typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
@@ -70,6 +71,7 @@ PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
 PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
 PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
 PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
+PFNGLCOMPRTEXSUB2DPROC glCompressedTexSubImage2D = NULL;
 PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
 PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
 PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
@@ -372,6 +374,7 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glDisableVertexAttribArray, "glDisableVertexAttribArray", PFNGLVERTEXATTRIBSETPROC);
         GET_PROC_ADDRESS(glVertexAttribPointer, "glVertexAttribPointer", PFNGLVERTEXATTRIBPTRPROC);
         GET_PROC_ADDRESS(glCompressedTexImage2D, "glCompressedTexImage2D", PFNGLTEXPARAM2DPROC);
+        GET_PROC_ADDRESS(glCompressedTexSubImage2D, "glCompressedTexSubImage2D", PFNGLCOMPRTEXSUB2DPROC);
         GET_PROC_ADDRESS(glGenBuffersARB, "glGenBuffers", PFNGLGENBUFFERSPROC);
         GET_PROC_ADDRESS(glDeleteBuffersARB, "glDeleteBuffers", PFNGLDELETEBUFFERSPROC);
         GET_PROC_ADDRESS(glBindBufferARB, "glBindBuffer", PFNGLBINDBUFFERPROC);
