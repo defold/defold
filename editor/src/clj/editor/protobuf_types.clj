@@ -24,7 +24,6 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.spine.proto Spine$SpineModelDesc]
            [com.dynamo.render.proto Render$DisplayProfiles]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -108,12 +107,6 @@
                :icon "icons/32/Icons_26-AT-Sound.png"
                :pb-class Sound$SoundDesc
                :resource-fields [:sound]
-               :tags #{:component}}
-              {:ext "spinemodel"
-               :label "Spine Model"
-               :icon "icons/32/Icons_15-Spine-model.png"
-               :pb-class Spine$SpineModelDesc
-               :resource-fields [:spine-scene :material]
                :tags #{:component}}
               {:ext "texture_profiles"
                :label "Texture Profiles"
