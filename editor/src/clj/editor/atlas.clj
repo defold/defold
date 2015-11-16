@@ -20,7 +20,7 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
             [editor.outline :as outline]
-            [editor.definition :as definition]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -149,7 +149,7 @@
   (property id  g/Str)
   (property fps g/Int
             (default 30)
-            (validate (definition/validate-positive fps "FPS must be greater than or equal to zero")))
+            (validate (validation/validate-positive fps "FPS must be greater than or equal to zero")))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -282,13 +282,13 @@
 
   (property margin g/Int
             (default 0)
-            (validate (definition/validate-positive margin "Margin must be greater than or equal to zero")))
+            (validate (validation/validate-positive margin "Margin must be greater than or equal to zero")))
   (property inner-padding g/Int
             (default 0)
-            (validate (definition/validate-positive inner-padding "Inner padding must be greater than or equal to zero")))
+            (validate (validation/validate-positive inner-padding "Inner padding must be greater than or equal to zero")))
   (property extrude-borders g/Int
             (default 0)
-            (validate (definition/validate-positive extrude-borders "Extrude borders must be greater than or equal to zero")))
+            (validate (validation/validate-positive extrude-borders "Extrude borders must be greater than or equal to zero")))
 
   (input animations Animation :array)
   (input img-ddf g/Any :array)
