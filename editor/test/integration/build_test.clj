@@ -272,11 +272,13 @@
                      content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
                      content (get content-by-source path)
                      desc (protobuf/bytes->map Font$FontMap content)
-                     texture-content (get content-by-target (get-in desc [:textures 0]))
-                     texture (protobuf/bytes->map Graphics$TextureImage texture-content)
-                     first-tex (get-in texture [:alternatives 0])]
-                 (is (= 1024 (:width first-tex)))
-                 (is (= 128 (:height first-tex))))))))
+                     glyph-data-size (.size (:glyph-data desc))]
+                 (is (not (= 0 (:cache-height desc))))
+                 (is (not (= 0 (:cache-width desc))))
+                 (is (every? identity (map (fn [glyph]
+                                             (and (< (:glyph-data-offset glyph) glyph-data-size)
+                                                  (<= (+ (:glyph-data-offset glyph) (:glyph-data-size glyph)) glyph-data-size)))
+                                           (:glyphs desc)))))))))
 
 (deftest build-spine-scene
   (testing "Building spine scene"
