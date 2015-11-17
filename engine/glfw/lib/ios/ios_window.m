@@ -134,6 +134,23 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
                 handled = YES;
         }
     }
+    return handled;
+}
+
+-(BOOL) application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation{
+    SEL sel = @selector(application:openURL:sourceApplication:annotation:);
+    BOOL handled = NO;
+
+   for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: sel])  {
+            if ([g_AppDelegates[i] application: application openURL: url sourceApplication:sourceApplication annotation:(id)annotation])
+                handled = YES;
+        }
+    }
+
+    // handleOpenURL is deprecated. We call it from here as if openURL is implemented, handleOpenURL won't be called.
+    if ([self application: application handleOpenURL:url])
+        handled = YES;
 
     return handled;
 }
@@ -1015,8 +1032,20 @@ _GLFWwin g_Savewin;
     });
 }
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
+- (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    BOOL handled = NO;
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)]) {
+            if ([g_AppDelegates[i] application:application willFinishLaunchingWithOptions:launchOptions])
+                handled = YES;
+        }
+    }
+    return handled;
+}
+
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     [self forceDeviceOrientation];
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
