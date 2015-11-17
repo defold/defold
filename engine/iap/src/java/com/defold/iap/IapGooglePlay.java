@@ -24,15 +24,9 @@ import android.util.Log;
 
 import com.android.vending.billing.IInAppBillingService;
 
-public class Iap implements Handler.Callback {
+public class IapGooglePlay implements Handler.Callback {
     public static final String PARAM_PRODUCT = "product";
     public static final String PARAM_MESSENGER = "com.defold.iap.messenger";
-
-    // NOTE: Also defined in iap_android.cpp
-    public static final int TRANS_STATE_PURCHASING = 0;
-    public static final int TRANS_STATE_PURCHASED = 1;
-    public static final int TRANS_STATE_FAILED = 2;
-    public static final int TRANS_STATE_RESTORED = 3;
 
     public static final String RESPONSE_CODE = "RESPONSE_CODE";
     public static final String RESPONSE_GET_SKU_DETAILS_LIST = "DETAILS_LIST";
@@ -43,16 +37,6 @@ public class Iap implements Handler.Callback {
     public static final String RESPONSE_INAPP_PURCHASE_DATA_LIST = "INAPP_PURCHASE_DATA_LIST";
     public static final String RESPONSE_INAPP_SIGNATURE_LIST = "INAPP_DATA_SIGNATURE_LIST";
     public static final String INAPP_CONTINUATION_TOKEN = "INAPP_CONTINUATION_TOKEN";
-
-    public static final int BILLING_RESPONSE_RESULT_OK = 0;
-    public static final int BILLING_RESPONSE_RESULT_USER_CANCELED = 1;
-    public static final int BILLING_RESPONSE_RESULT_SERVICE_UNAVAILABLE = 2;
-    public static final int BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE = 3;
-    public static final int BILLING_RESPONSE_RESULT_ITEM_UNAVAILABLE = 4;
-    public static final int BILLING_RESPONSE_RESULT_DEVELOPER_ERROR = 5;
-    public static final int BILLING_RESPONSE_RESULT_ERROR = 6;
-    public static final int BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED = 7;
-    public static final int BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8;
 
     public static enum Action {
         BUY,
@@ -93,12 +77,12 @@ public class Iap implements Handler.Callback {
                     SkuRequest sr = skuRequestQueue.take();
                     if (service == null) {
                         Log.wtf(TAG,  "service is null");
-                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                         continue;
                     }
                     if (activity == null) {
                         Log.wtf(TAG,  "activity is null");
-                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                         continue;
                     }
 
@@ -109,7 +93,7 @@ public class Iap implements Handler.Callback {
                         int response = skuDetails.getInt("RESPONSE_CODE");
 
                         String res = null;
-                        if (response == BILLING_RESPONSE_RESULT_OK) {
+                        if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                             ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
 
                             JSONObject map = new JSONObject();
@@ -127,10 +111,10 @@ public class Iap implements Handler.Callback {
 
                     } catch (RemoteException e) {
                         Log.e(TAG, "Failed to fetch product list", e);
-                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                     } catch (JSONException e) {
                         Log.e(TAG, "Failed to fetch product list", e);
-                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                     }
                 } catch (InterruptedException e) {
                     continue;
@@ -139,7 +123,7 @@ public class Iap implements Handler.Callback {
         }
     }
 
-    public Iap(Activity activity) {
+    public IapGooglePlay(Activity activity) {
         this.activity = activity;
     }
 
@@ -225,7 +209,7 @@ public class Iap implements Handler.Callback {
                         Log.wtf(TAG, "Failed to add sku request", e);
                     }
                 } else {
-                    listener.onProductsResult(BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE, null);
+                    listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE, null);
                 }
             }
         });
@@ -267,8 +251,8 @@ public class Iap implements Handler.Callback {
             @Override
             public void run() {
                 init();
-                Iap.this.purchaseListener = listener;
-                Intent intent = new Intent(activity, IapActivity.class);
+                IapGooglePlay.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapGooglePlayActivity.class);
                 intent.putExtra(PARAM_MESSENGER, messenger);
                 intent.putExtra(PARAM_PRODUCT, product);
                 intent.setAction(Action.BUY.toString());
@@ -282,8 +266,8 @@ public class Iap implements Handler.Callback {
             @Override
             public void run() {
                 init();
-                Iap.this.purchaseListener = listener;
-                Intent intent = new Intent(activity, IapActivity.class);
+                IapGooglePlay.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapGooglePlayActivity.class);
                 intent.putExtra(PARAM_MESSENGER, messenger);
                 intent.setAction(Action.PROCESS_PENDING_CONSUMABLES.toString());
                 activity.startActivity(intent);
@@ -296,8 +280,8 @@ public class Iap implements Handler.Callback {
             @Override
             public void run() {
                 init();
-                Iap.this.purchaseListener = listener;
-                Intent intent = new Intent(activity, IapActivity.class);
+                IapGooglePlay.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapGooglePlayActivity.class);
                 intent.putExtra(PARAM_MESSENGER, messenger);
                 intent.setAction(Action.RESTORE.toString());
                 activity.startActivity(intent);
@@ -314,7 +298,7 @@ public class Iap implements Handler.Callback {
         try {
             JSONObject p = new JSONObject(purchase);
             p.put("ident", p.get("productId"));
-            p.put("state", TRANS_STATE_PURCHASED);
+            p.put("state", IapJNI.TRANS_STATE_PURCHASED);
             p.put("trans_ident", p.get("orderId"));
             p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
             // Receipt is the complete json data
@@ -364,6 +348,7 @@ public class Iap implements Handler.Callback {
             if (purchaseData != null && dataSignature != null) {
                 purchaseData = convertPurchase(purchaseData, dataSignature);
             } else {
+                responseCode = IapJNI.BILLING_RESPONSE_RESULT_ERROR;
                 purchaseData = "";
             }
 
@@ -374,11 +359,11 @@ public class Iap implements Handler.Callback {
             ArrayList<String> purchaseDataList = items.getStringArrayList(RESPONSE_INAPP_PURCHASE_DATA_LIST);
             ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
             for (int i = 0; i < ownedSkus.size(); ++i) {
-                int c = BILLING_RESPONSE_RESULT_OK;
+                int c = IapJNI.BILLING_RESPONSE_RESULT_OK;
                 String pd = convertPurchase(purchaseDataList.get(i), signatureList.get(i));
                 if (pd == null) {
                     pd = "";
-                    c = BILLING_RESPONSE_RESULT_ERROR;
+                    c = IapJNI.BILLING_RESPONSE_RESULT_ERROR;
                 }
                 purchaseListener.onPurchaseResult(c, pd);
             }

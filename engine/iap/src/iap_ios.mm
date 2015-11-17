@@ -394,6 +394,7 @@ int IAP_List(lua_State* L)
  *         print(transaction.date)
  *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_RESTORED
  *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED
+ *         print(transaction.user_id)     -- only available for Amazon IAP transactions
  *     else
  *         print(error.error, error.reason)
  *     end
