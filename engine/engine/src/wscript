@@ -26,7 +26,7 @@ def build(bld):
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
 
-    mobile_service_symbols = ['IAPExt', 'PushExt', 'AdTruthExt']
+    mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'AdTruthExt']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FBSDKCORE')
         additional_libs.append('FBSDKLOGIN')
@@ -61,11 +61,12 @@ def build(bld):
               '%s/share/java/iap_android.jar' % (dynamo_home),
               '%s/share/java/push_android.jar' % (dynamo_home),
               '%s/share/java/adtruth_android.jar' % (dynamo_home),
-              '%s/share/java/sound2_android.jar' % (dynamo_home)]
+              '%s/share/java/sound2_android.jar' % (dynamo_home),
+              '%s/share/java/iac_android.jar' % (dynamo_home)]
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -86,7 +87,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',

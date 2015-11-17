@@ -110,7 +110,7 @@
                 <dict>
                         <key>CFBundleURLSchemes</key>
                         <array>
-                                {{#url-schemes}}<string>fb{{.}}</string>{{/url-schemes}}
+                                {{#url-schemes}}<string>{{.}}</string>{{/url-schemes}}
                         </array>
                 </dict>
         </array>
