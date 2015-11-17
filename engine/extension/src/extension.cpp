@@ -28,7 +28,7 @@ namespace dmExtension
                     ret = r;
                     break;
                 } else {
-                    ed->m_AppInitialzed = true;
+                    ed->m_AppInitialized = true;
                 }
             }
             ++i;
@@ -57,16 +57,28 @@ namespace dmExtension
     Result AppFinalize(AppParams* params)
     {
         dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
-        uint32_t i = 0;
         while (ed) {
-            if (ed->AppFinalize && ed->m_AppInitialzed) {
-                ed->m_AppInitialzed = false;
+            if (ed->AppFinalize && ed->m_AppInitialized) {
+                ed->m_AppInitialized = false;
                 dmExtension::Result r = ed->AppFinalize(params);
                 if (r != dmExtension::RESULT_OK) {
                     dmLogError("Failed to finalize (app-level) extension: %s", ed->m_Name);
                 }
             }
-            ++i;
+            ed = (dmExtension::Desc*) ed->m_Next;
+        }
+
+        return RESULT_OK;
+    }
+
+
+    Result DispatchEvent(Params* params, const Event* event)
+    {
+        dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+        while (ed) {
+            if (ed->OnEvent && ed->m_AppInitialized) {
+                ed->OnEvent(params, event);
+            }
             ed = (dmExtension::Desc*) ed->m_Next;
         }
 
