@@ -85,6 +85,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- For IAC Invocations -->
+        <activity android:name="com.defold.iac.IACActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+               <action android:name="android.intent.action.VIEW" />
+               <category android:name="android.intent.category.DEFAULT" />
+               <category android:name="android.intent.category.BROWSABLE" />
+               <data android:scheme="{{android.package}}" />
+            </intent-filter>
+        </activity>
+
         <service android:name="com.defold.adtruth.InstallReceiver"/>
         <receiver
             android:name="com.defold.adtruth.InstallReceiver"
