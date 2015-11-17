@@ -34,7 +34,6 @@ def build(bld):
 
     else:
         source += ['iac_null.cpp']
-        bld.add_subdirs('test')
 
     iac = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',
