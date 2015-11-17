@@ -49,13 +49,14 @@ def build(bld):
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
-    activities=[('com.facebook.FacebookActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="dmengine"'), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
+    activities=[('com.facebook.FacebookActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="dmengine"'), ('com.defold.iap.IapGooglePlayActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
     extra_packages = 'com.facebook:com.google.android.gms'
 
     android_jar_paths = ['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
               '%s/ext/share/java/bolts-android-1.2.0.jar' % (dynamo_home),
               '%s/ext/share/java/google-play-services.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
+              '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/facebook_android.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),

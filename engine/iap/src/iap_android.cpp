@@ -26,8 +26,8 @@ enum TransactionState
 
 enum ErrorReason
 {
-	REASON_UNSPECIFIED = 0,
-	REASON_USER_CANCELED = 1,
+    REASON_UNSPECIFIED = 0,
+    REASON_USER_CANCELED = 1,
 };
 
 enum BillingResponse
@@ -383,7 +383,7 @@ void HandleProductResult(const Command* cmd)
         }
         dmJson::Free(&doc);
     } else {
-        dmLogError("Google Play error %d", cmd->m_ResponseCode);
+        dmLogError("IAP error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
         PushError(L, "failed to fetch product", REASON_UNSPECIFIED);
     }
@@ -440,7 +440,7 @@ void HandlePurchaseResult(const Command* cmd)
         lua_pushnil(L);
         PushError(L, "user canceled purchase", REASON_USER_CANCELED);
     } else {
-        dmLogError("Google Play error %d", cmd->m_ResponseCode);
+        dmLogError("IAP error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
         PushError(L, "failed to buy product", REASON_UNSPECIFIED);
     }
@@ -502,7 +502,17 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
         jclass class_loader = env->FindClass("java/lang/ClassLoader");
         jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-        jstring str_class_name = env->NewStringUTF("com.defold.iap.Iap");
+
+        const char* provider = dmConfigFile::GetString(params->m_ConfigFile, "android.iap_provider", "GooglePlay");
+        const char* class_name = "com.defold.iap.IapGooglePlay";
+
+        if (!strcmp(provider, "Amazon"))
+            class_name = "com.defold.iap.IapAmazon";
+        else if (strcmp(provider, "GooglePlay"))
+            dmLogWarning("Unknown IAP provider name [%s], defaulting to GooglePlay", provider);
+
+        jstring str_class_name = env->NewStringUTF(class_name);
+
         jclass iap_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
         env->DeleteLocalRef(str_class_name);
 
