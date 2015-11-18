@@ -77,7 +77,10 @@ namespace dmExtension
         dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
         while (ed) {
             if (ed->OnEvent && ed->m_AppInitialized) {
-                ed->OnEvent(params, event);
+                dmExtension::Result r = ed->OnEvent(params, event);
+                if (r != dmExtension::RESULT_OK) {
+                    dmLogError("Failed to dispatch event to extension: %s", ed->m_Name);
+                }
             }
             ed = (dmExtension::Desc*) ed->m_Next;
         }

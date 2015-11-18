@@ -664,7 +664,6 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
         g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
         g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
-        g_Facebook.m_Logout = env->GetMethodID(fb_class, "logout", "()V");
 
         // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
         // Better solution?
@@ -831,9 +830,9 @@ dmExtension::Result OnEventFacebook(dmExtension::Params* params, const dmExtensi
     {
         JNIEnv* env = Attach();
 
-        if( event->m_Event == dmExtension::EVENT_APP_ACTIVATE )
+        if( event->m_Event == dmExtension::EVENT_ID_ACTIVATEAPP )
             env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Activate);
-        else if( event->m_Event == dmExtension::EVENT_APP_DEACTIVATE )
+        else if( event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP )
             env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
 
         Detach();

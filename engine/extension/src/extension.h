@@ -51,8 +51,8 @@ namespace dmExtension
 
     enum EventID
     {
-        EVENT_APP_ACTIVATE,
-        EVENT_APP_DEACTIVATE,
+        EVENT_ID_ACTIVATEAPP,
+        EVENT_ID_DEACTIVATEAPP,
     };
 
     struct Event

@@ -25,10 +25,10 @@ TEST(dmExtension, Basic)
 
     dmExtension::Params params;
     dmExtension::Event event;
-    event.m_Event = dmExtension::EVENT_APP_ACTIVATE;
+    event.m_Event = dmExtension::EVENT_ID_ACTIVATEAPP;
     dmExtension::DispatchEvent(&params, &event);
     ASSERT_EQ(1, g_TestAppEventCount);
-    event.m_Event = dmExtension::EVENT_APP_DEACTIVATE;
+    event.m_Event = dmExtension::EVENT_ID_DEACTIVATEAPP;
     dmExtension::DispatchEvent(&params, &event);
     ASSERT_EQ(0, g_TestAppEventCount);
 

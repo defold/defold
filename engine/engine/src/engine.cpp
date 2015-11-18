@@ -17,7 +17,6 @@
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
-#include <graphics/glfw/glfw.h>
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
@@ -115,7 +114,7 @@ namespace dmEngine
         params.m_ConfigFile = engine->m_Config;
         params.m_L          = 0;
         dmExtension::Event event;
-        event.m_Event = focus ? dmExtension::EVENT_APP_ACTIVATE : dmExtension::EVENT_APP_DEACTIVATE;
+        event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
         dmExtension::DispatchEvent( &params, &event );
     }
 

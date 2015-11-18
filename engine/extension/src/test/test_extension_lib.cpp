@@ -37,9 +37,9 @@ dmExtension::Result UpdateTest(dmExtension::Params* params)
 
 dmExtension::Result OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 {
-    if( event->m_Event == dmExtension::EVENT_APP_ACTIVATE )
+    if( event->m_Event == dmExtension::EVENT_ID_ACTIVATEAPP )
         ++g_TestAppEventCount;
-    else if(event->m_Event == dmExtension::EVENT_APP_DEACTIVATE)
+    else if(event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP)
         --g_TestAppEventCount;
     return dmExtension::RESULT_OK;
 }
