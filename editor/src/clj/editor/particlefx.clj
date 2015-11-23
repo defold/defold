@@ -1,6 +1,7 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.colors :as colors]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -427,14 +428,15 @@
   (property space g/Keyword
             (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/always "Emission Space")))
+
   (property tile-source (g/protocol resource/Resource)
     (dynamic label (g/always "Image"))
-    (value (g/fnk [tile-source-resource] tile-source-resource))
-    (validate (validation/validate-resource tile-source-resource "Missing image" [texture-set-data gpu-texture anim-data]))
+    (value (gu/proxy-value tile-source-resource))
     (set (project/gen-resource-setter [[:resource :tile-source-resource]
                                        [:texture-set-data :texture-set-data]
                                        [:gpu-texture :gpu-texture]
-                                       [:anim-data :anim-data]])))
+                                       [:anim-data :anim-data]]))
+    (validate (validation/validate-resource tile-source "Missing image" [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
             (validate (validation/validate-animation animation anim-data))
