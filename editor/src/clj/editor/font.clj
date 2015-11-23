@@ -57,9 +57,9 @@
 
 (def ^:private vertex-order [0 1 2 1 3 2])
 
-(defn- glyph->quad [su sv ^Matrix4d transform glyph]
-  (let [u0 (* su (+ (:x glyph) (:left-bearing glyph)))
-        v0 (* sv (- (:y glyph) (:ascent glyph)))
+(defn- glyph->quad [su sv font-map ^Matrix4d transform glyph]
+  (let [u0 (* su (+ (:x glyph) (:glyph-padding font-map)))
+        v0 (* sv (+ (:y glyph) (:glyph-padding font-map)))
         u1 (+ u0 (* su (:width glyph)))
         v1 (+ v0 (* sv (+ (:ascent glyph) (:descent glyph))))
         x0 (:left-bearing glyph)
@@ -147,7 +147,7 @@
 (defn gen-vertex-buffer [{:keys [type font-map]} text-entries]
   (let [w (:width font-map)
         h (:height font-map)
-        glyph-fn (partial glyph->quad (/ 1 w) (/ 1 h))
+        glyph-fn (partial glyph->quad (/ 1 w) (/ 1 h) font-map)
         glyphs (font-map->glyphs font-map)
         char->glyph (comp glyphs int)
         line-height (+ (:max-ascent font-map) (:max-descent font-map))
@@ -194,7 +194,7 @@
         transform (doto
                     (Matrix4d.)
                     (.set (Vector3d. (- (* w 0.5)) (- (* h 0.5)) 0.0)))
-        glyph-fn (partial glyph->quad (/ 1 w) (/ 1 h))
+        glyph-fn (partial glyph->quad (/ 1 w) (/ 1 h) font-map)
         glyphs (:glyphs font-map)
         v3 (Vector3d.)
         xforms (mapv (fn [g] (let [xform (doto (Matrix4d.)
@@ -218,7 +218,8 @@
                   :passes [pass/transparent]}}))
 
 (g/defnk produce-pb-msg [font material size antialias alpha outline-alpha outline-width
-                         shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format]
+                         shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
+                         all-chars cache-width cache-height]
   {:font (resource/resource->proj-path font)
    :material (resource/resource->proj-path material)
    :size size
@@ -231,7 +232,10 @@
    :shadow-x shadow-x
    :shadow-y shadow-y
    :extra-characters extra-characters
-   :output-format output-format})
+   :output-format output-format
+   :all-chars all-chars
+   :cache-width cache-width
+   :cache-height cache-height})
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -246,18 +250,17 @@
 (defn- build-font [self basis resource dep-resources user-data]
   (let [project (project/get-project self)
         workspace (project/workspace project)
-        font-map (assoc (:font-map user-data) :textures [(workspace/proj-path (second (first dep-resources)))])]
+        font-map (:font-map user-data)]
     {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))
 
 (g/defnk produce-build-targets [_node-id resource font-resource font-map font-image dep-build-targets]
   (let [project        (project/get-project _node-id)
-        workspace      (project/workspace project)
-        texture-target (image/make-texture-build-target workspace _node-id font-image)]
+        workspace      (project/workspace project)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-font
       :user-data {:font-map font-map}
-      :deps (cons texture-target (flatten dep-build-targets))}]))
+      :deps (flatten dep-build-targets)}]))
 
 (g/defnode FontSourceNode
   (inherits project/ResourceNode))
@@ -301,6 +304,10 @@
   (property output-format g/Keyword
     (dynamic edit-type (g/always (properties/->pb-choicebox Font$FontTextureFormat))))
 
+  (property all-chars g/Bool (default false))
+  (property cache-width g/Int (default 0))
+  (property cache-height g/Int (default 0))
+  
   (input dep-build-targets g/Any :array)
   (input font-resource (g/protocol resource/Resource))
   (input material-resource (g/protocol resource/Resource))

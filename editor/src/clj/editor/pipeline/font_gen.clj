@@ -7,14 +7,13 @@
 
 (defn generate [font-desc font-path resolver]
   (let [^Font$FontDesc font-desc (protobuf/map->pb Font$FontDesc font-desc)
-        font-map-builder (Font$FontMap/newBuilder)
         font-res-resolver (reify Fontc$FontResourceResolver
                             (getResource [this resource-name]
-                              (io/input-stream (resolver (str "/" resource-name)))))]
+                              (io/input-stream (resolver (str "/" resource-name)))))
+        fontc (Fontc.)]
     (with-open [font-stream (io/input-stream font-path)]
-      (let [^BufferedImage image (-> (Fontc.)
-                                   (.compile font-stream font-desc font-map-builder font-res-resolver))]
+      (let [^BufferedImage image (.compile fontc font-stream font-desc true font-res-resolver)]
         {:image image
-         :font-map (-> (protobuf/pb->map (.build font-map-builder))
-                     (assoc :width (.getWidth image)
-                            :height (.getHeight image)))}))))
+         :font-map (-> (protobuf/pb->map (.getFontMap fontc))
+                       (assoc :width (.getWidth image)
+                              :height (.getHeight image)))}))))
