@@ -1123,7 +1123,9 @@ static void LogFrameBufferError(GLenum status)
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {
+        assert(context);
         glUniform1i(location, unit);
+        CHECK_GL_ERROR
     }
 
     void SetDepthStencilRenderBuffer(RenderTarget* rt, bool update_current = false)
