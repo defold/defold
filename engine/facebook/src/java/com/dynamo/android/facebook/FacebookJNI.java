@@ -13,11 +13,42 @@ import android.app.Activity;
 import android.util.Log;
 import android.os.Bundle;
 
+import com.facebook.FacebookSdk;
+import com.facebook.appevents.AppEventsLogger;
 import com.facebook.login.DefaultAudience;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONArray;
+
+// A helper class that initializes the facebook sdk, and also activates/deactivates the app
+class FacebookAppJNI {
+
+    private static final String TAG = "defold.facebookapp";
+
+    private Activity activity;
+    private String appId;
+
+    public FacebookAppJNI(Activity activity, String appId) {
+        this.activity = activity;
+        this.appId = appId;
+
+        FacebookSdk.sdkInitialize( activity );
+        FacebookSdk.setApplicationId( appId );
+    }
+
+    public void activate() {
+        String s = String.format("activateApp: activity %s   appid: %s", this.activity, this.appId);
+        Log.d(TAG, s);
+        AppEventsLogger.activateApp(this.activity, this.appId);
+    }
+
+    public void deactivate() {
+        String s = String.format("deactivateApp: activity %s   appid: %s", this.activity, this.appId);
+        Log.d(TAG, s);
+        AppEventsLogger.deactivateApp(this.activity, this.appId);
+    }
+}
 
 class FacebookJNI {
 

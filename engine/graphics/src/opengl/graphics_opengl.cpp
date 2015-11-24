@@ -302,6 +302,13 @@ static void LogFrameBufferError(GLenum status)
         return 1;
     }
 
+    static void OnWindowFocus(int focus)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowFocusCallback != 0x0)
+            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
+    }
+
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
         // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
@@ -419,13 +426,16 @@ static void LogFrameBufferError(GLenum status)
         glfwSetWindowTitle(params->m_Title);
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
+        glfwSetWindowFocusCallback(OnWindowFocus);
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
-        context->m_WindowResizeCallback = params->m_ResizeCallback;
+        context->m_WindowResizeCallback         = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
+        context->m_WindowCloseCallback          = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback          = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
         context->m_WindowOpened = 1;
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;

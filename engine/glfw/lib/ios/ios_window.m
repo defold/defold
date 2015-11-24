@@ -1101,6 +1101,8 @@ _GLFWwin g_Savewin;
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(0);
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
@@ -1110,6 +1112,8 @@ _GLFWwin g_Savewin;
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
     _glfwWin.iconified = GL_FALSE;
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(1);
 }
 
 - (void)applicationWillTerminate:(UIApplication *)application

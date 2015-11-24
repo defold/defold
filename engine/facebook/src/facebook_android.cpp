@@ -56,6 +56,11 @@ struct Facebook
     jmethodID m_RequestReadPermissions;
     jmethodID m_RequestPublishPermissions;
     jmethodID m_ShowDialog;
+
+    jobject m_FBApp;
+    jmethodID m_Activate;
+    jmethodID m_Deactivate;
+
     int m_Callback;
     int m_Self;
     int m_RefCount;
@@ -764,11 +769,76 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
             Detach();
             g_Facebook.m_FB = NULL;
             dmMutex::Delete(g_Facebook.m_Mutex);
-            memset(&g_Facebook, 0x00, sizeof(Facebook));
         }
     }
 
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, UpdateFacebook, FinalizeFacebook)
+dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
+{
+    if( g_Facebook.m_FBApp == NULL )
+    {
+        JNIEnv* env = Attach();
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
+        jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
+        jclass class_loader = env->FindClass("java/lang/ClassLoader");
+        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+        jstring str_class_name = env->NewStringUTF("com.dynamo.android.facebook.FacebookAppJNI");
+        jclass fb_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
+        env->DeleteLocalRef(str_class_name);
+
+        g_Facebook.m_Activate = env->GetMethodID(fb_class, "activate", "()V");
+        g_Facebook.m_Deactivate = env->GetMethodID(fb_class, "deactivate", "()V");
+
+        // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
+        // Better solution?
+        const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
+
+        jmethodID jni_constructor = env->GetMethodID(fb_class, "<init>", "(Landroid/app/Activity;Ljava/lang/String;)V");
+        jstring str_app_id = env->NewStringUTF(app_id);
+        g_Facebook.m_FBApp = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
+        env->DeleteLocalRef(str_app_id);
+
+        env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Activate);
+
+        Detach();
+    }
+
+    return dmExtension::RESULT_OK;
+}
+
+dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
+{
+    if (g_Facebook.m_FBApp != NULL)
+    {
+        JNIEnv* env = Attach();
+        env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
+        env->DeleteGlobalRef(g_Facebook.m_FBApp);
+        Detach();
+        g_Facebook.m_FBApp = NULL;
+        memset(&g_Facebook, 0x00, sizeof(Facebook));
+    }
+    return dmExtension::RESULT_OK;
+}
+
+dmExtension::Result OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* event)
+{
+    if( g_Facebook.m_FBApp )
+    {
+        JNIEnv* env = Attach();
+
+        if( event->m_Event == dmExtension::EVENT_ID_ACTIVATEAPP )
+            env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Activate);
+        else if( event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP )
+            env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
+
+        Detach();
+    }
+    return dmExtension::RESULT_OK;
+}
+
+
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, UpdateFacebook, OnEventFacebook, FinalizeFacebook)
