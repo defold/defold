@@ -225,4 +225,4 @@ dmExtension::Result FinalizeAdTruth(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(AdTruthExt, "AdTruth", AppInitializeAdTruth, AppFinalizeAdTruth, InitializeAdTruth, 0, FinalizeAdTruth)
+DM_DECLARE_EXTENSION(AdTruthExt, "AdTruth", AppInitializeAdTruth, AppFinalizeAdTruth, InitializeAdTruth, 0, 0, FinalizeAdTruth)
