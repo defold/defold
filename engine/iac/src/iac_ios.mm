@@ -238,7 +238,7 @@ dmExtension::Result FinalizeIAC(dmExtension::Params* params)
     return dmIAC::Finalize(params);
 }
 
-DM_DECLARE_EXTENSION(IACExt, "IAC", AppInitializeIAC, AppFinalizeIAC, InitializeIAC, 0, FinalizeIAC)
+DM_DECLARE_EXTENSION(IACExt, "IAC", AppInitializeIAC, AppFinalizeIAC, InitializeIAC, 0, 0, FinalizeIAC)
 
 
 

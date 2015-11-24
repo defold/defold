@@ -12,16 +12,27 @@ extern "C"
 
 
 extern int g_TestAppInitCount;
+extern int g_TestAppEventCount;
 
 TEST(dmExtension, Basic)
 {
-    dmExtension::AppParams params;
+    dmExtension::AppParams appparams;
     ASSERT_EQ(0, g_TestAppInitCount);
-    dmExtension::AppInitialize(&params);
+    dmExtension::AppInitialize(&appparams);
     ASSERT_EQ(1, g_TestAppInitCount);
     ASSERT_STREQ("test", dmExtension::GetFirstExtension()->m_Name);
     ASSERT_EQ(0, dmExtension::GetFirstExtension()->m_Next);
-    dmExtension::AppFinalize(&params);
+
+    dmExtension::Params params;
+    dmExtension::Event event;
+    event.m_Event = dmExtension::EVENT_ID_ACTIVATEAPP;
+    dmExtension::DispatchEvent(&params, &event);
+    ASSERT_EQ(1, g_TestAppEventCount);
+    event.m_Event = dmExtension::EVENT_ID_DEACTIVATEAPP;
+    dmExtension::DispatchEvent(&params, &event);
+    ASSERT_EQ(0, g_TestAppEventCount);
+
+    dmExtension::AppFinalize(&appparams);
     ASSERT_EQ(0, g_TestAppInitCount);
 }
 
