@@ -89,12 +89,16 @@
 - (void)windowDidBecomeKey:(NSNotification *)notification
 {
     _glfwWin.active = GL_TRUE;
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(1);
 }
 
 - (void)windowDidResignKey:(NSNotification *)notification
 {
     _glfwWin.active = GL_FALSE;
     _glfwInputDeactivation();
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(0);
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
