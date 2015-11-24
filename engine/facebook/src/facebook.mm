@@ -117,6 +117,12 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                 } else {
                     [new_res setObject:results[key] forKey:key];
                 }
+
+                // Alias request_id == request,
+                // want to have same result fields on both Android & iOS.
+                if ([key isEqualToString:@"request"]) {
+                    [new_res setObject:results[key] forKey:@"request_id"];
+                }
             }
             RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
         } else {
