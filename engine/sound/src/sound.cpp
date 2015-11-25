@@ -345,6 +345,7 @@ namespace dmSound
 
         if (sound->m_SoundDataPool.Remaining() == 0)
         {
+            dmLogWarning("Could not create new sound data, out of sound data pool (sound.max_sound_data: %d).", sound->m_SoundDataPool.Capacity());
             *sound_data = 0;
             return RESULT_OUT_OF_INSTANCES;
         }
