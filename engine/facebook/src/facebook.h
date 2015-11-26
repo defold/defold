@@ -33,6 +33,13 @@ namespace dmFacebook {
         AUDIENCE_EVERYONE = 4,
     };
 
+    enum Error {
+        ERROR_NONE                 = 0,
+        ERROR_SDK                  = 1,
+        ERROR_DIALOG_CANCELED      = 2,
+        ERROR_DIALOG_NOT_SUPPORTED = 3,
+    };
+
 
 /*
     Notes on facebook.show_dialog in regards to FB SDK 4.

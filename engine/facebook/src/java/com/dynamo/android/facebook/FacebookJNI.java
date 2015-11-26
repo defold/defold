@@ -17,6 +17,8 @@ import com.facebook.FacebookSdk;
 import com.facebook.appevents.AppEventsLogger;
 import com.facebook.login.DefaultAudience;
 
+import com.dynamo.android.facebook.FacebookActivity;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -69,13 +71,13 @@ class FacebookJNI {
 
     private static final String TAG = "defold.facebook";
 
-    private native void onLogin(long userData, int state, String error);
+    private native void onLogin(long userData, int state, String error, int error_code);
 
-    private native void onRequestRead(long userData, String error);
+    private native void onRequestRead(long userData, String error, int error_code);
 
-    private native void onRequestPublish(long userData, String error);
+    private native void onRequestPublish(long userData, String error, int error_code);
 
-    private native void onDialogComplete(long userData, String results, String error);
+    private native void onDialogComplete(long userData, String results, String error, int error_code);
 
     private native void onIterateMeEntry(long userData, String key, String value);
 
@@ -153,8 +155,8 @@ class FacebookJNI {
                 facebook.login( new Facebook.StateCallback() {
 
                     @Override
-                    public void onDone( final int state, final String error) {
-                        onLogin(userData, state, error);
+                    public void onDone( final int state, final String error, final int error_code) {
+                        onLogin(userData, state, error, error_code);
                     }
 
                 });
@@ -197,8 +199,8 @@ class FacebookJNI {
             public void run() {
                 Facebook.Callback cb = new Facebook.Callback() {
                     @Override
-                    public void onDone(final String error) {
-                        onRequestRead(userData, error);
+                    public void onDone(final String error, final int error_code) {
+                        onRequestRead(userData, error, error_code);
                     }
                 };
                 facebook.requestReadPermissions(permissions.split(","), cb);
@@ -212,8 +214,8 @@ class FacebookJNI {
             public void run() {
                 Facebook.Callback cb = new Facebook.Callback() {
                     @Override
-                    public void onDone(final String error) {
-                        onRequestRead(userData, error);
+                    public void onDone(final String error, final int error_code) {
+                        onRequestRead(userData, error, error_code);
                     }
                 };
                 facebook.requestPubPermissions(defaultAudience, permissions.split(","), cb);
@@ -229,7 +231,7 @@ class FacebookJNI {
             public void run() {
                 Facebook.DialogCallback cb = new Facebook.DialogCallback() {
                     @Override
-                    public void onDone(final Bundle result, final String error) {
+                    public void onDone(final Bundle result, final String error, final int error_code) {
 
                         // serialize bundle as JSON for C/Lua side
                         String res = null;
@@ -241,7 +243,7 @@ class FacebookJNI {
                             err = "Error while converting dialog result to JSON: " + e.getMessage();
                         }
 
-                        onDialogComplete(userData, res, err);
+                        onDialogComplete(userData, res, err, error_code);
                     }
                 };
 
@@ -259,7 +261,7 @@ class FacebookJNI {
                 } catch (Exception e) {
                     String err = "Failed to get json value";
                     Log.wtf(TAG, err, e);
-                    onDialogComplete(userData, null, err);
+                    onDialogComplete(userData, null, err, FacebookActivity.Error.ERROR_SDK.getValue());
                     return;
                 }
 

@@ -62,6 +62,18 @@ public class FacebookActivity implements PseudoActivity {
 
     }
 
+    public enum Error {
+        ERROR_NONE                 (0),
+        ERROR_SDK                  (1),
+        ERROR_DIALOG_CANCELED      (2),
+        ERROR_DIALOG_NOT_SUPPORTED (3);
+
+        private final int value;
+        private Error(int value) { this.value = value; };
+        public int getValue() { return this.value; };
+
+    }
+
     /*
      * Functions to convert Lua enums to corresponding Facebook enums.
      * Switch values are from enums defined in facebook_android.cpp.
@@ -112,6 +124,7 @@ public class FacebookActivity implements PseudoActivity {
             Bundle data = new Bundle();
             data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
             data.putString(Facebook.MSG_KEY_ERROR, "Dialog canceled");
+            data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_CANCELED.getValue());
             respond(Facebook.ACTION_SHOW_DIALOG, data);
         }
 
@@ -120,6 +133,7 @@ public class FacebookActivity implements PseudoActivity {
             Bundle data = new Bundle();
             data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
             data.putString(Facebook.MSG_KEY_ERROR, error.toString());
+            data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
             respond(Facebook.ACTION_SHOW_DIALOG, data);
         }
 
@@ -160,6 +174,7 @@ public class FacebookActivity implements PseudoActivity {
                        data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                        data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
                        data.putString(Facebook.MSG_KEY_ERROR, response.getError().getErrorMessage());
+                       data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
                    }
                    respond(Facebook.ACTION_LOGIN, data);
                 }
@@ -188,6 +203,7 @@ public class FacebookActivity implements PseudoActivity {
                     data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                     data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
                     data.putString(Facebook.MSG_KEY_ERROR, "Login canceled");
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_CANCELED.getValue());
                     respond(Facebook.ACTION_LOGIN, data);
                 }
 
@@ -197,6 +213,7 @@ public class FacebookActivity implements PseudoActivity {
                     data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                     data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
                     data.putString(Facebook.MSG_KEY_ERROR, error.toString());
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
                     respond(Facebook.ACTION_LOGIN, data);
                 }
 
@@ -226,6 +243,7 @@ public class FacebookActivity implements PseudoActivity {
                     Bundle data = new Bundle();
                     data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                     data.putString(Facebook.MSG_KEY_ERROR, "Login canceled");
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_CANCELED.getValue());
                     respond(action, data);
                 }
 
@@ -234,6 +252,7 @@ public class FacebookActivity implements PseudoActivity {
                     Bundle data = new Bundle();
                     data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                     data.putString(Facebook.MSG_KEY_ERROR, error.toString());
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
                     respond(action, data);
                 }
 
@@ -250,6 +269,7 @@ public class FacebookActivity implements PseudoActivity {
         } else {
             Bundle data = new Bundle();
             data.putString(Facebook.MSG_KEY_ERROR, "User is not logged in");
+            data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
             respond(action, data);
         }
     }
@@ -285,6 +305,7 @@ public class FacebookActivity implements PseudoActivity {
             } else {
                 Bundle data = new Bundle();
                 data.putString(Facebook.MSG_KEY_ERROR, "Dialog not available");
+                data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_NOT_SUPPORTED.getValue());
                 respond(Facebook.ACTION_SHOW_DIALOG, data);
             }
 
@@ -295,6 +316,7 @@ public class FacebookActivity implements PseudoActivity {
 
                 Bundle data = new Bundle();
                 data.putString(Facebook.MSG_KEY_ERROR, "User is not logged in");
+                data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
                 respond(Facebook.ACTION_SHOW_DIALOG, data);
 
             } else {
@@ -402,6 +424,7 @@ public class FacebookActivity implements PseudoActivity {
                 } else {
                     Bundle data = new Bundle();
                     data.putString(Facebook.MSG_KEY_ERROR, "Unknown dialog type");
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_NOT_SUPPORTED.getValue());
                     respond(Facebook.ACTION_SHOW_DIALOG, data);
                 }
             }
@@ -425,6 +448,7 @@ public class FacebookActivity implements PseudoActivity {
         Bundle abortedData = new Bundle();
         abortedData.putString(Facebook.MSG_KEY_ACTION, action);
         abortedData.putString(Facebook.MSG_KEY_ERROR, "Aborted");
+        abortedData.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
         onAbortedMessage = new Message();
         onAbortedMessage.setData(abortedData);
 
@@ -440,6 +464,7 @@ public class FacebookActivity implements PseudoActivity {
         } catch (Exception e) {
             Bundle data = new Bundle();
             data.putString(Facebook.MSG_KEY_ERROR, e.getMessage());
+            data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
             respond(action, data);
         }
     }
