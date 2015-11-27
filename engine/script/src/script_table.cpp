@@ -478,7 +478,58 @@ namespace dmScript
         return buffer;
     }
     
-    static int s_c =0 ;
+    static int s_c = 0;
+    
+    static const char *LazyTable_Name = "LazyTablee";
+
+    static int LazyTable_Index(lua_State *L)
+    {
+    /*
+        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
+        const char *field = lua_tostring(L, 2);
+
+        for (uint8_t i=0;i!=d->descriptor->m_FieldCount;i++)
+        {
+            const dmDDF::FieldDescriptor* fd = &d->descriptor->m_Fields[i];
+            if (!strcmp(fd->m_Name, field))
+            {
+                DDFToLuaValue(L, fd, d->data, d->ptr_offset);
+                return 1;
+            }
+        }
+*/
+        lua_pufshnil(L);
+        return 1;
+    }
+
+    static int LazyTable_NewIndex(lua_State *L)
+    {
+        luaL_error(L, "Trying to manipulate read only table");
+        return 0;
+    }
+
+    static int LazyTable_Gc(lua_State *L)
+    {
+        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
+        free((void*)d->data);
+        return 0;
+    }    
+    
+    static const luaL_reg LazyTable_Meta[] = {
+        {"__gc",       LazyTable_Gc},
+        {"__index",    LazyTable_Index},
+        {0, 0}
+    };
+    
+    int DoPushTableLazy(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
+    {
+        int top = lua_gettop(L);
+        luaL_newmetatable(L, DDFMessage_Name);
+        luaL_register(L, 0, DDF_Meta);
+        lua_pop(L, 1);
+        assert(lua_gettop(L) == top);
+    }
+    
 
     int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
     {

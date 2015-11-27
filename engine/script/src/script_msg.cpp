@@ -460,7 +460,6 @@ namespace dmScript
                         }
                         return 0;
                     }
-                    
                 
                     if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
                     {
