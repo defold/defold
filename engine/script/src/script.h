@@ -174,6 +174,10 @@ namespace dmScript
      * @param data Buffer with serialized table to push
      */
     void PushTable(lua_State*L, const char* data);
+    
+    // ReleaseLazyTable must be called before buffer becomes unavailable
+    int PushTableLazy(lua_State* L, const char* buffer, uint32_t size);
+    void ReleaseLazyTable(lua_State* L, int handle); 
 
     /**
      * Check if the value at #index is a hash

@@ -480,25 +480,60 @@ namespace dmScript
     
     static int s_c = 0;
     
+    struct LazyTable
+    {
+        char* data;
+        uint32_t size;
+        bool allocated;
+        int ref;
+        int access;
+    };
+    
     static const char *LazyTable_Name = "LazyTablee";
 
     static int LazyTable_Index(lua_State *L)
     {
-    /*
-        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
-        const char *field = lua_tostring(L, 2);
-
-        for (uint8_t i=0;i!=d->descriptor->m_FieldCount;i++)
+        dmLogError("Table index!");
+        int top = lua_gettop(L);
+        
+        LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
+        
+        if (d->ref == LUA_NOREF)
         {
-            const dmDDF::FieldDescriptor* fd = &d->descriptor->m_Fields[i];
-            if (!strcmp(fd->m_Name, field))
+            if (d->data)
             {
-                DDFToLuaValue(L, fd, d->data, d->ptr_offset);
+                dmLogError("unpacking table sz=%d allocated=%d", d->size, d->allocated);
+                PushTable(L, d->data);
+                d->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                if (d->allocated)
+                {
+                    free(d->data);
+                }
+                d->data = 0;
+            }
+            else
+            {
+                dmLogError("Message is no longer available");
+                lua_pushnil(L);
                 return 1;
             }
         }
-*/
-        lua_pufshnil(L);
+        
+        if (d->ref == LUA_NOREF)
+        {
+            dmLogError("No ref!");
+            lua_pushnil(L);
+            return 1;
+        }
+        
+        d->access++;
+        
+        lua_rawgeti(L, LUA_REGISTRYINDEX, d->ref);
+        lua_pushvalue(L, 2); // dup key
+        lua_gettable(L, -2);
+        lua_remove(L, -2); // remove table
+        
+        assert(lua_gettop(L) == (top+1));
         return 1;
     }
 
@@ -510,8 +545,16 @@ namespace dmScript
 
     static int LazyTable_Gc(lua_State *L)
     {
-        DDFTable* d = (DDFTable*) lua_touserdata(L, 1);
-        free((void*)d->data);
+        LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
+        if (d->allocated && d->data)
+        { 
+            free((void*)d->data);
+        }
+        if (d->ref != LUA_NOREF)
+        {
+            luaL_unref(L, LUA_REGISTRYINDEX, d->ref);
+        }
+        dmLogWarning("table instance used=%d accesses=%d", d->ref != LUA_NOREF, d->access);
         return 0;
     }    
     
@@ -521,15 +564,42 @@ namespace dmScript
         {0, 0}
     };
     
-    int DoPushTableLazy(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
+    int PushTableLazy(lua_State* L, const char* buffer, uint32_t size)
     {
+        PushTable(L, buffer);
+        return LUA_NOREF;
+        
+        dmLogError("PushTableLazy..");
         int top = lua_gettop(L);
-        luaL_newmetatable(L, DDFMessage_Name);
-        luaL_register(L, 0, DDF_Meta);
-        lua_pop(L, 1);
-        assert(lua_gettop(L) == top);
+        LazyTable* table = (LazyTable*) lua_newuserdata(L, sizeof(LazyTable));
+
+        table->allocated = false;
+        table->data = (char*)buffer;
+        table->size = size;
+        table->ref = LUA_NOREF;
+        table->access = 0;
+        memcpy(table->data, buffer, size);
+
+        luaL_getmetatable(L, LazyTable_Name);
+        lua_setmetatable(L, -2);
+        
+        assert(lua_gettop(L) == (top+1));
+        
+        lua_pushvalue(L, -1);
+        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        dmLogError("returning %d", ref);
+        return ref;
     }
     
+    void ReleaseLazyTable(lua_State* L, int handle)
+    {
+        dmLogError("Release lazy table %d", handle);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, handle);
+        LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
+        d->data = 0;
+        lua_pop(L, 1);
+        luaL_unref(L, LUA_REGISTRYINDEX, handle);
+    }
 
     int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
     {
@@ -684,6 +754,16 @@ namespace dmScript
             luaL_error(L, str);
         }
     }
+    
+    void InitializeTable(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_newmetatable(L, LazyTable_Name);
+        luaL_register(L, 0, LazyTable_Meta);
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+    }
+    
 
 }
 

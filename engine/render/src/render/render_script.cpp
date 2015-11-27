@@ -2024,8 +2024,11 @@ bail:
     {
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
+        
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
+            int lazy_table = LUA_NOREF;
+            
             lua_State* L = script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
             int top = lua_gettop(L);
             (void) top;
@@ -2053,7 +2056,8 @@ bail:
                 }
                 else if (message->m_DataSize > 0)
                 {
-                    dmScript::PushTable(L, (const char*)message->m_Data);
+//                    dmScript::PushTable(L, (const char*)message->m_Data);
+                    lazy_table = dmScript::PushTableLazy(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
@@ -2069,6 +2073,9 @@ bail:
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
+            
+            if (lazy_table != LUA_NOREF)
+                dmScript::ReleaseLazyTable(L, lazy_table);
 
             assert(top == lua_gettop(L));
         }

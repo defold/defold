@@ -228,6 +228,8 @@ namespace dmGameObject
         } else {
             function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
         }
+        
+        int lazy_table = LUA_NOREF;
 
         if (function_ref != LUA_NOREF)
         {
@@ -256,9 +258,14 @@ namespace dmGameObject
             else
             {
                 if (params.m_Message->m_DataSize > 0)
-                    dmScript::PushTable(L, (const char*)params.m_Message->m_Data);
+                {
+                    // dmScript::PushTable(L, (const char*)params.m_Message->m_Data);
+                    lazy_table = dmScript::PushTableLazy(L, (const char*)params.m_Message->m_Data, params.m_Message->m_DataSize);
+                }
                 else
+                {
                     lua_newtable(L);
+                }
             }
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
@@ -271,6 +278,9 @@ namespace dmGameObject
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
+            
+            if (lazy_table != LUA_NOREF)
+                dmScript::ReleaseLazyTable(L, lazy_table);
 
             assert(top == lua_gettop(L));
         }

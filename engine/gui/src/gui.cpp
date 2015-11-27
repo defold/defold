@@ -1251,6 +1251,8 @@ namespace dmGui
 
             uint32_t arg_count = 1;
             uint32_t ret_count = 0;
+            
+            int lazy_table = LUA_NOREF;
 
             switch (script_function)
             {
@@ -1272,7 +1274,8 @@ namespace dmGui
                     }
                     else if (message->m_DataSize > 0)
                     {
-                        dmScript::PushTable(L, (const char*) message->m_Data);
+//                        dmScript::PushTable(L, (const char*) message->m_Data);
+                          lazy_table = dmScript::PushTableLazy(L, (const char*) message->m_Data, message->m_DataSize);
                     }
                     else
                     {
@@ -1453,6 +1456,10 @@ namespace dmGui
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
+            
+            if (lazy_table != LUA_NOREF)
+                dmScript::ReleaseLazyTable(L, lazy_table);
+            
             assert(top == lua_gettop(L));
             return result;
         }

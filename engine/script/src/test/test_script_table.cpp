@@ -301,100 +301,120 @@ TEST_F(LuaTableTest, IndexOutOfBounds)
 
 TEST_F(LuaTableTest, Table01)
 {
-    // Create table
-    lua_newtable(L);
-    lua_pushinteger(L, 123);
-    lua_setfield(L, -2, "a");
-
-    lua_pushinteger(L, 456);
-    lua_setfield(L, -2, "b");
-
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
-    (void) buffer_used;
-    lua_pop(L, 1);
-
-    dmScript::PushTable(L, m_Buf);
-
-    lua_getfield(L, -1, "a");
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(123, lua_tonumber(L, -1));
-    lua_pop(L, 1);
-
-    lua_getfield(L, -1, "b");
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(456, lua_tonumber(L, -1));
-    lua_pop(L, 1);
-
-    lua_pop(L, 1);
-
-    // Create table again
-    lua_newtable(L);
-    lua_pushinteger(L, 123);
-    lua_setfield(L, -2, "a");
-    lua_pushinteger(L, 456);
-    lua_setfield(L, -2, "b");
-
-    int ret = setjmp(env);
-    if (ret == 0)
+    for (int i=0;i!=2;i++)
     {
-        // buffer_user - 1, expect error
-        accept_panic = true;
-        dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
-        ASSERT_TRUE(0); // Never reached due to error
-    }
-    else
-    {
+        // Create table
+        lua_newtable(L);
+        lua_pushinteger(L, 123);
+        lua_setfield(L, -2, "a");
+
+        lua_pushinteger(L, 456);
+        lua_setfield(L, -2, "b");
+
+        uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+        (void) buffer_used;
         lua_pop(L, 1);
+
+        int table = LUA_NOREF;
+        if (i == 0)
+            dmScript::PushTable(L, m_Buf);
+        else
+            table = dmScript::PushTableLazy(L, m_Buf, sizeof(m_Buf));
+
+        lua_getfield(L, -1, "a");
+        ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+        ASSERT_EQ(123, lua_tonumber(L, -1));
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "b");
+        ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+        ASSERT_EQ(456, lua_tonumber(L, -1));
+        lua_pop(L, 1);
+
+        lua_pop(L, 1);
+        
+        if (table != LUA_NOREF)
+            dmScript::ReleaseLazyTable(L, table);
+
+        // Create table again
+        lua_newtable(L);
+        lua_pushinteger(L, 123);
+        lua_setfield(L, -2, "a");
+        lua_pushinteger(L, 456);
+        lua_setfield(L, -2, "b");
+
+        int ret = setjmp(env);
+        if (ret == 0)
+        {
+            // buffer_user - 1, expect error
+            accept_panic = true;
+            dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
+            ASSERT_TRUE(0); // Never reached due to error
+        }
+        else
+        {
+            lua_pop(L, 1);
+        }
     }
 }
 
 TEST_F(LuaTableTest, Table02)
 {
-    // Create table
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "foo");
-
-    lua_pushstring(L, "kalle");
-    lua_setfield(L, -2, "foo2");
-
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
-    (void) buffer_used;
-    lua_pop(L, 1);
-
-    dmScript::PushTable(L, m_Buf);
-
-    lua_getfield(L, -1, "foo");
-    ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
-
-    lua_getfield(L, -1, "foo2");
-    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
-    ASSERT_STREQ("kalle", lua_tostring(L, -1));
-    lua_pop(L, 1);
-
-    lua_pop(L, 1);
-
-    // Create table again
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "foo");
-
-    lua_pushstring(L, "kalle");
-    lua_setfield(L, -2, "foo2");
-
-    int ret = setjmp(env);
-    if (ret == 0)
+    for (int i=0;i!=2;i++)
     {
-        // buffer_user - 1, expect error
-        accept_panic = true;
-        dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
-        ASSERT_TRUE(0); // Never reached due to error
-    }
-    else
-    {
+        // Create table
+        lua_newtable(L);
+        lua_pushboolean(L, 1);
+        lua_setfield(L, -2, "foo");
+
+        lua_pushstring(L, "kalle");
+        lua_setfield(L, -2, "foo2");
+
+        uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+        (void) buffer_used;
         lua_pop(L, 1);
+
+        int table = LUA_NOREF;
+        if (i == 0)
+            dmScript::PushTable(L, m_Buf);
+        else
+            table = dmScript::PushTableLazy(L, m_Buf, sizeof(m_Buf));
+
+        lua_getfield(L, -1, "foo");
+        ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
+        ASSERT_EQ(1, lua_toboolean(L, -1));
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "foo2");
+        ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+        ASSERT_STREQ("kalle", lua_tostring(L, -1));
+        lua_pop(L, 1);
+
+        lua_pop(L, 1);
+        
+        if (table != LUA_NOREF)
+            dmScript::ReleaseLazyTable(L, table);
+
+        // Create table again
+        lua_newtable(L);
+        lua_pushboolean(L, 1);
+        lua_setfield(L, -2, "foo");
+
+        lua_pushstring(L, "kalle");
+        lua_setfield(L, -2, "foo2");
+
+        int ret = setjmp(env);
+        if (ret == 0)
+        {
+            // buffer_user - 1, expect error
+            accept_panic = true;
+            dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
+            ASSERT_TRUE(0); // Never reached due to error
+        }
+        else
+        {
+            lua_pop(L, 1);
+        }
     }
 }
 

@@ -18,6 +18,7 @@
 #include "script_zlib.h"
 #include "script_luasocket.h"
 #include "script_ddf.h"
+#include "script_table.h"
 
 extern "C"
 {
@@ -130,6 +131,7 @@ namespace dmScript
         InitializeZlib(L);
         InitializeLuasocket(L);
         InitializeDDF(L);
+        InitializeTable(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
