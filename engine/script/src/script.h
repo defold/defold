@@ -153,6 +153,7 @@ namespace dmScript
     void PushDDFLazy(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, uint32_t size, bool pointers_are_offsets);
     
     bool CheckLazyDDF(lua_State *L, int index, const dmDDF::Descriptor** desc, const char** data, uint32_t* size);
+    
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
@@ -178,6 +179,8 @@ namespace dmScript
     // ReleaseLazyTable must be called before buffer becomes unavailable
     int PushTableLazy(lua_State* L, const char* buffer, uint32_t size);
     void ReleaseLazyTable(lua_State* L, int handle); 
+    bool CheckLazyTable(lua_State *L, int index, bool unpack, const char** data, uint32_t* size, int* ref);
+    
 
     /**
      * Check if the value at #index is a hash

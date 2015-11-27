@@ -221,7 +221,9 @@ namespace dmScript
                 luaL_error(L, "table too large");
 
             (*buffer++) = (char) key_type;
-            (*buffer++) = (char) value_type;
+            
+            char *value_type_ptr = buffer++;
+            *value_type_ptr = (char) value_type;
 
             if (key_type == LUA_TSTRING)
             {
@@ -239,6 +241,8 @@ namespace dmScript
             {
                 buffer = WriteEncodedNumber(L, header, buffer, buffer_end);
             }
+            
+            char *value_start_ptr = buffer;
 
             switch (value_type)
             {
@@ -400,7 +404,25 @@ namespace dmScript
                     }
                     else
                     {
-                        luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                        const char* data;
+                        uint32_t size;
+                        int ref;
+                        if (CheckLazyTable(L, -1, true, &data, &size, &ref))
+                        {
+                            // DELUXE TURBO HACK
+                            // Change type back to table and remove the subtype (rewind buffer)
+                            *value_type_ptr = (char) LUA_TTABLE;
+                            buffer = value_start_ptr;
+                        
+                            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+                            uint32_t n_used = DoCheckTable(L, header, original_buffer, buffer, buffer_end - buffer, -1);
+                            buffer += n_used;
+                            lua_pop(L, 1);
+                        }
+                        else
+                        {
+                            luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                        }
                     }
                 }
                 break;
@@ -491,39 +513,22 @@ namespace dmScript
     
     static const char *LazyTable_Name = "LazyTablee";
 
+    static void unpack(lua_State *L, LazyTable *d)
+    {
+        assert(d->ref == LUA_NOREF);
+        PushTable(L, d->data);
+        d->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+
     static int LazyTable_Index(lua_State *L)
     {
-        dmLogError("Table index!");
         int top = lua_gettop(L);
         
         LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
         
         if (d->ref == LUA_NOREF)
         {
-            if (d->data)
-            {
-                dmLogError("unpacking table sz=%d allocated=%d", d->size, d->allocated);
-                PushTable(L, d->data);
-                d->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-                if (d->allocated)
-                {
-                    free(d->data);
-                }
-                d->data = 0;
-            }
-            else
-            {
-                dmLogError("Message is no longer available");
-                lua_pushnil(L);
-                return 1;
-            }
-        }
-        
-        if (d->ref == LUA_NOREF)
-        {
-            dmLogError("No ref!");
-            lua_pushnil(L);
-            return 1;
+            unpack(L, d);
         }
         
         d->access++;
@@ -536,13 +541,25 @@ namespace dmScript
         assert(lua_gettop(L) == (top+1));
         return 1;
     }
-
+    
     static int LazyTable_NewIndex(lua_State *L)
     {
-        luaL_error(L, "Trying to manipulate read only table");
+        LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
+        const char *field = lua_tostring(L, 2);
+        
+        if (d->ref == LUA_NOREF)
+        {
+            unpack(L, d);
+        }
+        
+        lua_rawgeti(L, LUA_REGISTRYINDEX, d->ref);
+        lua_pushvalue(L, 2);
+        lua_pushvalue(L, 3);
+        lua_settable(L, -3);
+        lua_pop(L, 1);
         return 0;
     }
-
+    
     static int LazyTable_Gc(lua_State *L)
     {
         LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
@@ -554,22 +571,46 @@ namespace dmScript
         {
             luaL_unref(L, LUA_REGISTRYINDEX, d->ref);
         }
-        dmLogWarning("table instance used=%d accesses=%d", d->ref != LUA_NOREF, d->access);
         return 0;
     }    
     
     static const luaL_reg LazyTable_Meta[] = {
         {"__gc",       LazyTable_Gc},
         {"__index",    LazyTable_Index},
+        {"__newindex", LazyTable_NewIndex},
         {0, 0}
     };
     
+    bool CheckLazyTable(lua_State *L, int index, bool unpackit, const char** data, uint32_t* size, int* ref)
+    {
+        if (lua_isuserdata(L, index))
+        {
+            LazyTable* d = (LazyTable*) lua_touserdata(L, index);
+            if (d->ref == LUA_NOREF && unpackit)
+                unpack(L, d);
+            
+            *ref = d->ref;
+            if (!d->data)
+            {
+                *data = 0;
+                *size = 0;
+            }
+            else
+            {
+                *data = d->data;
+                *size = d->size;
+            }
+            return true;
+        }
+        else
+        {
+            *ref = LUA_NOREF;
+            return false;
+        }    
+    }
+    
     int PushTableLazy(lua_State* L, const char* buffer, uint32_t size)
     {
-        PushTable(L, buffer);
-        return LUA_NOREF;
-        
-        dmLogError("PushTableLazy..");
         int top = lua_gettop(L);
         LazyTable* table = (LazyTable*) lua_newuserdata(L, sizeof(LazyTable));
 
@@ -587,16 +628,23 @@ namespace dmScript
         
         lua_pushvalue(L, -1);
         int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        dmLogError("returning %d", ref);
         return ref;
     }
     
     void ReleaseLazyTable(lua_State* L, int handle)
     {
-        dmLogError("Release lazy table %d", handle);
         lua_rawgeti(L, LUA_REGISTRYINDEX, handle);
         LazyTable* d = (LazyTable*) lua_touserdata(L, 1);
-        d->data = 0;
+        
+        if (d->ref == LUA_NOREF)
+        {
+            // not realised yet, keep data around then
+            char* tmp = (char*)malloc(d->size);
+            memcpy(tmp, (void*)d->data, d->size);
+            d->data = tmp;
+            d->allocated = true;
+        }
+        
         lua_pop(L, 1);
         luaL_unref(L, LUA_REGISTRYINDEX, handle);
     }

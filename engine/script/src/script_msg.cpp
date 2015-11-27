@@ -483,7 +483,32 @@ namespace dmScript
             }
             else
             {
-                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
+                const char *tmp_data;
+                int ref;
+                if (CheckLazyTable(L, 3, false, &tmp_data, &data_size, &ref))
+                {
+                    if (tmp_data)
+                    {
+                        // original serialized table still exists
+                        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) 0, tmp_data, data_size);
+                        if (result != dmMessage::RESULT_OK)
+                        {
+                            return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));
+                        }
+                        return 0;
+                    }
+                    else if (ref != LUA_NOREF)
+                    {
+                        // re-post as table
+                        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+                        data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, -1);
+                        lua_pop(L, 1);
+                    }
+                }
+                else
+                {
+                    data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
+                }
             }
         }
 
