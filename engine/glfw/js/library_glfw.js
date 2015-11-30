@@ -33,6 +33,7 @@ var LibraryGLFW = {
     resizeFunc: null,
     closeFunc: null,
     refreshFunc: null,
+    focusFunc: null,
     params: null,
     initTime: null,
     wheelPos: 0,
@@ -537,6 +538,10 @@ var LibraryGLFW = {
 
   glfwSetWindowRefreshCallback: function(cbfun) {
     GLFW.refreshFunc = cbfun;
+  },
+
+  glfwSetWindowFocusCallback: function(cbfun) {
+    GLFW.focusFunc = cbfun;
   },
 
   /* Video mode functions */
