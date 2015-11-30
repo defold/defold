@@ -110,7 +110,7 @@ static int ToLua(lua_State*L, dmJson::Document* doc, int index)
     return index;
 }
 
-static void PushError(lua_State*L, const char* error)
+static void PushError(lua_State*L, const char* error, int error_code)
 {
     // Could be extended with error codes etc
     if (error != NULL) {
@@ -118,12 +118,15 @@ static void PushError(lua_State*L, const char* error)
         lua_pushstring(L, "error");
         lua_pushstring(L, error);
         lua_rawset(L, -3);
+        lua_pushstring(L, "error_code");
+        lua_pushnumber(L, error_code);
+        lua_rawset(L, -3);
     } else {
         lua_pushnil(L);
     }
 }
 
-static void RunStateCallback(lua_State* L, int state, const char *error)
+static void RunStateCallback(lua_State* L, int state, const char *error, int error_code)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -146,7 +149,7 @@ static void RunStateCallback(lua_State* L, int state, const char *error)
         }
 
         lua_pushnumber(L, (lua_Number) state);
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         assert(top == lua_gettop(L));
@@ -156,7 +159,7 @@ static void RunStateCallback(lua_State* L, int state, const char *error)
     }
 }
 
-static void RunCallback(lua_State* L, const char *error)
+static void RunCallback(lua_State* L, const char *error, int error_code)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -177,7 +180,7 @@ static void RunCallback(lua_State* L, const char *error)
             return;
         }
 
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = dmScript::PCall(L, 2, LUA_MULTRET);
         assert(top == lua_gettop(L));
@@ -187,7 +190,7 @@ static void RunCallback(lua_State* L, const char *error)
     }
 }
 
-static void RunDialogResultCallback(lua_State* L, const char *result_json, const char *error)
+static void RunDialogResultCallback(lua_State* L, const char *result_json, const char *error, int error_code)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -226,7 +229,7 @@ static void RunDialogResultCallback(lua_State* L, const char *result_json, const
             lua_newtable((lua_State *)L);
         }
 
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         assert(top == lua_gettop(L));
@@ -247,12 +250,12 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-void OnLoginComplete(void* L, int state, const char* error, const char* me_json, const char* permissions_json)
+void OnLoginComplete(void* L, int state, const char* error, int error_code, const char* me_json, const char* permissions_json)
 {
-    dmLogDebug("FB login complete...(%d, %s)", state, error);
+    dmLogDebug("FB login complete...(%d, %s, %d)", state, error, error_code);
     g_Facebook.m_MeJson = me_json;
     g_Facebook.m_PermissionsJson = permissions_json;
-    RunStateCallback((lua_State*)L, state, error);
+    RunStateCallback((lua_State*)L, state, error, error_code);
 }
 
 int Facebook_Login(lua_State* L)
@@ -310,13 +313,13 @@ void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 }
 
 
-void OnRequestReadPermissionsComplete(void* L, const char* error, const char* permissions_json)
+void OnRequestReadPermissionsComplete(void* L, const char* error, int error_code, const char* permissions_json)
 {
     if (permissions_json != 0)
     {
         g_Facebook.m_PermissionsJson = permissions_json;
     }
-    RunCallback((lua_State*)L, error);
+    RunCallback((lua_State*)L, error, error_code);
 }
 
 int Facebook_RequestReadPermissions(lua_State* L)
@@ -341,13 +344,13 @@ int Facebook_RequestReadPermissions(lua_State* L)
     return 0;
 }
 
-void OnRequestPublishPermissionsComplete(void* L, const char* error, const char* permissions_json)
+void OnRequestPublishPermissionsComplete(void* L, const char* error, int error_code, const char* permissions_json)
 {
     if (permissions_json != 0)
     {
         g_Facebook.m_PermissionsJson = permissions_json;
     }
-    RunCallback((lua_State*)L, error);
+    RunCallback((lua_State*)L, error, error_code);
 }
 
 int Facebook_RequestPublishPermissions(lua_State* L)
@@ -458,9 +461,9 @@ int Facebook_Me(lua_State* L)
 
 
 
-void OnShowDialogComplete(void* L, const char* result_json, const char* error)
+void OnShowDialogComplete(void* L, const char* result_json, const char* error, int error_code)
 {
-    RunDialogResultCallback((lua_State*)L, result_json, error);
+    RunDialogResultCallback((lua_State*)L, result_json, error, error_code);
 }
 
 int Facebook_ShowDialog(lua_State* L)

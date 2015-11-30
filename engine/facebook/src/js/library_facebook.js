@@ -3,6 +3,12 @@ var LibraryFacebook = {
 
         },
 
+        dmFacebookError: {
+            ERROR_NONE                 : 0,
+            ERROR_SDK                  : 1,
+            ERROR_DIALOG_CANCELED      : 2,
+            ERROR_DIALOG_NOT_SUPPORTED : 3},
+
         dmFacebookInitialize: function(app_id) {
             // We assume that the Facebook javascript SDK is loaded by now.
             // This should be done via a script tag (synchronously) in the html page:
@@ -94,10 +100,10 @@ var LibraryFacebook = {
                     if(e == 0) {
                         var res_data = JSON.stringify(response);
                         var res_buf = allocate(intArrayFromString(res_data), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viii', callback, [lua_state, res_buf, e]);
+                        Runtime.dynCall('viiii', callback, [lua_state, res_buf, e, dmFacebookError.ERROR_NONE]);
                     } else {
                         var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viii', callback, [lua_state, 0, error]);
+                        Runtime.dynCall('viiii', callback, [lua_state, 0, error, dmFacebookError.ERROR_SDK]);
                     }
                 });
             } catch (e) {
@@ -119,26 +125,26 @@ var LibraryFacebook = {
                                     if (e == 0) {
                                         var me_buf = allocate(intArrayFromString(me_data), 'i8', ALLOC_STACK);
                                         var permissions_buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
-                                        Runtime.dynCall('viiiii', callback, [lua_state, state_open, 0, me_buf, permissions_buf]);
+                                        Runtime.dynCall('viiiiii', callback, [lua_state, state_open, 0, dmFacebookError.ERROR_NONE, me_buf, permissions_buf]);
                                     } else {
                                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                                        Runtime.dynCall('viiiii', callback, [lua_state, state_failed, err_buf, 0, 0]);
+                                        Runtime.dynCall('viiiiii', callback, [lua_state, state_failed, err_buf, dmFacebookError.ERROR_SDK, 0, 0]);
                                     }
                                 });
                             } else {
                                 var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                                Runtime.dynCall('viiiii', callback, [lua_state, state_failed, err_buf, 0, 0]);
+                                Runtime.dynCall('viiiiii', callback, [lua_state, state_failed, err_buf, dmFacebookError.ERROR_SDK, 0, 0]);
                             }
                         });
 
                     } else if (e != 0) {
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viiiii', callback, [lua_state, state_closed, err_buf, 0, 0]);
+                        Runtime.dynCall('viiiiii', callback, [lua_state, state_closed, err_buf, dmFacebookError.ERROR_SDK, 0, 0]);
                     } else {
                         // No authResponse. Below text is from facebook's own example of this case.
                         e = 'User cancelled login or did not fully authorize.';
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viiiii', callback, [lua_state, state_failed, err_buf, 0, 0]);
+                        Runtime.dynCall('viiiiii', callback, [lua_state, state_failed, err_buf, dmFacebookError.ERROR_DIALOG_CANCELED, 0, 0]);
                     }
                 }, {scope: 'public_profile,user_friends'});
             } catch (e) {
@@ -168,21 +174,21 @@ var LibraryFacebook = {
                         window._dmFacebookUpdatePermissions(function(e, permissions_data) {
                             if (e == 0) {
                                 var permissions_buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
-                                Runtime.dynCall('viii', callback, [lua_state, 0, permissions_buf]);
+                                Runtime.dynCall('viiii', callback, [lua_state, 0, dmFacebookError.ERROR_NONE, permissions_buf]);
                             } else {
                                 var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                                Runtime.dynCall('viii', callback, [lua_state, err_buf, 0]);
+                                Runtime.dynCall('viiii', callback, [lua_state, err_buf, dmFacebookError.ERROR_SDK, 0]);
                             }
                         });
 
                     } else if (e != 0) {
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viii', callback, [lua_state, err_buf, 0]);
+                        Runtime.dynCall('viiii', callback, [lua_state, err_buf, dmFacebookError.ERROR_SDK, 0]);
                     } else {
                         // No authResponse. Below text is from facebook's own example of this case.
                         e = 'User cancelled login or did not fully authorize.';
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viii', callback, [lua_state, err_buf, 0]);
+                        Runtime.dynCall('viiii', callback, [lua_state, err_buf, dmFacebookError.ERROR_DIALOG_CANCELED, 0]);
                     }
                 }, {scope: Pointer_stringify(permissions)});
             } catch (e){
@@ -202,21 +208,21 @@ var LibraryFacebook = {
                         window._dmFacebookUpdatePermissions(function(e, permissions_data) {
                             if (e == 0) {
                                 var permissions_buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
-                                Runtime.dynCall('viii', callback, [lua_state, 0, permissions_buf]);
+                                Runtime.dynCall('viiii', callback, [lua_state, 0, dmFacebookError.ERROR_NONE, permissions_buf]);
                             } else {
                                 var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                                Runtime.dynCall('viii', callback, [lua_state, err_buf, 0]);
+                                Runtime.dynCall('viiii', callback, [lua_state, err_buf, dmFacebookError.ERROR_SDK, 0]);
                             }
                         });
 
                     } else if (e != 0) {
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viii', callback, [lua_state, err_buf, 0]);
+                        Runtime.dynCall('viiii', callback, [lua_state, err_buf, dmFacebookError.ERROR_SDK, 0]);
                     } else {
                         // No authResponse. Below text is from facebook's own example of this case.
                         e = 'User cancelled login or did not fully authorize.';
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viii', callback, [lua_state, err_buf, 0]);
+                        Runtime.dynCall('viiii', callback, [lua_state, err_buf, dmFacebookError.ERROR_DIALOG_CANCELED, 0]);
                     }
                 }, {scope: Pointer_stringify(permissions)});
             } catch (e){
