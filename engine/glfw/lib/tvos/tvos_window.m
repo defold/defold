@@ -243,6 +243,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @interface EAGLView ()
 
 @property (nonatomic, retain) EAGLContext *context;
+@property (nonatomic, retain) UITextField *triggerField;
 @property (nonatomic) BOOL keyboardActive;
 // TODO: Cooldown "timer" *hack* for backspace and enter release
 #define TEXT_KEY_COOLDOWN (10)
@@ -292,6 +293,11 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
         displayLink.frameInterval = 1;
+
+        CGRect size = CGRectMake(20.0f, 100.0f, 280.0f, 31.0f);
+        self.triggerField = [[UITextField alloc] initWithFrame:size];
+        self.triggerField.hidden = YES;
+        [self addSubview:self.triggerField];
 
         [self setupView];
     }
@@ -988,12 +994,18 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)viewDidAppear:(BOOL)animated
 {
+    NSLog(@"viewDidAppear");
+
     // NOTE: We rely on an active OpenGL-context as we have no concept of Begin/End rendering
     // As we replace view-controller and view when re-opening the "window" we must ensure that we always
     // have an active context (context is set to nil when view is deallocated)
     [EAGLContext setCurrentContext: glView.context];
 
     [super viewDidAppear: animated];
+
+    if (g_StartupPhase == INIT2) {
+        longjmp(_glfwWin.bailEventLoopBuf, 1);
+    }
 }
 
 - (void)viewDidUnload
@@ -1099,6 +1111,7 @@ _GLFWwin g_Savewin;
         }
     }
 
+    NSLog(@"didFinishLaunchingWithOptions");
     if (!setjmp(_glfwWin.finishInitBuf))
     {
         g_StartupPhase = INIT1;
@@ -1140,9 +1153,7 @@ _GLFWwin g_Savewin;
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
-    if (g_StartupPhase == INIT2) {
-        longjmp(_glfwWin.bailEventLoopBuf, 1);
-    }
+    NSLog(@"applicationDidBecomeActive");
 
     _glfwWin.iconified = GL_FALSE;
 }
@@ -1367,6 +1378,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 
 void _glfwShowKeyboard( int show, int type, int auto_close )
 {
+    NSLog(@"_glfwShowKeyboard");
     EAGLView* view = (EAGLView*) _glfwWin.view;
     switch (type) {
         case GLFW_KEYBOARD_DEFAULT:
@@ -1384,11 +1396,13 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     view.textkeyActive = -1;
     view.autoCloseKeyboard = auto_close;
     if (show) {
+        NSLog(@"_glfwShowKeyboard: show");
         view.keyboardActive = YES;
-        [_glfwWin.view becomeFirstResponder];
+        [view.triggerField becomeFirstResponder];
     } else {
+        NSLog(@"_glfwShowKeyboard: hidden");
         view.keyboardActive = NO;
-        [_glfwWin.view resignFirstResponder];
+        [view.triggerField resignFirstResponder];
     }
 }
 
