@@ -6,7 +6,9 @@ ordinary paths."
             [dynamo.graph :as g]
             [potemkin.namespaces :as namespaces]
             [editor.resource :as resource]
-            [editor.fs-watch :as fs-watch])
+            [editor.resource-watch :as resource-watch]
+            [editor.library :as library])
+
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]
@@ -23,13 +25,14 @@ ordinary paths."
 (def build-dir "/build/default/")
 
 (defn project-path [workspace]
-  (g/node-value workspace :root))
+  (io/as-file (g/node-value workspace :root)))
 
 (defn build-path [workspace]
   (str (project-path workspace) build-dir))
 
 (defrecord BuildResource [resource prefix]
   Resource
+  (children [this] nil)
   (resource-type [this] (resource-type resource))
   (source-type [this] (source-type resource))
   (read-only? [this] false)
@@ -58,20 +61,11 @@ ordinary paths."
   ([resource prefix]
     (BuildResource. resource prefix)))
 
-(defn- resource-filter [^File f]
-  (let [name (.getName f)]
-    (not (or (= name "build") (= (subs name 0 1) ".")))))
-
-(defn- create-resource-tree [workspace ^File file]
-  (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (filter resource-filter (.listFiles file))))]
-    (FileResource. workspace file children)))
-
-(g/defnk produce-resource-tree [_node-id ^String root]
-  (let [tree (create-resource-tree _node-id (File. root))]
-    (update-in tree [:children] concat (make-zip-tree _node-id (io/resource "builtins.zip")))))
+(g/defnk produce-resource-tree [_node-id root resource-snapshot]
+  (FileResource. _node-id (io/as-file root) (:resources resource-snapshot)))
 
 (g/defnk produce-resource-list [resource-tree]
-  (tree-seq #(= :folder (source-type %)) :children resource-tree))
+  (resource/resource-seq resource-tree))
 
 (g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(proj-path %) %]) resource-list)))
@@ -119,9 +113,8 @@ ordinary paths."
 (defn file-resource [workspace path]
   (FileResource. workspace (File. (str (g/node-value workspace :root) path)) []))
 
-(defn find-resource [workspace path]
-  (let [proj-path path]
-    (get (g/node-value workspace :resource-map) proj-path)))
+(defn find-resource [workspace proj-path]
+  (get (g/node-value workspace :resource-map) proj-path))
 
 (defn resolve-workspace-resource [workspace path]
   (or
@@ -146,35 +139,64 @@ ordinary paths."
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
 
-(defn fs-sync
+(defn set-project-dependencies! [workspace library-url-string]
+  (let [library-urls (library/parse-library-urls (str library-url-string))]
+    (g/set-property! workspace :dependencies library-urls)
+    library-urls))
+
+(defn update-dependencies! [workspace]
+  (library/update-libraries! (project-path workspace)
+                             (g/node-value workspace :dependencies)))
+
+(defn resource-sync!
   ([workspace]
-    (fs-sync workspace true []))
+   (resource-sync! workspace true []))
   ([workspace notify-listeners?]
-    (fs-sync workspace notify-listeners? []))
+   (resource-sync! workspace notify-listeners? []))
   ([workspace notify-listeners? moved-files]
-  (let [moved-resources (mapv (fn [pair] (mapv #(FileResource. workspace % []) pair)) moved-files)
-        watcher (swap! (g/node-value workspace :fs-watcher) fs-watch/watch)
-        changes (into {} (map (fn [[type files]] [type (mapv #(FileResource. workspace % []) files)]) (:changes watcher)))]
-    (when (or (not (empty? (:added changes)))
-              (not (empty? (:removed changes)))
-              (not (empty? moved-resources)))
-      ; TODO - bug in graph when invalidating internal dependencies, need to be explicit for every output
-      (g/invalidate! (mapv #(do [workspace %]) [:resource-tree :resource-list :resource-map])))
-    (when notify-listeners?
-      (let [moved-set (reduce (fn [all [from to]] (conj all from to)) #{} moved-resources)
-            changes (into {} (map (fn [[type resources]]
-                                    [type (filter #(and (not (nil? (resource-type %)))
-                                                        (not (moved-set %))) resources)]) changes))]
-        (doseq [listener @(g/node-value workspace :resource-listeners)]
-          (handle-changes listener (assoc changes :moved moved-resources))))))))
+   (let [project-path (project-path workspace)
+         moved-paths (mapv (fn [[src trg]] [(str "/" (resource/relative-path project-path src))
+                                            (str "/" (resource/relative-path project-path trg))]) moved-files)
+         old-snapshot (g/node-value workspace :resource-snapshot)
+         old-map (resource-watch/make-resource-map old-snapshot)
+         new-snapshot (resource-watch/make-snapshot workspace
+                                                    project-path
+                                                    (g/node-value workspace :dependencies))
+         new-map (resource-watch/make-resource-map new-snapshot)
+         changes (resource-watch/diff old-snapshot new-snapshot)]
+     (when (or (not (resource-watch/empty-diff? changes)) (seq moved-paths))
+       (g/set-property! workspace :resource-snapshot new-snapshot)
+       (when notify-listeners?
+         (let [changes (into {} (map (fn [[type resources]] [type (filter (comp some? resource/resource-type) resources)]) changes)) ; skip unknown resources
+               move-srcs (set (map first moved-paths))
+               move-trgs (set (map second moved-paths))
+               ;; the new snapshot will show the source of the move as
+               ;; * :removed, if no previously unloadable lib provides a resource with that path
+               ;; * :changed, if a previously unloadable lib provides a resource with that path
+               ;; We don't want to treat the path as removed:
+               non-moved-removed (remove (comp move-srcs resource/proj-path) (:removed changes))
+               ;; Neither do we want to treat it as changed...
+               non-moved-changed (remove (comp move-srcs resource/proj-path) (:changed changes))
+               ;; ... instead we want to add a new node in its place (since the old node for the path will be re-pointed to the move target resource)
+               added-with-changed-move-srcs (concat (filter (comp move-srcs resource/proj-path) (:changed changes))
+                                                    ;; Also, since we reuse the source node for the target resource, we remove the target from the added list
+                                                    (remove (comp move-trgs resource/proj-path) (:added changes)))
+               move-adjusted-changes {:removed non-moved-removed
+                                      :added added-with-changed-move-srcs
+                                      :changed non-moved-changed
+                                      :moved (mapv (fn [[src trg]] [(old-map src) (new-map trg)]) moved-paths)}]
+           (doseq [listener @(g/node-value workspace :resource-listeners)]
+             (handle-changes listener move-adjusted-changes)))))
+     changes)))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
 
 (g/defnode Workspace
   (property root g/Str)
+  (property dependencies g/Any) ; actually vector of URLs
   (property opened-files g/Any (default (atom #{})))
-  (property fs-watcher g/Any)
+  (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
@@ -185,8 +207,10 @@ ordinary paths."
   (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))
 
 (defn make-workspace [graph project-path]
-  (g/make-node! graph Workspace :root project-path :view-types {:default {:id :default}}
-                :fs-watcher (atom (fs-watch/make-watcher project-path resource-filter))
+  (g/make-node! graph Workspace
+                :root project-path
+                :resource-snapshot (resource-watch/empty-snapshot)
+                :view-types {:default {:id :default}}
                 :resource-listeners (atom [])))
 
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
