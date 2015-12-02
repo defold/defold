@@ -220,7 +220,7 @@ This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView sub
 The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
-@interface EAGLView : UIView<UIKeyInput, UITextInputTraits> {
+@interface EAGLView : UIView {
 
 @private
     GLint backingWidth;
@@ -252,6 +252,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (BOOL) createFramebuffer;
 - (void) destroyFramebuffer;
+- (void) insertText:(NSString *)theText;
 @end
 
 @implementation EAGLView
@@ -294,14 +295,22 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
         displayLink.frameInterval = 1;
 
-        CGRect size = CGRectMake(20.0f, 100.0f, 280.0f, 31.0f);
-        self.triggerField = [[UITextField alloc] initWithFrame:size];
+        self.triggerField = [[UITextField alloc] init];
         self.triggerField.hidden = YES;
+        self.triggerField.clearsOnBeginEditing = YES;
+        [self.triggerField addTarget:self action:@selector(textFieldDidEndEditing:) forControlEvents:UIControlEventEditingDidEnd];
         [self addSubview:self.triggerField];
 
         [self setupView];
     }
     return self;
+}
+
+-(void)textFieldDidEndEditing :(UITextField *)theTextField{
+    if (self.keyboardActive && self.autoCloseKeyboard) {
+        // Implicitly hide keyboard and flush any text to defold
+        _glfwShowKeyboard(0, 0, 0);
+    }
 }
 
 - (void)setupView
@@ -493,13 +502,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void) handleTapFrom: (UITapGestureRecognizer *)recognizer
 {
-    NSLog(@"handleTapFrom");
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    NSLog(@"touchesMoved");
-
     _glfwInput.TouchCount = [self fillTouch: event];
     if( _glfwWin.touchCallback )
     {
@@ -511,8 +517,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    NSLog(@"touchesBegan");
-
     if (self.keyboardActive && self.autoCloseKeyboard) {
         // Implicitly hide keyboard
         _glfwShowKeyboard(0, 0, 0);
@@ -529,24 +533,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    NSLog(@"touchesEnded");
-
     _glfwInput.TouchCount = [self fillTouch: event];
     if( _glfwWin.touchCallback )
     {
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
   //  [self updateMouseEmulation];
-}
-
-- (BOOL)canBecomeFirstResponder
-{
-    return YES;
-}
-
-- (BOOL)hasText
-{
-    return YES;
 }
 
 - (void)insertText:(NSString *)theText
@@ -742,6 +734,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 }
 
 -(void)pollControllers {
+    if (self.glView.keyboardActive) {
+        return;
+    }
+
     for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
         if (tvosJoystick[i].present != 0) {
             
@@ -788,44 +784,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
             }
         }
     }
-/*
-    if (self.controllerConnected) {
-        if (self.controllerType == 3) {
-            GCMicroGamepad *profile = [self gameController].microGamepad;
-
-            self.mouseX += profile.dpad.xAxis.value * 7.5f;
-            self.mouseY -= profile.dpad.yAxis.value * 7.5f;
-
-            if (self.mouseX < 0) {
-                self.mouseX = 0;
-            }
-            if (self.mouseY < 0) {
-                self.mouseY = 0;
-            }
-            if (self.mouseX > _glfwWin.width) {
-                self.mouseX = _glfwWin.width;
-            }
-            if (self.mouseY > _glfwWin.height) {
-                self.mouseY = _glfwWin.height;
-            }
-
-            _glfwInput.MousePosX = (int)self.mouseX;
-            _glfwInput.MousePosY = (int)self.mouseY;
-
-            if (profile.buttonA.isPressed) {
-                if (self.mouseBtn == 0) {
-                    _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
-                    self.mouseBtn = 1;
-                }
-            } else if (self.mouseBtn == 1) {
-                _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-                self.mouseBtn = 0;
-            }
-        }
-    }
-*/
 }
-
 
 - (void)controllerStateChanged {
     
@@ -877,23 +836,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 
     CGRect bounds = self.view.bounds;
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-    if (8.0 <= version && 8.1 > version) {
-        CGSize size = [self getIntendedViewSize];
-        CGRect parent_bounds = self.view.bounds;
-        parent_bounds.size = size;
-
-        if ([self shouldUpdateViewFrame]) {
-            CGPoint origin = [self getIntendedFrameOrigin: size];
-
-            CGRect parent_frame = self.view.frame;
-            parent_frame.origin = origin;
-            parent_frame.size = size;
-
-            self.view.frame = parent_frame;
-        }
-        bounds = parent_bounds;
-    }
     cachedViewSize = bounds.size;
 
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
@@ -908,16 +850,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         tvosJoystick[i].axes = 0;
         tvosJoystick[i].buttons = 0;
     }
-
-
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidConnectNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidDisconnectNotification object:nil];
-    
-    [GCController startWirelessControllerDiscoveryWithCompletionHandler:^{
-        [self controllerStateChanged];
-    }];        
-
-
 
     [glView createFramebuffer];
 }
@@ -994,14 +926,19 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)viewDidAppear:(BOOL)animated
 {
-    NSLog(@"viewDidAppear");
-
     // NOTE: We rely on an active OpenGL-context as we have no concept of Begin/End rendering
     // As we replace view-controller and view when re-opening the "window" we must ensure that we always
     // have an active context (context is set to nil when view is deallocated)
     [EAGLContext setCurrentContext: glView.context];
 
     [super viewDidAppear: animated];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidConnectNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidDisconnectNotification object:nil];
+    
+    [GCController startWirelessControllerDiscoveryWithCompletionHandler:^{
+        [self controllerStateChanged];
+    }];        
 
     if (g_StartupPhase == INIT2) {
         longjmp(_glfwWin.bailEventLoopBuf, 1);
@@ -1032,7 +969,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     UIWindow *window;
 }
 
-- (void)forceDeviceOrientation;
 - (void)reinit:(UIApplication *)application;
 
 @property (nonatomic, retain) IBOutlet UIWindow *window;
@@ -1044,10 +980,6 @@ _GLFWwin g_Savewin;
 @implementation AppDelegate
 
 @synthesize window;
-
-- (void)forceDeviceOrientation;
-{
-}
 
 - (void)reinit:(UIApplication *)application
 {
@@ -1070,14 +1002,6 @@ _GLFWwin g_Savewin;
         _glfwWin.height = tmp;
     }
 
-    [self forceDeviceOrientation];
-/*
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-    if (8.0 <= version && 8.1 > version) {
-        // These suspect versions of iOS will crash if we proceed to recreate the GL view.
-        return;
-    }
-*/
     // We then rebuild the GL view back within the application's event loop.
     dispatch_async(dispatch_get_main_queue(), ^{
         ViewController *controller = (ViewController *)window.rootViewController;
@@ -1086,8 +1010,6 @@ _GLFWwin g_Savewin;
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-
-    [self forceDeviceOrientation];
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
     // Points vs pixels (and scale factors). I'm not sure that this correct though
@@ -1111,7 +1033,6 @@ _GLFWwin g_Savewin;
         }
     }
 
-    NSLog(@"didFinishLaunchingWithOptions");
     if (!setjmp(_glfwWin.finishInitBuf))
     {
         g_StartupPhase = INIT1;
@@ -1153,8 +1074,6 @@ _GLFWwin g_Savewin;
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
-    NSLog(@"applicationDidBecomeActive");
-
     _glfwWin.iconified = GL_FALSE;
 }
 
@@ -1378,7 +1297,6 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 
 void _glfwShowKeyboard( int show, int type, int auto_close )
 {
-    NSLog(@"_glfwShowKeyboard");
     EAGLView* view = (EAGLView*) _glfwWin.view;
     switch (type) {
         case GLFW_KEYBOARD_DEFAULT:
@@ -1396,12 +1314,13 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     view.textkeyActive = -1;
     view.autoCloseKeyboard = auto_close;
     if (show) {
-        NSLog(@"_glfwShowKeyboard: show");
+        NSLog(@"_glfwShowKeyboard: showing");
         view.keyboardActive = YES;
         [view.triggerField becomeFirstResponder];
     } else {
-        NSLog(@"_glfwShowKeyboard: hidden");
         view.keyboardActive = NO;
+        NSLog(@"_glfwShowKeyboard: hiding, flushing '%@' ...", view.triggerField.text);
+        [view insertText:view.triggerField.text];
         [view.triggerField resignFirstResponder];
     }
 }
