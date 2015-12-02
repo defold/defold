@@ -34,6 +34,7 @@ namespace dmScript
 #define LIB_NAME "sys"
 
     const uint32_t MAX_BUFFER_SIZE =  128 * 1024;
+    const char* FILELESS_STORAGE_IDENTIFIER = "<userdata>";
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
@@ -75,18 +76,25 @@ namespace dmScript
         const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        FILE* file = fopen(filename, "wb");
-        if (file != 0x0)
-        {
-            bool result = fwrite(buffer, 1, n_used, file) == n_used;
-            fclose(file);
-            if (result)
-            {
-                lua_pushboolean(L, result);
-                return 1;
-            }
+        if (dmSys::CanPersistFiles() == false) {
+            dmSys::Result result = dmSys::StoreBufferInKeyValueStore("appdata", buffer, n_used);
+            lua_pushboolean(L, result == dmSys::RESULT_OK);
+            return 1;
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
+        else {
+            FILE* file = fopen(filename, "wb");
+            if (file != 0x0)
+            {
+                bool result = fwrite(buffer, 1, n_used, file) == n_used;
+                fclose(file);
+                if (result)
+                {
+                    lua_pushboolean(L, result);
+                    return 1;
+                }
+            }
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
     }
 
     /*# loads a lua table from a file on disk
@@ -101,27 +109,38 @@ namespace dmScript
         //Char arrays function stack are not guaranteed to be 4byte aligned in linux. An union with an int add this guarantee.
         union {uint32_t dummy_align; char buffer[MAX_BUFFER_SIZE];};
         const char* filename = luaL_checkstring(L, 1);
-        FILE* file = fopen(filename, "rb");
-        if (file == 0x0)
-        {
-            lua_newtable(L);
+        if (dmSys::CanPersistFiles() == false) {
+            dmSys::Result result = dmSys::LoadBufferFromKeyValueStore("appdata", buffer, MAX_BUFFER_SIZE);
+            if (result == RESULT_OK) {
+                PushTable(L, buffer);
+            } else {
+                lua_newtable(L);
+            }
             return 1;
         }
-        fread(buffer, 1, sizeof(buffer), file);
-        bool file_size_ok = feof(file) != 0;
-        bool result = ferror(file) == 0 && file_size_ok;
-        fclose(file);
-        if (result)
-        {
-            PushTable(L, buffer);
-            return 1;
-        }
-        else
-        {
-            if(file_size_ok)
-                return luaL_error(L, "Could not read from the file %s.", filename);
+        else {
+            FILE* file = fopen(filename, "rb");
+            if (file == 0x0)
+            {
+                lua_newtable(L);
+                return 1;
+            }
+            fread(buffer, 1, sizeof(buffer), file);
+            bool file_size_ok = feof(file) != 0;
+            bool result = ferror(file) == 0 && file_size_ok;
+            fclose(file);
+            if (result)
+            {
+                PushTable(L, buffer);
+                return 1;
+            }
             else
-                return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
+            {
+                if(file_size_ok)
+                    return luaL_error(L, "Could not read from the file %s.", filename);
+                else
+                    return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
+            }
         }
     }
 
@@ -135,8 +154,11 @@ namespace dmScript
      */
     int Sys_GetSaveFile(lua_State* L)
     {
+        if (dmSys::CanPersistFiles() == false) {
+            lua_pushstring(L, FILELESS_STORAGE_IDENTIFIER);
+            return 1;
+        }
         const char* application_id = luaL_checkstring(L, 1);
-
         char app_support_path[1024];
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)

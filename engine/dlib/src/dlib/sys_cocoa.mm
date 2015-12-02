@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
 #include "log.h"
@@ -32,28 +33,49 @@ namespace dmSys
     }
 
 #if defined(__TVOS__)
+    bool CanPersistFiles()
+    {
+        return false;
+    }
 
-    // Only on iOS for now. No autorelease pool etc setup on OSX in dlib
+    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length)
+    {
+        NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:[NSString stringWithUTF8String:key]];
+        if (savedValue != NULL) {
+            NSData *data = [[NSData alloc] initWithBase64EncodedString:savedValue options:0];
+            memcpy(out_buffer, [data bytes], MIN(max_length, data.length));
+
+            [data release];
+            return RESULT_OK;
+        }
+        return RESULT_NOENT;
+    }
+
+    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length)
+    {
+        NSData* data = [NSData dataWithBytes:(const void *)buffer length:sizeof(unsigned char)*length];
+        NSString *base64 = [data base64EncodedStringWithOptions:0];
+        NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+        [userDefaults setObject:base64 forKey:[NSString stringWithUTF8String:key]];
+        [userDefaults synchronize];
+        return RESULT_OK;
+    }
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         assert(path_len > 0);
         NSFileManager* shared_fm = [NSFileManager defaultManager];
         NSArray* urls = [shared_fm URLsForDirectory:NSCachesDirectory
                                           inDomains:NSUserDomainMask];
-
-
         if ([urls count] > 0)
         {
             NSURL* app_support_dir = [urls objectAtIndex:0];
             dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
-
             path[path_len-1] = '\0';
-
             if (dmStrlCat(path, "/", path_len) >= path_len)
                 return RESULT_INVAL;
             if (dmStrlCat(path, application_name, path_len) >= path_len)
                 return RESULT_INVAL;
-
             NSString* ns_path = [NSString stringWithUTF8String: path];
             Result r;
             if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
@@ -124,6 +146,35 @@ namespace dmSys
             reachability_ref = 0;
             return;
         }
+    }
+
+    Result StoreBufferInUserDefaults(const char* key, const unsigned char* buffer, uint32_t length)
+    {
+        return RESULT_NOTSUP;
+    }
+
+    bool CanPersistFiles()
+    {
+        return true;
+    }
+
+    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length)
+    {
+        NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:[NSString stringWithUTF8String:key]];
+        NSData *data = [[NSData alloc] initWithBase64EncodedString:savedValue options:0];
+        memcpy(out_buffer, [data bytes], MIN(max_length, data.length));
+        [data release];
+        return RESULT_OK;
+    }
+
+    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length)
+    {
+        NSData* data = [NSData dataWithBytes:(const void *)buffer length:sizeof(unsigned char)*length];
+        NSString *base64 = [data base64EncodedStringWithOptions:0];
+        NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+        [userDefaults setObject:base64 forKey:[NSString stringWithUTF8String:key]];
+        [userDefaults synchronize];
+        return RESULT_OK;
     }
 
     // Only on iOS for now. No autorelease pool etc setup on OSX in dlib
