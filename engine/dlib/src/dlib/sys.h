@@ -266,6 +266,21 @@ namespace dmSys
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)
      */
     void PumpMessageQueue();
+
+    /**
+     * Does this platform have the capability to store regular files permanently?
+     */
+    bool CanPersistFiles();
+
+    /**
+     * Store arbitrary data in NSUserDefaults 
+     */
+    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length);
+
+    /**
+     * Store arbitrary data in NSUserDefaults 
+     */
+    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length);
 }
 
 #endif
