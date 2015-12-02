@@ -89,22 +89,30 @@ var LibraryFacebook = {
             var par = JSON.parse(Pointer_stringify(params));
             par.method = Pointer_stringify(mth);
 
-            try {
-                FB.ui(par, function(response) {
-                    // https://developers.facebook.com/docs/graph-api/using-graph-api/v2.0
-                    //   (Section 'Handling Errors')
-                    var e = (response && response.error ? response.error.message : 0);
-                    if(e == 0) {
-                        var res_data = JSON.stringify(response);
-                        var res_buf = allocate(intArrayFromString(res_data), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viiii', callback, [lua_state, res_buf, e, FBinner.dmFacebookError.ERROR_NONE]);
-                    } else {
-                        var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                        Runtime.dynCall('viiii', callback, [lua_state, 0, error, FBinner.dmFacebookError.ERROR_SDK]);
-                    }
-                });
-            } catch (e) {
-                console.error("Facebook show dialog failed " + e);
+            // We only officially support "feed", "appinvite" and "apprequest(s)".
+            // On HTML5 we only support "feed" and "apprequest".
+            if (par.method == "feed" || par.method == "apprequests" || par.method == "apprequest") {
+                try {
+                    FB.ui(par, function(response) {
+                        // https://developers.facebook.com/docs/graph-api/using-graph-api/v2.0
+                        //   (Section 'Handling Errors')
+                        var e = (response && response.error ? response.error.message : 0);
+                        if(e == 0) {
+                            var res_data = JSON.stringify(response);
+                            var res_buf = allocate(intArrayFromString(res_data), 'i8', ALLOC_STACK);
+                            Runtime.dynCall('viiii', callback, [lua_state, res_buf, e, FBinner.dmFacebookError.ERROR_NONE]);
+                        } else {
+                            var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                            Runtime.dynCall('viiii', callback, [lua_state, 0, error, FBinner.dmFacebookError.ERROR_SDK]);
+                        }
+                    });
+                } catch (e) {
+                    console.error("Facebook show dialog failed " + e);
+                }
+            } else {
+                var e = 'Dialog not supported.';
+                var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                Runtime.dynCall('viiii', callback, [lua_state, 0, error, FBinner.dmFacebookError.ERROR_DIALOG_NOT_SUPPORTED]);
             }
         },
 

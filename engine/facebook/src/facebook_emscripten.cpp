@@ -217,7 +217,7 @@ static void RunDialogResultCallback(lua_State* L, const char *result_json, const
         else
         {
             dmLogError("Got empty dialog result JSON (or FB error).");
-            lua_newtable((lua_State *)L);
+            lua_pushnil(L);
         }
 
         PushError(L, error, error_code);
@@ -414,7 +414,7 @@ int Facebook_Permissions(lua_State* L)
     {
         dmLogError("Got empty Facebook_Permissions response (or FB error).");
         // This follows the iOS implementation...
-        lua_newtable((lua_State *)L);
+        lua_pushnil(L);
     }
 
     assert(top + 1 == lua_gettop(L));
