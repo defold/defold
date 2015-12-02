@@ -1,3 +1,5 @@
 /engine/*/*dmengine*
+/engine/*/*lua*
+/engine/*/*launcher*
 /engine/*/*engine_template.html
 
