@@ -592,7 +592,7 @@ int Facebook_ShowDialog(lua_State* L)
     char params_json[1024];
     params_json[0] = '{';
     params_json[1] = '\0';
-    char tmp[256];
+    char tmp[1024];
 
     lua_pushnil(L);
     int i = 0;
@@ -609,7 +609,7 @@ int Facebook_ShowDialog(lua_State* L)
         }
 
         // escape string characters such as "
-        char k_escaped[128];
+        char k_escaped[1024];
         char v_escaped[1024];
         escape_json_str(k, k_escaped, k_escaped+sizeof(k_escaped));
         escape_json_str(vp, v_escaped, v_escaped+sizeof(v_escaped));
@@ -722,7 +722,6 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
     SETCONSTANT(ERROR_SDK,                  dmFacebook::ERROR_SDK);
-    SETCONSTANT(ERROR_DIALOG_CANCELED,      dmFacebook::ERROR_DIALOG_CANCELED);
     SETCONSTANT(ERROR_DIALOG_NOT_SUPPORTED, dmFacebook::ERROR_DIALOG_NOT_SUPPORTED);
 
 #undef SETCONSTANT

@@ -11,15 +11,6 @@
 
 #define LIB_NAME "facebook"
 
-// Must match iOS for now
-enum Audience
-{
-    AUDIENCE_NONE = 0,
-    AUDIENCE_ONLYME = 10,
-    AUDIENCE_FRIENDS = 20,
-    AUDIENCE_EVERYONE = 30
-};
-
 struct Facebook
 {
     Facebook()
@@ -42,10 +33,10 @@ Facebook g_Facebook;
 typedef void (*OnAccessTokenCallback)(void *L, const char* access_token);
 typedef void (*OnPermissionsCallback)(void *L, const char* json_arr);
 typedef void (*OnMeCallback)(void *L, const char* json);
-typedef void (*OnShowDialogCallback)(void* L, const char* url, const char* error);
-typedef void (*OnLoginCallback)(void *L, int state, const char* error);
-typedef void (*OnRequestReadPermissionsCallback)(void *L, const char* error);
-typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error);
+typedef void (*OnShowDialogCallback)(void* L, const char* url, const char* error, int error_code);
+typedef void (*OnLoginCallback)(void *L, int state, const char* error, int error_code);
+typedef void (*OnRequestReadPermissionsCallback)(void *L, const char* error, int error_code);
+typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error, int error_code);
 
 extern "C" {
     // Implementation in library_facebook.js
@@ -472,6 +463,15 @@ int Facebook_ShowDialog(lua_State* L)
     VerifyCallback(L);
 
     const char* dialog = luaL_checkstring(L, 1);
+
+    // Need to keep track if this is a apprequest dialog,
+    // some fields in the argument table needs to be treated
+    // differently.
+    bool apprequest_dialog = false;
+    if (strncmp(dialog, "apprequests", 11) == 0 || strncmp(dialog, "apprequest", 10) == 0) {
+        apprequest_dialog = true;
+    }
+
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
@@ -484,10 +484,34 @@ int Facebook_ShowDialog(lua_State* L)
     params_json[1] = '\0';
     char tmp[128];
     lua_pushnil(L);
+
     int i = 0;
     while (lua_next(L, 2) != 0) {
-        const char* v = luaL_checkstring(L, -1);
+        const char* v;
         const char* k = luaL_checkstring(L, -2);
+
+        // For apprequest dialogs:
+        //   We need to pass the action_type as a string instead of
+        //   the enum value since this is forwarded directly as JSON to FB JS API.
+        if (apprequest_dialog && strncmp(k, "action_type", 11) == 0) {
+            switch (luaL_checkinteger(L, -1)) {
+                case dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND:
+                    v = "send";
+                    break;
+                case dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR:
+                    v = "askfor";
+                    break;
+                case dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN:
+                    v = "turn";
+                    break;
+                default:
+                    v = "";
+                    break;
+            };
+        } else {
+            v = luaL_checkstring(L, -1);
+        }
+
         DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k, v);
         if (i > 0) {
             dmStrlCat(params_json, ",", sizeof(params_json));

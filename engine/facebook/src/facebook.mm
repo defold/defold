@@ -99,7 +99,7 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     - (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
         NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"Share dialog was cancelled" };
         NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
-        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_DIALOG_CANCELED);
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
     // App invite related methods
@@ -153,7 +153,7 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     - (void)gameRequestDialogDidCancel:(FBSDKGameRequestDialog *)gameRequestDialog {
         NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"Game request dialog was cancelled" };
         NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
-        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_DIALOG_CANCELED);
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
 
@@ -521,7 +521,7 @@ int Facebook_Login(lua_State* L)
             } else if (result.isCancelled) {
                 NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
                 [errorDetail setValue:@"Login was cancelled" forKey:NSLocalizedDescriptionKey];
-                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail], dmFacebook::ERROR_DIALOG_CANCELED);
+                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail], dmFacebook::ERROR_SDK);
             } else {
 
                 if ([result.grantedPermissions containsObject:@"public_profile"] &&
@@ -1054,7 +1054,6 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
     SETCONSTANT(ERROR_SDK,                  dmFacebook::ERROR_SDK);
-    SETCONSTANT(ERROR_DIALOG_CANCELED,      dmFacebook::ERROR_DIALOG_CANCELED);
     SETCONSTANT(ERROR_DIALOG_NOT_SUPPORTED, dmFacebook::ERROR_DIALOG_NOT_SUPPORTED);
 
 #undef SETCONSTANT

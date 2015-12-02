@@ -65,8 +65,7 @@ public class FacebookActivity implements PseudoActivity {
     public enum Error {
         ERROR_NONE                 (0),
         ERROR_SDK                  (1),
-        ERROR_DIALOG_CANCELED      (2),
-        ERROR_DIALOG_NOT_SUPPORTED (3);
+        ERROR_DIALOG_NOT_SUPPORTED (2);
 
         private final int value;
         private Error(int value) { this.value = value; };
@@ -124,7 +123,7 @@ public class FacebookActivity implements PseudoActivity {
             Bundle data = new Bundle();
             data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
             data.putString(Facebook.MSG_KEY_ERROR, "Dialog canceled");
-            data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_CANCELED.getValue());
+            data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
             respond(Facebook.ACTION_SHOW_DIALOG, data);
         }
 
@@ -203,7 +202,7 @@ public class FacebookActivity implements PseudoActivity {
                     data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                     data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
                     data.putString(Facebook.MSG_KEY_ERROR, "Login canceled");
-                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_CANCELED.getValue());
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
                     respond(Facebook.ACTION_LOGIN, data);
                 }
 
@@ -243,7 +242,7 @@ public class FacebookActivity implements PseudoActivity {
                     Bundle data = new Bundle();
                     data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
                     data.putString(Facebook.MSG_KEY_ERROR, "Login canceled");
-                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_DIALOG_CANCELED.getValue());
+                    data.putInt(Facebook.MSG_KEY_ERROR_CODE, Error.ERROR_SDK.getValue());
                     respond(action, data);
                 }
 
