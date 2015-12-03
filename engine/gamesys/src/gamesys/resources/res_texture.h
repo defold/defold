@@ -7,28 +7,13 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResTexturePreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void** preload_data,
-                                           const char* filename);
+    dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResTextureCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void* preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename);
+    dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResTextureDestroy(dmResource::HFactory factory,
-                                            void* context,
-                                            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResTextureRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif

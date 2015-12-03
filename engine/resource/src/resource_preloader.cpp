@@ -220,10 +220,19 @@ namespace dmResource
             tmp_resource.m_ReferenceCount = 1;
             tmp_resource.m_ResourceType = (void*) resource_type;
 
+            ResourceCreateParams params;
+            params.m_Factory = preloader->m_Factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_PreloadData = req->m_PreloadData;
+            params.m_Resource = &tmp_resource;
+            params.m_Filename = req->m_Path;
+
             if (!buffer)
             {
                 assert(req->m_Buffer);
-                req->m_LoadResult = resource_type->m_CreateFunction(preloader->m_Factory, resource_type->m_Context, req->m_Buffer, req->m_BufferSize, req->m_PreloadData, &tmp_resource, req->m_Path);
+                params.m_Buffer = req->m_Buffer;
+                params.m_BufferSize = req->m_BufferSize;
+                req->m_LoadResult = resource_type->m_CreateFunction(params);
 
                 // unless we took it from the scratch buffer it needs to be free:d
                 if (req->m_Buffer < preloader->m_ScratchBuffer || req->m_Buffer >= (preloader->m_ScratchBuffer + SCRATCH_BUFFER_SIZE))
@@ -235,7 +244,9 @@ namespace dmResource
             }
             else
             {
-                req->m_LoadResult = resource_type->m_CreateFunction(preloader->m_Factory, resource_type->m_Context, buffer, buffer_size, req->m_PreloadData, &tmp_resource, req->m_Path);
+                params.m_Buffer = buffer;
+                params.m_BufferSize = buffer_size;
+                req->m_LoadResult = resource_type->m_CreateFunction(params);
             }
 
             assert(req->m_Buffer == 0);
@@ -291,7 +302,12 @@ namespace dmResource
         {
             assert(tmp_resource.m_Resource != 0);
             assert(resource_type != 0);
-            resource_type->m_DestroyFunction(preloader->m_Factory, resource_type->m_Context, &tmp_resource);
+
+            ResourceDestroyParams params;
+            params.m_Factory = preloader->m_Factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_Resource = &tmp_resource;
+            resource_type->m_DestroyFunction(params);
         }
 
         req->m_ResourceType = 0;
