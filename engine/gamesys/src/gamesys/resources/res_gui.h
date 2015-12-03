@@ -28,53 +28,21 @@ namespace dmGameSystem
         dmRender::HMaterial             m_Material;
     };
 
-    dmResource::Result ResPreloadSceneDesc(dmResource::HFactory factory,
-                                          dmResource::HPreloadHintInfo hint_info,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          void** preload_data,
-                                          const char* filename);
+    dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResCreateSceneDesc(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          void* preload_data,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename);
+    dmResource::Result ResCreateSceneDesc(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResDestroySceneDesc(dmResource::HFactory factory,
-                                           void* context,
-                                           dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResDestroySceneDesc(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResRecreateSceneDesc(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename);
+    dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params);
 
-    dmResource::Result ResPreloadGuiScript(dmResource::HFactory factory,
-                                           dmResource::HPreloadHintInfo hint_info,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void** preload_data,
-                                           const char* filename);
+    dmResource::Result ResPreloadGuiScript(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResCreateGuiScript(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          void* preload_data,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename);
+    dmResource::Result ResCreateGuiScript(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResDestroyGuiScript(dmResource::HFactory factory,
-                                           void* context,
-                                           dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResDestroyGuiScript(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResRecreateGuiScript(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename);
+    dmResource::Result ResRecreateGuiScript(const dmResource::ResourceRecreateParams& params);
 
 }
 

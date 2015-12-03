@@ -4,37 +4,26 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResGamepadMapCreate(dmResource::HFactory factory,
-                                     void* context,
-                                     const void* buffer, uint32_t buffer_size,
-                                     void* preload_data,
-                                     dmResource::SResourceDescriptor* resource,
-                                     const char* filename)
+    dmResource::Result ResGamepadMapCreate(const dmResource::ResourceCreateParams& params)
     {
         dmInputDDF::GamepadMaps* gamepad_maps;
-        dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMaps>(buffer, buffer_size, &gamepad_maps);
+        dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMaps>(params.m_Buffer, params.m_BufferSize, &gamepad_maps);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        resource->m_Resource = (void*) gamepad_maps;
+        params.m_Resource->m_Resource = (void*) gamepad_maps;
 
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResGamepadMapDestroy(dmResource::HFactory factory,
-                                      void* context,
-                                      dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResGamepadMapDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmDDF::FreeMessage((void*) resource->m_Resource);
+        dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResGamepadMapRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResGamepadMapRecreate(const dmResource::ResourceRecreateParams& params)
     {
         // TODO: Implement me!
         return dmResource::RESULT_NOT_SUPPORTED;
