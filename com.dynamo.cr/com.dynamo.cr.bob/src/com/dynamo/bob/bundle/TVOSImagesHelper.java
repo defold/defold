@@ -112,7 +112,7 @@ public class TVOSImagesHelper {
     }
 
     private void createImageSet(File parentDir, String dirName, String imageFile, boolean isLaunchImage) throws IOException {
-        File imgSetDir = new File(parentDir.getAbsolutePath() + File.separator + dirName);
+        File imgSetDir = new File(parentDir, dirName);
         imgSetDir.mkdirs();
 
         File png = new File(imageFile);
@@ -131,22 +131,21 @@ public class TVOSImagesHelper {
         }
         arr.add(img);
         contentsJson.put("images", arr);
-        File contentsFile = new File(imgSetDir.getAbsolutePath() + File.separator + "Contents.json");
+        File contentsFile = new File(imgSetDir, "Contents.json");
         writeJson(contentsFile, contentsJson, false);
 
-        // Image
-        // Handled later...
+        // Copy image file
         File inFile = new File(projectRoot, imageFile);
-        File outFile = new File(imgSetDir.getAbsolutePath(), FilenameUtils.getName(png.getAbsolutePath()));
+        File outFile = new File(imgSetDir, FilenameUtils.getName(png.getAbsolutePath()));
         FileUtils.copyFile(inFile, outFile);
     }
 
     private void createImageStackLayer(File parentDir, String dirName, String imageFile) throws IOException {
-        File imgStackLayerDir = new File(parentDir.getAbsolutePath() + File.separator + dirName);
+        File imgStackLayerDir = new File(parentDir, dirName);
         imgStackLayerDir.mkdirs();
         // Contents.json
         JSONObject contentsJson = getBaseJson();
-        File contentsFile = new File(imgStackLayerDir.getAbsolutePath() + File.separator + "Contents.json");
+        File contentsFile = new File(imgStackLayerDir, "Contents.json");
         writeJson(contentsFile, contentsJson, false);
 
         // Contents.imageset dir
@@ -154,7 +153,7 @@ public class TVOSImagesHelper {
     }
 
     private void createImageStack(File rootDir, String imageBaseName, List<String> imageFiles) throws IOException {
-        File imgStack = new File(rootDir.getAbsolutePath() + File.separator + imageBaseName + ".imagestack");
+        File imgStack = new File(rootDir, imageBaseName + ".imagestack");
         imgStack.mkdirs();
 
         // Contents.json
@@ -168,7 +167,7 @@ public class TVOSImagesHelper {
             createImageStackLayer(imgStack, i + ".imagestacklayer", imageFiles.get(i - 1));
         }
         contentsJson.put("layers", layers);
-        File contentsJsonFile = new File(imgStack.getAbsolutePath() + File.separator + "Contents.json");
+        File contentsJsonFile = new File(imgStack, "Contents.json");
         writeJson(contentsJsonFile, contentsJson, false);
     }
 
@@ -192,16 +191,16 @@ public class TVOSImagesHelper {
         root.mkdirs();
         //System.out.println("ASSETS DIR:" + root.getAbsolutePath());
         // Create Assets.xcassets dir
-        File xcassetsDir = new File(root.getAbsolutePath() + File.separator + "Assets.xcassets");
+        File xcassetsDir = new File(root, "Assets.xcassets");
         xcassetsDir.mkdirs();
 
         // Create root Contents.json (base info json)
         JSONObject xcassetsContentsJson = getBaseJson();
-        File xcassetsContentsJsonFile = new File(xcassetsDir.getAbsolutePath() + File.separator + "Contents.json");
+        File xcassetsContentsJsonFile = new File(xcassetsDir, "Contents.json");
         writeJson(xcassetsContentsJsonFile, xcassetsContentsJson, false);
 
         // Create Icons.brandassets dir
-        File iconsDir = new File(xcassetsDir.getAbsolutePath() + File.separator + "Icons.brandassets");
+        File iconsDir = new File(xcassetsDir, "Icons.brandassets");
         iconsDir.mkdirs();
 
         // Icons.brandassets Contents.json
@@ -254,7 +253,7 @@ public class TVOSImagesHelper {
         }
 
         iconsContentsJson.put("assets", assetsArr);
-        File iconsContentsJsonFile = new File(iconsDir.getAbsolutePath() + File.separator + "Contents.json");
+        File iconsContentsJsonFile = new File(iconsDir, "Contents.json");
         writeJson(iconsContentsJsonFile, iconsContentsJson, false);
 
         // Create Launch Image
