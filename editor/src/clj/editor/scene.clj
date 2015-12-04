@@ -776,7 +776,7 @@
   (let [[font-family font-style font-size] data]
     (gl/text-renderer font-family font-style font-size)))
 
-(defn- destroy-text-renderers [^GL2 gl text-renderers]
+(defn- destroy-text-renderers [^GL2 gl text-renderers _]
   (doseq [^TextRenderer text-renderer text-renderers]
     (.dispose text-renderer)))
 

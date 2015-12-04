@@ -142,7 +142,7 @@
   (let [[r g b a] color]
     [(* r a) (* g a) (* b a) a]))
 
-(defn- gen-vb [renderables]
+(defn- gen-vb [^GL2 gl renderables]
   (let [user-data (get-in renderables [0 :user-data])]
     (if (contains? user-data :geom-data)
       (let [[vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
@@ -155,14 +155,14 @@
                                     [[] [] []] renderables)]
         (->uv-color-vtx-vb vs uvs colors (count vs)))
       (if (contains? user-data :text-data)
-        (font/gen-vertex-buffer (get-in user-data [:text-data :font-data]) (map (fn [r] (let [alpha (get-in r [:user-data :color 3])
-                                                                                              text-data (get-in r [:user-data :text-data])]
-                                                                                          (-> text-data
-                                                                                            (assoc :world-transform (:world-transform r)
-                                                                                                   :color (get-in r [:user-data :color]))
-                                                                                            (update-in [:outline 3] * alpha)
-                                                                                            (update-in [:shadow 3] * alpha))))
-                                                                                renderables))
+        (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data]) (map (fn [r] (let [alpha (get-in r [:user-data :color 3])
+                                                                                                 text-data (get-in r [:user-data :text-data])]
+                                                                                             (-> text-data
+                                                                                               (assoc :world-transform (:world-transform r)
+                                                                                                      :color (get-in r [:user-data :color]))
+                                                                                               (update-in [:outline 3] * alpha)
+                                                                                               (update-in [:shadow 3] * alpha))))
+                                                                                   renderables))
         nil))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
@@ -170,7 +170,7 @@
         gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
-        vb (gen-vb renderables)
+        vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
       (let [shader (if (types/selection? (:pass render-args))
@@ -602,7 +602,7 @@
   (input image BufferedImage)
   (input anim-data g/Any)
   (input image-texture g/NodeID :cascade-delete)
-  (input sampler-data {g/Keyword g/Any})
+  (input samplers [{g/Keyword g/Any}])
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
                                     (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output node-outline outline/OutlineData (g/fnk [_node-id name]
@@ -614,8 +614,9 @@
                           :texture (proj-path texture)}))
   (output texture-data g/Any (g/fnk [_node-id anim-data]
                                [_node-id (keys anim-data)]))
-  (output gpu-texture g/Any :cached (g/fnk [_node-id image sampler-data]
-                                      (first (material/make-textures [{:image-id _node-id :image image}] sampler-data)))))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id image samplers]
+                                           (let [params (material/sampler->tex-params (first samplers))]
+                                             (texture/set-params (texture/image-texture _node-id image) params)))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -830,7 +831,7 @@
     (value (g/fnk [material-resource] material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:shader :material-shader]
-                                       [:sampler-data :sampler-data]])))
+                                       [:samplers :samplers]])))
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
@@ -861,8 +862,8 @@
   (input material-resource (g/protocol resource/Resource))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
-  (input sampler-data {g/Keyword g/Any})
-  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
+  (input samplers [{g/Keyword g/Any}])
+  (output samplers [{g/Keyword g/Any}] (g/fnk [samplers] samplers))
   (output aabb AABB (g/fnk [scene-dims child-scenes]
                            (let [w (:width scene-dims)
                                  h (:height scene-dims)
@@ -916,7 +917,7 @@
     (g/connect texture :pb-msg self :texture-msgs)
     (g/connect texture :name self :texture-names)
     (g/connect texture :node-outline textures-node :child-outlines)
-    (g/connect self :sampler-data texture :sampler-data)))
+    (g/connect self :samplers texture :samplers)))
 
 (defn- attach-layer [self layers-node layer]
   (concat
