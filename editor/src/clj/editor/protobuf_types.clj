@@ -10,7 +10,6 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
-            [editor.pipeline.font-gen :as font-gen]
             [internal.render.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc]
