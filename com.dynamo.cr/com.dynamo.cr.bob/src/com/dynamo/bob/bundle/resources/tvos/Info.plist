@@ -10,6 +10,29 @@
 	<string>{{project.title}}</string>
 	<key>CFBundleExecutable</key>
 	<string>{{project.title}}</string>
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <string>small</string>
+    </dict>
+    <key>TVTopShelfImage</key>
+    <dict>
+        <key>TVTopShelfPrimaryImage</key>
+        <string>top</string>
+    </dict>
+    <key>UILaunchImages</key>
+    <array>
+        <dict>
+            <key>UILaunchImageMinimumOSVersion</key>
+            <string>9.0</string>
+            <key>UILaunchImageName</key>
+            <string>LaunchImage</string>
+            <key>UILaunchImageOrientation</key>
+            <string>Landscape</string>
+            <key>UILaunchImageSize</key>
+            <string>{1920, 1080}</string>
+        </dict>
+    </array>
     <key>CFBundleIdentifier</key>
     <string>{{ios.bundle_identifier}}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
