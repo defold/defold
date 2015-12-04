@@ -13,6 +13,7 @@ Bundle-ClassPath: lib/javolution-5.5.1.jar,
  .,
  lib/openmali.jar,
  lib/commons-cli-1.2.jar,
+ lib/json-simple-1.1.1.jar,
  lib/jdom-2.0.1.jar,
  lib/jmustache-1.8.jar
 Bundle-ActivationPolicy: lazy
