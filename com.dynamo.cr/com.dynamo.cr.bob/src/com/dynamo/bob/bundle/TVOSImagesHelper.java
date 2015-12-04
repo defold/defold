@@ -262,8 +262,6 @@ public class TVOSImagesHelper {
         }
 
         // Run actool to create Assets.car in appDir
-        // actool --output-format human-readable-text --notices --warnings --output-partial-info-plist kaka/partial.plist --app-icon "Icons"
-        //   --launch-image LaunchImage --compress-pngs --target-device tv --minimum-deployment-target 9.0 --platform appletvos --compile kaka/ Assets.xcassets/
         int result = Exec.exec("/Applications/Xcode.app/Contents/Developer/usr/bin/actool",
                 "--output-format", "human-readable-text",
                 "--notices",
