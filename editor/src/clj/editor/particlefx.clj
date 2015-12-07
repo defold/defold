@@ -798,7 +798,7 @@
       (swap! pfx-sim-ref plib/reload rt-pb-data))
     (assoc pfx-sim :protobuf-msg rt-pb-data)))
 
-(defn- destroy-pfx-sims [_ pfx-sims]
+(defn- destroy-pfx-sims [_ pfx-sims _]
   (doseq [pfx-sim pfx-sims]
     (plib/destroy-sim @(:pfx-sim pfx-sim))))
 
