@@ -12,7 +12,8 @@
 /libexec/*/*.so
 /libexec/*/*.js
 /libexec/*/*dmengine*
-/libexec/*/*luajit*
+/libexec/*/*lua*
+/libexec/*/*launcher*
 /libexec/*/*apkc*
 /share/luajit
 /res
