@@ -40,9 +40,9 @@
                                            (when cache
                                              (let [pruned-cache (vcache/prune cache)
                                                    dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
-                                                   dead-objects (mapv (fn [[_ [object _]]] object) dead-entries)]
+                                                   dead-objects (mapv (fn [[_ object]] object) dead-entries)]
                                                (when (not (empty? dead-objects))
-                                                 (destroy-batch-fn context dead-objects))
+                                                 (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
                                                pruned-cache))))]))
                 caches)))
 
@@ -55,7 +55,8 @@
                     [cache-id (if-let [cache (get-in meta [:caches context])]
                                 (do
                                   (when destroy-objects?
-                                    (destroy-batch-fn context (map #(first (second %)) cache)))
+                                    (let [entries (map second cache)]
+                                      (destroy-batch-fn context (map first entries) (map second entries))))
                                   (update meta :caches dissoc context))
                                 meta)]))
                 caches)))
