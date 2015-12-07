@@ -587,6 +587,9 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
+    SETCONSTANT(ERROR_SDK,                  dmFacebook::ERROR_SDK);
+    SETCONSTANT(ERROR_DIALOG_NOT_SUPPORTED, dmFacebook::ERROR_DIALOG_NOT_SUPPORTED);
+
 #undef SETCONSTANT
 
     lua_pop(L, 1);
