@@ -421,7 +421,10 @@
                       :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
                       :inherit-scale (get b "inheritScale" true)}) (get spine-scene "bones"))
         indexed-bone-children (reduce (fn [m [i b]] (update-in m [(:parent b)] conj [i b])) {} (map-indexed (fn [i b] [i b]) bones))
-        ordered-bones (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) (first (get indexed-bone-children nil)))
+        root (first (get indexed-bone-children nil))
+        ordered-bones (if root
+                        (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) root)
+                        [])
         bones-remap (into {} (map-indexed (fn [i [first-i b]] [first-i i]) ordered-bones))
         bones (mapv second ordered-bones)
         bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
