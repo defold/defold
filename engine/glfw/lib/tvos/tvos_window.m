@@ -316,7 +316,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void)setupView
 {
 
- }
+}
 
 - (void)swapBuffers
 {
@@ -684,7 +684,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 // View controller
 
-@interface ViewController : GCEventViewController<UIContentContainer>
+@interface ViewController : UIViewController<UIContentContainer>
 {
     EAGLView *glView;
     CGSize cachedViewSize;
@@ -692,12 +692,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (EAGLContext *)initialiseGlContext;
 - (void)createGlView;
-
-// iOS 8.0.0 - 8.0.2
-- (CGSize)getIntendedViewSize;
-- (CGPoint)getIntendedFrameOrigin:(CGSize)size;
-- (BOOL)shouldUpdateViewFrame;
-- (void)updateViewFramesWorkaround;
 - (void)pollControllers;
 
 @property (nonatomic, assign) BOOL controllerConnected;
@@ -854,64 +848,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [glView createFramebuffer];
 }
 
-- (void)updateViewFramesWorkaround
-{
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-    if (8.0 <= version && 8.1 > version) {
-        CGRect parent_frame = self.view.frame;
-        CGRect parent_bounds = self.view.bounds;
-
-        CGSize size = [self getIntendedViewSize];
-
-        parent_bounds.size = size;
-
-        if ([self shouldUpdateViewFrame]) {
-            CGPoint origin = [self getIntendedFrameOrigin: size];
-            parent_frame.origin = origin;
-            parent_frame.size = size;
-
-            self.view.frame = parent_frame;
-        }
-        glView.frame = parent_bounds;
-    }
-}
-
-- (BOOL)shouldUpdateViewFrame
-{
-    return true;
-}
-
-- (CGSize)getIntendedViewSize
-{
-    CGSize result;
-    CGRect parent_bounds = self.view.bounds;
-
-    if (0 != g_IsReboot) {
-        parent_bounds.size = cachedViewSize;
-    }
-    bool flipBounds = false;
-    if (_glfwWin.portrait) {
-        flipBounds = parent_bounds.size.width > parent_bounds.size.height;
-    } else {
-        flipBounds = parent_bounds.size.width < parent_bounds.size.height;
-    }
-    if (flipBounds) {
-        result.width = parent_bounds.size.height;
-        result.height = parent_bounds.size.width;
-    } else {
-        result = parent_bounds.size;
-    }
-    return result;
-}
-
-- (CGPoint)getIntendedFrameOrigin:(CGSize)size
-{
-    CGPoint origin;
-    origin.x = 0.0f;
-    origin.y = 0.0f;
-    return origin;
-}
-
 - (EAGLContext *)initialiseGlContext
 {
     EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
@@ -952,12 +888,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 #pragma mark UIContentContainer
 
-// Introduced in iOS8.0
-- (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
-{
-    [self updateViewFramesWorkaround];
-}
 
 @end
 
