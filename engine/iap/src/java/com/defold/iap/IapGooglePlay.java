@@ -348,7 +348,6 @@ public class IapGooglePlay implements Handler.Callback {
             if (purchaseData != null && dataSignature != null) {
                 purchaseData = convertPurchase(purchaseData, dataSignature);
             } else {
-                responseCode = IapJNI.BILLING_RESPONSE_RESULT_ERROR;
                 purchaseData = "";
             }
 
