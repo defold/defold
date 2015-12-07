@@ -677,14 +677,16 @@
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
   (let [workspace (:workspace opts)
         view-id (g/make-node! graph FormView :parent-view parent :workspace workspace)
-        repainter (proxy [AnimationTimer] []
-                    (handle [now]
-                      (g/node-value view-id :form)))]
+        repainter (ui/->timer (fn [dt] (g/node-value view-id :form)))]
     (g/transact
-     (concat
-      (g/set-property view-id :repainter repainter)
-      (g/connect resource-node :form-data view-id :form-data)))
-    (.start repainter)
+      (concat
+        (g/set-property view-id :repainter repainter)
+        (g/connect resource-node :form-data view-id :form-data)))
+    (ui/timer-start! repainter)
+    (let [^Tab tab (:tab opts)]
+      (ui/on-close tab
+                   (fn [e]
+                     (ui/timer-stop! repainter))))
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]
