@@ -97,7 +97,7 @@ struct HttpTestContext
     const char*      m_Script;
     uint32_t         m_Port;
     dmThread::Thread m_Thread;
-    bool             m_PreCount;
+    int              m_PreCount;
 };
 
 int g_PostExitResult = -1;
@@ -163,6 +163,13 @@ TEST_F(EngineTest, DEF_1077)
     //           capacity in the vertex buffer, fails to allocate memory.
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-1077/def-1077.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, DEF_1480)
+{
+    // DEF-1480: Crash when too many collection proxies were loaded (crashed during cleanup)
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-1480/main.collectionc", "--config=collection_proxy.max_count=8", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(4, (char**)argv, 0, 0, 0));
 }
 
 TEST_F(EngineTest, SpineAnim)
