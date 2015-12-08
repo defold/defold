@@ -68,6 +68,12 @@ Explanations:
 </tr>
 
 <tr>
+<td>EclipseLink</td>
+<td>http://download.eclipse.org/rt/eclipselink/updates</td>
+<td>`EclipseLink Target Components` v2.5.2 (for javax components)</td>
+</tr>
+
+<tr>
 <td>Google Plugin</td>
 <td>https://dl.google.com/eclipse/plugin/4.2</td>
 <td>
