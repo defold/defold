@@ -1,7 +1,9 @@
 (ns editor.tile-source
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.project :as project]
             [editor.handler :as handler]
             [editor.gl :as gl]            
@@ -38,13 +40,15 @@
                                 :mipmaps false}]})
 
 (g/defnk produce-pb
+  ;; this will be called both
+  ;; * during save-data production with ignore-errors <severe> meaning f.i. image may be unvalidated (nil)
+  ;; * during produce-build-targets with normal validation
   [image tile-width tile-height tile-margin tile-spacing collision material-tag convex-hulls convex-hull-points collision-groups animation-ddfs extrude-borders inner-padding :as all]
   (let [pb (-> all
                (dissoc :image :collision :_node-id :basis)
                (assoc :collision-groups (sort collision-groups)
                       :animations (sort-by :id animation-ddfs)))]
-    (cond-> pb
-      image (assoc :image (workspace/proj-path image))
+    (cond-> (assoc pb :image (resource/resource->proj-path image))
       collision (assoc :collision (workspace/proj-path collision)))))
 
 (g/defnk produce-save-data [resource pb]
@@ -72,7 +76,7 @@
       :user-data {:proto (:texture-set texture-set-data)}
       :deps [texture-target]}]))
 
-(g/defnk produce-texture-set-data [pb image-content collision-content]
+(g/defnk produce-texture-set-data [pb image image-content collision collision-content]
   (texture-set-gen/tile-source->texture-set-data pb image-content collision-content))
 
 ; TODO - copied from atlas, generalize into separate file - texture-set-util?
@@ -242,7 +246,12 @@
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol workspace/Resource))
+  (property image (g/protocol resource/Resource)
+    (value (gu/passthrough image-resource))
+    (set (project/gen-resource-setter [[:resource :image-resource]
+                                       [:content :image-content]]))
+    (validate (validation/validate-resource image-resource "Missing image"
+                                            [image-content])))
 
   (property tile-width g/Int
             (default 0)
@@ -257,7 +266,15 @@
             (validate validate-tile-dimensions))
   
   (property tile-spacing g/Int (default 0))
-  (property collision (g/protocol workspace/Resource)) ; optional
+  
+  (property collision (g/protocol resource/Resource) ; optional
+    (value (gu/passthrough collision-resource))
+    (set (project/gen-resource-setter [[:resource :collision-resource]
+                                       [:content :collision-content]]))
+    (validate (g/fnk [collision-resource collision-content]
+                     ;; collision-resource is optional, but depend on resource & content to trigg auto error aggregation
+                     )))
+  
   (property material-tag g/Str (default "tile"))
   (property convex-hulls g/Any (dynamic visible (g/always false)))
   (property convex-hull-points g/Any (dynamic visible (g/always false)))
@@ -266,7 +283,9 @@
 
   (input collision-groups g/Str :array)
   (input animation-ddfs g/Any :array)
+  (input image-resource (g/protocol resource/Resource))
   (input image-content BufferedImage)
+  (input collision-resource (g/protocol resource/Resource))
   (input collision-content BufferedImage)
 
   (output aabb AABB :cached produce-aabb)
@@ -279,16 +298,6 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output anim-data g/Any :cached produce-anim-data)) 
-
-(defn- disconnect-all [node-id label]
-  (for [[src-node-id src-label] (g/sources-of node-id label)]
-    (g/disconnect src-node-id src-label node-id label)))
-
-(defn- reconnect-image [project self tgt-label image]
-  (concat
-   (disconnect-all self tgt-label)
-   (when-let [image-node (project/get-resource-node project image)]
-     (project/connect-resource-node project image self [[:content tgt-label]]))))
 
 (defn- int->boolean [i]
   (not= 0 i))
@@ -323,9 +332,7 @@
      (map (partial make-animation-node self) (:animations tile-source))
      (map (partial make-collision-group-node self) (:collision-groups tile-source))
      (g/set-property self :image image)
-     (g/set-property self :collision collision)
-     (reconnect-image project self :image-content image)
-     (reconnect-image project self :collision-content collision))))
+     (g/set-property self :collision collision))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
