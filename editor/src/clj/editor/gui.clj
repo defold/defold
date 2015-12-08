@@ -1144,9 +1144,9 @@
                                         (g/connect img-texture :_node-id texture :image-texture)
                                         (g/connect img-texture :packed-image texture :image)
                                         (g/connect img-texture :anim-data texture :anim-data)
-                                        (project/connect-resource-node project resource texture [[:build-targets :dep-build-targets]])
                                         (project/connect-resource-node project resource img-texture [[:content :image]])
-                                        (project/connect-resource-node project resource texture [[:resource :texture-resource]])
+                                        (project/connect-resource-node project resource texture [[:resource :texture-resource]
+                                                                                                 [:build-targets :dep-build-targets]])
                                         (attach-texture self textures-node texture))))))
       (g/make-nodes graph-id [layers-node LayersNode]
                     (g/connect layers-node :_node-id self :layers-node)
