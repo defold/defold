@@ -430,29 +430,30 @@
             (dynamic label (g/always "Emission Space")))
 
   (property tile-source (g/protocol resource/Resource)
-    (dynamic label (g/always "Image"))
-    (value (gu/proxy-value tile-source-resource))
-    (set (project/gen-resource-setter [[:resource :tile-source-resource]
-                                       [:texture-set-data :texture-set-data]
-                                       [:gpu-texture :gpu-texture]
-                                       [:anim-data :anim-data]]))
-    (validate (validation/validate-resource tile-source "Missing image" [texture-set-data gpu-texture anim-data])))
+            (dynamic label (g/always "Image"))
+            (value (gu/passthrough tile-source-resource))
+            (set (project/gen-resource-setter [[:resource :tile-source-resource]
+                                               [:texture-set-data :texture-set-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:anim-data :anim-data]]))
+            (validate (validation/validate-resource tile-source "Missing image"
+                                                    [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
             (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
+  
   (property material (g/protocol resource/Resource)
-            (value (g/fnk [material-resource] material-resource))
-            (validate (g/fnk [material-resource]
-                             (when (nil? material-resource)
-                               (g/error-warning "Missing material"))))
-            (set (project/gen-resource-setter [[:resource :material-resource]])))
+            (value (gu/passthrough material-resource))
+            (set (project/gen-resource-setter [[:resource :material-resource]]))
+            (validate (validation/validate-resource material)))
 
   (property blend-mode g/Keyword
-    (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
-    (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+
   (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)

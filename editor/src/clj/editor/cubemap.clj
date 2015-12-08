@@ -17,7 +17,7 @@
            [java.awt.image BufferedImage]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d]))
+           [javax.vecmath Point3d Matrix4d]))
 
 (def cubemap-icon "icons/32/Icons_23-Cubemap.png")
 
