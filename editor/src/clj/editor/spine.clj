@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.math :as math]
             [editor.gl :as gl]
@@ -13,7 +14,9 @@
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
@@ -33,11 +36,11 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [resource spine-json atlas sample-rate]
+(g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
    :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (workspace/proj-path spine-json)
-               :atlas (workspace/proj-path atlas)
+              {:spine-json (workspace/proj-path spine-json-resource)
+               :atlas (workspace/proj-path atlas-resource)
                :sample-rate sample-rate})})
 
 (defprotocol Interpolator
@@ -579,12 +582,26 @@
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json (g/protocol workspace/Resource))
-  (property atlas (g/protocol workspace/Resource))
+  (property spine-json (g/protocol resource/Resource)
+            (value (gu/passthrough spine-json-resource))
+            (set (project/gen-resource-setter [[:resource :spine-json-resource]
+                                               [:content :spine-scene]]))
+            (validate (validation/validate-resource spine-json "Missing spine json"
+                                                    [spine-scene])))
+
+  (property atlas (g/protocol resource/Resource)
+            (value (gu/passthrough atlas-resource))
+            (set (project/gen-resource-setter [[:resource :atlas-resource]
+                                               [:anim-data :anim-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:build-targets :dep-build-targets]]))
+            (validate (validation/validate-resource atlas "Missing atlas"
+                                                    [anim-data])))
+  
   (property sample-rate g/Num)
 
-  ;; TODO - replace with use of property setter/getter
-  #_(trigger reconnect :property-touched #'reconnect)
+  (input spine-json-resource (g/protocol resource/Resource))
+  (input atlas-resource (g/protocol resource/Resource))
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -602,12 +619,10 @@
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
         spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas          (workspace/resolve-resource resource (:atlas spine))]
-    (concat
-      (g/set-property self :spine-json spine-resource)
-      (g/set-property self :atlas atlas)
-      (g/set-property self :sample-rate (:sample-rate spine))
-      (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
-      (connect-atlas project self atlas))))
+    (g/set-property self
+                    :spine-json spine-resource
+                    :atlas atlas
+                    :sample-rate (:sample-rate spine))))
 
 (g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
   {:spine-scene (workspace/proj-path spine-scene-resource)
@@ -646,7 +661,7 @@
                                                [:aabb :aabb]
                                                [:build-targets :dep-build-targets]])))
   (property blend-mode g/Any (default :blend_mode_alpha)
-            (validate (validation/validate-blend-mode blend-mode Spine$SpineModelDesc$BlendMode))
+            (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/always
                                  (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
                                    {:type :choicebox

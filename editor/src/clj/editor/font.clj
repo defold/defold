@@ -2,6 +2,7 @@
   (:require [clojure.string :as s]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]            
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -309,16 +310,18 @@
   (inherits project/ResourceNode)
 
   (property font (g/protocol resource/Resource)
-    (value (g/fnk [font-resource] font-resource))
+    (value (gu/passthrough font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]]))
-    (validate (validation/validate-resource font "Missing font" [])))
-
+    (validate (validation/validate-resource font)))
+      
   (property material (g/protocol resource/Resource)
-    (value (g/fnk [material-resource] material-resource))
+    (value (gu/passthrough material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:build-targets :dep-build-targets]
                                        [:samplers :material-samplers]
-                                       [:shader :material-shader]])))
+                                       [:shader :material-shader]]))
+    (validate (validation/validate-resource material)))
+
   (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                       (or (= type :defold) (= type :distance-field))))))
   (property antialias g/Int (dynamic visible (g/always false)))

@@ -286,3 +286,4 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world "resources/broken_project"))]
       (is (g/error? (project/save-data project))))))
+
