@@ -43,12 +43,6 @@ public class Signer {
 
         info.save(new File(appDir, "Info.plist"));
 
-        // Copy ResourceRules.plist
-        InputStream resourceRulesIn = getClass().getResourceAsStream("ResourceRules.plist");
-        File resourceRulesOutFile = new File(appDir, "ResourceRules.plist");
-        FileUtils.copyInputStreamToFile(resourceRulesIn, resourceRulesOutFile);
-        resourceRulesIn.close();
-
         // Copy icons
         for (String icon : new String[] { "ios_icon_57.png", "ios_icon_114.png", "ios_icon_72.png", "ios_icon_144.png" }) {
             InputStream iconInput = getClass().getResourceAsStream(icon);
@@ -78,8 +72,7 @@ public class Signer {
         entitlements.save(entitlementOut);
 
         // Sign
-        ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity,
-                                             "--resource-rules=" + resourceRulesOutFile.getAbsolutePath(),
+        ProcessBuilder processBuilder = new ProcessBuilder(TargetPlugin.getDefault().getCodeSignPath(), "-f", "-s", identity,
                                              "--entitlements", entitlementOut.getAbsolutePath(),
                                              appDir.getAbsolutePath());
         processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
