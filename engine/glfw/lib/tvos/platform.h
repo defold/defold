@@ -267,6 +267,8 @@ struct tvosJoystickData {
     int numAxes;
     int numButtons;
     float* axes;
+    float acceleration[3];
+    float gravity[3];
     unsigned char* buttons;
 };
 

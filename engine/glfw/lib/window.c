@@ -1017,3 +1017,12 @@ GLFWAPI void GLFWAPIENTRY glfwWaitEvents( void )
     _glfwPlatformWaitEvents();
 }
 
+//========================================================================
+// On some platforms a title can be used to clarify input
+//========================================================================
+
+GLFWAPI void GLFWAPIENTRY glfwSetTextInputTitle( const char* title )
+{
+    _glfwPlatformSetTextInputTitle(title);
+}
+

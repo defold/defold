@@ -75,4 +75,7 @@ namespace dmHID
     {
     }
 
+    void SetInputTitle(HContext context, const char* title)
+    {
+    }
 }
