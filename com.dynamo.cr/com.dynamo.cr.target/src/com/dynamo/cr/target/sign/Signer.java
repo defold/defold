@@ -72,7 +72,7 @@ public class Signer {
         entitlements.save(entitlementOut);
 
         // Sign
-        ProcessBuilder processBuilder = new ProcessBuilder(TargetPlugin.getDefault().getCodeSignPath(), "-f", "-s", identity,
+        ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity,
                                              "--entitlements", entitlementOut.getAbsolutePath(),
                                              appDir.getAbsolutePath());
         processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");

@@ -207,7 +207,7 @@ public class IOSBundler implements IBundler {
             }
 
 
-            ProcessBuilder processBuilder = new ProcessBuilder(Bob.getExe(Platform.getHostPlatform(), "codesign"),
+            ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity,
                     "--entitlements", entitlementOut.getAbsolutePath(),
                     appDir.getAbsolutePath());
