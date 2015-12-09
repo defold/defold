@@ -215,4 +215,8 @@ namespace dmHID
         glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT, 0);
     }
 
+    void SetInputTitle(HContext context, const char* title)
+    {
+        glfwSetTextInputTitle(title);
+    }
 }

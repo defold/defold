@@ -210,6 +210,7 @@ int  _glfwPlatformOpenWindow( int width, int height, const _GLFWwndconfig *wndco
 void _glfwPlatformCloseWindow( void );
 int  _glfwPlatformGetDefaultFramebuffer( void );
 void _glfwPlatformSetWindowTitle( const char *title );
+void _glfwPlatformSetTextInputTitle( const char *title );
 void _glfwPlatformSetWindowSize( int width, int height );
 void _glfwPlatformSetWindowPos( int x, int y );
 void _glfwPlatformIconifyWindow( void );
@@ -222,6 +223,7 @@ void _glfwPlatformWaitEvents( void );
 void _glfwPlatformHideMouseCursor( void );
 void _glfwPlatformShowMouseCursor( void );
 void _glfwPlatformSetMouseCursorPos( int x, int y );
+
 
 
 //========================================================================

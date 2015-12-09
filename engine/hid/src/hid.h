@@ -468,6 +468,13 @@ namespace dmHID
     void HideKeyboard(HContext context);
 
     /**
+     * Set a title for fullscreen text input
+     * @param context context
+     * @param title a one line message
+     */
+    void SetInputTitle(HContext context, const char* title);
+
+    /**
      * Convenience function to retrieve the state of a mouse button from a mouse packet.
      *
      * @param packet Mouse packet

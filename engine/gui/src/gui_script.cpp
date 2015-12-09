@@ -2804,6 +2804,21 @@ namespace dmGui
         return 0;
     }
 
+    /**
+     * Sets up the text input title, what to show while prompting the user (in
+     * fullscreen) for some kind of text input.
+     *
+     * @name gui.set_input_title
+     * @param title short one line title to show the user
+     */
+    static int LuaSetInputTitle(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+        const char* title = luaL_checkstring(L, 1);
+        dmHID::SetInputTitle(scene->m_Context->m_HidContext, title);
+        return 0;        
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -3053,6 +3068,7 @@ namespace dmGui
         {"get_inner_radius", LuaGetInnerRadius},
         {"set_outer_bounds", LuaSetOuterBounds},
         {"get_outer_bounds", LuaGetOuterBounds},
+        {"set_input_title", LuaSetInputTitle},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

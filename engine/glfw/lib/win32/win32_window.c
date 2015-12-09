@@ -1465,6 +1465,13 @@ void _glfwPlatformSetWindowTitle( const char *title )
     (void) SetWindowText( _glfwWin.window, title );
 }
 
+//========================================================================
+// Set the text input title
+//========================================================================
+
+void _glfwPlatformSetTextInputTitle( const char *title )
+{
+}
 
 //========================================================================
 // Set the window size.

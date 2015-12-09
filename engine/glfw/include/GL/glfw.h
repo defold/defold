@@ -464,6 +464,7 @@ GLFWAPI void GLFWAPIENTRY glfwOpenWindowHint( int target, int hint );
 GLFWAPI void GLFWAPIENTRY glfwCloseWindow( void );
 GLFWAPI int  GLFWAPIENTRY glfwGetDefaultFramebuffer( void );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowTitle( const char *title );
+GLFWAPI void GLFWAPIENTRY glfwSetTextInputTitle( const char *title );
 GLFWAPI void GLFWAPIENTRY glfwGetWindowSize( int *width, int *height );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowSize( int width, int height );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowPos( int x, int y );
