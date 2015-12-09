@@ -48,8 +48,6 @@
         <string>dmengine</string>
         <key>CFBundlePackageType</key>
         <string>APPL</string>
-        <key>CFBundleResourceSpecification</key>
-        <string>ResourceRules.plist</string>
         <key>CFBundleShortVersionString</key>
         <string>{{project.version}}</string>
         <key>CFBundleSignature</key>
@@ -114,6 +112,39 @@
                         </array>
                 </dict>
         </array>
+
+        <key>LSApplicationQueriesSchemes</key>
+        <array>
+                {{#application-queries-schemes}}<string>{{.}}</string>{{/application-queries-schemes}}
+        </array>
+
+        <key>NSAppTransportSecurity</key>
+        <dict>
+            <key>NSExceptionDomains</key>
+            <dict>
+                <key>facebook.com</key>
+                <dict>
+                    <key>NSIncludesSubdomains</key>
+                    <true/>
+                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
+                    <false/>
+                </dict>
+                <key>fbcdn.net</key>
+                <dict>
+                    <key>NSIncludesSubdomains</key>
+                    <true/>
+                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
+                    <false/>
+                </dict>
+                <key>akamaihd.net</key>
+                <dict>
+                    <key>NSIncludesSubdomains</key>
+                    <true/>
+                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
+                    <false/>
+                </dict>
+            </dict>
+        </dict>
 
         <key>UILaunchImages</key>
         <array>
