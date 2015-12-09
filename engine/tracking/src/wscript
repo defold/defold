@@ -18,7 +18,7 @@ def build(bld):
     tracking.find_sources_in_dirs('.')
     tracking.find_sources_in_dirs('../proto/tracking')
     
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/tracking', 'tracking.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/tracking/tracking_ddf.proto')
 

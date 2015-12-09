@@ -96,5 +96,5 @@ def build(bld):
         sound.defines = '_XBOX'
         sound_null.defines = '_XBOX'
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/sound', 'sound.h')

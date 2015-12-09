@@ -31,7 +31,7 @@ def build(bld):
 
     obj.find_sources_in_dirs('. null ../proto')
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')

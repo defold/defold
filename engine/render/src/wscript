@@ -19,7 +19,7 @@ def build(bld):
     obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
     #obj.source.append('../proto/render_ddf.proto')
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
     bld.install_files('${PREFIX}/include/render', 'render/display_profiles.h')
