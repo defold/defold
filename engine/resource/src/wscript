@@ -27,7 +27,7 @@ def build(bld):
 
     resource.find_sources_in_dirs('../proto')
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')

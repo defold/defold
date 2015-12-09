@@ -15,4 +15,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/input', 'input.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/input_ddf.proto')
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')

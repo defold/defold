@@ -16,5 +16,5 @@ def build(bld):
                                  source = source,
                                  target = 'extension')
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/extension', 'extension.h')
