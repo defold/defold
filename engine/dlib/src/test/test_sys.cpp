@@ -105,7 +105,8 @@ TEST(dmSys, GetSystemInfo)
     CHECK_LANG_TERR("sv-SE", "sv", "sv", "SE");
     CHECK_LANG_TERR("zh_Hant_CN", "zh", "zh-Hant", "CN");
     CHECK_LANG_TERR("zh-Hant-CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh_Hant_CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh_Hant-CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh-Hant_CN", "zh", "zh-Hant", "CN");
     CHECK_LANG_TERR("zh_Hant-xxx_xxx_CN", "zh", "zh-Hant-xxx_xxx", "CN");
 
 #undef CHECK_LANG_TERR
