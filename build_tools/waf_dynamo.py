@@ -11,7 +11,8 @@ ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
 ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
 ANDROID_NDK_VERSION='10b'
 ANDROID_NDK_API_VERSION='14'
-ANDROID_API_VERSION='17'
+ANDROID_TARGET_API_LEVEL='23'
+ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
 
 
@@ -120,7 +121,7 @@ def default_flags(self):
         # -lgnustl_static -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '--sysroot=%s' % sysroot,
-                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid',
+                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -486,7 +487,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:installLocation="auto">
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
-    <uses-sdk android:minSdkVersion="9" />
+    <uses-sdk android:minSdkVersion="%(min_api_level)s" android:targetSdkVersion="%(target_api_level)s" />
     <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
 
         <!-- For Local Notifications -->
@@ -600,7 +601,7 @@ def android_package(task):
         package = task.android_package
 
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })
+    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
     manifest_file.close()
 
     aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
