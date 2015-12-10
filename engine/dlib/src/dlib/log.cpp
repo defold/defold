@@ -14,7 +14,6 @@
 #include "time.h"
 #include "path.h"
 #include "sys.h"
-#include "output.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -442,8 +441,6 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     int actual_n = dmMath::Min(n, str_buf_size-1);
 
     g_TotalBytesLogged += actual_n;
-
-    DebugOutput::print(str_buf);
 
 #ifdef ANDROID
     __android_log_print(ToAndroidPriority(severity), "defold", str_buf);

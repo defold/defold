@@ -10,7 +10,7 @@ def build(bld):
                                 target = 'gui')
     resource.find_sources_in_dirs('.')
 
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/gui', 'gui.h')
 
     bld.new_task_gen(source = 'gui_script.cpp',
