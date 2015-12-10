@@ -148,35 +148,6 @@ namespace dmSys
         }
     }
 
-    Result StoreBufferInUserDefaults(const char* key, const unsigned char* buffer, uint32_t length)
-    {
-        return RESULT_NOTSUP;
-    }
-
-    bool CanPersistFiles()
-    {
-        return true;
-    }
-
-    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length)
-    {
-        NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:[NSString stringWithUTF8String:key]];
-        NSData *data = [[NSData alloc] initWithBase64EncodedString:savedValue options:0];
-        memcpy(out_buffer, [data bytes], MIN(max_length, data.length));
-        [data release];
-        return RESULT_OK;
-    }
-
-    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length)
-    {
-        NSData* data = [NSData dataWithBytes:(const void *)buffer length:sizeof(unsigned char)*length];
-        NSString *base64 = [data base64EncodedStringWithOptions:0];
-        NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-        [userDefaults setObject:base64 forKey:[NSString stringWithUTF8String:key]];
-        [userDefaults synchronize];
-        return RESULT_OK;
-    }
-
     // Only on iOS for now. No autorelease pool etc setup on OSX in dlib
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {

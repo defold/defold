@@ -6,7 +6,7 @@ def set_options(opt):
     pass
 
 def build(bld):
-    #bld.add_subdirs('test')
+    bld.add_subdirs('test')
     bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')

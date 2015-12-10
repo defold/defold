@@ -168,6 +168,25 @@ namespace dmSys
 
 #endif
 
+
+#if (!defined(__TVOS__))
+
+    // Only implemented on tvOS (in sys_cocoa.mm)
+    bool CanPersistFiles() {
+        return true;
+    }
+
+    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length) {
+        return RESULT_INVAL;
+    }
+
+    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length) {
+        return RESULT_INVAL;
+    }
+
+#endif
+
+
 #if defined(__MACH__)
 
 #if !defined(__arm__) && !defined(__arm64__)
@@ -423,7 +442,6 @@ namespace dmSys
         return RESULT_OK;
 #endif
     }
-
 #if (!defined(__TVOS__) && (defined(__arm__) || defined(__arm64__)) && defined(__MACH__))
     // NOTE: iOS implementation in sys_cocoa.mm
 
