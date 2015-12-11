@@ -9,6 +9,7 @@
 #include "log.h"
 #include "dstrings.h"
 #include "path.h"
+#include "math.h"
 
 #ifdef _WIN32
 #include <Shlobj.h>
@@ -471,25 +472,45 @@ namespace dmSys
 
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {
-        const char* default_lang = "en_US";
+        // find first separator ("-" or "_")
+        size_t lang_len = lang ? strlen(lang) : 0;
+        if(lang_len == 0)
+        {
+            lang = "en_US";
+            lang_len = strlen(lang);
+            dmLogWarning("Invalid language parameter (empty field), using default: \"%s\"", lang);
+        }
+        const char* sep_first = lang;
+        while((*sep_first) && (*sep_first != '-') && (*sep_first != '_'))
+            ++sep_first;
+        const char* sep_last = lang + lang_len;
+        while((sep_last != sep_first) && (*sep_last != '-') && (*sep_last != '_'))
+            --sep_last;
 
-        if (strlen(lang) < 5) {
-            dmLogWarning("Unknown language format: '%s'", lang);
-            lang = default_lang;
-        } else if(lang[2] != '_') {
-            dmLogWarning("Unknown language format: '%s'", lang);
-            lang = default_lang;
+        dmStrlCpy(info->m_Language, lang, dmMath::Min((size_t)(sep_first+1 - lang), sizeof(info->m_Language)));
+
+        if(sep_first != sep_last)
+        {
+            // Language script. If there is more than one separator, this is what is up to the last separator (<language>-<script>-<territory> format)
+            dmStrlCpy(info->m_DeviceLanguage, lang, dmMath::Min((size_t)(sep_last+1 - lang), sizeof(info->m_DeviceLanguage)));
+            info->m_DeviceLanguage[sep_first - lang] = '-';
+        }
+        else
+        {
+            // No language script, default to language
+            dmStrlCpy(info->m_DeviceLanguage, info->m_Language, dmMath::Min(sizeof(info->m_DeviceLanguage), sizeof(info->m_Language)));
         }
 
-        info->m_Language[0] = lang[0];
-        info->m_Language[1] = lang[1];
-        info->m_Language[2] = '\0';
-        info->m_DeviceLanguage[0] = lang[0];
-        info->m_DeviceLanguage[1] = lang[1];
-        info->m_DeviceLanguage[2] = '\0';
-        info->m_Territory[0] = lang[3];
-        info->m_Territory[1] = lang[4];
-        info->m_Territory[2] = '\0';
+        if(sep_last != lang + lang_len)
+        {
+            dmStrlCpy(info->m_Territory, sep_last + 1, dmMath::Min((size_t)((lang + lang_len) - sep_last), sizeof(info->m_Territory)));
+        }
+        else
+        {
+            info->m_Territory[0] = '\0';
+            dmLogWarning("No territory detected in language string: \"%s\"", lang);
+        }
+
     }
 
     void FillTimeZone(struct SystemInfo* info)
@@ -548,18 +569,19 @@ namespace dmSys
         jstring countryObj = (jstring) env->CallObjectMethod(locale, get_country_method);
         jstring languageObj = (jstring) env->CallObjectMethod(locale, get_language_method);
 
-        if (countryObj) {
-            const char* country = env->GetStringUTFChars(countryObj, NULL);
-            dmStrlCpy(info->m_Territory, country, sizeof(info->m_Territory));
-            env->ReleaseStringUTFChars(countryObj, country);
-        }
+        char lang[32] = {0};
         if (languageObj) {
             const char* language = env->GetStringUTFChars(languageObj, NULL);
-            dmStrlCpy(info->m_Language, language, sizeof(info->m_Language));
-            dmStrlCpy(info->m_DeviceLanguage, language, sizeof(info->m_DeviceLanguage));
+            dmStrlCpy(lang, language, sizeof(lang));
             env->ReleaseStringUTFChars(languageObj, language);
         }
-
+        if (countryObj) {
+            dmStrlCat(lang, "_", sizeof(lang));
+            const char* country = env->GetStringUTFChars(countryObj, NULL);
+            dmStrlCat(lang, country, sizeof(lang));
+            env->ReleaseStringUTFChars(countryObj, country);
+        }
+        FillLanguageTerritory(lang, info);
         FillTimeZone(info);
 
         jclass build_class = env->FindClass("android/os/Build");
@@ -643,10 +665,6 @@ namespace dmSys
             wchar_t tmp[max_len];
             GetUserDefaultLocaleName(tmp, max_len);
             WideCharToMultiByte(CP_UTF8, 0, tmp, -1, lang, max_len, 0, 0);
-        }
-        char* index = strchr(lang, '-');
-        if (index) {
-            *index = '_';
         }
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
