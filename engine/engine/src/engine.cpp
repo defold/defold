@@ -994,7 +994,7 @@ bail:
                     dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
 
-                if (engine->m_ShowProfile)
+                if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {
                     DM_PROFILE(Profile, "Draw");
                     dmProfile::Pause(true);
@@ -1008,6 +1008,7 @@ bail:
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                     dmProfile::Pause(false);
                 }
+
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
                 RecordData* record_data = &engine->m_RecordData;
