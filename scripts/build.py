@@ -964,12 +964,13 @@ instructions.configure=\
             sys.exit(5)
 
         from boto.s3.connection import S3Connection
+        from boto.s3.connection import OrdinaryCallingFormat
         from boto.s3.key import Key
 
         # NOTE: We hard-code host (region) here and it should not be required.
         # but we had problems with certain buckets with period characters in the name.
         # Probably related to the following issue https://github.com/boto/boto/issues/621
-        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com')
+        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket
