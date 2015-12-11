@@ -7,6 +7,8 @@
 #include "../dlib/hash.h"
 #include "../dlib/dstrings.h"
 
+#include <dlib/sol.h>
+
 class dmHttpCacheTest : public ::testing::Test
 {
     virtual void SetUp()
@@ -664,6 +666,9 @@ TEST_F(dmHttpCacheTest, Persist)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

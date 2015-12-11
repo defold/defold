@@ -10,6 +10,8 @@
 #include "../sound_codec.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
+#include <dlib/sol.h>
+
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
 extern unsigned char DRUMLOOP_WAV[];
@@ -686,6 +688,9 @@ TEST_F(dmSoundTest, WavDecodeBug)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

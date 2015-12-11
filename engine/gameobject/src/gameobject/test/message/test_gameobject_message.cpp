@@ -13,6 +13,9 @@
 
 #include "../../../proto/gameobject_ddf.h"
 
+#include <dlib/sol.h>
+
+
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
 class MessageTest : public ::testing::Test
@@ -121,7 +124,7 @@ dmResource::Result MessageTest::ResMessageTargetDestroy(const dmResource::Resour
 
 dmGameObject::CreateResult MessageTest::CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params)
 {
-    *params.m_World = params.m_Context;
+    (*params.m_World).m_Ptr = params.m_Context;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -143,7 +146,7 @@ dmGameObject::CreateResult MessageTest::CompMessageTargetDestroy(const dmGameObj
 dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameObject::ComponentOnMessageParams& params)
 {
     MessageTest* self = (MessageTest*) params.m_Context;
-    assert(params.m_Context == params.m_World);
+    assert(params.m_Context == params.m_World.m_Ptr);
 
     if (params.m_Message->m_Id == dmHashString64("inc"))
     {
@@ -557,8 +560,10 @@ TEST_F(MessageTest, TestInfPingPong)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

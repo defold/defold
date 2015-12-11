@@ -8,6 +8,8 @@
 #include <vector>
 #include <dlib/math.h>
 
+#include <dlib/sol.h>
+
 using namespace Vectormath::Aos;
 
 dmPhysics::HullFlags EMPTY_FLAGS;
@@ -1139,8 +1141,13 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    dmSol::Initialize();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }
+

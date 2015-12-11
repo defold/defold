@@ -10,6 +10,8 @@
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
 
+#include <dlib/sol.h>
+
 static const char* DEVICE_DESC =
 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
 "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
@@ -347,11 +349,13 @@ TEST(dmSSDP, JavaClient)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }
 

@@ -1,11 +1,12 @@
 #include <string.h>
+#include <sol/runtime.h>
+
 #include "ddf_message.h"
 #include "ddf_load.h"
 #include "ddf_util.h"
 
 namespace dmDDF
 {
-
     Message::Message(const Descriptor* message_descriptor, char* buffer, uint32_t buffer_size, bool dry_run)
     {
         m_MessageDescriptor = message_descriptor;

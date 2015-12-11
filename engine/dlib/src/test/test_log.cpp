@@ -12,6 +12,8 @@
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
 
+#include <dlib/sol.h>
+
 TEST(dmLog, Init)
 {
     dmLogParams params;
@@ -97,10 +99,12 @@ TEST(dmLog, LogFile)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }
 

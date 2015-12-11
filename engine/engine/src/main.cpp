@@ -2,6 +2,7 @@
 #include <dlib/socket.h>
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
+#include <dlib/sol.h>
 #include <dlib/profile.h>
 #include <graphics/glfw/glfw.h>
 #include <crash/crash.h>
@@ -9,12 +10,20 @@
 #include "engine.h"
 #include "engine_version.h"
 
+extern "C"
+{
+#include <sol/runtime.h>
+}
+
 int main(int argc, char *argv[])
 {
+    dmSol::Initialize();
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+    
+    
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
     dmMemProfile::Initialize();
@@ -38,5 +47,7 @@ int main(int argc, char *argv[])
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSocket::Finalize();
+    
+    dmSol::Finalize();
     return exit_code;
 }

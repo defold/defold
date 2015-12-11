@@ -14,6 +14,7 @@ extern "C"
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
+#include <sol/reflect.h>
 }
 
 namespace dmRender
@@ -46,6 +47,7 @@ namespace dmRender
         }
     };
 
+    // NOTE: Mirrored in render.sol
     struct Material
     {
 
@@ -70,6 +72,7 @@ namespace dmRender
         uint32_t                                m_TagMask;
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;
+        uint8_t                                 m_Valid;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -151,11 +154,13 @@ namespace dmRender
         lua_State*                  m_LuaState;
         uint32_t                    m_CommandBufferSize;
     };
-
+    
     struct RenderListDispatch
     {
         RenderListDispatchFn m_Fn;
+        RenderListDispatchFnSol m_SolFn;
         void *m_UserData;
+        Any m_SolUserData;
     };
 
     struct RenderListSortValue
@@ -178,6 +183,15 @@ namespace dmRender
 
     struct RenderContext
     {
+        RenderContext() :
+            m_RenderList(true),
+            m_RenderListDispatch(true),
+            m_RenderListSortBuffer(true),
+            m_RenderListSortIndices(true)
+        {
+
+        }
+
         dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
@@ -185,6 +199,7 @@ namespace dmRender
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
+        dmArray<void*>              m_RenderObjectsSol;
 
         dmArray<RenderListEntry>    m_RenderList;
         dmArray<RenderListDispatch> m_RenderListDispatch;
@@ -203,6 +218,8 @@ namespace dmRender
         HMaterial                   m_Material;
 
         dmMessage::HSocket          m_Socket;
+        
+        RenderListDispatchParamsSol*m_SolDispatchParams;
 
         uint32_t                    m_OutOfResources : 1;
     };

@@ -9,6 +9,8 @@
 #include "../dlib/memprofile.h"
 #include "../dlib/profile.h"
 
+#include <dlib/sol.h>
+
 bool g_MemprofileActive = false;
 
 extern void dmMemProfileInternalData();
@@ -302,13 +304,18 @@ int main(int argc, char **argv)
     // We could use dmMemProfile::IsEnabled but we are testing.
     g_MemprofileActive = argc >= 2;
 
+    dmSol::Initialize();
+
     dmMemProfile::Initialize();
     dmProfile::Initialize(128, 1024 * 1024, 16);
 
     testing::InitGoogleTest(&argc, argv);
+    
     int ret = RUN_ALL_TESTS();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
+
+    dmSol::FinalizeWithCheck();
     return ret;
 }
 

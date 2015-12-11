@@ -50,13 +50,13 @@ namespace dmGameSystem
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
-        *params.m_World = world;
+        params.m_World->m_Ptr = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompTileGridDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        TileGridWorld* world = (TileGridWorld*) params.m_World;
+        TileGridWorld* world = (TileGridWorld*) params.m_World.m_Ptr;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         delete world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -119,7 +119,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompTileGridCreate(const dmGameObject::ComponentCreateParams& params)
     {
         TileGridResource* resource = (TileGridResource*) params.m_Resource;
-        TileGridWorld* world = (TileGridWorld*) params.m_World;
+        TileGridWorld* world = (TileGridWorld*) params.m_World.m_Ptr;
         if (world->m_TileGrids.Full())
         {
             world->m_TileGrids.OffsetCapacity(16);
@@ -197,7 +197,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompTileGridDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         TileGridComponent* tile_grid = (TileGridComponent*) *params.m_UserData;
-        TileGridWorld* world = (TileGridWorld*) params.m_World;
+        TileGridWorld* world = (TileGridWorld*) params.m_World.m_Ptr;
         for (uint32_t i = 0; i < world->m_TileGrids.Size(); ++i)
         {
             if (world->m_TileGrids[i] == tile_grid)
@@ -439,7 +439,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompTileGridRender(const dmGameObject::ComponentsRenderParams& params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
-        TileGridWorld* world = (TileGridWorld*) params.m_World;
+        TileGridWorld* world = (TileGridWorld*) params.m_World.m_Ptr;
 
         dmArray<TileGridComponent*>& tile_grids = world->m_TileGrids;
         uint32_t n = tile_grids.Size();

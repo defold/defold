@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <dlib/log.h>
+#include <dlib/sol.h>
 
 #include "graphics.h"
 #include "null/graphics_null.h"
@@ -554,6 +555,9 @@ TEST_F(dmGraphicsTest, TestTextureSupport)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

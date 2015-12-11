@@ -1422,7 +1422,9 @@ namespace dmParticle
     bool LoadResources(Prototype* prototype, const void* buffer, uint32_t buffer_size)
     {
         dmParticleDDF::ParticleFX* ddf = 0;
+        
         dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
+            
         if (r == dmDDF::RESULT_OK)
         {
             uint32_t emitter_count = ddf->m_Emitters.m_Count;

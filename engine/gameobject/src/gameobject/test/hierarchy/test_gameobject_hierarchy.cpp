@@ -12,6 +12,8 @@
 #include "../gameobject_private.h"
 #include "../proto/gameobject_ddf.h"
 
+#include <dlib/sol.h>
+
 #define EPSILON 0.000001f
 
 using namespace Vectormath::Aos;
@@ -766,8 +768,9 @@ TEST_F(HierarchyTest, TestEmptyInstance)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

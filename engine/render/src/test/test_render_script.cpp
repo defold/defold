@@ -9,6 +9,8 @@
 
 #include "render/render_ddf.h"
 
+#include <dlib/sol.h>
+
 using namespace Vectormath::Aos;
 
 namespace
@@ -698,7 +700,10 @@ TEST_F(dmRenderScriptTest, TestURL)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

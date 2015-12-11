@@ -83,13 +83,13 @@ namespace dmGameSystem
             {"texcoord0", 2, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
-        *params.m_World = world;
+        params.m_World->m_Ptr = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompParticleFXDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        ParticleFXWorld* emitter_world = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* emitter_world = (ParticleFXWorld*) params.m_World.m_Ptr;
         for (uint32_t i = 0; i < emitter_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &emitter_world->m_Components[i];
@@ -106,7 +106,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompParticleFXCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* world = (ParticleFXWorld*) params.m_World.m_Ptr;
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
             dmLogError("ParticleFX could not be created since the buffer is full (%d).", world->m_PrototypeIndices.Capacity());
@@ -124,7 +124,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompParticleFXDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* w = (ParticleFXWorld*) params.m_World.m_Ptr;
         ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
         uint32_t index = prototype - w->m_Prototypes.Begin();
         for (uint32_t i = 0; i < w->m_Components.Size(); ++i)
@@ -152,7 +152,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* w = (ParticleFXWorld*) params.m_World.m_Ptr;
         dmArray<ParticleFXComponent>& components = w->m_Components;
         if (components.Empty())
             return dmGameObject::UPDATE_RESULT_OK;
@@ -233,7 +233,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompParticleFXRender(const dmGameObject::ComponentsRenderParams& params)
     {
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
-        ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* w = (ParticleFXWorld*) params.m_World.m_Ptr;
 
         dmArray<dmRender::RenderObject>& render_objects = w->m_RenderObjects;
         const uint32_t n = w->m_RenderObjects.Size();
@@ -286,7 +286,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* world = (ParticleFXWorld*) params.m_World.m_Ptr;
         if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
             dmParticle::HContext context = world->m_ParticleContext;
@@ -363,7 +363,7 @@ namespace dmGameSystem
 
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
+        ParticleFXWorld* world = (ParticleFXWorld*) params.m_World.m_Ptr;
         world->m_WarnOutOfROs = 0;
         uint32_t count = world->m_Components.Size();
         for (uint32_t i = 0; i < count; ++i)

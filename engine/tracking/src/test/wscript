@@ -2,7 +2,7 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    libs = 'SCRIPT GTEST PLATFORM_SOCKET THREAD RESOURCE DDF DLIB LUA SCRIPT EXTENSION'
+    libs = 'SCRIPT GTEST PLATFORM_SOCKET THREAD RESOURCE DDF DLIB LUA SCRIPT EXTENSION SOL SOL_RUNTIME'
     test_tracking = bld.new_task_gen(features = 'cxx cprogram test embed',
                                      includes = '..',
                                      uselib = libs,

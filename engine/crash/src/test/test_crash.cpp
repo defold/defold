@@ -9,6 +9,7 @@ extern "C"
 {
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
+#include <sol/runtime.h>
 }
 
 #include "../crash.h"
@@ -105,6 +106,9 @@ TEST_F(dmCrashTest, TestPurgeDefaultPath)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

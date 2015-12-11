@@ -183,7 +183,9 @@ namespace dmGameSystem
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
 
             SetMaterial(material, &resources);
+
             params.m_Resource->m_Resource = (void*) material;
+            params.m_Resource->m_SolType = dmRender::GetMaterialSolType(material);
         }
         else
         {

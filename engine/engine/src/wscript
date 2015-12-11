@@ -5,7 +5,7 @@ def set_options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed sol',
                           includes = '../proto . ..',
                           target = 'engine',
                           proto_gen_py = True,
@@ -67,8 +67,8 @@ def build(bld):
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        features = 'cc cxx cprogram apk web sol',
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT IACEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH SOL_RUNTIME SOL %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -88,8 +88,8 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        features = 'cc cxx cprogram apk web sol',
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH SOL_RUNTIME SOL %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -110,8 +110,8 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW X',
+        features = 'cc cxx cprogram apk web sol',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW TRACKING CRASH X SOL_RUNTIME SOL',
         uselib_local = 'engine',
         includes = '../build ../proto . ..',
         proto_gen_py = True,

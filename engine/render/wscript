@@ -21,6 +21,7 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+    conf.check_tool('waf_sol')
 
     waf_ddf.configure(conf)
     conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
@@ -74,6 +75,7 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
+    bld.install_files('${PREFIX}/lib/sol', 'src/render/render.sol')
 
 def shutdown():
 

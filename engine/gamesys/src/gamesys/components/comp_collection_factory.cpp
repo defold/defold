@@ -36,19 +36,19 @@ namespace dmGameSystem
         fw->m_Components.SetSize(max_component_count);
         fw->m_IndexPool.SetCapacity(max_component_count);
         memset(&fw->m_Components[0], 0, sizeof(CollectionFactoryComponent) * max_component_count);
-        *params.m_World = fw;
+        params.m_World->m_Ptr = fw;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollectionFactoryDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        delete (FactoryWorld*)params.m_World;
+        delete (FactoryWorld*) params.m_World.m_Ptr;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollectionFactoryCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        FactoryWorld* fw = (FactoryWorld*)params.m_World;
+        FactoryWorld* fw = (FactoryWorld*) params.m_World.m_Ptr;
         if (fw->m_IndexPool.Remaining() > 0)
         {
             uint32_t index = fw->m_IndexPool.Pop();
@@ -66,7 +66,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollectionFactoryDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        FactoryWorld* fw = (FactoryWorld*)params.m_World;
+        FactoryWorld* fw = (FactoryWorld*) params.m_World.m_Ptr;
         CollectionFactoryComponent* fc = (CollectionFactoryComponent*)*params.m_UserData;
         uint32_t index = fc - &fw->m_Components[0];
         fc->m_Resource = 0x0;

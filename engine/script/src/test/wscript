@@ -16,7 +16,7 @@ def build(bld):
             lib_dirs['library_script.js'] = '../lib/js'
             bld.env['JS_LIB_PATHS'] = lib_dirs
 
-    libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
+    libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA SOL_RUNTIME SOL'
     test_script_ddf = bld.new_task_gen(features = flist,
                                         includes = '..',
                                         uselib = libs,

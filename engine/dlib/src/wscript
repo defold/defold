@@ -57,10 +57,17 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/sol.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
+    bld.install_files('${PREFIX}/lib/sol', 'dlib/vmath.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'dlib/message.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'dlib/array.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'dlib/indexpool.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'dlib/hash.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'dlib/interop.sol')
 
     if 'js-web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/js-web/js', 'dlib/js/library_sys.js')
@@ -90,11 +97,12 @@ def build(bld):
         # on windows due to compile error in RNG_custom_init()
         # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
-    dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
+    dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed sol',
                             includes = '. axtls/config axtls/crypto axtls/ssl',
                             target = 'dlib',
                             defines= ['VALGRIND'] + extra_defines,
                             embed_source = '../data/profiler.html')
+
     dlib.find_sources_in_dirs(source_dirs)
     if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
         # NOTE: This is a hack required when cross compiling on
@@ -110,12 +118,12 @@ def build(bld):
         dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib embed sol',
                                 includes = '. axtls/config axtls/crypto axtls/ssl',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 embed_source = '../data/profiler.html',
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = 'UUID PLATFORM_SOCKET SOL_RUNTIME SOL')
         dlib.find_sources_in_dirs(source_dirs)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
             # NOTE: See comment above

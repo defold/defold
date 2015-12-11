@@ -1,5 +1,8 @@
 #include <string.h>
 #include <dlib/align.h>
+
+#include <sol/runtime.h>
+
 #include "ddf_loadcontext.h"
 #include "ddf_util.h"
 
@@ -28,8 +31,23 @@ namespace dmDDF
         return Message(desc, b, desc->m_Size, m_DryRun);
     }
 
+    // When loading a message into SOL, the root message object will have type information that lets the gc
+    // track allocations out to whatever extra is allocated, so for sub-objects, they can be unpinned
+    // (objects and arrays allocated through runtime* functions are automatically pinned)
+    static inline void* UnpinAndReturn(void* ptr)
+    {
+        runtime_unpin(ptr);
+        return ptr;
+    }
+
     void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
     {
+        if ((m_Options & OPTION_SOL) && m_DryRun)
+        {
+            // Separate allocation
+            return m_Current;
+        }
+
         Type type = (Type) field_desc->m_Type;
 
         m_Current = (char*) DM_ALIGN(m_Current, 4);
@@ -48,16 +66,51 @@ namespace dmDDF
         }
 
         char* b = m_Current;
-        m_Current += count * element_size;
-        assert(m_DryRun || m_Current <= m_End);
-        return (void*) b;
+
+        if (m_Options & OPTION_SOL)
+        {
+            if (m_DryRun)
+            {
+                return m_Current;
+            }
+
+            if (field_desc->m_Type == TYPE_MESSAGE)
+            {
+                ::Type* arr_type = GetSolArrayTypeFromHash(field_desc->m_MessageDescriptor->m_NameHash);
+                assert(arr_type);
+                assert(arr_type->referenced_type);
+                return UnpinAndReturn(runtime_alloc_typed_array(arr_type->referenced_type, count));
+            }
+            else
+            {
+                return UnpinAndReturn(runtime_alloc_array(element_size, count));
+            }
+        }
+        else
+        {
+            m_Current += count * element_size;
+            assert(m_DryRun || m_Current <= m_End);
+            return (void*) b;
+        }
     }
 
     char* LoadContext::AllocString(int length)
     {
         char* b = m_Current;
-        m_Current += length;
-        assert(m_DryRun || m_Current <= m_End);
+
+        if (m_Options & OPTION_SOL)
+        {
+            if (m_DryRun)
+            {
+                return m_Current;
+            }
+            return (char*)UnpinAndReturn(runtime_alloc_array(1, length));
+        }
+        else
+        {
+            m_Current += length;
+            assert(m_DryRun || m_Current <= m_End);
+        }
 
         return b;
     }
@@ -66,7 +119,22 @@ namespace dmDDF
     {
         m_Current = (char*) DM_ALIGN(m_Current, 4);
         char* b = m_Current;
-        m_Current += length;
+
+        if (m_Options & OPTION_SOL)
+        {
+            if (m_DryRun)
+            {
+                return m_Current;
+            }
+
+            return (char*)UnpinAndReturn(runtime_alloc_array(1, length));
+        }
+        else
+        {
+            m_Current += length;
+            assert(m_DryRun || m_Current <= m_End);
+        }
+
         assert(m_DryRun || m_Current <= m_End);
         return b;
     }

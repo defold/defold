@@ -12,6 +12,7 @@ extern "C"
 {
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
+#include <sol/runtime.h>
 }
 
 #define PATH_FORMAT "build/default/src/test/%s"
@@ -95,8 +96,9 @@ TEST_F(ScriptSysTest, TestSys)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

@@ -6,6 +6,8 @@
 #include "../dlib/log.h"
 #include "../dlib/time.h"
 
+#include <dlib/sol.h>
+
 static const uint16_t HTTP_PORT = 7000;
 static const uint32_t MAX_CONNECTIONS = 8;
 
@@ -223,10 +225,12 @@ TEST_F(dmConnectionPoolTest, ConnectFailed)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

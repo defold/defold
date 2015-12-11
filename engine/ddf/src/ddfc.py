@@ -43,6 +43,26 @@ type_to_ctype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_SINT32 : "int32_t",
                   FieldDescriptor.TYPE_SINT64 : "int64_t" }
 
+type_to_soltype = { FieldDescriptor.TYPE_DOUBLE : "double",
+                  FieldDescriptor.TYPE_FLOAT : "float",
+                  FieldDescriptor.TYPE_INT64 : "int64",
+                  FieldDescriptor.TYPE_UINT64 : "uint64",
+                  FieldDescriptor.TYPE_INT32 : "int32",
+#                  FieldDescriptor.TYPE_FIXED64
+#                  FieldDescriptor.TYPE_FIXED32
+                  FieldDescriptor.TYPE_BOOL : "bool",
+                  FieldDescriptor.TYPE_STRING : "String",
+#                  FieldDescriptor.TYPE_GROUP
+#                  FieldDescriptor.TYPE_MESSAGE
+#                  FieldDescriptor.TYPE_BYTES
+                  FieldDescriptor.TYPE_UINT32 : "uint32",
+#                  FieldDescriptor.TYPE_ENUM
+#                  FieldDescriptor.TYPE_SFIXED32
+#                  FieldDescriptor.TYPE_SFIXED64
+                  FieldDescriptor.TYPE_SINT32 : "int32",
+                  FieldDescriptor.TYPE_SINT64 : "int64" }
+
+
 type_to_javatype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_FLOAT : "float",
                   FieldDescriptor.TYPE_INT64 : "long",
@@ -117,6 +137,11 @@ class PrettyPrinter(object):
         print >>self.stream, " " * self.indent + "("
         self.indent += 4
 
+    def begin_sol(self, str, *format):
+        str = str % format
+        print >>self.stream, " " * self.indent + str
+        self.indent += 4
+
     def p(self, str, *format):
         str = str % format
         print >>self.stream, " " * self.indent + str
@@ -131,6 +156,12 @@ class PrettyPrinter(object):
         str = str % format
         self.indent -= 4
         print >>self.stream, " " * self.indent + ")%s;" % str
+        print >>self.stream, ""
+
+    def end_sol(self, str = "", *format):
+        str = str % format
+        self.indent -= 4
+        print >>self.stream, " " * self.indent + "%s" % str
         print >>self.stream, ""
 
 def to_camel_case(name, initial_capital = True):
@@ -160,6 +191,7 @@ def dot_to_cxx_namespace(str):
     if str.startswith("."):
         str = str[1:]
     return str.replace(".", "::")
+
 
 def to_cxx_struct(context, pp, message_type):
     # Calculate maximum length of "type"
@@ -214,6 +246,74 @@ def to_cxx_struct(context, pp, message_type):
     pp.p('static const uint64_t m_DDFHash;')
     pp.end()
 
+def dot_to_sol_namespace(context, str):
+    if str.startswith("."):
+        str = str[1:]
+    ret = context.type_name_to_sol_type[str]
+    if ret.startswith("."):
+        ret = ret[1:]
+    return ret
+
+def to_sol_enum(context, pp, message_type, prefix):
+    lst = []
+    for f in message_type.value:
+        lst.append((f.name, f.number))
+
+    max_len = reduce(lambda y,x: max(len(x[0]), y), lst, 0)
+    for t,n in lst:
+        pp.p("let %s%s%s:int32 = %d", prefix, t, (max_len-len(t) + 1) * " ", n)
+    pp.p("")
+
+def to_sol_struct(context, pp, message_type, root_struct, prefix=""):
+
+    my_name = prefix + message_type.name
+
+    for et in message_type.enum_type:
+       to_sol_enum(context, pp, et, to_lower_case(my_name).upper() + '_')
+
+    for nt in message_type.nested_type:
+       to_sol_struct(context, pp, nt, root_struct, my_name)
+
+    root_struct.p('Ref%s : %s', my_name, my_name)
+    root_struct.p('Array%s : [@%s]', my_name, my_name)
+
+    # only aliased ones this far are vmath, and so it is hard to read the corresponding sol aligns;
+    # but for now we know this implies 16 byte alignment
+    if context.sol_name_to_alias.has_key(my_name):
+        pp.p('!align(16)')
+
+    pp.begin_sol("struct %s", my_name)
+    for f in message_type.field:
+        field_name = to_lower_case(f.name)
+
+        # end is reserved word, and structs contain this :(
+        if field_name == 'end':
+            field_name = 'end_';
+
+        if f.label == FieldDescriptor.LABEL_REPEATED or f.type == FieldDescriptor.TYPE_BYTES:
+            if f.type == FieldDescriptor.TYPE_MESSAGE:
+                sol_type = dot_to_sol_namespace(context, f.type_name)
+                type_name = "@" + sol_type
+            elif f.type ==  FieldDescriptor.TYPE_BYTES:
+                type_name = "uint8"
+            else:
+                type_name = type_to_soltype[f.type]
+            pp.p(field_name + ' : [' + type_name+ ']')
+            # Untouchable from user code. Until sol supports anonymous structs,
+            # use a handle to get padding and alignment etc to match c++.
+            # On 64-bit the anonymous structs will be padded to 2x64 bit
+            pp.p('local ' + field_name + '_count_dummy : handle')
+
+        elif f.type ==  FieldDescriptor.TYPE_ENUM:
+            pp.p(field_name + ": int32")
+        elif f.type == FieldDescriptor.TYPE_MESSAGE:
+            sol_type = dot_to_sol_namespace(context, f.type_name)
+            pp.p(field_name + ": @" + sol_type)
+        else:
+            pp.p(field_name + " : " + type_to_soltype[f.type]);
+
+    pp.end_sol('end')
+
 def to_cxx_enum(context, pp, message_type):
     lst = []
     for f in message_type.value:
@@ -258,12 +358,12 @@ def to_cxx_default_value_string(context, f):
             tmp = struct.pack('<' + form, func(f.default_value))
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
 
-def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
+def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst, sol_prefix=""):
     namespace = "_".join(namespace_lst)
     pp_h.p('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
     for nt in message_type.nested_type:
-        to_cxx_descriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
+        to_cxx_descriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name], message_type.name)
 
     for f in message_type.field:
         default = to_cxx_default_value_string(context, f)
@@ -309,6 +409,10 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         pp_cpp.p('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
     else:
         pp_cpp.p('0,')
+    if (hasattr(context, 'sol_module')):
+        pp_cpp.p('"%s", "%s%s",', context.sol_module, sol_prefix, message_type.name)
+    else:
+        pp_cpp.p('0, 0,')
     pp_cpp.end()
 
     pp_cpp.p('dmDDF::Descriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
@@ -319,8 +423,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
     pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s_%s(&%s_%s_DESCRIPTOR);' % (namespace, message_type.name, namespace, message_type.name))
-
-    pp_cpp.p('')
+    pp_cpp.p('');
 
 def to_cxx_enum_descriptor(context, pp_cpp, pp_h, enum_type, namespace_lst):
     namespace = "_".join(namespace_lst)
@@ -603,6 +706,12 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     to_ensure_struct_alias_size(context, file_desc, pp_cpp)
 
+    if hasattr(context, 'sol_module'):
+        # This is to generate a reference from the .cpp to the .sol so the .sol object files are always
+        # linked in whenever the .cpp is, so to guarantee the types will be found.
+        pp_cpp.p('extern "C" void sol_ddf_module_ref_%s();', context.sol_module);
+        pp_cpp.p('void* g_CppDdf%sSolRef = (void*) &sol_ddf_module_ref_%s;', to_camel_case(context.sol_module), context.sol_module);
+
     if namespace:
         pp_cpp.end()
 
@@ -611,34 +720,79 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     pp_h.p('#endif // %s ', guard_name)
     file_h.content = f_h.getvalue()
 
+def compile_sol(context, proto_file, module_to_generate, namespace, includes, files):
+
+    # module package
+    f_pkg = context.response.file.add()
+    f_pkg.name = module_to_generate + ".sol"
+
+    s_hdr = StringIO()
+    pp_hdr = PrettyPrinter(s_hdr, 0)
+    pp_hdr.p('module ' + module_to_generate)
+    pp_hdr.p('')
+    pp_hdr.p('require C')
+    pp_hdr.p('require reflect')
+    pp_hdr.p('require ddf')
+
+    # Resolve all dependency module names by looking through all parsed files.
+    for d in proto_file.dependency:
+        for f in files:
+            if f.name == d:
+                for x in f.options.ListFields():
+                    if x[0].name == 'sol_modulename':
+                        pp_hdr.p('require %s', x[1])
+
+    pp_hdr.p('')
+    pp_hdr.begin_sol('struct DdfModuleTypeRefs')
+
+    s_pkg = StringIO()
+    pp = PrettyPrinter(s_pkg, 0)
+    pp.p('!export("sol_ddf_module_ref_%s")', module_to_generate)
+    pp.p('fn ensure_linking()')
+    pp.p('end');
+    pp.p('')
+
+    for et in proto_file.enum_type:
+       to_sol_enum(context, pp, et, "")
+    for mt in proto_file.message_type:
+       to_sol_struct(context, pp, mt, pp_hdr, "")
+
+    pp_hdr.end_sol('end')
+
+    f_pkg.content = s_hdr.getvalue() + s_pkg.getvalue()
 
 class CompilerContext(object):
     def __init__(self, request):
         self.request = request
         self.message_types = {}
         self.type_name_to_java_type = {}
+        self.type_name_to_sol_type = {}
         self.type_alias_messages = {}
+        self.sol_name_to_alias = {}
         self.response = CodeGeneratorResponse()
 
     # TODO: We add enum types as message types. Kind of hack...
-    def add_message_type(self, package, java_package, java_outer_classname, message_type):
+    def add_message_type(self, package, java_package, java_outer_classname, sol_module, message_type, sol_prefix=""):
         if message_type.name in self.message_types:
             return
         n = str(package + '.' + message_type.name)
         self.message_types[n] = message_type
 
+        sol_name = sol_prefix + message_type.name
+
         if self.has_type_alias(n):
             self.type_alias_messages[n] = self.type_alias_name(n)
+            self.sol_name_to_alias[sol_name] = self.type_alias_name(n)
 
         self.type_name_to_java_type[package[1:] + '.' + message_type.name] = java_package + '.' + java_outer_classname + '.' + message_type.name
+        self.type_name_to_sol_type[package[1:] + '.' + message_type.name] = sol_module + '.' + sol_name
 
         if hasattr(message_type, 'nested_type'):
             for mt in message_type.nested_type:
                 # TODO: add something to java_package here?
-                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, mt)
-
+                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, sol_module, mt, sol_name)
             for et in message_type.enum_type:
-                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, et)
+                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, sol_module, et, sol_name)
 
     def has_type_alias(self, type_name):
         mt = self.message_types[type_name]
@@ -673,6 +827,7 @@ if __name__ == '__main__':
     parser.add_option("-o", dest="output_file", help="Output file (.cpp)", metavar="FILE")
     parser.add_option("--java", dest="java", help="Generate java", action="store_true")
     parser.add_option("--cxx", dest="cxx", help="Generate c++", action="store_true")
+    parser.add_option("--sol", dest="sol", help="Generate sol", action="store_true")
     (options, args) = parser.parse_args()
 
     request = CodeGeneratorRequest()
@@ -681,16 +836,19 @@ if __name__ == '__main__':
 
     for pf in request.proto_file:
         java_package = ''
+        sol_module =''
         for x in pf.options.ListFields():
             if x[0].name == 'ddf_java_package':
                 java_package = x[1]
+            if x[0].name == 'sol_modulename':
+                sol_module = x[1]
 
         for mt in pf.message_type:
-            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
+            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, sol_module, mt)
 
         for et in pf.enum_type:
             # NOTE: We add enum types as message types. Kind of hack...
-            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, et)
+            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, sol_module, et)
 
     for pf in request.proto_file:
         if pf.name == request.file_to_generate[0]:
@@ -704,12 +862,17 @@ if __name__ == '__main__':
                 if x[0].name == 'ddf_includes':
                     includes = x[1].split()
 
-            if options.cxx:
-                compile_cxx(context, pf, request.file_to_generate[0], namespace, includes)
-
             for x in pf.options.ListFields():
                 if x[0].name == 'ddf_java_package':
                     if options.java:
                         compile_java(context, pf, x[1], request.file_to_generate[0])
+                if x[0].name == 'sol_modulename':
+                    # hack because this is needed by compile_cxx to generate the load impls
+                    context.sol_module = x[1]
+                    if options.sol:
+                       compile_sol(context, pf, x[1], namespace, includes, request.proto_file)
+
+            if options.cxx:
+                compile_cxx(context, pf, request.file_to_generate[0], namespace, includes)
 
     sys.stdout.write(context.response.SerializeToString())

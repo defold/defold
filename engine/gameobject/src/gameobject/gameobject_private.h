@@ -7,6 +7,8 @@
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/transform.h>
+#include <dlib/sol.h>
+#include <dlib/log.h>
 
 #include "gameobject.h"
 #include "gameobject_props.h"
@@ -14,6 +16,7 @@
 extern "C"
 {
 #include <lua/lua.h>
+#include <sol/runtime.h>
 }
 
 namespace dmGameObject
@@ -90,10 +93,12 @@ namespace dmGameObject
             m_NextToAdd = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
             m_ToBeAdded = 0;
+            m_SolProxy = dmSol::NewProxy(this);
         }
 
         ~Instance()
         {
+            dmSol::DeleteProxy(m_SolProxy);
         }
 
         dmTransform::Transform m_Transform;
@@ -166,6 +171,8 @@ namespace dmGameObject
         uint16_t        m_FirstChildIndex : 15;
         uint16_t        m_Pad4 : 1;
 
+        dmSol::HProxy   m_SolProxy;
+
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
     };
@@ -178,6 +185,7 @@ namespace dmGameObject
     {
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
+        ComponentTypeSol            m_ComponentTypesSol[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
         dmMutex::Mutex              m_Mutex;
 
@@ -225,11 +233,19 @@ namespace dmGameObject
             m_InstancesToAddHead = INVALID_INSTANCE_INDEX;
             m_InstancesToAddTail = INVALID_INSTANCE_INDEX;
 
+            m_SolProxy = dmSol::NewProxy(this);
+
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
             memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
             memset(&m_LevelIndices[0], 0, sizeof(m_LevelIndices));
             memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
         }
+
+        ~Collection()
+        {
+            dmSol::DeleteProxy(m_SolProxy);
+        }
+
         // Resource factory
         dmResource::HFactory     m_Factory;
 
@@ -237,7 +253,8 @@ namespace dmGameObject
         HRegister                m_Register;
 
         // Component type specific worlds
-        void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
+        ComponentWorld           m_ComponentWorlds[MAX_COMPONENT_TYPES];
+
         // Component type specific instance counters
         uint32_t                 m_ComponentInstanceCount[MAX_COMPONENT_TYPES];
 
@@ -292,6 +309,8 @@ namespace dmGameObject
         uint16_t                 m_InstancesToAddHead;
         // Tail of the same list, for O(1) appending
         uint16_t                 m_InstancesToAddTail;
+
+        dmSol::HProxy            m_SolProxy;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

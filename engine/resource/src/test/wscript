@@ -9,7 +9,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../src/test -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
+    cmd = 'protoc --encode=%s -I ../src/test -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
     Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
     declare_extension([ext], create)
 
@@ -43,10 +43,10 @@ def build(bld):
                                 source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     bld.add_group()
-
-    test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
+	
+    test_resource = bld.new_task_gen(features = 'cxx cprogram embed test sol ddf',
                                      includes = '../../../src ../../proto',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA SOL_RUNTIME SOL',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
                                      target = 'test_resource',
@@ -54,6 +54,18 @@ def build(bld):
                                      embed_source = 'test.arc')
 
     test_resource.install_path = None
+
+    test_sol_resource = bld.new_task_gen(features = 'cxx cprogram embed test sol ddf',
+                                     includes = '../../../src ../../proto',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA SOL_RUNTIME SOL',
+                                     uselib_local = 'resource',
+                                     proto_gen_py = True,
+                                     target = 'test_sol_resource',
+                                     source = 'test_sol_resource.cpp foo_resource.sol cont_resource.sol test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
+                                     sol_includes = '../ .',
+                                     embed_source = 'test.arc')
+
+    test_sol_resource.install_path = None
 
     test_resource_arc = bld.new_task_gen(features='archive',
                                          source = bld.path.ant_glob('*.*_pb'),
@@ -63,7 +75,7 @@ def build(bld):
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src',
-                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA SOL_RUNTIME SOL',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',

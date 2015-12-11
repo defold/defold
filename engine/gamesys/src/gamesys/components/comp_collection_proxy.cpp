@@ -76,13 +76,13 @@ namespace dmGameSystem
         proxy_world->m_Components.SetSize(component_count);
         memset(&proxy_world->m_Components[0], 0, sizeof(CollectionProxyComponent) * component_count);
         proxy_world->m_IndexPool.SetCapacity(component_count);
-        *params.m_World = proxy_world;
+        params.m_World->m_Ptr = proxy_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollectionProxyDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*) params.m_World.m_Ptr;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
         dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
@@ -106,7 +106,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollectionProxyCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*) params.m_World.m_Ptr;
         if (proxy_world->m_IndexPool.Remaining() > 0)
         {
             uint32_t index = proxy_world->m_IndexPool.Pop();
@@ -136,7 +136,7 @@ namespace dmGameSystem
                 dmGameObject::Final(proxy->m_Collection);
             dmResource::Release(context->m_Factory, proxy->m_Collection);
         }
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*) params.m_World.m_Ptr;
         uint32_t index = proxy - &proxy_world->m_Components[0];
         proxy_world->m_IndexPool.Push(index);
         memset(proxy, 0, sizeof(CollectionProxyComponent));
@@ -152,7 +152,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollectionProxyUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*) params.m_World.m_Ptr;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
@@ -234,7 +234,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollectionProxyRender(const dmGameObject::ComponentsRenderParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*) params.m_World.m_Ptr;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
@@ -250,7 +250,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollectionProxyPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*) params.m_World.m_Ptr;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {

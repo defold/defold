@@ -14,6 +14,8 @@
 #include "../gui.h"
 #include "../gui_private.h"
 
+#include <dlib/sol.h>
+
 typedef std::map<dmGui::HNode, dmGui::StencilScope> StateMap;
 typedef std::map<dmGui::HNode, uint32_t> RenderOrderMap;
 typedef std::map<dmGui::HNode, uint32_t> ShapeMap;
@@ -1125,7 +1127,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

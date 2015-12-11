@@ -10,6 +10,8 @@
 #include "../sound_codec.h"
 #include "../sound_decoder.h"
 
+#include <dlib/sol.h>
+
 #define DEF_EMBED(x) \
     extern unsigned char x[]; \
     extern uint32_t x##_SIZE;
@@ -142,6 +144,9 @@ TEST_F(dmSoundTest, MeasureTremoloSkip)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

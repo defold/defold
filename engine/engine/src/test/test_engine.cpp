@@ -10,6 +10,8 @@
 
 #define CONTENT_ROOT "src/test/build/default"
 
+#include <dlib/sol.h>
+
 class EngineTest : public ::testing::Test
 {
 protected:
@@ -53,6 +55,14 @@ TEST_F(EngineTest, SharedLuaState)
 {
     uint32_t frame_count = 0;
     const char* argv[] = {"test_engine", "--config=script.shared_state=1", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, PostRunFrameCount, &frame_count));
+    ASSERT_GT(frame_count, 5u);
+}
+
+TEST_F(EngineTest, SolSpriteComponente)
+{
+    uint32_t frame_count = 0;
+    const char* argv[] = {"test_engine", "--config=experimental.sol_sprite_component=1", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_GT(frame_count, 5u);
 }
@@ -180,11 +190,13 @@ TEST_F(EngineTest, SpineAnim)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
 
     int ret = RUN_ALL_TESTS();
     dmProfile::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

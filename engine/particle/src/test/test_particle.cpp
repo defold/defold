@@ -12,6 +12,8 @@
 #include "../particle.h"
 #include "../particle_private.h"
 
+#include <dlib/sol.h>
+
 using namespace Vectormath::Aos;
 
 class ParticleTest : public ::testing::Test
@@ -1579,8 +1581,9 @@ TEST_F(ParticleTest, Stats)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

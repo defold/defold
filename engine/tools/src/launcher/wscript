@@ -6,6 +6,6 @@ def configure(conf):
 
 def build(bld):
     script = bld.new_task_gen(features = 'cc cxx cprogram',
-                              uselib = 'DLIB',
+                              uselib = 'DLIB SOL_RUNTIME',
                               source = 'launcher.cpp',
                               target = 'launcher')

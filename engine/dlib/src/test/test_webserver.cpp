@@ -11,6 +11,8 @@
 #include "../dlib/web_server.h"
 #include "../dlib/hash.h"
 
+#include <dlib/sol.h>
+
 class dmWebServerTest: public ::testing::Test
 {
 public:
@@ -129,9 +131,11 @@ TEST_F(dmWebServerTest, TestServer)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

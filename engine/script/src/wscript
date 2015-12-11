@@ -5,7 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    script = bld.new_task_gen(features = 'cxx cc cstaticlib',
+    script = bld.new_task_gen(features = 'cxx cc cstaticlib sol',
                           includes = '. script',
                           proto_gen_cc = False,
                           proto_gen_py = True,

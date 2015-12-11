@@ -43,19 +43,19 @@ namespace dmGameSystem
         CameraWorld* cam_world = new CameraWorld();
         cam_world->m_Cameras.SetCapacity(MAX_COUNT);
         cam_world->m_FocusStack.SetCapacity(MAX_STACK_COUNT);
-        *params.m_World = cam_world;
+        params.m_World->m_Ptr = cam_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCameraDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        delete (CameraWorld*)params.m_World;
+        delete (CameraWorld*) params.m_World.m_Ptr;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCameraCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        CameraWorld* w = (CameraWorld*)params.m_World;
+        CameraWorld* w = (CameraWorld*) params.m_World.m_Ptr;
         if (!w->m_Cameras.Full())
         {
             dmGameSystem::CameraResource* cam_resource = (CameraResource*)params.m_Resource;
@@ -81,7 +81,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        CameraWorld* w = (CameraWorld*)params.m_World;
+        CameraWorld* w = (CameraWorld*) params.m_World.m_Ptr;
         CameraComponent* camera = (CameraComponent*)*params.m_UserData;
         bool found = false;
         for (uint8_t i = 0; i < w->m_FocusStack.Size(); ++i)
@@ -119,7 +119,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        CameraWorld* w = (CameraWorld*)params.m_World;
+        CameraWorld* w = (CameraWorld*) params.m_World.m_Ptr;
         CameraComponent* camera = 0x0;
         if (w->m_FocusStack.Size() > 0)
         {

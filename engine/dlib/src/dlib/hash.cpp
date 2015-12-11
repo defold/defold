@@ -5,6 +5,9 @@
 #include "hash.h"
 #include "mutex.h"
 #include "hashtable.h"
+#include "log.h"
+
+#include <sol/reflect.h>
 
 struct dmHashIncrementalStateKey32
 {
@@ -601,4 +604,107 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
     return 0;
 }
 
+extern "C"
+{
+    uint64_t SolHashString64(const char* string)
+    {
+        return dmHashBuffer64(string, strlen(string));
+    }
 
+    uint32_t SolHashString32(const char* string)
+    {
+        return dmHashBuffer32(string, strlen(string));
+    }
+
+    void SolHashInit32(HashState32* state)
+    {
+        if (state)
+        {
+            dmHashInit32(state, false);
+        }
+        else
+        {
+            dmLogError("Invalid parameters sent to hash function");
+        }
+    }
+    
+    // gets pointer to struct contents.
+    static bool GetObjData(::Type* type, void* value, void** out, uint32_t* size)
+    {
+        if (!type || !value)
+            return false;
+            
+        if (type->referenced_type)
+            return GetObjData(type, value, out, size);
+        if (!type->struct_type)
+            return false;    
+        *out = value;
+        *size = type->struct_type->size;
+        return true;
+    }
+    
+    void SolHashUpdate32Internal(HashState32* state, ::Type* type, uint64_t value)
+    {
+        switch (type->kind)
+        {
+            case KIND_REFERENCE:
+                SolHashUpdate32Internal(state, type->referenced_type, value);
+                break;
+            case KIND_STRUCT:
+            {
+                void *ptr = (void*)value;;
+                dmHashUpdateBuffer32(state, ptr, type->struct_type->size);
+                break;
+            }
+            case KIND_INT8:
+            case KIND_UINT8:
+                dmHashUpdateBuffer32(state, &value, 1);
+                break;
+            case KIND_INT16:
+            case KIND_UINT16:
+                dmHashUpdateBuffer32(state, &value, 2);
+                break;
+            case KIND_INT32:
+            case KIND_UINT32:
+            case KIND_FLOAT32:
+                dmHashUpdateBuffer32(state, &value, 4);
+                break;
+            case KIND_INT64:
+            case KIND_UINT64:
+            case KIND_FLOAT64:
+                dmHashUpdateBuffer32(state, &value, 8);
+                break;
+            case KIND_HANDLE:
+                dmHashUpdateBuffer32(state, &value, sizeof(void*));
+                break;
+            default:
+                dmLogWarning("Attempting to hash type %d which is not supported", type->kind);
+                break;
+        }
+    }
+    
+    // shallow object hashing
+    void SolHashUpdate32(HashState32* state, ::Any object)
+    {
+        if (!state)
+        {  
+            dmLogError("Invalid state passed to hash.update");
+            return;
+        }
+        SolHashUpdate32Internal(state, reflect_get_any_type(object), reflect_get_any_value(object));
+    }
+    
+    uint32_t SolHashFinal32(HashState32* state)
+    {
+        if (state)
+        {
+            return dmHashFinal32(state);
+        }
+        else
+        {
+            dmLogError("Null state passed to hash function");
+            return 0;
+        }
+    }
+}
+    

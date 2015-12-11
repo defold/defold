@@ -47,7 +47,7 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
-
+        uint8_t     m_Valid;
         TextureParams m_Params;
     };
 
@@ -69,12 +69,14 @@ namespace dmGraphics
         uint16_t    m_Stride;
         HProgram    m_BoundForProgram;
         uint32_t    m_ModificationVersion;
-
+        uint8_t     m_Valid;
     };
-    // TODO: Why this one here!? Not used?
+    
+    // Mirrored for sol
     struct VertexBuffer
     {
         GLuint      m_VboId;
+        uint8_t     m_Valid;
     };
 
     // TODO: Why this one here!? Not used?

@@ -4,6 +4,9 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <dlib/sol.h>
+
+#include <dlib/sol.h>
 
 #include <gameobject/gameobject_ddf.h>
 
@@ -494,7 +497,6 @@ const char* invalid_sp_gos[] = {"/factory/invalid_factory.goc"};
 INSTANTIATE_TEST_CASE_P(Factory, ComponentFailTest, ::testing::ValuesIn(invalid_sp_gos));
 
 /* Sprite */
-
 const char* valid_sprite_resources[] = {"/sprite/valid.spritec"};
 INSTANTIATE_TEST_CASE_P(Sprite, ResourceTest, ::testing::ValuesIn(valid_sprite_resources));
 
@@ -559,7 +561,9 @@ INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, ::testing::ValuesIn(valid_spi
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-
+    dmSol::Initialize();
+    dmDDF::RegisterAllTypes();
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

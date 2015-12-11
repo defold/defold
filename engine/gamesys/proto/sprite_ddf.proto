@@ -5,6 +5,7 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.sprite.proto";
 option java_outer_classname = "Sprite";
+option (sol_modulename) = "sprite_ddf";
 
 message SpriteDesc
 {

@@ -2,8 +2,8 @@
 import os
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None):
-    req_libs = ['GTEST', 'UUID']
+                extra_includes = None, extra_source = None):
+    req_libs = ['GTEST', 'UUID', 'SOL_RUNTIME', 'SOL']
     req_features = ['cxx', 'cprogram', 'test']
     req_includes = ['../../src']
     req_embed = None
@@ -24,8 +24,13 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'uselib': ' '.join(req_libs),
         'uselib_local': 'dlib',
         'includes': req_includes,
+        'sol_includes': '../dlib',
         'target': name
     }
+    
+    if extra_source != None:
+        task_args['source'] = task_args['source'] + ' ' + extra_source
+    
     if req_embed != None:
         task_args['embed_source'] = ' '.join(req_embed)
 
@@ -82,6 +87,7 @@ def build(bld):
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
+    create_test(bld, 'test_sol', extra_libs = ['THREAD'], extra_source = 'test_sol.sol', extra_features = ['sol'])
     create_test(bld, 'test_easing', extra_libs = ['THREAD'])
     create_test(bld, 'test_json', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/flickr.json'], extra_includes = ['.'])

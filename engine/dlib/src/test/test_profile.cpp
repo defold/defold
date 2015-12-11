@@ -8,6 +8,8 @@
 #include "dlib/time.h"
 #include "dlib/thread.h"
 
+#include <dlib/sol.h>
+
 #if !defined(_WIN32)
 
 void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)
@@ -312,5 +314,8 @@ TEST(dmProfile, ThreadProfile)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    dmSol::Initialize();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

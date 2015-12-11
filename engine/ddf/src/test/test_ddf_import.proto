@@ -5,6 +5,7 @@ import "ddf/ddf_extensions.proto";
 option java_package = "com.dynamo.ddfimport.proto";
 option (ddf_namespace) = "DUMMY";
 option java_outer_classname = "TestDDFImport";
+option (sol_modulename) = "test_ddf_import";
 
 message ImportMessage
 {

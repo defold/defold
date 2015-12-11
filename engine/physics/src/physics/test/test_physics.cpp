@@ -2,6 +2,8 @@
 
 #include <dlib/math.h>
 
+#include <dlib/sol.h>
+
 using namespace Vectormath::Aos;
 
 VisualObject::VisualObject()
@@ -1980,5 +1982,8 @@ TYPED_TEST(PhysicsTest, DisabledFromStart)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    dmSol::Initialize();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

@@ -8,6 +8,8 @@
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
 #define DDF_MAX_FIELDS (128)
 
+#include <sol/reflect.h>
+
 namespace dmDDF
 {
     struct Descriptor;
@@ -47,6 +49,8 @@ namespace dmDDF
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?
+        const char*      m_SolModule;
+        const char*      m_SolName;
         void*            m_NextDescriptor;
     };
 
@@ -99,6 +103,7 @@ namespace dmDDF
         RESULT_IO_ERROR = 3,
         RESULT_VERSION_MISMATCH = 4,
         RESULT_MISSING_REQUIRED = 5,
+        RESULT_BUFFER_TOO_SMALL = 6,
         RESULT_INTERNAL_ERROR = 1000,
     };
 
@@ -120,6 +125,10 @@ namespace dmDDF
 
     /// Store strings as offset from base address. Useful when serializing the entire messages.
     const uint32_t OPTION_OFFSET_STRINGS = (1 << 0);
+    /// Use sol allocation when loading.
+    const uint32_t OPTION_SOL            = (1 << 1);
+    /// Make load use the buffer sent in through the output parameter, and not allocate a new buffer for it.
+    const uint32_t OPTION_PRE_ALLOCATED  = (1 << 2);
 
     /**
      * Internal. Do not use.
@@ -137,16 +146,37 @@ namespace dmDDF
     /**
      * Get Descriptor from name
      * @param name type name
-     * @return Descriptor. NULL of not found
+     * @return Descriptor. NULL if not found
      */
     const Descriptor* GetDescriptor(const char* name);
 
     /**
      * Get Descriptor from hash
      * @param hash hash of type name
-     * @return Descriptor. NULL of not found
+     * @return Descriptor. NULL if not found
      */
     const Descriptor* GetDescriptorFromHash(dmhash_t hash);
+
+    /**
+     * Get Descriptor from sol type
+     * @param type Sol type
+     * @return Descriptor. NULL if not found
+     */
+    const Descriptor* GetDescriptorFromSolType(::Type* sol_type);
+
+    /**
+     * Get Sol type from hash
+     * @param hash hash of type name
+     * @return Type struct. NULL if not found
+     */
+    ::Type* GetSolTypeFromHash(dmhash_t hash);
+
+    /**
+     * Get Sol type describing an array from hash
+     * @param hash hash of type name
+     * @return Type struct. NULL if not found
+     */
+    ::Type* GetSolArrayTypeFromHash(dmhash_t hash);
 
     /**
      * Load/decode a DDF message from buffer
@@ -229,6 +259,13 @@ namespace dmDDF
         return LoadMessage(buffer, buffer_size, T::m_DDFDescriptor, (void**) message);
     }
 
+    template <typename T>
+    Result LoadMessageSol(const void* buffer, uint32_t buffer_size, T** message)
+    {
+        uint32_t sz;
+        return LoadMessage(buffer, buffer_size, T::m_DDFDescriptor, (void**) message, OPTION_SOL, &sz);
+    }
+
     /**
      * Load/decode a DDF message from file
      * @param file_name File name
@@ -254,10 +291,30 @@ namespace dmDDF
     const char* GetEnumName(const EnumDescriptor* desc, int32_t value);
 
     /**
+     * Rebase message pointers by (target - current)
+     * @param desc Descriptor
+     * @param message Message
+     * @param current Current pointer base
+     * @param target Target pointer base
+     */
+    void RebaseMessagePointers(const Descriptor* desc, void* message, void *current, void *target);
+
+    /**
+     * Take a message allocated in sol and update all the repeated fields'
+     * count data to reflect the actual length of the array.
+     * Useful when wanting to save a message that was created in Sol, as sol code
+     * does not have access to the m_Count parameter.
+     * @param desc Descriptor
+     * @param message Message to process
+     */
+    void FixupRepeatedFieldCounts(const Descriptor* desc, void* message);
+
+    /**
      * Free message
      * @param message Message
      */
     void FreeMessage(void* message);
+
 }
 
 #endif // DM_DDF_H

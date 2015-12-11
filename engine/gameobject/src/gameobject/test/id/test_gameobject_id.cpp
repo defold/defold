@@ -4,6 +4,9 @@
 
 #include "../gameobject.h"
 
+#include <dlib/sol.h>
+    
+
 class IdTest : public ::testing::Test
 {
 protected:
@@ -99,8 +102,9 @@ TEST_F(IdTest, TestHierarchies)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

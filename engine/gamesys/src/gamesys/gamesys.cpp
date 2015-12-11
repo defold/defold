@@ -68,7 +68,14 @@ namespace dmGameSystem
         m_Worlds.SetCapacity(128);
     }
 
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    extern "C"
+    {
+        dmResource::Result res_sprite_create(void*);
+        dmResource::Result res_sprite_destroy(void*);
+        dmResource::Result res_sprite_recreate(void*);
+    }
+
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context, bool use_sol_sprite)
     {
         dmResource::Result e;
 
@@ -107,7 +114,21 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
-        REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
+
+        if (use_sol_sprite)
+        {
+            dmResource::SolResourceFns fns;
+            memset(&fns, 0x00, sizeof(fns));
+            fns.m_Create = &res_sprite_create;
+            fns.m_Destroy = &res_sprite_destroy;
+            fns.m_Recreate = &res_sprite_recreate;
+            dmResource::RegisterTypeSol(factory, "spritec", 0, fns);
+        }
+        else
+        {
+            REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
+        }
+
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
         REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineScenePreload, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
@@ -117,6 +138,24 @@ namespace dmGameSystem
 #undef REGISTER_RESOURCE_TYPE
 
         return e;
+    }
+
+    extern "C"
+    {
+        int comp_sprite_new_world(void*);
+        int comp_sprite_delete_world(void*);
+        int comp_sprite_create(void*);
+        int comp_sprite_destroy(void*);
+        int comp_sprite_init(void*);
+        int comp_sprite_final(void*);
+        int comp_sprite_add_to_update(void*);
+        int comp_sprite_update(void*);
+        int comp_sprite_post_update(void*);
+        int comp_sprite_render(void*);
+        int comp_sprite_on_message(void*);
+        int comp_sprite_set_property(void*);
+        int comp_sprite_get_property(void*);
+        ::Any gamesys_alloc_sprite_context();
     }
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
@@ -129,7 +168,8 @@ namespace dmGameSystem
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
-                                                SpineModelContext* spine_model_context)
+                                                SpineModelContext* spine_model_context,
+                                                bool use_sol_sprite)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -244,11 +284,45 @@ namespace dmGameSystem
                 CompLightUpdate, 0, 0, CompLightOnMessage, 0, 0, 0, 0,
                 1, 0);
 
-        REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
-                CompSpriteNewWorld, CompSpriteDeleteWorld,
-                CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate,
-                CompSpriteUpdate, CompSpriteRender, 0, CompSpriteOnMessage, 0, CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
-                1, 0);
+        if (use_sol_sprite)
+        {
+            dmGameObject::Result result;
+            dmResource::Result e;
+            dmGameObject::ComponentTypeSol comp;
+
+            ::Any sol_sprite_context = gamesys_alloc_sprite_context();
+            assert(dmSol::SizeOf(sol_sprite_context) == sizeof(SpriteContext));
+            memcpy((void*)reflect_get_any_value(sol_sprite_context), sprite_context, sizeof(SpriteContext));
+
+            comp.m_Context = sol_sprite_context;
+            comp.m_Name = "spritec_sol";
+            comp.m_UpdateOrderPrio = 1100;
+            comp.m_NewWorldFunction = comp_sprite_new_world;
+            comp.m_DeleteWorldFunction = comp_sprite_delete_world;
+            comp.m_CreateFunction = comp_sprite_create;
+            comp.m_DestroyFunction = comp_sprite_destroy;
+            comp.m_InitFunction = comp_sprite_init;
+            comp.m_FinalFunction = comp_sprite_final;
+            comp.m_AddToUpdateFunction = comp_sprite_add_to_update;
+            comp.m_UpdateFunction = comp_sprite_update;
+            comp.m_PostUpdateFunction = comp_sprite_post_update;
+            comp.m_RenderFunction = comp_sprite_render;
+            comp.m_OnMessageFunction = comp_sprite_on_message;
+            comp.m_GetPropertyFunction = comp_sprite_get_property;
+            comp.m_SetPropertyFunction = comp_sprite_set_property;
+            e = dmResource::GetTypeFromExtension(factory, "spritec", &comp.m_ResourceType);
+            assert(e == dmResource::RESULT_OK);
+            result = dmGameObject::RegisterComponentTypeSol(regist, comp);
+            assert(result == dmResource::RESULT_OK);
+        }
+        else
+        {
+            REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
+                    CompSpriteNewWorld, CompSpriteDeleteWorld,
+                    CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate,
+                    CompSpriteUpdate, CompSpriteRender, 0, CompSpriteOnMessage, 0, CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
+                    1, 0);
+        }
 
         REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, render_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,

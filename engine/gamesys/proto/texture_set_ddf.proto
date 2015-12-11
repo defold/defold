@@ -6,6 +6,7 @@ import "tile_ddf.proto";
 
 option java_package = "com.dynamo.textureset.proto";
 option java_outer_classname = "TextureSetProto";
+option (sol_modulename) = "texture_set_ddf";
 
 enum Constants
 {

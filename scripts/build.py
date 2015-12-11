@@ -232,11 +232,17 @@ class Configuration(object):
         path = self._download(url)
         self._extract(path, self.ext)
 
+    def _install_sol(self):
+        path = self._download('http://defold-slask.s3-website-eu-west-1.amazonaws.com/sol/sol-0.1.12.tar.gz')
+        self._extract(path, self.ext)
+        self.exec_env_command(['tar', '--strip-components', '1', '-zxf', path], cwd = self.ext)
+
     def install_ext(self):
         def make_path(platform):
             return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
 
         self._install_go()
+        self._install_sol()
 
         for p in PACKAGES_ALL:
             self._extract_tgz(make_path('common'), self.ext)

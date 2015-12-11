@@ -14,6 +14,9 @@
 #include "../proto/gameobject_ddf.h"
 #include "../proto/lua_ddf.h"
 
+#include <dlib/sol.h>
+    
+
 using namespace Vectormath::Aos;
 
 class ScriptTest : public ::testing::Test
@@ -395,8 +398,10 @@ TEST_F(ScriptTest, TestInstanceCallback)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

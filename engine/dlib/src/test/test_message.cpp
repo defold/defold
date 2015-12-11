@@ -8,6 +8,8 @@
 #include "../../src/dlib/time.h"
 #include "../../src/dlib/profile.h"
 
+#include <dlib/sol.h>
+
 const dmhash_t m_HashMessage1 = 0x35d47694;
 const dmhash_t m_HashMessage2 = 0x35d47695;
 
@@ -406,9 +408,11 @@ TEST(dmMessage, MemLeaks)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmProfile::Initialize(1024, 1024 * 1024, 64);
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmProfile::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

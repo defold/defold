@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 #include "dlib/configfile.h"
 
+#include <dlib/sol.h>
+
 const char* DEFAULT_ARGV[] = { "test_engine" };
 
 struct TestParam
@@ -253,6 +255,9 @@ INSTANTIATE_TEST_CASE_P(CommandLine,
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    dmSol::Initialize();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }
 

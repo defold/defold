@@ -4,13 +4,19 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
+#include <dlib/array.h>
+
+extern "C"
+{
+#include <sol/runtime.h>
+}
 
 /**
  * Utility functions
  */
 namespace dmArrayUtil
 {
-    void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*);
+    void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*, bool);
 };
 
 /** Templatized array with bounds checking.
@@ -26,7 +32,7 @@ class dmArray
 public:
     /** empty auto-allocated array
      */
-    dmArray();
+    dmArray(bool use_sol_allocator = false);
 
     /** user-allocated array with initial size and capacity
      *
@@ -170,7 +176,9 @@ public:
 private:
     T *m_Front, *m_End;
     T *m_Back;
-    uint16_t m_UserAllocated : 1;
+
+    uint16_t m_UserAllocated   : 1;
+    uint16_t m_UseSolAllocator : 1;
 
     // Restrict copy-construction etc.
     dmArray(const dmArray<T>&) {}
@@ -179,9 +187,10 @@ private:
 };
 
 template <typename T>
-dmArray<T>::dmArray()
+dmArray<T>::dmArray(bool use_sol_allocator)
 {
     memset(this, 0, sizeof(*this));
+    m_UseSolAllocator = use_sol_allocator;
 }
 
 template <typename T>
@@ -200,7 +209,14 @@ dmArray<T>::~dmArray()
 {
     if (!m_UserAllocated && m_Front)
     {
-        delete[] (uint8_t*) m_Front;
+        if (m_UseSolAllocator)
+        {
+            runtime_unpin((void *)m_Front);
+        }
+        else
+        {
+            free((void *)m_Front);
+        }
     }
 }
 
@@ -292,7 +308,7 @@ template <typename T>
 void dmArray<T>::SetCapacity(uint32_t capacity)
 {
     assert(!m_UserAllocated && "SetCapacity is not allowed for user-allocated arrays");
-    dmArrayUtil::SetCapacity(capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End);
+    dmArrayUtil::SetCapacity(capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End, m_UseSolAllocator);
 }
 
 template <typename T>

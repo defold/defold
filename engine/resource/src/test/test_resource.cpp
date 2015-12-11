@@ -7,6 +7,8 @@
 #include <dlib/time.h>
 #include <dlib/message.h>
 #include <dlib/thread.h>
+#include <dlib/sol.h>
+
 #include <ddf/ddf.h>
 #include "resource_ddf.h"
 #include "../resource.h"
@@ -14,6 +16,8 @@
 
 extern unsigned char TEST_ARC[];
 extern uint32_t TEST_ARC_SIZE;
+
+#include <dlib/sol.h>
 
 class ResourceTest : public ::testing::Test
 {
@@ -1069,10 +1073,13 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+
+    dmSol::FinalizeWithCheck();
     return ret;
 }
 

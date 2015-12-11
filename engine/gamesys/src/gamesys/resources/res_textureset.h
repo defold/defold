@@ -15,6 +15,7 @@
 
 namespace dmGameSystem
 {
+    // NOTE: This structure has a matching .sol implementation which needs to be the same size
     struct TextureSetResource
     {
         inline TextureSetResource()
@@ -23,12 +24,13 @@ namespace dmGameSystem
             m_TextureSet = 0;
             m_HullSet = 0;
         }
+        dmGraphics::HTexture                m_Texture;
+        dmGameSystemDDF::TextureSet*        m_TextureSet;
 
         dmArray<dmhash_t>                   m_HullCollisionGroups;
         dmHashTable<dmhash_t, uint32_t>     m_AnimationIds;
-        dmGraphics::HTexture                m_Texture;
-        dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
+        uint8_t                             m_Valid;
     };
 
     dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params);

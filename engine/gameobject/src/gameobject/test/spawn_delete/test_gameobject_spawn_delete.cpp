@@ -14,6 +14,9 @@
 #include "../proto/gameobject_ddf.h"
 #include "../proto/lua_ddf.h"
 
+#include <dlib/sol.h>
+    
+
 using namespace Vectormath::Aos;
 
 static int Lua_Spawn(lua_State* L) {
@@ -571,8 +574,10 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

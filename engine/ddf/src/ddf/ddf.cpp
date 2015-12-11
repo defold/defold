@@ -7,6 +7,10 @@
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+
+#include <sol/runtime.h>
+#include <sol/reflect.h>
+
 #include "ddf.h"
 #include "ddf_inputbuffer.h"
 #include "ddf_load.h"
@@ -16,13 +20,104 @@
 
 namespace dmDDF
 {
+    struct SolTypeInfo
+    {
+        ::Type* type;
+        ::Type* array_type;
+    };
+
     Descriptor* g_FirstDescriptor = 0;
     dmHashTable64<const Descriptor*> g_Descriptors;
+    dmHashTable<uintptr_t, const Descriptor*> g_SolTypes;
+    dmHashTable<uint64_t, SolTypeInfo> g_HashToSolTypes;
+
+    void RegisterSolMessageType(const Descriptor* desc, ::Type* type, ::Type* array_type)
+    {
+        if (g_SolTypes.Full())
+        {
+            g_SolTypes.SetCapacity(587, g_SolTypes.Capacity() + 128);
+        }
+        if (g_HashToSolTypes.Full())
+        {
+            g_HashToSolTypes.SetCapacity(587, g_HashToSolTypes.Capacity() + 128);
+        }
+
+        SolTypeInfo sti;
+        sti.type = type;
+        sti.array_type = array_type;
+        g_SolTypes.Put((uintptr_t)type, desc);
+        g_HashToSolTypes.Put(desc->m_NameHash, sti);
+    }
+
+    static void RegisterSolModule(void* context, const dmhash_t* name_hash, const char **module_name)
+    {
+        ::Module* mod = reflect_get_module(*module_name);
+        if (!mod)
+        {
+            dmLogError("Sol module '%s' could not be resolved!", *module_name);
+            return;
+        }
+
+        // There is a generated special struct DdfModuleTypeRefs in the .sol file which
+        // contains all the reference & arrray types that are needed for ddf lodaing. So
+        // look up that struct + the one to register.
+        dmHashTable<dmhash_t, ::Type*> array_refs;
+        dmHashTable<dmhash_t, ::Type*> struct_refs;
+        array_refs.SetCapacity(17, 512);
+        struct_refs.SetCapacity(17, 512);
+
+        // 1. Look for DdfModuleTypeRefs
+        //      Add all types to tmp
+        // 2. Match up with all descriptors
+        uint32_t size = runtime_array_length(mod->types);
+        for (uint32_t i=0;i!=size;i++)
+        {
+            ::Type* t = mod->types[i];
+            if (t->kind != KIND_STRUCT)
+                continue;
+
+            if (t->struct_type && !strcmp(t->struct_type->name, "DdfModuleTypeRefs"))
+            {
+                ::StructType* s = t->struct_type;
+                for (uint32_t i=0;i!=s->member_count;i++)
+                {
+                    ::Type* st = s->members[i].type;
+                    if (st->referenced_type)
+                    {
+                        if (st->referenced_type->struct_type)
+                            struct_refs.Put(dmHashString64(st->referenced_type->struct_type->name), st);
+                        else if (st->referenced_type->array_type && st->referenced_type->array_type->element_type)
+                            array_refs.Put(dmHashString64(st->referenced_type->array_type->element_type->struct_type->name), st);
+                    }
+                }
+            }
+        }
+
+        const Descriptor* d = g_FirstDescriptor;
+        while (d)
+        {
+            if (d->m_SolName && !strcmp(d->m_SolModule, *module_name))
+            {
+                dmhash_t name_hash = dmHashString64(d->m_SolName);
+                ::Type** struct_ref = struct_refs.Get(name_hash);
+                ::Type** array_ref = array_refs.Get(name_hash);
+                if (struct_ref && array_ref)
+                {
+                    RegisterSolMessageType(d, *struct_ref, *array_ref);
+                }
+            }
+            d = (const Descriptor*) d->m_NextDescriptor;
+        }
+    }
 
     void RegisterAllTypes()
     {
         const Descriptor* d = g_FirstDescriptor;
         g_Descriptors.Clear();
+
+        dmHashTable<dmhash_t, const char*> sol_modules;
+        sol_modules.SetCapacity(17, 512);
+
         while (d)
         {
             if (g_Descriptors.Full())
@@ -41,8 +136,15 @@ namespace dmDDF
                 g_Descriptors.Put(name_hash, d);
             }
 
+            if (d->m_SolModule)
+            {
+                sol_modules.Put(dmHashString64(d->m_SolModule), d->m_SolModule);
+            }
+
             d = (const Descriptor*) d->m_NextDescriptor;
         }
+
+        sol_modules.Iterate(&RegisterSolModule, (void*)0);
     }
 
     InternalRegisterDescriptor::InternalRegisterDescriptor(Descriptor* descriptor)
@@ -50,7 +152,6 @@ namespace dmDDF
         descriptor->m_NextDescriptor = g_FirstDescriptor;
         g_FirstDescriptor = descriptor;
     }
-
 
     const Descriptor* GetDescriptorFromHash(dmhash_t hash)
     {
@@ -150,8 +251,6 @@ namespace dmDDF
         assert(desc);
         assert(out_message);
 
-        *size = 0;
-
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
 
@@ -163,6 +262,7 @@ namespace dmDDF
         Result e = CalculateRepeated(&load_context, &input_buffer, desc);
         if (e != RESULT_OK)
         {
+            *size = 0;
             return e;
         }
 
@@ -170,7 +270,38 @@ namespace dmDDF
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
         int message_buffer_size = load_context.GetMemoryUsage();
-        char* message_buffer = (char*) malloc(message_buffer_size);
+
+        char* message_buffer;
+
+        if (options & OPTION_PRE_ALLOCATED)
+        {
+            message_buffer = (char*)(*out_message);
+            if (message_buffer_size > *size)
+            {
+                *out_message = 0;
+                *size = message_buffer_size;
+                return RESULT_BUFFER_TOO_SMALL;
+            }
+        }
+        else
+        {
+            if (options & OPTION_SOL)
+            {
+                ::Type* type = GetSolTypeFromHash(desc->m_NameHash);
+                assert(type);
+                assert(type->referenced_type);
+                assert(type->referenced_type->struct_type);
+                message_buffer = (char*) runtime_alloc_struct(type->referenced_type);
+                assert(message_buffer_size == desc->m_Size);
+                assert(message_buffer_size == type->referenced_type->struct_type->size);
+            }
+            else
+            {
+                message_buffer = (char*) malloc(message_buffer_size);
+            }
+        }
+
+
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
         Message message = load_context.AllocMessage(desc);
 
@@ -183,7 +314,18 @@ namespace dmDDF
         }
         else
         {
-            free((void*) message_buffer);
+            if (!(options & OPTION_PRE_ALLOCATED))
+            {
+                if (options & OPTION_SOL)
+                {
+                    runtime_unpin((void*) message_buffer);
+                }
+                else
+                {
+                    free((void*) message_buffer);
+                }
+            }
+            *size = 0;
             *out_message = 0;
         }
         return e;
@@ -326,5 +468,69 @@ namespace dmDDF
     {
         assert(message);
         free(message);
+    }
+
+    ::Type* GetSolTypeFromHash(dmhash_t hash)
+    {
+        const SolTypeInfo* res = g_HashToSolTypes.Get(hash);
+        return res ? res->type : 0;
+    }
+
+    ::Type* GetSolArrayTypeFromHash(dmhash_t hash)
+    {
+        const SolTypeInfo* res = g_HashToSolTypes.Get(hash);
+        return res ? res->array_type : 0;
+    }
+
+    const Descriptor* GetDescriptorFromSolType(::Type* sol_type)
+    {
+        const Descriptor** res = g_SolTypes.Get((uintptr_t)sol_type);
+        return res ? *res : 0;
+    }
+
+    // SOL support wrappers.
+    extern "C"
+    {
+        Result SolDDFLoadMessage(char* buffer, uint32_t offset, uint32_t length, ::Type* type, struct Any* out_message)
+        {
+            if (!buffer || !out_message)
+            {
+                dmLogError("Invalid parameters passed for DDF loading");
+                return RESULT_INTERNAL_ERROR;
+            }
+            
+            uint32_t buflen = runtime_array_length((void*)buffer);
+            if (length > buflen || (offset + length) > buflen)
+            {
+                dmLogError("Invalid buffer range passed for DDF loading");
+                return RESULT_INTERNAL_ERROR;
+            }
+        
+            // options are not exposed here because it must always be OPTION_SOL or crashes will happen.
+            const Descriptor** desc = g_SolTypes.Get((uintptr_t) type);
+            if (desc)
+            {
+                void *msg = 0;
+                uint32_t size = 0;
+                Result r = LoadMessage(buffer + offset, length, *desc, &msg, OPTION_SOL, &size);
+                if (msg)
+                {
+                    // hand over to sol
+                    runtime_unpin(msg);
+                }
+                *out_message = reflect_create_reference_any(type, msg);
+                return r;
+            }
+            else
+            {
+                reflect_create_reference_any(type, 0);
+                return RESULT_INTERNAL_ERROR;
+            }
+        }
+
+        const ::Type* SolDDFGetTypeFromHash(uint64_t hash)
+        {
+            return GetSolTypeFromHash(hash);
+        }
     }
 }

@@ -1,0 +1,3 @@
+#!/bin/sh
+DDFC=`dirname $0`/ddfc.py
+python $DDFC --sol $@

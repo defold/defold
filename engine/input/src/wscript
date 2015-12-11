@@ -5,7 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    script = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    script = bld.new_task_gen(features = 'cxx cstaticlib ddf sol',
                           includes = '../proto .',
                           target = 'input',
                           proto_gen_py = True,

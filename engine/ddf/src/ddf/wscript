@@ -46,16 +46,20 @@ def build(bld):
     bld.add_group()
 
     bld.new_task_gen(
-            features = 'cxx cstaticlib ddf',
+            features = 'cxx cstaticlib ddf sol',
             includes = '../.. ..',
-            source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
+            source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp ddf_rebase.cpp ddf_sol.cpp ddf.sol',
             proto_gen_cc = True,
             proto_compile_cc = True,
             proto_gen_py = True,
+            sol_includes = '.',
             protoc_includes = '..',
             target = 'ddf')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
+    bld.install_files('${PREFIX}/lib/sol', 'ddf.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'ddf_math.sol')
+    bld.install_files('${PREFIX}/lib/sol', 'ddf_extensions.sol')
 
 def configure(conf):
     pass

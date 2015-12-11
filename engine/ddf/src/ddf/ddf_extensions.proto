@@ -2,6 +2,7 @@ import "google/protobuf/descriptor.proto";
 
 option java_package = "com.dynamo.proto";
 option java_outer_classname = "DdfExtensions";
+option (sol_modulename) = "ddf_extensions";
 
 extend google.protobuf.MessageOptions
 {
@@ -22,4 +23,6 @@ extend google.protobuf.FileOptions
 {
     optional string ddf_namespace = 50001;
     optional string ddf_includes = 50002;
+    optional string sol_modulename = 50003;
 }
+

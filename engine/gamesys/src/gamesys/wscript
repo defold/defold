@@ -5,8 +5,9 @@ def configure(conf):
     conf.sub_config('test')
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed sol',
                                 includes = '. ../../proto',
+                                sol_includes = '. ../../proto resources',
                                 proto_gen_py = True,
                                 protoc_includes = '../../proto',
                                 target = 'gamesys',

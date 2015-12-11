@@ -14,6 +14,7 @@ extern "C"
 {
 #include "lua/lua.h"
 #include "lua/lauxlib.h"
+#include <sol/runtime.h>
 }
 
 extern unsigned char BUG352_LUA[];
@@ -808,29 +809,29 @@ TEST_F(dmGuiTest, CustomEasingAnimation)
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
 
     dmVMath::FloatVector vector(64);
-	dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
-	curve.vector = &vector;
+    dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+    curve.vector = &vector;
 
-	// fill as linear curve
-	for (int i = 0; i < 64; ++i) {
-		float t = i / 63.0f;
-		vector.values[i] = t;
-	}
+    // fill as linear curve
+    for (int i = 0; i < 64; ++i) {
+        float t = i / 63.0f;
+        vector.values[i] = t;
+    }
 
-	dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-	dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
 
-	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
-	// Animation
-	for (int i = 0; i < 60; ++i)
-	{
-		ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
-		dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-	}
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
+        dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    }
 
-	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-	dmGui::DeleteNode(m_Scene, node);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
+    dmGui::DeleteNode(m_Scene, node);
 }
 
 TEST_F(dmGuiTest, Playback)
@@ -3777,7 +3778,10 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

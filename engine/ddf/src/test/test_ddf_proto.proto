@@ -2,12 +2,12 @@ package TestDDF;
 
 import "ddf/ddf_extensions.proto";
 
-
 option java_package = "com.dynamo.ddf.proto";
 option (ddf_namespace) = "DUMMY";
 option java_outer_classname = "TestDDF";
 
 option (ddf_includes) = "test_ddf.h test_ddf_import.h";
+option (sol_modulename) = "test_ddf";
 
 import "test_ddf_import.proto";
 
@@ -172,13 +172,13 @@ message MaterialDesc
 
 message MissingRequiredTemplate
 {
-	required int32 a = 1000;
+    required int32 a = 1000;
 }
 
 message MissingRequired
 {
-	required int32 a = 1000;
-	required int32 b = 2000;
+    required int32 a = 1000;
+    required int32 b = 2000;
 }
 
 message Vector2Message

@@ -8,6 +8,8 @@
 #include "render/render.h"
 #include "render/display_profiles.h"
 
+#include <dlib/sol.h>
+
 TEST(dmDisplayProfilesTest, TestOptimalProfile)
 {
     dmRenderDDF::DisplayProfileQualifier qualifiers[] =
@@ -76,6 +78,9 @@ TEST(dmDisplayProfilesTest, TestOptimalProfile)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

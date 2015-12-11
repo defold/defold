@@ -109,14 +109,14 @@ namespace dmGameSystem
             world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
-        *params.m_World = world;
+        params.m_World->m_Ptr = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollisionObjectDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
         if (physics_context->m_3D)
             dmPhysics::DeleteWorld3D(physics_context->m_Context3D, world->m_World3D);
         else
@@ -305,7 +305,7 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_AddedToUpdate = false;
         component->m_StartAsEnabled = true;
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
             delete component;
@@ -327,7 +327,7 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
         if (physics_context->m_3D)
         {
             if (component->m_Object3D != 0)
@@ -627,7 +627,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
         if (world != 0x0) {
             CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
             assert(!component->m_AddedToUpdate);
@@ -670,12 +670,12 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        if (params.m_World == 0x0)
+        if (params.m_World.m_Ptr == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
 
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
 
         if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -743,11 +743,11 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
     {
-        if (params.m_World == 0x0)
+        if (params.m_World.m_Ptr == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
 
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
 
         // Dispatch also in post-messages since messages might have been posting from script components, or init
         // functions in factories, and they should not linger around to next frame (which might not come around)
@@ -770,7 +770,7 @@ namespace dmGameSystem
             {
                 enable = true;
             }
-            CollisionWorld* world = (CollisionWorld*)params.m_World;
+            CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
 
             if (component->m_AddedToUpdate)
             {
@@ -865,7 +865,7 @@ namespace dmGameSystem
             // Hull-index of 0xffffffff is empty cell
             if (hull != ~0u)
             {
-                group = GetGroupBitIndex((CollisionWorld*)params.m_World, tile_grid_resource->m_TextureSet->m_HullCollisionGroups[hull]);
+                group = GetGroupBitIndex((CollisionWorld*) params.m_World.m_Ptr, tile_grid_resource->m_TextureSet->m_HullCollisionGroups[hull]);
                 mask = component->m_Mask;
             }
             dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);
@@ -876,7 +876,7 @@ namespace dmGameSystem
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*) params.m_World.m_Ptr;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
         component->m_AddedToUpdate = false;

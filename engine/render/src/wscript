@@ -10,13 +10,13 @@ def configure(cont):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf sol',
                            includes = ['.', '../build/default/proto'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
                            target = 'render')
 
-    obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
+    obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto', '.sol'])
     #obj.source.append('../proto/render_ddf.proto')
 
     bld.add_subdirs('test')

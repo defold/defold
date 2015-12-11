@@ -4,6 +4,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/time.h>
 
 #include <resource/resource.h>
 
@@ -11,6 +12,8 @@
 #include "../gameobject_private.h"
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
+
+#include <dlib/sol.h>
 
 class ComponentTest : public ::testing::Test
 {
@@ -495,10 +498,213 @@ TEST_F(ComponentTest, FinalCallsFinal)
     dmGameObject::PostUpdate(m_Register);
 }
 
+extern "C"
+{
+    dmResource::Result test_a_create(void*);
+    dmResource::Result test_a_destroy(void*);
+    dmResource::Result test_b_create(void*);
+    dmResource::Result test_b_destroy(void*);
+    dmResource::Result test_c_create(void*);
+    dmResource::Result test_c_destroy(void*);
+
+    int comp_a_new_world(void*);
+    int comp_b_new_world(void*);
+    int comp_c_new_world(void*);
+
+    int comp_delete_world(void*);
+    int comp_create(void*);
+    int comp_destroy(void*);
+    int comp_init(void*);
+    int comp_final(void*);
+    int comp_add_to_update(void*);
+    int comp_update(void*);
+    int comp_post_update(void*);
+
+    ::Any test_comp_alloc_context();
+}
+
+static int s_dummyTypeId;
+
+
+class SolComponentTest : public ::testing::Test
+{
+protected:
+
+    virtual void SetUp()
+    {
+        m_UpdateContext.m_DT = 1.0f / 60.0f;
+
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
+        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
+        m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
+        dmGameObject::Initialize(m_ScriptContext);
+        m_Register = dmGameObject::NewRegister();
+
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
+
+        // Register dummy physical resource type
+        dmResource::SolResourceFns fns;
+        memset(&fns, 0x00, sizeof(fns));
+
+        fns.m_Create = &test_a_create;
+        fns.m_Destroy = &test_a_destroy;
+        dmResource::RegisterTypeSol(m_Factory, "a", 0, fns);
+
+        fns.m_Create = &test_b_create;
+        fns.m_Destroy = &test_b_destroy;
+        dmResource::RegisterTypeSol(m_Factory, "b", 0, fns);
+
+        fns.m_Create = &test_c_create;
+        fns.m_Destroy = &test_c_destroy;
+        dmResource::RegisterTypeSol(m_Factory, "c", 0, fns);
+
+        dmGameObject::Result result;
+        dmResource::Result e;
+
+        ::Any context = test_comp_alloc_context();
+        SolComponentTest** context_ptr = (SolComponentTest**) reflect_get_any_value(context);
+        *context_ptr = this;
+
+        // A has component_user_data
+        dmGameObject::ComponentTypeSol comp;
+        comp.m_Context = context;
+        comp.m_Name = "a";
+        comp.m_NewWorldFunction = comp_a_new_world;
+        comp.m_DeleteWorldFunction = comp_delete_world;
+        comp.m_CreateFunction = comp_create;
+        comp.m_DestroyFunction = comp_destroy;
+        comp.m_InitFunction = comp_init;
+        comp.m_FinalFunction = comp_final;
+        comp.m_AddToUpdateFunction = comp_add_to_update;
+        comp.m_UpdateFunction = comp_update;
+        comp.m_PostUpdateFunction = comp_post_update;
+
+        e = dmResource::GetTypeFromExtension(m_Factory, "a", &comp.m_ResourceType);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        result = dmGameObject::RegisterComponentTypeSol(m_Register, comp);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
+
+        comp.m_Name = "b";
+        comp.m_NewWorldFunction = comp_b_new_world;
+        e = dmResource::GetTypeFromExtension(m_Factory, "b", &comp.m_ResourceType);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        result = dmGameObject::RegisterComponentTypeSol(m_Register, comp);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
+
+        comp.m_Name = "c";
+        comp.m_NewWorldFunction = comp_c_new_world;
+        e = dmResource::GetTypeFromExtension(m_Factory, "c", &comp.m_ResourceType);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        result = dmGameObject::RegisterComponentTypeSol(m_Register, comp);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
+
+        dmGameObject::SortComponentTypes(m_Register);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1000000;
+    }
+
+    virtual void TearDown()
+    {
+        dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::PostUpdate(m_Register);
+        dmScript::Finalize(m_ScriptContext);
+        dmScript::DeleteContext(m_ScriptContext);
+        dmGameObject::DeleteRegister(m_Register);
+        dmResource::DeleteFactory(m_Factory);
+    }
+
+public:
+
+    void IncCounter(uint64_t comp, const char* func)
+    {
+        std::map<uint64_t, uint32_t>* tgt = 0;
+
+        if (!strcmp(func, "create"))
+            tgt = &m_ComponentCreateCountMap;
+        else if (!strcmp(func, "destroy"))
+            tgt = &m_ComponentDestroyCountMap;
+        else if (!strcmp(func, "init"))
+            tgt = &m_ComponentInitCountMap;
+        else if (!strcmp(func, "final"))
+            tgt = &m_ComponentFinalCountMap;
+        else if (!strcmp(func, "destroy"))
+            tgt = &m_ComponentDestroyCountMap;
+        else if (!strcmp(func, "add_to_update"))
+            tgt = &m_ComponentAddToUpdateCountMap;
+        else if (!strcmp(func, "update"))
+            tgt = &m_ComponentUpdateCountMap;
+
+        if (tgt)
+        {
+            (*tgt)[comp]++;
+        }
+    }
+
+    dmScript::HContext m_ScriptContext;
+    dmGameObject::UpdateContext m_UpdateContext;
+    dmGameObject::HRegister m_Register;
+    dmGameObject::HCollection m_Collection;
+    dmResource::HFactory m_Factory;
+    dmGameObject::ModuleContext m_ModuleContext;
+
+    std::map<uint64_t, uint32_t> m_ComponentCreateCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentInitCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentFinalCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentDestroyCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentUpdateCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentAddToUpdateCountMap;
+    std::map<uint64_t, uint32_t> m_MaxComponentCreateCountMap;
+
+    std::map<uint64_t, uint32_t> m_ComponentUpdateOrderMap;
+};
+
+extern "C"
+{
+    void SolComponentTestIncCounter(::Any context, const char* comp, const char* func)
+    {
+        SolComponentTest** context_ptr = (SolComponentTest**) reflect_get_any_value(context);
+        if (!strcmp(comp, "a"))
+            (*context_ptr)->SolComponentTest::IncCounter(0, func);
+        else if (!strcmp(comp, "b"))
+            (*context_ptr)->SolComponentTest::IncCounter(1, func);
+        else if (!strcmp(comp, "c"))
+            (*context_ptr)->SolComponentTest::IncCounter(2, func);
+    }
+}
+
+TEST_F(SolComponentTest, TestUpdate)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::Init(m_Collection);
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+    ret = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(ret);
+
+    dmGameObject::Delete(m_Collection, go);
+    ret = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(ret);
+
+    ASSERT_EQ((uint32_t) 1, m_ComponentCreateCountMap[0]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentInitCountMap[0]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentAddToUpdateCountMap[0]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[0]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[0]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[0]);
+}
+
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
+    dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

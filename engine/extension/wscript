@@ -17,6 +17,7 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+    conf.check_tool('waf_sol')
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")

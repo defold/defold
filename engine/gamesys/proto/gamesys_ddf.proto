@@ -5,6 +5,7 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.gamesystem.proto";
 option java_outer_classname = "GameSystem";
+option (sol_modulename) = "gamesys_ddf";
 
 message FactoryDesc
 {

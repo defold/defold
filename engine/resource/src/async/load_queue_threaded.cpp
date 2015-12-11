@@ -48,6 +48,11 @@ namespace dmLoadQueue
         //
     };
 
+
+    // ---------------------------------------------------------
+    // This thread cannot do anything that trigger sol code
+    // or uses sol allocations as sol runtime is not thread safe
+    // ---------------------------------------------------------
     static void LoadThread(void *arg)
     {
         Queue* queue = (Queue*) arg;

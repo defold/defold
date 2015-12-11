@@ -9,6 +9,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
+#include <dlib/sol.h>
 
 #include <ddf/ddf.h>
 
@@ -17,6 +18,8 @@
 #include <script/script.h>
 
 #include <resource/resource.h>
+
+#include <sol/reflect.h>
 
 namespace dmGameObject
 {
@@ -235,6 +238,15 @@ namespace dmGameObject
     };
 
     /**
+     * A component world which can be either C or Sol
+     */
+    struct ComponentWorld
+    {
+        void* m_Ptr;
+        ::Type* m_SolType;
+    };
+
+    /**
      * Parameters to ComponentNewWorld callback.
      */
     struct ComponentNewWorldParams
@@ -246,7 +258,7 @@ namespace dmGameObject
         /// Max component game object instance count (if applicable)
         uint32_t m_MaxInstances;
         /// Out-parameter of the pointer in which to store the created world
-        void** m_World;
+        ComponentWorld* m_World;
     };
 
     /**
@@ -263,8 +275,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
-        /// The pointer to the world to destroy
-        void* m_World;
+        /// The world to destroy
+        ComponentWorld m_World;
     };
 
     /**
@@ -292,7 +304,7 @@ namespace dmGameObject
         /// Component resource
         void* m_Resource;
         /// Component world, as created in the ComponentNewWorld callback
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
@@ -319,7 +331,7 @@ namespace dmGameObject
         /// Game object instance
         HInstance m_Instance;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
@@ -343,7 +355,7 @@ namespace dmGameObject
         /// Game object instance
         HInstance m_Instance;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
@@ -367,7 +379,7 @@ namespace dmGameObject
         /// Game object instance
         HInstance m_Instance;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
@@ -391,7 +403,7 @@ namespace dmGameObject
         /// Game object instance
         HInstance m_Instance;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
@@ -415,7 +427,7 @@ namespace dmGameObject
         /// Update context
         const UpdateContext* m_UpdateContext;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
     };
@@ -435,7 +447,7 @@ namespace dmGameObject
         /// Collection handle
         HCollection m_Collection;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
     };
@@ -455,7 +467,7 @@ namespace dmGameObject
         /// Collection handle
         HCollection m_Collection;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
     };
@@ -475,13 +487,15 @@ namespace dmGameObject
         /// Instance handle
         HInstance m_Instance;
         /// World
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
         uintptr_t* m_UserData;
         /// Message
         dmMessage::Message* m_Message;
+        /// Convenience for sol
+        uint64_t m_MessageId;
     };
 
     /**
@@ -523,7 +537,7 @@ namespace dmGameObject
         /// Resource that was reloaded
         void* m_Resource;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
@@ -562,7 +576,7 @@ namespace dmGameObject
         /// Context for the component type
         void* m_Context;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -584,7 +598,7 @@ namespace dmGameObject
         /// Context for the component type
         void* m_Context;
         /// Component world
-        void* m_World;
+        ComponentWorld m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -630,6 +644,38 @@ namespace dmGameObject
         uint32_t                m_ReadsTransforms : 1;
         uint32_t                m_WritesTransforms : 1;
         uint32_t                m_Reserved : 29;
+        uint16_t                m_UpdateOrderPrio;
+    };
+
+    /**
+     * Register SOL components
+     */
+
+    typedef int (*SolComponentFunc)(void*);
+
+    struct ComponentTypeSol
+    {
+        ComponentTypeSol();
+        dmResource::ResourceType m_ResourceType;
+        const char*             m_Name;
+        /// Context passed in will be pinned on registration until register is deleted.
+        ::Any                   m_Context;
+        SolComponentFunc        m_NewWorldFunction;
+        SolComponentFunc        m_DeleteWorldFunction;
+        SolComponentFunc        m_CreateFunction;
+        SolComponentFunc        m_DestroyFunction;
+        SolComponentFunc        m_InitFunction;
+        SolComponentFunc        m_FinalFunction;
+        SolComponentFunc        m_AddToUpdateFunction;
+        SolComponentFunc        m_UpdateFunction;
+        SolComponentFunc        m_RenderFunction;
+        SolComponentFunc        m_PostUpdateFunction;
+        SolComponentFunc        m_OnMessageFunction;
+        SolComponentFunc        m_OnInputFunction;
+        SolComponentFunc        m_OnReloadFunction;
+        SolComponentFunc        m_SetPropertiesFunction;
+        SolComponentFunc        m_GetPropertyFunction;
+        SolComponentFunc        m_SetPropertyFunction;
         uint16_t                m_UpdateOrderPrio;
     };
 
@@ -698,6 +744,14 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result RegisterComponentType(HRegister regist, const ComponentType& type);
+
+    /**
+     * Register a new component type with sol implementation.
+     * @param regist Gameobject register
+     * @param type Collection of component type registration data
+     * @return RESULT_OK on success
+     */
+    Result RegisterComponentTypeSol(HRegister regist, const ComponentTypeSol& type);
 
     /**
      * Retrieves a registered component type given its resource type.
@@ -1241,6 +1295,9 @@ namespace dmGameObject
      * @return Result
      */
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context);
+
+    dmSol::HProxy GetCollectionSolProxy(HCollection collection);
+    dmSol::HProxy GetInstanceSolProxy(HInstance instance);
 
 }
 

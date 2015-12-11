@@ -12,6 +12,8 @@
 #include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
 
+#include <dlib/sol.h>
+
 const char* g_URI = "http://localhost:7000";
 
 class dmHttpClientTest: public ::testing::TestWithParam<const char*>
@@ -997,10 +999,12 @@ TEST(dmHttpClient, ConnectionRefused)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

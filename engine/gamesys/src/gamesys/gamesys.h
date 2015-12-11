@@ -138,7 +138,8 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context,
         GuiContext* gui_context,
         dmInput::HContext input_context,
-        PhysicsContext* physics_context);
+        PhysicsContext* physics_context,
+        bool use_sol_sprite);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
@@ -150,7 +151,8 @@ namespace dmGameSystem
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
-                                                  SpineModelContext* spine_model_context);
+                                                  SpineModelContext* spine_model_context,
+                                                  bool use_sol_sprite);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);

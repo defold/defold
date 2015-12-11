@@ -15,6 +15,8 @@
 
 #include "../ddf/ddf.h"
 
+#include <dlib/sol.h>
+
 /*
  * TODO:
  * Tester
@@ -29,6 +31,8 @@
 
 #include "test/test_ddf_proto.h"
 #include "test/test_ddf_proto.pb.h"
+
+
 
 enum MyEnum
 {
@@ -95,6 +99,88 @@ TEST(Simple, LoadSave)
         EXPECT_EQ(msg_str, msg_str2);
 
         dmDDF::FreeMessage(message);
+    }
+}
+
+TEST(Simple, LoadPreAlloc)
+{
+    int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
+
+    for (uint32_t i = 0; i < sizeof(test_values)/sizeof(test_values[0]); ++i)
+    {
+        TestDDF::Simple simple;
+        simple.set_a(test_values[i]);
+        std::string msg_str = simple.SerializeAsString();
+
+        const char* msg_buf = msg_str.c_str();
+        uint32_t msg_buf_size = msg_str.size();
+
+        DUMMY::TestDDF::Simple out;
+
+        uint32_t sz;
+        dmDDF::Result e;
+
+        // with too little data
+        DUMMY::TestDDF::Simple *out_ptr = &out;
+        sz = sizeof(out) - 1;
+        e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple_DESCRIPTOR, (void**)&out_ptr,
+                                      dmDDF::OPTION_PRE_ALLOCATED, &sz);
+        ASSERT_EQ(dmDDF::RESULT_BUFFER_TOO_SMALL, e);
+        ASSERT_EQ((void*)0, out_ptr);
+        ASSERT_EQ(sizeof(DUMMY::TestDDF::Simple), sz);
+
+        // with enough data
+        out_ptr = &out;
+        sz = sizeof(out);
+        e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple_DESCRIPTOR, (void**)&out_ptr,
+                                      dmDDF::OPTION_PRE_ALLOCATED, &sz);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
+        ASSERT_EQ(&out, out_ptr);
+        ASSERT_EQ(sizeof(DUMMY::TestDDF::Simple), sz);
+        ASSERT_EQ(simple.a(), out.m_A);
+
+        std::string msg_str2;
+        e = DDFSaveToString(&out, &DUMMY::TestDDF_Simple_DESCRIPTOR, msg_str2);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
+        EXPECT_EQ(msg_str, msg_str2);
+    }
+}
+
+TEST(Simple, LoadSaveSol)
+{
+    int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
+
+    runtime_gc();
+    GarbageCollectionInfo gc_start = runtime_gc_info();
+
+    for (uint32_t i = 0; i < sizeof(test_values)/sizeof(test_values[0]); ++i)
+    {
+        TestDDF::Simple simple;
+        simple.set_a(test_values[i]);
+        std::string msg_str = simple.SerializeAsString();
+
+        const char* msg_buf = msg_str.c_str();
+        uint32_t msg_buf_size = msg_str.size();
+        void* message;
+
+        uint32_t sz;
+        dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message, dmDDF::OPTION_SOL, &sz);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+        DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
+        ASSERT_EQ(simple.a(), msg->m_A);
+
+        std::string msg_str2;
+        e = DDFSaveToString(message, &DUMMY::TestDDF_Simple_DESCRIPTOR, msg_str2);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
+        EXPECT_EQ(msg_str, msg_str2);
+
+        runtime_unpin((void*)message);
+        runtime_gc();
+
+        GarbageCollectionInfo gc_post = runtime_gc_info();
+        ASSERT_EQ(gc_start.live_count, gc_post.live_count);
+        ASSERT_EQ(gc_start.live_size, gc_post.live_size);
     }
 }
 
@@ -298,6 +384,51 @@ TEST(Simple01Repeated, Load)
     EXPECT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
+}
+
+TEST(Simple01Repeated, LoadSol)
+{
+    runtime_gc();
+    GarbageCollectionInfo gc_start = runtime_gc_info();
+
+    const int count = 2;
+
+    TestDDF::Simple01Repeated repated;
+    for (int i = 0; i < count; ++i)
+    {
+        TestDDF::Simple01*s = repated.add_array();
+        s->set_x(i);
+        s->set_y(i+100);
+    }
+
+    std::string msg_str = repated.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    uint32_t sz;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, &message, dmDDF::OPTION_SOL, &sz);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    DUMMY::TestDDF::Simple01Repeated* msg = (DUMMY::TestDDF::Simple01Repeated*) message;
+    EXPECT_EQ((uint32_t) count, msg->m_Array.m_Count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        EXPECT_EQ(repated.array(i).x(), msg->m_Array.m_Data[i].m_X);
+        EXPECT_EQ(repated.array(i).y(), msg->m_Array.m_Data[i].m_Y);
+    }
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
+
+    runtime_unpin(message);
+    runtime_gc();
+    GarbageCollectionInfo gc_post = runtime_gc_info();
+    ASSERT_EQ(gc_start.live_count, gc_post.live_count);
+    ASSERT_EQ(gc_start.live_size, gc_post.live_size);
 }
 
 TEST(Simple02Repeated, Load)
@@ -708,17 +839,19 @@ TEST(StringOffset, Load)
     ASSERT_STREQ(repated.str_arr(0).c_str(), (const char*) (uintptr_t(msg->m_StrArr[0]) + uintptr_t(msg)));
     ASSERT_STREQ(repated.str_arr(1).c_str(), (const char*) (uintptr_t(msg->m_StrArr[1]) + uintptr_t(msg)));
 
-    // NOTE: We don't save the message again as we do in most tests
-    // Currently no support to save messages with offset strings
-
     dmDDF::FreeMessage(message);
 }
 
+
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
+
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     google::protobuf::ShutdownProtobufLibrary();
+
+    dmSol::Finalize();
     return ret;
 }

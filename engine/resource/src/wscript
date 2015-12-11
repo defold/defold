@@ -2,20 +2,26 @@
 import os
 
 def configure(conf):
+    conf.check_tool('waf_sol')
     pass
 
+def set_options(opt):
+    opt.tool_options('waf_sol')
+
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf sol',
                                 includes = '. ../proto',
                                 protoc_includes = '../proto',
                                 proto_gen_py = True,
                                 target = 'resource')
+
     resource.find_sources_in_dirs('.')
 
+
     if 'js-web' in bld.env.PLATFORM:
-         resource.source.append('async/load_queue_sync.cpp');
+        resource.source.append('async/load_queue_sync.cpp');
     else:
-         resource.source.append('async/load_queue_threaded.cpp');
+        resource.source.append('async/load_queue_threaded.cpp');
 
 
     if 'android' in bld.env.PLATFORM:
@@ -29,6 +35,7 @@ def build(bld):
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
+    bld.install_files('${PREFIX}/lib/sol', 'resource.sol')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
 

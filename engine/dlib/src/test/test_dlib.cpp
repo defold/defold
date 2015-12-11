@@ -6,6 +6,8 @@
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 
+#include <dlib/sol.h>
+
 TEST(dlib, Hash)
 {
     uint32_t h1 = dmHashBuffer32("foo", 3);
@@ -393,7 +395,10 @@ TEST(dlib, Log)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return ret;
 }
 

@@ -2,6 +2,7 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
+#include <dlib/sol.h>
 
 namespace dmResource
 {
@@ -78,6 +79,9 @@ namespace dmResource
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
+        /// Sol type if m_Resource points to a sol object
+        ::Type*  m_SolType;
+
         /// Reference count
         uint32_t m_ReferenceCount;
 
@@ -145,6 +149,8 @@ namespace dmResource
         const void* m_Buffer;
         /// Size of the data buffer
         uint32_t m_BufferSize;
+        /// If buffer is valid sol array
+        uint32_t m_IsSolArray:1;
         /// Preloaded data from Preload phase
         void* m_PreloadData;
         /// Resource descriptor to fill in
@@ -193,6 +199,8 @@ namespace dmResource
         const void* m_Buffer;
         /// Size of data buffer
         uint32_t m_BufferSize;
+        /// If buffer is valid sol array
+        uint32_t m_IsSolArray:1;
         /// Resource descriptor to write into
         SResourceDescriptor* m_Resource;
     };
@@ -296,6 +304,28 @@ namespace dmResource
                                FResourceDestroy destroy_function,
                                FResourceRecreate recreate_function);
 
+    typedef Result (*FSolResourceFn)(void *);
+
+    struct SolResourceFns
+    {
+        FSolResourceFn m_Preload;
+        FSolResourceFn m_Create;
+        FSolResourceFn m_Destroy;
+        FSolResourceFn m_Recreate;
+    };
+
+    /**
+     * Register a sol resource type
+     * @param factory Factory handle
+     * @param extension File extension for resource
+     * @param context User context
+     * @return RESULT_OK on success
+     */
+    Result RegisterTypeSol(HFactory factory,
+                               const char* extension,
+                               void* context,
+                               SolResourceFns fn);
+
     /**
      * Get a resource from factory
      * @param factory Factory handle
@@ -333,6 +363,15 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetType(HFactory factory, void* resource, ResourceType* type);
+
+    /**
+     * Get Sol any ptr for resource (if exists)
+     * @param factory Factory handle
+     * @param resource Resource
+     * @param type Returned type
+     * @return RESULT_OK on success
+     */
+    Result GetSolAnyPtr(HFactory factory, void* resource, ::Any* any);
 
     /**
      * Get type from extension
@@ -427,6 +466,10 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    dmSol::HProxy GetSolProxy(HFactory factory);
+    dmSol::HProxy GetSolProxy(HPreloadHintInfo);
+    dmSol::HProxy GetSolProxy(HPreloader);
 }
 
 #endif // RESOURCE_H

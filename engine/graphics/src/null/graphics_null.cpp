@@ -7,12 +7,19 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/sol.h>
 
 #include "../graphics.h"
 #include "graphics_null.h"
 #include "glsl_uniform_parser.h"
 
 using namespace Vectormath::Aos;
+
+extern "C"
+{
+    ::Any sol_graphics_alloc_vertex_buffer();
+    ::Any sol_graphics_alloc_vertex_declaration();
+}
 
 namespace dmGraphics
 {
@@ -239,12 +246,16 @@ namespace dmGraphics
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        VertexBuffer* vb = new VertexBuffer();
+        ::Any sol_vb = sol_graphics_alloc_vertex_buffer();
+        assert(sizeof(VertexBuffer) == dmSol::SizeOf(sol_vb));
+        VertexBuffer* vb = (VertexBuffer*) reflect_get_any_value(sol_vb);
+        runtime_pin((void*)vb);
+
         vb->m_Buffer = new char[size];
-        vb->m_Copy = 0x0;
         vb->m_Size = size;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
+
         return (uintptr_t)vb;
     }
 
@@ -253,7 +264,9 @@ namespace dmGraphics
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
-        delete vb;
+
+        memset(vb, 0x00, sizeof(VertexBuffer));
+        runtime_unpin((void*)buffer);
     }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -346,7 +359,11 @@ namespace dmGraphics
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
-        VertexDeclaration* vd = new VertexDeclaration();
+        ::Any sol_vd = sol_graphics_alloc_vertex_declaration();
+        assert(sizeof(VertexDeclaration) == dmSol::SizeOf(sol_vd));
+        runtime_pin((void*) reflect_get_any_value(sol_vd));
+        VertexDeclaration* vd = (VertexDeclaration*) reflect_get_any_value(sol_vd);
+
         memset(vd, 0, sizeof(*vd));
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -358,7 +375,7 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
-        delete vertex_declaration;
+        runtime_unpin((void*)vertex_declaration);
     }
 
     static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)

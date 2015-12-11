@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 
+#include <dlib/sol.h>
+
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
 
@@ -183,5 +185,8 @@ TEST(dmArray, UserAllocated)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    dmSol::Initialize();
+    int k = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return k;
 }

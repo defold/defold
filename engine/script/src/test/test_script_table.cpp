@@ -19,6 +19,7 @@ extern "C"
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
+#include <sol/runtime.h>
 }
 
 class LuaTableTest* g_LuaTableTest = 0;
@@ -743,7 +744,9 @@ TEST_F(LuaTableTest, Stress)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

@@ -15,6 +15,12 @@
 #include "debug_renderer.h"
 #include "font_renderer.h"
 
+extern "C"
+{
+    // render_private.sol
+    ::Any sol_render_alloc_dispatch_params();
+}
+
 namespace dmRender
 {
     using namespace Vectormath::Aos;
@@ -95,6 +101,8 @@ namespace dmRender
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
+        context->m_RenderObjectsSol.SetCapacity(params.m_MaxInstances);
+        context->m_RenderObjectsSol.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
 
@@ -119,6 +127,12 @@ namespace dmRender
 
         context->m_RenderListDispatch.SetCapacity(255);
 
+        // Keep sol struct for the lifetime of the context
+        ::Any sol_params = sol_render_alloc_dispatch_params();
+        assert(dmSol::SizeOf(sol_params) == sizeof(RenderListDispatchParamsSol));
+        context->m_SolDispatchParams = (RenderListDispatchParamsSol*) reflect_get_any_value(sol_params);
+        runtime_pin((void*)context->m_SolDispatchParams);
+                
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
 
@@ -133,6 +147,7 @@ namespace dmRender
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);
+        runtime_unpin((void*)render_context->m_SolDispatchParams);
         delete render_context;
 
         return RESULT_OK;
@@ -159,10 +174,50 @@ namespace dmRender
 
         // store & return index
         RenderListDispatch d;
+        memset(&d, 0x00, sizeof(RenderListDispatch));
         d.m_Fn = fn;
         d.m_UserData = user_data;
         render_context->m_RenderListDispatch.Push(d);
 
+        return render_context->m_RenderListDispatch.Size() - 1;
+    }
+    
+    static void RenderListSolDispatch(const RenderListDispatchParams& params)
+    {
+        RenderListDispatch* dispatch = (RenderListDispatch*) params.m_UserData;
+        RenderListDispatchParamsSol* sol_params = params.m_Context->m_SolDispatchParams;
+        sol_params->m_Context = params.m_Context;
+        sol_params->m_UserData = dispatch->m_SolUserData;
+        sol_params->m_Operation = params.m_Operation;
+        sol_params->m_Entries = params.m_Buf;
+        sol_params->m_Indices = params.m_IndexBuf;
+        sol_params->m_RangeBegin = params.m_Begin - params.m_IndexBuf;
+        sol_params->m_RangeEnd = params.m_End - params.m_IndexBuf;
+        dispatch->m_SolFn(sol_params);
+    }
+    
+    HRenderListDispatch RenderListMakeDispatchSol(HRenderContext render_context, RenderListDispatchFnSol fn, Any user_data)
+    {
+        if (render_context->m_RenderListDispatch.Size() == render_context->m_RenderListDispatch.Capacity())
+        {
+            dmLogError("Exhausted number of render dispatches. Too many collections?");
+            return RENDERLIST_INVALID_DISPATCH;
+        }
+        if (!fn)
+        {
+            dmLogError("Invalid function passed");
+            return RENDERLIST_INVALID_DISPATCH;
+        }
+
+        render_context->m_RenderListDispatch.Push(RenderListDispatch());
+        RenderListDispatch* d = &render_context->m_RenderListDispatch.Back();
+        
+        memset(d, 0x00, sizeof(RenderListDispatch));
+        d->m_Fn = &RenderListSolDispatch;
+        d->m_SolFn = fn;
+        d->m_UserData = (void*)d;
+        d->m_SolUserData = user_data;
+        
         return render_context->m_RenderListDispatch.Size() - 1;
     }
 
@@ -297,6 +352,12 @@ namespace dmRender
     {
         context->m_RenderObjects.SetSize(0);
         ClearDebugRenderObjects(context);
+        
+        for (uint32_t i=0;i!=context->m_RenderObjectsSol.Size();i++)
+        {
+            runtime_unpin(context->m_RenderObjectsSol[i]);
+        }
+        context->m_RenderObjectsSol.SetSize(0);
 
         // Should probably be moved and/or refactored, see case 2261
         context->m_TextContext.m_RenderObjectIndex = 0;
@@ -425,7 +486,12 @@ namespace dmRender
 
         // Construct render objects
         context->m_RenderObjects.SetSize(0);
-
+        for (uint32_t i=0;i!=context->m_RenderObjectsSol.Size();i++)
+        {
+            runtime_unpin(context->m_RenderObjectsSol[i]);
+        }
+        context->m_RenderObjectsSol.SetSize(0);
+        
         RenderListDispatchParams params;
         memset(&params, 0x00, sizeof(params));
         params.m_Operation = RENDER_LIST_OPERATION_BEGIN;
@@ -441,6 +507,7 @@ namespace dmRender
 
         params.m_Operation = RENDER_LIST_OPERATION_BATCH;
         params.m_Buf = context->m_RenderList.Begin();
+        params.m_IndexBuf = context->m_RenderListSortBuffer.Begin();
 
         // Make batches for matching dispatch & batch key
         RenderListEntry *base = context->m_RenderList.Begin();
@@ -457,7 +524,7 @@ namespace dmRender
                 continue;
 
             if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
-            {
+            {                
                 assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
                 const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
                 params.m_UserData = d->m_UserData;
@@ -473,6 +540,7 @@ namespace dmRender
         params.m_Begin = 0;
         params.m_End = 0;
         params.m_Buf = 0;
+        params.m_IndexBuf = 0;
 
         for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
         {
@@ -612,7 +680,6 @@ namespace dmRender
         }
     }
 
-
     struct NamedConstantBuffer
     {
         dmHashTable64<Vectormath::Aos::Vector4> m_Constants;
@@ -683,5 +750,4 @@ namespace dmRender
         ApplyContext context(graphics_context, material);
         constants.Iterate(ApplyConstant, &context);
     }
-
 }

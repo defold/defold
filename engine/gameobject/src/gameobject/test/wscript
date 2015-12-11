@@ -332,10 +332,11 @@ def script_file(self, node):
 
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
-        test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
+        test_task_gen = bld.new_task_gen(features = 'cxx cprogram test sol',
                                          includes = '../../../src .',
-                                         uselib = 'GTEST RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB',
+                                         uselib = 'GTEST RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB SOL_RUNTIME SOL',
                                          uselib_local = 'gameobject',
+                                         sol_includes = 'component ..',
                                          proto_gen_py = True,
                                          target = '%s/test_gameobject_%s' % (dir, dir))
         test_task_gen.find_sources_in_dirs(dir, exts)

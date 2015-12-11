@@ -1,11 +1,13 @@
 #include "array.h"
+#include "log.h"
 
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
 namespace dmArrayUtil
 {
-    void SetCapacity(uint32_t capacity, uint32_t type_size, uintptr_t* first, uintptr_t* last, uintptr_t* end)
+    void SetCapacity(uint32_t capacity, uint32_t type_size, uintptr_t* first, uintptr_t* last, uintptr_t* end, bool use_sol_allocator)
     {
         uintptr_t old_capacity = (*last - *first) / type_size;
         // early-out for now change
@@ -16,7 +18,14 @@ namespace dmArrayUtil
         uint8_t *new_storage;
         if (capacity)
         {
-            new_storage = new uint8_t[capacity * type_size];
+            if (use_sol_allocator)
+            {
+                new_storage = (uint8_t *)runtime_alloc_array(type_size, capacity);
+            }
+            else
+            {
+                new_storage = (uint8_t *)malloc(type_size * capacity);
+            }
             assert (new_storage != 0 && "SetCapacity could not allocate memory");
         }
         else
@@ -32,7 +41,15 @@ namespace dmArrayUtil
         if (old_capacity)
         {
             memcpy(new_storage, (void *)*first, (size_t)(type_size * (size_t)new_size));
-            delete[] (uint8_t*) *first;
+
+            if (use_sol_allocator)
+            {
+                runtime_unpin((void *)*first);
+            }
+            else
+            {
+                free((void *)*first);
+            }
         }
 
         *first = (uintptr_t)new_storage;

@@ -37,6 +37,8 @@
 
 #include "test/mono_dc_44100_88200.wav.embed.h"
 
+#include <dlib/sol.h>
+
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
 extern unsigned char DRUMLOOP_WAV[];
@@ -973,6 +975,9 @@ DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLo
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

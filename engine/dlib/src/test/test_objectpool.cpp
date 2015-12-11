@@ -9,6 +9,8 @@
 
 #include "dlib/object_pool.h"
 
+#include <dlib/sol.h>
+
 struct Object
 {
     uint32_t m_Value;
@@ -166,6 +168,9 @@ TEST(dmObjectPool, Stress)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

@@ -26,11 +26,13 @@
 #include <dlib/sys.h>
 #include <dlib/time.h>
 #include <dlib/mutex.h>
+#include <new>
 
 #include "resource.h"
 #include "resource_archive.h"
 #include "resource_ddf.h"
 #include "resource_private.h"
+#include "resource_sol.h"
 
 /*
  * TODO:
@@ -72,7 +74,7 @@ struct SResourceFactory
     uint32_t                                     m_ResourceTypesCount;
 
     // Guard for anything that touches anything that could be shared
-    // with GetRaw (used for async threaded loading). HttpClient, m_Buffer
+    // with GetRaw (used for async threaded loading). HttpClient
     // m_BuiltinsArchive and m_Archive
     dmMutex::Mutex                               m_LoadMutex;
 
@@ -104,6 +106,8 @@ struct SResourceFactory
     // Resource archive
     dmResourceArchive::HArchive                  m_Archive;
     void*                                        m_ArchiveMountInfo;
+
+    dmSol::HProxy                                m_SolProxy;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -225,6 +229,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     memset(factory, 0, sizeof(*factory));
     factory->m_Socket = socket;
 
+    // cycle array and make it sol allocated.
+    factory->m_Buffer.~dmArray<char>();
+    new (&factory->m_Buffer) dmArray<char>(true);
+
     dmURI::Result uri_result = dmURI::Parse(uri, &factory->m_UriParts);
     if (uri_result != dmURI::RESULT_OK)
     {
@@ -345,6 +353,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
 
     factory->m_LoadMutex = dmMutex::New();
+    factory->m_SolProxy = dmSol::NewProxy(factory);
     return factory;
 }
 
@@ -369,6 +378,10 @@ void DeleteFactory(HFactory factory)
     if (factory->m_LoadMutex)
     {
         dmMutex::Delete(factory->m_LoadMutex);
+    }
+    if (factory->m_SolProxy)
+    {
+        dmSol::DeleteProxy(factory->m_SolProxy);
     }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
@@ -411,13 +424,7 @@ void UpdateFactory(HFactory factory)
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
 }
 
-Result RegisterType(HFactory factory,
-                           const char* extension,
-                           void* context,
-                           FResourcePreload preload_function,
-                           FResourceCreate create_function,
-                           FResourceDestroy destroy_function,
-                           FResourceRecreate recreate_function)
+static Result CheckAdd(HFactory factory, const char* extension)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
         return RESULT_OUT_OF_RESOURCES;
@@ -426,11 +433,26 @@ Result RegisterType(HFactory factory,
     if (strrchr(extension, '.') != 0)
         return RESULT_INVAL;
 
-    if (create_function == 0 || destroy_function == 0)
-        return RESULT_INVAL;
-
     if (FindResourceType(factory, extension) != 0)
         return RESULT_ALREADY_REGISTERED;
+
+    return RESULT_OK;
+}
+
+Result RegisterType(HFactory factory,
+                           const char* extension,
+                           void* context,
+                           FResourcePreload preload_function,
+                           FResourceCreate create_function,
+                           FResourceDestroy destroy_function,
+                           FResourceRecreate recreate_function)
+{
+    Result r = CheckAdd(factory, extension);
+    if (r != RESULT_OK)
+        return r;
+
+    if (create_function == 0 || destroy_function == 0)
+        return RESULT_INVAL;
 
     SResourceType resource_type;
     resource_type.m_Extension = extension;
@@ -444,6 +466,27 @@ Result RegisterType(HFactory factory,
 
     return RESULT_OK;
 }
+
+Result RegisterTypeSol(HFactory factory,
+                           const char* extension,
+                           void* context,
+                           SolResourceFns fns)
+{
+    Result r = CheckAdd(factory, extension);
+    if (r != RESULT_OK)
+        return r;
+
+    SResourceType& resource_type = factory->m_ResourceTypes[factory->m_ResourceTypesCount++];
+    resource_type.m_Extension = extension;
+    resource_type.m_Context = &resource_type;
+    resource_type.m_PreloadFunction = fns.m_Preload ? &SolResourcePreload : 0;
+    resource_type.m_CreateFunction = &SolResourceCreate;
+    resource_type.m_DestroyFunction = &SolResourceDestroy;
+    resource_type.m_RecreateFunction = fns.m_Recreate ? &SolResourceRecreate : 0;
+    resource_type.m_SolResourceFns = fns;
+    return RESULT_OK;
+}
+
 
 // Assumes m_LoadMutex is already held
 static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive archive, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
@@ -675,6 +718,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             params.m_Context = resource_type->m_Context;
             params.m_Buffer = buffer;
             params.m_BufferSize = file_size;
+            params.m_IsSolArray = true;
             params.m_PreloadData = preload_data;
             params.m_Resource = &tmp_resource;
             params.m_Filename = name;
@@ -860,6 +904,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     params.m_Context = resource_type->m_Context;
     params.m_Buffer = buffer;
     params.m_BufferSize = file_size;
+    params.m_IsSolArray = false;
     params.m_Resource = rd;
     params.m_Filename = name;
     Result create_result = resource_type->m_RecreateFunction(params);
@@ -939,6 +984,30 @@ Result GetType(HFactory factory, void* resource, ResourceType* type)
     assert(rd->m_ReferenceCount > 0);
     *type = (ResourceType) rd->m_ResourceType;
 
+    return RESULT_OK;
+}
+
+Result GetSolAnyPtr(HFactory factory, void* resource, ::Any* any)
+{
+    assert(any);
+
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    if (!resource_hash)
+    {
+        return RESULT_NOT_LOADED;
+    }
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    assert(rd->m_ReferenceCount > 0);
+
+    if (!rd->m_SolType)
+    {
+        // Should maybe return an InternalResource pointer here
+        return RESULT_NOT_SUPPORTED;
+    }
+
+    *any = ::reflect_create_reference_any(rd->m_SolType, rd->m_Resource);
     return RESULT_OK;
 }
 
@@ -1072,6 +1141,11 @@ void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallba
             }
         }
     }
+}
+
+dmSol::HProxy GetSolProxy(HFactory factory)
+{
+    return factory->m_SolProxy;
 }
 
 }

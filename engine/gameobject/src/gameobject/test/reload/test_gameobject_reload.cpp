@@ -10,6 +10,9 @@
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
 
+#include <dlib/sol.h>
+
+
 using namespace Vectormath::Aos;
 
 struct ReloadTargetComponent
@@ -141,13 +144,13 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetNewWorld(const dmGameObje
     ReloadTest* test = (ReloadTest*)params.m_Context;
     test->m_World = new ReloadTargetWorld();
     test->m_World->m_Component = 0x0;
-    *params.m_World = test->m_World;
+    (*params.m_World).m_Ptr = test->m_World;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
 dmGameObject::CreateResult ReloadTest::CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
 {
-    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World.m_Ptr;
     delete rt_world;
     ReloadTest* test = (ReloadTest*)params.m_Context;
     test->m_World = 0x0;
@@ -156,7 +159,7 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetDeleteWorld(const dmGameO
 
 dmGameObject::CreateResult ReloadTest::CompReloadTargetCreate(const dmGameObject::ComponentCreateParams& params)
 {
-    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World.m_Ptr;
     rt_world->m_Component = new ReloadTargetComponent();
     *params.m_UserData = (uintptr_t)rt_world->m_Component;
     return dmGameObject::CREATE_RESULT_OK;
@@ -164,7 +167,7 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetCreate(const dmGameObject
 
 dmGameObject::CreateResult ReloadTest::CompReloadTargetDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
-    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World.m_Ptr;
     delete rt_world->m_Component;
     rt_world->m_Component = 0x0;
     return dmGameObject::CREATE_RESULT_OK;
@@ -174,7 +177,7 @@ void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadP
 {
     ReloadTest* self = (ReloadTest*) params.m_Context;
     self->m_NewResource = params.m_Resource;
-    self->m_World = (ReloadTargetWorld*)params.m_World;
+    self->m_World = (ReloadTargetWorld*)params.m_World.m_Ptr;
     self->m_World->m_Component = (ReloadTargetComponent*)*params.m_UserData;
 }
 
@@ -227,8 +230,9 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

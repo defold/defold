@@ -3,6 +3,7 @@
 
 #include <ddf/ddf.h>
 #include "resource_archive.h"
+#include "resource.h"
 
 // Internal API that preloader needs to use.
 
@@ -25,6 +26,7 @@ namespace dmResource
         FResourceCreate   m_CreateFunction;
         FResourceDestroy  m_DestroyFunction;
         FResourceRecreate m_RecreateFunction;
+        SolResourceFns    m_SolResourceFns; 
     };
 
     typedef dmArray<char> LoadBufferType;
@@ -46,6 +48,7 @@ namespace dmResource
     struct PreloadRequest;
     struct PreloadHintInfo
     {
+        dmSol::HProxy m_SolProxy;
         HPreloader m_Preloader;
         int32_t m_Parent;
     };

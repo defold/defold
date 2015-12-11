@@ -13,6 +13,8 @@
 
 #include "input_ddf.h"
 
+#include <dlib/sol.h>
+
 class InputTest : public ::testing::Test
 {
 protected:
@@ -573,8 +575,10 @@ TEST_F(InputTest, TestRepeat)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
+    
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

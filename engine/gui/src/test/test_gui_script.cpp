@@ -11,6 +11,7 @@ extern "C"
 {
 #include "lua/lua.h"
 #include "lua/lauxlib.h"
+#include <sol/runtime.h>
 }
 
 static const float EPSILON = 0.000001f;
@@ -676,7 +677,9 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
 }

@@ -87,6 +87,7 @@ def scan(self):
     return do_scan(self, self.inputs, includes)
 
 def configure(conf):
+    conf.find_program('ddfc_sol', var='DDFC_SOL', mandatory = True)
     conf.find_program('ddfc_cxx', var='DDFC_CXX', mandatory = True)
 
 bproto = Task.simple_task_type('bproto', 'protoc \
@@ -99,6 +100,16 @@ bproto = Task.simple_task_type('bproto', 'protoc \
                       shell=True)
 bproto.scan = scan
 
+bproto_sol = Task.simple_task_type('bproto_sol', 'protoc \
+--plugin=protoc-gen-ddf=${DDFC_SOL} \
+--ddf_out=${TGT[0].dir(env)} \
+-I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+                      color='PINK',
+                      before='sol',
+                      after='proto_b',
+                      shell=True)
+bproto_sol.scan = scan
+
 def bproto_file(self, node):
 
     protoc = self.create_task('bproto')
@@ -109,11 +120,27 @@ def bproto_file(self, node):
     protoc.set_outputs([out, h_out])
 
     self.allnodes.append(out)
+
     # TODO: Appending java_node doesn't work. Missing "extension-featre" in built-in tool?
     # An explicit node is create below
 
     if hasattr(self, "ddf_namespace"):
         protoc.env['ddf_options'] = '--ns %s' % self.ddf_namespace
+
+    pt = open(node.abspath(), 'rb').read()
+    pn = re.findall('\(sol_modulename\)\W+=\W+\"(.*)\";', pt)
+    if len(pn) > 0:
+        protosol = self.create_task('bproto_sol')
+        protosol.env['PROTOC_FLAGS'] = get_protoc_flags(self)
+        protosol.set_inputs(node)
+
+        if hasattr(self, "ddf_namespace"):
+            protosol.env['ddf_options'] = '--ns %s' % self.ddf_namespace
+
+        out = node.parent.find_or_declare(pn[0] + '.sol')
+        protosol.set_outputs([out])
+        self.allnodes.append(out)
+
 
 proto_b = Task.simple_task_type('proto_b', 'protoc -o${TGT} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
                                  color='PINK',
@@ -163,7 +190,7 @@ def compile_java_file(self, java_node, outdir):
 def get_protoc_flags(self):
     protoc_includes = [self.env['DYNAMO_HOME'] + '/ext/include', self.env['DYNAMO_HOME'] + '/share/proto']
     if hasattr(self, "protoc_includes"):
-        protoc_includes.extend(Utils.to_list(self.protoc_includes))
+        protoc_includes = Utils.to_list(self.protoc_includes) + protoc_includes
 
     protoc_flags = ""
     for pi in protoc_includes:

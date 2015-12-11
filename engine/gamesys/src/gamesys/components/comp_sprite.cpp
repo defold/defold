@@ -132,13 +132,13 @@ namespace dmGameSystem
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 6 * sprite_world->m_Components.Capacity());
 
-        *params.m_World = sprite_world;
+        params.m_World->m_Ptr = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         dmGraphics::DeleteVertexDeclaration(sprite_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
         free(sprite_world->m_VertexBufferData);
@@ -201,7 +201,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
 
         if (sprite_world->m_Components.Full())
         {
@@ -230,7 +230,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         uint32_t index = *params.m_UserData;
         sprite_world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
@@ -597,7 +597,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         uint32_t index = (uint32_t)*params.m_UserData;
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
         component->m_AddedToUpdate = true;
@@ -612,7 +612,7 @@ namespace dmGameSystem
          *   support per sprite correct sorting.
          */
 
-        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        SpriteWorld* world = (SpriteWorld*)params.m_World.m_Ptr;
         Animate(world, params.m_UpdateContext->m_DT);
 
         PostMessages(world);
@@ -644,7 +644,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
 
         UpdateTransforms(sprite_world, sprite_context->m_Subpixels);
 
@@ -747,7 +747,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
@@ -822,7 +822,7 @@ namespace dmGameSystem
 
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
         if (component->m_Playing)
             PlayAnimation(component, component->m_CurrentAnimation);
@@ -950,7 +950,7 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
         dmhash_t get_property = params.m_PropertyId;
 
@@ -975,7 +975,7 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World.m_Ptr;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
         dmhash_t set_property = params.m_PropertyId;
 

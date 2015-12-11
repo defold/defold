@@ -4,6 +4,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/sol.h>
 #include <dlib/configfile.h>
 #include <resource/resource.h>
 #include "crash.h"
@@ -95,8 +96,9 @@ TEST_F(ScriptCrashTest, TestCrash)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

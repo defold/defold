@@ -71,7 +71,7 @@ def build(bld):
             'spinemodel']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE GUI SOUND_NULL DLIB',
+                                     uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE GUI SOUND_NULL DLIB SOL_RUNTIME SOL',
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      content_root='.',

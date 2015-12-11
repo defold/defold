@@ -671,18 +671,20 @@ namespace dmEngine
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
+        
+        bool use_sol_sprite = dmConfigFile::GetInt(engine->m_Config, "experimental.sol_sprite_component", 0) != 0;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext, use_sol_sprite);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext);
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext, use_sol_sprite);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 

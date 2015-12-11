@@ -4,12 +4,15 @@
 
 #include <dlib/hash.h>
 #include <dlib/math.h>
+#include <dlib/sol.h>
 
 #include <script/script.h>
 
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"
+
+#include <dlib/sol.h>
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
@@ -364,6 +367,9 @@ TEST(dmFontRenderer, Layout)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

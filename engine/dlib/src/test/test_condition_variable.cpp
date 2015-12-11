@@ -5,6 +5,8 @@
 #include "../dlib/mutex.h"
 #include "../dlib/condition_variable.h"
 
+#include <dlib/sol.h>
+
 struct ThreadArg
 {
     dmMutex::Mutex m_Mutex;
@@ -82,6 +84,9 @@ TEST(dmConditionVariable, ProducerConsumer)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int r = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
+    return r;
 }

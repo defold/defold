@@ -9,6 +9,8 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
+#include <dlib/sol.h>
+
 using namespace Vectormath::Aos;
 
 class AnimTest : public ::testing::Test
@@ -649,8 +651,10 @@ TEST_F(AnimTest, UniformScale)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
 
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

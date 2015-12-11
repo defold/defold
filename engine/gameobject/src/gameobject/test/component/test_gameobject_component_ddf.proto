@@ -1,5 +1,9 @@
 package TestGameObjectDDF;
 
+import "ddf/ddf_extensions.proto";
+
+option (sol_modulename) = "test_ddf";
+
 message AResource
 {
     required uint32 a = 1;

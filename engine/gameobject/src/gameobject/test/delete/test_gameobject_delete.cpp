@@ -10,6 +10,9 @@
 #include "../gameobject_private.h"
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
 
+#include <dlib/sol.h>
+    
+
 class DeleteTest : public ::testing::Test
 {
 protected:
@@ -281,8 +284,9 @@ TEST_F(DeleteTest, TestScriptDeleteNonExistent)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

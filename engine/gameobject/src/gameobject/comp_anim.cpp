@@ -61,10 +61,10 @@ namespace dmGameObject
 
     CreateResult CompAnimNewWorld(const ComponentNewWorldParams& params)
     {
-        if (params.m_World != 0x0)
+        if (params.m_World)
         {
             AnimWorld* world = new AnimWorld();
-            *params.m_World = world;
+            params.m_World->m_Ptr = world;
             const uint32_t anim_count = 512;
             world->m_Animations.SetCapacity(anim_count);
             world->m_AnimMap.SetCapacity(MAX_CAPACITY);
@@ -86,9 +86,9 @@ namespace dmGameObject
 
     CreateResult CompAnimDeleteWorld(const ComponentDeleteWorldParams& params)
     {
-        if (params.m_World != 0x0)
+        if (params.m_World.m_Ptr)
         {
-            delete (AnimWorld*)params.m_World;
+            delete (AnimWorld*) params.m_World.m_Ptr;
             return CREATE_RESULT_OK;
         }
         else
@@ -160,7 +160,7 @@ namespace dmGameObject
          * The reason for this is to give consistent animation evaluation, independent of ordering.
          */
         UpdateResult result = UPDATE_RESULT_OK;
-        AnimWorld* world = (AnimWorld*)params.m_World;
+        AnimWorld* world = (AnimWorld*) params.m_World.m_Ptr;
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
         DM_COUNTER("animc", size);
@@ -361,7 +361,7 @@ namespace dmGameObject
         uint32_t component_index;
         ComponentType* type = FindComponentType(collection->m_Register, resource_type, &component_index);
         assert(type != 0x0);
-        return (AnimWorld*)collection->m_ComponentWorlds[component_index];
+        return (AnimWorld*)collection->m_ComponentWorlds[component_index].m_Ptr;
     }
 
     static bool PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,

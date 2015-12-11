@@ -7,7 +7,7 @@ def set_options(opt):
 
 def build(bld):
     if bld.env.PLATFORM != 'as3-web':
-        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+        obj = bld.new_task_gen(features = 'cxx cstaticlib sol ddf',
                                includes = ['. opengl'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
@@ -15,7 +15,7 @@ def build(bld):
 
         obj.find_sources_in_dirs('. opengl ../proto')
     else:
-        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+        obj = bld.new_task_gen(features = 'cxx cstaticlib sol ddf',
                                includes = ['. flash'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
@@ -23,7 +23,7 @@ def build(bld):
 
         obj.find_sources_in_dirs('. flash ../proto')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib sol',
                            includes = ['. null'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
@@ -42,6 +42,7 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
     bld.install_files('${PREFIX}/lib/python', 'pvrtc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
+    bld.install_files('${PREFIX}/lib/sol', 'opengl/graphics.sol')
 
 def configure(conf):
     pass

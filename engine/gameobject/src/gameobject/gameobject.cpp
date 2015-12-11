@@ -18,6 +18,7 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
+#include "gameobject_sol.h"
 
 #include "res_collection.h"
 #include "res_prototype.h"
@@ -26,6 +27,8 @@
 #include "res_anim.h"
 
 #include "../proto/gameobject_ddf.h"
+
+#include <sol/reflect.h>
 
 namespace dmGameObject
 {
@@ -132,6 +135,7 @@ namespace dmGameObject
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_Mutex = dmMutex::New();
+        memset(&m_ComponentTypesSol, 0x00, sizeof(m_ComponentTypesSol));
     }
 
     Register::~Register()
@@ -140,6 +144,11 @@ namespace dmGameObject
     }
 
     ComponentType::ComponentType()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    ComponentTypeSol::ComponentTypeSol()
     {
         memset(this, 0, sizeof(*this));
     }
@@ -178,6 +187,16 @@ namespace dmGameObject
             // Should be fixed by DEF-54
             DoDeleteCollection(regist->m_Collections[0]);
         }
+
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
+        {
+            void* sol_ctx = (void*)reflect_get_any_value(regist->m_ComponentTypesSol[i].m_Context);
+            if (sol_ctx)
+            {
+                runtime_unpin(sol_ctx);
+            }
+        }
+
         delete regist;
     }
 
@@ -312,7 +331,7 @@ namespace dmGameObject
     {
         if (component_index < MAX_COMPONENT_TYPES)
         {
-            return collection->m_ComponentWorlds[component_index];
+            return collection->m_ComponentWorlds[component_index].m_Ptr;
         }
         else
         {
@@ -362,6 +381,67 @@ namespace dmGameObject
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
         regist->m_ComponentTypeCount++;
+        return RESULT_OK;
+    }
+
+    Result RegisterComponentTypeSol(HRegister regist, const ComponentTypeSol& type)
+    {
+        if (regist->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
+            return RESULT_OUT_OF_RESOURCES;
+
+        if (FindComponentType(regist, type.m_ResourceType, 0x0) != 0)
+            return RESULT_ALREADY_REGISTERED;
+
+        if (type.m_UpdateFunction != 0x0 && type.m_AddToUpdateFunction == 0x0) {
+            dmLogWarning("Registering an Update function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
+            return RESULT_INVALID_OPERATION;
+        }
+
+        ComponentType* comp = &regist->m_ComponentTypes[regist->m_ComponentTypeCount];
+        ComponentTypeSol* sol_comp = &regist->m_ComponentTypesSol[regist->m_ComponentTypeCount];
+        regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
+        regist->m_ComponentTypeCount++;
+
+        // Create the wrapper.
+        *sol_comp = type;
+
+        void* sol_ctx = (void*)reflect_get_any_value(type.m_Context);
+        if (sol_ctx)
+        {
+            runtime_pin(sol_ctx);
+        }
+
+        memset(comp, 0x00, sizeof(ComponentType));
+        comp->m_Name = type.m_Name;
+        comp->m_Context = sol_comp;
+        comp->m_ResourceType = type.m_ResourceType;
+        comp->m_InstanceHasUserData = 1;
+        comp->m_ReadsTransforms = 1;
+        comp->m_WritesTransforms = 1;
+        comp->m_UpdateOrderPrio = type.m_UpdateOrderPrio;
+
+        #define TRANSFER_IF(name) if (type.m_##name##Function) comp->m_##name##Function = SolComponent##name;
+        #define TRANSFER(name) comp->m_##name##Function = SolComponent##name;
+
+        TRANSFER_IF(NewWorld)
+        TRANSFER_IF(DeleteWorld)
+
+        TRANSFER(Create)
+        TRANSFER(Destroy)
+
+        TRANSFER_IF(Init)
+        TRANSFER_IF(Final)
+        TRANSFER_IF(Update)
+        TRANSFER_IF(PostUpdate)
+        TRANSFER_IF(AddToUpdate)
+        TRANSFER_IF(Render)
+        TRANSFER_IF(OnMessage)
+        TRANSFER_IF(SetProperties)
+        TRANSFER_IF(SetProperty)
+        TRANSFER_IF(GetProperty)
+
+        #undef TRANSFER_IF
+        #undef TRANSFER
         return RESULT_OK;
     }
 
@@ -514,6 +594,7 @@ namespace dmGameObject
         }
 
         uint16_t instance_index = instance->m_Index;
+        instance->~Instance();
         operator delete ((void*)instance);
         collection->m_Instances[instance_index] = 0x0;
         collection->m_InstanceIndices.Push(instance_index);
@@ -1936,6 +2017,8 @@ namespace dmGameObject
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
                     params.m_Message = message;
+                    params.m_MessageId = message->m_Id;
+
                     UpdateResult res = component_type->m_OnMessageFunction(params);
                     if (res != UPDATE_RESULT_OK)
                         context->m_Success = false;
@@ -1972,6 +2055,8 @@ namespace dmGameObject
                         params.m_Context = component_type->m_Context;
                         params.m_UserData = component_instance_data;
                         params.m_Message = message;
+                        params.m_MessageId = message->m_Id;
+
                         UpdateResult res = component_type->m_OnMessageFunction(params);
                         if (res != UPDATE_RESULT_OK)
                             context->m_Success = false;
@@ -3036,6 +3121,16 @@ namespace dmGameObject
                 }
             }
         }
+    }
+
+    dmSol::HProxy GetCollectionSolProxy(HCollection collection)
+    {
+        return collection->m_SolProxy;
+    }
+
+    dmSol::HProxy GetInstanceSolProxy(HInstance instance)
+    {
+        return instance->m_SolProxy;
     }
 
 }

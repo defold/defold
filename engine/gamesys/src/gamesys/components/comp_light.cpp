@@ -15,13 +15,13 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        *params.m_World = new LightWorld;
+        params.m_World->m_Ptr = new LightWorld;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompLightDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        LightWorld* light_world = (LightWorld*) params.m_World;
+        LightWorld* light_world = (LightWorld*) params.m_World.m_Ptr;
         delete light_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -29,7 +29,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompLightCreate(const dmGameObject::ComponentCreateParams& params)
     {
         dmGameSystemDDF::LightDesc** light_resource = (dmGameSystemDDF::LightDesc**) params.m_Resource;
-        LightWorld* light_world = (LightWorld*) params.m_World;
+        LightWorld* light_world = (LightWorld*) params.m_World.m_Ptr;
         if (light_world->m_Lights.Full())
         {
             light_world->m_Lights.OffsetCapacity(16);
@@ -44,7 +44,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompLightDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         Light* light = (Light*) *params.m_UserData;
-        LightWorld* light_world = (LightWorld*) params.m_World;
+        LightWorld* light_world = (LightWorld*) params.m_World.m_Ptr;
         for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)
         {
             if (light_world->m_Lights[i] == light)
@@ -66,7 +66,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        LightWorld* light_world = (LightWorld*) params.m_World;
+        LightWorld* light_world = (LightWorld*) params.m_World.m_Ptr;
         const uint32_t data_size = sizeof(dmGameSystemDDF::SetLight) + 9;
         char buf[data_size];
         dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*)buf;

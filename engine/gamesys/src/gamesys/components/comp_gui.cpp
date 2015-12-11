@@ -95,13 +95,13 @@ namespace dmGameSystem
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
 
-        *params.m_World = gui_world;
+        params.m_World->m_Ptr = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiWorld* gui_world = (GuiWorld*) params.m_World.m_Ptr;
         GuiContext* gui_context = (GuiContext*)params.m_Context;
         for (uint32_t i = 0; i < gui_context->m_Worlds.Size(); ++i)
         {
@@ -448,7 +448,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiWorld* gui_world = (GuiWorld*) params.m_World.m_Ptr;
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
 
@@ -486,7 +486,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiWorld* gui_world = (GuiWorld*) params.m_World.m_Ptr;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
@@ -1305,7 +1305,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiWorld* gui_world = (GuiWorld*) params.m_World.m_Ptr;
 
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
@@ -1333,7 +1333,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiWorld* gui_world = (GuiWorld*) params.m_World.m_Ptr;
         GuiContext* gui_context = (GuiContext*)params.m_Context;
 
         dmGui::RenderSceneParams rp;

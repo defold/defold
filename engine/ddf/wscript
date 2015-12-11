@@ -19,6 +19,7 @@ def init():
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
+    opt.tool_options('waf_sol')
 
 def configure(conf):
     # Replace version number in python file.
@@ -34,10 +35,12 @@ def configure(conf):
     conf.write_config_header('config.h')
 
     conf.check_tool('waf_dynamo')
+    conf.check_tool('waf_sol')
 
     conf.sub_config('src')
 
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
+    conf.find_program('ddfc_sol', var='DDFC_SOL', path_list = [os.path.abspath('src')], mandatory = True)
 
     platform=conf.env['PLATFORM']
 

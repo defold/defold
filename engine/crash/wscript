@@ -19,6 +19,8 @@ def set_options(opt):
 def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('waf_ddf')
+    conf.check_tool('waf_sol')
+    
     waf_ddf.configure(conf)
     conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
     

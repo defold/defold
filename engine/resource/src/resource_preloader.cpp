@@ -105,6 +105,9 @@ namespace dmResource
         // used instead of dynamic allocs as far as it lasts.
         char m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
         uint32_t m_ScratchBufferPos;
+
+        //
+        dmSol::HProxy m_SolProxy;
     };
 
     static void MakeNewRequest(PreloadRequest* request, HFactory factory, const char *name)
@@ -173,6 +176,7 @@ namespace dmResource
             root->m_LoadResult = r;
         }
 
+        preloader->m_SolProxy = dmSol::NewProxy(preloader);
         return preloader;
     }
 
@@ -232,6 +236,7 @@ namespace dmResource
                 assert(req->m_Buffer);
                 params.m_Buffer = req->m_Buffer;
                 params.m_BufferSize = req->m_BufferSize;
+                params.m_IsSolArray = false;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
 
                 // unless we took it from the scratch buffer it needs to be free:d
@@ -246,6 +251,7 @@ namespace dmResource
             {
                 params.m_Buffer = buffer;
                 params.m_BufferSize = buffer_size;
+                params.m_IsSolArray = false;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
             }
 
@@ -486,6 +492,7 @@ namespace dmResource
                 }
 
                 dmLoadQueue::PreloadInfo info;
+                info.m_HintInfo.m_SolProxy = dmSol::NewProxy(&info.m_HintInfo);
                 info.m_HintInfo.m_Preloader = preloader;
                 info.m_HintInfo.m_Parent = index;
                 info.m_Function = req->m_ResourceType->m_PreloadFunction;
@@ -495,7 +502,12 @@ namespace dmResource
                 if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_Path, &info)))
                 {
                     preloader->m_InProgress.Put(req->m_CanonicalPathHash, req);
+                    dmSol::DeleteProxy(info.m_HintInfo.m_SolProxy);
                     return 1;
+                }
+                else
+                {
+                    dmSol::DeleteProxy(info.m_HintInfo.m_SolProxy);
                 }
             }
         }
@@ -579,6 +591,7 @@ namespace dmResource
 
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
         dmMutex::Delete(preloader->m_Mutex);
+        dmSol::DeleteProxy(preloader->m_SolProxy);
         delete preloader;
     }
 
@@ -620,5 +633,10 @@ namespace dmResource
         }
 
         PreloaderTreeInsert(preloader, new_req, info->m_Parent);
+    }
+
+    dmSol::HProxy GetSolProxy(HPreloadHintInfo info)
+    {
+        return info->m_SolProxy;
     }
 }

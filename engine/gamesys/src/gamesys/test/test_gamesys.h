@@ -82,7 +82,7 @@ template<typename T>
 void GamesysTest<T>::SetUp()
 {
     dmSound::Initialize(0x0, 0x0);
-
+    
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
     dmResource::NewFactoryParams params;
@@ -142,14 +142,14 @@ void GamesysTest<T>::SetUp()
     m_SpineModelContext.m_Factory = m_Factory;
     m_SpineModelContext.m_MaxSpineModelCount = 32;
 
-    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext, false);
     assert(dmResource::RESULT_OK == r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext, false));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }
@@ -157,6 +157,7 @@ void GamesysTest<T>::SetUp()
 template<typename T>
 void GamesysTest<T>::TearDown()
 {
+    
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);

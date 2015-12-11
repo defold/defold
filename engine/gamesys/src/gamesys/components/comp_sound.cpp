@@ -38,13 +38,13 @@ namespace dmGameSystem
         world->m_Entries.SetSize(MAX_INSTANCE_COUNT);
         world->m_EntryIndices.SetCapacity(MAX_INSTANCE_COUNT);
         memset(&world->m_Entries.Front(), 0, MAX_INSTANCE_COUNT * sizeof(PlayEntry));
-        *params.m_World = (void*)world;
+        params.m_World->m_Ptr = (void*)world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompSoundDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        World* world = (World*)params.m_World;
+        World* world = (World*) params.m_World.m_Ptr;
         uint32_t size = world->m_Entries.Size();
 
         for (uint32_t i = 0; i < size; ++i)
@@ -93,7 +93,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
-        World* world = (World*)params.m_World;
+        World* world = (World*) params.m_World.m_Ptr;
         for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
         {
             PlayEntry& entry = world->m_Entries[i];
@@ -191,7 +191,7 @@ namespace dmGameSystem
     {
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor)
         {
-            World* world = (World*)params.m_World;
+            World* world = (World*) params.m_World.m_Ptr;
             if (world->m_EntryIndices.Remaining() > 0)
             {
                 dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
@@ -233,7 +233,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
         {
-            World* world = (World*)params.m_World;
+            World* world = (World*) params.m_World.m_Ptr;
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
@@ -245,7 +245,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor)
         {
-            World* world = (World*)params.m_World;
+            World* world = (World*) params.m_World.m_Ptr;
             dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)params.m_Message->m_Data;
 
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)

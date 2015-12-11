@@ -5,7 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    particle = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    particle = bld.new_task_gen(features = 'cxx cstaticlib ddf sol',
                                 includes = ['.', '../proto'],
                                 proto_gen_py = True,
                                 protoc_includes = '../proto',
@@ -14,12 +14,12 @@ def build(bld):
                                 source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     if bld.env.PLATFORM != 'as3-web':
-        particle_shared = bld.new_task_gen(features = 'cxx cshlib ddf',
+        particle_shared = bld.new_task_gen(features = 'cxx cshlib ddf sol',
                                            includes = ['.', '../proto'],
                                            target = 'particle_shared',
                                            protoc_includes = '../proto',
-                                           uselib = 'DDF DLIB PLATFORM_SOCKET',
-                                           source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+                                           uselib = 'DDF DLIB PLATFORM_SOCKET SOL_RUNTIME SOL',
+                                           source = 'particle.cpp  ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')

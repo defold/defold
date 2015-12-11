@@ -5,7 +5,7 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
-    libs = 'SCRIPT GTEST EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
+    libs = 'SCRIPT GTEST EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT SOL SOL_RUNTIME'
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,

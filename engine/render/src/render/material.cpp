@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <string.h>
 
+#include <dlib/sol.h>
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
@@ -26,10 +27,28 @@ namespace dmRender
     {
         return lhs.m_Tag < rhs.m_Tag;
     }
-
+    
+    extern "C"
+    {
+        ::Any sol_render_alloc_material();
+    }
+    
+    ::Type* GetMaterialSolType(dmRender::HMaterial material)
+    {
+        ::Any sol_material = sol_render_alloc_material();
+        return reflect_get_any_type(sol_material);
+    }
+    
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
-        Material* m = new Material;
+        // Sol allocation with size verification
+        ::Any sol_material = sol_render_alloc_material();
+        void *ptr = (void*)reflect_get_any_value(sol_material);
+        assert(dmSol::SizeOf(sol_material) == sizeof(Material));
+        runtime_pin(ptr);
+
+        Material* m = new (ptr) Material;
+        m->m_Valid = 1;
         m->m_RenderContext = render_context;
         m->m_VertexProgram = vertex_program;
         m->m_FragmentProgram = fragment_program;
@@ -116,9 +135,18 @@ namespace dmRender
 
     void DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material)
     {
+        assert(material->m_Valid);
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteProgram(graphics_context, material->m_Program);
-        delete material;
+        
+        material->~Material();
+        memset(material, 0x00, sizeof(Material));
+        runtime_unpin((void*)material);
+    }
+    
+    bool IsMaterialValid(dmRender::HMaterial material)
+    {
+        return material->m_Valid;
     }
 
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)

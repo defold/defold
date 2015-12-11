@@ -5,6 +5,7 @@ import "ddf/ddf_extensions.proto";
 option java_package = "com.dynamo.proto";
 option java_outer_classname = "DdfMath";
 
+option (sol_modulename) = "ddf_math";
 option (ddf_includes) = "vectormath/cpp/vectormath_aos.h";
 
 message Point3

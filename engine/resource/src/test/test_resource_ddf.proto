@@ -1,5 +1,9 @@
 package TestResource;
 
+import "ddf/ddf_extensions.proto";
+
+option (sol_modulename) = "test_resource_ddf";
+
 message ResourceContainerDesc
 {
     required string name = 1;

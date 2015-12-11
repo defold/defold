@@ -10,7 +10,7 @@ def build(bld):
 
     open_url = bld.new_task_gen(features = 'cxx cprogram',
                                  source = open_url_source,
-                                 uselib = 'THREAD',
+                                 uselib = 'THREAD SOL_RUNTIME SOL',
                                  uselib_local = "dlib",
                                  includes = ['../../src'],
                                  target = 'open_url')

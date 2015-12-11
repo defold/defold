@@ -10,6 +10,11 @@
 #include <graphics/graphics.h>
 #include "render/material_ddf.h"
 
+extern "C"
+{
+#include <sol/reflect.h>
+}
+
 namespace dmRender
 {
     using namespace Vectormath::Aos;
@@ -172,9 +177,14 @@ namespace dmRender
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagMask;
-        uintptr_t m_UserData;
-        uint32_t m_MajorOrder:2;
-        uint32_t m_Dispatch:8;
+
+        union {
+            uintptr_t m_UserData;
+            ::Any m_SolUserData;
+        };
+        
+        uint8_t  m_MajorOrder;
+        uint8_t  m_Dispatch;
     };
 
     enum RenderListOperation
@@ -188,13 +198,28 @@ namespace dmRender
     {
         HRenderContext m_Context;
         void* m_UserData;
+
         RenderListOperation m_Operation;
         RenderListEntry* m_Buf;
+        uint32_t* m_IndexBuf;
         uint32_t* m_Begin;
         uint32_t* m_End;
-    };
+    };    
 
     typedef void (*RenderListDispatchFn)(RenderListDispatchParams const &params);
+    
+    struct RenderListDispatchParamsSol
+    {
+        HRenderContext m_Context;
+        Any m_UserData;        
+        RenderListOperation m_Operation;
+        RenderListEntry* m_Entries;
+        uint32_t* m_Indices;
+        uint32_t m_RangeBegin;
+        uint32_t m_RangeEnd;
+    };
+
+    typedef void (*RenderListDispatchFnSol)(RenderListDispatchParamsSol* params);
 
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
@@ -205,6 +230,8 @@ namespace dmRender
 
     void RenderListBegin(HRenderContext render_context);
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data);
+    HRenderListDispatch RenderListMakeDispatchSol(HRenderContext render_context, RenderListDispatchFnSol fn, ::Any user_data);
+    
     RenderListEntry* RenderListAlloc(HRenderContext render_context, uint32_t entries);
     void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end);
     void RenderListEnd(HRenderContext render_context);
@@ -295,6 +322,9 @@ namespace dmRender
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, int unit, dmGraphics::HTexture texture);
+    
+    bool                            IsMaterialValid(dmRender::HMaterial material); // call with Material pointers provided from sol.
+    ::Type*                         GetMaterialSolType(dmRender::HMaterial material);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
@@ -343,7 +373,6 @@ namespace dmRender
     void                            AddMaterialTag(HMaterial material, uint32_t tag);
     void                            ClearMaterialTags(HMaterial material);
     uint32_t                        ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count);
-
 }
 
 #endif /* RENDER_H */

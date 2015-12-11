@@ -13,6 +13,8 @@
 #include "../dlib/http_client.h"
 #include "../dlib/hash.h"
 
+#include <dlib/sol.h>
+
 class dmHttpServerTest: public ::testing::Test
 {
 public:
@@ -317,9 +319,11 @@ TEST_F(dmHttpServerTest, TestServerClient)
 
 int main(int argc, char **argv)
 {
+    dmSol::Initialize();
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmSol::FinalizeWithCheck();
     return ret;
 }

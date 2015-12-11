@@ -63,7 +63,7 @@ namespace dmGameSystem
         // Assume 4 vertices per mesh
         world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
 
-        *params.m_World = world;
+        params.m_World->m_Ptr = world;
 
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
 
@@ -72,7 +72,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpineModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
         world->m_ScratchInstances.SetCapacity(0);
@@ -294,7 +294,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpineModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
 
         if (world->m_Components.Full())
         {
@@ -350,7 +350,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpineModelDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         DestroyComponent(world, *params.m_UserData);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -1132,7 +1132,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         uint32_t index = (uint32_t)*params.m_UserData;
         SpineModelComponent* component = world->m_Components.Get(index);
         component->m_AddedToUpdate = true;
@@ -1141,7 +1141,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
 
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
@@ -1224,7 +1224,7 @@ namespace dmGameSystem
     {
         SpineModelContext* context = (SpineModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
 
         UpdateTransforms(world);
 
@@ -1311,7 +1311,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpineModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
@@ -1366,7 +1366,7 @@ namespace dmGameSystem
 
     void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
         OnResourceReloaded(world, component);
@@ -1374,7 +1374,7 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
         if (params.m_PropertyId == PROP_SKIN)
         {
@@ -1392,7 +1392,7 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_World.m_Ptr;
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
         if (params.m_PropertyId == PROP_SKIN)
         {

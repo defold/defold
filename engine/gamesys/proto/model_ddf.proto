@@ -5,6 +5,7 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.model.proto";
 option java_outer_classname = "Model";
+option (sol_modulename) = "model_ddf";
 
 message ModelDesc
 {

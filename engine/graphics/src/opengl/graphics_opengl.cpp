@@ -5,6 +5,9 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/hash.h>
+#include <dlib/sol.h>
+#include <new>
+
 #include <vectormath/cpp/vectormath_aos.h>
 
 #ifdef __EMSCRIPTEN__
@@ -652,21 +655,54 @@ static void LogFrameBufferError(GLenum status)
     {
         glfwSwapInterval(swap_interval);
     }
+    
+    extern "C"
+    {
+        ::Any sol_graphics_alloc_vertex_buffer();
+        ::Any sol_graphics_alloc_vertex_declaration();
+    }
+    
+    static GLuint GetVertexBufferId(HVertexBuffer hvb)
+    {
+        VertexBuffer* vb = (VertexBuffer*) hvb;
+        if (!vb->m_Valid)
+        {
+            dmLogError("Trying to get vertex buffer id from invalid buffer");
+            return 0;
+        } 
+        return vb->m_VboId;
+    }
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        ::Any sol_vb = sol_graphics_alloc_vertex_buffer();
+        assert(sizeof(VertexBuffer) == dmSol::SizeOf(sol_vb));
+        
+        VertexBuffer* vb = (VertexBuffer*) reflect_get_any_value(sol_vb);
+        vb->m_Valid = 1;
+    
+        glGenBuffersARB(1, &vb->m_VboId);
         CHECK_GL_ERROR
-        SetVertexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        
+        runtime_pin((void*)vb);
+        SetVertexBufferData((HVertexBuffer) vb, size, data, buffer_usage);
+        return (HVertexBuffer)vb;
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        VertexBuffer* vb = (VertexBuffer*) buffer;
+        if (!vb->m_Valid)
+        {
+            dmLogError("DeleteVertexBuffer: vertex buffer not valid");
+            return;
+        }
+        
+        glDeleteBuffersARB(1, &vb->m_VboId);
         CHECK_GL_ERROR
+        
+        vb->m_Valid = 0;
+        runtime_unpin((void*)vb);
     }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -676,7 +712,7 @@ static void LogFrameBufferError(GLenum status)
         if (size == 0) {
             return;
         }
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetVertexBufferId(buffer));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
         CHECK_GL_ERROR
@@ -687,7 +723,7 @@ static void LogFrameBufferError(GLenum status)
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetVertexBufferSubData");
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetVertexBufferId(buffer));
         CHECK_GL_ERROR
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR
@@ -763,9 +799,13 @@ static void LogFrameBufferError(GLenum status)
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
-        VertexDeclaration* vd = new VertexDeclaration;
-        memset(vd, 0, sizeof(VertexDeclaration));
-
+        ::Any sol_vd = sol_graphics_alloc_vertex_declaration();
+        assert(sizeof(VertexDeclaration) == dmSol::SizeOf(sol_vd));
+        void* buf = (void*) reflect_get_any_value(sol_vd);
+        runtime_pin(buf);
+    
+        VertexDeclaration* vd = new (buf) VertexDeclaration();
+        
         vd->m_Stride = 0;
         assert(count < (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
 
@@ -787,7 +827,7 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
-        delete vertex_declaration;
+        runtime_unpin((void*)vertex_declaration);
     }
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
@@ -797,7 +837,7 @@ static void LogFrameBufferError(GLenum status)
         assert(vertex_declaration);
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        glBindBufferARB(GL_ARRAY_BUFFER, GetVertexBufferId(vertex_buffer));
         CHECK_GL_ERROR
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
@@ -820,7 +860,6 @@ static void LogFrameBufferError(GLenum status)
 
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
     {
-
         uint32_t n = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = &vertex_declaration->m_Streams[0];
         for (uint32_t i=0; i < n; i++)
@@ -856,7 +895,7 @@ static void LogFrameBufferError(GLenum status)
 
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        glBindBufferARB(GL_ARRAY_BUFFER, GetVertexBufferId(vertex_buffer));
         CHECK_GL_ERROR
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
@@ -1349,7 +1388,7 @@ static void LogFrameBufferError(GLenum status)
         glGenTextures( 1, &t );
         CHECK_GL_ERROR
 
-        Texture* tex = new Texture;
+        Texture* tex = new Texture();
         tex->m_Type = params.m_Type;
         tex->m_Texture = t;
 
@@ -1363,17 +1402,20 @@ static void LogFrameBufferError(GLenum status)
             tex->m_OriginalWidth = params.m_OriginalWidth;
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
-
+        
+        tex->m_Valid = 1;
         return (HTexture) tex;
     }
 
     void DeleteTexture(HTexture texture)
     {
         assert(texture);
-
+        
         glDeleteTextures(1, &texture->m_Texture);
         CHECK_GL_ERROR
 
+        texture->m_Valid = 0;
+//        runtime_unpin((void*)texture);
         delete texture;
     }
 
@@ -1798,5 +1840,5 @@ static void LogFrameBufferError(GLenum status)
         GL_TEXTURE29,
         GL_TEXTURE30,
         GL_TEXTURE31
-    };
+    };   
 }

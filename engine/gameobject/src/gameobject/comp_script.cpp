@@ -21,7 +21,7 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            *params.m_World = new ScriptWorld();
+            params.m_World->m_Ptr = new ScriptWorld();
             return CREATE_RESULT_OK;
         }
         else
@@ -32,9 +32,9 @@ namespace dmGameObject
 
     CreateResult CompScriptDeleteWorld(const ComponentDeleteWorldParams& params)
     {
-        if (params.m_World != 0x0)
+        if (params.m_World.m_Ptr != 0x0)
         {
-            delete (ScriptWorld*)params.m_World;
+            delete (ScriptWorld*) params.m_World.m_Ptr;
             return CREATE_RESULT_OK;
         }
         else
@@ -46,7 +46,7 @@ namespace dmGameObject
     CreateResult CompScriptCreate(const ComponentCreateParams& params)
     {
         HScript script = (HScript)params.m_Resource;
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        ScriptWorld* script_world = (ScriptWorld*) params.m_World.m_Ptr;
         if (script_world->m_Instances.Full())
         {
             dmLogError("Could not create script component, out of resources.");
@@ -123,7 +123,7 @@ namespace dmGameObject
 
     CreateResult CompScriptDestroy(const ComponentDestroyParams& params)
     {
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        ScriptWorld* script_world = (ScriptWorld*) params.m_World.m_Ptr;
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
         {
@@ -195,7 +195,7 @@ namespace dmGameObject
         UpdateResult result = UPDATE_RESULT_OK;
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        ScriptWorld* script_world = (ScriptWorld*) params.m_World.m_Ptr;
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {

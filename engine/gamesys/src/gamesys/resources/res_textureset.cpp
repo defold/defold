@@ -2,11 +2,18 @@
 #include "res_textureset.h"
 
 #include <render/render_ddf.h>
-
+#include <dlib/log.h>
 #include "../gamesys.h"
+
+#include <new>
 
 namespace dmGameSystem
 {
+    extern "C"
+    {
+        ::Any sol_res_textureset_alloc();
+    }
+
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
@@ -68,10 +75,6 @@ namespace dmGameSystem
                 tile_set->m_AnimationIds.Put(h, i);
             }
         }
-        else
-        {
-            dmDDF::FreeMessage(texture_set_ddf);
-        }
         return r;
     }
 
@@ -81,7 +84,10 @@ namespace dmGameSystem
             dmResource::Release(factory, tile_set->m_Texture);
 
         if (tile_set->m_TextureSet)
-            dmDDF::FreeMessage(tile_set->m_TextureSet);
+        {
+            // GC:ed
+            tile_set->m_TextureSet = 0;
+        }
 
         if (tile_set->m_HullSet)
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
@@ -89,6 +95,8 @@ namespace dmGameSystem
 
     dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params)
     {
+        // Would like to do a sol load here, but unfortunately cannot do that here because this might
+        // run on a separate thread
         dmGameSystemDDF::TextureSet* texture_set_ddf;
         dmDDF::Result e  = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &texture_set_ddf);
         if ( e != dmDDF::RESULT_OK )
@@ -97,25 +105,45 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params.m_HintInfo, texture_set_ddf->m_Texture);
-
-        *params.m_PreloadData = texture_set_ddf;
+        dmDDF::FreeMessage(texture_set_ddf);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResTextureSetCreate(const dmResource::ResourceCreateParams& params)
     {
-        TextureSetResource* tile_set = new TextureSetResource();
+        // Alloc through sol function so this resource can be accesesd type-safely
+        //
+        // NOTE: The TextureSetResource sol struct holds a reference to this struct once everything is set up
+        //       so it can be runtime_unpin:ed immediately as long as TextureSetResource is held.
+        //
+        dmGameSystemDDF::TextureSet* texture_set_ddf;
+        dmDDF::Result e = dmDDF::LoadMessageSol(params.m_Buffer, params.m_BufferSize, &texture_set_ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, (dmGameSystemDDF::TextureSet*) params.m_PreloadData, tile_set, params.m_Filename, false);
+        ::Any tile_set_sol = sol_res_textureset_alloc();
+        assert(dmSol::SizeOf(tile_set_sol) == sizeof(TextureSetResource));
+        void* ptr = (TextureSetResource*) reflect_get_any_value(tile_set_sol);
+        runtime_pin(ptr);
+
+        TextureSetResource* tile_set = new (ptr) TextureSetResource();
+        dmResource::Result r = AcquireResources(((PhysicsContext*)params.m_Context)->m_Context2D, params.m_Factory, texture_set_ddf, tile_set, params.m_Filename, false);
+
         if (r == dmResource::RESULT_OK)
         {
+            tile_set->m_Valid = 1;
             params.m_Resource->m_Resource = (void*) tile_set;
+            params.m_Resource->m_SolType = reflect_get_any_type(tile_set_sol);
         }
         else
         {
             ReleaseResources(params.m_Factory, tile_set);
-            delete tile_set;
+            runtime_unpin(ptr);
         }
+
+        runtime_unpin((void*)texture_set_ddf);
         return r;
     }
 
@@ -123,14 +151,16 @@ namespace dmGameSystem
     {
         TextureSetResource* tile_set = (TextureSetResource*) params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, tile_set);
-        delete tile_set;
+        tile_set->~TextureSetResource();
+        memset(tile_set, 0x00, sizeof(TextureSetResource));
+        runtime_unpin(tile_set);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResTextureSetRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmGameSystemDDF::TextureSet* texture_set_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &texture_set_ddf);
+        dmDDF::Result e = dmDDF::LoadMessageSol(params.m_Buffer, params.m_BufferSize, &texture_set_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -153,6 +183,21 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, &tmp_tile_set);
         }
+
+        // GC:ed by inclusion in the struct.
+        runtime_unpin(texture_set_ddf);
         return r;
+    }
+
+    extern "C"
+    {
+        int SolTextureSetResourceGetAnimationById(TextureSetResource* res, dmhash_t h)
+        {
+            if (uint32_t *get = res->m_AnimationIds.Get(h))
+            {
+                return (int32_t) *get;
+            }
+            return -1;
+        }
     }
 }

@@ -14,10 +14,12 @@ def init():
 
 def set_options(opt):
     opt.tool_options('waf_dynamo')
+    opt.tool_options('waf_sol')
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('waf_ddf')
+    conf.check_tool('waf_sol')
 
     waf_ddf.configure(conf)
 
