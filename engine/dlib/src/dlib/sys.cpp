@@ -473,7 +473,7 @@ namespace dmSys
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {
         // find first separator ("-" or "_")
-        size_t lang_len = lang == 0x0 ? 0 : strlen(lang);
+        size_t lang_len = lang ? strlen(lang) : 0;
         if(lang_len == 0)
         {
             lang = "en_US";
@@ -481,7 +481,7 @@ namespace dmSys
             dmLogWarning("Invalid language parameter (empty field), using default: \"%s\"", lang);
         }
         const char* sep_first = lang;
-        while((*sep_first != '\0') && (*sep_first != '-') && (*sep_first != '_'))
+        while((*sep_first) && (*sep_first != '-') && (*sep_first != '_'))
             ++sep_first;
         const char* sep_last = lang + lang_len;
         while((sep_last != sep_first) && (*sep_last != '-') && (*sep_last != '_'))
