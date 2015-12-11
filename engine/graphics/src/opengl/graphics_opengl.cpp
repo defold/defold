@@ -507,6 +507,10 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
+        GLint max_texture_size;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
+        context->m_MaxTextureSize = max_texture_size;
+
         return WINDOW_RESULT_OK;
     }
 
@@ -1269,8 +1273,8 @@ static void LogFrameBufferError(GLenum status)
 #endif
         }
 
-		CHECK_GL_FRAMEBUFFER_ERROR
-		glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+        CHECK_GL_FRAMEBUFFER_ERROR
+        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR
 
         return rt;
@@ -1334,6 +1338,11 @@ static void LogFrameBufferError(GLenum status)
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
+    uint32_t GetMaxTextureSize(HContext context)
+    {
+        return context->m_MaxTextureSize;
+    }
+
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
         GLuint t;
@@ -1348,11 +1357,11 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Height = params.m_Height;
 
         if (params.m_OriginalWidth == 0){
-        	tex->m_OriginalWidth = params.m_Width;
-        	tex->m_OriginalHeight = params.m_Height;
+            tex->m_OriginalWidth = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
         } else {
-        	tex->m_OriginalWidth = params.m_OriginalWidth;
-        	tex->m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_OriginalWidth = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
         return (HTexture) tex;
@@ -1399,6 +1408,10 @@ static void LogFrameBufferError(GLenum status)
             default:
                 break;
         }
+
+        // Responsibility is on caller to not send in too big textures.
+        assert(params.m_Width <= g_Context->m_MaxTextureSize);
+        assert(params.m_Height <= g_Context->m_MaxTextureSize);
 
         int unpackAlignment = 4;
         /*
@@ -1453,7 +1466,6 @@ static void LogFrameBufferError(GLenum status)
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
-
         case TEXTURE_FORMAT_RGB_DXT1:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1;
             break;
@@ -1499,6 +1511,7 @@ static void LogFrameBufferError(GLenum status)
                 } else {
                     glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
                 }
+                CHECK_GL_ERROR
             } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                 const char* p = (const char*) params.m_Data;
                 if (params.m_SubUpdate) {
