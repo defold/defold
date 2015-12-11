@@ -221,9 +221,6 @@ namespace dmRender
         // and we give them render orders statically here
         FlushTexts(render_context, 0xffffff, true);
 
-        // These will be sorted into when dispatched.
-        render_context->m_RenderListSortBuffer.SetCapacity(render_context->m_RenderListSortIndices.Capacity());
-        render_context->m_RenderListSortBuffer.SetSize(0);
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
@@ -342,9 +339,13 @@ namespace dmRender
     {
         const uint32_t count = context->m_RenderListSortIndices.Size();
 
-        // This is where the values go
-        context->m_RenderListSortValues.SetCapacity(context->m_RenderListSortIndices.Capacity());
+        const uint32_t required_capacity = context->m_RenderListSortIndices.Capacity();
+        // SetCapacity does early out if they are the same, so just call anyway.
+        context->m_RenderListSortBuffer.SetCapacity(required_capacity);
+        context->m_RenderListSortBuffer.SetSize(0);
+        context->m_RenderListSortValues.SetCapacity(required_capacity);
         context->m_RenderListSortValues.SetSize(context->m_RenderListSortIndices.Size());
+
         RenderListSortValue* sort_values = context->m_RenderListSortValues.Begin();
 
         const Matrix4& transform = context->m_ViewProj;
@@ -353,7 +354,6 @@ namespace dmRender
         float minZW = FLT_MAX;
         float maxZW = -FLT_MAX;
 
-        context->m_RenderListSortBuffer.SetSize(0);
 
         // Write z values and compute range
         int c = 0;
