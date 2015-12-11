@@ -87,6 +87,21 @@ namespace dmGameSystem
                 }
             }
 
+            uint32_t max_size = dmGraphics::GetMaxTextureSize(context);
+            if (params.m_Width > max_size || params.m_Height > max_size) {
+                // SetTexture will fail if texture is too big; fall back to 1x1 texture.
+                dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
+                const static uint8_t blank[6*4] = {0};
+                params.m_Width = 1;
+                params.m_Height = 1;
+                params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+                params.m_Data = blank;
+                params.m_DataSize = 4;
+                params.m_MipMap = 0;
+                dmGraphics::SetTexture(texture, params);
+                break;
+            }
+
             for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
             {
                 params.m_MipMap = i;
@@ -169,7 +184,7 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        
+
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HTexture texture = (dmGraphics::HTexture)resource->m_Resource;
         dmResource::Result r = AcquireResources(graphics_context, texture_image, texture, &texture);

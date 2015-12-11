@@ -268,19 +268,19 @@ namespace dmGraphics
 
     struct TextureCreationParams {
 
-    	TextureCreationParams() :
-    	    m_Type(TEXTURE_TYPE_2D),
-    		m_Width(0),
-    		m_Height(0),
-    		m_OriginalWidth(0),
-    		m_OriginalHeight(0)
-    	{}
+        TextureCreationParams() :
+            m_Type(TEXTURE_TYPE_2D),
+            m_Width(0),
+            m_Height(0),
+            m_OriginalWidth(0),
+            m_OriginalHeight(0)
+        {}
 
         TextureType   m_Type;
-		uint16_t m_Width;
-		uint16_t m_Height;
-		uint16_t m_OriginalWidth;
-		uint16_t m_OriginalHeight;
+        uint16_t m_Width;
+        uint16_t m_Height;
+        uint16_t m_OriginalWidth;
+        uint16_t m_OriginalHeight;
     };
 
     struct TextureParams
@@ -571,6 +571,7 @@ namespace dmGraphics
     uint16_t GetOriginalTextureHeight(HTexture texture);
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
+    uint32_t GetMaxTextureSize(HContext context);
 
     /**
      * Read frame buffer pixels in BGRA format
