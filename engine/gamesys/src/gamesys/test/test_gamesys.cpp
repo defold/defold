@@ -62,12 +62,15 @@ TEST_P(ResourceTest, TestPreload)
     void* resource;
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
-    for (uint32_t i=0;i<50;i++)
+    // 30 frames * 300 @ 30 fp ~= 10 seconds
+    // should be enough even on a busy linux test box
+    for (uint32_t i=0;i<300;i++)
     {
-        r = dmResource::UpdatePreloader(pr, 10*1000);
+        // Simulate running at 30fps
+        r = dmResource::UpdatePreloader(pr, 33*1000);
         if (r != dmResource::RESULT_PENDING)
             break;
-        dmTime::Sleep(10*1000);
+        dmTime::Sleep(33*1000);
     }
     
     ASSERT_EQ(dmResource::RESULT_OK, r);
