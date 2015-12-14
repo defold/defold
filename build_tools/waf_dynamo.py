@@ -45,7 +45,7 @@ IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeD
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 ARM_TVOS_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
 IOS_SDK_VERSION="9.1"
-TVOS_SDK_VERSION="9.0"
+TVOS_SDK_VERSION="9.1"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
@@ -104,8 +104,8 @@ def default_flags(self):
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-mtvos-version-min=%s' % MIN_TVOS_SDK_VERSION, '-isysroot', '%s/SDKs/AppleTVOS%s.sdk' % (ARM_TVOS_ROOT, MIN_TVOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/AppleTVOS%s.sdk' % (ARM_TVOS_ROOT, MIN_TVOS_SDK_VERSION), '-mtvos-version-min=%s' % MIN_TVOS_SDK_VERSION])
+            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-mtvos-version-min=%s' % MIN_TVOS_SDK_VERSION, '-isysroot', '%s/SDKs/AppleTVOS%s.sdk' % (ARM_TVOS_ROOT, TVOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/AppleTVOS%s.sdk' % (ARM_TVOS_ROOT, TVOS_SDK_VERSION), '-mtvos-version-min=%s' % MIN_TVOS_SDK_VERSION])
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
