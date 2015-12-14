@@ -57,14 +57,14 @@ TEST_P(ResourceTest, Test)
 }
 
 TEST_P(ResourceTest, TestPreload)
-{    
+{
     const char* resource_name = GetParam();
     void* resource;
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
-    // 30 frames * 300 @ 30 fp ~= 10 seconds
-    // should be enough even on a busy linux test box
-    for (uint32_t i=0;i<300;i++)
+
+    uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+    while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
         r = dmResource::UpdatePreloader(pr, 33*1000);
@@ -72,10 +72,10 @@ TEST_P(ResourceTest, TestPreload)
             break;
         dmTime::Sleep(33*1000);
     }
-    
+
     ASSERT_EQ(dmResource::RESULT_OK, r);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
-    
+
     dmResource::DeletePreloader(pr);
     dmResource::Release(m_Factory, resource);
 }
