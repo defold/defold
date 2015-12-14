@@ -76,7 +76,9 @@ public class FontEditor extends DdfEditor {
                             }
                         }
 
-                        final BufferedImage awtImage = Fontc.compileToImage(new ByteArrayInputStream(cachedFont), fontDesc, new FontResourceResolver() {
+                        //final BufferedImage awtImage = Fontc.generatePreviewImage(new ByteArrayInputStream(cachedFont), fontDesc, new FontResourceResolver() {
+                        Fontc fontc = new Fontc();
+                        final BufferedImage awtImage = fontc.compile(new ByteArrayInputStream(cachedFont), fontDesc, true, new FontResourceResolver() {
 
                             @Override
                             public InputStream getResource(String resourceName)

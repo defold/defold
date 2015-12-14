@@ -22,8 +22,11 @@ ordinary paths."
 
 (def build-dir "/build/default/")
 
+(defn project-path [workspace]
+  (g/node-value workspace :root))
+
 (defn build-path [workspace]
-  (str (g/node-value workspace :root) build-dir))
+  (str (project-path workspace) build-dir))
 
 (defrecord BuildResource [resource prefix]
   Resource

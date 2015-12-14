@@ -657,8 +657,8 @@
   (if ys
     (apply aggregate-properties (aggregate-properties x y) ys)
     (-> x
-        (update :properties merge x (:properties y))
-        (update :display-order #(conj (or % []) (:display-order y))))))
+        (update :properties merge (:properties y))
+        (update :display-order #(into (or % []) (:display-order y))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph

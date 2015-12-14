@@ -71,8 +71,8 @@ namespace dmSys
         char m_SystemVersion[32];
         /// ISO 639 language code
         char m_Language[8];
-        /// ISO 639 device language code. Reflects UI language and typically same as m_Language.
-        char m_DeviceLanguage[8];
+        /// ISO 639 device language code and optional dash (–) followed by an ISO 15924 script code. Reflects UI language and typically same as m_Language.
+        char m_DeviceLanguage[16];
         ///  ISO 3166 country code
         char m_Territory[8];
         /// Offset to GMT in minutes

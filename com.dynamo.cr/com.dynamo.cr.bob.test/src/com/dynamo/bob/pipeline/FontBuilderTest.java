@@ -29,12 +29,9 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("font: \"/Tuffy.ttf\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
+
         FontMap fontMap = (FontMap)build("/test.font", src.toString()).get(0);
-
         assertEquals(fontMap.getMaterial(), "/test.materialc");
-        assertEquals(fontMap.getTexturesCount(), 1);
-        assertEquals(fontMap.getTextures(0), "/test_tex0.texturec");
-
     }
 
     @Test
@@ -47,8 +44,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = (FontMap)build("/test.font", src.toString()).get(0);
 
         assertEquals(fontMap.getMaterial(), "/test.materialc");
-        assertEquals(fontMap.getTexturesCount(), 1);
-        assertEquals(fontMap.getTextures(0), "/test_tex0.texturec");
 
     }
 
@@ -65,8 +60,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = (FontMap)build("/subdir/test.font", src.toString()).get(0);
 
         assertEquals(fontMap.getMaterial(), "/test.materialc");
-        assertEquals(fontMap.getTexturesCount(), 1);
-        assertEquals(fontMap.getTextures(0), "/subdir/test_tex0.texturec");
 
     }
 }

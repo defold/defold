@@ -41,6 +41,10 @@ protected:
         dmScript::Initialize(m_ScriptContext);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
+        font_map_params.m_CacheWidth = 128;
+        font_map_params.m_CacheHeight = 128;
+        font_map_params.m_CacheCellWidth = 8;
+        font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_Glyphs.SetCapacity(128);
         font_map_params.m_Glyphs.SetSize(128);
         memset((void*)&font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*128);
@@ -590,7 +594,7 @@ TEST_F(dmRenderScriptTest, TestPostToSelf)
 TEST_F(dmRenderScriptTest, TestDrawText)
 {
     const char* script =
-        "function init(self)\n"
+        "function update(self, dt)\n"
         "    msg.post(\".\", \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\"})\n"
         "end\n";
 
@@ -601,6 +605,20 @@ TEST_F(dmRenderScriptTest, TestDrawText)
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
+    // We do three updates here,
+    // First update: A "draw_text" message is sent
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    dmRender::FlushTexts(m_Context, 0, true);
+
+    // Second update: "draw_text" is processed, but no glyphs are in font cache,
+    //                they are marked as missing and uploaded. A new "draw_text" also is sent.
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    dmRender::FlushTexts(m_Context, 0, true);
+
+    // Third update: The second "draw_text" is processed, this time the glyphs are uploaded
+    //               and the text is drawn.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
     dmRender::FlushTexts(m_Context, 0, true);

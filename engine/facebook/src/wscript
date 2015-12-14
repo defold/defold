@@ -16,6 +16,7 @@ def build(bld):
         source += ' facebook_android.cpp'
 
         classpath = ['%s/ext/share/java/facebooksdk.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/bolts-android-1.2.0.jar' % bld.env.DYNAMO_HOME,
                      '%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
                      '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
                      '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME]

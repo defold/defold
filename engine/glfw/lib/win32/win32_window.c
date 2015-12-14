@@ -729,6 +729,8 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
             }
 
             _glfwWin.iconified = iconified;
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback( _glfwWin.active ? 1 : 0 );
             return 0;
         }
 

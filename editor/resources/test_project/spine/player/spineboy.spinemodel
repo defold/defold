@@ -1,0 +1,5 @@
+spine_scene: "/spine/player/spineboy.spinescene"
+default_animation: "idle"
+skin: ""
+blend_mode: BLEND_MODE_ALPHA
+material: "/builtins/materials/sprite.material"

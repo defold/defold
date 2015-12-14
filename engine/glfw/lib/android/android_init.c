@@ -183,6 +183,7 @@ static void computeIconifiedState()
 
 static void handleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
+
     switch (cmd)
     {
     case APP_CMD_SAVE_STATE:
@@ -231,6 +232,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
         computeIconifiedState();
+        if(_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(1);
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
@@ -242,6 +245,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
         computeIconifiedState();
+        if(_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(0);
         break;
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;

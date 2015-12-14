@@ -2,6 +2,7 @@
   (:require [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -12,6 +13,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.resource :as resource]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -21,6 +23,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Vector4d Matrix4d Point3d Quat4d]
            [editor.gl.shader ShaderLifecycle]))
+
+(set! *warn-on-reflection* true)
 
 (def pb-def {:ext "material"
              :icon "icons/32/Icons_31-Material.png"
@@ -145,6 +149,32 @@
     :constant-type-normal :normal
     :constant-type-worldview :world-view))
 
+(def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
+                              :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
+                              :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
+
+(def ^:private filter-mode-min->gl {:filter-mode-min-nearest GL2/GL_NEAREST
+                                    :filter-mode-min-linear GL2/GL_LINEAR
+                                    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
+                                    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
+                                    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
+                                    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR})
+
+(def ^:private filter-mode-mag->gl {:filter-mode-mag-nearest GL2/GL_NEAREST
+                                    :filter-mode-mag-linear GL2/GL_LINEAR})
+
+(def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
+                                :wrap-v :wrap-mode-clamp-to-edge
+                                :filter-min :filter-mode-min-linear
+                                :filter-mag :filter-mode-mag-linear})
+
+(defn sampler->tex-params [sampler]
+  (let [s (or sampler default-sampler)]
+    {:wrap-s (wrap-mode->gl (:wrap-u s))
+     :wrap-t (wrap-mode->gl (:wrap-v s))
+     :min-filter (filter-mode-min->gl (:filter-min s))
+     :mag-filter (filter-mode-mag->gl (:filter-mag s))}))
+
 (g/defnode MaterialNode
   (inherits project/ResourceNode)
 
@@ -152,14 +182,17 @@
   (property def g/Any (dynamic visible (g/always false)))
   (property vertex-program (g/protocol resource/Resource)
     (dynamic visible (g/always false))
-    (value (g/fnk [vertex-resource] vertex-resource))
+    (value (gu/passthrough vertex-resource))
     (set (project/gen-resource-setter [[:resource :vertex-resource]
-                                       [:full-source :vertex-source]])))
+                                       [:full-source :vertex-source]]))
+    (validate (validation/validate-resource vertex-program)))
+
   (property fragment-program (g/protocol resource/Resource)
     (dynamic visible (g/always false))
-    (value (g/fnk [fragment-resource] fragment-resource))
+    (value (gu/passthrough fragment-resource))
     (set (project/gen-resource-setter [[:resource :fragment-resource]
-                                       [:full-source :fragment-source]])))
+                                       [:full-source :fragment-source]]))
+    (validate (validation/validate-resource fragment-program)))
 
   (output form-data g/Any :cached produce-form-data)
 
@@ -175,26 +208,19 @@
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
                                            (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
                                              (shader/make-shader _node-id vertex-source fragment-source uniforms))))
-  (output sampler-data {g/Keyword g/Any} (g/fnk [_node-id pb]
-                                           {:magerial-id _node-id
-                                            :samplers (:samplers pb)})))
+  (output samplers [{g/Keyword g/Any}] :cached (g/fnk [pb] (vec (:samplers pb)))))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
-
-(def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
-                                :wrap-v :wrap-mode-clamp-to-edge
-                                :filter-min :filter-mode-min-linear
-                                :filter-mag :filter-mode-mag-linear})
 
 (defn load-material [project self resource]
   (let [def pb-def
         pb (protobuf/read-text (:pb-class def) resource)
         pb (-> pb
              (update :samplers into
-              (mapv (fn [tex] (assoc default-sampler :name tex))
-                (:textures pb)))
+                     (mapv (fn [tex] (assoc default-sampler :name tex))
+                       (:textures pb)))
              (dissoc :textures))]
     (concat
       (g/set-property self :pb pb)
@@ -222,33 +248,3 @@
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
-
-(def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
-                              :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
-                              :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
-
-(def ^:private filter-mode-min->gl {:filter-mode-min-nearest GL2/GL_NEAREST
-                                    :filter-mode-min-linear GL2/GL_LINEAR
-                                    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
-                                    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
-                                    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
-                                    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR})
-
-(def ^:private filter-mode-mag->gl {:filter-mode-mag-nearest GL2/GL_NEAREST
-                                    :filter-mode-mag-linear GL2/GL_LINEAR})
-
-(defn- sampler->tex-params [sampler]
-  {:wrap-s (wrap-mode->gl (:wrap-u sampler))
-   :wrap-t (wrap-mode->gl (:wrap-v sampler))
-   :min-filter (filter-mode-min->gl (:filter-min sampler))
-   :mag-filter (filter-mode-mag->gl (:filter-mag sampler))})
-
-(defn make-textures [image-data sampler-data]
-  (let [samplers (:samplers sampler-data)
-        samplers (cond-> samplers
-                   (< (count samplers) (count image-data))
-                   (concat samplers (repeat (- (count image-data) (count samplers)) default-sampler)))]
-    (assert (= (count samplers) (count image-data)) (format "sampler count (%d) and image count (%d) differ" (count samplers) (count image-data)))
-    (let [material-id (:material-id sampler-data)]
-      (mapv (fn [img-data [index params]] (texture/image-texture [material-id (:image-id img-data)] (:image img-data) params index))
-        image-data (map-indexed vector (map sampler->tex-params samplers))))))

@@ -31,6 +31,7 @@ protected:
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 2;
         params.m_ScriptContext = m_ScriptContext;
+        params.m_MaxDebugVertexCount = 256;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
     }
 
@@ -249,6 +250,29 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     ASSERT_EQ(ctx.m_EndCalls, 1);
     ASSERT_EQ(ctx.m_Order, orders[2]); // highest after world entry
     ASSERT_EQ(ctx.m_Z, orders[1]);
+}
+
+TEST_F(dmRenderTest, TestRenderListDebug)
+{
+    // Test submitting debug drawing when there is no other drawing going on
+
+    // See DEF-1475 Crash: Physics debug with one GO containing collision object crashes engine
+    //
+    //   Reason: Render system failed to set Capacity properly to account for debug
+    //           render objects being flushed in during render.
+
+    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
+    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(0,0,0,0));
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawDebug2d(m_Context);
+    dmRender::DrawDebug3d(m_Context);
 }
 
 static float Metric(const char* text, int n)

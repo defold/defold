@@ -1,0 +1,4 @@
+tile_set: ""
+default_animation: ""
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

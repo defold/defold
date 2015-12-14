@@ -610,18 +610,3 @@
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
 
-(g/defnode PropertyAugmentNode
-  (property a-property g/Int (default 0))
-  (property b-property g/Str (default ""))
-
-  (output _properties g/Properties
-          (g/fnk [_declared-properties]
-                 (assoc _declared-properties :augmented true))))
-
-(deftest properties-can-be-altered
-  (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world PropertyAugmentNode))
-          props  (g/node-value node :_properties)]
-      (is (contains? (:properties props) :a-property))
-      (is (contains? (:properties props) :b-property))
-      (is (= true (:augmented props))))))

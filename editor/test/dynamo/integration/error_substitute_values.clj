@@ -14,7 +14,7 @@
 
 (g/defnode SimpleArrayTestNode
   (input my-input g/Str :array)
-  (output passthrough [g/Str] (g/fnk [my-input] my-input)))
+  (output passthrough [(g/maybe g/Str)] (g/fnk [my-input] my-input)))
 
 (deftest test-producing-values-without-substitutes
   (testing "values with no errors"
@@ -103,7 +103,7 @@
         (g/transact (g/connect onode :my-output tnode :my-input))
         (is (g/error? (g/node-value tnode :passthrough))))))
 
-  (with-redefs [in/warn (constantly nil)]
+  (binding [in/*suppress-schema-warnings* true]
     (testing "array values with errors"
       (with-clean-system
         (let [[onode atnode] (tx-nodes (g/make-node world ErrorOutputNode)
@@ -135,7 +135,7 @@
 
 (g/defnode SubArrayTestNode
   (input my-input g/Str :array :substitute (fn [_] ["beans"]))
-  (output passthrough [g/Str] (g/fnk [my-input] my-input)))
+  (output passthrough [(g/maybe g/Str)] (g/fnk [my-input] my-input)))
 
 (deftest test-producing-vals-with-nil-substitutes
   (testing "values with nils do not trigger substitutes"

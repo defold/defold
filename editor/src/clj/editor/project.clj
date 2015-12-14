@@ -187,12 +187,12 @@ ordinary paths."
           (flush)
           (recur))))))
 
-(defn- launch-engine [build-path]
+(defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
-                 (.directory (io/file build-path)))]
+                 (.directory launch-dir))]
     (let [p (.start pb)
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
@@ -371,12 +371,26 @@ ordinary paths."
     (enabled? [] true)
     (run [project] (let [workspace (g/node-value project :workspace)
                          game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))
-                         build-path (workspace/build-path (g/node-value project :workspace))]
+                         launch-path (workspace/project-path (g/node-value project :workspace))]
                      (build-and-write project game-project)
-                     (launch-engine build-path))))
+                     (launch-engine (io/file launch-path)))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
+
+(defn- disconnect-from-inputs [src tgt connections]
+  (let [outputs (set (g/output-labels (g/node-type* src)))
+        inputs (set (g/input-labels (g/node-type* tgt)))]
+    (for [[src-label tgt-label] connections
+          :when (and (outputs src-label) (inputs tgt-label))]
+      (g/disconnect src src-label tgt tgt-label))))
+
+(defn disconnect-resource-node [project path-or-resource consumer-node connections]
+  (let [resource (if (string? path-or-resource)
+                   (workspace/resolve-workspace-resource (workspace project) path-or-resource)
+                   path-or-resource)
+        node (get-resource-node project resource)]
+    (disconnect-from-inputs node consumer-node connections)))
 
 (defn connect-resource-node [project path-or-resource consumer-node connections]
   (if-let [resource (if (string? path-or-resource)
@@ -426,7 +440,7 @@ ordinary paths."
             (select project node-ids)))))))
 
 (deftype ProjectResourceListener [project-id]
-  workspace/ResourceListener
+  resource/ResourceListener
   (handle-changes [this changes]
     (handle-resource-changes project-id changes)))
 
@@ -450,9 +464,8 @@ ordinary paths."
     project-id))
 
 (defn gen-resource-setter [connections]
-  (fn [basis self _ new-value]
-      (if new-value
-        (let [project (get-project self)]
-          (connect-resource-node project new-value self connections))
-        (for [tgt-label (map second connections)]
-          (g/disconnect-sources basis self tgt-label)))))
+  (fn [basis self old-value new-value]
+    (let [project (get-project self)]
+      (concat
+       (when old-value (disconnect-resource-node project old-value self connections))
+       (when new-value (connect-resource-node project new-value self connections))))))

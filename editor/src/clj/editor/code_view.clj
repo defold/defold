@@ -95,6 +95,10 @@
           stage (.. parent getScene getWindow)]
       (ui/timer-stop-on-close! stage refresh-timer)
       (ui/timer-start! refresh-timer)
+      (let [^Tab tab (:tab opts)]
+        (ui/on-close tab
+                     (fn [e]
+                       (ui/timer-stop! refresh-timer))))
       view-id)))
 
 (defn register-view-types [workspace]

@@ -48,6 +48,7 @@ struct Push
             [m_SavedNotification release];
         }
         m_SavedNotification = 0;
+        m_SavedNotificationOrigin = DM_PUSH_EXTENSION_ORIGIN_LOCAL;
         m_ScheduledID = -1;
     }
 
@@ -57,6 +58,7 @@ struct Push
     id<UIApplicationDelegate> m_AppDelegate;
     PushListener         m_Listener;
     NSDictionary*        m_SavedNotification;
+    int                  m_SavedNotificationOrigin;
 
     int m_ScheduledID;
 };
@@ -202,6 +204,17 @@ static void RunListener(NSDictionary *userdata, bool local)
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
+    } else {
+        dmLogWarning("No push listener set, saving message.");
+
+        if (g_Push.m_SavedNotification) {
+            [g_Push.m_SavedNotification release];
+        }
+
+        // Save notification as push.set_listener may not be set at this point, e.g. when launching the app
+        // but clicking on the notification
+        g_Push.m_SavedNotification = [[NSDictionary alloc] initWithDictionary:userdata copyItems:YES];
+        g_Push.m_SavedNotificationOrigin = (local ? DM_PUSH_EXTENSION_ORIGIN_LOCAL : DM_PUSH_EXTENSION_ORIGIN_REMOTE);
     }
 }
 
@@ -212,17 +225,7 @@ static void RunListener(NSDictionary *userdata, bool local)
 @implementation PushAppDelegate
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
-    if (g_Push.m_Listener.m_Callback == LUA_NOREF) {
-        if (g_Push.m_SavedNotification) {
-            dmLogWarning("No push listener set. Message discarded.");
-        } else {
-            // Save notification as push.set_listener may not be set at this point, e.g. when launching the app
-            // but clicking on the notification
-            g_Push.m_SavedNotification = [[NSDictionary alloc] initWithDictionary:userInfo copyItems:YES];
-        }
-    } else {
-        RunListener(userInfo, false);
-    }
+    RunListener(userInfo, false);
 }
 
 - (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification {
@@ -233,7 +236,7 @@ static void RunListener(NSDictionary *userdata, bool local)
 {
     UILocalNotification *localNotification = [launchOptions objectForKey:UIApplicationLaunchOptionsLocalNotificationKey];
     if (localNotification) {
-        RunListener(localNotification.userInfo, true);
+        [self application:application didReceiveLocalNotification:localNotification];
     }
 
     NSDictionary *remoteNotification = [launchOptions objectForKey:UIApplicationLaunchOptionsRemoteNotificationKey];
@@ -252,7 +255,9 @@ static void RunListener(NSDictionary *userdata, bool local)
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
     dmLogWarning("Failed to register remote notifications: %s\n", [error.localizedDescription UTF8String]);
-    RunCallback(g_Push.m_L, g_Push.m_Callback, g_Push.m_Self, 0, error);
+    if (g_Push.m_Callback != LUA_NOREF) {
+        RunCallback(g_Push.m_L, g_Push.m_Callback, g_Push.m_Self, 0, error);
+    }
 }
 
 @end
@@ -424,7 +429,7 @@ int Push_SetListener(lua_State* L)
     push->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     if (g_Push.m_SavedNotification) {
-        [g_Push.m_AppDelegate application: [UIApplication sharedApplication] didReceiveRemoteNotification: g_Push.m_SavedNotification];
+        RunListener(g_Push.m_SavedNotification, g_Push.m_SavedNotificationOrigin == DM_PUSH_EXTENSION_ORIGIN_LOCAL);
         [g_Push.m_SavedNotification release];
         g_Push.m_SavedNotification = 0;
     }
@@ -785,4 +790,4 @@ dmExtension::Result FinalizePush(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(PushExt, "Push", AppInitializePush, AppFinalizePush, InitializePush, 0, FinalizePush)
+DM_DECLARE_EXTENSION(PushExt, "Push", AppInitializePush, AppFinalizePush, InitializePush, 0, 0, FinalizePush)

@@ -14,6 +14,7 @@ public class DispatcherActivity extends Activity {
 
     public interface PseudoActivity {
         void onCreate(Bundle savedInstanceState, Activity parent);
+        void onDestroy();
 
         void onActivityResult(int requestCode, int resultCode, Intent data);
     }
@@ -60,6 +61,9 @@ public class DispatcherActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (this.activity != null) {
+            this.activity.onDestroy();
+        }
         Log.v(TAG, "onDestroy");
     }
 

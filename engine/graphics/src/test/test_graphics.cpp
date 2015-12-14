@@ -387,7 +387,7 @@ TEST_F(dmGraphicsTest, TestViewport)
 
 TEST_F(dmGraphicsTest, TestTexture)
 {
-	dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureCreationParams creation_params;
     dmGraphics::TextureParams params;
 
     creation_params.m_Width = WIDTH;
@@ -413,9 +413,14 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(texture);
 }
 
+TEST_F(dmGraphicsTest, TestMaxTextureSize)
+{
+    ASSERT_NE(dmGraphics::GetMaxTextureSize(m_Context), 0);
+}
+
 TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
 {
-	dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureCreationParams creation_params;
     dmGraphics::TextureParams params;
 
     creation_params.m_Width = WIDTH;
@@ -441,12 +446,12 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
 
 TEST_F(dmGraphicsTest, TestRenderTarget)
 {
-	dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
     dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
     for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
     {
-    	creation_params[i].m_Width = WIDTH;
-    	creation_params[i].m_Height = HEIGHT;
+        creation_params[i].m_Width = WIDTH;
+        creation_params[i].m_Height = HEIGHT;
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
     }

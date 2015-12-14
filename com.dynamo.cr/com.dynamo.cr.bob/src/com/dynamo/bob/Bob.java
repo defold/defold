@@ -136,13 +136,17 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
+    public static String getDmengineExeName(Platform platform, boolean debug) {
         if(debug) {
-            return getExe(platform, "dmengine");
+            return "dmengine";
         }
         else {
-            return getExe(platform, "dmengine_release");
+            return "dmengine_release";
         }
+    }
+
+    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
+        return getExe(platform, getDmengineExeName(platform, debug));
     }
 
     public static String getLib(Platform platform, String name) throws IOException {

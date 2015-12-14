@@ -53,7 +53,7 @@
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button Control ColorPicker Label ListView TextField
-            TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+            TitledPane TextArea TreeItem TreeView Menu MenuItem MenuBar Tab TabPane ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]

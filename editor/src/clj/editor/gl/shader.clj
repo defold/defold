@@ -486,7 +486,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (delete-shader gl program)
   (make-shader-program gl data))
 
-(defn- destroy-shader-programs [^GL2 gl programs]
+(defn- destroy-shader-programs [^GL2 gl programs _]
   (doseq [[program _] programs]
     (delete-shader gl program)))
 

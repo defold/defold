@@ -81,14 +81,26 @@
          node-id   (test-util/resource-node project "/logic/main.gui")]
      (is (some? (g/node-value node-id :material-shader))))))
 
+(defn- font-resource-node [project gui-font-node]
+  (project/get-resource-node project (g/node-value gui-font-node :font)))
+
+(defn- build-targets-deps [gui-scene-node]
+  (map :node-id (:deps (first (g/node-value gui-scene-node :build-targets)))))
+
 (deftest gui-fonts
   (with-clean-system
    (let [workspace (test-util/setup-workspace! world)
          project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         font-node (get-in outline [:children 2 :children 0 :node-id])]
-     (is (some? (g/node-value font-node :font-map))))))
+         gui-scene-node   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value gui-scene-node :node-outline)
+         gui-font-node (get-in outline [:children 2 :children 0 :node-id])
+         old-font (font-resource-node project gui-font-node)
+         new-font (project/get-resource-node project "/fonts/big_score.font")]
+     (is (some? (g/node-value gui-font-node :font-map)))
+     (is (some #{old-font} (build-targets-deps gui-scene-node)))
+     (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
+     (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
+     (is (some #{new-font} (build-targets-deps gui-scene-node))))))
 
 (deftest gui-text-node
   (with-clean-system

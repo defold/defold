@@ -2,6 +2,8 @@
   (:require [clojure.string :as s]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
+            [editor.core :as core]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -21,7 +23,8 @@
             [editor.font :as font]
             [editor.dialogs :as dialogs]
             [editor.outline :as outline]
-            [editor.material :as material])
+            [editor.material :as material]
+            [editor.validation :as validation])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]
            [editor.types AABB]
@@ -142,7 +145,7 @@
   (let [[r g b a] color]
     [(* r a) (* g a) (* b a) a]))
 
-(defn- gen-vb [renderables]
+(defn- gen-vb [^GL2 gl renderables]
   (let [user-data (get-in renderables [0 :user-data])]
     (if (contains? user-data :geom-data)
       (let [[vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
@@ -155,14 +158,14 @@
                                     [[] [] []] renderables)]
         (->uv-color-vtx-vb vs uvs colors (count vs)))
       (if (contains? user-data :text-data)
-        (font/gen-vertex-buffer (get-in user-data [:text-data :font-data]) (map (fn [r] (let [alpha (get-in r [:user-data :color 3])
-                                                                                              text-data (get-in r [:user-data :text-data])]
-                                                                                          (-> text-data
-                                                                                            (assoc :world-transform (:world-transform r)
-                                                                                                   :color (get-in r [:user-data :color]))
-                                                                                            (update-in [:outline 3] * alpha)
-                                                                                            (update-in [:shadow 3] * alpha))))
-                                                                                renderables))
+        (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data]) (map (fn [r] (let [alpha (get-in r [:user-data :color 3])
+                                                                                                 text-data (get-in r [:user-data :text-data])]
+                                                                                             (-> text-data
+                                                                                               (assoc :world-transform (:world-transform r)
+                                                                                                      :color (get-in r [:user-data :color]))
+                                                                                               (update-in [:outline 3] * alpha)
+                                                                                               (update-in [:shadow 3] * alpha))))
+                                                                                   renderables))
         nil))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
@@ -170,7 +173,7 @@
         gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
-        vb (gen-vb renderables)
+        vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
       (let [shader (if (types/selection? (:pass render-args))
@@ -376,10 +379,6 @@
                               (g/connect self :material-shader gui-node :material-shader))
       :type-text (g/connect self :font-ids gui-node :font-ids)
       [])))
-
-(defn- disconnect-all [node-id label]
-  (for [[src-node-id src-label] (g/sources-of node-id label)]
-    (g/disconnect src-node-id src-label node-id label)))
 
 (def GuiSceneNode nil)
 
@@ -598,47 +597,67 @@
   (inherits outline/OutlineNode)
 
   (property name g/Str)
-  (input texture (g/protocol resource/Resource))
+  (property texture (g/protocol resource/Resource)
+            (value (gu/passthrough texture-resource))
+            (set (project/gen-resource-setter [[:resource :texture-resource]
+                                               [:packed-image :image]
+                                               [:anim-data :anim-data]
+                                               [:build-targets :dep-build-targets]]))
+            (validate (validation/validate-resource texture)))
+  
+  (input texture-resource (g/protocol resource/Resource))
   (input image BufferedImage)
   (input anim-data g/Any)
   (input image-texture g/NodeID :cascade-delete)
-  (input sampler-data {g/Keyword g/Any})
+  (input samplers [{g/Keyword g/Any}])
+
+  (input dep-build-targets g/Any)
+  (output dep-build-targets g/Any (g/fnk [dep-build-targets] dep-build-targets))
+  
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
                                     (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output node-outline outline/OutlineData (g/fnk [_node-id name]
                                              {:node-id _node-id
                                               :label name
                                               :icon texture-icon}))
-  (output pb-msg g/Any (g/fnk [name texture]
+  (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
-                          :texture (proj-path texture)}))
+                          :texture (proj-path texture-resource)}))
   (output texture-data g/Any (g/fnk [_node-id anim-data]
                                [_node-id (keys anim-data)]))
-  (output gpu-texture g/Any :cached (g/fnk [_node-id image sampler-data]
-                                      (first (material/make-textures [{:image-id _node-id :image image}] sampler-data)))))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id image samplers]
+                                           (let [params (material/sampler->tex-params (first samplers))]
+                                             (texture/set-params (texture/image-texture _node-id image) params)))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str)
   (property font (g/protocol resource/Resource)
-    (value (g/fnk [font-resource] font-resource))
-    (set (project/gen-resource-setter [[:resource :font-resource]
-                                       [:font-map :font-map]
-                                       [:font-data :font-data]
-                                       [:gpu-texture :gpu-texture]
-                                       [:material-shader :font-shader]])))
+            (value (gu/passthrough font-resource))
+            (set (project/gen-resource-setter [[:resource :font-resource]
+                                               [:font-map :font-map]
+                                               [:font-data :font-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:material-shader :font-shader]
+                                               [:build-targets :dep-build-targets]]))
+            (validate (validation/validate-resource font)))
+            
   (input font-resource (g/protocol resource/Resource))
   (input font-map g/Any)
   (input font-data font/FontData)
   (input font-shader ShaderLifecycle)
   (input gpu-texture g/Any)
+
+  (input dep-build-targets g/Any)
+  (output dep-build-targets g/Any :cached (g/fnk [dep-build-targets] dep-build-targets))
+  
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon font-icon}))
-  (output pb-msg g/Any (g/fnk [name font]
+  (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
-                               :font (proj-path font)}))
+                               :font (proj-path font-resource)}))
   (output font-map g/Any (g/fnk [font-map] font-map))
   (output font-data font/FontData (g/fnk [font-data] font-data))
   (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
@@ -774,9 +793,9 @@
                :children (mapv (partial apply-alpha 1.0) child-scenes)}]
     (sort-scene scene)))
 
-(g/defnk produce-pb-msg [script material adjust-reference node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
-  {:script (proj-path script)
-   :material (proj-path material)
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
+  {:script (proj-path script-resource)
+   :material (proj-path material-resource)
    :adjust-reference adjust-reference
    :nodes (map #(dissoc % :index) (sort-by :index node-msgs))
    :layers (map #(dissoc % :index) (sort-by :index layer-msgs))
@@ -825,15 +844,26 @@
 (g/defnode GuiSceneNode
   (inherits project/ResourceNode)
 
-  (property script (g/protocol resource/Resource))
+  (property script (g/protocol resource/Resource)
+            (value (gu/passthrough script-resource))
+            (set (project/gen-resource-setter [[:resource :script-resource]
+                                               [:build-targets :dep-build-targets]]))
+            (validate (validation/validate-resource script)))
+
+  
   (property material (g/protocol resource/Resource)
-    (value (g/fnk [material-resource] material-resource))
+    (value (gu/passthrough material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:shader :material-shader]
-                                       [:sampler-data :sampler-data]])))
+                                       [:samplers :samplers]
+                                       [:build-targets :dep-build-targets]]))
+    (validate (validation/validate-resource material)))
+  
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
+
+  (input script-resource (g/protocol resource/Resource))
 
   (input nodes-node g/NodeID)
   (input fonts-node g/NodeID)
@@ -861,8 +891,8 @@
   (input material-resource (g/protocol resource/Resource))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
-  (input sampler-data {g/Keyword g/Any})
-  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
+  (input samplers [{g/Keyword g/Any}])
+  (output samplers [{g/Keyword g/Any}] (g/fnk [samplers] samplers))
   (output aabb AABB (g/fnk [scene-dims child-scenes]
                            (let [w (:width scene-dims)
                                  h (:height scene-dims)
@@ -885,10 +915,6 @@
   (output font-ids {g/Str g/NodeID} :cached (g/fnk [font-ids] (into {} font-ids)))
   (output layer-ids {g/Str g/NodeID} :cached (g/fnk [layer-ids] (into {} layer-ids))))
 
-(defn- connect-build-targets [self project path]
-  (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
-    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
-
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
 
@@ -902,6 +928,7 @@
     (concat
       (g/connect font :_node-id self :nodes)
       (g/connect font :font-id self :font-ids)
+      (g/connect font :dep-build-targets self :dep-build-targets)
       (if (not default?)
         (concat
           (g/connect font :name self :font-names)
@@ -913,10 +940,11 @@
   (concat
     (g/connect texture :_node-id self :nodes)
     (g/connect texture :texture-data self :texture-data)
+    (g/connect texture :dep-build-targets self :dep-build-targets)
     (g/connect texture :pb-msg self :texture-msgs)
     (g/connect texture :name self :texture-names)
     (g/connect texture :node-outline textures-node :child-outlines)
-    (g/connect self :sampler-data texture :sampler-data)))
+    (g/connect self :samplers texture :samplers)))
 
 (defn- attach-layer [self layers-node layer]
   (concat
@@ -968,11 +996,8 @@
       (g/transact
         (concat
           (g/operation-label "Add Texture")
-          (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name]]
+          (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
             (attach-texture scene parent node)
-            (project/connect-resource-node project resource node [[:resource :texture]
-                                                                  [:packed-image :image]
-                                                                  [:anim-data :anim-data]])
             (project/select project [node])))))))
 
 (defn- add-font-handler [project {:keys [scene parent node-type]}]
@@ -1088,12 +1113,6 @@
       (g/set-property self :pb scene)
       (g/set-property self :def def)
       (g/connect project :settings self :project-settings)
-      (for [res (:resource-fields def)]
-        (if (vector? res)
-          (for [v (get scene (first res))]
-            (let [path (if (second res) (get v (second res)) v)]
-              (connect-build-targets self project path)))
-          (connect-build-targets self project (get scene res))))
       (g/make-nodes graph-id [fonts-node FontsNode]
                     (g/connect fonts-node :_node-id self :fonts-node)
                     (g/connect fonts-node :_node-id self :nodes)
@@ -1101,7 +1120,7 @@
                     (g/make-nodes graph-id [font [FontNode
                                                   :name ""
                                                   :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
-                                    (attach-font self fonts-node font true))
+                                  (attach-font self fonts-node font true))
                     (for [font-desc (:fonts scene)]
                       (g/make-nodes graph-id [font [FontNode
                                                     :name (:name font-desc)
@@ -1115,21 +1134,20 @@
                       (let [resource (workspace/resolve-resource resource (:texture texture-desc))
                             type (resource/resource-type resource)
                             outputs (g/declared-outputs (:node-type type))]
-                        ; Messy because we need to deal with legacy standalone image files
+                        ;; Messy because we need to deal with legacy standalone image files
                         (if (outputs :anim-data)
-                          (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc)]]
-                            (attach-texture self textures-node texture)
-                            (project/connect-resource-node project resource texture [[:resource :texture]
-                                                                                     [:packed-image :image]
-                                                                                     [:anim-data :anim-data]]))
+                          ;; TODO: have no tests for this
+                          (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
+                                        (attach-texture self textures-node texture))
                           (g/make-nodes graph-id [img-texture [ImageTextureNode]
                                                   texture [TextureNode :name (:name texture-desc)]]
-                            (g/connect img-texture :_node-id texture :image-texture)
-                            (g/connect img-texture :packed-image texture :image)
-                            (g/connect img-texture :anim-data texture :anim-data)
-                            (project/connect-resource-node project resource img-texture [[:content :image]])
-                            (project/connect-resource-node project resource texture [[:resource :texture]])
-                            (attach-texture self textures-node texture))))))
+                                        (g/connect img-texture :_node-id texture :image-texture)
+                                        (g/connect img-texture :packed-image texture :image)
+                                        (g/connect img-texture :anim-data texture :anim-data)
+                                        (project/connect-resource-node project resource img-texture [[:content :image]])
+                                        (project/connect-resource-node project resource texture [[:resource :texture-resource]
+                                                                                                 [:build-targets :dep-build-targets]])
+                                        (attach-texture self textures-node texture))))))
       (g/make-nodes graph-id [layers-node LayersNode]
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)

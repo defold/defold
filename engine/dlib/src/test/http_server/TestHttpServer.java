@@ -20,6 +20,21 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.server.bio.SocketConnector;
 import org.eclipse.jetty.server.ssl.SslSocketConnector;
 
+
+class TestSslSocketConnector extends SslSocketConnector
+{
+	@Override
+	public void accept(int acceptorID) throws IOException, InterruptedException
+	{
+        try {
+            Thread.sleep(10000); // milliseconds
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        super.accept(acceptorID);
+	}
+}
+
 public class TestHttpServer extends AbstractHandler
 {
     Pattern m_AddPattern = Pattern.compile("/add/(\\d+)/(\\d+)");
@@ -287,6 +302,13 @@ public class TestHttpServer extends AbstractHandler
             sslConnector.setKeystore("src/test/data/keystore");
             sslConnector.setKeyPassword("defold");
             server.addConnector(sslConnector);
+
+            TestSslSocketConnector testsslConnector = new TestSslSocketConnector();
+            testsslConnector.setMaxIdleTime(300);
+            testsslConnector.setPort(7002);
+            testsslConnector.setKeystore("src/test/data/keystore");
+            testsslConnector.setKeyPassword("defold");
+            server.addConnector(testsslConnector);
 
             HandlerList handlerList = new HandlerList();
             handlerList.addHandler(new TestHttpServer());

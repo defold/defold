@@ -130,7 +130,7 @@ namespace dmHttpClient
             m_Socket = 0;
             m_SSLConnection = 0;
         }
-        Result Connect(const char* host, uint16_t port, bool secure);
+        Result Connect(const char* host, uint16_t port, bool secure, int sslhandshaketimeout);
         ~Response();
     };
 
@@ -171,11 +171,11 @@ namespace dmHttpClient
         char                m_Buffer[BUFFER_SIZE + 1];
     };
 
-    Result Response::Connect(const char* host, uint16_t port, bool secure)
+    Result Response::Connect(const char* host, uint16_t port, bool secure, int sslhandshaketimeout)
     {
         m_Pool = g_PoolCreator.GetPool();
 
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, &m_Connection, &m_Client->m_SocketResult);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, sslhandshaketimeout, &m_Connection, &m_Client->m_SocketResult);
         if (r == dmConnectionPool::RESULT_OK) {
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
@@ -383,6 +383,7 @@ namespace dmHttpClient
                 uint64_t start = dmTime::GetTime();
                 r = ssl_read(response->m_SSLConnection, &buf);
                 uint64_t end = dmTime::GetTime();
+
                 uint64_t timeout = response->m_Client->m_RequestTimeout;
                 if (timeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
                     return dmSocket::RESULT_WOULDBLOCK;
@@ -969,7 +970,7 @@ bail:
             client->m_Statistics.m_Responses++;
 
             client->m_SocketResult = dmSocket::RESULT_OK;
-            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure);
+            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout);
             if (r != RESULT_OK) {
                 return r;
             }
