@@ -595,7 +595,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 }
 
 - (BOOL)createFramebuffer
-{	
+{
     glGenFramebuffers(1, &viewFramebuffer);
     glGenRenderbuffers(1, &viewRenderbuffer);
 
@@ -721,13 +721,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
         if (tvosJoystick[i].present != 0) {
-            
             if ([GCController controllers][i].microGamepad == nil) {
                 if ([GCController controllers][i].extendedGamepad == nil) {
                     GCGamepad* profile =[GCController controllers][i].gamepad;
                     tvosJoystick[i].axes[0] = profile.dpad.xAxis.value;
                     tvosJoystick[i].axes[1] = profile.dpad.yAxis.value;
-                    
+
                     tvosJoystick[i].buttons[0] = profile.buttonA.isPressed;
                     tvosJoystick[i].buttons[1] = profile.buttonB.isPressed;
                     tvosJoystick[i].buttons[2] = profile.buttonX.isPressed;
@@ -744,7 +743,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
                     tvosJoystick[i].axes[3] = profile.leftThumbstick.yAxis.value;
                     tvosJoystick[i].axes[4] = profile.rightThumbstick.xAxis.value;
                     tvosJoystick[i].axes[5] = profile.rightThumbstick.yAxis.value;
-                    
+
                     tvosJoystick[i].buttons[0] = profile.buttonA.isPressed;
                     tvosJoystick[i].buttons[1] = profile.buttonB.isPressed;
                     tvosJoystick[i].buttons[2] = profile.buttonX.isPressed;
@@ -792,9 +791,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
                     tvosJoystick[i].numAxes = 2;
                     tvosJoystick[i].numButtons = 2;
                     GCMicroGamepad *profile = [GCController controllers][i].microGamepad;
-                    profile.valueChangedHandler = ^ (GCMicroGamepad *gamepad, GCControllerElement *element) {  
+                    profile.valueChangedHandler = ^ (GCMicroGamepad *gamepad, GCControllerElement *element) {
                         GCController* ctrl = [GCController controllers][i];
-                        if (ctrl.motion) {  
+                        if (ctrl.motion) {
                             tvosJoystick[i].gravity[0] = ctrl.motion.gravity.x;
                             tvosJoystick[i].gravity[1] = ctrl.motion.gravity.y;
                             tvosJoystick[i].gravity[2] = ctrl.motion.gravity.z;
@@ -881,10 +880,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidConnectNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidDisconnectNotification object:nil];
-    
+
     [GCController startWirelessControllerDiscoveryWithCompletionHandler:^{
         [self controllerStateChanged];
-    }];        
+    }];
 
     if (g_StartupPhase == INIT2) {
         longjmp(_glfwWin.bailEventLoopBuf, 1);
