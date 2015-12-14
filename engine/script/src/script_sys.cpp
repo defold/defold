@@ -270,11 +270,29 @@ namespace dmScript
     }
 
     /*# loads resource from game data
+     * Loads a custom resource. Specify the full filename of the resource that you want
+     * to load. When loaded, it is returned as a string.
      *
-     *
+     * In order for the engine to include custom resources in the build process, you need
+     * to specify them in the "game.project" settings file:
+     * <pre>
+     * [project]
+     * title = My project
+     * version = 0.1
+     * custom_resources = main/data/,assets/level_data.json
+     * </pre>
+     * 
      * @name sys.load_resource
-     * @param filename resource to load (string)
-     * @return loaded lua table, which is empty if the file could not be found (table)
+     * @param filename resource to load, full path (string)
+     * @return loaded data, which is empty if the file could not be found (string)
+     * @examples
+     * <pre>
+     * -- Load level data into a string
+     * local data = sys.load_resource("/assets/level_data.json")
+     * -- Decode json string to a Lua table
+     * local data_table = json.decode(data)
+     * pprint(data_table)
+     * </pre>
      */
     int Sys_LoadResource(lua_State* L)
     {

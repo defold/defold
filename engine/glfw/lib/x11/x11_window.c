@@ -1315,6 +1315,9 @@ static GLboolean processSingleEvent( void )
 
             _glfwWin.active = GL_TRUE;
 
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(1);
+
             if( _glfwWin.mouseLock )
             {
                 _glfwPlatformHideMouseCursor();
@@ -1329,6 +1332,9 @@ static GLboolean processSingleEvent( void )
 
             _glfwWin.active = GL_FALSE;
             _glfwInputDeactivation();
+
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(0);
 
             if( _glfwWin.mouseLock )
             {

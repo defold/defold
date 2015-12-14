@@ -75,12 +75,6 @@ public class IOSBundler implements IBundler {
             new File(buildDir, "game.darc").delete();
         }
 
-        // Copy ResourceRules.plist
-        InputStream resourceRulesIn = getClass().getResourceAsStream("resources/ios/ResourceRules.plist");
-        File resourceRulesOutFile = new File(appDir, "ResourceRules.plist");
-        FileUtils.copyInputStreamToFile(resourceRulesIn, resourceRulesOutFile);
-        resourceRulesIn.close();
-
         // Copy icons
         copyIcon(projectProperties, projectRoot, appDir, "app_icon_57x57", "Icon.png");
         copyIcon(projectProperties, projectRoot, appDir, "app_icon_114x114", "Icon@2x.png");
@@ -118,15 +112,39 @@ public class IOSBundler implements IBundler {
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape@2x.png");
 
-        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
+        List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();
 
+        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
         if (facebookAppId != null) {
-            urlSchemes.add(facebookAppId);
+            urlSchemes.add("fb" + facebookAppId);
+
+            applicationQueriesSchemes.add("fbapi");
+            applicationQueriesSchemes.add("fbapi20130214");
+            applicationQueriesSchemes.add("fbapi20130410");
+            applicationQueriesSchemes.add("fbapi20130702");
+            applicationQueriesSchemes.add("fbapi20131010");
+            applicationQueriesSchemes.add("fbapi20131219");
+            applicationQueriesSchemes.add("fbapi20140410");
+            applicationQueriesSchemes.add("fbapi20140116");
+            applicationQueriesSchemes.add("fbapi20150313");
+            applicationQueriesSchemes.add("fbapi20150629");
+            applicationQueriesSchemes.add("fbauth");
+            applicationQueriesSchemes.add("fbauth2");
+            applicationQueriesSchemes.add("fb-messenger-api20140430");
+            applicationQueriesSchemes.add("fb-messenger-platform-20150128");
+            applicationQueriesSchemes.add("fb-messenger-platform-20150218");
+            applicationQueriesSchemes.add("fb-messenger-platform-20150305");
+        }
+
+        String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
+        if (bundleId != null) {
+            urlSchemes.add(bundleId);
         }
 
         Map<String, Object> properties = new HashMap<String, Object>();
         properties.put("url-schemes", urlSchemes);
+        properties.put("application-queries-schemes", applicationQueriesSchemes);
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
@@ -159,6 +177,12 @@ public class IOSBundler implements IBundler {
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
         Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
 
+        // Strip executable
+        if( !project.hasOption("debug") )
+        {
+            Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
+        }
+
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, title));
 
@@ -184,8 +208,7 @@ public class IOSBundler implements IBundler {
 
 
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
-                    "-f", "-s", identity, "--resource-rules="
-                            + resourceRulesOutFile.getAbsolutePath(),
+                    "-f", "-s", identity,
                     "--entitlements", entitlementOut.getAbsolutePath(),
                     appDir.getAbsolutePath());
             processBuilder.environment().put("EMBEDDED_PROFILE_NAME",

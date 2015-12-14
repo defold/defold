@@ -18,28 +18,33 @@
 
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
-    (-> (g/error-aggregate errors))))
+    (g/error-aggregate errors)))
 
 (defmacro validate-positive [field message]
   `(g/fnk [~field]
      (when (neg? ~field)
        (g/error-severe ~message))))
 
-(defmacro validate-blend-mode [field pb-blend-type]
+(defmacro blend-mode-tip [field pb-blend-type]
   `(g/fnk [~field]
      (when (= ~field :blend-mode-add-alpha)
        (let [options# (protobuf/enum-values ~pb-blend-type)
              options# (zipmap (map first options#) (map (comp :display-name second) options#))]
-         (g/error-info (format "\"%s\" has been replaced by \"%s\"",
-                         (options# :blend-mode-add-alpha) (options# :blend-mode-add)))))))
+         (format "\"%s\" has been replaced by \"%s\"",
+                 (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
 
-(defmacro validate-resource [field message inputs]
-  `(g/fnk [~field ~@inputs :as all#]
-     (if (nil? ~field)
-       (g/error-warning ~message)
-       (error-aggregate (vals all#)))))
+(defn- validate-resource-fn
+  ([field] (validate-resource-fn field (str "Missing " (str/replace (name field) "-" " "))))
+  ([field message] (validate-resource-fn field message []))
+  ([field message inputs]
+   `(g/fnk [~field ~@inputs]
+           (when (nil? ~field)
+             (g/error-warning ~message)))))
+
+(defmacro validate-resource [& args]
+  (apply validate-resource-fn args))
 
 (defmacro validate-animation [animation anim-data]
   `(g/fnk [~animation ~anim-data]
-     (when (or (g/error? ~anim-data) (not (contains? ~anim-data ~animation)))
+     (when (not (contains? ~anim-data ~animation))
        (g/error-severe (format "The animation \"%s\" could not be found in the specified image" ~animation)))))

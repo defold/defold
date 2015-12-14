@@ -985,6 +985,20 @@ GLFWAPI void GLFWAPIENTRY glfwSetWindowRefreshCallback( GLFWwindowrefreshfun cbf
     _glfwWin.windowRefreshCallback = cbfun;
 }
 
+//========================================================================
+// Set callback function for window focus events
+//========================================================================
+GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    // Set callback function
+    _glfwWin.windowFocusCallback = cbfun;
+}
+
 
 //========================================================================
 // Poll for new window and input events

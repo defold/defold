@@ -1,0 +1,5 @@
+
+function update(self, dt)
+    print("This collections should not be able to load!")
+    msg.post("@system:", "exit", {code = 1})
+end
