@@ -94,7 +94,7 @@ struct tvosJoystickData {
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidConnectNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(controllerStateChanged) name:GCControllerDidDisconnectNotification object:nil];
-    
+
     [GCController startWirelessControllerDiscoveryWithCompletionHandler:^{
         [self controllerStateChanged];
     }];
@@ -103,15 +103,15 @@ struct tvosJoystickData {
 }
 
 - (void)controllerStateChanged {
-    
+
     NSLog(@"controllerStateChanged\n");
-    
+
     // TODO: Handle disconnects!
     for(unsigned long i=0,l=[[GCController controllers] count]; i<l; ++i) {
         if ([GCController controllers][i]) {
             if (joy[i].present == 0) {
                 joy[i].present = 1;
-                
+
                 if ([GCController controllers][i].microGamepad == nil) {
                     if ([GCController controllers][i].extendedGamepad == nil) {
                         joy[i].numAxes = 6;
@@ -130,13 +130,11 @@ struct tvosJoystickData {
             }
         }
     }
-    
 }
 
 -(void)pollControllers {
     for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
         if (joy[i].present != 0) {
-            
             if ([GCController controllers][i].microGamepad == nil) {
                 if ([GCController controllers][i].extendedGamepad == nil) {
                     GCGamepad* profile =[GCController controllers][i].gamepad;
@@ -148,17 +146,15 @@ struct tvosJoystickData {
                     joy[i].buttons[3] = profile.buttonY.isPressed;
                     joy[i].buttons[4] = profile.leftShoulder.isPressed;
                     joy[i].buttons[5] = profile.rightShoulder.isPressed;
-                    
                 } else {
                     GCExtendedGamepad* profile =[GCController controllers][i].extendedGamepad;
-                    
                     joy[i].axes[0] = profile.dpad.xAxis.value;
                     joy[i].axes[1] = profile.dpad.yAxis.value;
                     joy[i].axes[2] = profile.leftThumbstick.xAxis.value;
                     joy[i].axes[3] = profile.leftThumbstick.yAxis.value;
                     joy[i].axes[4] = profile.rightThumbstick.xAxis.value;
                     joy[i].axes[5] = profile.rightThumbstick.yAxis.value;
-                    
+
                     joy[i].buttons[0] = profile.buttonA.isPressed;
                     joy[i].buttons[1] = profile.buttonB.isPressed;
                     joy[i].buttons[2] = profile.buttonX.isPressed;
@@ -203,7 +199,6 @@ struct tvosJoystickData {
 }
 
 - (id) init {
-    
     self = [super init];
 
     viewRenderbuffer = 0;
@@ -253,7 +248,7 @@ struct tvosJoystickData {
 
         displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-        
+
         [self testKeyboard];
     }
     return self;
@@ -263,21 +258,21 @@ struct tvosJoystickData {
 {
     glGenFramebuffers(1, &viewFramebuffer);
     glGenRenderbuffers(1, &viewRenderbuffer);
-    
+
     glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
     [context renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer*)self.layer];
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, viewRenderbuffer);
-    
+
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &backingWidth);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &backingHeight);
-    
+
     glGenRenderbuffers(1, &depthStencilRenderbuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, depthStencilRenderbuffer);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, backingWidth, backingHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
-    
+
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         NSLog(@"failed to make complete framebuffer object %x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
@@ -296,7 +291,7 @@ struct tvosJoystickData {
         viewFramebuffer = 0;
         glDeleteRenderbuffers(1, &viewRenderbuffer);
         viewRenderbuffer = 0;
-        
+
         if(depthStencilRenderbuffer)
         {
             glDeleteRenderbuffers(1, &depthStencilRenderbuffer);
@@ -314,11 +309,11 @@ struct tvosJoystickData {
     b += 0.024f;
 
     glClear(GL_COLOR_BUFFER_BIT);
-    
+
     const GLenum discards[]  = {GL_DEPTH_ATTACHMENT};
     glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
     glDiscardFramebufferEXT(GL_FRAMEBUFFER, 1, discards);
-    
+
     glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
     [context presentRenderbuffer:GL_RENDERBUFFER];
 
@@ -345,11 +340,11 @@ struct tvosJoystickData {
 - (EAGLContext *)initialiseGlContext
 {
     EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-    
+
     if (!context || ![EAGLContext setCurrentContext:context]) {
         return nil;
     }
-    
+
     return context;
 }
 
@@ -360,20 +355,20 @@ struct tvosJoystickData {
         glContext = glView.context;
         [glView removeFromSuperview];
     }
-    
+
     if (!glContext) {
         glContext = [self initialiseGlContext];
     }
-    
+
     CGRect bounds = self.view.bounds;
-    
+
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
     glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
     glView.context = glContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
-    
+
     gamepads = [[[Gamepad alloc] init] autorelease];
     glView.gamepads = gamepads;
     [glView createFramebuffer];

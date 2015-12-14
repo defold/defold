@@ -2816,7 +2816,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
         const char* title = luaL_checkstring(L, 1);
         dmHID::SetInputTitle(scene->m_Context->m_HidContext, title);
-        return 0;        
+        return 0;
     }
 
     /*# gets the node position

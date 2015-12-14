@@ -78,7 +78,7 @@ public class BundleTVOSPresenter implements BundleTVOSDialog.IPresenter {
     }
 
     public boolean isReleaseMode() {
-    	return releaseMode;
+        return releaseMode;
     }
 
     @Override
