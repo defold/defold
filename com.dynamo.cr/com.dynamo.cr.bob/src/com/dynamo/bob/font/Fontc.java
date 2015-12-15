@@ -372,6 +372,11 @@ public class Fontc {
             cell_height = Math.max(cell_height, height);
         }
 
+        // Some hardware don't like doing subimage updates on non-aligned cell positions.
+        if (channelCount == 3) {
+            cell_width = (int)Math.ceil((double)cell_width / 4.0) * 4;
+        }
+
         // We do an early cache size calculation before we create the glyph bitmaps
         // This is so that we can know when we have created enough glyphs to fill
         // the cache when creating a preview image.
@@ -404,7 +409,6 @@ public class Fontc {
             if (glyph.width <= 0 || glyph.ascent + glyph.descent <= 0) {
                 continue;
             }
-            glyph.cache_entry_offset = dataOffset;
 
             // Generate bitmap for each glyph depending on format
             BufferedImage glyphImage = null;
@@ -429,6 +433,7 @@ public class Fontc {
 
             } else {
 
+                glyph.cache_entry_offset = dataOffset;
                 // Get raster data from rendered glyph and store in glyph data bank
                 int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
                 for (int y = 0; y < glyphImage.getHeight(); y++) {
@@ -450,7 +455,7 @@ public class Fontc {
                         blue = (blue * alpha) / 255;
                         green = (green * alpha) / 255;
                         red = (red * alpha) / 255;
-                        
+
 
                         glyphDataBank.write((byte)red);
 
@@ -459,7 +464,7 @@ public class Fontc {
                             glyphDataBank.write((byte)blue);
 
                             if (channelCount > 3) {
-                                
+
                                 glyphDataBank.write((byte)alpha);
                             }
                         }
