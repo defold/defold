@@ -302,7 +302,7 @@ namespace dmScript
      * </p>
      * <p><code>device_model</code> and <code>manufacturer</code> is currently only available on iOS and Android.</p>
      * <p><code>language</code> is in ISO-639 format (two characters) and <code>territory</code> in ISO-3166 format (two characters).</p>
-     * <p><code>device_language</code> is in ISO-639 format (two characters) and if applicable by a dash (–) and an ISO 15924 script code. Reflects device preferred language.</p>
+     * <p><code>device_language</code> is in ISO-639 format (two characters) and if applicable by a dash (-) and an ISO 15924 script code. Reflects device preferred language.</p>
      * <p><code>device_ident</code> is "identifierForVendor" and <code>ad_ident</code> is "advertisingIdentifier" on iOS</p>
      * <p><code>device_ident</code> is "android_id" and <code>ad_ident</code> is advertising ID provided by Google Play on Android.</p>
      *
