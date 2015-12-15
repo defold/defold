@@ -39,6 +39,7 @@
 #include "internal.h"
 #include "platform.h"
 
+
 enum StartupPhase
 {
     INITIAL,
@@ -698,7 +699,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         return;
     }
 
-    for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
+    for(int i=0; i<GLFW_JOYSTICK_LAST; ++i) {
         if (tvosJoystick[i].present != 0) {
             if ([GCController controllers][i].microGamepad == nil) {
                 if ([GCController controllers][i].extendedGamepad == nil) {
@@ -790,7 +791,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 
     // Check for removed controllers and handle
-    for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
+    for(int i=0; i<GLFW_JOYSTICK_LAST; ++i) {
 
         if (tvosJoystick[i].present == 1) {
             bool found = false;
@@ -829,7 +830,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
 
-    for(int i=0; i<HID_MAX_GAMEPAD_COUNT; ++i) {
+    for(int i=0; i<GLFW_JOYSTICK_LAST; ++i) {
         memset(&tvosJoystick[i], 0, sizeof(struct tvosJoystickData));
     }
 

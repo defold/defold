@@ -4,7 +4,7 @@
 
 int _glfwPlatformGetJoystickParam( int joy, int param )
 {
-    if (joy >= 0 && joy < HID_MAX_GAMEPAD_COUNT) {
+    if (joy >= 0 && joy < GLFW_JOYSTICK_LAST) {
         switch(param) {
             case GLFW_PRESENT:
                 return tvosJoystick[joy].present;
@@ -19,7 +19,7 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
 
 int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
 {
-    if (joy >= 0 && joy < HID_MAX_GAMEPAD_COUNT) {
+    if (joy >= 0 && joy < GLFW_JOYSTICK_LAST) {
         for(int i=0; i<MIN(tvosJoystick[joy].numAxes, numaxes); ++i) {
             pos[i] = tvosJoystick[joy].axes[i];
         }
@@ -29,7 +29,7 @@ int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
 
 int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons )
 {
-    if (joy >= 0 && joy < HID_MAX_GAMEPAD_COUNT) {
+    if (joy >= 0 && joy < GLFW_JOYSTICK_LAST) {
         for(int i=0; i<MIN(tvosJoystick[joy].numButtons, numbuttons); ++i) {
             buttons[i] = tvosJoystick[joy].buttons[i];
         }
@@ -40,11 +40,11 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
 
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
 {
-    if (joy >= 0 && joy < HID_MAX_GAMEPAD_COUNT) {
+    if (joy >= 0 && joy < GLFW_JOYSTICK_LAST) {
         if (tvosJoystick[joy].present == 1) {
             *device_id = "AppleTV Remote";
             return GL_TRUE;
         }
-        return GL_FALSE;
     }
+    return GL_FALSE;
 }
