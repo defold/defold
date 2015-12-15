@@ -46,7 +46,6 @@ typedef void *id;
 #endif
 
 #include <pthread.h>
-#include <hid/hid_glfw_defines.h>
 
 #include "../../include/GL/glfw.h"
 
@@ -273,6 +272,6 @@ struct tvosJoystickData {
     unsigned char* buttons;
 };
 
-struct tvosJoystickData tvosJoystick[HID_MAX_GAMEPAD_COUNT];
+struct tvosJoystickData tvosJoystick[GLFW_JOYSTICK_LAST + 1];
 
 #endif // _platform_h_
