@@ -35,8 +35,8 @@
   (input sub-str-array-input g/Str :array :substitute "String array substitute")
   (input sub-int-array-input g/Int :array  :substitute 1)
 
-  (output str-array-pass-through g/Str (g/fnk [str-array-input] str-array-input))
-  (output int-array-pass-through g/Int (g/fnk [int-array-input] int-array-input))
+  (output str-array-pass-through [g/Str] (g/fnk [str-array-input] str-array-input))
+  (output int-array-pass-through [g/Int] (g/fnk [int-array-input] int-array-input))
 
   (output cascade-str-array-pass-through g/Str (g/fnk [str-array-pass-through] str-array-pass-through))
   (output cascade-int-array-pass-through g/Int (g/fnk [int-array-pass-through] int-array-pass-through))
@@ -82,13 +82,13 @@
 
   (testing "values that do not match input schemas produce errors"
     (with-clean-system
-      (with-redefs [internal.node/warn (constantly nil)]
+      (binding [internal.node/*suppress-schema-warnings* true]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                        (g/make-node world ArrayNode))]
+                                (g/make-node world ArrayNode))]
           (g/transact [ (g/connect b-node :bad-str-output b-node :str-input)
-                        (g/connect b-node :bad-int-output b-node :int-input)
-                        (g/connect b-node :bad-str-output a-node :str-array-input)
-                        (g/connect b-node :bad-int-output a-node :int-array-input)])
+                       (g/connect b-node :bad-int-output b-node :int-input)
+                       (g/connect b-node :bad-str-output a-node :str-array-input)
+                       (g/connect b-node :bad-int-output a-node :int-array-input)])
 
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :str-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :int-pass-through)))
@@ -106,7 +106,7 @@
 
   (testing "values that do not match input schemas produce errors with cascades"
     (with-clean-system
-      (with-redefs [internal.node/warn (constantly nil)]
+      (binding [internal.node/*suppress-schema-warnings* true]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                         (g/make-node world ArrayNode))]
           (g/transact [ (g/connect b-node :bad-str-output b-node :str-input)
@@ -120,7 +120,7 @@
 
   (testing "values that do not match input schemas with substitutions produce errors not substitutes"
     (with-clean-system
-      (with-redefs [internal.node/warn (constantly nil)]
+      (binding [internal.node/*suppress-schema-warnings* true]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                         (g/make-node world ArrayNode))]
           (g/transact [ (g/connect b-node :bad-str-output b-node :sub-str-input)
@@ -134,7 +134,7 @@
 
   (testing "values that do not match input schemas with substitutions produce substitue values with cascades"
     (with-clean-system
-      (with-redefs [internal.node/warn (constantly nil)]
+      (binding [internal.node/*suppress-schema-warnings* true]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                         (g/make-node world ArrayNode))]
           (g/transact [ (g/connect b-node :bad-str-output b-node :sub-str-input)
@@ -145,3 +145,15 @@
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-sub-int-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-sub-str-array-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-sub-int-array-pass-through))))))))
+
+(g/defnode BadSchemaPropNode
+  (property bad-schema-prop g/Int
+    (default 0)
+    (value (g/fnk [] "I should be an Int"))))
+
+(deftest test-schema-validation-on-property-access
+  (with-clean-system
+    (binding [internal.node/*suppress-schema-warnings* true]
+      (let [[bsn] (tx-nodes (g/make-nodes world [bsn [BadSchemaPropNode]]))]
+        (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value bsn :bad-schema-prop)))))))
+

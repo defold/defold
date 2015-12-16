@@ -22,9 +22,9 @@ import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 
 import com.android.vending.billing.IInAppBillingService;
-import com.defold.iap.Iap.Action;
+import com.defold.iap.IapGooglePlay.Action;
 
-public class IapActivity extends Activity {
+public class IapGooglePlayActivity extends Activity {
 
     private boolean hasPendingPurchases = false;
     private Messenger messenger;
@@ -33,17 +33,17 @@ public class IapActivity extends Activity {
 
     // NOTE: Code from "trivialdrivesample"
     int getResponseCodeFromBundle(Bundle b) {
-        Object o = b.get(Iap.RESPONSE_CODE);
+        Object o = b.get(IapGooglePlay.RESPONSE_CODE);
         if (o == null) {
-            Log.d(Iap.TAG, "Bundle with null response code, assuming OK (known issue)");
-            return Iap.BILLING_RESPONSE_RESULT_OK;
+            Log.d(IapGooglePlay.TAG, "Bundle with null response code, assuming OK (known issue)");
+            return IapJNI.BILLING_RESPONSE_RESULT_OK;
         } else if (o instanceof Integer)
             return ((Integer) o).intValue();
         else if (o instanceof Long)
             return (int) ((Long) o).longValue();
         else {
-            Log.e(Iap.TAG, "Unexpected type for bundle response code.");
-            Log.e(Iap.TAG, o.getClass().getName());
+            Log.e(IapGooglePlay.TAG, "Unexpected type for bundle response code.");
+            Log.e(IapGooglePlay.TAG, o.getClass().getName());
             throw new RuntimeException("Unexpected type for bundle response code: " + o.getClass().getName());
         }
     }
@@ -52,14 +52,14 @@ public class IapActivity extends Activity {
         Bundle bundle = new Bundle();
         bundle.putString("action", Action.BUY.toString());
 
-        bundle.putInt(Iap.RESPONSE_CODE, error);
+        bundle.putInt(IapGooglePlay.RESPONSE_CODE, error);
         Message msg = new Message();
         msg.setData(bundle);
 
         try {
             messenger.send(msg);
         } catch (RemoteException e) {
-            Log.wtf(Iap.TAG, "Unable to send message", e);
+            Log.wtf(IapGooglePlay.TAG, "Unable to send message", e);
         }
         this.finish();
     }
@@ -68,22 +68,22 @@ public class IapActivity extends Activity {
         try {
             Bundle buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, "inapp", "");
             int response = getResponseCodeFromBundle(buyIntentBundle);
-            if (response == Iap.BILLING_RESPONSE_RESULT_OK) {
+            if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                 hasPendingPurchases = true;
                 PendingIntent pendingIntent = buyIntentBundle.getParcelable("BUY_INTENT");
                 startIntentSenderForResult(pendingIntent.getIntentSender(), 1001, new Intent(), Integer.valueOf(0), Integer.valueOf(0), Integer.valueOf(0));
-            } else if (response == Iap.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED) {
-                sendBuyError(Iap.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED);
+            } else if (response == IapJNI.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED) {
+                sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED);
             } else {
                 sendBuyError(response);
             }
 
         } catch (RemoteException e) {
-            Log.e(Iap.TAG, String.format("Failed to buy", e));
-            sendBuyError(Iap.BILLING_RESPONSE_RESULT_ERROR);
+            Log.e(IapGooglePlay.TAG, String.format("Failed to buy", e));
+            sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ERROR);
         } catch (SendIntentException e) {
-            Log.e(Iap.TAG, String.format("Failed to buy", e));
-            sendBuyError(Iap.BILLING_RESPONSE_RESULT_ERROR);
+            Log.e(IapGooglePlay.TAG, String.format("Failed to buy", e));
+            sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ERROR);
         }
     }
 
@@ -92,15 +92,18 @@ public class IapActivity extends Activity {
             JSONObject pd = new JSONObject(purchaseData);
             String token = pd.getString("purchaseToken");
             int consumeResponse = service.consumePurchase(3, getPackageName(), token);
-            if (consumeResponse == Iap.BILLING_RESPONSE_RESULT_OK) {
+            if (consumeResponse == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                 return true;
             } else {
-                Log.e(Iap.TAG, String.format("Failed to consume purchase (%d)", consumeResponse));
+                Log.e(IapGooglePlay.TAG, String.format("Failed to consume purchase (%d)", consumeResponse));
+                sendBuyError(consumeResponse);
             }
         } catch (RemoteException e) {
-            Log.e(Iap.TAG, "Failed to consume purchase", e);
+            Log.e(IapGooglePlay.TAG, "Failed to consume purchase", e);
+            sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ERROR);
         } catch (JSONException e) {
-            Log.e(Iap.TAG, "Failed to consume purchase", e);
+            Log.e(IapGooglePlay.TAG, "Failed to consume purchase", e);
+            sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ERROR);
         }
         return false;
     }
@@ -108,15 +111,15 @@ public class IapActivity extends Activity {
     private boolean consumeAndSendMessage(String purchaseData, String signature)
     {
         if (!consume(purchaseData)) {
-            Log.e(Iap.TAG, "Failed to consume and send message");
+            Log.e(IapGooglePlay.TAG, "Failed to consume and send message");
             return false;
         }
 
         Bundle bundle = new Bundle();
         bundle.putString("action", Action.BUY.toString());
-        bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_OK);
-        bundle.putString(Iap.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
-        bundle.putString(Iap.RESPONSE_INAPP_SIGNATURE, signature);
+        bundle.putInt(IapGooglePlay.RESPONSE_CODE, IapJNI.BILLING_RESPONSE_RESULT_OK);
+        bundle.putString(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
+        bundle.putString(IapGooglePlay.RESPONSE_INAPP_SIGNATURE, signature);
 
         Message msg = new Message();
         msg.setData(bundle);
@@ -124,7 +127,7 @@ public class IapActivity extends Activity {
             messenger.send(msg);
             return true;
         } catch (RemoteException e) {
-            Log.wtf(Iap.TAG, "Unable to send message", e);
+            Log.wtf(IapGooglePlay.TAG, "Unable to send message", e);
             return false;
         }
     }
@@ -134,9 +137,9 @@ public class IapActivity extends Activity {
         try {
             Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
             int response = getResponseCodeFromBundle(items);
-            if (response == Iap.BILLING_RESPONSE_RESULT_OK) {
-                ArrayList<String> purchaseDataList = items.getStringArrayList(Iap.RESPONSE_INAPP_PURCHASE_DATA_LIST);
-                ArrayList<String> signatureList = items.getStringArrayList(Iap.RESPONSE_INAPP_SIGNATURE_LIST);
+            if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                ArrayList<String> purchaseDataList = items.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA_LIST);
+                ArrayList<String> signatureList = items.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_SIGNATURE_LIST);
                 for (int i = 0; i < purchaseDataList.size(); ++i) {
                     String purchaseData = purchaseDataList.get(i);
                     String signature = signatureList.get(i);
@@ -147,12 +150,12 @@ public class IapActivity extends Activity {
                 }
             }
         } catch (RemoteException e) {
-            Log.e(Iap.TAG, "Failed to consume purchase", e);
+            Log.e(IapGooglePlay.TAG, "Failed to consume purchase", e);
         }
     }
 
     private void restore() {
-        int response = Iap.BILLING_RESPONSE_RESULT_ERROR;
+        int response = IapJNI.BILLING_RESPONSE_RESULT_ERROR;
         Bundle bundle = new Bundle();
         bundle.putString("action", Action.RESTORE.toString());
 
@@ -160,21 +163,21 @@ public class IapActivity extends Activity {
             Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
             response = getResponseCodeFromBundle(items);
 
-            if (response == Iap.BILLING_RESPONSE_RESULT_OK) {
+            if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                 bundle.putBundle("items", items);
             }
         } catch (RemoteException e) {
-            Log.e(Iap.TAG, "Failed to restore purchases", e);
+            Log.e(IapGooglePlay.TAG, "Failed to restore purchases", e);
         }
 
-        bundle.putInt(Iap.RESPONSE_CODE, response);
+        bundle.putInt(IapGooglePlay.RESPONSE_CODE, response);
         Message msg = new Message();
         msg.setData(bundle);
 
         try {
             messenger.send(msg);
         } catch (RemoteException e) {
-            Log.wtf(Iap.TAG, "Unable to send message", e);
+            Log.wtf(IapGooglePlay.TAG, "Unable to send message", e);
         }
         this.finish();
     }
@@ -188,7 +191,7 @@ public class IapActivity extends Activity {
 
         Intent intent = getIntent();
         final Bundle extras = intent.getExtras();
-        this.messenger = (Messenger) extras.getParcelable(Iap.PARAM_MESSENGER);
+        this.messenger = (Messenger) extras.getParcelable(IapGooglePlay.PARAM_MESSENGER);
         final Action action = Action.valueOf(intent.getAction());
 
         serviceConn = new ServiceConnection() {
@@ -201,7 +204,7 @@ public class IapActivity extends Activity {
             public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
                 service = IInAppBillingService.Stub.asInterface(serviceBinder);
                 if (action == Action.BUY) {
-                    buy(extras.getString(Iap.PARAM_PRODUCT));
+                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT));
                 } else if (action == Action.RESTORE) {
                     restore();
                 } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
@@ -221,13 +224,13 @@ public class IapActivity extends Activity {
             serviceConn = null;
             Bundle bundle = new Bundle();
             bundle.putString("action", intent.getAction());
-            bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE);
+            bundle.putInt(IapGooglePlay.RESPONSE_CODE, IapJNI.BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE);
             Message msg = new Message();
             msg.setData(bundle);
             try {
                 messenger.send(msg);
             } catch (RemoteException e) {
-                Log.wtf(Iap.TAG, "Unable to send message", e);
+                Log.wtf(IapGooglePlay.TAG, "Unable to send message", e);
             }
             this.finish();
         }
@@ -251,17 +254,17 @@ public class IapActivity extends Activity {
 
     // NOTE: Code from "trivialdrivesample"
     int getResponseCodeFromIntent(Intent i) {
-        Object o = i.getExtras().get(Iap.RESPONSE_CODE);
+        Object o = i.getExtras().get(IapGooglePlay.RESPONSE_CODE);
         if (o == null) {
-            Log.e(Iap.TAG, "Intent with no response code, assuming OK (known issue)");
-            return Iap.BILLING_RESPONSE_RESULT_OK;
+            Log.e(IapGooglePlay.TAG, "Intent with no response code, assuming OK (known issue)");
+            return IapJNI.BILLING_RESPONSE_RESULT_OK;
         } else if (o instanceof Integer) {
             return ((Integer) o).intValue();
         } else if (o instanceof Long) {
             return (int) ((Long) o).longValue();
         } else {
-            Log.e(Iap.TAG, "Unexpected type for intent response code.");
-            Log.e(Iap.TAG, o.getClass().getName());
+            Log.e(IapGooglePlay.TAG, "Unexpected type for intent response code.");
+            Log.e(IapGooglePlay.TAG, o.getClass().getName());
             throw new RuntimeException("Unexpected type for intent response code: " + o.getClass().getName());
         }
     }
@@ -272,21 +275,21 @@ public class IapActivity extends Activity {
         Bundle bundle = null;
         if (data != null) {
             int responseCode = getResponseCodeFromIntent(data);
-            String purchaseData = data.getStringExtra(Iap.RESPONSE_INAPP_PURCHASE_DATA);
-            String dataSignature = data.getStringExtra(Iap.RESPONSE_INAPP_SIGNATURE);
-            if (responseCode == Iap.BILLING_RESPONSE_RESULT_OK) {
+            String purchaseData = data.getStringExtra(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA);
+            String dataSignature = data.getStringExtra(IapGooglePlay.RESPONSE_INAPP_SIGNATURE);
+            if (responseCode == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                  consumeAndSendMessage(purchaseData, dataSignature);
             } else {
                  bundle = new Bundle();
                  bundle.putString("action", Action.BUY.toString());
-                 bundle.putInt(Iap.RESPONSE_CODE, responseCode);
-                 bundle.putString(Iap.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
-                 bundle.putString(Iap.RESPONSE_INAPP_SIGNATURE, dataSignature);
+                 bundle.putInt(IapGooglePlay.RESPONSE_CODE, responseCode);
+                 bundle.putString(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
+                 bundle.putString(IapGooglePlay.RESPONSE_INAPP_SIGNATURE, dataSignature);
             }
         } else {
             bundle = new Bundle();
             bundle.putString("action", Action.BUY.toString());
-            bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_ERROR);
+            bundle.putInt(IapGooglePlay.RESPONSE_CODE, IapJNI.BILLING_RESPONSE_RESULT_ERROR);
         }
 
         // Send message if generated above
@@ -296,7 +299,7 @@ public class IapActivity extends Activity {
             try {
                 messenger.send(msg);
             } catch (RemoteException e) {
-                Log.wtf(Iap.TAG, "Unable to send message", e);
+                Log.wtf(IapGooglePlay.TAG, "Unable to send message", e);
             }
         }
 

@@ -107,6 +107,17 @@ namespace dmEngine
 
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
 
+    static void OnWindowFocus(void* user_data, uint32_t focus)
+    {
+        Engine* engine = (Engine*)user_data;
+        dmExtension::Params params;
+        params.m_ConfigFile = engine->m_Config;
+        params.m_L          = 0;
+        dmExtension::Event event;
+        event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
+        dmExtension::DispatchEvent( &params, &event );
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -443,6 +454,8 @@ namespace dmEngine
         window_params.m_ResizeCallbackUserData = engine;
         window_params.m_CloseCallback = OnWindowClose;
         window_params.m_CloseCallbackUserData = engine;
+        window_params.m_FocusCallback = OnWindowFocus;
+        window_params.m_FocusCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
@@ -977,10 +990,11 @@ bail:
 
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
 
+
                     dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
 
-                if (engine->m_ShowProfile)
+                if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {
                     DM_PROFILE(Profile, "Draw");
                     dmProfile::Pause(true);
@@ -994,6 +1008,7 @@ bail:
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                     dmProfile::Pause(false);
                 }
+
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
                 RecordData* record_data = &engine->m_RecordData;

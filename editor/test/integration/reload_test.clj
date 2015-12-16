@@ -197,15 +197,15 @@
 (defn- first-child [parent]
   (get-in (g/node-value parent :node-outline) [:children 0 :node-id]))
 
-(defn- tile-source [node]
-  (project/get-resource-node (project/get-project node) (g/node-value node :tile-source)))
+(defn- raw-tile-source [node]
+  (project/get-resource-node (project/get-project node) (g/node-value node :tile-source-resource)))
 
 (deftest resource-reference-error
   (with-clean-system
     (let [[workspace project] (setup world)]
       (testing "Tile source ok before writing broken content"
         (let [pfx-node (project/get-resource-node project "/test.particlefx")
-              ts-node (tile-source (first-child pfx-node))]
+              ts-node (raw-tile-source (first-child pfx-node))]
           (is (not (g/error? (g/node-value ts-node :extrude-borders))))
           (is (= nil (g/node-value ts-node :_output-jammers)))))
       (testing "Externally modifying to refer to non existing tile source results in defective node"
@@ -215,7 +215,7 @@
                                           "tile_source: \"/builtins/graphics/particle_blob_does_not_exist.tilesource\"")]
           (log/without-logging (write-file workspace "/test.particlefx" broken-content))
           (let [pfx-node (project/get-resource-node project "/test.particlefx")
-                ts-node (tile-source (first-child pfx-node))]
+                ts-node (raw-tile-source (first-child pfx-node))]
             (is (g/error? (g/node-value ts-node :extrude-borders)))
             (is (seq (keys (g/node-value ts-node :_output-jammers))))))))))
 
@@ -286,3 +286,4 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world "resources/broken_project"))]
       (is (g/error? (project/save-data project))))))
+

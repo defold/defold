@@ -29,7 +29,7 @@ void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter
 }
 
 // TODO: TOL increased due to valgrind... Command line option or detect valgrind.
-#define TOL (40.0 / 1000.0)
+#define TOL (50.0 / 1000.0)
 
 TEST(dmProfile, Profile)
 {
