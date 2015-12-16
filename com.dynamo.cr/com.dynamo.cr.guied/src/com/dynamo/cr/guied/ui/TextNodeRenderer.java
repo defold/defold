@@ -298,10 +298,10 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                     if (g != null) {
                         if (g.getWidth() > 0) {
 
-                            double u_min = sU * (g.getX() + g.getLeftBearing());
-                            double v_min = sV * (g.getY() - g.getAscent());
-                            double u_max = u_min + sU * g.getWidth();
-                            double v_max = v_min + sV * (g.getAscent() + g.getDescent());
+                            double u_min = sU * (g.getX() + fontMap.getGlyphPadding());
+                            double v_min = sV * (g.getY() + fontMap.getGlyphPadding());
+                            double u_max = sU * (g.getX() + fontMap.getGlyphPadding() + g.getWidth());
+                            double v_max = sV * (g.getY() + fontMap.getGlyphPadding() + g.getAscent() + g.getDescent());
 
                             double x_min = x + g.getLeftBearing();
                             double x_max = x_min + g.getWidth();

@@ -116,6 +116,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
+    conf.env['STATICLIB_IACEXT'] = 'iacext'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'

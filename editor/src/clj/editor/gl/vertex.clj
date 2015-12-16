@@ -515,7 +515,7 @@ the `do-gl` macro from `editor.gl`."
   (let [vbo (first (gl/gl-gen-buffers gl 1))]
     (update-vbo gl vbo data)))
 
-(defn- destroy-vbos [^GL2 gl vbos]
+(defn- destroy-vbos [^GL2 gl vbos _]
   (apply gl/gl-delete-buffers gl vbos))
 
 (scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)

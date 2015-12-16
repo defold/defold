@@ -167,7 +167,10 @@ namespace dmGameSystem
                 dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, 10*1000);
                 if (r != dmResource::RESULT_PENDING)
                 {
-                    DoLoad(factory, proxy);
+                    if( r == dmResource::RESULT_OK )
+                    {
+                        DoLoad(factory, proxy);
+                    }
                     dmResource::DeletePreloader(proxy->m_Preloader);
                     proxy->m_Preloader = 0;
                 }

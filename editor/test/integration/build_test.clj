@@ -271,12 +271,9 @@
                      content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
                      content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
                      content (get content-by-source path)
-                     desc (protobuf/bytes->map Font$FontMap content)
-                     texture-content (get content-by-target (get-in desc [:textures 0]))
-                     texture (protobuf/bytes->map Graphics$TextureImage texture-content)
-                     first-tex (get-in texture [:alternatives 0])]
-                 (is (= 1024 (:width first-tex)))
-                 (is (= 128 (:height first-tex))))))))
+                     desc (protobuf/bytes->map Font$FontMap content)]
+                 (is (= 1024 (:cache-width desc)))
+                 (is (= 256 (:cache-height desc))))))))
 
 (deftest build-spine-scene
   (testing "Building spine scene"

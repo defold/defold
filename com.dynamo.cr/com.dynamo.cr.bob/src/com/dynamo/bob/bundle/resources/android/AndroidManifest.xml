@@ -55,7 +55,7 @@
           android:theme="@android:style/Theme.Translucent.NoTitleBar"
           android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
           android:label="{{project.title}}" />
-        <activity android:name="com.defold.iap.IapActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:label="IAP"></activity>
+        <activity android:name="com.defold.iap.IapGooglePlayActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:label="IAP"></activity>
 
         <!-- For Local Notifications -->
         <activity android:name="com.defold.push.LocalPushDispatchActivity"
@@ -85,6 +85,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- For IAC Invocations -->
+        <activity android:name="com.defold.iac.IACActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+               <action android:name="android.intent.action.VIEW" />
+               <category android:name="android.intent.category.DEFAULT" />
+               <category android:name="android.intent.category.BROWSABLE" />
+               <data android:scheme="{{android.package}}" />
+            </intent-filter>
+        </activity>
+
         <service android:name="com.defold.adtruth.InstallReceiver"/>
         <receiver
             android:name="com.defold.adtruth.InstallReceiver"
@@ -94,6 +107,12 @@
           </intent-filter>
         </receiver>
 
+        <!-- For Amazon IAP -->
+        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
+            <intent-filter>
+                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
+            </intent-filter>
+        </receiver>
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.android.vending.BILLING" />
