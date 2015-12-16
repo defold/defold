@@ -2,15 +2,15 @@
 title = Arkanoid
 
 [bootstrap]
-render = logic/default.renderc
-main_collection = logic/main.collectionc
+render = /logic/default.renderc
+main_collection = /logic/main.collectionc
 
 [sound]
 gain = 1
 
 [input]
-game_binding = input/game.input_bindingc
-gamepads = input/default.gamepadsc
+gamepads = /input/default.gamepadsc
+game_binding = /input/game.input_bindingc
 repeat_delay = 0.5
 repeat_interval = 0.2
 debug = 0
