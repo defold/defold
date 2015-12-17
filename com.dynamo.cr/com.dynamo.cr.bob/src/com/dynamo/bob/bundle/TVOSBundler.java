@@ -51,8 +51,6 @@ public class TVOSBundler implements IBundler {
         String exeArm64TVOS = Bob.getDmengineExe(Platform.Arm64TvOS, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
-        System.out.println("Using engine from " + exeArm64TVOS);
-
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
 
