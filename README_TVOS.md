@@ -1,15 +1,15 @@
 # tvOS
 
-Right now tvOS is very close to iOS, most of what is written for iOS apply here as well. The main differences being various things have been dropped/deprecated in the SDK. UIDeviceFamily array in Info.plist identifies tvOS by an integer 3 (TARGETED_DEVICE_FAMILY in Xcode Build Settings). tvOS only runs arm64.
+Right now tvOS is similar to iOS, most of what is written for iOS apply here as well. The main differences being various things have been dropped/deprecated in the SDK. UIDeviceFamily array in Info.plist identifies tvOS by an integer 3 (TARGETED_DEVICE_FAMILY in Xcode Build Settings). tvOS only runs arm64.
 
 
 ## User input
 
 Input on tvOS is done through a gamepad device so mapping a few triggers is required.
 
-GAMEPAD_LSTICK_CLICK for touchpad clicks.
-GAMEPAD_START for play/pause button.
-GAMEPAD_LSTICK_{LEFT,RIGHT,UP_DOWN} for pad direction
+* GAMEPAD\_LSTICK\_CLICK for touchpad clicks.
+* GAMEPAD\_START for play/pause button.
+* GAMEPAD\_LSTICK\_{LEFT,RIGHT,UP_DOWN} for pad direction.
 
 Right now tvOS does not fire any touch events to Defold. Touch position from the touch pad does not behave as on iOS. Touch/drag is reported but when pressing or re-touching the pad, the position resets back to a center position of 960,540. 
 
