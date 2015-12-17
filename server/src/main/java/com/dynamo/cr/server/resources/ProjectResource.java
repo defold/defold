@@ -433,9 +433,8 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @RolesAllowed(value = { "anonymous" })
-    @Produces(MediaType.APPLICATION_OCTET_STREAM)
     @Path("/engine/{platform}/{key}")
-    public byte[] downloadEngine(@PathParam("project") String projectId,
+    public Response downloadEngine(@PathParam("project") String projectId,
                                  @PathParam("key") String key,
                                  @PathParam("platform") String platform) throws IOException {
 
@@ -451,7 +450,19 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
         }
 
-        return server.downloadEngine(projectId, platform);
+        final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
+
+        StreamingOutput output = new StreamingOutput() {
+            @Override
+            public void write(OutputStream os) throws IOException, WebApplicationException {
+                FileUtils.copyFile(file, os);
+                os.close();
+            }
+        };
+
+        return Response.ok(output, "application/octet-stream ipa")
+                .header("content-disposition", String.format("attachment; filename = %s.ipa", key))
+                .build();
     }
 
     @GET
