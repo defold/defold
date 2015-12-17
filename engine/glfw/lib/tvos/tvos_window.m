@@ -211,7 +211,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     CADisplayLink* displayLink;
     int countDown;
     int swapInterval;
-    UIKeyboardType keyboardType;
 }
 
 - (void)swapBuffers;
@@ -357,213 +356,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
     swapInterval = interval;
     countDown = swapInterval;
-}
-
-- (void) fill: (GLFWTouch*) glfwt withTouch: (UITouch*) t
-{
-    CGPoint touchLocation = [t locationInView:self];
-    CGPoint prevTouchLocation = [t previousLocationInView:self];
-    CGFloat scaleFactor = self.contentScaleFactor;
-
-    int x = touchLocation.x * scaleFactor;
-    int y = touchLocation.y * scaleFactor;
-    int px = prevTouchLocation.x * scaleFactor;
-    int py = prevTouchLocation.y * scaleFactor;
-
-    glfwt->TapCount = t.tapCount;
-    glfwt->Phase = t.phase;
-    glfwt->X = x;
-    glfwt->Y = y;
-    glfwt->DX = x - px;
-    glfwt->DY = y - py;
-    // Store reference to for later for ordering comparison
-    glfwt->Reference = t;
-}
-
-- (int) fillTouch: (UIEvent*) event
-{
-    NSSet *touches = [event allTouches];
-
-    int touchCount = 0;
-
-    // Keep order by first resuing previous elements
-    for (int i = 0; i < _glfwInput.TouchCount; i++)
-    {
-        GLFWTouch* glfwt = &_glfwInput.Touch[i];
-
-        // NOTE: Tried first with [touchces contains] but got spurious crashes
-        int found = 0;
-        for (UITouch *t in touches)
-        {
-            if (t == glfwt->Reference)
-            {
-                [self fill: glfwt withTouch: t];
-                found = 1;
-            }
-        }
-
-        if (!found)
-            break;
-
-        touchCount++;
-    }
-
-    for (UITouch *t in touches)
-    {
-         if (touchCount >= GLFW_MAX_TOUCH)
-             break;
-
-         int found = 0;
-         // Check if already processed in the initial loop
-         for (int i = 0; i < touchCount; i++)
-         {
-             GLFWTouch* glfwt = &_glfwInput.Touch[i];
-             if (t == (UITouch*) glfwt->Reference)
-             {
-                 found = 1;
-             }
-         }
-         if (found)
-             continue;
-
-         GLFWTouch* glfwt = &_glfwInput.Touch[touchCount];
-         [self fill: glfwt withTouch: t];
-         touchCount++;
-    }
-    return touchCount;
-}
-
-- (void)updateMouseEmulation
-{
-    // Find the touch matched by the mouse emulation.
-    int32_t i, found=0, ended=0;
-    void *next = 0;
-
-    for (i=0;i!=_glfwInput.TouchCount;i++)
-    {
-        GLFWTouch *t = &_glfwInput.Touch[i];
-        if (t->Reference == _glfwInput.MouseEmulationTouch)
-        {
-            found = 1;
-
-            _glfwInput.MousePosX = t->X;
-            _glfwInput.MousePosY = t->Y;
-
-            if (_glfwWin.mousePosCallback)
-            {
-                _glfwWin.mousePosCallback(_glfwInput.MousePosX, _glfwInput.MousePosY);
-            }
-
-            if (t->Phase == GLFW_PHASE_ENDED || t->Phase == GLFW_PHASE_CANCELLED)
-            {
-                ended = 1;
-            }
-        }
-        else if (!next && (t->Phase == GLFW_PHASE_BEGAN || t->Phase == GLFW_PHASE_MOVED || t->Phase == GLFW_PHASE_STATIONARY))
-        {
-            // touch candidate for mouse.
-            next = t->Reference;
-        }
-    }
-
-    if (next != 0)
-    {
-        if (!_glfwInput.MouseEmulationTouch)
-        {
-            // mouse press start
-            _glfwInput.MouseEmulationTouch = next;
-            [self updateMouseEmulation];
-            _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
-        }
-        else if (ended)
-        {
-            // ended but there is another one
-            _glfwInput.MouseEmulationTouch = next;
-            [self updateMouseEmulation];
-        }
-    }
-    else
-    {
-        if (ended || !found)
-        {
-            // no more touches.
-            _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-            _glfwInput.MouseEmulationTouch = 0;
-        }
-    }
-}
-
-
-- (void) handleTapFrom: (UITapGestureRecognizer *)recognizer
-{
-}
-
-- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-
-   // [self updateMouseEmulation];
-}
-
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    if (self.keyboardActive && self.autoCloseKeyboard) {
-        // Implicitly hide keyboard
-        _glfwShowKeyboard(0, 0, 0);
-    }
-
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-
- //   [self updateMouseEmulation];
-}
-
-- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-  //  [self updateMouseEmulation];
-}
-
-- (void)deleteBackward
-{
-    _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
-    self.textkeyActive = TEXT_KEY_COOLDOWN;
-}
-
-- (UIKeyboardType) keyboardType
-{
-    return keyboardType;
-}
-
-- (void) setKeyboardType: (UIKeyboardType) type
-{
-    keyboardType = type;
-}
-
-- (UIReturnKeyType) returnKeyType
-{
-    return UIReturnKeyDefault;
-}
-
-- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-//    [self updateMouseEmulation];
 }
 
 - (void)layoutSubviews
@@ -1233,16 +1025,16 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     EAGLView* view = (EAGLView*) _glfwWin.view;
     switch (type) {
         case GLFW_KEYBOARD_DEFAULT:
-            view.keyboardType = UIKeyboardTypeDefault;
+            view.triggerField.keyboardType = UIKeyboardTypeDefault;
             break;
         case GLFW_KEYBOARD_NUMBER_PAD:
-            view.keyboardType = UIKeyboardTypeNumberPad;
+            view.triggerField.keyboardType = UIKeyboardTypeNumberPad;
             break;
         case GLFW_KEYBOARD_EMAIL:
-            view.keyboardType = UIKeyboardTypeEmailAddress;
+            view.triggerField.keyboardType = UIKeyboardTypeEmailAddress;
             break;
         default:
-            view.keyboardType = UIKeyboardTypeDefault;
+            view.triggerField.keyboardType = UIKeyboardTypeDefault;
     }
     view.textkeyActive = -1;
     view.autoCloseKeyboard = auto_close;
