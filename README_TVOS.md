@@ -8,7 +8,10 @@ Right now tvOS is very close to iOS, most of what is written for iOS apply here 
 Input on tvOS is done through a gamepad device so mapping a few triggers is required.
 
 GAMEPAD_LSTICK_CLICK for touchpad clicks.
+GAMEPAD_START for play/pause button.
 GAMEPAD_LSTICK_{LEFT,RIGHT,UP_DOWN} for pad direction
+
+Right now tvOS does not fire any touch events to Defold. Touch position from the touch pad does not behave as on iOS. Touch/drag is reported but when pressing or re-touching the pad, the position resets back to a center position of 960,540. 
 
 Text input is always fullscreen, one line, and disables joystick input for the game while active. An optional title can be set for this view, to clarify the reason/what to enter.
 
