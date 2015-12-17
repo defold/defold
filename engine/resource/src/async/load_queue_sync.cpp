@@ -73,12 +73,12 @@ namespace dmLoadQueue
 
         if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_Function)
         {
-            ResourcePreloadParams params;
+            dmResource::ResourcePreloadParams params;
             params.m_Factory = queue->m_Factory;
             params.m_Context = request->m_PreloadInfo.m_Context;
             params.m_Buffer = *buf;
-            params.m_Size = *size;
-            params.m_HintInfo = request->m_PreloadInfo.m_HintInfo;
+            params.m_BufferSize = *size;
+            params.m_HintInfo = &request->m_PreloadInfo.m_HintInfo;
             params.m_PreloadData = &load_result->m_PreloadData;
             load_result->m_PreloadResult = request->m_PreloadInfo.m_Function(params);
         }
