@@ -40,12 +40,9 @@ namespace dmSys
 
     Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length)
     {
-        NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:[NSString stringWithUTF8String:key]];
-        if (savedValue != NULL) {
-            NSData *data = [[NSData alloc] initWithBase64EncodedString:savedValue options:0];
+        NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:[NSString stringWithUTF8String:key]];
+        if (data != NULL) {
             memcpy(out_buffer, [data bytes], MIN(max_length, data.length));
-
-            [data release];
             return RESULT_OK;
         }
         return RESULT_NOENT;
@@ -54,9 +51,8 @@ namespace dmSys
     Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length)
     {
         NSData* data = [NSData dataWithBytes:(const void *)buffer length:sizeof(unsigned char)*length];
-        NSString *base64 = [data base64EncodedStringWithOptions:0];
         NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-        [userDefaults setObject:base64 forKey:[NSString stringWithUTF8String:key]];
+        [userDefaults setObject:data forKey:[NSString stringWithUTF8String:key]];
         [userDefaults synchronize];
         return RESULT_OK;
     }

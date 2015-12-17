@@ -34,7 +34,6 @@ namespace dmScript
 #define LIB_NAME "sys"
 
     const uint32_t MAX_BUFFER_SIZE =  128 * 1024;
-    const char* FILELESS_STORAGE_IDENTIFIER = "<userdata>";
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
@@ -77,7 +76,7 @@ namespace dmScript
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
         if (dmSys::CanPersistFiles() == false) {
-            dmSys::Result result = dmSys::StoreBufferInKeyValueStore("appdata", buffer, n_used);
+            dmSys::Result result = dmSys::StoreBufferInKeyValueStore(filename, buffer, n_used);
             lua_pushboolean(L, result == dmSys::RESULT_OK);
             return 1;
         }
@@ -110,7 +109,7 @@ namespace dmScript
         union {uint32_t dummy_align; char buffer[MAX_BUFFER_SIZE];};
         const char* filename = luaL_checkstring(L, 1);
         if (dmSys::CanPersistFiles() == false) {
-            dmSys::Result result = dmSys::LoadBufferFromKeyValueStore("appdata", buffer, MAX_BUFFER_SIZE);
+            dmSys::Result result = dmSys::LoadBufferFromKeyValueStore(filename, buffer, MAX_BUFFER_SIZE);
             if (result == RESULT_OK) {
                 PushTable(L, buffer);
             } else {
@@ -154,31 +153,30 @@ namespace dmScript
      */
     int Sys_GetSaveFile(lua_State* L)
     {
-        if (dmSys::CanPersistFiles() == false) {
-            lua_pushstring(L, FILELESS_STORAGE_IDENTIFIER);
-            return 1;
-        }
-        const char* application_id = luaL_checkstring(L, 1);
         char app_support_path[1024];
-        dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
-        if (r != dmSys::RESULT_OK)
-        {
-            luaL_error(L, "Unable to locate application support path (%d)", r);
-        }
-
+        app_support_path[0] = 0;
+        const char* application_id = luaL_checkstring(L, 1);
         const char* filename = luaL_checkstring(L, 2);
-        char* dm_home = getenv("DM_SAVE_HOME");
 
-        // Higher priority
-        if (dm_home)
-        {
-            dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
+        if (dmSys::CanPersistFiles()) {
+            dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
+            if (r != dmSys::RESULT_OK)
+            {
+                luaL_error(L, "Unable to locate application support path (%d)", r);
+            }
+
+            char* dm_home = getenv("DM_SAVE_HOME");
+
+            // Higher priority
+            if (dm_home)
+            {
+                dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
+            }
         }
 
         dmStrlCat(app_support_path, "/", sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
-
         return 1;
     }
 
