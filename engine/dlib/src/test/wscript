@@ -85,10 +85,7 @@ def build(bld):
     create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'])
-
-    if not re.match('arm.*?tvos', platform):
-        create_test(bld, 'test_log', extra_libs = ['THREAD'])
-
+    create_test(bld, 'test_log', extra_libs = ['THREAD'])
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
@@ -97,9 +94,8 @@ def build(bld):
                 embed_source = ['data/flickr.json'], extra_includes = ['.'])
     create_test(bld, 'test_utf8', extra_libs = ['THREAD'])
 
-    if not re.match('arm.*?tvos', platform):
-        create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
-                    embed_source = ['data/foo.gz', 'data/foo.deflate'])
+    create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
+                embed_source = ['data/foo.gz', 'data/foo.deflate'])
 
     create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.lz4'])
@@ -120,10 +116,7 @@ def build(bld):
                 extra_includes = ['.'])
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
-
-    if not re.match('arm.*?tvos', platform):
-        create_test(bld, 'test_md5', extra_libs = ['THREAD'])
-
+    create_test(bld, 'test_md5', extra_libs = ['THREAD'])
     create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_crypt')
