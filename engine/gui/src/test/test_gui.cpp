@@ -886,17 +886,17 @@ TEST_F(dmGuiTest, Playback)
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_LOOP_PINGPONG, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
-    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
-    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 4.0f / 4.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f / 4.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 4.0f / 4.0f, EPSILON);
 
 
     dmGui::DeleteNode(m_Scene, node);
