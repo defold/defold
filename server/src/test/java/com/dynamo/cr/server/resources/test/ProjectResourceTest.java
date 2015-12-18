@@ -279,7 +279,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         byte[] downloaded = ownerProjectResource
                 .path("/engine")
                 .path("ios")
-                .path(key)
+                .path(key+".ipa")
                 .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
                 .get(byte[].class);
 
