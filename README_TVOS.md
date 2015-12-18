@@ -1,6 +1,6 @@
 # tvOS
 
-Right now tvOS is similar to iOS, most of what is written for iOS apply here as well. The main differences being various things have been dropped/deprecated in the SDK. UIDeviceFamily array in Info.plist identifies tvOS by an integer 3 (TARGETED_DEVICE_FAMILY in Xcode Build Settings). tvOS only runs arm64.
+Right now tvOS is similar to iOS, most of what is written for iOS apply here as well. The main differences being various things have been dropped/deprecated in the SDK.
 
 
 ## User input
