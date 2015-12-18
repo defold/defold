@@ -778,6 +778,9 @@ namespace dmGui
      *   <li><code>gui.PROP_OUTLINE</code></li>
      *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>gui.PROP_FILL_ANGLE</code></li>
+     *   <li><code>gui.PROP_INNER_RADIUS</code></li>
+     *   <li><code>gui.PROP_SLICE9</code></li>
      * </ul>
      * <p>
      *
@@ -3108,6 +3111,24 @@ namespace dmGui
      * @variable
      */
 
+    /*# fill_angle property
+     *
+     * @name gui.PROP_FILL_ANGLE
+     * @variable
+     */
+
+    /*# inner_radius property
+     *
+     * @name gui.PROP_INNER_RADIUS
+     * @variable
+     */
+
+    /*# slice9 property
+     *
+     * @name gui.PROP_SLICE9
+     * @variable
+     */
+
     /*# alpha blending
      *
      * @name gui.BLEND_ALPHA
@@ -3271,6 +3292,9 @@ namespace dmGui
         SETPROP(outline, OUTLINE)
         SETPROP(shadow, SHADOW)
         SETPROP(size, SIZE)
+        SETPROP(fill_angle, FILL_ANGLE)
+        SETPROP(inner_radius, INNER_RADIUS)
+        SETPROP(slice9, SLICE9)
 
 #undef SETPROP
 
