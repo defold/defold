@@ -433,7 +433,7 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @RolesAllowed(value = { "anonymous" })
-    @Path("/engine/{platform}/{key}")
+    @Path("/engine/{platform}/{key}.ipa")
     public Response downloadEngine(@PathParam("project") String projectId,
                                  @PathParam("key") String key,
                                  @PathParam("platform") String platform) throws IOException {
@@ -492,7 +492,7 @@ public class ProjectResource extends BaseResource {
         stream.close();
 
         URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
-        String manifestPrim = manifest.replace("${URL}", engineUri.toString());
+        String manifestPrim = manifest.replace("${URL}", engineUri.toString()+".ipa");
         return manifestPrim;
     }
 
