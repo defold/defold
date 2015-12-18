@@ -1157,7 +1157,7 @@ namespace dmGui
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
                 }
-                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG || anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
                     t2 *= 2.0f;
                     if (t2 > 1.0f) {
                         t2 = 2.0f - t2;
