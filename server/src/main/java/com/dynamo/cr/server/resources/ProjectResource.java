@@ -460,7 +460,7 @@ public class ProjectResource extends BaseResource {
             }
         };
 
-        return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM_TYPE)
+        return Response.ok(output, new MediaType("application", "octet-stream ipa"))
                 .header("content-length", Long.toString(file.length()))
                 .header("content-disposition", String.format("attachment; filename=\"%s.ipa\"", key))
                 .build();
