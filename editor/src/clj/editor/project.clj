@@ -72,7 +72,7 @@ ordinary paths."
 
 (defn make-resource-node [graph project resource load? connections]
   (assert resource "resource required to make new node")
-  (let [resource-type (workspace/resource-type resource)
+  (let [resource-type (resource/resource-type resource)
         found? (some? resource-type)
         node-type (:node-type resource-type PlaceholderResourceNode)]
     (g/make-nodes graph [node [node-type :resource resource]]
@@ -89,9 +89,9 @@ ordinary paths."
   (let [project-graph (graph project)]
     (g/tx-nodes-added
       (g/transact
-        (for [[resource-type resources] (group-by workspace/resource-type resources)
+        (for [[resource-type resources] (group-by resource/resource-type resources)
               resource resources]
-          (if (not= (workspace/source-type resource) :folder)
+          (if (not= (resource/source-type resource) :folder)
             (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
                                                                                [:resource :node-resources]]})
             []))))))
@@ -106,7 +106,7 @@ ordinary paths."
 
 (defn make-embedded-resource [project type data]
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
-    (workspace/make-memory-resource (g/node-value project :workspace) resource-type data)))
+    (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn save-data [project]
   (g/node-value project :save-data :skip-validation true))
@@ -116,7 +116,7 @@ ordinary paths."
     (if-not (g/error? save-data)
       (do
         (doseq [{:keys [resource content]} save-data
-                :when (not (workspace/read-only? resource))]
+                :when (not (resource/read-only? resource))]
           (spit resource content))
         (workspace/resource-sync! (g/node-value project :workspace) false))
       ;; TODO: error message somewhere...
@@ -203,11 +203,11 @@ ordinary paths."
   (let [files-on-disk (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
         build-results (build project node)
         fs-build-cache (g/node-value project :fs-build-cache)]
-    (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
+    (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
     (doseq [result build-results
             :let [{:keys [resource content key]} result
-                  abs-path (workspace/abs-path resource)
+                  abs-path (resource/abs-path resource)
                   mtime (let [f (File. abs-path)]
                           (if (.exists f)
                             (.lastModified f)
@@ -215,7 +215,7 @@ ordinary paths."
                   build-key [key mtime]
                   cached? (= (get @fs-build-cache resource) build-key)]]
       (when (not cached?)
-        (let [parent (-> (File. (workspace/abs-path resource))
+        (let [parent (-> (File. (resource/abs-path resource))
                        (.getParentFile))]
           ; Create underlying directories
           (when (not (.exists parent))
@@ -261,7 +261,7 @@ ordinary paths."
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
 
 (defn- loadable? [resource]
-  (not (nil? (:load-fn (workspace/resource-type resource)))))
+  (not (nil? (:load-fn (resource/resource-type resource)))))
 
 (defn- add-resources [project resources]
   (load-nodes! project (make-nodes! project resources)))
@@ -355,7 +355,7 @@ ordinary paths."
   (output settings g/Any :cached (g/fnk [settings] settings)))
 
 (defn get-resource-type [resource-node]
-  (when resource-node (workspace/resource-type (g/node-value resource-node :resource))))
+  (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 
 (defn get-project [resource-node]
   (g/graph-value (g/node-id->graph-id resource-node) :project-id))
@@ -363,7 +363,7 @@ ordinary paths."
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
-    (filter (fn [r] (let [path (.getPath file-system (workspace/path r) (into-array String []))] (.matches matcher path))) resources)))
+    (filter (fn [r] (let [path (.getPath file-system (resource/path r) (into-array String []))] (.matches matcher path))) resources)))
 
 (defn find-resources [project query]
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
@@ -373,7 +373,7 @@ ordinary paths."
 (handler/defhandler :build :global
     (enabled? [] true)
     (run [project] (let [workspace (g/node-value project :workspace)
-                         game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))
+                         game-project (get-resource-node project "/game.project")
                          launch-path (workspace/project-path (g/node-value project :workspace))]
                      (build-and-write project game-project)
                      (launch-engine (io/file launch-path)))))

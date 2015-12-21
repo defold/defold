@@ -46,7 +46,7 @@
 
 (defn- template [workspace name]
   (let [resource (workspace/file-resource workspace name)]
-    (workspace/template (workspace/resource-type resource))))
+    (workspace/template (resource/resource-type resource))))
 
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
