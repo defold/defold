@@ -75,12 +75,7 @@ namespace dmScript
         const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        if (dmSys::CanPersistFiles() == false) {
-            dmSys::Result result = dmSys::StoreBufferInKeyValueStore(filename, buffer, n_used);
-            lua_pushboolean(L, result == dmSys::RESULT_OK);
-            return 1;
-        }
-        else {
+        if (dmSys::CanPersistFiles()) {
             FILE* file = fopen(filename, "wb");
             if (file != 0x0)
             {
@@ -93,6 +88,14 @@ namespace dmScript
                 }
             }
             return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+        else {
+            dmSys::Result result = dmSys::StoreBufferByKey(filename, buffer, n_used);
+            if (result == dmSys::RESULT_OK) {
+                lua_pushboolean(L, result);
+                return 1;
+            }
+            return luaL_error(L, "Could not save data to key %s.", filename);
         }
     }
 
@@ -108,16 +111,7 @@ namespace dmScript
         //Char arrays function stack are not guaranteed to be 4byte aligned in linux. An union with an int add this guarantee.
         union {uint32_t dummy_align; char buffer[MAX_BUFFER_SIZE];};
         const char* filename = luaL_checkstring(L, 1);
-        if (dmSys::CanPersistFiles() == false) {
-            dmSys::Result result = dmSys::LoadBufferFromKeyValueStore(filename, buffer, MAX_BUFFER_SIZE);
-            if (result == RESULT_OK) {
-                PushTable(L, buffer);
-            } else {
-                lua_newtable(L);
-            }
-            return 1;
-        }
-        else {
+        if (dmSys::CanPersistFiles()) {
             FILE* file = fopen(filename, "rb");
             if (file == 0x0)
             {
@@ -140,6 +134,16 @@ namespace dmScript
                 else
                     return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
             }
+        }
+        else {
+            uint32_t out_size = 0;
+            dmSys::Result result = dmSys::LoadBufferByKey(filename, buffer, MAX_BUFFER_SIZE, &out_size);
+            if (result == dmSys::RESULT_OK) {
+                PushTable(L, buffer);
+            } else {
+                lua_newtable(L);
+            }
+            return 1;
         }
     }
 

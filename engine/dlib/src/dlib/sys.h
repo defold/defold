@@ -273,14 +273,14 @@ namespace dmSys
     bool CanPersistFiles();
 
     /**
-     * Store arbitrary data in NSUserDefaults
+     * Store small amounts of arbitrary data by key
      */
-    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length);
+    Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length);
 
     /**
-     * Store arbitrary data in NSUserDefaults
+     * Fill out_buffer with data (up to max_length) found by key. If key does not exist, RESULT_NOENT is returned and out_length is set to 0.
      */
-    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length);
+    Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length);
 }
 
 #endif

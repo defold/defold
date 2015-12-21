@@ -177,11 +177,15 @@ namespace dmSys
         return true;
     }
 
-    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length) {
+    Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length) {
         return RESULT_INVAL;
     }
 
-    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length) {
+    Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length) {
+        if (out_length != NULL)
+        {
+            *out_length = 0;
+        }
         return RESULT_INVAL;
     }
 
