@@ -46,7 +46,11 @@
         (testing "library-state visible"
           (let [state (library/current-library-state project-directory urls)]
             (is (= 4 (count state)))
-            (is (= 3 (count (filter :file state)))))))))) ; no file for bogus
+            (is (= 3 (count (filter :file state))))))  ; no file for bogus
+        (testing "ignore duplicate library urls"
+          (let [state (library/current-library-state project-directory (concat urls urls))]
+            (is (= 4 (count state)))
+            (is (= 3 (count (filter :file state))))))))))
 
 (defn dummy-lib-resolver [url tag]
   (let [file-name (str "lib_resource_project/.internal/lib/file__" (subs (.getPath url) 1) "-.zip")]
