@@ -45,7 +45,7 @@
 
 (defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation save-data]
   {:id id
-   :type (or (and (:resource save-data) (:ext (workspace/resource-type (:resource save-data))))
+   :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
              "unknown")
    :position (math/vecmath->clj position)
    :rotation (math/vecmath->clj rotation)
@@ -54,18 +54,17 @@
 (def sound-exts (into #{} (map :ext sound/sound-defs)))
 
 (defn- wrap-if-raw-sound [_node-id target]
-  (let [source-path (workspace/proj-path (:resource (:resource target)))
+  (let [source-path (resource/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
     (if (sound-exts ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
             target    {:node-id  _node-id
-                       :resource (workspace/make-build-resource (workspace/make-memory-resource workspace res-type
-                                                                                                (protobuf/map->str Sound$SoundDesc pb)))
+                       :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
                        :build-fn (fn [self basis resource dep-resources user-data]
                                    (let [pb (:pb user-data)
-                                         pb (assoc pb :sound (workspace/proj-path (second (first dep-resources))))]
+                                         pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
                                      {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
                        :deps     [target]}]
         target)
@@ -157,7 +156,7 @@
                resource (get resources resource)
                instance-msg (dissoc instance-msg :type :data)]
            (merge instance-msg
-                  {:component (workspace/proj-path resource)})))
+                  {:component (resource/proj-path resource)})))
        inst-data))
 
 (defn- build-props [component]
@@ -255,7 +254,7 @@
         workspace (:workspace (g/node-value self :resource))
         component-exts (map :ext (workspace/get-resource-types workspace :component))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
-      (let [id (gen-component-id self (:ext (workspace/resource-type resource)))
+      (let [id (gen-component-id self (:ext (resource/resource-type resource)))
             op-seq (gensym)
             [comp-node] (g/tx-nodes-added
                           (g/transact

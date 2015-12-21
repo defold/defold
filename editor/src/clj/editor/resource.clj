@@ -27,6 +27,12 @@
 (defn relative-path [^File f1 ^File f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))
 
+(defn file->proj-path [^File project-path ^File f]
+  (try
+    (str "/" (relative-path project-path f))
+    (catch IllegalArgumentException e
+      nil)))
+
 (defrecord FileResource [workspace ^File file children]
   Resource
   (children [this] children)
@@ -89,6 +95,9 @@
 
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
   (.write w (format "MemoryResource{:workspace %s :data %s}" (:workspace memory-resource) (:data memory-resource))))
+
+(defn make-memory-resource [workspace resource-type data]
+  (MemoryResource. workspace (:ext resource-type) data))
 
 (defrecord ZipResource [workspace name path data children]
   Resource
