@@ -38,22 +38,40 @@ namespace dmSys
         return false;
     }
 
-    Result LoadBufferFromKeyValueStore(const char* key, char* out_buffer, uint32_t max_length)
+    Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length)
     {
         NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:[NSString stringWithUTF8String:key]];
         if (data != NULL) {
             memcpy(out_buffer, [data bytes], MIN(max_length, data.length));
+            if (out_length != NULL)
+            {
+                *out_length = data.length;
+            }
             return RESULT_OK;
+        }
+        if (out_length != NULL)
+        {
+            *out_length = 0;
         }
         return RESULT_NOENT;
     }
 
-    Result StoreBufferInKeyValueStore(const char* key, const char* buffer, uint32_t length)
+    Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length)
     {
+        if (buffer == NULL)
+        {
+            dmLogError("Unable to save invalid buffer.");
+            return RESULT_UNKNOWN;
+        }
         NSData* data = [NSData dataWithBytes:(const void *)buffer length:sizeof(unsigned char)*length];
         NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
         [userDefaults setObject:data forKey:[NSString stringWithUTF8String:key]];
-        [userDefaults synchronize];
+        BOOL result = [userDefaults synchronize];
+        if (result != TRUE)
+        {
+            dmLogError("Unable to synchronize NSUserDefaults with new data.");
+            return RESULT_UNKNOWN;
+        }
         return RESULT_OK;
     }
 
