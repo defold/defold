@@ -54,7 +54,7 @@
     (map #(assoc (find-matching-library libs %) :url %) lib-urls)))
 
 (defn current-library-state [project-directory lib-urls]
-  (map #(assoc % :status :unknown) (library-cache-info project-directory lib-urls)))
+  (map #(assoc % :status :unknown) (library-cache-info project-directory (distinct lib-urls))))
 
 ;; -----
 
