@@ -138,9 +138,16 @@ namespace dmScript
         else {
             uint32_t out_size = 0;
             dmSys::Result result = dmSys::LoadBufferByKey(filename, buffer, MAX_BUFFER_SIZE, &out_size);
-            if (result == dmSys::RESULT_OK) {
+            if (result == dmSys::RESULT_OK)
+            {
                 PushTable(L, buffer);
-            } else {
+            }
+            else if (result == dmSys::RESULT_INVAL)
+            {
+                return luaL_error(L, "Data size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
+            }
+            else
+            {
                 lua_newtable(L);
             }
             return 1;
