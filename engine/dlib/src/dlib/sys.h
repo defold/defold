@@ -274,11 +274,20 @@ namespace dmSys
 
     /**
      * Store small amounts of arbitrary data by key
+     * @param key key to save under
+     * @param buffer bytes to save
+     * @param length size of the buffer
+     * @return RESULT_OK on success. RESULT_UNKNOWN if there is a problem
      */
     Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length);
 
     /**
-     * Fill out_buffer with data (up to max_length) found by key. If key does not exist, RESULT_NOENT is returned and out_length is set to 0.
+     * Fill out_buffer with data (up to max_length) found by key.
+     * @param key key to retrieve value for
+     * @param out_buffer pointer to a buffer to receive the stored byets
+     * @param max_length length of the out buffer
+     * @param out_length pointer to a uint32 to receive number of bytes read (0 on error)
+     * @return RESULT_NOENT if key does not exist, RESULT_INVAL if value too large
      */
     Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length);
 }

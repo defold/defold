@@ -41,8 +41,9 @@ namespace dmSys
     Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length)
     {
         NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:[NSString stringWithUTF8String:key]];
-        if (data != NULL) {
-            memcpy(out_buffer, [data bytes], MIN(max_length, data.length));
+        if (data != NULL && data.length < max_length)
+        {
+            memcpy(out_buffer, [data bytes], data.length);
             if (out_length != NULL)
             {
                 *out_length = data.length;
@@ -53,7 +54,10 @@ namespace dmSys
         {
             *out_length = 0;
         }
-        return RESULT_NOENT;
+        if (data == NULL) {
+            return RESULT_NOENT;
+        }
+        return RESULT_INVAL;
     }
 
     Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length)
