@@ -75,7 +75,8 @@ namespace dmScript
         const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        if (dmSys::CanPersistFiles()) {
+        if (dmSys::CanPersistFiles())
+        {
             FILE* file = fopen(filename, "wb");
             if (file != 0x0)
             {
@@ -89,9 +90,11 @@ namespace dmScript
             }
             return luaL_error(L, "Could not write to the file %s.", filename);
         }
-        else {
+        else
+        {
             dmSys::Result result = dmSys::StoreBufferByKey(filename, buffer, n_used);
-            if (result == dmSys::RESULT_OK) {
+            if (result == dmSys::RESULT_OK)
+            {
                 lua_pushboolean(L, result);
                 return 1;
             }
