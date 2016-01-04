@@ -511,25 +511,28 @@ int  _glfwPlatformOpenWindow( int width, int height,
     // Don't use accumulation buffer support; it's not accelerated
     // Aux buffers probably aren't accelerated either
 
-    CFDictionaryRef fullscreenMode = NULL;
+    CGDisplayModeRef fullscreenMode = NULL;
     if( wndconfig->mode == GLFW_FULLSCREEN )
     {
-        fullscreenMode =
-            // I think it's safe to pass 0 to the refresh rate for this function
-            // rather than conditionalizing the code to call the version which
-            // doesn't specify refresh...
-            CGDisplayBestModeForParametersAndRefreshRateWithProperty(
-            CGMainDisplayID(),
-            colorBits + fbconfig->alphaBits,
-            width,
-            height,
-            wndconfig->refreshRate,
-            // Controversial, see macosx_fullscreen.m for discussion
-            kCGDisplayModeIsSafeForHardware,
-            NULL);
+        // Find a good display mode for fullscreen based on width and height.
+        CFArrayRef modes = CGDisplayCopyAllDisplayModes(CGMainDisplayID(), NULL);
+        CFIndex count = CFArrayGetCount(modes);
+        int bestSizeDiff = INT_MAX;
+        for (CFIndex i = 0; i < count; i++) {
+            CGDisplayModeRef mode = (CGDisplayModeRef) CFArrayGetValueAtIndex(modes, i);
+            int mode_width = CGDisplayModeGetWidth(mode);
+            int mode_height = CGDisplayModeGetHeight(mode);
+            int res_diff = abs((mode_width - width) * (mode_width - width) + (mode_height - height) * (mode_height - height));
 
-        width = [[(id)fullscreenMode objectForKey:(id)kCGDisplayWidth] intValue];
-        height = [[(id)fullscreenMode objectForKey:(id)kCGDisplayHeight] intValue];
+            if (fullscreenMode == NULL ||
+                (res_diff < bestSizeDiff && mode_width >= width && mode_height >= height)) {
+                fullscreenMode = mode;
+                bestSizeDiff = res_diff;
+            }
+        }
+        CFRelease(modes);
+        width = CGDisplayModeGetWidth(fullscreenMode);
+        height = CGDisplayModeGetHeight(fullscreenMode);
     }
 
     unsigned int styleMask = 0;
@@ -560,7 +563,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     if( wndconfig->mode == GLFW_FULLSCREEN )
     {
         CGCaptureAllDisplays();
-        CGDisplaySwitchToMode( CGMainDisplayID(), fullscreenMode );
+        CGDisplaySetDisplayMode( CGMainDisplayID(), fullscreenMode, NULL );
     }
 
     unsigned int attribute_count = 0;
@@ -676,8 +679,8 @@ void _glfwPlatformCloseWindow( void )
     if( _glfwWin.fullscreen )
     {
         [[_glfwWin.window contentView] exitFullScreenModeWithOptions:nil];
-        CGDisplaySwitchToMode( CGMainDisplayID(),
-                               (CFDictionaryRef)_glfwLibrary.DesktopMode );
+        CGDisplaySetDisplayMode( CGMainDisplayID(),
+                                 (CGDisplayModeRef)_glfwLibrary.DesktopMode, NULL );
         CGReleaseAllDisplays();
     }
 
