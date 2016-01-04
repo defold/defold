@@ -183,6 +183,13 @@ namespace dmJson
         // NOTE: initial count is increased in do-while
         unsigned int token_count = 64;
 
+        if(!buffer)
+        {
+            doc->m_NodeCount = 0;
+            doc->m_Nodes = 0;
+            return RESULT_OK;
+        }
+
         jsmnerr_t err = (jsmnerr_t) 0;
         jsmntok_t* tokens = 0;
         do {
