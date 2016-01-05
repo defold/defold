@@ -250,7 +250,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(0, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
     }
 
-/*
+
     @Test
     public void uploadEngine() throws Exception {
         File f = File.createTempFile("test", ".suff");
@@ -279,7 +279,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         byte[] downloaded = ownerProjectResource
                 .path("/engine")
                 .path("ios")
-                .path(key+".ipa")
+                .path(key)
                 .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
                 .get(byte[].class);
 
@@ -300,6 +300,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
         URL url = new URL(asset.getString("url"));
         byte[] downloadedFromManifest = IOUtils.toByteArray(url.openStream());
         assertArrayEquals(buf, downloadedFromManifest);
-    }*/
+    }
 
 }

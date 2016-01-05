@@ -433,8 +433,9 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @RolesAllowed(value = { "anonymous" })
-    @Path("/engine/{platform}/{key}.ipa")
-    public Response downloadEngine(@PathParam("project") String projectId,
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    @Path("/engine/{platform}/{key}")
+    public byte[] downloadEngine(@PathParam("project") String projectId,
                                  @PathParam("key") String key,
                                  @PathParam("platform") String platform) throws IOException {
 
@@ -450,20 +451,7 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
         }
 
-        final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
-
-        StreamingOutput output = new StreamingOutput() {
-            @Override
-            public void write(OutputStream os) throws IOException, WebApplicationException {
-                FileUtils.copyFile(file, os);
-                os.close();
-            }
-        };
-
-        return Response.ok(output, new MediaType("application", "octet-stream ipa"))
-                .header("content-length", Long.toString(file.length()))
-                .header("content-disposition", String.format("attachment; filename=\"%s.ipa\"", key))
-                .build();
+        return server.downloadEngine(projectId, platform);
     }
 
     @GET
@@ -493,7 +481,7 @@ public class ProjectResource extends BaseResource {
         stream.close();
 
         URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
-        String manifestPrim = manifest.replace("${URL}", engineUri.toString()+".ipa");
+        String manifestPrim = manifest.replace("${URL}", engineUri.toString());
         return manifestPrim;
     }
 
