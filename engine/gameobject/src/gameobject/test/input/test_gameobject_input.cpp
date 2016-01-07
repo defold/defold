@@ -61,8 +61,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename);
-    static dmResource::Result ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+    static dmResource::Result ResInputTargetCreate(const dmResource::ResourceCreateParams& params);
+    static dmResource::Result ResInputTargetDestroy(const dmResource::ResourceDestroyParams& params);
 
     static dmGameObject::CreateResult CompInputTargetCreate(const dmGameObject::ComponentCreateParams& params);
     static dmGameObject::CreateResult CompInputTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
@@ -80,13 +80,13 @@ public:
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
-dmResource::Result InputTest::ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result InputTest::ResInputTargetCreate(const dmResource::ResourceCreateParams& params)
 {
     TestGameObjectDDF::InputTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::InputTarget>(buffer, buffer_size, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::InputTarget>(params.m_Buffer, params.m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) obj;
+        params.m_Resource->m_Resource = (void*) obj;
         return dmResource::RESULT_OK;
     }
     else
@@ -95,9 +95,9 @@ dmResource::Result InputTest::ResInputTargetCreate(dmResource::HFactory factory,
     }
 }
 
-dmResource::Result InputTest::ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result InputTest::ResInputTargetDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    dmDDF::FreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 

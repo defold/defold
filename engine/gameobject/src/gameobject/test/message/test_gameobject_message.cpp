@@ -72,15 +72,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResMessageTargetCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void *preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename);
-    static dmResource::Result ResMessageTargetDestroy(dmResource::HFactory factory,
-                                            void* context,
-                                            dmResource::SResourceDescriptor* resource);
+    static dmResource::Result ResMessageTargetCreate(const dmResource::ResourceCreateParams& params);
+    static dmResource::Result ResMessageTargetDestroy(const dmResource::ResourceDestroyParams& params);
     static dmGameObject::CreateResult CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params);
@@ -105,13 +98,13 @@ const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
 const static dmhash_t POST_DDF_ID = TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash;
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
 
-dmResource::Result MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::ResourceCreateParams& params)
 {
     TestGameObjectDDF::MessageTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(buffer, buffer_size, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(params.m_Buffer, params.m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) obj;
+        params.m_Resource->m_Resource = (void*) obj;
         return dmResource::RESULT_OK;
     }
     else
@@ -120,9 +113,9 @@ dmResource::Result MessageTest::ResMessageTargetCreate(dmResource::HFactory fact
     }
 }
 
-dmResource::Result MessageTest::ResMessageTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result MessageTest::ResMessageTargetDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    dmDDF::FreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 
