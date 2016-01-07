@@ -72,13 +72,13 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-static dmResource::Result NullResourceCreate(dmResource::HFactory factory, void* context, const void* buffer,uint32_t buffer_size, void *preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+static dmResource::Result NullResourceCreate(const dmResource::ResourceCreateParams& params)
 {
-    resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
+    params.m_Resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
     return dmResource::RESULT_OK;
 }
 
-static dmResource::Result NullResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyParams& params)
 {
     return dmResource::RESULT_OK;
 }

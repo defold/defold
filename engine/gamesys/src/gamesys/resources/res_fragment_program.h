@@ -7,22 +7,11 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResFragmentProgramCreate(dmResource::HFactory factory,
-                                                   void* context,
-                                                   const void* buffer, uint32_t buffer_size,
-                                                   void *preload_data,
-                                                   dmResource::SResourceDescriptor* resource,
-                                                   const char* filename);
+    dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResFragmentProgramDestroy(dmResource::HFactory factory,
-                                                    void* context,
-                                                    dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResFragmentProgramRecreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename);
+    dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
