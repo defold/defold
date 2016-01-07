@@ -7,20 +7,15 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResRenderScriptCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResRenderScriptCreate(const dmResource::ResourceCreateParams& params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
-        if (!dmGameObject::RegisterSubModules(factory, dmRender::GetScriptContext(render_context), lua_module))
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
+        if (!dmGameObject::RegisterSubModules(params.m_Factory, dmRender::GetScriptContext(render_context), lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
@@ -30,7 +25,7 @@ namespace dmGameSystem
         dmDDF::FreeMessage(lua_module);
         if (render_script)
         {
-            resource->m_Resource = (void*) render_script;
+            params.m_Resource->m_Resource = (void*) render_script;
             return dmResource::RESULT_OK;
         }
         else
@@ -39,30 +34,24 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResRenderScriptDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResRenderScriptDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
-        dmRender::DeleteRenderScript(render_context, (dmRender::HRenderScript) resource->m_Resource);
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
+        dmRender::DeleteRenderScript(render_context, (dmRender::HRenderScript) params.m_Resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResRenderScriptRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResRenderScriptRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
-        dmRender::HRenderScript render_script = (dmRender::HRenderScript) resource->m_Resource;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
+        dmRender::HRenderScript render_script = (dmRender::HRenderScript) params.m_Resource->m_Resource;
 
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK ) {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        if (!dmGameObject::RegisterSubModules(factory, dmRender::GetScriptContext(render_context), lua_module))
+        if (!dmGameObject::RegisterSubModules(params.m_Factory, dmRender::GetScriptContext(render_context), lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;

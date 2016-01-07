@@ -7,22 +7,11 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResVertexProgramCreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 void *preload_data,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename);
+    dmResource::Result ResVertexProgramCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResVertexProgramDestroy(dmResource::HFactory factory,
-                                                  void* context,
-                                                  dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResVertexProgramDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResVertexProgramRecreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename);
+    dmResource::Result ResVertexProgramRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_VERTEX_PROGRAM_H

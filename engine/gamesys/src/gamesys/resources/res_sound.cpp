@@ -33,57 +33,41 @@ namespace dmGameSystem
     }
 
 
-    dmResource::Result ResSoundPreload(dmResource::HFactory factory,
-                                       dmResource::HPreloadHintInfo hint_info,
-                                       void* context,
-                                       const void* buffer, uint32_t buffer_size,
-                                       void** preload_data,
-                                       const char* filename)
+    dmResource::Result ResSoundPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmSoundDDF::SoundDesc* sound_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmSoundDDF::SoundDesc>(buffer, buffer_size, &sound_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmSoundDDF::SoundDesc>(params.m_Buffer, params.m_BufferSize, &sound_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmResource::PreloadHint(hint_info, sound_desc->m_Sound);
-        *preload_data = sound_desc;
+        dmResource::PreloadHint(params.m_HintInfo, sound_desc->m_Sound);
+        *params.m_PreloadData = sound_desc;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSoundCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void* preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename)
+    dmResource::Result ResSoundCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmSoundDDF::SoundDesc* sound_desc = (dmSoundDDF::SoundDesc*) preload_data;
+        dmSoundDDF::SoundDesc* sound_desc = (dmSoundDDF::SoundDesc*) params.m_PreloadData;
         Sound* sound;
-        dmResource::Result r = AcquireResources(factory, sound_desc, &sound);
+        dmResource::Result r = AcquireResources(params.m_Factory, sound_desc, &sound);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) sound;
+            params.m_Resource->m_Resource = (void*) sound;
         }
         return r;
     }
 
-    dmResource::Result ResSoundDestroy(dmResource::HFactory factory,
-                                            void* context,
-                                            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResSoundDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        Sound* sound = (Sound*) resource->m_Resource;
+        Sound* sound = (Sound*) params.m_Resource->m_Resource;
 
-        dmResource::Release(factory, (void*) sound->m_SoundData);
+        dmResource::Release(params.m_Factory, (void*) sound->m_SoundData);
         delete sound;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSoundRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResSoundRecreate(const dmResource::ResourceRecreateParams& params)
     {
         // Not supported yet. This might be difficult to set a new HSoundInstance
         // while a sound is playing?
