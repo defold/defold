@@ -736,3 +736,60 @@ GridPane.prefs {
     -fx-padding: 0 30 0 0;
     -fx-background-color: #ff00ff;
 }*/
+
+.lua.styled-text-area .comment {
+    -styled-text-color: #ff00FF;
+}
+
+.lua.styled-text-area .keyword {
+    -styled-text-color: #00ff00;
+}
+
+.lua.styled-text-area .default {
+    -styled-text-color: #ffffff;
+}
+
+.lua.styled-text-area .string {
+    -styled-text-color: #ff00ff;
+}
+
+.lua.styled-text-area {
+    -styled-text-color: #ff00ff;
+}
+
+.styled-text-area .comment { -styled-text-color: #ff00ff; }
+
+.lua.styled-text-area .number {
+    -styled-text-color: #aaaaff;
+}
+
+.lua.selection-marker {
+    -fx-background-color: #2b5696;
+}
+
+.glsl.styled-text-area .comment {
+    -styled-text-color: #ff00ff;
+}
+
+.glsl.styled-text-area .comment {
+    -styled-text-color: #0000ff;
+}
+
+.glsl.styled-text-area .keyword {
+    -styled-text-color: #0000ff;
+}
+
+/*
+
+Line numbers:
+
+.luaeditor .line-ruler-text {
+    -fx-background-color: #ff00ff;
+}
+
+*/
+
+/* Hack for current line */
+.lua.styled-text-area .list-cell:selected {
+    -fx-background-color: linear-gradient(#328BDB 0%, #207BCF 25%, #1973C9 75%, #0A65BF 100%);
+}
