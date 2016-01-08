@@ -273,3 +273,12 @@
   (enabled? [] true)
   (run [workspace project app-view] (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                       (open-resource app-view workspace project resource))))
+
+(defn fetch-libraries [workspace project]
+  (workspace/set-project-dependencies! workspace (project/project-dependencies project))
+  (workspace/update-dependencies! workspace)
+  (workspace/resource-sync! workspace))
+
+(handler/defhandler :fetch-libraries :global
+  (enabled? [] true)
+  (run [workspace project] (fetch-libraries workspace project)))
