@@ -48,6 +48,17 @@
 (defn- workspace-resource-paths [workspace]
   (resource-paths (non-builtin-resources (g/node-value workspace :resource-list))))
 
+(deftest include-parsing
+  (testing "sane dirs"
+    (is (not (seq (resource-watch/parse-include-dirs ""))))
+    (is (= (resource-watch/parse-include-dirs "foo bar baz") (list "foo" "bar" "baz"))))
+  (testing "various spacing allowed"
+    (is (= (resource-watch/parse-include-dirs "  foo  bar  baz  ") (list "foo" "bar" "baz")))
+    (is (= (resource-watch/parse-include-dirs "\tfoo\t\tbar\tbaz") (list "foo" "bar" "baz")))
+    (is (= (resource-watch/parse-include-dirs "\r\nfoo\rbar\nbaz") (list "foo" "bar" "baz"))))
+  (testing "cant specify directory names with spaces :("
+    (is (= (resource-watch/parse-include-dirs "im\\ possible") (list "im\\" "possible")))))
+
 (deftest libraries-skipped-by-default
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
