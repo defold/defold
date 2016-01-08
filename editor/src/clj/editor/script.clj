@@ -13,7 +13,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.pipeline.lua-scan :as lua-scan]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.lua :as lua])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]
@@ -25,20 +26,32 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private lua-code-opts {:code lua/lua})
+
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code]
+                   :view-opts lua-code-opts
                    :tags #{:component}}
                   {:ext "render_script"
                    :label "Render Script"
-                   :icon "icons/32/Icons_12-Script-type.png"}
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :view-types [:code]
+                   :view-opts lua-code-opts
+                   }
                   {:ext "gui_script"
                    :label "Gui Script"
-                   :icon "icons/32/Icons_12-Script-type.png"}
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :view-types [:code]
+                   :view-opts lua-code-opts
+                   }
                   {:ext "lua"
                    :label "Lua Module"
-                   :icon "icons/32/Icons_11-Script-general.png"}])
+                   :icon "icons/32/Icons_11-Script-general.png"
+                   :view-types [:code]
+                   :view-opts lua-code-opts
+                   }])
 
 (def ^:private status-errors
   {:ok nil
@@ -115,3 +128,4 @@
 (defn register-resource-types [workspace]
   (for [def script-defs]
     (register workspace def)))
+;;(register-resource-types 0)
