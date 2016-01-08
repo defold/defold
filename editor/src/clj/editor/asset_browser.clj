@@ -147,7 +147,7 @@
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
             (.delete (File. (workspace/abs-path resource))))))
-      (workspace/fs-sync workspace))))
+      (workspace/resource-sync! workspace))))
 
 (defn- copy [files]
   (let [cb (Clipboard/getSystemClipboard)
@@ -211,7 +211,7 @@
              (FileUtils/copyDirectory src-file tgt-file)
              (FileUtils/copyFile src-file tgt-file)))
          (select-files! workspace tree-view (mapv second pairs))
-         (workspace/fs-sync (workspace/workspace resource)))))
+         (workspace/resource-sync! (workspace/workspace resource)))))
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
@@ -238,7 +238,7 @@
              rt (:resource-type user-data)]
          (when-let [f (dialogs/make-new-file-dialog (File. ^String (g/node-value workspace :root)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (spit f (workspace/template rt))
-           (workspace/fs-sync workspace)
+           (workspace/resource-sync! workspace)
            (let [resource (FileResource. workspace f [])]
              (update-tree-view tree-view (g/node-value workspace :resource-tree) [resource])
              (open-fn resource)))))
@@ -259,7 +259,7 @@
                                    base-folder (to-folder f)]
                                (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
                                  (.mkdir ^File (resolve-sub-folder base-folder new-folder-name))
-                                 (workspace/fs-sync workspace)))))
+                                 (workspace/resource-sync! workspace)))))
 
 (defn- item->path [^TreeItem item]
   (-> item (.getValue) (workspace/proj-path)))
@@ -384,7 +384,7 @@
              (FileUtils/copyDirectory src-file tgt-file)
              (FileUtils/copyFile src-file tgt-file))))
         (select-files! workspace tree-view (mapv second pairs))
-        (workspace/fs-sync workspace true moved)))
+        (workspace/resource-sync! workspace true moved)))
     (.setDropCompleted e true)
     (.consume e)))
 
