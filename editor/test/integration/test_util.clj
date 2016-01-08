@@ -1,5 +1,6 @@
 (ns integration.test-util
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
             [editor.cubemap :as cubemap]
@@ -26,7 +27,9 @@
             [editor.mesh :as mesh]
             [editor.material :as material])
   (:import [java.io File]
-           [javax.imageio ImageIO]))
+           [java.nio.file Files attribute.FileAttribute]
+           [javax.imageio ImageIO]
+           [org.apache.commons.io FilenameUtils FileUtils]))
 
 (def project-path "resources/test_project")
 
@@ -61,7 +64,15 @@
         (particlefx/register-resource-types workspace)
         (gui/register-resource-types workspace)
         (material/register-resource-types workspace)))
+      (workspace/resource-sync! workspace)
       workspace)))
+
+(defn setup-scratch-workspace! [graph project-path]
+  (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
+                              (.toFile)
+                              (.getAbsolutePath))]
+    (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
+    (setup-workspace! graph temp-project-path)))
 
 (defn setup-project!
   [workspace]
