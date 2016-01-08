@@ -22,13 +22,14 @@
 
 (deftest url-parsing
   (testing "sane urls"
-    (is (= urls (list (URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")))))
-  
-  (testing "various spacing allowed"
+    (is (= urls (list (URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus"))))
+    (is (= (library/parse-library-urls "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus")
+           (list (URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")))))
+  (testing "various spacing and commas allowed"
     (is (= urls (library/parse-library-urls "   file:/scriptlib   file:/imagelib1\tfile:/imagelib2  file:/bogus\t")))
+    (is (= urls (library/parse-library-urls " ,, file:/scriptlib ,  ,,  file:/imagelib1\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
     (is (= urls (library/parse-library-urls "\tfile:/scriptlib\tfile:/imagelib1\tfile:/imagelib2\tfile:/bogus   ")))
     (is (= urls (library/parse-library-urls "\r\nfile:/scriptlib\nfile:/imagelib1\rfile:/imagelib2\tfile:/bogus "))))
-
   (testing "ignore non-urls"
     (is (= urls (library/parse-library-urls "this file:/scriptlib sure file:/imagelib1 aint file:/imagelib2 no file:/bogus url")))))
 

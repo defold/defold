@@ -51,9 +51,11 @@
 (deftest include-parsing
   (testing "sane dirs"
     (is (not (seq (resource-watch/parse-include-dirs ""))))
-    (is (= (resource-watch/parse-include-dirs "foo bar baz") (list "foo" "bar" "baz"))))
-  (testing "various spacing allowed"
+    (is (= (resource-watch/parse-include-dirs "foo bar baz") (list "foo" "bar" "baz")))
+    (is (= (resource-watch/parse-include-dirs "foo,bar,baz") (list "foo" "bar" "baz"))))
+  (testing "various spacing and commas allowed"
     (is (= (resource-watch/parse-include-dirs "  foo  bar  baz  ") (list "foo" "bar" "baz")))
+    (is (= (resource-watch/parse-include-dirs "  ,, foo , bar ,,, baz  ") (list "foo" "bar" "baz")))
     (is (= (resource-watch/parse-include-dirs "\tfoo\t\tbar\tbaz") (list "foo" "bar" "baz")))
     (is (= (resource-watch/parse-include-dirs "\r\nfoo\rbar\nbaz") (list "foo" "bar" "baz"))))
   (testing "cant specify directory names with spaces :("
