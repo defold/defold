@@ -16,9 +16,12 @@
         (first path-splits))
       (first path-splits))))
 
+(defn parse-include-dirs [include-string]
+  (filter (comp not str/blank?) (str/split include-string  #"[,\s]")))
+  
 (defn- extract-game-project-include-dirs [reader]
   (let [settings (game-project-core/parse-settings reader)]
-    (filter (comp not str/blank?) (str/split (str (game-project-core/get-setting settings ["library" "include_dirs"])) #"[,\s]"))))
+    (parse-include-dirs (str (game-project-core/get-setting settings ["library" "include_dirs"])))))
 
 (defn- make-library-zip-tree [workspace file]
   (let [zip-resources (resource/make-zip-tree workspace file)
