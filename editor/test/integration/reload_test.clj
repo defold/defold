@@ -31,16 +31,11 @@
            [org.apache.commons.io FilenameUtils FileUtils]))
 
 (def ^:dynamic *project-path* "resources/reload_project")
-(def ^:dynamic *temp-project-path*)
 
-(defn- setup
-  ([ws-graph] (setup ws-graph *project-path*))
+(defn- setup-scratch
+  ([ws-graph] (setup-scratch ws-graph *project-path*))
   ([ws-graph project-path]
-   (alter-var-root #'*temp-project-path* (fn [_] (-> (Files/createTempDirectory "foo" (into-array FileAttribute []))
-                                                   (.toFile)
-                                                   (.getAbsolutePath))))
-   (FileUtils/copyDirectory (File. project-path) (File. *temp-project-path*))
-   (let [workspace (test-util/setup-workspace! ws-graph *temp-project-path*)
+   (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
 
@@ -51,46 +46,46 @@
 
 (defn- template [workspace name]
   (let [resource (workspace/file-resource workspace name)]
-    (workspace/template (workspace/resource-type resource))))
+    (workspace/template (resource/resource-type resource))))
 
 (defn- write-file [workspace name content]
-  (let [f (File. (File. *temp-project-path*) name)]
+  (let [f (File. (workspace/project-path workspace) name)]
     (mkdirs f)
     (if (not (.exists f))
       (.createNewFile f)
       (Thread/sleep 1100))
     (spit f content))
-  (workspace/fs-sync workspace))
+  (workspace/resource-sync! workspace))
 
-(defn- read-file [name]
-  (slurp (str *temp-project-path* name)))
+(defn- read-file [workspace name]
+  (slurp (str (workspace/project-path workspace) name)))
 
 (defn- add-file [workspace name]
   (write-file workspace name (template workspace name)))
 
 (defn- delete-file [workspace name]
-  (let [f (File. (File. *temp-project-path*) name)]
+  (let [f (File. (workspace/project-path workspace) name)]
     (.delete f))
-  (workspace/fs-sync workspace))
+  (workspace/resource-sync! workspace))
 
 (defn- copy-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (File. *temp-project-path*) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
     (FileUtils/copyFile f new-f))
-  (workspace/fs-sync workspace))
+  (workspace/resource-sync! workspace))
 
 (defn- move-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (File. *temp-project-path*) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
     (FileUtils/moveFile f new-f)
-    (workspace/fs-sync workspace true [[f new-f]])))
+    (workspace/resource-sync! workspace true [[f new-f]])))
 
 (defn- add-img [workspace name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
-        f (File. (File. *temp-project-path*) name)]
+        f (File. (workspace/project-path workspace) name)]
     (when (.exists f)
       (Thread/sleep 1100))
     (ImageIO/write img type f)
-    (workspace/fs-sync workspace)))
+    (workspace/resource-sync! workspace)))
 
 (defn- has-undo? [project]
   (g/has-undo? (g/node-id->graph-id project)))
@@ -100,7 +95,7 @@
 
 (deftest internal-file
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[workspace project] (setup-scratch world)]
       (testing "Add internal file"
                (add-file workspace "/test.collection")
                (let [node (project/get-resource-node project "/test.collection")]
@@ -121,7 +116,7 @@
 
 (deftest external-file
  (with-clean-system
-   (let [[workspace project] (setup world)
+   (let [[workspace project] (setup-scratch world)
          atlas-node-id (project/get-resource-node project "/atlas/empty.atlas")
          img-path "/test_img.png"
          anim-id (FilenameUtils/getBaseName img-path)]
@@ -154,7 +149,7 @@
 
 (deftest save-no-reload
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[workspace project] (setup-scratch world)]
       (testing "Add internal file"
                (add-file workspace "/test.collection")
                (let [node (project/get-resource-node project "/test.collection")]
@@ -162,7 +157,7 @@
                    (g/set-property node :name "new_name"))
                  (is (has-undo? project))
                  (project/save-all project)
-                 (workspace/fs-sync workspace)
+                 (workspace/resource-sync! workspace)
                  (is (has-undo? project)))))))
 
 (defn- find-error [type v]
@@ -178,7 +173,7 @@
 
 (deftest external-file-errors
   (with-clean-system
-    (let [[workspace project] (setup world)
+    (let [[workspace project] (setup-scratch world)
           atlas-node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"]
       (log/without-logging
@@ -202,14 +197,14 @@
 
 (deftest resource-reference-error
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[workspace project] (setup-scratch world)]
       (testing "Tile source ok before writing broken content"
         (let [pfx-node (project/get-resource-node project "/test.particlefx")
               ts-node (raw-tile-source (first-child pfx-node))]
           (is (not (g/error? (g/node-value ts-node :extrude-borders))))
           (is (= nil (g/node-value ts-node :_output-jammers)))))
       (testing "Externally modifying to refer to non existing tile source results in defective node"
-        (let [test-content (read-file "/test.particlefx")
+        (let [test-content (read-file workspace "/test.particlefx")
               broken-content (str/replace test-content
                                           "tile_source: \"/builtins/graphics/particle_blob.tilesource\""
                                           "tile_source: \"/builtins/graphics/particle_blob_does_not_exist.tilesource\"")]
@@ -219,14 +214,9 @@
             (is (g/error? (g/node-value ts-node :extrude-borders)))
             (is (seq (keys (g/node-value ts-node :_output-jammers))))))))))
 
-(defn- dump-all-nodes
-  [project]
-  (let [nodes (g/node-value project :nodes-by-resource)]
-    (prn (mapv str (keys nodes)))))
-
 (deftest internal-file-errors
   (with-clean-system
-    (let [[workspace project] (setup world)
+    (let [[workspace project] (setup-scratch world)
           node-id (project/get-resource-node project "/main/main.go")
           img-path "/test_img.png"
           atlas-path "/atlas/single.atlas"]
@@ -250,7 +240,7 @@
 
 (deftest refactoring
   (with-clean-system
-    (let [[workspace project] (setup world)
+    (let [[workspace project] (setup-scratch world)
           node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"
           new-img-path "/test_img2.png"]
@@ -263,7 +253,7 @@
 
 (deftest refactoring-sub-collection
   (with-clean-system
-    (let [[workspace project] (setup world)
+    (let [[workspace project] (setup-scratch world)
           node-id (project/get-resource-node project "/collection/sub_defaults.collection")
           coll-path "/collection/props.collection"
           new-coll-path "/collection/props2.collection"]
@@ -274,16 +264,16 @@
 (deftest project-with-missing-parts-can-be-saved
   ;; missing embedded game object, sub collection
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/missing_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch world "resources/missing_project"))]
       (is (not (g/error? (project/save-data project)))))))
 
 (deftest project-with-nil-parts-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/nil_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch world "resources/nil_project"))]
       (is (not (g/error? (project/save-data project)))))))
 
 (deftest broken-project-cannot-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/broken_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch world "resources/broken_project"))]
       (is (g/error? (project/save-data project))))))
 
