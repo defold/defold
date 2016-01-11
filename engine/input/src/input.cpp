@@ -695,18 +695,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released && !(action->m_TextCount > 0 || action->m_HasText);
-        // Mouse move action
-        active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
-        if (active)
-        {
-            data->m_Callback(*key, action, data->m_UserData);
-        }
-    }
-
-    void ForEachActiveCallback2(CallbackData* data, const dmhash_t* key, Action* action)
-    {
-        bool active = (action->m_TextCount > 0 || action->m_HasText);
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_HasText;
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)
@@ -721,7 +710,6 @@ namespace dmInput
         data.m_Callback = callback;
         data.m_UserData = user_data;
         binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback, &data);
-        binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback2, &data);
     }
 
     float ApplyGamepadModifiers(dmHID::GamepadPacket* packet, const GamepadInput& input)

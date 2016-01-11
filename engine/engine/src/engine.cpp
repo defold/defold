@@ -4,6 +4,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
+#include <algorithm>
+
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -830,6 +832,15 @@ bail:
         }
     }
 
+    static int InputBufferOrderSort(const void * a, const void * b)
+    {
+        dmGameObject::InputAction *ipa = (dmGameObject::InputAction *)a;
+        dmGameObject::InputAction *ipb = (dmGameObject::InputAction *)b;
+        bool a_is_text = ipa->m_HasText || ipa->m_TextCount > 0;
+        bool b_is_text = ipb->m_HasText || ipb->m_TextCount > 0;
+        return a_is_text - b_is_text;
+    }
+
     void Step(HEngine engine)
     {
         engine->m_Alive = true;
@@ -951,6 +962,10 @@ bail:
 
                     engine->m_InputBuffer.SetSize(0);
                     dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+
+                    // Sort input so that text and marked text is triggered last
+                    qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
+
                     dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
                     uint32_t input_buffer_size = input_buffer.Size();
                     if (input_buffer_size > 0)
