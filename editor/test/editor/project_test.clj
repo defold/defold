@@ -53,6 +53,7 @@
                                              :node-type BNode
                                              :load-fn load-b
                                              :label "Type B"}]))
+      (workspace/resource-sync! workspace)
       (let [project (test-util/setup-project! workspace)
             a1 (project/get-resource-node project "/a1.type_a")]
         (is (= 3 @load-counter))

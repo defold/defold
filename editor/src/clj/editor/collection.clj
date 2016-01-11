@@ -205,7 +205,7 @@
                _ (math/split-mat4 transform pos rot scale)]
            (merge instance-msg
                   {:id (str path-sep (:id instance-msg))
-                   :prototype (workspace/proj-path resource)
+                   :prototype (resource/proj-path resource)
                    :children (map #(str path-sep %) (:children instance-msg))
                    :position (math/vecmath->clj pos)
                    :rotation (math/vecmath->clj rot)
@@ -378,7 +378,7 @@
         workspace (:workspace (g/node-value coll-node :resource))
         ext       "go"]
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Game Object File"}))]
-      (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
+      (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
             id (gen-instance-id coll-node base)
             op-seq (gensym)
             [go-node] (g/tx-nodes-added
@@ -477,7 +477,7 @@
                          ext           "collection"
                          resource-type (workspace/get-resource-type workspace ext)]
                      (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Collection File"}))]
-                       (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
+                       (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
                              id (gen-instance-id coll-node base)
                              op-seq (gensym)
                              [coll-inst-node] (g/tx-nodes-added

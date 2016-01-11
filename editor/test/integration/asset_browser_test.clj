@@ -12,7 +12,7 @@
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
-            [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [integration.test-util :as test-util])
   (:import [java.io File]
            [javax.imageio ImageIO]))
@@ -22,7 +22,7 @@
     (with-clean-system
       (let [workspace     (test-util/setup-workspace! world)
             root          (g/node-value workspace :resource-tree)]
-        (is (workspace/url root) "file:/")))))
+        (is (resource/url root) "file:/")))))
 
 (deftest asset-browser-search
   (testing "Searching for a resource produces a hit and renders a preview"
