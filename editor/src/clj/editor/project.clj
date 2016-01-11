@@ -301,7 +301,7 @@ ordinary paths."
           reset-undo? (or (some loadable? all)
                           (not (empty? moved)))
           unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
-          to-reload (concat (:changed changes) (filter #(some? (get-resource-node project %)) (:added changes)))
+          to-reload (concat (:changed changes) (doall (filter #(some? (get-resource-node project %)) (:added changes))))
           to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
       ;; Order is important, since move-resources reuses/patches the resource node
       (move-resources project moved)
