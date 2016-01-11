@@ -2804,6 +2804,19 @@ namespace dmGui
         return 0;
     }
 
+    /*# reset on-display keyboard if available
+     *
+     * Reset input context of keyboard. This will clear marked text.
+     *
+     * @name gui.reset_keyboard
+     */
+    static int LuaResetKeyboard(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmHID::ResetKeyboard(scene->m_Context->m_HidContext);
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -3042,6 +3055,7 @@ namespace dmGui
         {"clone_tree",      LuaCloneTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
+        {"reset_keyboard",  LuaResetKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},

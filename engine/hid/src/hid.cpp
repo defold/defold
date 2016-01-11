@@ -109,6 +109,22 @@ namespace dmHID
         }
     }
 
+    bool GetMarkedTextPacket(HContext context, MarkedTextPacket* out_packet)
+    {
+        if (out_packet != 0x0 && context->m_KeyboardConnected)
+        {
+            *out_packet = context->m_MarkedTextPacket;
+            context->m_MarkedTextPacket.m_Size = 0;
+            context->m_MarkedTextPacket.m_HasText = 0;
+            context->m_MarkedTextPacket.m_Text[0] = '\0';
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     bool GetMousePacket(HContext context, MousePacket* out_packet)
     {
         if (out_packet != 0x0 && context->m_MouseConnected)

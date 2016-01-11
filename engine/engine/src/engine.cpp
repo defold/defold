@@ -809,6 +809,7 @@ bail:
         }
 
         input_action.m_TextCount = action->m_TextCount;
+        input_action.m_HasText = action->m_HasText;
         tc = action->m_TextCount;
         for (int i = 0; i < tc; ++i) {
             input_action.m_Text[i] = action->m_Text[i];

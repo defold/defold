@@ -8,7 +8,7 @@
 
 namespace dmHID
 {
-    const uint32_t MAX_CHAR_COUNT = 16;
+    const uint32_t MAX_CHAR_COUNT = 256;
 
     /// Hid context handle
     typedef struct Context* HContext;
@@ -215,6 +215,13 @@ namespace dmHID
         uint32_t m_Size;
     };
 
+    struct MarkedTextPacket
+    {
+        char     m_Text[MAX_CHAR_COUNT];
+        uint32_t m_Size;
+        uint32_t m_HasText : 1;
+    };
+
     struct MousePacket
     {
         int32_t m_PositionX, m_PositionY;
@@ -407,6 +414,15 @@ namespace dmHID
     bool GetTextPacket(HContext context, TextPacket* out_packet);
 
     /**
+     * Get marked text-input package
+     * @note The function clears the internal buffer and subsequent calls will return an empty package (size 0)
+     * @param context context
+     * @param out_packet package
+     * @return If the packet was successfully updated or not.
+     */
+    bool GetMarkedTextPacket(HContext context, MarkedTextPacket* out_packet);
+
+    /**
      * Obtain a mouse packet reflecting the current input state of a HID context.
      *
      * @param context context from which to retrieve the packet
@@ -466,6 +482,12 @@ namespace dmHID
      * @param context context
      */
     void HideKeyboard(HContext context);
+
+    /**
+     * Reset keyboard
+     * @param context context
+     */
+    void ResetKeyboard(HContext context);
 
     /**
      * Convenience function to retrieve the state of a mouse button from a mouse packet.

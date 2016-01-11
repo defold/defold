@@ -445,6 +445,7 @@ typedef void (GLFWCALL * GLFWmouseposfun)(int,int);
 typedef void (GLFWCALL * GLFWmousewheelfun)(int);
 typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
+typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWtouchfun)(GLFWTouch*,int);
 
@@ -491,7 +492,9 @@ GLFWAPI int  GLFWAPIENTRY glfwGetMouseWheel( void );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheel( int pos );
 GLFWAPI void GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun );
+GLFWAPI void GLFWAPIENTRY glfwSetMarkedTextCallback( GLFWmarkedtextfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type, int auto_close );
+GLFWAPI void GLFWAPIENTRY glfwResetKeyboard( void );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );

@@ -49,6 +49,15 @@ namespace dmHID
         }
     }
 
+    static void MarkedTextCallback(char* text)
+    {
+        if (g_Context) {
+            MarkedTextPacket* p = &g_Context->m_MarkedTextPacket;
+            p->m_HasText = 1;
+            p->m_Size = dmStrlCpy(p->m_Text, text, sizeof(p->m_Text));
+        }
+    }
+
     bool Init(HContext context)
     {
         if (context != 0x0)
@@ -61,6 +70,7 @@ namespace dmHID
             assert(g_Context == 0);
             g_Context = context;
             glfwSetCharCallback(CharacterCallback);
+            glfwSetMarkedTextCallback(MarkedTextCallback);
             context->m_KeyboardConnected = 0;
             context->m_MouseConnected = 0;
             context->m_TouchDeviceConnected = 0;
@@ -213,6 +223,11 @@ namespace dmHID
     void HideKeyboard(HContext context)
     {
         glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT, 0);
+    }
+
+    void ResetKeyboard(HContext context)
+    {
+        glfwResetKeyboard();
     }
 
 }

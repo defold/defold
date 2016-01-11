@@ -205,9 +205,29 @@ GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun )
     _glfwWin.charCallback = cbfun;
 }
 
+//========================================================================
+// Set callback function for uncommitted/marked text input
+//========================================================================
+
+GLFWAPI void GLFWAPIENTRY glfwSetMarkedTextCallback( GLFWmarkedtextfun cbfun )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    // Set callback function
+    _glfwWin.markedTextCallback = cbfun;
+}
+
 GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type, int auto_close )
 {
     _glfwShowKeyboard(show, type, auto_close);
+}
+
+GLFWAPI void GLFWAPIENTRY glfwResetKeyboard( void )
+{
+    _glfwResetKeyboard();
 }
 
 //========================================================================
