@@ -63,13 +63,12 @@ function cmi_cross() {
     pushd $PREFIX  >/dev/null
     tar cfz $TGZ lib
     popd >/dev/null
-    popd >/dev/null
 
     echo "../build/$TGZ created"
     mv $PREFIX/$TGZ ../build
 
     rm -rf tmp
-    rm -rf $PREFIX
+    #rm -rf $PREFIX
 }
 
 function cmi_buildplatform() {
