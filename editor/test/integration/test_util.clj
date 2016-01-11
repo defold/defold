@@ -83,8 +83,7 @@
     project))
 
 (defn resource-node [project path]
-  (let [workspace (g/node-value project :workspace)]
-    (project/get-resource-node project (workspace/file-resource workspace path))))
+  (project/get-resource-node project path))
 
 (defn empty-selection? [project]
   (let [sel (g/node-value project :selected-node-ids)]

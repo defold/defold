@@ -4,7 +4,6 @@ ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [potemkin.namespaces :as namespaces]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.library :as library])
@@ -12,15 +11,10 @@ ordinary paths."
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]
-           [editor.resource FileResource MemoryResource ZipResource]))
-
-(namespaces/import-vars [editor.resource Resource ResourceListener resource-type source-type read-only? path abs-path proj-path url resource-name workspace resource-hash handle-changes make-zip-tree])
+           [editor.resource FileResource]))
 
 (defprotocol SelectionProvider
   (selection [this]))
-
-(defn make-memory-resource [workspace resource-type data]
-  (MemoryResource. workspace (:ext resource-type) data))
 
 (def build-dir "/build/default/")
 
@@ -31,28 +25,28 @@ ordinary paths."
   (str (project-path workspace) build-dir))
 
 (defrecord BuildResource [resource prefix]
-  Resource
+  resource/Resource
   (children [this] nil)
-  (resource-type [this] (resource-type resource))
-  (source-type [this] (source-type resource))
+  (resource-type [this] (resource/resource-type resource))
+  (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
-  (path [this] (let [ext (:build-ext (resource-type this) "unknown")
-                     suffix (format "%x" (resource-hash this))]
-                 (if-let [path (path resource)]
+  (path [this] (let [ext (:build-ext (resource/resource-type this) "unknown")
+                     suffix (format "%x" (resource/resource-hash this))]
+                 (if-let [path (resource/path resource)]
                    (str (FilenameUtils/removeExtension path) "." ext)
                    (str prefix "_generated_" suffix "." ext))))
-  (abs-path [this] (.getAbsolutePath (File. (str (build-path (workspace this)) (path this)))))
-  (proj-path [this] (str "/" (path this)))
+  (abs-path [this] (.getAbsolutePath (File. (str (build-path (resource/workspace this)) (resource/path this)))))
+  (proj-path [this] (str "/" (resource/path this)))
   ; TODO
   (url [this] nil)
-  (resource-name [this] (resource-name resource))
-  (workspace [this] (workspace resource))
-  (resource-hash [this] (resource-hash resource))
+  (resource-name [this] (resource/resource-name resource))
+  (workspace [this] (resource/workspace resource))
+  (resource-hash [this] (resource/resource-hash resource))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (File. (abs-path this)) opts))
+  (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [file (File. (abs-path this))] (io/make-output-stream file opts)))
+  (io/make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defn make-build-resource
@@ -68,7 +62,7 @@ ordinary paths."
   (resource/resource-seq resource-tree))
 
 (g/defnk produce-resource-map [resource-list]
-  (into {} (map #(do [(proj-path %) %]) resource-list)))
+  (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
 
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
@@ -108,7 +102,7 @@ ordinary paths."
 (def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 
 (defn resource-icon [resource]
-  (and resource (or (:icon (resource-type resource)) (get default-icons (source-type resource)))))
+  (and resource (or (:icon (resource/resource-type resource)) (get default-icons (resource/source-type resource)))))
 
 (defn file-resource [workspace path]
   (FileResource. workspace (File. (str (g/node-value workspace :root) path)) []))
@@ -155,8 +149,8 @@ ordinary paths."
    (resource-sync! workspace notify-listeners? []))
   ([workspace notify-listeners? moved-files]
    (let [project-path (project-path workspace)
-         moved-paths (mapv (fn [[src trg]] [(str "/" (resource/relative-path project-path src))
-                                            (str "/" (resource/relative-path project-path trg))]) moved-files)
+         moved-paths (mapv (fn [[src trg]] [(resource/file->proj-path project-path src)
+                                            (resource/file->proj-path project-path trg)]) moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
          new-snapshot (resource-watch/make-snapshot workspace
@@ -186,7 +180,7 @@ ordinary paths."
                                       :changed non-moved-changed
                                       :moved (mapv (fn [[src trg]] [(old-map src) (new-map trg)]) moved-paths)}]
            (doseq [listener @(g/node-value workspace :resource-listeners)]
-             (handle-changes listener move-adjusted-changes)))))
+             (resource/handle-changes listener move-adjusted-changes)))))
      changes)))
 
 (defn add-resource-listener! [workspace listener]

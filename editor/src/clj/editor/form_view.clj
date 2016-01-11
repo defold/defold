@@ -3,7 +3,8 @@
             [editor.form :as form]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.resource :as resource])
   (:import [javafx.animation AnimationTimer]
            [java.util Collection]
            [javafx.scene Parent Group]
@@ -129,10 +130,10 @@
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
-                                    (set path (workspace/proj-path resource)))))
+                                    (set path (resource/proj-path resource)))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
-                                  (when-let [resource-path (and resource (workspace/proj-path resource))]
+                                  (when-let [resource-path (and resource (resource/proj-path resource))]
                                     (set path resource-path)
                                     (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
