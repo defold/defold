@@ -6,6 +6,7 @@
             [editor.project :as project]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
@@ -65,9 +66,9 @@
           path          "/game.project"
           resource-node (test-util/resource-node project path)
           build-results (project/build project resource-node)
-          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
-          target-exts (into #{} (map #(:build-ext (workspace/resource-type (:resource %))) build-results))
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))
+          target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
           exp-paths [path
                      "/main/main.collection"
                      "/main/main.script"
@@ -98,7 +99,7 @@
                    path          "/hierarchy/base.collection"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))]
+                   content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))]
                (let [content (get content-by-source "/hierarchy/base.collection")
                      desc (GameObject$CollectionDesc/parseFrom content)
                      instances (.getInstancesList desc)
@@ -130,15 +131,15 @@
                              "/merge/merge_refs.collection"]
                        :let [resource-node (test-util/resource-node project path)
                              build-results (project/build project resource-node)
-                             content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                             content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)])
                                                              build-results))
-                             content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                             content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
                                                              build-results))]]
                  (is (= 1 (count-exts (keys content-by-target) "goc")))
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))
                  (let [content (get content-by-source path)
                       desc (GameObject$CollectionDesc/parseFrom content)
-                      target-paths (set (map #(workspace/proj-path (:resource %)) build-results))]
+                      target-paths (set (map #(resource/proj-path (:resource %)) build-results))]
                   (doseq [inst (.getInstancesList desc)
                           :let [prototype (.getPrototype inst)]]
                     (is (contains? target-paths prototype))
@@ -156,9 +157,9 @@
                    path          "/main/raw_sound.go"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                   content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)])
                                                    build-results))
-                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                   content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
                                                    build-results))]
                (let [content (get content-by-source path)
                      desc (protobuf/bytes->map GameObject$PrototypeDesc content)
@@ -179,9 +180,9 @@
                (let [path "/merge/merge_embed.collection"
                      resource-node (test-util/resource-node project path)
                      build-results (project/build project resource-node)
-                     content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                     content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)])
                                                      build-results))
-                     content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                     content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
                                                      build-results))]
                  (is (= 1 (count-exts (keys content-by-target) "goc")))
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))
@@ -189,7 +190,7 @@
                        comp-node (first-source go-node :child-scenes)]
                    (g/transact (g/delete-node comp-node))
                    (let [build-results (project/build project resource-node)
-                         content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                         content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
                                                          build-results))]
                      (is (= 1 (count-exts (keys content-by-target) "goc")))
                      (is (= 1 (count-exts (keys content-by-target) "spritec"))))))))))
@@ -254,8 +255,8 @@
                    path          "/background/background.atlas"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+                   content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
                (let [content (get content-by-source path)
                      desc (TextureSetProto$TextureSet/parseFrom content)]
                  (is (contains? content-by-target (.getTexture desc))))))))
@@ -268,8 +269,8 @@
                    path          "/fonts/score.font"]
                (let [resource-node (test-util/resource-node project path)
                      build-results (project/build project resource-node)
-                     content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                     content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
+                     content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                     content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))
                      content (get content-by-source path)
                      desc (protobuf/bytes->map Font$FontMap content)]
                  (is (= 1024 (:cache-width desc)))
@@ -283,8 +284,8 @@
                    path          "/player/spineboy.spinescene"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+                   content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
                (let [content (get content-by-source path)
                      desc (Spine$SpineScene/parseFrom content)
                      bones (-> desc (.getSkeleton) (.getBonesList))
@@ -299,8 +300,8 @@
                    path          "/model/book_of_defold.dae"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+                   content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
                (let [content (get content-by-source path)
                      desc (Mesh$MeshDesc/parseFrom content)]
                  #_(prn desc)
@@ -314,8 +315,8 @@
                    path          "/model/book_of_defold.model"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+                   content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
                (let [content (get content-by-source path)
                      desc (Model$ModelDesc/parseFrom content)]
                  #_(prn desc)
@@ -328,8 +329,8 @@
           path          "/script/props.script"
           resource-node (test-util/resource-node project path)
           build-results (project/build project resource-node)
-          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
       (let [content (get content-by-source path)
             lua (Lua$LuaModule/parseFrom content)
             decl (-> lua (.getProperties))]
@@ -351,8 +352,8 @@
           path          "/script/props.go"
           resource-node (test-util/resource-node project path)
           build-results (project/build project resource-node)
-          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
       (let [content (get content-by-source path)
             desc (GameObject$PrototypeDesc/parseFrom content)
             decl (-> desc (.getComponents 0) (.getPropertyDecls))]
