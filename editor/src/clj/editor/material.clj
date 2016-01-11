@@ -46,13 +46,13 @@
                         (assoc-in pb label resource)
                         (assoc pb label resource)))
                     pb (map (fn [[label res]]
-                              [label (workspace/proj-path (get dep-resources res))])
+                              [label (resource/proj-path (get dep-resources res))])
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (g/defnk produce-build-targets [_node-id project-id resource pb def dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(workspace/proj-path (:resource res)) res]) dep-build-targets))
+        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) (:resource-fields def))
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb label) (get pb label)))]) resource-fields)]
     [{:node-id _node-id

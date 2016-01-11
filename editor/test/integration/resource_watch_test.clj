@@ -94,7 +94,7 @@
   (with-clean-system
     (let [[workspace projec†] (log/without-logging (setup world))]
       (workspace/set-project-dependencies! workspace (str imagelib1-url " " bogus-url))
-      (println (workspace/resource-sync! workspace))
+      (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace)
              (clojure.set/union directory-resources imagelib1-resources))))))
 
