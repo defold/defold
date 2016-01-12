@@ -40,13 +40,12 @@ namespace dmHID
     HContext g_Context = 0;
     static void CharacterCallback(int chr,int)
     {
-        if (g_Context) {
-            char buf[5];
-            uint32_t n = dmUtf8::ToUtf8((uint16_t) chr, buf);
-            buf[n] = '\0';
-            TextPacket* p = &g_Context->m_TextPacket;
-            p->m_Size = dmStrlCat(p->m_Text, buf, sizeof(p->m_Text));
-        }
+        AddKeyboardChar(g_Context, chr);
+    }
+
+    static void MarkedTextCallback(char* text)
+    {
+        SetMarkedText(g_Context, text);
     }
 
     bool Init(HContext context)
@@ -60,7 +59,14 @@ namespace dmHID
             }
             assert(g_Context == 0);
             g_Context = context;
-            glfwSetCharCallback(CharacterCallback);
+            if (glfwSetCharCallback(CharacterCallback)) {
+                dmLogFatal("could not set glfw char callback.");
+                return false;
+            }
+            if (glfwSetMarkedTextCallback(MarkedTextCallback)) {
+                dmLogFatal("could not set glfw marked text callback.");
+                return false;
+            }
             context->m_KeyboardConnected = 0;
             context->m_MouseConnected = 0;
             context->m_TouchDeviceConnected = 0;
@@ -213,6 +219,11 @@ namespace dmHID
     void HideKeyboard(HContext context)
     {
         glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT, 0);
+    }
+
+    void ResetKeyboard(HContext context)
+    {
+        glfwResetKeyboard();
     }
 
 }

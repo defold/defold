@@ -1398,10 +1398,15 @@ namespace dmGui
                         lua_settable(L, -3);
                     }
 
-                    if (ia->m_TextCount > 0)
+                    if (ia->m_TextCount > 0 || ia->m_HasText)
                     {
                         lua_pushliteral(L, "text");
-                        lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        if (ia->m_TextCount == 0) {
+                            lua_pushstring(L, "");
+                        } else {
+                            lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        }
+
                         lua_settable(L, -3);
                     }
 

@@ -75,4 +75,8 @@ namespace dmHID
     {
     }
 
+    void ResetKeyboard(HContext context)
+    {
+    }
+
 }
