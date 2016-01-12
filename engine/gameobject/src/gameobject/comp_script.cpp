@@ -424,11 +424,15 @@ namespace dmGameObject
                 lua_settable(L, -3);
             }
 
-            if (params.m_InputAction->m_TextCount > 0)
+            if (params.m_InputAction->m_TextCount > 0 || params.m_InputAction->m_HasText)
             {
                 int tc = params.m_InputAction->m_TextCount;
                 lua_pushliteral(L, "text");
-                lua_pushlstring(L, params.m_InputAction->m_Text, tc);
+                if (tc == 0) {
+                    lua_pushstring(L, "");
+                } else {
+                    lua_pushlstring(L, params.m_InputAction->m_Text, tc);
+                }
                 lua_settable(L, -3);
             }
 
