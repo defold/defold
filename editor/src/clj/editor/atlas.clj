@@ -376,7 +376,7 @@
 
 (defn- get-single-selection [node-type selection]
   (when (and (single-selection selection)
-             (= (g/node-type (g/node-by-id (first selection))) node-type))
+             (g/node-instance? node-type (first selection)))
     (first selection)))
 
 (defn- atlas-selection [selection] (get-single-selection AtlasNode selection))
@@ -432,7 +432,7 @@
 
 (defn- move-active? [selection]
   (when-let [image (image-selection selection)]
-    (= (g/node-type (g/node-by-id (image-parent image))) AtlasAnimation)))
+    (g/node-instance? AtlasAnimation (image-parent image))))
 
 (defn- move-image [parent image direction]
   (let [order-delta (if (= direction :move-up) -1 1)
