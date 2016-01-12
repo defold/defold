@@ -325,3 +325,7 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
+
+void _glfwResetKeyboard( void )
+{
+}
