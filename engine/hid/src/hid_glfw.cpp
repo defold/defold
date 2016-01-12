@@ -59,8 +59,14 @@ namespace dmHID
             }
             assert(g_Context == 0);
             g_Context = context;
-            glfwSetCharCallback(CharacterCallback);
-            glfwSetMarkedTextCallback(MarkedTextCallback);
+            if (glfwSetCharCallback(CharacterCallback)) {
+                dmLogFatal("could not set glfw char callback.");
+                return false;
+            }
+            if (glfwSetMarkedTextCallback(MarkedTextCallback)) {
+                dmLogFatal("could not set glfw marked text callback.");
+                return false;
+            }
             context->m_KeyboardConnected = 0;
             context->m_MouseConnected = 0;
             context->m_TouchDeviceConnected = 0;

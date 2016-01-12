@@ -397,6 +397,8 @@ namespace dmHID
 
     /**
      * Obtain a keyboard packet reflecting the current input state of a HID context.
+     * @note If no keyboard is connected, the internal buffers will not be changed, out_packet will not be updated,
+     * and the function returns false.
      *
      * @param context context from which to retrieve the packet
      * @param out_packet Keyboard packet out argument
@@ -407,6 +409,8 @@ namespace dmHID
     /**
      * Get text-input package
      * @note The function clears the internal buffer and subsequent calls will return an empty package (size 0)
+     * If no keyboard is connected, the internal buffers will not be changed, out_packet will not be updated,
+     * and the function returns false.
      * @param context context
      * @param out_packet package
      * @return If the packet was successfully updated or not.
@@ -416,6 +420,8 @@ namespace dmHID
     /**
      * Get marked text-input package
      * @note The function clears the internal buffer and subsequent calls will return an empty package (size 0)
+     * If no keyboard is connected, the internal buffers will not be changed, out_packet will not be updated,
+     * and the function returns false.
      * @param context context
      * @param out_packet package
      * @return If the packet was successfully updated or not.

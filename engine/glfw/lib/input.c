@@ -176,48 +176,54 @@ GLFWAPI void GLFWAPIENTRY glfwSetMouseWheel( int pos )
 
 //========================================================================
 // Set callback function for keyboard input
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
     _glfwWin.keyCallback = cbfun;
+    return 1;
 }
 
 
 //========================================================================
 // Set callback function for character input
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
     _glfwWin.charCallback = cbfun;
+    return 1;
 }
 
 //========================================================================
 // Set callback function for uncommitted/marked text input
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetMarkedTextCallback( GLFWmarkedtextfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetMarkedTextCallback( GLFWmarkedtextfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
     _glfwWin.markedTextCallback = cbfun;
+    return 1;
 }
 
 GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type, int auto_close )
@@ -232,29 +238,32 @@ GLFWAPI void GLFWAPIENTRY glfwResetKeyboard( void )
 
 //========================================================================
 // Set callback function for mouse clicks
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
     _glfwWin.mouseButtonCallback = cbfun;
+    return 1;
 }
 
 
 //========================================================================
 // Set callback function for mouse moves
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
@@ -266,18 +275,21 @@ GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun )
     {
         cbfun( _glfwInput.MousePosX, _glfwInput.MousePosY );
     }
+
+    return 1;
 }
 
 
 //========================================================================
 // Set callback function for mouse wheel
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
@@ -289,17 +301,20 @@ GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
     {
         cbfun( _glfwInput.WheelPos );
     }
+
+    return 1;
 }
 
 //========================================================================
 // Set callback function for touch
+// Returns 1 on success, 0 if GLFW is not initialised or not window open.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun )
+GLFWAPI int GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun )
 {
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        return;
+        return 0;
     }
 
     // Set callback function
@@ -309,6 +324,8 @@ GLFWAPI void GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun )
     {
         cbfun( _glfwInput.Touch, _glfwInput.TouchCount );
     }
+
+    return 1;
 }
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
