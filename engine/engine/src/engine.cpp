@@ -964,6 +964,10 @@ bail:
                     dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
 
                     // Sort input so that text and marked text is triggered last
+                    // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
+                    //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
+                    //       If the backspace arrive after the text, it will instead remove the new character that
+                    //       actually should replace the old one.
                     qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
 
                     dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
