@@ -858,7 +858,7 @@
 (defn default-node-serializer
   [basis node]
   (let [node-id (gt/node-id node)
-        property-labels (keys (-> node (gt/property-types basis)))
+        property-labels (keys (gt/property-types node basis))
         all-node-properties (reduce (fn [props label] (assoc props label (gt/get-property node basis label))) {} property-labels)
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:node-type  (node-type basis node)
@@ -957,8 +957,8 @@
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
-(defn- traverse-cascade-delete [[src-id src-label tgt-id tgt-label]]
-  ((cascade-deletes (node-type* tgt-id)) tgt-label))
+(defn- traverse-cascade-delete [basis [src-id src-label tgt-id tgt-label]]
+  ((cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
 (defn- make-override-node
   [graph-id override-id original-node-id]
@@ -971,7 +971,7 @@
     (override (now) root-id opts))
   ([basis root-id {:keys [traverse?] :or {traverse? (constantly true)}}]
     (let [graph-id (node-id->graph-id root-id)
-          pred (every-pred traverse-cascade-delete traverse?)
+          pred (every-pred (partial traverse-cascade-delete basis) traverse?)
           node-ids (ig/pre-traverse basis [root-id] (partial predecessors pred))
           override-id (is/next-override-id @*the-system* graph-id)
           overrides (mapv (partial make-override-node graph-id override-id) node-ids)
