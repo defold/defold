@@ -44,6 +44,7 @@ public class FacebookActivity implements PseudoActivity {
     private Messenger messenger;
     private Activity parent;
     private CallbackManager callbackManager;
+    private Message onAbortedMessage;
 
     // Must match values from facebook.h
     private enum State {
@@ -125,7 +126,7 @@ public class FacebookActivity implements PseudoActivity {
     }
 
     private void respond(final String action, final Bundle data) {
-
+        onAbortedMessage = null; // only kept for when respond() never happens.
         this.parent.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -146,7 +147,7 @@ public class FacebookActivity implements PseudoActivity {
     private void UpdateUserData() {
         GraphRequest request = GraphRequest.newMeRequest(
             AccessToken.getCurrentAccessToken(),
-            new GraphRequest.GraphJSONObjectCallback() {
+             new GraphRequest.GraphJSONObjectCallback() {
                 @Override
                 public void onCompleted(JSONObject object, GraphResponse response) {
                    Bundle data = new Bundle();
@@ -419,6 +420,14 @@ public class FacebookActivity implements PseudoActivity {
         final String action = intent.getAction();
         this.messenger = (Messenger) extras.getParcelable(Facebook.INTENT_EXTRA_MESSENGER);
 
+        // Prepare a response to send in case we finish without having sent anything
+        // (activity shut down etc). This is cleared by respond()
+        Bundle abortedData = new Bundle();
+        abortedData.putString(Facebook.MSG_KEY_ACTION, action);
+        abortedData.putString(Facebook.MSG_KEY_ERROR, "Aborted");
+        onAbortedMessage = new Message();
+        onAbortedMessage.setData(abortedData);
+
         try {
             if (action.equals(Facebook.ACTION_LOGIN)) {
                 actionLogin();
@@ -433,10 +442,18 @@ public class FacebookActivity implements PseudoActivity {
             data.putString(Facebook.MSG_KEY_ERROR, e.getMessage());
             respond(action, data);
         }
-
     }
 
-    @Override
+    @Override public void onDestroy() {
+        if (onAbortedMessage != null) {
+            try {
+                messenger.send(onAbortedMessage);
+            } catch (RemoteException e) {
+                Log.wtf(TAG, e);
+            }
+        }
+    }
+
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         callbackManager.onActivityResult(requestCode, resultCode, data);
     }

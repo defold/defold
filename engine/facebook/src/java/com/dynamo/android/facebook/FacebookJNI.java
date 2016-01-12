@@ -13,11 +13,57 @@ import android.app.Activity;
 import android.util.Log;
 import android.os.Bundle;
 
+import com.facebook.FacebookSdk;
+import com.facebook.appevents.AppEventsLogger;
 import com.facebook.login.DefaultAudience;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONArray;
+
+// A helper class that initializes the facebook sdk, and also activates/deactivates the app
+class FacebookAppJNI {
+
+    private static final String TAG = "defold.facebookapp";
+
+    private Activity activity;
+    private String appId;
+
+    public FacebookAppJNI(Activity activity, String appId) {
+        this.activity = activity;
+        this.appId = appId;
+
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                String s = String.format("sdkInitialize: activity %s   appid: %s", FacebookAppJNI.this.activity, FacebookAppJNI.this.appId);
+                Log.d(TAG, s);
+                FacebookSdk.sdkInitialize( FacebookAppJNI.this.activity );
+                FacebookSdk.setApplicationId( FacebookAppJNI.this.appId );
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await();
+        } catch (InterruptedException ex) {
+        }
+    }
+
+    public void activate() {
+        String s = String.format("activateApp: activity %s   appid: %s", this.activity, this.appId);
+        Log.d(TAG, s);
+        AppEventsLogger.activateApp(this.activity, this.appId);
+    }
+
+    public void deactivate() {
+        String s = String.format("deactivateApp: activity %s   appid: %s", this.activity, this.appId);
+        Log.d(TAG, s);
+        AppEventsLogger.deactivateApp(this.activity, this.appId);
+    }
+}
 
 class FacebookJNI {
 
@@ -94,24 +140,7 @@ class FacebookJNI {
 
     public FacebookJNI(Activity activity, String appId) {
         this.activity = activity;
-
-        // initialize and wait
-        final CountDownLatch latch = new CountDownLatch(1);
-        final String _appId = appId;
-
-        this.activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-               FacebookJNI.this.facebook = new Facebook(FacebookJNI.this.activity, _appId);
-                latch.countDown();
-            }
-        });
-
-        try {
-            latch.await();
-        } catch (InterruptedException ex) {
-
-        }
+        this.facebook = new Facebook(this.activity, appId);
     }
 
     public void login(final long userData) {

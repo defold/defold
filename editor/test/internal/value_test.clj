@@ -328,7 +328,7 @@
         :multi-no-sub   true       :scalar          '(1)
         :multi-with-sub true       :everything      '(42))))
 
-  (with-redefs [in/warn (constantly "noop")]
+  (binding [in/*suppress-schema-warnings* true]
     (testing "source sends errors"
       (testing "unary inputs"
         (with-clean-system
@@ -365,7 +365,7 @@
   (output combined g/Str (g/fnk [string-input] string-input)))
 
 (deftest input-schema-validation-warnings
-  (with-redefs [in/warn (constantly nil)]
+  (binding [in/*suppress-schema-warnings* true]
     (testing "schema validations on inputs"
      (with-clean-system
        (let [[node1] (tx-nodes (g/make-node world StringInputIntOutputNode))]

@@ -26,7 +26,7 @@ namespace dmCrash
         char m_SystemName[32];
         char m_SystemVersion[32];
         char m_Language[8];
-        char m_DeviceLanguage[8];
+        char m_DeviceLanguage[16];
         char m_Territory[8];
         char m_AndroidBuildFingerprint[128];
 

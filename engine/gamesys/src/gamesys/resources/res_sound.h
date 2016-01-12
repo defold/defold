@@ -22,28 +22,13 @@ namespace dmGameSystem
         float    m_Gain;
     };
 
-    dmResource::Result ResSoundPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                      void* context,
-                                      const void* buffer, uint32_t buffer_size,
-                                      void** preload_data,
-                                      const char* filename);
+    dmResource::Result ResSoundPreload(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResSoundCreate(dmResource::HFactory factory,
-                                      void* context,
-                                      const void* buffer, uint32_t buffer_size,
-                                      void *preload_data,
-                                      dmResource::SResourceDescriptor* resource,
-                                      const char* filename);
+    dmResource::Result ResSoundCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResSoundDestroy(dmResource::HFactory factory,
-                                       void* context,
-                                       dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResSoundDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResSoundRecreate(dmResource::HFactory factory,
-                                        void* context,
-                                        const void* buffer, uint32_t buffer_size,
-                                        dmResource::SResourceDescriptor* resource,
-                                        const char* filename);
+    dmResource::Result ResSoundRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif
