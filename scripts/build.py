@@ -23,7 +23,7 @@ PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split(
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
 PACKAGES_WIN32="PVRTexLib-4.5".split()
 PACKAGES_LINUX="PVRTexLib-4.5".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
@@ -437,7 +437,7 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push adtruth facebook crash engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push iac adtruth facebook crash engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -964,12 +964,13 @@ instructions.configure=\
             sys.exit(5)
 
         from boto.s3.connection import S3Connection
+        from boto.s3.connection import OrdinaryCallingFormat
         from boto.s3.key import Key
 
         # NOTE: We hard-code host (region) here and it should not be required.
         # but we had problems with certain buckets with period characters in the name.
         # Probably related to the following issue https://github.com/boto/boto/issues/621
-        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com')
+        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket

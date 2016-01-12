@@ -2,25 +2,32 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.math :as math]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.project :as project]
+            [editor.resource :as resource]
             [editor.scene :as scene]
+            [editor.render :as render]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
+            [editor.validation :as validation]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]))
+           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -29,11 +36,11 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [resource spine-json atlas sample-rate]
+(g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
    :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (workspace/proj-path spine-json)
-               :atlas (workspace/proj-path atlas)
+              {:spine-json (resource/proj-path spine-json-resource)
+               :atlas (resource/proj-path atlas-resource)
                :sample-rate sample-rate})})
 
 (defprotocol Interpolator
@@ -367,106 +374,19 @@
              {} skin))
 
 (defn- build-spine-scene [self basis resource dep-resources user-data]
-  (let [anim-data (:anim-data user-data)
-        scene (:spine-scene user-data)
-        sample-rate (:sample-rate user-data)
-        spf (/ 1.0 sample-rate)
-        ; Bone data
-        bones (map (fn [b]
-                     {:id (protobuf/hash64 (get b "name"))
-                      :parent (when (contains? b "parent") (protobuf/hash64 (get b "parent")))
-                      :position [(get b "x" 0) (get b "y" 0) 0]
-                      :rotation (angle->clj-quat (get b "rotation" 0))
-                      :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
-                      :inherit-scale (get b "inheritScale" true)}) (get scene "bones"))
-        indexed-bone-children (reduce (fn [m [i b]] (update-in m [(:parent b)] conj [i b])) {} (map-indexed (fn [i b] [i b]) bones))
-        ordered-bones (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) (first (get indexed-bone-children nil)))
-        bones-remap (into {} (map-indexed (fn [i [first-i b]] [first-i i]) ordered-bones))
-        bones (mapv second ordered-bones)
-        bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
-        bones (mapv #(assoc % :parent (get bone-id->index (:parent %) 0xffff)) bones)
-        bone-world-transforms (loop [bones bones
-                                     wt []]
-                                (if-let [bone (first bones)]
-                                  (let [local-t ^SpineScene$Transform (bone->transform bone)
-                                        world-t (if (not= 0xffff (:parent bone))
-                                                  (let [world-t (doto (SpineScene$Transform. (get wt (:parent bone)))
-                                                                  (.mul local-t))]
-                                                    ; Reset scale when not inheriting
-                                                    (when (not (:inherit-scale bone))
-                                                      (doto (.scale world-t)
-                                                        (.set (.scale local-t))))
-                                                    world-t)
-                                                  local-t)]
-                                    (recur (rest bones) (conj wt world-t)))
-                                  wt))
-        ; Slot data
-        slots (get scene "slots" [])
-        slots-data (into {} (map-indexed (fn [i slot]
-                                           (let [bone-index (bone-id->index (protobuf/hash64 (get slot "bone")))]
-                                             [(get slot "name")
-                                              {:bone-index bone-index
-                                               :bone-world (get bone-world-transforms bone-index)
-                                               :draw-order i
-                                               :color (hex->color (get slot "color" "FFFFFFFF"))
-                                               :attachment (get slot "attachment")}])) slots))
-        ; Skin data
-        mesh-sort-fn (fn [[k v]] (:draw-order v))
-        flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
-        skins (get scene "skins" {})
-        generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-world-transforms)
-        new-skins {"" (flatten-meshes generic-meshes)}
-        new-skins (reduce (fn [m [skin slots]]
-                            (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-world-transforms)]
-                              (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
-                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
-        slot->track-data (reduce-kv (fn [m skin meshes]
-                                      (let [skin-id (protobuf/hash64 skin)]
-                                        (reduce (fn [m [[slot att] mesh]]
-                                                  (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
-                                                m meshes)))
-                                    {} new-skins)
-        ; Protobuf
-        pb {:skeleton {:bones bones}
-            :animation-set (let [events (into {} (get scene "events" []))
-                                 animations (mapv (fn [[name a]]
-                                                    (let [duration (anim-duration a)]
-                                                      {:id (protobuf/hash64 name)
-                                                      :sample-rate sample-rate
-                                                      :duration duration
-                                                      :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
-                                                      :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
-                                                      :event-tracks (mapv (fn [[event-name keys]]
-                                                                            (let [default (merge {"int" 0 "float" 0 "string" ""} (get events event-name))]
-                                                                              {:event-id (protobuf/hash64 event-name)
-                                                                              :keys (mapv (fn [k]
-                                                                                            {:t (get k "time")
-                                                                                             :integer (get k "int" (get default "int"))
-                                                                                             :float (get k "float" (get default "float"))
-                                                                                             :string (protobuf/hash64 (get k "string" (get default "string")))})
-                                                                                          keys)}))
-                                                                          (reduce (fn [m e]
-                                                                                    (update-in m [(get e "name")] conj e))
-                                                                                  {} (get a "events")))}))
-                                                  (get scene "animations"))]
-                             {:animations animations})
-             :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
-                                              {:id (protobuf/hash64 skin)
-                                               :meshes (mapv second meshes)}) new-skins)}}
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+  (let [pb (:spine-scene-pb user-data)
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
-(g/defnk produce-scene-build-targets [_node-id resource spine-scene atlas sample-rate anim-data dep-build-targets]
+(g/defnk produce-scene-build-targets [_node-id resource spine-scene-pb atlas dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:texture-set atlas]])]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-scene
-      :user-data {:spine-scene spine-scene
-                  :sample-rate sample-rate
-                  :dep-resources dep-resources
-                  :anim-data anim-data}
+      :user-data {:spine-scene-pb spine-scene-pb
+                  :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
 (defn- connect-atlas [project node-id atlas]
@@ -493,15 +413,195 @@
         (disconnect-all self :dep-build-targets)
         (connect-atlas project self atlas)))))
 
+(g/defnk produce-spine-scene-pb [spine-scene anim-data sample-rate]
+  (let [spf (/ 1.0 sample-rate)
+        ; Bone data
+        bones (map (fn [b]
+                     {:id (protobuf/hash64 (get b "name"))
+                      :parent (when (contains? b "parent") (protobuf/hash64 (get b "parent")))
+                      :position [(get b "x" 0) (get b "y" 0) 0]
+                      :rotation (angle->clj-quat (get b "rotation" 0))
+                      :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
+                      :inherit-scale (get b "inheritScale" true)}) (get spine-scene "bones"))
+        indexed-bone-children (reduce (fn [m [i b]] (update-in m [(:parent b)] conj [i b])) {} (map-indexed (fn [i b] [i b]) bones))
+        root (first (get indexed-bone-children nil))
+        ordered-bones (if root
+                        (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) root)
+                        [])
+        bones-remap (into {} (map-indexed (fn [i [first-i b]] [first-i i]) ordered-bones))
+        bones (mapv second ordered-bones)
+        bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
+        bones (mapv #(assoc % :parent (get bone-id->index (:parent %) 0xffff)) bones)
+        bone-world-transforms (loop [bones bones
+                                     wt []]
+                                (if-let [bone (first bones)]
+                                  (let [local-t ^SpineScene$Transform (bone->transform bone)
+                                        world-t (if (not= 0xffff (:parent bone))
+                                                  (let [world-t (doto (SpineScene$Transform. (get wt (:parent bone)))
+                                                                  (.mul local-t))]
+                                                    ; Reset scale when not inheriting
+                                                    (when (not (:inherit-scale bone))
+                                                      (doto (.scale world-t)
+                                                        (.set (.scale local-t))))
+                                                    world-t)
+                                                  local-t)]
+                                    (recur (rest bones) (conj wt world-t)))
+                                  wt))
+        ; Slot data
+        slots (get spine-scene "slots" [])
+        slots-data (into {} (map-indexed (fn [i slot]
+                                           (let [bone-index (bone-id->index (protobuf/hash64 (get slot "bone")))]
+                                             [(get slot "name")
+                                              {:bone-index bone-index
+                                               :bone-world (get bone-world-transforms bone-index)
+                                               :draw-order i
+                                               :color (hex->color (get slot "color" "FFFFFFFF"))
+                                               :attachment (get slot "attachment")}])) slots))
+        ; Skin data
+        mesh-sort-fn (fn [[k v]] (:draw-order v))
+        flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
+        skins (get spine-scene "skins" {})
+        generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-world-transforms)
+        new-skins {"" (flatten-meshes generic-meshes)}
+        new-skins (reduce (fn [m [skin slots]]
+                            (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-world-transforms)]
+                              (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
+                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
+        slot->track-data (reduce-kv (fn [m skin meshes]
+                                      (let [skin-id (protobuf/hash64 skin)]
+                                        (reduce (fn [m [[slot att] mesh]]
+                                                  (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
+                                                m meshes)))
+                                    {} new-skins)
+        ; Protobuf
+        pb {:skeleton {:bones bones}
+            :animation-set (let [events (into {} (get spine-scene "events" []))
+                                 animations (mapv (fn [[name a]]
+                                                    (let [duration (anim-duration a)]
+                                                      {:id (protobuf/hash64 name)
+                                                      :sample-rate sample-rate
+                                                      :duration duration
+                                                      :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
+                                                      :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
+                                                      :event-tracks (mapv (fn [[event-name keys]]
+                                                                            (let [default (merge {"int" 0 "float" 0 "string" ""} (get events event-name))]
+                                                                              {:event-id (protobuf/hash64 event-name)
+                                                                              :keys (mapv (fn [k]
+                                                                                            {:t (get k "time")
+                                                                                             :integer (get k "int" (get default "int"))
+                                                                                             :float (get k "float" (get default "float"))
+                                                                                             :string (protobuf/hash64 (get k "string" (get default "string")))})
+                                                                                          keys)}))
+                                                                          (reduce (fn [m e]
+                                                                                    (update-in m [(get e "name")] conj e))
+                                                                                  {} (get a "events")))}))
+                                                  (get spine-scene "animations"))]
+                             {:animations animations})
+             :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
+                                              {:id (protobuf/hash64 skin)
+                                               :meshes (mapv second meshes)}) new-skins)}}]
+    pb))
+
+(defn- transform-positions [^Matrix4d transform mesh]
+  (let [p (Point3d.)]
+    (update mesh :positions (fn [positions]
+                              (->> positions
+                                (partition 3)
+                                (mapcat (fn [[x y z]]
+                                          (.set p x y z)
+                                          (.transform transform p)
+                                          [(.x p) (.y p) (.z p)])))))))
+
+(defn- renderable->meshes [renderable]
+  (->> (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
+    (first)
+    (:meshes)
+    (filter :visible)
+    (sort-by :draw-order)
+    (map (partial transform-positions (:world-transform renderable)))))
+
+(defn- mesh->verts [mesh]
+  (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
+    (map (partial get verts) (:indices mesh))))
+
+(defn- gen-vb [renderables rcount]
+  (let [meshes (mapcat renderable->meshes renderables)
+        vcount (reduce + 0 (map (comp count :indices) meshes))]
+    (when (> vcount 0)
+      (let [vb (render/->vtx-pos-tex-col vcount)
+            verts (mapcat mesh->verts meshes)]
+        (persistent! (reduce conj! vb verts))))))
+
+(defn render-spine-scenes [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (cond
+      (= pass pass/outline)
+      (let [outline-vertex-binding (vtx/use-with ::spine-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
+        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+
+      (= pass pass/transparent)
+      (when-let [vb (gen-vb renderables rcount)]
+        (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
+              user-data (:user-data (first renderables))
+              gpu-texture (:gpu-texture user-data)
+              blend-mode (:blend-mode user-data)]
+          (gl/with-gl-bindings gl render-args [gpu-texture render/shader-tex-tint vertex-binding]
+            (case blend-mode
+              :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+              (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+              :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+            (shader/set-uniform render/shader-tex-tint gl "texture" 0)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+
+      (= pass pass/selection)
+      (when-let [vb (gen-vb renderables rcount)]
+        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
+          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
+
+(g/defnk produce-scene [_node-id aabb gpu-texture spine-scene-pb]
+  (let [scene {:node-id _node-id
+               :aabb aabb}]
+    (if gpu-texture
+      (let [blend-mode :blend-mode-alpha]
+        (assoc scene :renderable {:render-fn render-spine-scenes
+                                  :batch-key gpu-texture
+                                  :select-batch-key _node-id
+                                  :user-data {:spine-scene-pb spine-scene-pb
+                                              :gpu-texture gpu-texture
+                                              :blend-mode blend-mode}
+                                  :passes [pass/transparent pass/selection pass/outline]}))
+      scene)))
+
+(defn- mesh->aabb [aabb mesh]
+  (let [positions (partition 3 (:positions mesh))]
+    (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
+
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json (g/protocol workspace/Resource))
-  (property atlas (g/protocol workspace/Resource))
+  (property spine-json (g/protocol resource/Resource)
+            (value (gu/passthrough spine-json-resource))
+            (set (project/gen-resource-setter [[:resource :spine-json-resource]
+                                               [:content :spine-scene]]))
+            (validate (validation/validate-resource spine-json "Missing spine json"
+                                                    [spine-scene])))
+
+  (property atlas (g/protocol resource/Resource)
+            (value (gu/passthrough atlas-resource))
+            (set (project/gen-resource-setter [[:resource :atlas-resource]
+                                               [:anim-data :anim-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:build-targets :dep-build-targets]]))
+            (validate (validation/validate-resource atlas "Missing atlas"
+                                                    [anim-data])))
+  
   (property sample-rate g/Num)
 
-  ;; TODO - replace with use of property setter/getter
-  #_(trigger reconnect :property-touched #'reconnect)
+  (input spine-json-resource (g/protocol resource/Resource))
+  (input atlas-resource (g/protocol resource/Resource))
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -509,24 +609,118 @@
   (input spine-scene g/Any)
 
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached produce-scene-build-targets))
+  (output build-targets g/Any :cached produce-scene-build-targets)
+  (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
+  (output scene g/Any :cached produce-scene)
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
+                                                      (reduce mesh->aabb (geom/null-aabb) meshes)))))
 
 (defn load-spine-scene [project self resource]
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
         spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas          (workspace/resolve-resource resource (:atlas spine))]
-    (concat
-      (g/set-property self :spine-json spine-resource)
-      (g/set-property self :atlas atlas)
-      (g/set-property self :sample-rate (:sample-rate spine))
-      (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
-      (connect-atlas project self atlas))))
+    (g/set-property self
+                    :spine-json spine-resource
+                    :atlas atlas
+                    :sample-rate (:sample-rate spine))))
+
+(g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
+  {:spine-scene (resource/proj-path spine-scene-resource)
+   :default-animation default-animation
+   :skin skin
+   :material (resource/proj-path material-resource)
+   :blend-mode blend-mode})
+
+(g/defnk produce-model-save-data [resource model-pb]
+  {:resource resource
+   :content (protobuf/map->str Spine$SpineModelDesc model-pb)})
+
+(defn- build-spine-model [self basis resource dep-resources user-data]
+  (let [pb (:proto-msg user-data)
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+    {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
+
+(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets]
+  (let [dep-build-targets (flatten dep-build-targets)
+        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])]
+    [{:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-spine-model
+      :user-data {:proto-msg model-pb
+                  :dep-resources dep-resources}
+      :deps dep-build-targets}]))
+
+(g/defnode SpineModelNode
+  (inherits project/ResourceNode)
+
+  (property spine-scene (g/protocol resource/Resource)
+            (value (g/fnk [spine-scene-resource] spine-scene-resource))
+            (set (project/gen-resource-setter [[:resource :spine-scene-resource]
+                                               [:scene :spine-scene-scene]
+                                               [:aabb :aabb]
+                                               [:build-targets :dep-build-targets]])))
+  (property blend-mode g/Any (default :blend_mode_alpha)
+            (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
+            (dynamic edit-type (g/always
+                                 (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
+                                   {:type :choicebox
+                                    :options (zipmap (map first options)
+                                                     (map (comp :display-name second) options))}))))
+  (property material (g/protocol resource/Resource)
+            (value (g/fnk [material-resource] material-resource))
+            (set (project/gen-resource-setter [[:resource :material-resource]
+                                               [:shader :material-shader]
+                                               [:sampler-data :sampler-data]
+                                               [:build-targets :dep-build-targets]])))
+  (property default-animation g/Str
+            #_(validate (validation/validate-animation default-animation anim-data))
+            #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
+                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+  (property skin g/Str
+            #_(validate (validation/validate-skin default-animation anim-data))
+            #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
+                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+
+  (input dep-build-targets g/Any :array)
+  (input spine-scene-resource (g/protocol resource/Resource))
+  (input spine-scene-scene g/Any)
+  (input aabb AABB)
+  (input material-resource (g/protocol resource/Resource))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (input sampler-data {g/Keyword g/Any})
+  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
+  (output scene g/Any :cached (g/fnk [spine-scene-scene] spine-scene-scene))
+  (output model-pb g/Any :cached produce-model-pb)
+  (output save-data g/Any :cached produce-model-save-data)
+  (output build-targets g/Any :cached produce-model-build-targets)
+  (output aabb AABB (g/fnk [aabb] aabb)))
+
+(defn load-spine-model [project self resource]
+  (let [resolve-fn (partial workspace/resolve-resource resource)
+        spine (-> (protobuf/read-text Spine$SpineModelDesc resource)
+                (update :spine-scene resolve-fn)
+                (update :material resolve-fn))]
+    (for [[k v] spine]
+      (g/set-property self k v))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :ext "spinescene"
-                                    :label "Spine Scene"
-                                    :node-type SpineSceneNode
-                                    :load-fn load-spine-scene
-                                    :icon spine-scene-icon
-                                    :tags #{:component}))
+  (concat
+    (workspace/register-resource-type workspace
+                                     :ext "spinescene"
+                                     :label "Spine Scene"
+                                     :node-type SpineSceneNode
+                                     :load-fn load-spine-scene
+                                     :icon spine-scene-icon
+                                     :view-types [:scene]
+                                     :view-opts {:scene {:grid true}})
+    (workspace/register-resource-type workspace
+                                     :ext "spinemodel"
+                                     :label "Spine Model"
+                                     :node-type SpineModelNode
+                                     :load-fn load-spine-model
+                                     :icon spine-model-icon
+                                     :view-types [:scene]
+                                     :view-opts {:scene {:grid true}}
+                                     :tags #{:component})))

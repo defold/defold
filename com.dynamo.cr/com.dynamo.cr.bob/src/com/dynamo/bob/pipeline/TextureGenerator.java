@@ -146,11 +146,20 @@ public class TextureGenerator {
 
         int dataSize = width * height * 4;
         ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
-        int[] rasterData = new int[dataSize];
-        image.getRaster().getPixels(0, 0, width, height, rasterData);
-        for (int i = 0; i < rasterData.length; ++i) {
-            buffer.put((byte) (rasterData[i] & 0xff));
+
+        // On Linux we run out of memory while trying to load a 4K texture.
+        // We split the pixel read out into blocks with 512 scan lines per block.
+        for (int y = 0; y < height; y+=512) {
+
+            int count = Math.min(height - y, 512);
+
+            int[] rasterData = new int[count*width*4];
+            image.getRaster().getPixels(0, y, width, count, rasterData);
+            for (int i = 0; i < rasterData.length; ++i) {
+                buffer.put((byte) (rasterData[i] & 0xff));
+            }
         }
+
         buffer.flip();
         Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, buffer);
 
@@ -195,16 +204,19 @@ public class TextureGenerator {
                 newHeight = newWidth;
             }
 
-            if (width != newWidth || height != newHeight) {
-                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
-                    throw new TextureGeneratorException("could not resize texture to POT");
-                }
-            }
+            // Premultiply before scale so filtering cannot introduce colour artefacts.
             if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
             }
+
+            if (width != newWidth || height != newHeight) {
+                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
+                    throw new TextureGeneratorException("could not resize texture to POT");
+                }
+            }
+
             if (generateMipMaps) {
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");

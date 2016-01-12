@@ -98,6 +98,11 @@ public:
     }
 };
 
+class dmHttpClientTestSSL : public dmHttpClientTest
+{
+    // for gtest
+};
+
 class dmHttpClientParserTest: public ::testing::Test
 {
 public:
@@ -386,7 +391,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
         dmHttpClient::Result r;
         m_StatusCode = -1;
         m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/sleep/10000"); // milliseconds
+        r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_EQ(-1, m_StatusCode);
@@ -401,6 +406,40 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     }
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0);
 }
+
+TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
+{
+    for( int i = 0; i < 5; ++i )
+    {
+        uint64_t timeout = 130 * 1000;
+        dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
+
+        uint64_t timestart = dmTime::GetTime();
+        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
+        uint64_t timeend = dmTime::GetTime();
+
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_EQ(-1, m_StatusCode);
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
+
+        uint64_t elapsed = timeend - timestart;
+
+        if(elapsed < timeout)
+        {
+            dmLogError("The test was too short! It cannot possibly have timed out!\n");
+            ASSERT_TRUE(0);
+        }
+
+        if( elapsed / 1000000 > 10)
+        {
+            dmLogError("The test timed out\n");
+            ASSERT_TRUE(0);
+        }
+    }
+}
+
+
 
 TEST_P(dmHttpClientTest, ServerClose)
 {
@@ -729,6 +768,11 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
                         dmHttpClientTest,
                         ::testing::Values("http://localhost:7000", "https://localhost:7001"));
+
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL,
+                        dmHttpClientTestSSL,
+                        ::testing::Values("https://localhost:7002"));
+
 
 class dmHttpClientTestCache : public dmHttpClientTest
 {

@@ -1,0 +1,56 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+    embed_source = ''
+
+    source = []
+
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        source += ['iac_ios.mm', 'iac.cpp']
+    elif re.match('arm.*?android', bld.env.PLATFORM):
+        source += ['iac_android.cpp', 'iac.cpp']
+
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/google-play-services.jar' % bld.env.DYNAMO_HOME,
+                     '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
+
+        bld.new_task_gen(features='javac seq',
+                         classpath=classpath,
+                         source_root='java')
+
+        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
+
+        bld.new_task_gen(features='jar seq dex',
+                         basedir='java',
+                         destfile='iac_android.jar')
+
+        bld.install_files('${PREFIX}/share/java', 'iac_android.jar')
+
+    else:
+        source += ['iac_null.cpp']
+
+    iac = bld.new_task_gen(features = 'cxx cstaticlib',
+                            includes = '.',
+                            source = source,
+                            target = 'iacext')
+
+    bld.new_task_gen(source = 'iac.cpp',
+                     target = 'iac_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+
+    bld.new_task_gen(source = 'iac.cpp',
+                     target = 'iac_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+
+    bld.install_files('${PREFIX}/share/doc', 'iac_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'iac_doc.json')
+
+

@@ -56,8 +56,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data,dmResource::SResourceDescriptor* resource, const char* filename);
-    static dmResource::Result ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+    static dmResource::Result ResDeleteSelfCreate(const dmResource::ResourceCreateParams& params);
+    static dmResource::Result ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params);
 
     static dmGameObject::CreateResult     DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
     static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params);
@@ -81,16 +81,16 @@ public:
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
-dmResource::Result DeleteTest::ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data,dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCreateParams& params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) context;
+    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
     game_object_test->m_CreateCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
     TestGameObjectDDF::DeleteSelfResource* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::DeleteSelfResource>(buffer, buffer_size, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::DeleteSelfResource>(params.m_Buffer, params.m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) obj;
+        params.m_Resource->m_Resource = (void*) obj;
         return dmResource::RESULT_OK;
     }
     else
@@ -99,12 +99,12 @@ dmResource::Result DeleteTest::ResDeleteSelfCreate(dmResource::HFactory factory,
     }
 }
 
-dmResource::Result DeleteTest::ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result DeleteTest::ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) context;
+    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
     game_object_test->m_DestroyCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
-    dmDDF::FreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 
