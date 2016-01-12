@@ -40,22 +40,12 @@ namespace dmHID
     HContext g_Context = 0;
     static void CharacterCallback(int chr,int)
     {
-        if (g_Context) {
-            char buf[5];
-            uint32_t n = dmUtf8::ToUtf8((uint16_t) chr, buf);
-            buf[n] = '\0';
-            TextPacket* p = &g_Context->m_TextPacket;
-            p->m_Size = dmStrlCat(p->m_Text, buf, sizeof(p->m_Text));
-        }
+        AddKeyboardChar(g_Context, chr);
     }
 
     static void MarkedTextCallback(char* text)
     {
-        if (g_Context) {
-            MarkedTextPacket* p = &g_Context->m_MarkedTextPacket;
-            p->m_HasText = 1;
-            p->m_Size = dmStrlCpy(p->m_Text, text, sizeof(p->m_Text));
-        }
+        SetMarkedText(g_Context, text);
     }
 
     bool Init(HContext context)

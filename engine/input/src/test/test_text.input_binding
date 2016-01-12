@@ -1,0 +1,2 @@
+text_trigger { input: TEXT action: "text" }
+text_trigger { input: MARKED_TEXT action: "marked_text"}

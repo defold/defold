@@ -470,6 +470,22 @@ namespace dmHID
     void SetKey(HContext context, Key key, bool value);
 
     /**
+     * Add a keyboard character input
+     *
+     * @param context context handle
+     * @param chr The character (unicode)
+     */
+    void AddKeyboardChar(HContext context, int chr);
+
+    /**
+     * Set current marked text
+     *
+     * @param context context handle
+     * @param text The marked text string
+     */
+    void SetMarkedText(HContext context, char* text);
+
+    /**
      * Show keyboard if applicable
      * @param context context
      * @param type keyboard type

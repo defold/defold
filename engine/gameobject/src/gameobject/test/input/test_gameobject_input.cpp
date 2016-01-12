@@ -3,6 +3,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
+#include <dlib/dstrings.h>
 
 #include <resource/resource.h>
 
@@ -219,6 +220,33 @@ TEST_F(InputTest, TestComponentInput4)
     action.m_Y = 2.0f;
     action.m_DX = 3.0f;
     action.m_DY = 4.0f;
+
+    r = dmGameObject::DispatchInput(m_Collection, &action, 1);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
+}
+
+TEST_F(InputTest, TextComponentTextInput)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_text_input.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    char text_str[] = "testओ";
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString64("test_action");
+    action.m_HasText = 0;
+    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+
+    // Test normal text input action
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
+
+    // Test marked text input action
+    action.m_ActionId = dmHashString64("test_action");
+    action.m_HasText = 1;
+    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     r = dmGameObject::DispatchInput(m_Collection, &action, 1);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
