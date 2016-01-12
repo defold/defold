@@ -12,7 +12,7 @@
   (swap! context assoc key (inc data))
   key)
 
-(defn- destroy-fn [context keys]
+(defn- destroy-fn [context keys _]
   (doseq [key keys]
     (swap! context dissoc key)))
 

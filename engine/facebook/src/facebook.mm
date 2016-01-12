@@ -117,6 +117,12 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                 } else {
                     [new_res setObject:results[key] forKey:key];
                 }
+
+                // Alias request_id == request,
+                // want to have same result fields on both Android & iOS.
+                if ([key isEqualToString:@"request"]) {
+                    [new_res setObject:results[key] forKey:@"request_id"];
+                }
             }
             RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
         } else {
@@ -754,8 +760,11 @@ int Facebook_Me(lua_State* L)
  *   <li><code>to</code> (string)</li>
  * </ul>
  *
- * <b>IMPORTANT</b>The Facebook SDK for Android allows just one recipient in the "to"-field.
- * Furthermore, the field has been deprecated on iOS. Use the "suggestions" field instead.
+ * On success, the "result" table parameter passed to the callback function will include the following fields:
+ * <ul>
+ *   <li><code>request_id</code> (string)</li>
+ *   <li><code>to</code> (table)</li>
+ * </ul>
  *
  * Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
  *
@@ -771,6 +780,11 @@ int Facebook_Me(lua_State* L)
  *   <li><code>people_ids</code> (table)</li>
  *   <li><code>place_id</code> (string)</li>
  *   <li><code>ref</code> (string)</li>
+ * </ul>
+ *
+ * On success, the "result" table parameter passed to the callback function will include the following fields:
+ * <ul>
+ *   <li><code>post_id</code> (string)</li>
  * </ul>
  *
  * Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params
@@ -1025,4 +1039,4 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, 0, FinalizeFacebook)
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, 0, 0, FinalizeFacebook)

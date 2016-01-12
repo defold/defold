@@ -201,26 +201,26 @@ public class FontTest {
 
         // compile font
         Fontc fontc = new Fontc();
-        InputStream fontDescStream = getClass().getResourceAsStream(fontDesc.getFont());
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
         final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-        FontMap.Builder fontmapBuilder = FontMap.newBuilder();
 
-        fontc.compile(fontDescStream, fontDesc, fontmapBuilder, new FontResourceResolver() {
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
-        fontmapBuilder.build().writeTo(fontOutputStream);
+        FontMap fontMap = fontc.getFontMap();
+        fontMap.writeTo(fontOutputStream);
 
-        fontDescStream.close();
+        fontInputStream.close();
         fontOutputStream.close();
 
         // verify output
         BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
-        FontMap fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
 
         // glyph count
         int expectedCharCount = (127 - 32) + 7; // (127 - 32) default chars, 7 extra åäöÅÄÖ
@@ -228,6 +228,136 @@ public class FontTest {
 
         // unicode chars
         assertEquals(0xF8FF, fontMap.getGlyphs(fontMap.getGlyphsCount() - 1).getCharacter());
+    }
+
+    @Test
+    public void testTTFJapaneseAllChars() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("DroidSansJapanese.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setAllChars(true)
+            .build();
+
+        // temp output file
+        File outfile = File.createTempFile("font-output", ".fontc");
+        outfile.deleteOnExit();
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        FileOutputStream fontOutputStream = new FileOutputStream(outfile);
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+        FontMap fontMap = fontc.getFontMap();
+        fontMap.writeTo(fontOutputStream);
+
+        fontInputStream.close();
+        fontOutputStream.close();
+
+        // verify output
+        BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
+        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+
+        // glyph count
+        int expectedCharCount = 6639; // Taken from font information of DroidSansJapanese.ttf
+        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
+    }
+
+    @Test
+    public void testTTFAllChars() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setAllChars(true)
+            .build();
+
+        // temp output file
+        File outfile = File.createTempFile("font-output", ".fontc");
+        outfile.deleteOnExit();
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        FileOutputStream fontOutputStream = new FileOutputStream(outfile);
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+        FontMap fontMap = fontc.getFontMap();
+        fontMap.writeTo(fontOutputStream);
+
+        fontInputStream.close();
+        fontOutputStream.close();
+
+        // verify output
+        BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
+        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+
+        // glyph count
+        int expectedCharCount = 1519; // Taken from font information of Tuffy.ttf
+        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
+    }
+
+    @Test
+    public void testTTFPreview() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(32)
+            .setAllChars(true)
+            .build();
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, true, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+        FontMap fontMap = fontc.getFontMap();
+
+        fontInputStream.close();
+
+        // Check "old" texture sizes
+        assertEquals(previewImage.getWidth(), 1024);
+        assertEquals(previewImage.getHeight(), 2048);
+
+        // For previews we don't inlcude all glyphs
+        assertTrue(fontMap.getGlyphsCount() < 1519);
+
+        // Check that all glyphs are inside cache space
+        for (int i = 0; i < fontMap.getGlyphsCount(); i++) {
+            Glyph g = fontMap.getGlyphs(i);
+            assertTrue(g.getX() >= 0);
+            assertTrue(g.getY() >= 0);
+            assertTrue(g.getX() + g.getWidth() < fontMap.getCacheWidth());
+            assertTrue(g.getY() + g.getAscent() + g.getDescent() < fontMap.getCacheHeight());
+        }
     }
 
     @Test
@@ -245,24 +375,24 @@ public class FontTest {
         // compile font
         boolean success = true;
         Fontc fontc = new Fontc();
-        InputStream fontDescStream = getClass().getResourceAsStream(fontDesc.getFont());
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
         final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-        FontMap.Builder fontmapBuilder = FontMap.newBuilder();
         try {
-            fontc.compile(fontDescStream, fontDesc, fontmapBuilder, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
-            fontmapBuilder.build().writeTo(fontOutputStream);
+            fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                    @Override
+                    public InputStream getResource(String resourceName)
+                            throws FileNotFoundException {
+                        return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                    }
+                });
+            FontMap fontMap = fontc.getFontMap();
+            fontMap.writeTo(fontOutputStream);
         } catch (FontFormatException e) {
             success = false;
         }
 
-        fontDescStream.close();
+        fontInputStream.close();
         fontOutputStream.close();
 
 
@@ -293,10 +423,9 @@ public class FontTest {
 
         // compile font
         Fontc fontc = new Fontc();
-        FileInputStream fontDescStream = new FileInputStream(fontDesc.getFont());
+        FileInputStream fontInputStream = new FileInputStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        FontMap.Builder fontmapBuilder = FontMap.newBuilder();
-        BufferedImage image = fontc.compile(fontDescStream, fontDesc, fontmapBuilder, new FontResourceResolver() {
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
 
             @Override
             public InputStream getResource(String resourceName)
@@ -304,30 +433,16 @@ public class FontTest {
                 return new FileInputStream(Paths.get(tmpDir.toString(), resourceName).toString());
             }
         });
-
-        fontmapBuilder.build().writeTo(fontOutputStream);
-        fontDescStream.close();
+        FontMap fontMap = fontc.getFontMap();
+        fontMap.writeTo(fontOutputStream);
+        fontInputStream.close();
         fontOutputStream.close();
-
-        // verify data
-        assertTrue(image != null);
-        assertTrue(image.getHeight() > 0);
-        assertTrue(image.getWidth() > 0);
 
         // verify glyphs
         BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
-        FontMap fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
 
-        assertEquals(96, fontMap.getGlyphsCount());
-        for (int i = 0; i < fontMap.getGlyphsCount(); i++) {
-            Glyph g = fontMap.getGlyphs(i);
-
-            // verify that the glyphs are inside the image
-            assertTrue( g.getX() + g.getLeftBearing() >= 0.0);
-            assertTrue( g.getY() - g.getAscent() >= 0.0);
-
-            assertTrue( g.getX() + g.getLeftBearing() + g.getWidth() <= image.getWidth());
-            assertTrue( g.getY() + g.getDescent() <= image.getHeight());
-        }
+        int expectedCharCount = 96; // Taken from bmfont.fnt
+        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
     }
 }

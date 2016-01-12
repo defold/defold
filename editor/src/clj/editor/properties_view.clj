@@ -9,7 +9,8 @@
             [editor.jfx :as jfx]
             [editor.types :as types]
             [editor.properties :as properties]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.resource :as resource])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
@@ -205,19 +206,18 @@
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace property-fn]
+(defmethod create-property-control! (g/protocol resource/Resource) [_ workspace property-fn]
   (let [box (HBox.)
         button (Button. "...")
         text (TextField.)
         update-ui-fn (fn [values message]
                        (let [val (properties/unify-values values)]
-                         (ui/text! text (when val (workspace/proj-path val))))
+                         (ui/text! text (when val (resource/proj-path val))))
                        (update-field-message [text] message))]
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                      (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! text (fn [_] (let [path (ui/text text)
-                                      resource (or (workspace/find-resource workspace path)
-                                                   (workspace/file-resource workspace path))]
+                                      resource (workspace/resolve-workspace-resource workspace path)]
                                   (properties/set-values! (property-fn) (repeat resource)))))
     (ui/children! box [text button])
     [box update-ui-fn]))

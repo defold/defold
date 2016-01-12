@@ -21,7 +21,6 @@ import android.util.Log;
 
 import com.dynamo.android.DispatcherActivity;
 
-import com.facebook.FacebookSdk;
 import com.facebook.AccessToken;
 import com.facebook.login.LoginManager;
 import com.facebook.login.DefaultAudience;
@@ -76,10 +75,6 @@ public class Facebook implements Handler.Callback {
         this.me = null;
         this.accessToken = null;
         this.activity = activity;
-
-        FacebookSdk.sdkInitialize( activity );
-        FacebookSdk.setApplicationId( appId );
-
     }
 
     private void startActivity(String action) {

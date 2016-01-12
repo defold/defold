@@ -18,22 +18,11 @@ namespace dmGameObject
 
     };
 
-    dmResource::Result ResLuaCreate(dmResource::HFactory factory,
-                                    void* context,
-                                    const void* buffer, uint32_t buffer_size,
-                                    void* preload_data,
-                                    dmResource::SResourceDescriptor* resource,
-                                    const char* filename);
+    dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResLuaDestroy(dmResource::HFactory factory,
-                                     void* context,
-                                     dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResLuaRecreate(dmResource::HFactory factory,
-                                      void* context,
-                                      const void* buffer, uint32_t buffer_size,
-                                      dmResource::SResourceDescriptor* resource,
-                                      const char* filename);
+    dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMEOBJECT_RES_LUA_H

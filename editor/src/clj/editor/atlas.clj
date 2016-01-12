@@ -16,6 +16,7 @@
             [editor.texture :as tex]
             [editor.types :as types]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
@@ -91,10 +92,10 @@
   (inherits outline/OutlineNode)
 
   (property order g/Int (dynamic visible (g/always false)) (default 0))
-  (input src-resource (g/protocol workspace/Resource))
+  (input src-resource (g/protocol resource/Resource))
   (input src-image BufferedImage)
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
-  (output path g/Str (g/fnk [src-resource] (workspace/proj-path src-resource)))
+  (output path g/Str (g/fnk [src-resource] (resource/proj-path src-resource)))
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id path order] {:node-id _node-id
@@ -192,7 +193,7 @@
                                 :mipmaps false}]})
 
 (defn- build-texture-set [self basis resource dep-resources user-data]
-  (let [tex-set (assoc (:proto user-data) :texture (workspace/proj-path (second (first dep-resources))))]
+  (let [tex-set (assoc (:proto user-data) :texture (resource/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id resource texture-set-data save-data]

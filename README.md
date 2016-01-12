@@ -1,10 +1,8 @@
-Defold
-======
+# Defold
 
 Repository for engine, editor and server.
 
-Code Style
-----------
+## Code Style
 
 Follow current code style and use 4 spaces for tabs. Never commit code
 with trailing white-spaces.
@@ -13,10 +11,9 @@ For Eclipse:
 * Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
 * Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
 
-Setup
------
+## Setup
 
-**Required Software**
+### Required Software
 
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
 * [Eclipse SDK 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
@@ -30,6 +27,30 @@ Setup
   - [Visual C++ 2010 Express](http://www.visualstudio.com/downloads/download-visual-studio-vs#DownloadFamilies_4)
   - [MSYS/MinGW](http://www.mingw.org/), will get you a shell that behaves like Linux, and much easier to build defold through.
   - [easy_install]( https://pypi.python.org/pypi/setuptools#id3 )
+
+* OSX:
+    - [Homebrew](http://brew.sh/)
+        Install with Terminal: `ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
+
+
+### Optional Software
+
+Quick and easy install:
+* OSX: `$ brew install wget curl p7zip ccache`
+* Linux: `$ sudo apt-get install wget curl p7zip ccache`
+
+Explanations:
+* **wget** + **curl** - for downloading packages
+* **7z** - for extracting packages (archives and binaries)
+* [ccache](http://ccache.samba.org) - Configure cache (3.2.3) by running ([source](https://ccache.samba.org/manual.html))
+
+    $ /usr/local/bin/ccache --max-size=5G
+
+* s4d - A set of build scripts for our engine
+    - `$ git clone https://github.com/king-dan/s4d.git`
+    - Add the s4d directory to the path.
+
+
 
 **Eclipse Plugins**
 
@@ -72,14 +93,6 @@ Setup
 
 Always launch Eclipse from the **command line** with a development environment
 setup. See `build.py` and the `shell` command below.
-
-
-**Optional Software**
-
-* [ccache](http://ccache.samba.org) - install with `brew install ccache` on OS X and `sudo apt-get install ccache`
-  on Debian based Linux distributions. Configure cache (3.2.3) by running ([source](https://ccache.samba.org/manual.html))
-
-    `/usr/local/bin/ccache --max-size=5G`
 
 
 
@@ -227,6 +240,7 @@ com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
 ```
 
 This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
+If you are using El Capitan, the "rootless" feature will not allow you to move that file, as it is under the `/System` directory. To move, you need to reboot into Recovery Mode (hold down Cmd+R while booting), enter a terminal (Utilities > Terminal) and run `csrutil disable`. After this, you can reboot again normally and move the file. After that, you should consider rebooting into Recovery Mode again and run `csrutil enable`.
 
 #### When opening a .collection in the editor you get this ####
 ```
@@ -255,6 +269,7 @@ Licenses
 * **glfw** [http://www.glfw.org](http://www.glfw.org) **zlib/libpng**
 * **lua** [http://www.lua.org](http://www.lua.org) **MIT**
 * **luasocket** [http://w3.impa.br/~diego/software/luasocket/](http://w3.impa.br/~diego/software/luasocket/) **MIT**
+* **lz4** [http://cyan4973.github.io/lz4/](http://cyan4973.github.io/lz4/)  **BSD**
 * **box2d** [http://box2d.org](http://box2d.org) **zlib**
 * **bullet** [http://bulletphysics.org](http://bulletphysics.org) **zlib**
 * **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
@@ -309,175 +324,12 @@ only little endian architectures. If this is about to change we would have to by
 As run-time editor code and pipeline code often is shared little-endian applies to both. For specific editor-code ByteOrder.nativeOrder() is
 the correct order to use.
 
+Platform Specifics
+------------------
 
-iOS Debugging
--------------
+* [iOS](README_IOS.md)
+* [Android](README_ANDROID.md)
 
-* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The
-  reason is currently unknown. The --disable-ccache option is available in waf and in build.py.
-* Create a new empty iOS project (Other/Empty)
-* Create a new scheme with Project>New Scheme...
-* Select executable (dmengine.app)
-* Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
-
-iOS Crashdumps
---------------
-
-From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
-
-    symbol address = slide + stack address - load address
-
-* The slide value is the value of vmaddr in LC_SEGMENT cmd (Mostly this is 0x1000). Run the following to get it:
-
-      otool -arch ARCHITECTURE -l "APP_BUNDLE/APP_EXECUTABLE" | grep -B 3 -A 8 -m 2 "__TEXT"
-
-  Replace ARCHITECTURE with the actual architecture the crash report shows, e.g. armv7. Replace APP_BUNDLE/APP_EXECUTABLE with the path to the actual executable.
-
-* The stack address is the hex value from the crash report.
-
-* The load address can be is the first address showing in the Binary Images section at the very front of the line which contains your executable. (Usually the first entry).
-
-
-
-Android
--------
-
-By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp.
-g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c.
-Life-cycle support should probably be moved to dlib at some point.
-
-### Android Resources and R.java
-
-Long story short. Static resources on Android are referred by an integer identifier. These identifiers are generated to a file R.java.
-The id:s generated are conceptually a serial number and with no guarantees about uniqueness. Due to this limitations **all** identifiers
-must be generated when the final application is built. As a consequence all resources must be available and it's not possible to package
-library resources in a jar. Moreover, one identical *R.java* must be generated for every package/library linked with the final application.
-
-This is a known limitation on Android.
-
-**NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
-
-**NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
-
-### Android Bundling with Local Builds
-
-With the above in mind, since it may be desirable to create Android bundles using locally build versions of the editor, we will describe how
-to manually set up content under com.dynamo.cr. Note that this information has been derived from build.py and related scripts, since running
-those has the undesirable side effect of uploading content.
-
-Create apkc, by invoking the following from the root defold directory:
-
-    # go install defold/...
-
-This will result in the production of apkc under “go/bin”. This should be copied to “com.dynamo.cr/com.dynamo.cr.target/lib/<host platform>”.
-
-Copy classes.dex from $DYNAMO_HOME/share/java to com.dynamo.cr/com.dynamo.cr.target/lib.
-
-Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material for
-Facebook and Google Play into this location.
-
-### Android SDK/NDK
-
-
-* Download SDK Tools 23.0 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
-  Drill down to *VIEW ALL DOWNLOADS AND SIZES* and *SDK Tools Only*. Change URL to ...23.0.. if necessary.
-* Launch android tool and install Android SDK Platform-tools 20 and Build-tools 20.0
-* Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html).
-  The revision you look for might be outdated and the path syntax to the link tends to change.
-  You can find older versions, for example Max OS X 64, r10b, by the following convention:
-    [http://dl.google.com/android/ndk/android-ndk32-r10b-darwin-x86_64.tar.bz2](http://dl.google.com/android/ndk/android-ndk32-r10b-darwin-x86_64.tar.bz2).
-* Put NDK/SDK in ~/android/android-ndk-r10b and ~/android/android-sdk respectively
-
-### Android testing
-
-Copy executable (or directory) with
-
-    # adb push <DIR_OR_DIR> /data/local/tmp
-
-When copying directories append directory name to destination path. It's otherwise skipped
-
-Run exec with:
-
-    # adb shell /data/local/tmp/....
-
-For interactive shell run "adb shell"
-
-### Caveats
-
-If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new
-create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
-
-### Android debugging
-
-* Go to application bundle-dir in build/default/...,  e.g. build/default/examples/simple_gles2.android
-* Install and launch application
-* Run ndk-gdb from android ndk
-* Debug
-
-### Life-cycle and GLFW
-
-NDK uses a separate thread which runs the game, separate from the Android UI thread.
-
-The main life cycle (LC) of an android app is controlled by the following events, received on the game thread:
-
-* _glfwPreMain(struct* android_app), corresponds to create
-* APP_CMD_START, (visible)
-* APP_CMD_RESUME
-* APP_CMD_GAINED_FOCUS
-* APP_CMD_LOST_FOCUS
-* APP_CMD_PAUSE
-* APP_CMD_STOP, (invisible)
-* APP_CMD_SAVE_STATE
-* APP_CMD_DESTROY
-
-After APP_CMD_PAUSE, the process might be killed by the OS without APP_CMD_DESTROY being received.
-
-Window life cycle (LC), controls the window (app_activity->window) and might happen at any point while the app is visible:
-
-* APP_CMD_INIT_WINDOW
-* APP_CMD_TERM_WINDOW
-
-Specifics of exactly when they are received depend on manufacturer, OS version etc.
-
-The graphics resources used are divided into Context and Surface:
-
-* Context
-  * EGLDisplay display
-  * EGLContext context
-  * EGLConfig config
-* Surface
-  * EGLSurface surface
-
-GLFW functions called by the engine are:
-
-* _glfwPlatformInit (Context creation)
-* _glfwPlatformOpenWindow (Surface creation)
-* _glfwPlatformCloseWindow (Surface destruction)
-* _glfwPlatformTerminate (implicit Context destruction)
-
-Some implementation details to note:
-
-* _glfwPreMain pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
-  This should be possible to streamline so that content loading can start faster.
-* The engine continues to pump the LC commands as a part of polling for input (glfw)
-* OpenWindow is the first time when the window dimensions are known, which controls screen orientation.
-* The glfw window is considered open (_glfwWin.opened) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
-* The glfw window is considered iconified (_glfwWin.iconified) when not visible to user, which stops buffer swapping and controls poll timeouts
-* Between CloseWindow and OpenWindow the GL context is temp-stored in memory (ordinary struct is memset to 0 by glfw in CloseWindow)
-* When rebooting the engine (when using the dev app), essentially means CloseWindow followed by OpenWindow.
-* APP_CMD_TERM_WINDOW might do Context destruction before _glfwPlatformTerminate, depending on which happens first
-* _glfwPlatformTerminate pumps the LC commands until the Context has been destroyed
-
-### Pulling APKs from device
-
-E.g. when an APK produces a crash, backing it up is always a good idea before you attempt to fix it.
-
-## Determine package name:
-  adb shell pm list packages
-## Get the path on device:
-  adb shell pm path <package-name>
-## Pull the APK to local disk
-  adb pull <package-path>
 
 OpenGL and jogl
 ---------------

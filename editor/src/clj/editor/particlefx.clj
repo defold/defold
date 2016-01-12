@@ -1,6 +1,7 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.colors :as colors]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -427,30 +428,32 @@
   (property space g/Keyword
             (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/always "Emission Space")))
+
   (property tile-source (g/protocol resource/Resource)
-    (dynamic label (g/always "Image"))
-    (value (g/fnk [tile-source-resource] tile-source-resource))
-    (validate (validation/validate-resource tile-source-resource "Missing image" [texture-set-data gpu-texture anim-data]))
-    (set (project/gen-resource-setter [[:resource :tile-source-resource]
-                                       [:texture-set-data :texture-set-data]
-                                       [:gpu-texture :gpu-texture]
-                                       [:anim-data :anim-data]])))
+            (dynamic label (g/always "Image"))
+            (value (gu/passthrough tile-source-resource))
+            (set (project/gen-resource-setter [[:resource :tile-source-resource]
+                                               [:texture-set-data :texture-set-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:anim-data :anim-data]]))
+            (validate (validation/validate-resource tile-source "Missing image"
+                                                    [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
             (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
+  
   (property material (g/protocol resource/Resource)
-            (value (g/fnk [material-resource] material-resource))
-            (validate (g/fnk [material-resource]
-                             (when (nil? material-resource)
-                               (g/error-warning "Missing material"))))
-            (set (project/gen-resource-setter [[:resource :material-resource]])))
+            (value (gu/passthrough material-resource))
+            (set (project/gen-resource-setter [[:resource :material-resource]]))
+            (validate (validation/validate-resource material)))
 
   (property blend-mode g/Keyword
-    (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
-    (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+
   (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
@@ -514,7 +517,7 @@
         pb  (reduce (fn [pb [label resource]]
                       (assoc-in pb label resource))
                     pb (map (fn [[label res]]
-                              [label (workspace/proj-path (get dep-resources res))])
+                              [label (resource/proj-path (get dep-resources res))])
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Particle$ParticleFX pb)}))
 
@@ -522,7 +525,7 @@
 
 (g/defnk produce-build-targets [_node-id project-id resource rt-pb-data dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(workspace/proj-path (:resource res)) res]) dep-build-targets))
+        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field]
                                   (if (vector? field)
                                     (mapv
@@ -796,7 +799,7 @@
       (swap! pfx-sim-ref plib/reload rt-pb-data))
     (assoc pfx-sim :protobuf-msg rt-pb-data)))
 
-(defn- destroy-pfx-sims [_ pfx-sims]
+(defn- destroy-pfx-sims [_ pfx-sims _]
   (doseq [pfx-sim pfx-sims]
     (plib/destroy-sim @(:pfx-sim pfx-sim))))
 

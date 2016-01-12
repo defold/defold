@@ -22,18 +22,13 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDisplayProfilesCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void* preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename)
+    dmResource::Result ResDisplayProfilesCreate(const dmResource::ResourceCreateParams& params)
     {
         dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, profiles, filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) profiles;
+            params.m_Resource->m_Resource = (void*) profiles;
         }
         else
         {
@@ -42,22 +37,16 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResDisplayProfilesDestroy(dmResource::HFactory factory,
-                                            void* context,
-                                            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResDisplayProfilesDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmRender::DeleteDisplayProfiles((dmRender::HDisplayProfiles)resource->m_Resource);
+        dmRender::DeleteDisplayProfiles((dmRender::HDisplayProfiles)params.m_Resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDisplayProfilesRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResDisplayProfilesRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmRender::HDisplayProfiles profiles = (dmRender::HDisplayProfiles) resource->m_Resource;
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, profiles, filename);
+        dmRender::HDisplayProfiles profiles = (dmRender::HDisplayProfiles) params.m_Resource->m_Resource;
+        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
         return r;
     }
 }

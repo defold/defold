@@ -3,7 +3,8 @@
             [editor.form :as form]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.resource :as resource])
   (:import [javafx.animation AnimationTimer]
            [java.util Collection]
            [javafx.scene Parent Group]
@@ -129,10 +130,10 @@
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
-                                    (set path (workspace/proj-path resource)))))
+                                    (set path (resource/proj-path resource)))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
-                                  (when-let [resource-path (and resource (workspace/proj-path resource))]
+                                  (when-let [resource-path (and resource (resource/proj-path resource))]
                                     (set path resource-path)
                                     (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
@@ -677,14 +678,16 @@
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
   (let [workspace (:workspace opts)
         view-id (g/make-node! graph FormView :parent-view parent :workspace workspace)
-        repainter (proxy [AnimationTimer] []
-                    (handle [now]
-                      (g/node-value view-id :form)))]
+        repainter (ui/->timer (fn [dt] (g/node-value view-id :form)))]
     (g/transact
-     (concat
-      (g/set-property view-id :repainter repainter)
-      (g/connect resource-node :form-data view-id :form-data)))
-    (.start repainter)
+      (concat
+        (g/set-property view-id :repainter repainter)
+        (g/connect resource-node :form-data view-id :form-data)))
+    (ui/timer-start! repainter)
+    (let [^Tab tab (:tab opts)]
+      (ui/on-close tab
+                   (fn [e]
+                     (ui/timer-stop! repainter))))
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]

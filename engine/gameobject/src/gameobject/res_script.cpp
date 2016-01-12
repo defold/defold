@@ -8,41 +8,31 @@
 
 namespace dmGameObject
 {
-    dmResource::Result ResScriptPreload(dmResource::HFactory factory,
-                                             dmResource::HPreloadHintInfo hint_info,
-                                             void* context,
-                                             const void* buffer, uint32_t buffer_size,
-                                             void** preload_data,
-                                             const char* filename)
+    dmResource::Result ResScriptPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
-            
+
         uint32_t n_modules = lua_module->m_Modules.m_Count;
         for (uint32_t i = 0; i < n_modules; ++i)
         {
-            dmResource::PreloadHint(hint_info, lua_module->m_Resources[i]);
+            dmResource::PreloadHint(params.m_HintInfo, lua_module->m_Resources[i]);
         }
-        
-        *preload_data = lua_module;    
+
+        *params.m_PreloadData = lua_module;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResScriptCreate(dmResource::HFactory factory,
-                                       void* context,
-                                       const void* buffer, uint32_t buffer_size,
-                                       void* preload_data,
-                                       dmResource::SResourceDescriptor* resource,
-                                       const char* filename)
+    dmResource::Result ResScriptCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*) preload_data;
+        dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*) params.m_PreloadData;
 
-        dmScript::HContext script_context = (dmScript::HContext)context;
+        dmScript::HContext script_context = (dmScript::HContext) params.m_Context;
         lua_State* L = dmScript::GetLuaState(script_context);
 
-        if (!RegisterSubModules(factory, script_context, lua_module))
+        if (!RegisterSubModules(params.m_Factory, script_context, lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
@@ -51,7 +41,7 @@ namespace dmGameObject
         HScript script = NewScript(L, lua_module);
         if (script)
         {
-            resource->m_Resource = (void*) script;
+            params.m_Resource->m_Resource = (void*) script;
             return dmResource::RESULT_OK;
         }
         else
@@ -61,31 +51,25 @@ namespace dmGameObject
         }
     }
 
-    dmResource::Result ResScriptDestroy(dmResource::HFactory factory,
-                                        void* context,
-                                        dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResScriptDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        HScript script = (HScript)resource->m_Resource;
+        HScript script = (HScript)params.m_Resource->m_Resource;
         dmDDF::FreeMessage(script->m_LuaModule);
         DeleteScript((HScript) script);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResScriptRecreate(dmResource::HFactory factory,
-                                         void* context,
-                                         const void* buffer, uint32_t buffer_size,
-                                         dmResource::SResourceDescriptor* resource,
-                                         const char* filename)
+    dmResource::Result ResScriptRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        HScript script = (HScript) resource->m_Resource;
+        HScript script = (HScript) params.m_Resource->m_Resource;
 
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmScript::HContext script_context = (dmScript::HContext)context;
-        if (!RegisterSubModules(factory, script_context, lua_module))
+        dmScript::HContext script_context = (dmScript::HContext) params.m_Context;
+        if (!RegisterSubModules(params.m_Factory, script_context, lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
