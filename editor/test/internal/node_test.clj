@@ -435,10 +435,10 @@
         (is (thrown? AssertionError (g/connect! node1 :o node2 :no-such-label)))))))
 
 (deftest error-on-bad-property
-  (testing "AssertionError on setting bad property"
+  (testing "Exception on setting bad property"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world Dummy))]
-        (is (thrown? AssertionError (g/set-property! node :no-such-property 4711)))))))
+        (is (thrown? Exception (g/set-property! node :no-such-property 4711)))))))
 
 (g/defnode AlwaysNode
   (output always-99 g/Int (g/always 99))
