@@ -63,6 +63,8 @@ dependencies {
     compile 'org.postgresql:postgresql:9.4-1201-jdbc41'
     compile 'com.google.protobuf:protobuf-java:2.3.0'
     compile 'ws.antonov.gradle.plugins:gradle-plugin-protobuf:0.9.1'
+    compile 'org.apache.derby:derby:10.11.1.1'
+    compile 'commons-configuration:commons-configuration:1.10'
 
     testCompile 'org.mockito:mockito-all:1.10.19'
     testCompile 'org.apache.derby:derby:10.11.1.1'
@@ -73,6 +75,7 @@ dependencies {
 test {
     testLogging {
         events "passed", "skipped", "failed", "standardOut", "standardError"
+        exceptionFormat = 'full'
     }
 }
 
