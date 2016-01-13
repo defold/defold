@@ -5,7 +5,7 @@
             [editor.jfx :as jfx]
             [editor.ui :as ui]
             [editor.project :as project]
-            [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.outline :as outline])
   (:import [com.defold.editor Start]
            [editor.outline ItemIterator]
@@ -135,7 +135,7 @@
   (property selection-listener ListChangeListener)
 
   (input active-outline g/Any :substitute {})
-  (input active-resource (g/protocol workspace/Resource) :substitute nil)
+  (input active-resource (g/protocol resource/Resource) :substitute nil)
   (input open-resources g/Any :substitute [])
   (input selection g/Any :substitute [])
 

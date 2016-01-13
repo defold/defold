@@ -330,9 +330,9 @@ int Push_Register(lua_State* L)
     }
 
     if (!lua_istable(L, 1)) {
-	assert(top == lua_gettop(L));
-	luaL_error(L, "First argument must be a table of notification types.");
-	return 0;
+    assert(top == lua_gettop(L));
+    luaL_error(L, "First argument must be a table of notification types.");
+    return 0;
     }
 
     UIRemoteNotificationType types = UIRemoteNotificationTypeNone;
@@ -461,7 +461,8 @@ int Push_SetBadgeCount(lua_State* L)
  *   <tr><td><code>action</code></td><td>(iOS only). The alert action string to be used as the title of the
  *          right button of the alert or the value of the unlock slider, where the value replaces
  *          "unlock" in "slide to unlock" text. (string)</td></tr>
- *   <tr><td><code>badge_number</code></td><td>(iOS only). The numeric value of the icon badge. (number)</td></tr>
+ *   <tr><td><code>badge_count</code></td><td>(iOS only). The numeric value of the icon badge. (number)</td></tr>
+ *   <tr><td><code>badge_number</code></td><td>Deprecated. Use badge_count instead</td></tr>
  *   <tr><td><code>priority</code></td><td>(Android only). The priority is a hint to the device UI about how the notification
             should be displayed. There are five priority levels, from -2 to 2 where -1 is the lowest priority
             and 2 the highest. Unless specified, a default priority level of 2 is used. (number)</td></tr>
@@ -548,13 +549,26 @@ int Push_Schedule(lua_State* L)
         }
         lua_pop(L, 1);
 
-        // badge_number
-        lua_pushstring(L, "badge_number");
+        // badge_count
+        lua_pushstring(L, "badge_count");
         lua_gettable(L, 5);
+        bool badge_count_set = false;
         if (lua_isnumber(L, -1)) {
             notification.applicationIconBadgeNumber = lua_tointeger(L, -1);
+            badge_count_set = true;
         }
         lua_pop(L, 1);
+
+        // Deprecated, replaced by badge_count
+        if(!badge_count_set)
+        {
+            lua_pushstring(L, "badge_number");
+            lua_gettable(L, 5);
+            if (lua_isnumber(L, -1)) {
+                notification.applicationIconBadgeNumber = lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
 
         // sound
         /*
@@ -635,6 +649,11 @@ static void NotificationToLua(lua_State* L, UILocalNotification* notification)
     lua_pushstring(L, [[notification alertAction] UTF8String]);
     lua_settable(L, -3);
 
+    lua_pushstring(L, "badge_count");
+    lua_pushnumber(L, [notification applicationIconBadgeNumber]);
+    lua_settable(L, -3);
+
+    // Deprecated
     lua_pushstring(L, "badge_number");
     lua_pushnumber(L, [notification applicationIconBadgeNumber]);
     lua_settable(L, -3);

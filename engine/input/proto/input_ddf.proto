@@ -234,6 +234,7 @@ enum Text
 {
     TEXT = 0;
     MAX_TEXT_COUNT = 1;
+    MARKED_TEXT = 2;
 }
 
 message KeyTrigger

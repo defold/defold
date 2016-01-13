@@ -8,31 +8,20 @@
 namespace dmGameSystem
 {
 
-    dmResource::Result ResEmitterCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResEmitterCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmLogWarning("%s will not be loaded since emitter files are deprecated", filename);
+        dmLogWarning("%s will not be loaded since emitter files are deprecated", params.m_Filename);
         // Trick resource system into thinking we loaded something
-        resource->m_Resource = (void*)1;
+        params.m_Resource->m_Resource = (void*)1;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResEmitterDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResEmitterDestroy(const dmResource::ResourceDestroyParams& params)
     {
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResEmitterRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResEmitterRecreate(const dmResource::ResourceRecreateParams& params)
     {
         return dmResource::RESULT_OK;
     }

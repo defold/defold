@@ -34,7 +34,7 @@
        (doseq [status selection]
          (git/revert git [(or (:new-path status) (:old-path status))]))
        (refresh! git list-view)
-       (workspace/fs-sync workspace)))
+       (workspace/resource-sync! workspace)))
 
 (handler/defhandler :diff :asset-browser
   (enabled? [selection] (= 1 (count selection)))

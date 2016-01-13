@@ -87,77 +87,62 @@ namespace dmGameSystem
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
     }
 
-    dmResource::Result ResTextureSetPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void** preload_data,
-            const char* filename)
+    dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::TextureSet* texture_set_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &texture_set_ddf);
+        dmDDF::Result e  = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &texture_set_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(hint_info, texture_set_ddf->m_Texture);
+        dmResource::PreloadHint(params.m_HintInfo, texture_set_ddf->m_Texture);
 
-        *preload_data = texture_set_ddf;
+        *params.m_PreloadData = texture_set_ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureSetCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResTextureSetCreate(const dmResource::ResourceCreateParams& params)
     {
         TextureSetResource* tile_set = new TextureSetResource();
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, (dmGameSystemDDF::TextureSet*) preload_data, tile_set, filename, false);
+        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, (dmGameSystemDDF::TextureSet*) params.m_PreloadData, tile_set, params.m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) tile_set;
+            params.m_Resource->m_Resource = (void*) tile_set;
         }
         else
         {
-            ReleaseResources(factory, tile_set);
+            ReleaseResources(params.m_Factory, tile_set);
             delete tile_set;
         }
         return r;
     }
 
-    dmResource::Result ResTextureSetDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResTextureSetDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        TextureSetResource* tile_set = (TextureSetResource*) resource->m_Resource;
-        ReleaseResources(factory, tile_set);
+        TextureSetResource* tile_set = (TextureSetResource*) params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, tile_set);
         delete tile_set;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureSetRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResTextureSetRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmGameSystemDDF::TextureSet* texture_set_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &texture_set_ddf);
+        dmDDF::Result e  = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &texture_set_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        TextureSetResource* tile_set = (TextureSetResource*)resource->m_Resource;
+        TextureSetResource* tile_set = (TextureSetResource*)params.m_Resource->m_Resource;
         TextureSetResource tmp_tile_set;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, texture_set_ddf, &tmp_tile_set, filename, true);
+        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, texture_set_ddf, &tmp_tile_set, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
-            ReleaseResources(factory, tile_set);
+            ReleaseResources(params.m_Factory, tile_set);
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
@@ -166,7 +151,7 @@ namespace dmGameSystem
         }
         else
         {
-            ReleaseResources(factory, &tmp_tile_set);
+            ReleaseResources(params.m_Factory, &tmp_tile_set);
         }
         return r;
     }

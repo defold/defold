@@ -4,7 +4,9 @@
 
 ### Android SDK/NDK
 
-* Download SDK Tools 23.0 (or later) from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html)
+**Note that the SDK version numbers aren't the same as the Api Level numbers!**
+
+* Download SDK Tools 24.3.4 (or later) from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html)
 * Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
 * Put NDK/SDK in **~/android/android-ndk-r10b** and **~/android/android-sdk** respectively
 
@@ -19,15 +21,19 @@ Here are some commands to help out with the process:
     wget http://dl.google.com/android/ndk/android-ndk32-r10b-$PLATFORM-x86.tar.bz2
     tar xvf android-ndk32-r10b-$PLATFORM-x86.tar.bz2
 
-    wget http://dl.google.com/android/android-sdk_r23.0.2-$PLATFORM.tgz
-    tar xvf android-sdk_r23.0.2-$PLATFORM.tgz
+    # Supported: macosx,linux,windows
+    PLATFORM=macosx
+    wget http://dl.google.com/android/android-sdk_r24.4.1-$PLATFORM.zip
+    tar xvf android-sdk_r24.4.1-$PLATFORM.zip
     mv android-sdk-$PLATFORM android-sdk
 
     # You can list all the packages contained (not just the latest versions)
-    ./android-sdk/tools/android list sdk --all
+    # and see their aliases (e.g. "tools")
+    ./android-sdk/tools/android list sdk --all --extended
 
     # you can use some aliases to install them
-    ./android-sdk/tools/android update sdk -a -u -t tools,platform-tools,build-tools-20.0.0
+    # Note the API level version: E.g. "android-23"
+    ./android-sdk/tools/android update sdk -a -u -t tools,android-23,extra-android-support,platform-tools,build-tools-20.0.0
 
 **Note** Newer version have the suffixes ".bin" or ".exe" as they are now installers.
 Simply use that as the suffix, and and extract with **7z**
@@ -82,7 +88,7 @@ Facebook and Google Play into this location:
 
 And finally
 
-    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.target/lib/
+    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.bob/lib/
 
 
 ### Android testing
@@ -176,4 +182,62 @@ E.g. when an APK produces a crash, backing it up is always a good idea before yo
   adb shell pm path <package-name>
 ## Pull the APK to local disk
   adb pull <package-path>
+
+
+## Upgrading SDK (i.e. API LEVEL)
+
+In essence, updating the "sdk" means to update the supported api level.
+This is done by updating the `defold/packages/android-<android version>-<arch>.tar.gz` and `defold/packages/android-support-v4-<android version>-<arch>.tar.gz` etc
+
+Some relevant links:
+
+- http://developer.android.com/tools/sdk/tools-notes.html
+- http://developer.android.com/guide/topics/manifest/uses-sdk-element.html
+- http://developer.android.com/about/versions/marshmallow/android-6.0-changes.html
+- http://developer.android.com/tools/support-library/index.html
+
+You can also contact the Platform Partnerships team which are our internal Google Play contacts:
+
+- https://kingfluence.com/pages/viewpage.action?spaceKey=K&title=Google+Play+Requirements
+- https://kingfluence.com/display/K/Google
+
+
+### Creating the android tar ball
+
+Creating a new android package is straight forward:
+
+    APILEVEL=23
+
+    mkdir -p sdkpack_android
+    cd sdkpack_android
+
+    mkdir -p share/java
+    cp ~/android/android-sdk/platforms/android-$APILEVEL/android.jar share/java
+    tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
+
+    cp android-$APILEVEL-armv7-android.tar.gz ~/work/defold/packages
+
+
+#### Support libs?
+
+The android-support-v4.jar is apparently needed by our facebook api, and hopefully, we won't need to update that.
+
+### Update build script
+
+Update the reference to the tar ball in `<defold>/scripts/build.py`
+
+    PACKAGES_ANDROID="... android-support-v4 android-23 ...".split()
+
+###
+
+Copy the android.jar to the bob path:
+
+    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.bob/lib/
+
+### Rebuild
+
+    $ ./scripts/build.py distclean
+    $ ./scripts/build.py install_ext
+    $ b-android.sh
+
 

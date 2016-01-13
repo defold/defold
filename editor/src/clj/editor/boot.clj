@@ -92,7 +92,7 @@
         scene (Scene. root)]
     (ui/observe (.focusedProperty stage) (fn [property old-val new-val]
                                            (when (true? new-val)
-                                             (workspace/fs-sync workspace))))
+                                             (workspace/resource-sync! workspace))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -164,6 +164,7 @@
       (material/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
       (gui/register-resource-types workspace)))
+    (workspace/resource-sync! workspace)
     workspace))
 
 (defn open-project
@@ -173,6 +174,9 @@
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
+        _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
+        _            (workspace/update-dependencies! workspace)
+        _            (workspace/resource-sync! workspace)
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))

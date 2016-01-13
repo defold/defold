@@ -39,8 +39,8 @@
 (g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
    :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (workspace/proj-path spine-json-resource)
-               :atlas (workspace/proj-path atlas-resource)
+              {:spine-json (resource/proj-path spine-json-resource)
+               :atlas (resource/proj-path atlas-resource)
                :sample-rate sample-rate})})
 
 (defprotocol Interpolator
@@ -375,7 +375,7 @@
 
 (defn- build-spine-scene [self basis resource dep-resources user-data]
   (let [pb (:spine-scene-pb user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
 (g/defnk produce-scene-build-targets [_node-id resource spine-scene-pb atlas dep-build-targets]
@@ -625,10 +625,10 @@
                     :sample-rate (:sample-rate spine))))
 
 (g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
-  {:spine-scene (workspace/proj-path spine-scene-resource)
+  {:spine-scene (resource/proj-path spine-scene-resource)
    :default-animation default-animation
    :skin skin
-   :material (workspace/proj-path material-resource)
+   :material (resource/proj-path material-resource)
    :blend-mode blend-mode})
 
 (g/defnk produce-model-save-data [resource model-pb]
@@ -637,7 +637,7 @@
 
 (defn- build-spine-model [self basis resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
 (g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets]

@@ -54,84 +54,69 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Material);
     }
 
-    dmResource::Result ResSpritePreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                            void* context,
-                                            const void* buffer, uint32_t buffer_size,
-                                            void** preload_data,
-                                            const char* filename)
+    dmResource::Result ResSpritePreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::SpriteDesc *ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(hint_info, ddf->m_TileSet);
-        dmResource::PreloadHint(hint_info, ddf->m_Material);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_TileSet);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
-        *preload_data = ddf;
+        *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpriteCreate(dmResource::HFactory factory,
-                                            void* context,
-                                            const void* buffer, uint32_t buffer_size,
-                                            void* preload_data,
-                                            dmResource::SResourceDescriptor* resource,
-                                            const char* filename)
+    dmResource::Result ResSpriteCreate(const dmResource::ResourceCreateParams& params)
     {
         SpriteResource* sprite_resource = new SpriteResource();
         memset(sprite_resource, 0, sizeof(SpriteResource));
-        sprite_resource->m_DDF = (dmGameSystemDDF::SpriteDesc*) preload_data;
+        sprite_resource->m_DDF = (dmGameSystemDDF::SpriteDesc*) params.m_PreloadData;
 
-        dmResource::Result r = AcquireResources(factory, sprite_resource, filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, sprite_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) sprite_resource;
+            params.m_Resource->m_Resource = (void*) sprite_resource;
         }
         else
         {
-            ReleaseResources(factory, sprite_resource);
+            ReleaseResources(params.m_Factory, sprite_resource);
             delete sprite_resource;
         }
         return r;
     }
 
-    dmResource::Result ResSpriteDestroy(dmResource::HFactory factory,
-                                             void* context,
-                                             dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResSpriteDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        SpriteResource* sprite_resource = (SpriteResource*) resource->m_Resource;
-        ReleaseResources(factory, sprite_resource);
+        SpriteResource* sprite_resource = (SpriteResource*) params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, sprite_resource);
         delete sprite_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpriteRecreate(dmResource::HFactory factory,
-                                              void* context,
-                                              const void* buffer, uint32_t buffer_size,
-                                              dmResource::SResourceDescriptor* resource,
-                                              const char* filename)
+    dmResource::Result ResSpriteRecreate(const dmResource::ResourceRecreateParams& params)
     {
         SpriteResource tmp_sprite_resource;
         memset(&tmp_sprite_resource, 0, sizeof(SpriteResource));
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &tmp_sprite_resource.m_DDF);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tmp_sprite_resource.m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::Result r = AcquireResources(factory, &tmp_sprite_resource, filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, &tmp_sprite_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            SpriteResource* sprite_resource = (SpriteResource*)resource->m_Resource;
-            ReleaseResources(factory, sprite_resource);
+            SpriteResource* sprite_resource = (SpriteResource*)params.m_Resource->m_Resource;
+            ReleaseResources(params.m_Factory, sprite_resource);
             *sprite_resource = tmp_sprite_resource;
         }
         else
         {
-            ReleaseResources(factory, &tmp_sprite_resource);
+            ReleaseResources(params.m_Factory, &tmp_sprite_resource);
         }
         return r;
     }

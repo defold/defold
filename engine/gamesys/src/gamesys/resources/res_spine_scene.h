@@ -30,29 +30,13 @@ namespace dmGameSystem
         TextureSetResource*             m_TextureSet;
     };
 
-    dmResource::Result ResSpineScenePreload(dmResource::HFactory factory,
-            dmResource::HPreloadHintInfo hint_info,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void** preload_data,
-            const char* filename);
+    dmResource::Result ResSpineScenePreload(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResSpineSceneCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResSpineSceneCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResSpineSceneDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResSpineSceneDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResSpineSceneRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResSpineSceneRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_SPINE_SCENE_H

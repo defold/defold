@@ -14,22 +14,11 @@ namespace dmGameSystem
         dmGameSystemDDF::CollectionProxyDesc*  m_DDF;
     };
 
-    dmResource::Result ResCollectionProxyCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void *preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResCollectionProxyCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResCollectionProxyDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResCollectionProxyDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResCollectionProxyRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResCollectionProxyRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_COLLECTION_PROXY_H

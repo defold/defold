@@ -48,74 +48,58 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_TextureSet);
     }
 
-    dmResource::Result ResSpineScenePreload(dmResource::HFactory factory,
-            dmResource::HPreloadHintInfo hint_info,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void** preload_data,
-            const char* filename)
+    dmResource::Result ResSpineScenePreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::SpineScene* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineScene_DESCRIPTOR, (void**) &spine_scene);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_SpineScene_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(hint_info, spine_scene->m_TextureSet);
+        dmResource::PreloadHint(params.m_HintInfo, spine_scene->m_TextureSet);
 
-        *preload_data = spine_scene;
+        *params.m_PreloadData = spine_scene;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpineSceneCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResSpineSceneCreate(const dmResource::ResourceCreateParams& params)
     {
         SpineSceneResource* ss_resource = new SpineSceneResource();
-        ss_resource->m_SpineScene = (dmGameSystemDDF::SpineScene*) preload_data;
-        dmResource::Result r = AcquireResources(factory, ss_resource, filename);
+        ss_resource->m_SpineScene = (dmGameSystemDDF::SpineScene*) params.m_PreloadData;
+        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) ss_resource;
+            params.m_Resource->m_Resource = (void*) ss_resource;
         }
         else
         {
-            ReleaseResources(factory, ss_resource);
+            ReleaseResources(params.m_Factory, ss_resource);
             delete ss_resource;
         }
         return r;
     }
 
-    dmResource::Result ResSpineSceneDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResSpineSceneDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        SpineSceneResource* ss_resource = (SpineSceneResource*)resource->m_Resource;
-        ReleaseResources(factory, ss_resource);
+        SpineSceneResource* ss_resource = (SpineSceneResource*)params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, ss_resource);
         delete ss_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpineSceneRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResSpineSceneRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmGameSystemDDF::SpineScene* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineScene_DESCRIPTOR, (void**) &spine_scene);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_SpineScene_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        SpineSceneResource* ss_resource = (SpineSceneResource*)resource->m_Resource;
-        ReleaseResources(factory, ss_resource);
+        SpineSceneResource* ss_resource = (SpineSceneResource*)params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_SpineScene = spine_scene;
-        return AcquireResources(factory, ss_resource, filename);
+        return AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
     }
 }

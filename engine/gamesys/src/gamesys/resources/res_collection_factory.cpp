@@ -16,53 +16,42 @@ namespace dmGameSystem
             dmDDF::FreeMessage(factory_res->m_CollectionFactoryDesc);
     }
 
-    dmResource::Result ResCollectionFactoryCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams& params)
     {
         CollectionFactoryResource* factory_res = new CollectionFactoryResource;
-        dmResource::Result r = AcquireResource(factory, buffer, buffer_size, factory_res);
+        dmResource::Result r = AcquireResource(params.m_Factory, params.m_Buffer, params.m_BufferSize, factory_res);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) factory_res;
+            params.m_Resource->m_Resource = (void*) factory_res;
         }
         else
         {
-            ReleaseResources(factory, factory_res);
+            ReleaseResources(params.m_Factory, factory_res);
         }
         return r;
     }
 
-    dmResource::Result ResCollectionFactoryDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResCollectionFactoryDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        CollectionFactoryResource* factory_res = (CollectionFactoryResource*) resource->m_Resource;
-        ReleaseResources(factory, factory_res);
+        CollectionFactoryResource* factory_res = (CollectionFactoryResource*) params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, factory_res);
         delete factory_res;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollectionFactoryRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResCollectionFactoryRecreate(const dmResource::ResourceRecreateParams& params)
     {
         CollectionFactoryResource tmp_factory_res;
-        dmResource::Result r = AcquireResource(factory, buffer, buffer_size, &tmp_factory_res);
+        dmResource::Result r = AcquireResource(params.m_Factory, params.m_Buffer, params.m_BufferSize, &tmp_factory_res);
         if (r == dmResource::RESULT_OK)
         {
-            CollectionFactoryResource* factory_res = (CollectionFactoryResource*) resource->m_Resource;
-            ReleaseResources(factory, factory_res);
+            CollectionFactoryResource* factory_res = (CollectionFactoryResource*) params.m_Resource->m_Resource;
+            ReleaseResources(params.m_Factory, factory_res);
             *factory_res = tmp_factory_res;
         }
         else
         {
-            ReleaseResources(factory, &tmp_factory_res);
+            ReleaseResources(params.m_Factory, &tmp_factory_res);
         }
         return r;
     }

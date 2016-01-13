@@ -4,6 +4,9 @@
 
 #include <string.h>
 
+#include <dlib/dstrings.h>
+#include <dlib/utf8.h>
+
 namespace dmHID
 {
     extern const char* KEY_NAMES[MAX_KEY_COUNT];
@@ -106,6 +109,40 @@ namespace dmHID
         else
         {
             return false;
+        }
+    }
+
+    void AddKeyboardChar(HContext context, int chr) {
+        if (context) {
+            char buf[5];
+            uint32_t n = dmUtf8::ToUtf8((uint16_t) chr, buf);
+            buf[n] = '\0';
+            TextPacket* p = &context->m_TextPacket;
+            p->m_Size = dmStrlCat(p->m_Text, buf, sizeof(p->m_Text));
+        }
+    }
+
+    bool GetMarkedTextPacket(HContext context, MarkedTextPacket* out_packet)
+    {
+        if (out_packet != 0x0 && context->m_KeyboardConnected)
+        {
+            *out_packet = context->m_MarkedTextPacket;
+            context->m_MarkedTextPacket.m_Size = 0;
+            context->m_MarkedTextPacket.m_HasText = 0;
+            context->m_MarkedTextPacket.m_Text[0] = '\0';
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    void SetMarkedText(HContext context, char* text) {
+        if (context) {
+            MarkedTextPacket* p = &context->m_MarkedTextPacket;
+            p->m_HasText = 1;
+            p->m_Size = dmStrlCpy(p->m_Text, text, sizeof(p->m_Text));
         }
     }
 

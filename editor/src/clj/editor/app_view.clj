@@ -7,7 +7,8 @@
             [editor.login :as login]
             [editor.project :as project]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.resource :as resource])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -42,7 +43,7 @@
 
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any :cached (g/fnk [outline] outline))
-  (output active-resource (g/protocol workspace/Resource) (g/fnk [^Tab active-tab]
+  (output active-resource (g/protocol resource/Resource) (g/fnk [^Tab active-tab]
                                                                  (when active-tab
                                                                    (ui/user-data active-tab ::resource))))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
@@ -239,13 +240,13 @@
     app-view))
 
 (defn open-resource [app-view workspace project resource]
-  (let [resource-type (workspace/resource-type resource)
+  (let [resource-type (resource/resource-type resource)
         view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
     (if-let [make-view-fn (:make-view-fn view-type)]
       (let [resource-node (project/get-resource-node project resource)
             ^TabPane tab-pane   (g/node-value app-view :tab-pane)
             parent     (AnchorPane.)
-            tab        (doto (Tab. (workspace/resource-name resource))
+            tab        (doto (Tab. (resource/resource-name resource))
                          (.setContent parent)
                          (ui/user-data! ::resource resource)
                          (ui/user-data! ::resource-node resource-node))
@@ -267,9 +268,18 @@
                                (.handle close-handler event)))))
         (.select (.getSelectionModel tab-pane) tab)
         (project/select! project [resource-node]))
-      (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))
+      (.open (Desktop/getDesktop) (File. (resource/abs-path resource))))))
 
 (handler/defhandler :open-asset :global
   (enabled? [] true)
   (run [workspace project app-view] (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                       (open-resource app-view workspace project resource))))
+
+(defn fetch-libraries [workspace project]
+  (workspace/set-project-dependencies! workspace (project/project-dependencies project))
+  (workspace/update-dependencies! workspace)
+  (workspace/resource-sync! workspace))
+
+(handler/defhandler :fetch-libraries :global
+  (enabled? [] true)
+  (run [workspace project] (fetch-libraries workspace project)))

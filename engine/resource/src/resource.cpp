@@ -657,13 +657,28 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
         if (resource_type->m_PreloadFunction)
         {
-            // Pass in a null preloader
-            create_error = resource_type->m_PreloadFunction(factory, 0, resource_type->m_Context, buffer, file_size, &preload_data, name);
+            ResourcePreloadParams params;
+            params.m_Factory = factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_Buffer = buffer;
+            params.m_BufferSize = file_size;
+            params.m_PreloadData = &preload_data;
+            params.m_Filename = name;
+            params.m_HintInfo = 0; // No hinting now
+            create_error = resource_type->m_PreloadFunction(params);
         }
 
         if (create_error == RESULT_OK)
         {
-            create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, preload_data, &tmp_resource, name);
+            ResourceCreateParams params;
+            params.m_Factory = factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_Buffer = buffer;
+            params.m_BufferSize = file_size;
+            params.m_PreloadData = preload_data;
+            params.m_Resource = &tmp_resource;
+            params.m_Filename = name;
+            create_error = resource_type->m_CreateFunction(params);
         }
 
         // Restore to default buffer size
@@ -682,7 +697,11 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             }
             else
             {
-                resource_type->m_DestroyFunction(factory, resource_type->m_Context, &tmp_resource);
+                ResourceDestroyParams params;
+                params.m_Factory = factory;
+                params.m_Context = resource_type->m_Context;
+                params.m_Resource = &tmp_resource;
+                resource_type->m_DestroyFunction(params);
                 return insert_error;
             }
         }
@@ -835,7 +854,15 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
         return result;
 
     assert(buffer == factory->m_Buffer.Begin());
-    Result create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, buffer, file_size, rd, name);
+
+    ResourceRecreateParams params;
+    params.m_Factory = factory;
+    params.m_Context = resource_type->m_Context;
+    params.m_Buffer = buffer;
+    params.m_BufferSize = file_size;
+    params.m_Resource = rd;
+    params.m_Filename = name;
+    Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)
@@ -843,7 +870,11 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
             {
                 ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
-                pair.m_Callback(pair.m_UserData, rd, name);
+                ResourceReloadedParams params;
+                params.m_UserData = pair.m_UserData;
+                params.m_Resource = rd;
+                params.m_Name = name;
+                pair.m_Callback(params);
             }
         }
         return RESULT_OK;
@@ -987,7 +1018,12 @@ void Release(HFactory factory, void* resource)
     if (rd->m_ReferenceCount == 0)
     {
         SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
-        resource_type->m_DestroyFunction(factory, resource_type->m_Context, rd);
+
+        ResourceDestroyParams params;
+        params.m_Factory = factory;
+        params.m_Context = resource_type->m_Context;
+        params.m_Resource = rd;
+        resource_type->m_DestroyFunction(params);
 
         factory->m_ResourceToHash->Erase((uintptr_t) resource);
         factory->m_Resources->Erase(*resource_hash);

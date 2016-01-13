@@ -22,15 +22,10 @@ namespace dmGameObject
         delete prototype;
     }
 
-    dmResource::Result ResPrototypePreload(dmResource::HFactory factory,
-                                                dmResource::HPreloadHintInfo hint_info,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void** preload_data,
-                                                const char* filename)
+    dmResource::Result ResPrototypePreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameObjectDDF::PrototypeDesc* proto_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
 
         if (e != dmDDF::RESULT_OK)
         {
@@ -40,22 +35,17 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
             dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
-            dmResource::PreloadHint(hint_info, component_desc.m_Component);
+            dmResource::PreloadHint(params.m_HintInfo, component_desc.m_Component);
         }
 
-        *preload_data = proto_desc;
+        *params.m_PreloadData = proto_desc;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResPrototypeCreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void* preload_data,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
+    dmResource::Result ResPrototypeCreate(const dmResource::ResourceCreateParams& params)
     {
-        HRegister regist = (HRegister)context;
-        dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) preload_data;;
+        HRegister regist = (HRegister) params.m_Context;
+        dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) params.m_PreloadData;
 
         Prototype* proto = new Prototype();
         proto->m_Components.SetCapacity(proto_desc->m_Components.m_Count);
@@ -65,7 +55,7 @@ namespace dmGameObject
             dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
             const char* component_resource = component_desc.m_Component;
             void* component;
-            dmResource::Result fact_e = dmResource::Get(factory, component_resource, (void**) &component);
+            dmResource::Result fact_e = dmResource::Get(params.m_Factory, component_resource, (void**) &component);
 
             bool id_used = false;
             dmhash_t id = 0;
@@ -76,7 +66,7 @@ namespace dmGameObject
                 {
                     if (proto->m_Components[j].m_Id == id)
                     {
-                        dmLogError("The id '%s' has already been used in the prototype %s.", component_desc.m_Id, filename);
+                        dmLogError("The id '%s' has already been used in the prototype %s.", component_desc.m_Id, params.m_Filename);
                         id_used = true;
                     }
                 }
@@ -86,8 +76,8 @@ namespace dmGameObject
             {
                 // Error, release created
                 if (id_used)
-                    dmResource::Release(factory, component);
-                DestroyPrototype(proto, factory);
+                    dmResource::Release(params.m_Factory, component);
+                DestroyPrototype(proto, params.m_Factory);
                 dmDDF::FreeMessage(proto_desc);
                 if (id_used)
                     return dmResource::RESULT_FORMAT_ERROR;
@@ -97,13 +87,13 @@ namespace dmGameObject
             else
             {
                 dmResource::ResourceType resource_type;
-                fact_e = dmResource::GetType(factory, component, &resource_type);
+                fact_e = dmResource::GetType(params.m_Factory, component, &resource_type);
                 assert(fact_e == dmResource::RESULT_OK);
                 uint32_t type_index;
                 ComponentType* type = FindComponentType(regist, resource_type, &type_index);
                 assert(type != 0x0);
                 dmResource::SResourceDescriptor descriptor;
-                fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
+                fact_e = dmResource::GetDescriptor(params.m_Factory, component_resource, &descriptor);
                 assert(fact_e == dmResource::RESULT_OK);
 
                 Prototype::Component c(component,
@@ -119,25 +109,23 @@ namespace dmGameObject
                 proto->m_Components.Push(c);
                 if (!r)
                 {
-                    DestroyPrototype(proto, factory);
+                    DestroyPrototype(proto, params.m_Factory);
                     dmDDF::FreeMessage(proto_desc);
                     return dmResource::RESULT_FORMAT_ERROR;
                 }
             }
         }
 
-        resource->m_Resource = (void*) proto;
+        params.m_Resource->m_Resource = (void*) proto;
 
         dmDDF::FreeMessage(proto_desc);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResPrototypeDestroy(dmResource::HFactory factory,
-                                                 void* context,
-                                                 dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResPrototypeDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        Prototype* proto = (Prototype*) resource->m_Resource;
-        DestroyPrototype(proto, factory);
+        Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
+        DestroyPrototype(proto, params.m_Factory);
         return dmResource::RESULT_OK;
     }
 }

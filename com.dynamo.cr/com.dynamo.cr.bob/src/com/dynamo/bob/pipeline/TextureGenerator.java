@@ -204,16 +204,19 @@ public class TextureGenerator {
                 newHeight = newWidth;
             }
 
-            if (width != newWidth || height != newHeight) {
-                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
-                    throw new TextureGeneratorException("could not resize texture to POT");
-                }
-            }
+            // Premultiply before scale so filtering cannot introduce colour artefacts.
             if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
             }
+
+            if (width != newWidth || height != newHeight) {
+                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
+                    throw new TextureGeneratorException("could not resize texture to POT");
+                }
+            }
+
             if (generateMipMaps) {
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");

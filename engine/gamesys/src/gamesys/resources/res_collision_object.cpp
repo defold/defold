@@ -268,59 +268,48 @@ range_error:
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    dmResource::Result ResCollisionObjectCreate(dmResource::HFactory factory,
-                                             void* context,
-                                             const void* buffer, uint32_t buffer_size,
-                                             void* preload_data,
-                                             dmResource::SResourceDescriptor* resource,
-                                             const char* filename)
+    dmResource::Result ResCollisionObjectCreate(const dmResource::ResourceCreateParams& params)
     {
         CollisionObjectResource* collision_object = new CollisionObjectResource();
         memset(collision_object, 0, sizeof(CollisionObjectResource));
-        PhysicsContext* physics_context = (PhysicsContext*) context;
-        if (AcquireResources(physics_context, factory, buffer, buffer_size, collision_object, filename))
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (AcquireResources(physics_context, params.m_Factory, params.m_Buffer, params.m_BufferSize, collision_object, params.m_Filename))
         {
-            resource->m_Resource = collision_object;
+            params.m_Resource->m_Resource = collision_object;
             return dmResource::RESULT_OK;
         }
         else
         {
-            ReleaseResources(physics_context, factory, collision_object);
+            ReleaseResources(physics_context, params.m_Factory, collision_object);
             delete collision_object;
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
-    dmResource::Result ResCollisionObjectDestroy(dmResource::HFactory factory,
-                                              void* context,
-                                              dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        CollisionObjectResource* collision_object = (CollisionObjectResource*)resource->m_Resource;
-        PhysicsContext* physics_context = (PhysicsContext*) context;
-        ReleaseResources(physics_context, factory, collision_object);
+        CollisionObjectResource* collision_object = (CollisionObjectResource*)params.m_Resource->m_Resource;
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        ReleaseResources(physics_context, params.m_Factory, collision_object);
         delete collision_object;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollisionObjectRecreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
+    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        CollisionObjectResource* collision_object = (CollisionObjectResource*)resource->m_Resource;
+        CollisionObjectResource* collision_object = (CollisionObjectResource*)params.m_Resource->m_Resource;
         CollisionObjectResource tmp_collision_object;
         memset(&tmp_collision_object, 0, sizeof(CollisionObjectResource));
-        PhysicsContext* physics_context = (PhysicsContext*) context;
-        if (AcquireResources(physics_context, factory, buffer, buffer_size, &tmp_collision_object, filename))
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (AcquireResources(physics_context, params.m_Factory, params.m_Buffer, params.m_BufferSize, &tmp_collision_object, params.m_Filename))
         {
-            ReleaseResources(physics_context, factory, collision_object);
+            ReleaseResources(physics_context, params.m_Factory, collision_object);
             *collision_object = tmp_collision_object;
             return dmResource::RESULT_OK;
         }
         else
         {
-            ReleaseResources(physics_context, factory, &tmp_collision_object);
+            ReleaseResources(physics_context, params.m_Factory, &tmp_collision_object);
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }

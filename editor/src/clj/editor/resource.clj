@@ -12,6 +12,7 @@
   (handle-changes [this changes]))
 
 (defprotocol Resource
+  (children [this])
   (resource-type [this])
   (source-type [this])
   (read-only? [this])
@@ -23,11 +24,18 @@
   (workspace [this])
   (resource-hash [this]))
 
-(defn- relative-path [^File f1 ^File f2]
+(defn relative-path [^File f1 ^File f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))
+
+(defn file->proj-path [^File project-path ^File f]
+  (try
+    (str "/" (relative-path project-path f))
+    (catch IllegalArgumentException e
+      nil)))
 
 (defrecord FileResource [workspace ^File file children]
   Resource
+  (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
   (source-type [this] (if (.isDirectory file) :folder :file))
   (read-only? [this] (not (.canWrite file)))
@@ -65,6 +73,7 @@
 
 (defrecord MemoryResource [workspace ext data]
   Resource
+  (children [this] nil)
   (resource-type [this] (get (g/node-value workspace :resource-types) ext))
   (source-type [this] :file)
   (read-only? [this] false)
@@ -87,8 +96,12 @@
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
   (.write w (format "MemoryResource{:workspace %s :data %s}" (:workspace memory-resource) (:data memory-resource))))
 
+(defn make-memory-resource [workspace resource-type data]
+  (MemoryResource. workspace (:ext resource-type) data))
+
 (defrecord ZipResource [workspace name path data children]
   Resource
+  (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name)))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (read-only? [this] true)
@@ -134,18 +147,30 @@
                                   :buffer (read-zip-entry zip e)}))))))))
 
 (defn- ->zip-resources [workspace path [key val]]
-  (let [path' (str path "/" key)]
-    (if (:path val)
+  (let [path' (if (string/blank? path) key (str path "/" key))]
+    (if (:path val) ; i.e. we've reached an actual entry with name, path, buffer
       (ZipResource. workspace (:name val) (:path val) (:buffer val) nil)
       (ZipResource. workspace key path' nil (mapv (fn [x] (->zip-resources workspace path' x)) val)))))
 
 (defn make-zip-tree [workspace file-name]
   (let [entries (load-zip file-name)]
     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-      (mapv (fn [x] (->zip-resources workspace "" x))))))
+         (mapv (fn [x] (->zip-resources workspace "" x))))))
 
 (g/defnode ResourceNode
   (extern resource (g/protocol Resource) (dynamic visible (g/always false))))
+
+(defn- seq-children [resource]
+  (seq (children resource)))
+
+(defn resource-seq [root]
+  (tree-seq seq-children seq-children root))
+
+(defn resource-list-seq [resource-list]
+  (apply concat (map resource-seq resource-list)))
+
+(defn resource-map [roots]
+  (into {} (map (juxt proj-path identity) roots)))
 
 (defn resource->proj-path [resource]
   (if resource

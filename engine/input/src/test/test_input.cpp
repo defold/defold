@@ -34,6 +34,7 @@ protected:
         dmDDF::LoadMessageFromFile("build/default/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
         dmDDF::LoadMessageFromFile("build/default/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
         dmDDF::LoadMessageFromFile("build/default/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
+        dmDDF::LoadMessageFromFile("build/default/src/test/test_text.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
         m_DT = 1.0f / 60.0f;
     }
 
@@ -42,6 +43,7 @@ protected:
         dmDDF::FreeMessage(m_TestDDF);
         dmDDF::FreeMessage(m_Test2DDF);
         dmDDF::FreeMessage(m_ComboDDF);
+        dmDDF::FreeMessage(m_TextDDF);
         dmInput::DeleteContext(m_Context);
         dmHID::Final(m_HidContext);
         dmHID::DeleteContext(m_HidContext);
@@ -52,6 +54,7 @@ protected:
     dmInputDDF::InputBinding* m_TestDDF;
     dmInputDDF::InputBinding* m_Test2DDF;
     dmInputDDF::InputBinding* m_ComboDDF;
+    dmInputDDF::InputBinding* m_TextDDF;
     float m_DT;
 };
 
@@ -60,6 +63,43 @@ TEST_F(InputTest, CreateContext)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
     ASSERT_NE(dmInput::INVALID_BINDING, binding);
+    dmInput::DeleteBinding(binding);
+}
+
+void TextInputCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+{
+    dmHashTable64<dmInput::Action*>* actions = (dmHashTable64<dmInput::Action*>*)user_data;
+    ASSERT_TRUE(action->m_HasText || action->m_TextCount > 0);
+    actions->Put(action_id, action);
+}
+
+TEST_F(InputTest, Text) {
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TextDDF);
+
+    char marked_text[] = "marked text";
+    dmHID::SetMarkedText(m_HidContext, marked_text);
+    dmHID::AddKeyboardChar(m_HidContext, 't');
+    dmHID::AddKeyboardChar(m_HidContext, 'e');
+    dmHID::AddKeyboardChar(m_HidContext, 's');
+    dmHID::AddKeyboardChar(m_HidContext, 't');
+    dmHID::AddKeyboardChar(m_HidContext, 0x0913); // Unicode point for: ओ (UTF8: e0 a4 93)
+    dmHID::Update(m_HidContext);
+
+    dmInput::UpdateBinding(binding, m_DT);
+
+    dmHashTable64<dmInput::Action*> actions;
+    actions.SetCapacity(32, 64);
+    dmInput::ForEachActive(binding, TextInputCallback, (void*)&actions);
+
+    dmInput::Action** text_action = actions.Get(dmHashString64("text"));
+    ASSERT_EQ(7, (*text_action)->m_TextCount);
+    ASSERT_STREQ("testओ", (*text_action)->m_Text);
+
+    dmInput::Action** marked_text_action = actions.Get(dmHashString64("marked_text"));
+    ASSERT_EQ(11, (*marked_text_action)->m_TextCount);
+    ASSERT_STREQ("marked text", (*marked_text_action)->m_Text);
+
     dmInput::DeleteBinding(binding);
 }
 

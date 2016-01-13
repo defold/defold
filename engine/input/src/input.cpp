@@ -319,6 +319,8 @@ namespace dmInput
         action->m_PositionSet = 0;
         action->m_AccelerationSet = 0;
         action->m_TouchCount = 0;
+        action->m_TextCount = 0;
+        action->m_HasText = 0;
     }
 
     struct UpdateContext
@@ -414,20 +416,46 @@ namespace dmInput
         if (binding->m_TextBinding != 0x0)
         {
             TextBinding* text_binding = binding->m_TextBinding;
-            dmHID::TextPacket* packet = &text_binding->m_Packet;
-            if (dmHID::GetTextPacket(hid_context, packet))
+
+            dmHID::TextPacket* text_packet = &text_binding->m_TextPacket;
+            if (dmHID::GetTextPacket(hid_context, text_packet))
             {
                 const dmArray<TextTrigger>& triggers = text_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
                     const TextTrigger& trigger = triggers[i];
-                    Action* action = binding->m_Actions.Get(trigger.m_ActionId);
-                    if (action != 0x0)
+                    if (trigger.m_Input == dmInputDDF::TEXT)
                     {
-                        for (uint32_t i = 0; i < packet->m_Size; ++i) {
-                            action->m_Text[i] = packet->m_Text[i];
+                        Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                        if (action != 0x0)
+                        {
+                            for (uint32_t i = 0; i < text_packet->m_Size; ++i) {
+                                action->m_Text[i] = text_packet->m_Text[i];
+                            }
+                            action->m_TextCount = text_packet->m_Size;
                         }
-                        action->m_TextCount = packet->m_Size;
+                    }
+                }
+            }
+
+            dmHID::MarkedTextPacket* marked_packet = &text_binding->m_MarkedTextPacket;
+            if (dmHID::GetMarkedTextPacket(hid_context, marked_packet))
+            {
+                const dmArray<TextTrigger>& triggers = text_binding->m_Triggers;
+                for (uint32_t i = 0; i < triggers.Size(); ++i)
+                {
+                    const TextTrigger& trigger = triggers[i];
+                    if (trigger.m_Input == dmInputDDF::MARKED_TEXT)
+                    {
+                        Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                        if (action != 0x0)
+                        {
+                            for (uint32_t i = 0; i < marked_packet->m_Size; ++i) {
+                                action->m_Text[i] = marked_packet->m_Text[i];
+                            }
+                            action->m_TextCount = marked_packet->m_Size;
+                            action->m_HasText = marked_packet->m_HasText;
+                        }
                     }
                 }
             }
@@ -667,7 +695,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0;
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_HasText;
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)

@@ -4,41 +4,30 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResVertexProgramCreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 void* preload_data,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename)
+    dmResource::Result ResVertexProgramCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
-        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(graphics_context, buffer, buffer_size);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(graphics_context, params.m_Buffer, params.m_BufferSize);
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        resource->m_Resource = (void*) prog;
+        params.m_Resource->m_Resource = (void*) prog;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResVertexProgramDestroy(dmResource::HFactory factory,
-                                                  void* context,
-                                                  dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResVertexProgramDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmGraphics::DeleteVertexProgram((dmGraphics::HVertexProgram) resource->m_Resource);
+        dmGraphics::DeleteVertexProgram((dmGraphics::HVertexProgram) params.m_Resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResVertexProgramRecreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename)
+    dmResource::Result ResVertexProgramRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGraphics::HVertexProgram prog = (dmGraphics::HVertexProgram)resource->m_Resource;
+        dmGraphics::HVertexProgram prog = (dmGraphics::HVertexProgram)params.m_Resource->m_Resource;
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmGraphics::ReloadVertexProgram(prog, buffer, buffer_size);
+        dmGraphics::ReloadVertexProgram(prog, params.m_Buffer, params.m_BufferSize);
         return dmResource::RESULT_OK;
     }
 }

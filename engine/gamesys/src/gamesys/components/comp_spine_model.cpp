@@ -38,7 +38,7 @@ namespace dmGameSystem
 
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
 
-    static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -1421,17 +1421,16 @@ namespace dmGameSystem
         return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
     }
 
-    static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
-        SpineModelWorld* world = (SpineModelWorld*)user_data;
+        SpineModelWorld* world = (SpineModelWorld*) params.m_UserData;
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             SpineModelComponent* component = components[i];
-            if (component->m_Resource != 0x0 && component->m_Resource->m_Scene == descriptor->m_Resource)
+            if (component->m_Resource != 0x0 && component->m_Resource->m_Scene == params.m_Resource->m_Resource)
                 OnResourceReloaded(world, component);
         }
     }
-
 }

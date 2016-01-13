@@ -17,16 +17,11 @@ namespace dmGameSystem
 
     void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, MeshVertex* vertex_buffer);
 
-    dmResource::Result ResCreateMesh(dmResource::HFactory factory,
-                                     void* context,
-                                     const void* buffer, uint32_t buffer_size,
-                                     void* preload_data,
-                                     dmResource::SResourceDescriptor* resource,
-                                     const char* filename)
+    dmResource::Result ResCreateMesh(const dmResource::ResourceCreateParams& params)
     {
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmMeshDDF::MeshDesc* mesh_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -57,16 +52,14 @@ namespace dmGameSystem
         free((void*) vertex_buffer);
         dmDDF::FreeMessage(mesh_desc);
 
-        resource->m_Resource = (void*) mesh;
+        params.m_Resource->m_Resource = (void*) mesh;
 
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDestroyMesh(dmResource::HFactory factory,
-                                      void* context,
-                                      dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResDestroyMesh(const dmResource::ResourceDestroyParams& params)
     {
-        Mesh* mesh = (Mesh*)resource->m_Resource;
+        Mesh* mesh = (Mesh*)params.m_Resource->m_Resource;
         dmGraphics::DeleteVertexDeclaration(mesh->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(mesh->m_VertexBuffer);
         delete mesh;
@@ -74,20 +67,16 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResRecreateMesh(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResRecreateMesh(const dmResource::ResourceRecreateParams& params)
     {
         dmMeshDDF::MeshDesc* mesh_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        Mesh* mesh = (Mesh*)resource->m_Resource;
+        Mesh* mesh = (Mesh*)params.m_Resource->m_Resource;
         uint32_t vertex_count = 0;
         for (uint32_t i = 0; i < mesh_desc->m_Components.m_Count; ++i)
         {

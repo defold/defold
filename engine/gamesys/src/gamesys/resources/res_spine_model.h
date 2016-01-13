@@ -16,28 +16,13 @@ namespace dmGameSystem
         dmRender::HMaterial                 m_Material;
     };
 
-    dmResource::Result ResSpineModelPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void** preload_data,
-            const char* filename);
+    dmResource::Result ResSpineModelPreload(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResSpineModelCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResSpineModelCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResSpineModelDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResSpineModelDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResSpineModelRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResSpineModelRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_SPINE_MODEL_H

@@ -1157,7 +1157,7 @@ namespace dmGui
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
                 }
-                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG || anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
                     t2 *= 2.0f;
                     if (t2 > 1.0f) {
                         t2 = 2.0f - t2;
@@ -1398,10 +1398,15 @@ namespace dmGui
                         lua_settable(L, -3);
                     }
 
-                    if (ia->m_TextCount > 0)
+                    if (ia->m_TextCount > 0 || ia->m_HasText)
                     {
                         lua_pushliteral(L, "text");
-                        lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        if (ia->m_TextCount == 0) {
+                            lua_pushstring(L, "");
+                        } else {
+                            lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        }
+
                         lua_settable(L, -3);
                     }
 

@@ -16,77 +16,61 @@ namespace dmGameSystem
             dmResource::Release(factory, factory_res->m_Prototype);
     }
 
-    dmResource::Result ResFactoryPreload(dmResource::HFactory factory,
-            dmResource::HPreloadHintInfo hint_info,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void** preload_data,
-            const char* filename)
+    dmResource::Result ResFactoryPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::FactoryDesc* ddf;
 
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmResource::PreloadHint(hint_info, ddf->m_Prototype);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Prototype);
 
-        *preload_data = ddf;
+        *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFactoryCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResFactoryCreate(const dmResource::ResourceCreateParams& params)
     {
         FactoryResource* factory_res = new FactoryResource;
-        factory_res->m_FactoryDesc = (dmGameSystemDDF::FactoryDesc*) preload_data;
-        dmResource::Result r = AcquireResource(factory, factory_res);
+        factory_res->m_FactoryDesc = (dmGameSystemDDF::FactoryDesc*) params.m_PreloadData;
+        dmResource::Result r = AcquireResource(params.m_Factory, factory_res);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) factory_res;
+            params.m_Resource->m_Resource = (void*) factory_res;
         }
         else
         {
-            ReleaseResources(factory, factory_res);
+            ReleaseResources(params.m_Factory, factory_res);
         }
         return r;
     }
 
-    dmResource::Result ResFactoryDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResFactoryDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        FactoryResource* factory_res = (FactoryResource*) resource->m_Resource;
-        ReleaseResources(factory, factory_res);
+        FactoryResource* factory_res = (FactoryResource*) params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, factory_res);
         delete factory_res;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFactoryRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResFactoryRecreate(const dmResource::ResourceRecreateParams& params)
     {
         FactoryResource tmp_factory_res;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &tmp_factory_res.m_FactoryDesc);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tmp_factory_res.m_FactoryDesc);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmResource::Result r = AcquireResource(factory, &tmp_factory_res);
+        dmResource::Result r = AcquireResource(params.m_Factory, &tmp_factory_res);
         if (r == dmResource::RESULT_OK)
         {
-            FactoryResource* factory_res = (FactoryResource*) resource->m_Resource;
-            ReleaseResources(factory, factory_res);
+            FactoryResource* factory_res = (FactoryResource*) params.m_Resource->m_Resource;
+            ReleaseResources(params.m_Factory, factory_res);
             *factory_res = tmp_factory_res;
         }
         else
         {
-            ReleaseResources(factory, &tmp_factory_res);
+            ReleaseResources(params.m_Factory, &tmp_factory_res);
         }
         return r;
     }

@@ -6,7 +6,7 @@
             [editor.game-project :as gp]
             [editor.workspace :as workspace]
             [editor.project :as project]
-            [service.log :as log]            )
+            [service.log :as log])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
@@ -88,14 +88,14 @@
           (is (= "Side-scroller" (title settings)))))
       (testing "Broken file gives defaults & defective node"
         (write-file "game.project" "bad content")
-        (log/without-logging (workspace/fs-sync workspace))
+        (log/without-logging (workspace/resource-sync! workspace))
         (let [settings (g/node-value project :settings)
               gpn (project/get-resource-node project "/game.project")
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "unnamed" (title settings)))
           (is (error? :invalid-content gpn-settings-map)))
         (copy-file "game.project.backup" "game.project")
-        (workspace/fs-sync workspace))
+        (workspace/resource-sync! workspace))
       (testing "Restoring gives normal settings"
         (let [settings (g/node-value project :settings)
               gpn (project/get-resource-node project "/game.project")

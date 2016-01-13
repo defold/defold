@@ -6,6 +6,7 @@
 #include <dlib/vmath.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 
 extern "C"
 {
@@ -1114,6 +1115,11 @@ namespace dmScript
         float bottom = (float) luaL_checknumber(L, 3);
         float top = (float) luaL_checknumber(L, 4);
         float near_z = (float) luaL_checknumber(L, 5);
+        if(near_z == 0.0f)
+        {
+            luaL_where(L, 1);
+            dmLogWarning("%sperspective projection invalid, znear = 0", lua_tostring(L,-1));
+        }
         float far_z = (float) luaL_checknumber(L, 6);
         PushMatrix4(L, Vectormath::Aos::Matrix4::frustum(left, right, bottom, top, near_z, far_z));
         return 1;
@@ -1174,6 +1180,11 @@ namespace dmScript
         float aspect = (float) luaL_checknumber(L, 2);
         float near_z = (float) luaL_checknumber(L, 3);
         float far_z = (float) luaL_checknumber(L, 4);
+        if(near_z == 0.0f)
+        {
+            luaL_where(L, 1);
+            dmLogWarning("%sperspective projection invalid, znear = 0", lua_tostring(L,-1));
+        }
         PushMatrix4(L, Vectormath::Aos::Matrix4::perspective(fov, aspect, near_z, far_z));
         return 1;
     }

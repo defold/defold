@@ -4,38 +4,31 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSoundDataCreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void* preload_data,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
+    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params)
     {
         dmSound::HSoundData sound_data;
 
         dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_WAV;
 
-        size_t filename_len = strlen(filename);
-        if (filename_len > 5 && strcmp(filename + filename_len - 5, ".oggc") == 0)
+        size_t filename_len = strlen(params.m_Filename);
+        if (filename_len > 5 && strcmp(params.m_Filename + filename_len - 5, ".oggc") == 0)
         {
             type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         }
 
-        dmSound::Result r = dmSound::NewSoundData(buffer, buffer_size, type, &sound_data);
+        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data);
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
 
-        resource->m_Resource = (void*) sound_data;
+        params.m_Resource->m_Resource = (void*) sound_data;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSoundDataDestroy(dmResource::HFactory factory,
-                                                 void* context,
-                                                 dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) resource->m_Resource;
+        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource->m_Resource;
         dmSound::Result r = dmSound::DeleteSoundData(sound_data);
         if (r != dmSound::RESULT_OK)
         {
@@ -44,14 +37,10 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSoundDataRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) resource->m_Resource;
-        dmSound::Result r = dmSound::SetSoundData(sound_data, buffer, buffer_size);
+        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource->m_Resource;
+        dmSound::Result r = dmSound::SetSoundData(sound_data, params.m_Buffer, params.m_BufferSize);
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_INVAL;

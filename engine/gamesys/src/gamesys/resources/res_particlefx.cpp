@@ -62,50 +62,39 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResParticleFXCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResParticleFXCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmParticle::HPrototype prototype = dmParticle::NewPrototype(buffer, buffer_size);
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, prototype, filename);
+        dmParticle::HPrototype prototype = dmParticle::NewPrototype(params.m_Buffer, params.m_BufferSize);
+        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) prototype;
+            params.m_Resource->m_Resource = (void*) prototype;
         }
         else
         {
-            ReleasePrototypeResources(factory, prototype);
+            ReleasePrototypeResources(params.m_Factory, prototype);
             dmParticle::DeletePrototype(prototype);
         }
         return r;
     }
 
-    dmResource::Result ResParticleFXDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResParticleFXDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmParticle::HPrototype prototype = (dmParticle::HPrototype)resource->m_Resource;
+        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource->m_Resource;
         assert(prototype != dmParticle::INVALID_PROTOTYPE);
-        ReleasePrototypeResources(factory, prototype);
+        ReleasePrototypeResources(params.m_Factory, prototype);
         dmParticle::DeletePrototype(prototype);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResParticleFXRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResParticleFXRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmParticle::HPrototype prototype = (dmParticle::HPrototype)resource->m_Resource;
-        ReleasePrototypeResources(factory, prototype);
-        if (!dmParticle::ReloadPrototype(prototype, buffer, buffer_size))
+        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource->m_Resource;
+        ReleasePrototypeResources(params.m_Factory, prototype);
+        if (!dmParticle::ReloadPrototype(prototype, params.m_Buffer, params.m_BufferSize))
         {
             return dmResource::RESULT_INVALID_DATA;
         }
-        return AcquireResources(factory, buffer, buffer_size, prototype, filename);
+        return AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
     }
 }

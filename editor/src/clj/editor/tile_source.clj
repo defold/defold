@@ -49,7 +49,7 @@
                (assoc :collision-groups (sort collision-groups)
                       :animations (sort-by :id animation-ddfs)))]
     (cond-> (assoc pb :image (resource/resource->proj-path image))
-      collision (assoc :collision (workspace/proj-path collision)))))
+      collision (assoc :collision (resource/proj-path collision)))))
 
 (g/defnk produce-save-data [resource pb]
   {:resource resource
@@ -59,13 +59,13 @@
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (defn- build-texture-set [self basis resource dep-resources user-data]
-  (let [tex-set (assoc (:proto user-data) :texture (workspace/proj-path (second (first dep-resources))))]
+  (let [tex-set (assoc (:proto user-data) :texture (resource/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id resource texture-set-data save-data]
   (let [workspace        (project/workspace (project/get-project _node-id))
         texture-type     (workspace/get-resource-type workspace "texture")
-        texture-resource (workspace/make-memory-resource workspace texture-type (:content save-data))
+        texture-resource (resource/make-memory-resource workspace texture-type (:content save-data))
         texture-target   {:node-id   _node-id
                           :resource  (workspace/make-build-resource texture-resource)
                           :build-fn  build-texture

@@ -74,7 +74,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
             // scale z (1,0) to int-space
             distance = (long)(z * Integer.MAX_VALUE);
         } else {
-            distance = this.index;
+            distance = ((long)this.index) & 0xFFFFFFFFL;
         }
         key = (((long) pass.ordinal()) << PASS_SHIFT) | (distance << DISTANCE_SHIFT);
 

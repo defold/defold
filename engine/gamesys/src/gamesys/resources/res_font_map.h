@@ -7,28 +7,13 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResFontMapPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                     void* context,
-                                     const void* buffer, uint32_t buffer_size,
-                                     void **preload_data,
-                                     const char* filename);
+    dmResource::Result ResFontMapPreload(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResFontMapCreate(dmResource::HFactory factory,
-                                     void* context,
-                                     const void* buffer, uint32_t buffer_size,
-                                     void *preload_data,
-                                     dmResource::SResourceDescriptor* resource,
-                                     const char* filename);
+    dmResource::Result ResFontMapCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResFontMapDestroy(dmResource::HFactory factory,
-                                      void* context,
-                                      dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResFontMapRecreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename);
+    dmResource::Result ResFontMapRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FONT_MAP_H

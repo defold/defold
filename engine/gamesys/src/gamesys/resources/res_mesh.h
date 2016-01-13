@@ -16,22 +16,11 @@ namespace dmGameSystem
         uint32_t m_VertexCount;
     };
 
-    dmResource::Result ResCreateMesh(dmResource::HFactory factory,
-                                     void* context,
-                                     const void* buffer, uint32_t buffer_size,
-                                     void *preload_data,
-                                     dmResource::SResourceDescriptor* resource,
-                                     const char* filename);
+    dmResource::Result ResCreateMesh(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResDestroyMesh(dmResource::HFactory factory,
-                                      void* context,
-                                      dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResDestroyMesh(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResRecreateMesh(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResRecreateMesh(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_MESH_H

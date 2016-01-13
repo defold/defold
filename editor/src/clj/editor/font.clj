@@ -265,7 +265,7 @@
 (defn- build-font [self basis resource dep-resources user-data]
   (let [project (project/get-project self)
         workspace (project/workspace project)
-        font-map (assoc (:font-map user-data) :textures [(workspace/proj-path (second (first dep-resources)))])]
+        font-map (assoc (:font-map user-data) :textures [(resource/proj-path (second (first dep-resources)))])]
     {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))
 
 (g/defnk produce-build-targets [_node-id resource font-resource font-map dep-build-targets]

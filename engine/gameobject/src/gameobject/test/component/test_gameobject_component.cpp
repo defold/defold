@@ -165,16 +165,16 @@ public:
 };
 
 template <typename T>
-dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void *preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams& params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) context;
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;
 
     T* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<T>(buffer, buffer_size, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<T>(params.m_Buffer, params.m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) obj;
+        params.m_Resource->m_Resource = (void*) obj;
         return dmResource::RESULT_OK;
     }
     else
@@ -184,12 +184,12 @@ dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context,
 }
 
 template <typename T>
-dmResource::Result GenericDDFDestory(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result GenericDDFDestory(const dmResource::ResourceDestroyParams& params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) context;
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
     game_object_test->m_DestroyCountMap[T::m_DDFHash]++;
 
-    dmDDF::FreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 

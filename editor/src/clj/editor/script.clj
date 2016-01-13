@@ -11,6 +11,7 @@
             [editor.scene :as scene]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.pipeline.lua-scan :as lua-scan]
             [internal.render.pass :as pass])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
@@ -73,7 +74,7 @@
         modules (:modules user-data)]
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
-                                                               :filename (workspace/proj-path (:resource resource))}
+                                                               :filename (resource/proj-path (:resource resource))}
                                                       :modules modules
                                                       :resources (mapv lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))

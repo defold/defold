@@ -131,62 +131,47 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResTexturePreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void** preload_data,
-                                           const char* filename)
+    dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        *preload_data = texture_image;
+        *params.m_PreloadData = texture_image;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void* preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename)
+    dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(graphics_context, (dmGraphics::TextureImage*) preload_data, 0, &texture);
+        dmResource::Result r = AcquireResources(graphics_context, (dmGraphics::TextureImage*) params.m_PreloadData, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) texture;
+            params.m_Resource->m_Resource = (void*) texture;
         }
         return r;
     }
 
-    dmResource::Result ResTextureDestroy(dmResource::HFactory factory,
-                                            void* context,
-                                            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmGraphics::DeleteTexture((dmGraphics::HTexture) resource->m_Resource);
+        dmGraphics::DeleteTexture((dmGraphics::HTexture) params.m_Resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
-        dmGraphics::HTexture texture = (dmGraphics::HTexture)resource->m_Resource;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        dmGraphics::HTexture texture = (dmGraphics::HTexture) params.m_Resource->m_Resource;
         dmResource::Result r = AcquireResources(graphics_context, texture_image, texture, &texture);
         return r;
     }
