@@ -86,6 +86,7 @@ struct _GLFWwin_struct {
     GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
+    GLFWmarkedtextfun    markedTextCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag

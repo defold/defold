@@ -55,9 +55,14 @@
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
-  (node-type           [this]        "Return the node type that created this node.")
-  (property-types      [this]        "Return the combined map of compile-time and runtime properties")
-  (produce-value       [this output evaluation-context] "Return the value of the named output"))
+  (node-type           [this basis]        "Return the node type that created this node.")
+  (property-types      [this basis]        "Return the combined map of compile-time and runtime properties")
+  (get-property        [this basis property] "Return the value of the named property")
+  (set-property        [this basis property value] "Set the named property")
+  (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
+  (produce-value       [this output evaluation-context] "Return the value of the named output")
+  (override-id         [this] "Return the ID of the override this node belongs to, if any")
+  (original            [this] "Return the ID of the original of this node, if any"))
 
 (defn node? [v] (satisfies? Node v))
 
@@ -70,6 +75,9 @@
   (add-node         [this value]                 "returns [basis real-value]")
   (delete-node      [this node-id]               "returns [basis node]")
   (replace-node     [this node-id value]         "returns [basis node]")
+  (override-node    [this original-id override-id])
+  (add-override     [this override-id override])
+  (delete-override  [this override-id])
   (connect          [this src-id src-label tgt-id tgt-label])
   (disconnect       [this src-id src-label tgt-id tgt-label])
   (connected?       [this src-id src-label tgt-id tgt-label])
@@ -79,7 +87,8 @@
      outputs that use them, and so on. Continue following links until
      all reachable outputs are found.
 
-     Returns a collection of [node-id output-label] pairs."))
+     Returns a collection of [node-id output-label] pairs.")
+  (original-node    [this node-id]))
 
 (defn protocol? [x] (and (map? x) (contains? x :on-interface)))
 
@@ -123,3 +132,11 @@
   (bit-and node-id NID-MASK))
 
 (defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
+
+(defn make-override-id ^long [^long gid ^long oid]
+  (bit-or
+   (bit-shift-left gid NID-BITS)
+   (bit-and oid 0xffffffffffffff)))
+
+(defn override-id->graph-id ^long [^long override-id]
+  (bit-and (bit-shift-right override-id NID-BITS) GID-MASK))

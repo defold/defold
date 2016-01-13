@@ -1907,6 +1907,10 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 {
 }
 
+void _glfwResetKeyboard( void )
+{
+}
+
 //========================================================================
 // Get physical accelerometer
 //========================================================================

@@ -2,9 +2,11 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
+            [internal.system :as is]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
@@ -22,7 +24,7 @@
         g      (random-graph)
         id     (inc (count (:nodes g)))
         g      (ig/add-node g id v)
-        g      (ig/remove-node g id)]
+        g      (ig/remove-node g id nil)]
     (is (nil? (ig/node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
@@ -32,7 +34,7 @@
 (defn- source-arcs-without-targets
   [g]
   (for [source                (ig/node-ids g)
-        source-label          (-> (ig/node g source) gt/node-type gt/output-labels)
+        source-label          (-> (ig/node g source) g/node-type gt/output-labels)
         [target target-label] (targets g source source-label)
         :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
     [source source-label]))
@@ -40,7 +42,7 @@
 (defn- target-arcs-without-sources
   [g]
   (for [target                (ig/node-ids g)
-        target-label          (-> (ig/node g target) gt/node-type gt/input-labels)
+        target-label          (-> (ig/node g target) g/node-type gt/input-labels)
         [source source-label] (sources g target target-label)
         :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
     [target target-label]))
@@ -92,3 +94,17 @@
     String    [g/Any]      false
     [String]  g/Any        true
     [String]  [g/Any]      true))
+
+(g/defnode TestNode
+  (property val g/Str))
+
+(deftest graph-override-cleanup
+  (with-clean-system
+    (let [[original override] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]
+                                                      (:tx-data (g/override n))))
+          basis (is/basis system)]
+      (is (= override (first (ig/overrides basis original))))
+      (g/transact (g/delete-node original))
+      (let [basis (is/basis system)]
+        (is (empty? (ig/overrides basis original)))
+        (is (empty? (get-in basis [:graphs world :overrides])))))))
