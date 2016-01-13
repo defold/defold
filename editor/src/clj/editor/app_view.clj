@@ -11,6 +11,7 @@
             [editor.resource :as resource])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
+           [com.defold.editor Profiler]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
@@ -139,6 +140,10 @@
   (enabled? [] true)
   (run [] (make-about-dialog)))
 
+(handler/defhandler :profile :global
+  (enabled? [] true)
+  (run [] (Profiler/dump "misc/timeseries.csv")))
+
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -190,7 +195,10 @@
                               :command :delete}
                              ]}
                  {:label "Help"
-                  :children [{:label "About"
+                  :children [{:label "Profile"
+                              :command :profile
+                              :acc "Shift+Shortcut+P"}
+                             {:label "About"
                               :command :about}]}])
 
 (defrecord DummySelectionProvider []
