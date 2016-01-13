@@ -5,12 +5,10 @@
 
  body {
      position: relative;
-     __width: 960px;
  }
 
  svg {
      font: 10px sans-serif;
-     shape-rendering_: crispEdges;
  }
 
  rect {
@@ -64,19 +62,11 @@
            .domain([0, width])
            .range([0, width]);
 
-/*
- var y = d3.scale.linear()
-           .domain([-height / 2, height / 2])
-           .range([height, 0]);
- */
-
  var y = d3.scale.ordinal()
            .rangeRoundBands([height, 0], 0.3);
 
-
  var xAxis = d3.svg.axis()
                .scale(x)
-               //.tickSize(-height)
                .orient("bottom");
 
  var yAxis = d3.svg.axis()
@@ -86,9 +76,7 @@
 
  var zoom = d3.behavior.zoom()
               .x(x)
-     //.y(y)
               .scaleExtent([1.0, 20])
-
               .on("zoom", zoomed);
 
  var svg = d3.select("body")
@@ -111,7 +99,6 @@
                .append("g")
                .attr("id", "plot");
 
-
  d3.csv("timeseries.csv", type, function(error, data) {
      var unique = function(a) {
          return a.reduce(function(p, c) {
@@ -131,15 +118,10 @@
 
      var xmin = d3.min(data, function(d) { return d.start; });
      var xmax = d3.max(data, function(d) { return d.end; });
-     //xmax = 300;
-     //xmax = width;
-     //x.range([xmin, xmax]);
      x.domain([xmin, xmax]);
      zoom.x(x);
 
-     //     colorOf.domain(data.map(function(d) { return d.name; }).sort());
      colorOf.domain(names);
-
 
      svg.append("g")
         .attr("class", "x axis")
@@ -150,9 +132,6 @@
         .attr("class", "y axis")
         .call(yAxis);
 
-//     console.log(murmurhash3_32_gc("mapBuffer") % 10);
-  //   console.log(colorOf(murmurhash3_32_gc("mapBuffer") % 10));
-
      plot.selectAll(".bar")
          .data(data)
          .enter().append("rect")
@@ -162,7 +141,6 @@
          .attr("x", function(d) { return x(d.start); })
          .attr("width", function(d) { return Math.max(0.05, x(d.end) - x(d.start)); } )
          .style("fill", function(d) { return colorOf(d.name); })
-         //.style("fill", function(d) { return colorOf(murmurhash3_32_gc(d.name) % 10); })
 
          .on('mouseover', function(d) {
              d3.select(this).classed("highlight", true);
@@ -172,7 +150,6 @@
                  s += k + ": " + d[k] + "<br>";
              }
 
-             //console.log(d3.select(this).attr("transform"));
              tooltip.html("<tt>" + s + "</tt>")
                     .style('display', 'block')
                     .style('top', (d3.event.pageY - 10) + 'px')
@@ -198,16 +175,10 @@
  function zoomed() {
 
      var tx = Math.min(0, d3.event.translate[0]);
-     //plot.attr("transform", "translate(" + d3.event.translate + ")" + " scale(" + d3.event.scale + ")");
      plot.attr("transform", "translate(" + tx + ",0)" + " scale(" + d3.event.scale + ",1)");
      zoom.translate([tx, 0]);
-//     zoom.scale(d3.event.scale);
 
-    // var t = d3.event.translate,
-      //   s = d3.event.scale;
-     //zoom.translate(t);
      svg.select(".x.axis").call(xAxis);
-     //svg.select(".y.axis").call(yAxis);
  }
 
  function reset() {
@@ -239,7 +210,7 @@
 	 ((key.charCodeAt(++i) & 0xff) << 8) |
 	 ((key.charCodeAt(++i) & 0xff) << 16) |
 	 ((key.charCodeAt(++i) & 0xff) << 24);
-	++i;
+	 ++i;
 
 	 k1 = ((((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16))) & 0xffffffff;
 	 k1 = (k1 << 15) | (k1 >>> 17);
@@ -274,7 +245,5 @@
 
      return h1 >>> 0;
  }
-
- console.log(murmurhash3_32_gc("foo", 0));
 
 </script>
