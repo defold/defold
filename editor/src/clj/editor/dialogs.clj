@@ -54,8 +54,8 @@
           (ui/run-later (ui/disable! (:root this) false)))))))
 
 (defn make-task-dialog [dialog-fxml options]
-  (let [root ^Parent (FXMLLoader/load (io/resource "task-dialog.fxml"))
-        dialog-root ^Parent (FXMLLoader/load (io/resource dialog-fxml))
+  (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
+        dialog-root ^Parent (ui/load-fxml dialog-fxml)
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["error" "ok" "dialog-area" "error-group" "progress-bar"])
@@ -105,7 +105,7 @@
       (assoc dialog :refresh refresh))))
 
 (defn make-resource-dialog [workspace options]
-  (let [root ^Parent (FXMLLoader/load (io/resource "resource-dialog.fxml"))
+  (let [root ^Parent (ui/load-fxml "resource-dialog.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["resources" "ok" "search"])
@@ -153,7 +153,7 @@
     @return))
 
 (defn make-new-folder-dialog [base-dir]
-  (let [root ^Parent (FXMLLoader/load (io/resource "new-folder-dialog.fxml"))
+  (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "ok"])
@@ -172,7 +172,7 @@
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
-    
+
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)
@@ -188,7 +188,7 @@
              (.toString))))))
 
 (defn make-new-file-dialog [^File base-dir ^File location type ext]
-  (let [root ^Parent (FXMLLoader/load (io/resource "new-file-dialog.fxml"))
+  (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
