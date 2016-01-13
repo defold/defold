@@ -64,25 +64,13 @@
   [node-type]
   (without (util/key-set (gt/declared-properties node-type)) special-labels))
 
-(defn node-value
-  "Get a value, possibly cached, from a node. This is the entry point
-  to the \"plumbing\". If the value is cacheable and exists in the
-  cache, then return that value. Otherwise, produce the value by
-  gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
-  [^IBasis node-or-node-id label {:keys [cache basis ignore-errors skip-validation] :or {ignore-errors 0} :as options}]
-  (let [caching?           (and (not (:no-cache options)) cache)
-        cache              (when caching? cache)
+(defn- node-value*
+  [node-or-node-id label evaluation-context]
+  (let [cache              (:cache evaluation-context)
+        basis              (:basis evaluation-context)
         node               (ig/node-by-id-at basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
-        evaluation-context {:local           (atom {})
-                            :snapshot        (if caching? (c/cache-snapshot cache) {})
-                            :hits            (atom [])
-                            :basis           basis
-                            :in-production   []
-                            :ignore-errors   ignore-errors
-                            :skip-validation skip-validation}
         result             (and node (gt/produce-value node label evaluation-context))]
-    (when (and node caching?)
+    (when (and node cache)
       (let [local             @(:local evaluation-context)
             local-for-encache (for [[node-id vmap] local
                                     [output val] vmap]
@@ -91,6 +79,24 @@
         (c/cache-encache cache local-for-encache)))
     result))
 
+(defn node-value
+  "Get a value, possibly cached, from a node. This is the entry point
+  to the \"plumbing\". If the value is cacheable and exists in the
+  cache, then return that value. Otherwise, produce the value by
+  gathering inputs to call a production function, invoke the function,
+  maybe cache the value that was produced, and return it."
+  [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation] :or {ignore-errors 0} :as options}]
+  (let [caching?           (and (not (:no-cache options)) cache)
+        evaluation-context {:local           (atom {})
+                            :cache           (when caching? cache)
+                            :snapshot        (if caching? (c/cache-snapshot cache) {})
+                            :hits            (atom [])
+                            :basis           basis
+                            :in-production   []
+                            :ignore-errors   ignore-errors
+                            :skip-validation skip-validation
+                            :caching?        caching?}]
+    (node-value* node-or-node-id label evaluation-context)))
 
 (defn- display-group?
   [label elem]
@@ -138,8 +144,8 @@
      (merge-display-order order1 order2))))
 
 (defn setter-for
-  [node property]
-  (ip/setter-for (-> node gt/node-type gt/declared-properties (get property))))
+  [basis node property]
+  (ip/setter-for (-> node (gt/node-type basis) gt/declared-properties (get property))))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
@@ -612,7 +618,7 @@
 (defn collect-base-property-value
   [self-name ctx-name node-type-name node-type propmap-sym prop]
   (if (ip/default-getter? (gt/property-type node-type prop))
-    `(get ~self-name ~prop)
+    `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
     (call-with-error-checked-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
                                             (ip/getter-for (gt/property-type node-type prop))
                                             `(get-in ~propmap-sym [~prop :internal.property/value]))))
@@ -1008,8 +1014,18 @@
      (defrecord ~record-name ~(state-vector node-type)
        gt/Node
        (node-id        [this#]    (:_node-id this#))
-       (node-type      [_]        ~node-type-name)
-       (property-types [this]     (gt/public-properties ~node-type-name))
+       (node-type      [_ _]        ~node-type-name)
+       (property-types [_ _]     (gt/public-properties ~node-type-name))
+       (get-property   [~'this basis# property#]
+         (get ~'this property#))
+       (set-property   [~'this basis# property# value#]
+         (let [type# (gt/node-type ~'this basis#)]
+           (assert (contains? (gt/property-labels type#) property#)
+                   (format "Attempting to use property %s from %s, but it does not exist" property# (:name type#))))
+         (assoc ~'this property# value#))
+       (clear-property [~'this basis# property#]
+         (throw (ex-info (str "Not possible to clear property " property# " of node type " (:name ~node-type-name) " since the node is not an override")
+                         {:label property# :node-type ~node-type-name})))
        (produce-value  [~'this label# ~'evaluation-context]
          (case label#
            :_declared-properties (~(dollar-name node-type-name :_declared-properties) ~'this ~'evaluation-context)
@@ -1017,6 +1033,8 @@
            ~@(mapcat (partial ordinary-input-case 'this 'evaluation-context node-type-name)  (ordinary-input-labels node-type))
            (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
                            {:label label# :node-type ~node-type-name}))))
+       (original [this] nil)
+       (override-id [this] nil)
        ~@(gt/interfaces node-type)
        ~@(gt/protocols node-type)
        ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type)))
@@ -1051,3 +1069,54 @@
   "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
   [record-name node-type-name node-type]
   (eval (print-method-forms record-name node-type-name node-type)))
+
+(defn- output-fn [type output]
+  (eval (dollar-name (:name type) output)))
+
+(defrecord OverrideNode [override-id node-id original-id properties]
+  gt/Node
+  (node-id             [this] node-id)
+  (node-type           [this basis] (gt/node-type (ig/node-by-id-at basis original-id) basis))
+  (property-types      [this basis] (gt/public-properties (gt/node-type this basis)))
+  (get-property        [this basis property] (get properties property))
+  (set-property        [this basis property value] (if (= :_output-jammers property)
+                                                     (throw (ex-info "Not possible to mark override nodes as defective" {}))
+                                                     (assoc-in this [:properties property] value)))
+  (clear-property      [this basis property] (update this :properties dissoc property))
+  (produce-value       [this output evaluation-context]
+    (let [basis (:basis evaluation-context)
+          original (ig/node-by-id-at basis original-id)
+          type (gt/node-type original basis)]
+      (cond
+        (= :_node-id output) node-id
+        (or (= :_declared-properties output)
+            (= :_properties output)) (let [props ((output-fn type output) this evaluation-context)
+                                           original-props ((output-fn type output) original evaluation-context)]
+                                       (let [res (reduce (fn [props [key p]]
+                                                           (let [overridden? (if (contains? p :path)
+                                                                               (not= nil (get-in properties (:path p)))
+                                                                               (contains? properties key))]
+                                                             (if overridden?
+                                                               (-> props
+                                                                 (update-in [:properties key] assoc :original-value (get-in props [:properties key :value]))
+                                                                 (update-in [:properties key] assoc :value (:value p)))
+                                                               props)))
+                                                         original-props (:properties props))
+                                             res (assoc res :properties (into {} (map (fn [[key value]] [key (assoc value :node-id node-id)]) (:properties res))))]
+                                         res))
+        ((gt/property-labels type) output) (if (ip/default-getter? (gt/property-type type output))
+                                             (if (contains? properties output)
+                                               (get properties output)
+                                               (node-value* original output evaluation-context))
+                                             ((output-fn type output) this evaluation-context))
+        ((gt/output-labels type) output) ((output-fn type output) this evaluation-context)
+        ((gt/input-labels type) output) ((output-fn type output) this evaluation-context)
+        true (let [dyn-properties (node-value* original :_properties evaluation-context)]
+               (if (contains? (:properties dyn-properties) output)
+                 (get properties output)
+                 (node-value* original output evaluation-context))))))
+  (override-id [this] override-id)
+  (original [this] original-id))
+
+(defn make-override-node [override-id node-id original-id properties]
+  (->OverrideNode override-id node-id original-id properties))
