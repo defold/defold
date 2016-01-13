@@ -59,11 +59,11 @@ namespace dmHID
             }
             assert(g_Context == 0);
             g_Context = context;
-            if (glfwSetCharCallback(CharacterCallback)) {
+            if (glfwSetCharCallback(CharacterCallback) == 0) {
                 dmLogFatal("could not set glfw char callback.");
                 return false;
             }
-            if (glfwSetMarkedTextCallback(MarkedTextCallback)) {
+            if (glfwSetMarkedTextCallback(MarkedTextCallback) == 0) {
                 dmLogFatal("could not set glfw marked text callback.");
                 return false;
             }
