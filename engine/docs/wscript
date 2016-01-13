@@ -33,30 +33,34 @@ def init():
 def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.env['ASCIIDOC_PATH'] = os.path.join(conf.env.DYNAMO_HOME, 'ext', 'lib', 'asciidoc')
-    conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
+    #conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
 
 asciidoc = Task.simple_task_type('asciidoc', 'python ${ASCIIDOC_PATH}/asciidoc.py -f ../defold.conf -o ${TGT} ${SRC}',
                                  shell=True)
 asciidoc.scan = scan_asciidoc
 
-embed_video = Task.simple_task_type('embed_video', 'python ${EMBED_VIDEO} ${SRC} ${TGT}',
-                                    shell=True,
-                                    after = 'asciidoc')
+#embed_video = Task.simple_task_type('embed_video', 'python ${EMBED_VIDEO} ${SRC} ${TGT}',
+#                                    shell=True,
+#                                    after = 'asciidoc')
 
 @extension('.txt')
 def proto_file(self, node):
         doc = self.create_task('asciidoc')
         doc.set_inputs(node)
-        out = node.change_ext('.html_tmp')
+        out = node.change_ext('.html')
         doc.set_outputs(out)
 
-        embed = self.create_task('embed_video')
-        embed.set_inputs(out)
-        embed_out = node.change_ext('.html')
-        embed.set_outputs(embed_out)
+        # Note 14 Dec, 2015:
+        #   Embedding YouTube videos broke after we uploaded new videos to our channel,
+        #   due to the YT API only returns the latest 15 videos.
+        #embed = self.create_task('embed_video')
+        #embed.set_inputs(out)
+        #embed_out = node.change_ext('.html')
+        #embed.set_outputs(embed_out)
 
         self.bld.install_files('${PREFIX}/share/doc',
-                               embed_out.abspath(self.env), self.env)
+                               out.abspath(self.env), self.env)
+                               #embed_out.abspath(self.env), self.env)
 
 def build(bld):
     dirs = ['src/business_plan', 'src/guides', 'src/presentation',

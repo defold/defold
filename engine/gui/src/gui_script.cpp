@@ -778,6 +778,9 @@ namespace dmGui
      *   <li><code>gui.PROP_OUTLINE</code></li>
      *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>gui.PROP_FILL_ANGLE</code></li>
+     *   <li><code>gui.PROP_INNER_RADIUS</code></li>
+     *   <li><code>gui.PROP_SLICE9</code></li>
      * </ul>
      * <p>
      *
@@ -2819,6 +2822,19 @@ namespace dmGui
         return 0;
     }
 
+    /*# reset on-display keyboard if available
+     *
+     * Reset input context of keyboard. This will clear marked text.
+     *
+     * @name gui.reset_keyboard
+     */
+    static int LuaResetKeyboard(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmHID::ResetKeyboard(scene->m_Context->m_HidContext);
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -3057,6 +3073,7 @@ namespace dmGui
         {"clone_tree",      LuaCloneTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
+        {"reset_keyboard",  LuaResetKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
@@ -3121,6 +3138,24 @@ namespace dmGui
     /*# size property
      *
      * @name gui.PROP_SIZE
+     * @variable
+     */
+
+    /*# fill_angle property
+     *
+     * @name gui.PROP_FILL_ANGLE
+     * @variable
+     */
+
+    /*# inner_radius property
+     *
+     * @name gui.PROP_INNER_RADIUS
+     * @variable
+     */
+
+    /*# slice9 property
+     *
+     * @name gui.PROP_SLICE9
      * @variable
      */
 
@@ -3287,6 +3322,9 @@ namespace dmGui
         SETPROP(outline, OUTLINE)
         SETPROP(shadow, SHADOW)
         SETPROP(size, SIZE)
+        SETPROP(fill_angle, FILL_ANGLE)
+        SETPROP(inner_radius, INNER_RADIUS)
+        SETPROP(slice9, SLICE9)
 
 #undef SETPROP
 

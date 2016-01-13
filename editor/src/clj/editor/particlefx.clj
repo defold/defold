@@ -517,7 +517,7 @@
         pb  (reduce (fn [pb [label resource]]
                       (assoc-in pb label resource))
                     pb (map (fn [[label res]]
-                              [label (workspace/proj-path (get dep-resources res))])
+                              [label (resource/proj-path (get dep-resources res))])
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Particle$ParticleFX pb)}))
 
@@ -525,7 +525,7 @@
 
 (g/defnk produce-build-targets [_node-id project-id resource rt-pb-data dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(workspace/proj-path (:resource res)) res]) dep-build-targets))
+        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field]
                                   (if (vector? field)
                                     (mapv

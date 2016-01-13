@@ -239,7 +239,9 @@ void _glfwInputDeactivation( void );
 void _glfwInputKey( int key, int action );
 void _glfwInputChar( int character, int action );
 void _glfwInputMouseClick( int button, int action );
+void _glfwSetMarkedText( char* str );
 void _glfwShowKeyboard(int show, int type, int auto_close);
+void _glfwResetKeyboard( void );
 
 // Threads (thread.c)
 _GLFWthread * _glfwGetThreadPointer( int ID );

@@ -10,6 +10,7 @@
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <gameobject/gameobject.h>
+#include <gameobject/gameobject_ddf.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "../proto/tile_ddf.h"
@@ -129,6 +130,7 @@ namespace dmGameSystem
         component->m_TileGridResource = resource;
         component->m_Translation = Vector3(params.m_Position);
         component->m_Rotation = params.m_Rotation;
+        component->m_Enabled = 1;
         if (!CreateTileGrid(component))
         {
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -453,7 +455,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             TileGridComponent* tile_grid = tile_grids[i];
-            if (!tile_grid->m_AddedToUpdate) {
+            if (!tile_grid->m_Enabled || !tile_grid->m_AddedToUpdate) {
                 continue;
             }
 
@@ -592,6 +594,15 @@ namespace dmGameSystem
                 dmRender::DisableRenderObjectConstant(&region->m_RenderObject, ddf->m_NameHash);
             }
         }
+        else if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
+        {
+            component->m_Enabled = 1;
+        }
+        else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
+        {
+            component->m_Enabled = 0;
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -174,7 +174,7 @@
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (resource/resource->proj-path image)
                :default-animation default-animation
-               :material (workspace/proj-path material)
+               :material (resource/proj-path material)
                :blend-mode blend-mode})})
 
 (defn anim-uvs [anim]
@@ -200,7 +200,7 @@
 
 (defn- build-sprite [self basis resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc pb)}))
 
 (g/defnk produce-build-targets [_node-id resource image default-animation material blend-mode dep-build-targets]
@@ -210,9 +210,9 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-sprite
-      :user-data {:proto-msg {:tile-set (workspace/proj-path image)
+      :user-data {:proto-msg {:tile-set (resource/proj-path image)
                               :default-animation default-animation
-                              :material (workspace/proj-path material)
+                              :material (resource/proj-path material)
                               :blend-mode blend-mode}
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
