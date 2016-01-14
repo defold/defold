@@ -134,8 +134,9 @@
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
-          styles (seq (.getStylesheets root))]
-      (.setAll (.getStylesheets root) ^java.util.Collection (into (list) styles)))))
+          styles (vec (.getStylesheets root))]
+      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
+      (.setAll (.getStylesheets root) ^java.util.Collection styles))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -183,6 +184,13 @@
   (observe (.focusedProperty node)
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
+
+(defn load-fxml [path]
+  (let [root ^Parent (FXMLLoader/load (io/resource path))
+        css (io/file "editor.css")]
+    (when (and (.exists css) (seq (.getStylesheets root)))
+      (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
+    root))
 
 (defprotocol Text
   (text ^String [this])
@@ -522,7 +530,7 @@
 
 (defn modal-progress [title total-work worker-fn]
   (run-now
-    (let [root ^Parent (FXMLLoader/load (io/resource "progress.fxml"))
+    (let [root ^Parent (load-fxml "progress.fxml")
           stage (Stage.)
           scene (Scene. root)
           title-control ^Label (.lookup root "#title")
