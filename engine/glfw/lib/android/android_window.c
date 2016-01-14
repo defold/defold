@@ -376,3 +376,30 @@ void _glfwResetKeyboard( void )
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
+
+
+void _glfwAndroidSetInputMethod(int use_hidden_input)
+{
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID reset_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setUseHiddenInputField", "(Z)V");
+    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, reset_soft_input_method, use_hidden_input);
+
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+}

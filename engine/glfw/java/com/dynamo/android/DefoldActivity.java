@@ -11,25 +11,18 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
-
-import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.EditText;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.PopupWindow;
-import android.text.TextWatcher;
-import android.text.Editable;
 import android.widget.FrameLayout;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputConnection;
 import android.text.InputType;
 import android.view.inputmethod.CompletionInfo;
-import java.lang.CharSequence;
+import android.view.ViewGroup;
 
-import android.util.Log;
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.common.*;
 
@@ -46,8 +39,8 @@ public class DefoldActivity extends NativeActivity {
     }
 
     private InputMethodManager imm = null;
-    private TextWatcher mTextWatcher = null;
     private EditText mTextEdit = null;
+    private boolean mUseHiddenInputField = false;
 
     private static final String TAG = "DefoldActivity";
 
@@ -62,28 +55,29 @@ public class DefoldActivity extends NativeActivity {
 
     private class DefoldInputWrapper extends InputConnectionWrapper {
         private DefoldActivity _ctx;
-        private String m_ComposingText = "";
+        private String mComposingText = "";
 
         // String markedText;
         public DefoldInputWrapper(DefoldActivity ctx, InputConnection target, boolean mutable) {
             super(target, mutable);
             _ctx = ctx;
-            m_ComposingText = "";
+            mComposingText = "";
         }
 
         @Override
         public CharSequence getTextBeforeCursor(int n, int flags)
         {
-            // Hacky...
+            // Hacky Android: Need to trick the input system into thinking
+            // there is at least one char to delete, otherwise we wont
+            // be getting any backspace events if the EditText is empty.
             return " ";
         }
 
         @Override
         public boolean setComposingText(CharSequence text, int newCursorPosition)
         {
-            m_ComposingText = text.toString();
-            Log.d(TAG, "setComposingText '" + m_ComposingText.toString() + "'");
-            _ctx.sendMarkedText(m_ComposingText.toString());
+            mComposingText = text.toString();
+            _ctx.sendMarkedText(mComposingText.toString());
 
             return super.setComposingText(text, newCursorPosition);
         }
@@ -91,22 +85,20 @@ public class DefoldActivity extends NativeActivity {
         @Override
         public boolean commitCompletion (CompletionInfo text)
         {
-            Log.d(TAG, "commitCompletion: " + text.toString());
             return super.commitCompletion(text);
         }
 
         @Override
         public boolean finishComposingText ()
         {
-            Log.d(TAG, "finishComposingText: '" + m_ComposingText + "'");
-            _ctx.sendInputText(new String(m_ComposingText));
+            _ctx.sendInputText(new String(mComposingText));
             _ctx.sendMarkedText("");
 
             // If we are finished composing, clear the composing text
-            if (m_ComposingText.length() > 0) {
+            if (mComposingText.length() > 0) {
                 this.setComposingText("", 0);
             }
-            m_ComposingText = "";
+            mComposingText = "";
 
             return super.finishComposingText();
         }
@@ -114,11 +106,10 @@ public class DefoldActivity extends NativeActivity {
         @Override
         public boolean commitText(CharSequence text, int newCursorPosition)
         {
-            Log.d(TAG, "commitText '" + text.toString() + "'");
             _ctx.sendInputText(text.toString());
 
             // When committing new text, we assume the composing text should be cleared.
-            m_ComposingText = "";
+            mComposingText = "";
             _ctx.clearComposingText();
 
             return super.commitText(text, newCursorPosition);
@@ -133,8 +124,6 @@ public class DefoldActivity extends NativeActivity {
         @Override
         public boolean deleteSurroundingText(int beforeLength, int afterLength) {
             if (beforeLength == 1 && afterLength == 0) {
-                Log.d(TAG, "DELETE!");
-
                 _ctx.clearText();
                 _ctx.clearComposingText();
                 _ctx.FakeBackspace();
@@ -179,25 +168,6 @@ public class DefoldActivity extends NativeActivity {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
         }
-
-        // TODO: Remove text watcher before commit, not used...
-        mTextWatcher = new TextWatcher() {
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                System.out.println("SVEN: time to send: '" + s.toString() + "'");
-                System.out.println("SVEN: changed: '" + s.toString().substring(start, start + count) + "'");
-            }
-
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                System.out.println("SVEN: beforeTextChanged");
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                System.out.println("SVEN: afterTextChanged");
-            }
-        };
 
         new Thread(new Runnable() {
             public void run() {
@@ -280,7 +250,6 @@ public class DefoldActivity extends NativeActivity {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        System.out.println("SVEN: dispatchKeyEvent triggered.");
         if (event.getAction() == KeyEvent.ACTION_MULTIPLE && event.getKeyCode() == KeyEvent.KEYCODE_UNKNOWN) {
             String chars = event.getCharacters();
             int charCount = chars.length();
@@ -301,54 +270,61 @@ public class DefoldActivity extends NativeActivity {
             @Override
             public void run() {
 
-                if (mTextEdit != null)
+                if (mTextEdit != null) {
                     mTextEdit.setVisibility(View.GONE);
-                mTextEdit = new EditText(self) {
-                    @Override
-                    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+                    ViewGroup vg = (ViewGroup)(mTextEdit.getParent());
+                    vg.removeView(mTextEdit);
+                    mTextEdit = null;
+                }
 
-                        // We set manual input connection to catch all keyboard interaction
-                        InputConnection inpc = super.onCreateInputConnection(outAttrs);
-                        outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
-                        return new DefoldInputWrapper(self, inpc, true);
+                if (mUseHiddenInputField) {
 
-                    }
+                    mTextEdit = new EditText(self) {
+                        @Override
+                        public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
 
-                    @Override
-                    public boolean onCheckIsTextEditor() {
-                        return true;
-                    }
-                };
+                            // We set manual input connection to catch all keyboard interaction
+                            InputConnection inpc = super.onCreateInputConnection(outAttrs);
+                            outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                            return new DefoldInputWrapper(self, inpc, true);
+
+                        }
+
+                        @Override
+                        public boolean onCheckIsTextEditor() {
+                            return true;
+                        }
+                    };
 
 
-                // Disable the fullscreen keyboard mode (present in landscape)
-                // If we don't do this, we get a large grey inpt box above the keyboard
-                // blocking the game view.
-                mTextEdit.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+                    // Disable the fullscreen keyboard mode (present in landscape)
+                    // If we don't do this, we get a large grey inpt box above the keyboard
+                    // blocking the game view.
+                    mTextEdit.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
 
-                FrameLayout.LayoutParams mEditTextLayoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-                mEditTextLayoutParams.gravity = Gravity.TOP;
-                mEditTextLayoutParams.setMargins(0, 0, 0, 0);
-                mTextEdit.setLayoutParams(mEditTextLayoutParams);
-                mTextEdit.setVisibility(View.VISIBLE);
-                mTextEdit.addTextChangedListener(self.mTextWatcher); // TODO remove this?
+                    FrameLayout.LayoutParams mEditTextLayoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+                    mEditTextLayoutParams.gravity = Gravity.TOP;
+                    mEditTextLayoutParams.setMargins(0, 0, 0, 0);
+                    mTextEdit.setLayoutParams(mEditTextLayoutParams);
+                    mTextEdit.setVisibility(View.VISIBLE);
+                    mTextEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
 
-                // mTextEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS & (~InputType.TYPE_TEXT_FLAG_AUTO_CORRECT));
-                // mTextEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_FILTER | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS & (~InputType.TYPE_TEXT_FLAG_AUTO_CORRECT));
-                mTextEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-                // mTextEdit.setRawInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL);
-                // self.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+                    // Start on an empty slate each time we bring up the keyboard
+                    mTextEdit.setText("");
 
-                // Start on an empty slate each time we bring up the keyboard
-                mTextEdit.setText("");
+                    getWindow().addContentView(mTextEdit, mEditTextLayoutParams);
 
-                getWindow().addContentView(mTextEdit, mEditTextLayoutParams);
+                    mTextEdit.bringToFront();
+                    mTextEdit.setSelection(0);
+                    mTextEdit.requestFocus();
 
-                mTextEdit.bringToFront();
-                mTextEdit.setSelection(0);
-                mTextEdit.requestFocus();
+                    imm.showSoftInput(mTextEdit, InputMethodManager.SHOW_FORCED);
+                } else {
 
-                imm.showSoftInput(mTextEdit, InputMethodManager.SHOW_FORCED);
+                    // "Old style" key event inputs
+                    imm.showSoftInput(getWindow().getDecorView(), InputMethodManager.SHOW_FORCED);
+
+                }
             }
         });
     }
@@ -382,14 +358,16 @@ public class DefoldActivity extends NativeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                Log.d(TAG, "resetSoftInput");
                 if (mTextEdit != null) {
-                    Log.d(TAG, "mTextEdit exist, clearing text");
                     mTextEdit.setText("");
                     mTextEdit.clearComposingText();
                 }
             }
         });
+    }
+
+    public void setUseHiddenInputField(boolean useHiddenInputField) {
+        mUseHiddenInputField = useHiddenInputField;
     }
 
     /** hide virtual keyboard
