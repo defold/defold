@@ -532,7 +532,15 @@ static int LooperCallback(int fd, int events, void* data)
     struct Command cmd;
     if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
         if (cmd.m_Command == CMD_INPUT_CHAR) {
+            _glfwInputChar( (int)cmd.m_Data, GLFW_RELEASE );
             _glfwInputChar( (int)cmd.m_Data, GLFW_PRESS );
+
+        } else if (cmd.m_Command == CMD_INPUT_MARKED_TEXT) {
+            _glfwSetMarkedText( (char*)cmd.m_Data );
+
+            // Need to free marked text string thas was
+            // allocated in android_window.c
+            free(cmd.m_Data);
         }
     } else {
         LOGF("read error in looper callback");
