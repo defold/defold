@@ -29,15 +29,15 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin" or platform == "x86_64-darwin":
+    if platform == "x86-darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif re.match('arm.*?darwin', platform):
         pass
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
-    elif platform == "linux" or platform == "x86_64-linux":
+    elif platform == "x86-linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif platform == "win32":
+    elif platform == "x86-win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
 
     conf.env.append_value('CPPPATH', "default/src")

@@ -15,7 +15,7 @@ def build(bld):
     wav = ['decoders/decoder_wav.cpp']
     tremolo = ['decoders/decoder_tremolo.cpp'];
 
-    if bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'win32':
+    if bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'x86-win32':
         decoders = stb_vorbis + wav
     else:
         decoders = tremolo + stb_vorbis + wav

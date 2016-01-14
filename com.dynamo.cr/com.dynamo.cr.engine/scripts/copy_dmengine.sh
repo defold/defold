@@ -1,7 +1,7 @@
 set -e
-mkdir -p engine/linux
-mkdir -p engine/darwin
-mkdir -p engine/win32
+mkdir -p engine/x86-linux
+mkdir -p engine/x86-darwin
+mkdir -p engine/x86-win32
 mkdir -p engine/ios
 mkdir -p engine/arm64-ios
 mkdir -p engine/android
@@ -15,12 +15,12 @@ copy () {
     cp -v $DYNAMO_HOME/archive/${SHA1}/engine/$1 $2
 }
 
-copy linux/dmengine engine/linux/dmengine
-copy linux/dmengine_release engine/linux/dmengine_release
-copy darwin/dmengine engine/darwin/dmengine
-copy darwin/dmengine_release engine/darwin/dmengine_release
-copy win32/dmengine.exe engine/win32/dmengine.exe
-copy win32/dmengine_release.exe engine/win32/dmengine_release.exe
+copy x86-linux/dmengine engine/x86-linux/dmengine
+copy x86-linux/dmengine_release engine/x86-linux/dmengine_release
+copy x86-darwin/dmengine engine/x86-darwin/dmengine
+copy x86-darwin/dmengine_release engine/x86-darwin/dmengine_release
+copy x86-win32/dmengine.exe engine/x86-win32/dmengine.exe
+copy x86-win32/dmengine_release.exe engine/x86-win32/dmengine_release.exe
 copy arm64-darwin/dmengine engine/arm64-ios/dmengine
 copy arm64-darwin/dmengine_release engine/arm64-ios/dmengine_release
 copy armv7-darwin/dmengine engine/ios/dmengine

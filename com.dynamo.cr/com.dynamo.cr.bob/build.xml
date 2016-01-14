@@ -151,7 +151,7 @@
         </copy>
         <copy todir="lib/x86-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="linux/*texc_shared*"/>
+                <include name="x86-linux/*texc_shared*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">

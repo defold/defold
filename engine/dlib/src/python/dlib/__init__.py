@@ -2,16 +2,16 @@ import ctypes, os, sys, platform
 
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
-    libdir = "lib/darwin"
+    libdir = "lib/x86-darwin"
 elif sys.platform == "linux2":
     libname = "libdlib_shared.so"
     if platform.architecture()[0] == '64bit':
         libdir = "lib/x86_64-linux"
     else:
-        libdir = "lib/linux"
+        libdir = "lib/x86-linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
-    libdir = "lib/win32"
+    libdir = "lib/x86-win32"
 
 dlib = None
 try:

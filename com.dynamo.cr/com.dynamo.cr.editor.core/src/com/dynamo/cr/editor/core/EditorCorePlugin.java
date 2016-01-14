@@ -70,11 +70,11 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
         String os_name = System.getProperty("os.name").toLowerCase();
 
         if (os_name.indexOf("win") != -1)
-            return "win32";
+            return "x86-win32";
         else if (os_name.indexOf("mac") != -1)
-            return "darwin";
+            return "x86-darwin";
         else if (os_name.indexOf("linux") != -1)
-            return "linux";
+            return "x86-linux";
         return null;
     }
 

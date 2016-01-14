@@ -103,7 +103,7 @@ def build(bld):
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
-    if bld.env.BUILD_PLATFORM == 'win32':
+    if bld.env.BUILD_PLATFORM == 'x86-win32':
         obj.source.append('engine.rc')
 
     if 'android' in bld.env['PLATFORM']:

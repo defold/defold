@@ -32,14 +32,14 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin" or platform == "x86_64-darwin":
+    if platform == "x86-darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
     elif platform == "armv7-darwin" or platform == "arm64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-    elif platform == "linux" or platform == "x86_64-linux":
+    elif platform == "x86-linux" or platform == "x86_64-linux":
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    elif platform == "win32":
+    elif platform == "x86-win32":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
         conf.env.append_value('LINKFLAGS', ['user32.lib'])
     elif re.match('arm.*?android', platform):

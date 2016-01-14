@@ -41,7 +41,7 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 		URL bundleUrl;
 
 		String platform = EditorCorePlugin.getPlatform();
-		if (platform.equals("darwin")) {
+		if (platform.equals("x86-darwin")) {
             // The editor is 64-bit only on Mac OS X and shared libraries are
             // loaded from platform directory
 		    platform = "x86_64-darwin";

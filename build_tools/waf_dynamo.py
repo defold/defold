@@ -1032,11 +1032,11 @@ def detect(conf):
         platform=getattr(Options.options, 'platform')
 
     if sys.platform == "darwin":
-        build_platform = "darwin"
+        build_platform = "x86-darwin"
     elif sys.platform == "linux2":
-        build_platform = "linux"
+        build_platform = "x86-linux"
     elif sys.platform == "win32":
-        build_platform = "win32"
+        build_platform = "x86-win32"
     else:
         conf.fatal("Unable to determine host platform")
 
@@ -1081,7 +1081,7 @@ def detect(conf):
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        if build_platform == 'linux':
+        if build_platform == 'x86-linux':
             arch = 'x86'
         else:
             arch = 'x86_64'

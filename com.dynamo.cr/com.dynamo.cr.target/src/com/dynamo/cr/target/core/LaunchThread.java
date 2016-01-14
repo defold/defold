@@ -84,7 +84,7 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
             }
 
             String[] args;
-            if (EditorCorePlugin.getPlatform().equals("darwin")) {
+            if (EditorCorePlugin.getPlatform().equals("x86-darwin")) {
                 if (socksProxy.length() > 0) {
                     command = "DMSOCKS_PROXY=" + socksProxy + " " + command;
                     command = "DMSOCKS_PROXY_PORT=" + socksProxyPort + " "

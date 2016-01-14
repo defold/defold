@@ -45,7 +45,7 @@ def get_host_platform():
         if arch == '64bit':
             return 'x86_64-linux'
         else:
-            return 'linux'
+            return 'x86-linux'
     else:
         return sys.platform
 
@@ -172,7 +172,7 @@ class Configuration(object):
         self._log('Extracting %s to %s' % (file, path))
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
-        if self.host == 'linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
+        if self.host == 'x86-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
             self.exec_env_command(['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
@@ -224,10 +224,10 @@ class Configuration(object):
         return path
 
     def _install_go(self):
-        urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
-                'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
+        urls = {'x86-darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
+                'x86-linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
                 'x86_64-linux' : 'http://go.googlecode.com/files/go1.1.linux-amd64.tar.gz',
-                'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
+                'x86-win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
         url = urls[self.host]
         path = self._download(url)
         self._extract(path, self.ext)
@@ -251,12 +251,12 @@ class Configuration(object):
                 self._extract_tgz(make_path('arm64-darwin'), self.ext)
 
         for p in PACKAGES_WIN32:
-                self._extract_tgz(make_path('win32'), self.ext)
+                self._extract_tgz(make_path('x86-win32'), self.ext)
 
         for p in PACKAGES_LINUX:
-                self._extract_tgz(make_path('linux'), self.ext)
+                self._extract_tgz(make_path('x86-linux'), self.ext)
 
-        if self.host == 'darwin':
+        if self.host == 'x86-darwin':
             for p in PACKAGES_DARWIN_64:
                 self._extract_tgz(make_path('x86_64-darwin'), self.ext)
 
@@ -289,7 +289,7 @@ class Configuration(object):
 
     def _form_ems_path(self):
         path = ''
-        if self.host == 'linux':
+        if self.host == 'x86-linux':
             path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         else:
             path = join(self.ext, EMSCRIPTEN_DIR)
@@ -304,7 +304,7 @@ class Configuration(object):
 
     def get_ems_sdk_name(self):
         sdk = EMSCRIPTEN_SDK_OSX
-        if 'linux' == self.host:
+        if 'x86-linux' == self.host:
             sdk = EMSCRIPTEN_SDK_LINUX
         return sdk;
 
@@ -322,7 +322,7 @@ class Configuration(object):
             print 'No .emscripten file.'
             err = True
         emsDir = join(self.ext, EMSCRIPTEN_DIR)
-        if self.host == 'linux':
+        if self.host == 'x86-linux':
             emsDir = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
@@ -355,7 +355,7 @@ class Configuration(object):
 
     def archive_engine(self):
         exe_prefix = ''
-        if self.target_platform == 'win32':
+        if self.target_platform == 'x86-win32':
             exe_ext = '.exe'
         elif 'android' in self.target_platform:
             exe_prefix = 'lib'
@@ -386,7 +386,7 @@ class Configuration(object):
         lib_dir = self.target_platform
 
         # upload editor 2.0 launcher
-        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32']:
+        if self.target_platform in ['x86-linux', 'x86_64-linux', 'x86-darwin', 'x86_64-darwin', 'x86-win32']:
             launcherbin = join(bin_dir, "launcher" + exe_ext)
             self.upload_file(launcherbin, '%s/%s%s' % (full_archive_path, "launcher", exe_ext))
 
@@ -399,7 +399,7 @@ class Configuration(object):
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
-        if self.target_platform == 'linux':
+        if self.target_platform == 'x86-linux':
             # NOTE: It's arbitrary for which platform we archive builtins and doc. Currently set to linux
             builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
             self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
@@ -442,7 +442,7 @@ class Configuration(object):
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
         base_platforms = [self.host]
-        if self.host == 'darwin':
+        if self.host == 'x86-darwin':
             base_platforms.append('x86_64-darwin')
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         base_libs = ['dlib', 'texc']
@@ -674,7 +674,7 @@ instructions.configure=\
 
     def shell(self):
         print 'Setting up shell with DYNAMO_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
-        if "win32" == self.host:
+        if "x86-win32" == self.host:
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
@@ -983,7 +983,7 @@ instructions.configure=\
 
         if u.netloc == '':
             # Assume scp syntax, e.g. host:path
-            if self.host == 'win32':
+            if self.host == 'x86-win32':
                 path = path.replace('\\', '/')
                 # scp interpret c:\path as a network location (host "c")
                 if path[1] == ':':
@@ -1028,7 +1028,7 @@ instructions.configure=\
     def _form_env(self):
         env = dict(os.environ)
 
-        ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
+        ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'x86-darwin' else 'LD_LIBRARY_PATH'
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
@@ -1119,7 +1119,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
+                      choices = ['x86-linux', 'x86_64-linux', 'x86-darwin', 'x86_64-darwin', 'x86-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

@@ -38,13 +38,13 @@ def configure(conf):
         else:
             ddf_search_lst = os.getenv('PYTHONPATH').split(':')
 
-    if platform == "darwin":
+    if platform == "x86-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif platform == "armv7-darwin":
         pass
-    elif platform == "linux":
+    elif platform == "x86-linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    elif platform == "win32":
+    elif platform == "x86-win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
 

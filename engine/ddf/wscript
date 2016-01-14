@@ -41,13 +41,13 @@ def configure(conf):
 
     platform=conf.env['PLATFORM']
 
-    if platform == 'win32':
+    if platform == 'x86-win32':
         conf.env.append_value('CPPPATH', "../src/win32")
 
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
-    if conf.env.PLATFORM == 'linux':
+    if conf.env.PLATFORM == 'x86-linux':
         conf.env['LIB_PTHREAD'] = 'pthread'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
