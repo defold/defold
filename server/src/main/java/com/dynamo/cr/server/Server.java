@@ -446,9 +446,12 @@ public class Server {
         return configuration;
     }
 
+    public static String getEngineFilePath(Configuration configuration, String projectId, String platform) {
+        return configuration.getSignedEngineRoot() + "/" + projectId + "/" + platform + "/" + "Defold.ipa";
+    }
+
     public static File getEngineFile(Configuration configuration, String projectId, String platform) {
-        File dir = new File(configuration.getSignedEngineRoot(), projectId + "/" + platform);
-        return new File(dir, "Defold.ipa");
+        return new File(Server.getEngineFilePath(configuration, projectId, platform));
     }
 
     public void uploadEngine(String projectId, String platform, InputStream stream) throws IOException {
