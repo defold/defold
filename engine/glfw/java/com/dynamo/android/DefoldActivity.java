@@ -57,7 +57,6 @@ public class DefoldActivity extends NativeActivity {
         private DefoldActivity _ctx;
         private String mComposingText = "";
 
-        // String markedText;
         public DefoldInputWrapper(DefoldActivity ctx, InputConnection target, boolean mutable) {
             super(target, mutable);
             _ctx = ctx;
@@ -77,7 +76,7 @@ public class DefoldActivity extends NativeActivity {
         public boolean setComposingText(CharSequence text, int newCursorPosition)
         {
             mComposingText = text.toString();
-            _ctx.sendMarkedText(mComposingText.toString());
+            _ctx.sendMarkedText(mComposingText);
 
             return super.setComposingText(text, newCursorPosition);
         }
@@ -329,6 +328,9 @@ public class DefoldActivity extends NativeActivity {
         });
     }
 
+    /**
+     * Clears the internal text field if hidden input method is used.
+     */
     public void clearText() {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
@@ -341,6 +343,9 @@ public class DefoldActivity extends NativeActivity {
         });
     }
 
+    /**
+     * Clears the composing part of the text field if hidden input method is used.
+     */
     public void clearComposingText() {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
@@ -353,6 +358,9 @@ public class DefoldActivity extends NativeActivity {
         });
     }
 
+    /**
+     * Clears both internal text and composing part of text field if hidden input method is used.
+     */
     public void resetSoftInput() {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
@@ -366,6 +374,10 @@ public class DefoldActivity extends NativeActivity {
         });
     }
 
+    /**
+     * Method to switch between "old" (key event) or "new" (hidden text input) method.
+     * Called from C (android_window.c).
+     */
     public void setUseHiddenInputField(boolean useHiddenInputField) {
         mUseHiddenInputField = useHiddenInputField;
     }

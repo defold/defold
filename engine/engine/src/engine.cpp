@@ -37,6 +37,10 @@ extern unsigned char CONNECT_PROJECT[];
 extern uint32_t CONNECT_PROJECT_SIZE;
 
 #if defined(__ANDROID__)
+// On Android we need to notify the activity which input method to use
+// before the keyboard is brought up. This choice is stored as a
+// game.project config and used in dmEngine::Init(), passed along to
+// the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
 }
