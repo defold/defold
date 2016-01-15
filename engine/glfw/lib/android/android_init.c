@@ -532,6 +532,7 @@ static int LooperCallback(int fd, int events, void* data)
     struct Command cmd;
     if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
         if (cmd.m_Command == CMD_INPUT_CHAR) {
+            // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
             _glfwInputChar( (int)cmd.m_Data, GLFW_RELEASE );
             _glfwInputChar( (int)cmd.m_Data, GLFW_PRESS );
 

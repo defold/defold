@@ -32,8 +32,7 @@
                 android:configChanges="orientation|screenSize|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                 android:screenOrientation="{{orientation-support}}"
-                android:launchMode="singleTask"
-                android:windowSoftInputMode="adjustResize|stateHidden">
+                android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="{{exe-name}}" />
             {{#android.push_field_title}}
