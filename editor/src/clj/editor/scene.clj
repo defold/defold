@@ -49,11 +49,9 @@
            [java.util.concurrent Executors]
            [com.defold.editor AsyncCopier]))
 
-(def ^:private executor (Executors/newFixedThreadPool 1))
-
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *fps-debug* nil)
+(def ^:private executor (Executors/newFixedThreadPool 1))
 
 (defn overlay-text [^GL2 gl ^String text x y]
   (let [^TextRenderer text-renderer (scene-cache/request-object! ::text-renderer ::overlay-text gl [Font/SANS_SERIF Font/BOLD 12])]
@@ -80,7 +78,7 @@
                 :passes [pass/overlay]}})
 
 ; Avoid recreating the image each frame
-(def ^:private cached-buf-img-ref (atom nil))
+(defonce ^:private cached-buf-img-ref (atom nil))
 
 ; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
 ; We flip in JavaFX instead
@@ -127,10 +125,11 @@
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
 
 (defn setup-pass
-  ([context gl glu pass camera ^Region viewport]
-    (setup-pass context gl glu pass camera viewport nil))
-  ([context ^GL2 gl ^GLU glu pass camera ^Region viewport pick-rect]
-    (.glMatrixMode gl GL2/GL_PROJECTION)
+  ([context gl pass camera ^Region viewport]
+    (setup-pass context gl pass camera viewport nil))
+  ([context ^GL2 gl pass camera ^Region viewport pick-rect]
+    (let [glu (GLU.)]
+      (.glMatrixMode gl GL2/GL_PROJECTION)
       (.glLoadIdentity gl)
       (when pick-rect
         (gl/glu-pick-matrix glu pick-rect viewport))
@@ -141,34 +140,33 @@
       (.glLoadIdentity gl)
       (when (types/model-transform? pass)
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
-      (pass/prepare-gl pass gl glu)))
+      (pass/prepare-gl pass gl glu))))
 
-(g/defnk produce-drawable [_node-id ^Region viewport]
-  (when (vp-not-empty? viewport)
-    (let [[w h] (vp-dims viewport)
-          ^GLOffscreenAutoDrawable drawable (g/node-value _node-id :gl-drawable)
-          drawable (if drawable
-                     (doto drawable (.setSize w h))
-                     (let [profile (GLProfile/getDefault)
-                           factory (GLDrawableFactory/getFactory profile)
-                           caps    (doto (GLCapabilities. profile)
-                                     (.setOnscreen false)
-                                     (.setPBuffer true)
-                                     (.setDoubleBuffered false))
-                           ^GLOffscreenAutoDrawable drawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)]
-                       (g/transact (g/set-property _node-id :gl-drawable drawable))
-                       drawable))]
-      drawable)))
+(defn- make-current ^GLContext [^GLAutoDrawable drawable]
+  (when-let [^GLContext context (.getContext drawable)]
+    (let [result (.makeCurrent context)]
+      (if (= result GLContext/CONTEXT_NOT_CURRENT)
+        (do
+          (prn "Failed to set gl context as current.")
+          nil)
+        context))))
 
-(defn- make-current [^Region viewport ^GLAutoDrawable drawable]
-  (when (and drawable (vp-not-empty? viewport))
-    (when-let [^GLContext context (.getContext drawable)]
-      (let [result (.makeCurrent context)]
-        (if (= result GLContext/CONTEXT_NOT_CURRENT)
-          (do
-            (prn "Failed to set gl context as current.")
-            nil)
-          context)))))
+(defn- make-drawable ^GLOffscreenAutoDrawable [w h]
+  (let [profile (GLProfile/getDefault)
+        factory (GLDrawableFactory/getFactory profile)
+        caps    (doto (GLCapabilities. profile)
+                  (.setOnscreen false)
+                  (.setPBuffer true)
+                  (.setDoubleBuffered false))]
+    ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
+
+(defn- make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
+  (let [context ^GLContext (make-current drawable)
+        gl ^GL2 (.getGL context)
+        [w h] (vp-dims viewport)
+        copier (AsyncCopier. gl executor image-view w h)]
+    (.release context)
+    copier))
 
 (defn render-nodes
   ([^GL2 gl render-args renderables count]
@@ -186,7 +184,7 @@
                      :message "skipping renderable"))
         (finally
           (when gl-name
-          (.glPopName gl)))))))
+            (.glPopName gl)))))))
 
 (defn batch-render [gl render-args renderables gl-names? key-fn]
   (loop [renderables renderables
@@ -217,7 +215,7 @@
 (defn- render-sort [renderables camera viewport]
   (sort-by :render-key renderables))
 
-(defn- generic-render-args [glu viewport camera]
+(defn- generic-render-args [viewport camera]
   (let [view (c/camera-view-matrix camera)
         proj (c/camera-projection-matrix camera)
         view-proj (doto (Matrix4d. proj) (.mul view))
@@ -225,23 +223,22 @@
         world-view (doto (Matrix4d. view) (.mul world))
         texture (doto (Matrix4d.) (.setIdentity))
         normal (doto (math/affine-inverse world-view) (.transpose))]
-    {:glu glu :camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
+    {:camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
      :world-view world-view :texture texture :normal normal}))
 
 (defn- render! [^Region viewport ^GLAutoDrawable drawable camera renderables ^GLContext context ^GL2 gl]
-  (let [glu ^GLU (GLU.)
-        render-args (generic-render-args glu viewport camera)]
+  (let [render-args (generic-render-args viewport camera)]
     (.glClearColor gl 0.0 0.0 0.0 1.0)
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
     (doseq [pass pass/render-passes
             :let [render-args (assoc render-args :pass pass)]]
-      (setup-pass context gl glu pass camera viewport)
+      (setup-pass context gl pass camera viewport)
       (batch-render gl render-args (get renderables pass) false :batch-key))))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera all-renderables]
-  (when-let [^GLContext context (make-current viewport drawable)]
+  (when-let [^GLContext context (make-current drawable)]
     (let [gl ^GL2 (.getGL context)]
       (render! viewport drawable camera all-renderables context gl)
       (let [[w h] (vp-dims viewport)
@@ -295,18 +292,17 @@
         (persistent! selected)))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
-  (if-let [^GLContext context (and picking-rect (make-current viewport drawable))]
+  (if-let [^GLContext context (and picking-rect (make-current drawable))]
     (try
       (let [gl ^GL2 (.getGL context)
-            glu ^GLU (GLU.)
-            render-args (generic-render-args glu viewport camera)
+            render-args (generic-render-args viewport camera)
             selection-set (set selection)]
         (flatten
           (for [pass pass/selection-passes
                 :let [render-args (assoc render-args :pass pass)]]
             (do
               (begin-select gl select-buffer)
-              (setup-pass context gl glu pass camera viewport picking-rect)
+              (setup-pass context gl pass camera viewport picking-rect)
               (let [renderables (get renderables pass)
                     batches (batch-render gl render-args renderables true :select-batch-key)]
                 (render-sort (end-select gl select-buffer renderables batches) camera viewport))))))
@@ -315,11 +311,10 @@
     []))
 
 (g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
-  (if-let [^GLContext context (and tool-picking-rect (make-current viewport drawable))]
+  (if-let [^GLContext context (and tool-picking-rect (make-current drawable))]
     (try
       (let [gl ^GL2 (.getGL context)
-            glu ^GLU (GLU.)
-            render-args (generic-render-args glu viewport camera)
+            render-args (generic-render-args viewport camera)
             tool-renderables (apply merge-with into tool-renderables)
             passes [pass/manipulator-selection pass/overlay-selection]]
         (flatten
@@ -327,7 +322,7 @@
                 :let [render-args (assoc render-args :pass pass)]]
             (do
               (begin-select gl select-buffer)
-              (setup-pass context gl glu pass camera viewport tool-picking-rect)
+              (setup-pass context gl pass camera viewport tool-picking-rect)
               (let [renderables (get tool-renderables pass)
                     batches (batch-render gl render-args renderables true :select-batch-key)]
                 (render-sort (end-select gl select-buffer renderables batches) camera viewport))))))
@@ -375,9 +370,8 @@
                       :selected-renderables out-selected-renderables})))
 
 (g/defnode SceneRenderer
-  (property name g/Keyword (default :renderer))
-  (property gl-drawable GLAutoDrawable)
-
+  (input drawable GLAutoDrawable)
+  (input async-copier AsyncCopier)
   (input scene g/Any)
   (input selection g/Any)
   (input viewport Region)
@@ -395,7 +389,6 @@
   (output select-buffer IntBuffer :cached (g/always (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                         (.order (ByteOrder/nativeOrder))
                                                         (.asIntBuffer))))
-  (output drawable  GLAutoDrawable :cached produce-drawable)
   (output frame BufferedImage :cached produce-frame)
   (output async-frame g/Keyword :cached produce-async-frame)
   (output picking-selection g/Any :cached produce-selection)
@@ -407,15 +400,7 @@
   (output updatables g/Any :cached (g/fnk [renderables]
                                           (let [flat-renderables (apply concat (map second renderables))]
                                             (into {} (map (fn [r] [(:node-id r) r]) (filter :updatable flat-renderables))))))
-  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
-  (output async-copier AsyncCopier :cached (g/fnk [^GLAutoDrawable drawable viewport image-view]
-                                                  (when (and drawable (vp-not-empty? viewport) image-view)
-                                                    (let [context ^GLContext (make-current viewport drawable)
-                                                          gl ^GL2 (.getGL context)
-                                                          [w h] (vp-dims viewport)
-                                                          copier (AsyncCopier. gl executor image-view w h)]
-                                                      (.release context)
-                                                      copier)))))
+  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action [node-id label]]
@@ -431,6 +416,8 @@
   (property picking-rect Rect)
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
+  (property drawable GLAutoDrawable)
+  (property async-copier AsyncCopier)
 
   (input frame BufferedImage)
   (input scene g/Any :substitute substitute-scene)
@@ -455,14 +442,14 @@
 
 (defn scene-view-dispose [node-id]
   (when-let [scene (g/node-by-id node-id)]
-    (when-let [^GLAutoDrawable drawable (g/node-value node-id :gl-drawable)]
+    (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
       (let [gl (.getGL drawable)]
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
           (.dispose copier gl)
           (g/set-property! node-id :async-copier nil))
       (scene-cache/drop-context! gl false)
       (.destroy drawable)
-      (g/set-property! node-id :gl-drawable nil)))))
+      (g/set-property! node-id :drawable nil)))))
 
 (def ^Integer min-pick-size 10)
 
@@ -495,24 +482,6 @@
            :screen-pos screen-pos
            :world-pos world-pos
            :world-dir world-dir)))
-
-(defn- flip-y [^Node node height]
-  (let [l (.getTransforms node)]
-    (.clear l)
-    (.add l (javafx.scene.transform.Rotate. 180 0 (/ height 2) 0 (javafx.geometry.Point3D. 1 0 0)))))
-
-(when *fps-debug*
-  (def fps-counter (agent (long-array 3 0)))
-
-  (defn tick [^longs fps-counts now]
-    (let [last-report-time (aget fps-counts 1)
-          frame-count (inc (aget fps-counts 0))]
-      (aset-long fps-counts 0 frame-count)
-      (when (> now (+ last-report-time 1000000000))
-        (do (println "FPS" frame-count))
-        (aset-long fps-counts 1 now)
-        (aset-long fps-counts 0 0)))
-    fps-counts))
 
 (defn- active-scene-view [app-view]
   (let [view (g/node-value app-view :active-view)]
@@ -585,72 +554,91 @@
                               :acc "Shortcut+T"
                               :command :scene-stop}]}])
 
-(defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [image-view (ImageView.)]
-    (.add (.getChildren ^Pane parent) image-view)
-    (let [view-id (g/make-node! scene-graph SceneView :image-view image-view)
-          tool-user-data (atom [])
-          event-handler   (ui/event-handler
-                            e
-                            (let [action (augment-action view-id (i/action-from-jfx e))
-                                  x (:x action)
-                                  y (:y action)
-                                  pos [x y 0.0]
-                                  picking-rect (calc-picking-rect pos pos)]
-                              ; Only look for tool selection when the mouse is moving with no button pressed
-                              (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                (reset! tool-user-data (g/node-value view-id :selected-tool-renderables)))
-                              (g/transact (g/set-property view-id :picking-rect picking-rect))
-                              (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data)))
-          change-listener (ui/change-listener
-                            observable old-val new-val
-                            (Platform/runLater
-                              (fn []
-                                (let [bb ^BoundingBox (.getBoundsInParent (.getParent parent))
-                                      w (- (.getMaxX bb) (.getMinX bb))
-                                      h (- (.getMaxY bb) (.getMinY bb))]
-                                  (flip-y (g/node-value view-id :image-view) h)
-                                  (g/transact (g/set-property view-id :viewport (types/->Region 0 w 0 h)))))))]
-      (.setOnMousePressed parent event-handler)
-      (.setOnMouseReleased parent event-handler)
-      (.setOnMouseClicked parent event-handler)
-      (.setOnMouseMoved parent event-handler)
-      (.setOnMouseDragged parent event-handler)
-      (.setOnScroll parent event-handler)
-      (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
+(defn- update-image-view! [^ImageView image-view dt]
+  (let [view-id (ui/user-data image-view ::view-id)
+        view-graph (g/node-id->graph-id view-id)
+        renderer (g/graph-value view-graph :renderer)]
+    (profiler/profile "updatables" -1
+                      ; Fixed dt for deterministic playback
+                      (let [dt 1/60
+                            updatables (g/node-value view-id :active-updatables)
+                            context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
+                        (doseq [updatable updatables
+                                :let [node-path (:node-path updatable)
+                                      context (assoc context
+                                                     :world-transform (:world-transform updatable))]]
+                          ((get-in updatable [:updatable :update-fn]) context))
+                        (when (not (empty? updatables))
+                          (g/invalidate! [[renderer :async-frame]]))))
+    (scene-cache/prune-object-caches! nil)
+    (try
+      (g/node-value renderer :async-frame)
+      (catch Exception e
+        (.setImage image-view nil)
+        (throw e)))))
 
-      (let [fps-counter   (when *fps-debug* (agent (long-array 3 0)))
-            ^Tab tab      (:tab opts)
-            repainter     (ui/->timer
-                            (fn [dt]
-                              (when (.isSelected tab)
-                                (when *fps-debug* (send-off fps-counter tick dt))
-                                (let [view-graph (g/node-id->graph-id view-id)
-                                      renderer (g/graph-value view-graph :renderer)]
-                                  (profiler/profile "updatabales" -1
-                                                    ; Fixed dt for deterministic playback
-                                                    (let [dt 1/60
-                                                          updatables (g/node-value view-id :active-updatables)
-                                                          context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
-                                                      (doseq [updatable updatables
-                                                              :let [node-path (:node-path updatable)
-                                                                    context (assoc context
-                                                                                   :world-transform (:world-transform updatable))]]
-                                                        ((get-in updatable [:updatable :update-fn]) context))
-                                                      (when (not (empty? updatables))
-                                                        (g/invalidate! [[renderer :async-frame]]))))
-                                  (scene-cache/prune-object-caches! nil)
-                                  (try
-                                    (g/node-value renderer :async-frame)
-                                    (catch Exception e
-                                      (.setImage image-view nil)
-                                      (throw e)))))))]
-        (ui/on-close tab
-                     (fn [e]
-                       (ui/timer-stop! repainter)
-                       (scene-view-dispose view-id)
-                       (scene-cache/drop-context! nil true)))
-        (ui/timer-start! repainter))
+(defn- register-event-handler! [^Parent parent view-id]
+  (let [tool-user-data (atom [])
+        event-handler   (ui/event-handler
+                          e
+                          (let [action (augment-action view-id (i/action-from-jfx e))
+                                x (:x action)
+                                y (:y action)
+                                pos [x y 0.0]
+                                picking-rect (calc-picking-rect pos pos)]
+                            ; Only look for tool selection when the mouse is moving with no button pressed
+                            (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
+                              (reset! tool-user-data (g/node-value view-id :selected-tool-renderables)))
+                            (g/transact (g/set-property view-id :picking-rect picking-rect))
+                            (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data)))] (.setOnMousePressed parent event-handler)
+    (.setOnMouseReleased parent event-handler)
+    (.setOnMouseClicked parent event-handler)
+    (.setOnMouseMoved parent event-handler)
+    (.setOnMouseDragged parent event-handler)
+    (.setOnScroll parent event-handler)))
+
+(defn- make-scene-view [scene-graph ^Parent parent opts]
+  (let [image-view (doto (ImageView.)
+                     ;; Conform image view Y-axis to GL rendering
+                     (.setScaleY -1.0))]
+    (.add (.getChildren ^Pane parent) image-view)
+    (let [view-id (g/make-node! scene-graph SceneView :image-view image-view)]
+      (let [l (ui/change-listener
+                observable old-val new-val
+                (let [bb ^BoundingBox new-val
+                      w (.getWidth bb)
+                      h (.getHeight bb)]
+                  (when (and (> w 0) (> h 0))
+                    (let [viewport (types/->Region 0 w 0 h)]
+                      (g/transact (g/set-property view-id :viewport viewport))
+                      (if-let [view-id (ui/user-data image-view ::view-id)]
+                        (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                          (doto drawable
+                            (.setSize w h))
+                          (let [context (make-current drawable)]
+                            (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                              (.setSize ^GL2 (.getGL context) w h))
+                            (.release context)))
+                        (do
+                          (register-event-handler! parent view-id)
+                          (ui/user-data! image-view ::view-id view-id)
+                          (let [^Tab tab      (:tab opts)
+                                repainter     (ui/->timer
+                                                (fn [dt]
+                                                  (when (.isSelected tab)
+                                                    (update-image-view! image-view dt))))]
+                            (ui/on-close tab
+                                         (fn [e]
+                                           (ui/timer-stop! repainter)
+                                           (scene-view-dispose view-id)
+                                           (scene-cache/drop-context! nil true)))
+                            (ui/timer-start! repainter))
+                          (let [drawable (make-drawable w h)]
+                            (g/transact
+                              (concat
+                                (g/set-property view-id :drawable drawable)
+                                (g/set-property view-id :async-copier (make-copier image-view drawable viewport)))))))))))]
+        (.addListener (.boundsInParentProperty (.getParent parent)) l))
       view-id)))
 
 (g/defnode PreviewView
@@ -660,6 +648,8 @@
   (property height g/Num)
   (property picking-rect Rect)
   (property image-view ImageView)
+  (property drawable GLAutoDrawable)
+  (property async-copier AsyncCopier)
 
   (input selection g/Any)
   (input selected-tool-renderables g/Any)
@@ -681,7 +671,7 @@
   (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect)))
 
 (defn make-preview-view [graph width height]
-  (g/make-node! graph PreviewView :width width :height height))
+  (g/make-node! graph PreviewView :width width :height height :drawable (make-drawable width height)))
 
 (defn- make-controllers [args]
   (for [[_ controller] @*controllers*
@@ -713,6 +703,8 @@
                   (g/connect view-id              :viewport                  renderer         :viewport)
                   (g/connect view-id              :scene                     renderer         :scene)
                   (g/connect view-id              :image-view                renderer         :image-view)
+                  (g/connect view-id              :drawable                  renderer         :drawable)
+                  (g/connect view-id              :async-copier              renderer         :async-copier)
 
                   (g/connect project              :selected-node-ids         view-id          :selection)
                   (g/connect view-id              :selection                 renderer         :selection)
