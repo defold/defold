@@ -24,6 +24,7 @@ struct Facebook
     NSDictionary* m_Me;
     int m_Callback;
     int m_Self;
+    int m_DisableFaceBookEvents;
     lua_State* m_MainThread;
     id<UIApplicationDelegate,
        FBSDKSharingDelegate,
@@ -62,7 +63,10 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
-        [FBSDKAppEvents activateApp];
+        if(!g_Facebook.m_DisableFaceBookEvents)
+        {
+            [FBSDKAppEvents activateApp];
+        }
     }
 
     - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -979,6 +983,7 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
     // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
     // Better solution?
+    g_Facebook.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
     const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
     [FBSDKSettings setAppID: [NSString stringWithUTF8String: app_id]];
 
