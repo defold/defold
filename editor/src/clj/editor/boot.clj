@@ -87,7 +87,7 @@
 (def the-root (atom nil))
 
 (defn load-stage [workspace project prefs]
-  (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
+  (let [^VBox root (ui/load-fxml "editor.fxml")
         stage (Stage.)
         scene (Scene. root)]
     (ui/observe (.focusedProperty stage) (fn [property old-val new-val]
@@ -206,7 +206,7 @@
 
 
 (defn open-welcome [prefs]
-  (let [^VBox root (FXMLLoader/load (io/resource "welcome.fxml"))
+  (let [^VBox root (ui/load-fxml "welcome.fxml")
         stage (Stage.)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
