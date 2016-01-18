@@ -125,7 +125,9 @@
           (.setSelectionMode SelectionMode/MULTIPLE)))
 
     (ui/cell-factory! (:resources controls) (fn [r] {:text (resource/resource-name r)
-                                                     :icon (workspace/resource-icon r)}))
+                                                    :icon (workspace/resource-icon r)
+                                                    :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
+                                                               (tooltip-gen r))}))
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
     (ui/on-double! (:resources controls) (fn [_] (close)))
