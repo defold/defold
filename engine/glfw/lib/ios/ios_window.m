@@ -297,6 +297,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     int countDown;
     int swapInterval;
     UIKeyboardType keyboardType;
+    BOOL secureTextEntry;
     id <UITextInputDelegate> inputDelegate;
     NSMutableString *markedText;
 }
@@ -456,6 +457,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     return UITextWritingDirectionRightToLeft;
 }
 
+- (UITextAutocorrectionType) autocorrectionType {
+    return UITextAutocorrectionTypeNo;
+}
+
+- (UITextSpellCheckingType) spellCheckingType {
+    return UITextSpellCheckingTypeNo;
+}
+
 
 //========================================================================
 // UITextInput protocol methods stubs
@@ -465,6 +474,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 // implemented just to satisfy the protocol but are not used.
 //========================================================================
 
+- (void)setSelectedTextRange:(UITextRange *)range {}
 - (UITextPosition *) endOfDocument { return nil; }
 - (UITextPosition *) beginningOfDocument { return nil; }
 
@@ -765,6 +775,16 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void) setKeyboardType: (UIKeyboardType) type
 {
     keyboardType = type;
+}
+
+- (BOOL) secureTextEntry
+{
+    return secureTextEntry;
+}
+
+- (void) setSecureTextEntry: (BOOL) secureEntry
+{
+    secureTextEntry = secureEntry;
 }
 
 - (UIReturnKeyType) returnKeyType
@@ -1528,6 +1548,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 void _glfwShowKeyboard( int show, int type, int auto_close )
 {
     EAGLView* view = (EAGLView*) _glfwWin.view;
+    view.secureTextEntry = NO;
     switch (type) {
         case GLFW_KEYBOARD_DEFAULT:
             view.keyboardType = UIKeyboardTypeDefault;
@@ -1537,6 +1558,10 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
             break;
         case GLFW_KEYBOARD_EMAIL:
             view.keyboardType = UIKeyboardTypeEmailAddress;
+            break;
+        case GLFW_KEYBOARD_PASSWORD:
+            view.secureTextEntry = YES;
+            view.keyboardType = UIKeyboardTypeDefault;
             break;
         default:
             view.keyboardType = UIKeyboardTypeDefault;
