@@ -341,8 +341,8 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
 
     if (show) {
-        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "showSoftInput", "()V");
-        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, show_soft_input_method);
+        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "showSoftInput", "(I)V");
+        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, show_soft_input_method, type);
     } else {
         jmethodID hide_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "hideSoftInput", "()V");
         (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, hide_soft_input_method);
