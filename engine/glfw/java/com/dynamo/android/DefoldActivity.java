@@ -38,6 +38,18 @@ public class DefoldActivity extends NativeActivity {
         public int getValue() { return this.value; };
     }
 
+
+    // Must match values from glfw.h
+    public enum GLFWKeyboardType {
+        GLFW_KEYBOARD_DEFAULT    (0),
+        GLFW_KEYBOARD_NUMBER_PAD (1),
+        GLFW_KEYBOARD_EMAIL      (2),
+        GLFW_KEYBOARD_PASSWORD   (3);
+        private final int value;
+        private GLFWKeyboardType(int value) { this.value = value; };
+        public int getValue() { return this.value; };
+    }
+
     private InputMethodManager imm = null;
     private EditText mTextEdit = null;
     private boolean mUseHiddenInputField = false;
@@ -263,7 +275,7 @@ public class DefoldActivity extends NativeActivity {
     /** show virtual keyboard
      * Implemented here to ensure that calls from native code are delayed and run on the UI thread.
      */
-    public void showSoftInput() {
+    public void showSoftInput(final int keyboardType) {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
             @Override
@@ -278,13 +290,25 @@ public class DefoldActivity extends NativeActivity {
 
                 if (mUseHiddenInputField) {
 
+                    // Convert GLFW input enum into EditText enum
+                    final int input_type;
+                    if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_PASSWORD.getValue()) {
+                        input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                    } else if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_EMAIL.getValue()) {
+                        input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                    } else if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_NUMBER_PAD.getValue()) {
+                        input_type = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_NORMAL;
+                    } else {
+                        input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                    }
+
                     mTextEdit = new EditText(self) {
                         @Override
                         public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
 
                             // We set manual input connection to catch all keyboard interaction
                             InputConnection inpc = super.onCreateInputConnection(outAttrs);
-                            outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                            outAttrs.inputType = input_type;
                             return new DefoldInputWrapper(self, inpc, true);
 
                         }
@@ -306,7 +330,7 @@ public class DefoldActivity extends NativeActivity {
                     mEditTextLayoutParams.setMargins(0, 0, 0, 0);
                     mTextEdit.setLayoutParams(mEditTextLayoutParams);
                     mTextEdit.setVisibility(View.VISIBLE);
-                    mTextEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                    mTextEdit.setInputType(input_type);
 
                     // Start on an empty slate each time we bring up the keyboard
                     mTextEdit.setText("");
