@@ -125,7 +125,7 @@
                       (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))
 
 (defn make-about-dialog []
-  (let [root ^Parent (FXMLLoader/load (io/resource "about.fxml"))
+  (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1"])]
@@ -138,6 +138,10 @@
 (handler/defhandler :about :global
   (enabled? [] true)
   (run [] (make-about-dialog)))
+
+(handler/defhandler :reload-stylesheet :global
+  (enabled? [] true)
+  (run [] (ui/reload-root-styles!)))
 
 (ui/extend-menu ::menubar nil
                 [{:label "File"
@@ -191,7 +195,10 @@
                              ]}
                  {:label "Help"
                   :children [{:label "About"
-                              :command :about}]}])
+                              :command :about}
+                             {:label "Reload Stylesheet"
+                              :acc "F5"
+                              :command :reload-stylesheet}]}])
 
 (defrecord DummySelectionProvider []
   workspace/SelectionProvider

@@ -115,7 +115,7 @@
     (.setVisibleAmount scroll (/ (* m w) total-width))))
 
 (defn make-diff-viewer [left-name str-left right-name str-right]
-  (let [root ^Parent (FXMLLoader/load (io/resource "diff.fxml"))
+  (let [root ^Parent (ui/load-fxml "diff.fxml")
         stage (Stage.)
         scene (Scene. root)
         lines-left (split-lines str-left)
