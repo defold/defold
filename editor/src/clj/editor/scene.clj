@@ -626,10 +626,10 @@
         (.addListener (.boundsInParentProperty (.getParent parent)) l))
       view-id)))
 
-(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera all-renderables]
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables]
   (when-let [^GLContext context (make-current drawable)]
     (let [gl ^GL2 (.getGL context)]
-      (render! viewport drawable camera all-renderables context gl)
+      (render! viewport drawable camera renderables context gl)
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
         (scene-cache/prune-object-caches! gl)
