@@ -216,7 +216,7 @@ namespace dmHID
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
         }
-        glfwShowKeyboard(1, type, (int) autoclose);
+        glfwShowKeyboard(1, t, (int) autoclose);
     }
 
     void HideKeyboard(HContext context)

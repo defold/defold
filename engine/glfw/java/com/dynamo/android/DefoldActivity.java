@@ -321,7 +321,7 @@ public class DefoldActivity extends NativeActivity {
 
 
                     // Disable the fullscreen keyboard mode (present in landscape)
-                    // If we don't do this, we get a large grey inpt box above the keyboard
+                    // If we don't do this, we get a large grey input box above the keyboard
                     // blocking the game view.
                     mTextEdit.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
 
