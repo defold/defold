@@ -292,8 +292,17 @@
                                           (let [flat-renderables (apply concat (map second renderables))]
                                             (into {} (map (fn [r] [(:node-id r) r]) (filter :updatable flat-renderables)))))))
 
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier]
+(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier active-updatables play-mode]
   (when async-copier
+    (profiler/profile "updatables" -1
+                      ; Fixed dt for deterministic playback
+                      (let [dt 1/60
+                            context {:dt (if (= play-mode :playing) dt 0)}]
+                        (doseq [updatable active-updatables
+                                :let [node-path (:node-path updatable)
+                                      context (assoc context
+                                                     :world-transform (:world-transform updatable))]]
+                          ((get-in updatable [:updatable :update-fn]) context))))
     (when-let [^GLContext context (.getContext drawable)]
       (let [gl ^GL2 (.getGL context)]
         (.beginFrame async-copier gl)
@@ -533,20 +542,12 @@
                               :command :scene-stop}]}])
 
 (defn- update-image-view! [^ImageView image-view dt]
+  (profiler/begin-frame)
   (let [view-id (ui/user-data image-view ::view-id)
         view-graph (g/node-id->graph-id view-id)]
-    (profiler/profile "updatables" -1
-                      ; Fixed dt for deterministic playback
-                      (let [dt 1/60
-                            updatables (g/node-value view-id :active-updatables)
-                            context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
-                        (doseq [updatable updatables
-                                :let [node-path (:node-path updatable)
-                                      context (assoc context
-                                                     :world-transform (:world-transform updatable))]]
-                          ((get-in updatable [:updatable :update-fn]) context))
-                        (when (not (empty? updatables))
-                          (g/invalidate! [[view-id :async-frame]]))))
+    ;; Explicitly invalidate frame while there are active updatables
+    (when (not (empty? (g/node-value view-id :active-updatables)))
+      (g/invalidate! [[view-id :async-frame]]))
     (scene-cache/prune-object-caches! nil)
     (try
       (g/node-value view-id :async-frame)

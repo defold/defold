@@ -3,7 +3,11 @@
 
 (defmacro profile
   [name user expr]
-  `(let [s# (Profiler/begin ~name ~user)
-         ret# ~expr]
-     (Profiler/add s#)
-     ret#))
+  `(let [s# (Profiler/begin ~name ~user)]
+     (try
+       ~expr
+       (finally
+         (Profiler/end s#)))))
+
+(defn begin-frame []
+  (Profiler/beginFrame))
