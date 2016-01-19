@@ -460,16 +460,3 @@
   (enabled? [selection] (move-enabled? selection))
   (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-down)))
- 
-(ui/extend-menu ::menubar :editor.app-view/edit
-                [{:label "Atlas"
-                  :id ::atlas
-                  :children [{:label "Move Up"
-                              :acc "Alt+UP"
-                              :command :move-up
-                              }
-                             {:label "Move Down"
-                              :acc "Alt+DOWN"
-                              :command :move-down
-                              }
-                             ]}])

@@ -192,7 +192,13 @@
                               :acc "Shortcut+BACKSPACE"
                               :icon_ "icons/redo.png"
                               :command :delete}
-                             ]}
+                             {:label :separator}
+                             {:label "Move Up"
+                              :acc "Alt+UP"
+                              :command :move-up}
+                             {:label "Move Down"
+                              :acc "Alt+DOWN"
+                              :command :move-down}]}
                  {:label "Help"
                   :children [{:label "About"
                               :command :about}
