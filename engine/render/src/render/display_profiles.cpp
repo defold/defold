@@ -103,6 +103,11 @@ namespace dmRender
         return profile_count;
     }
 
+    static int IsPortrait(uint32_t width, uint32_t height)
+    {
+        return width > height ? 0 : 1;
+    }
+
     dmhash_t GetOptimalDisplayProfile(HDisplayProfiles profiles, uint32_t width, uint32_t height, uint32_t dpi, const dmArray<dmhash_t>* id_choices)
     {
         float width_f = (float) width;
@@ -110,12 +115,13 @@ namespace dmRender
         float match_area = width_f * height_f;
         float match_ratio = width_f / height_f;
         float match_dpi = (float)dpi;
-        float match_distance = 3.0;
-        dmhash_t match_id = 0;
+        float match_distance[2] = { FLT_MAX, FLT_MAX };
+        dmhash_t match_id[2] = { 0, 0 };
 
         for(uint32_t i = 0; i < profiles->m_Profiles.Size(); ++i)
         {
             DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
+
             uint32_t ci;
             if(id_choices)
             {
@@ -131,17 +137,26 @@ namespace dmRender
             for(uint32_t q = 0; q < profile.m_QualifierCount; ++q)
             {
                 DisplayProfiles::Qualifier& qualifier = profile.m_Qualifiers[q];
+
+                int category = IsPortrait(qualifier.m_Width, qualifier.m_Height);
                 float area = qualifier.m_Width * qualifier.m_Height;
                 float ratio = qualifier.m_Width / qualifier.m_Height;
                 float distance = dmMath::Abs(1.0f - (match_area / area)) + dmMath::Abs(1.0f - (match_ratio / ratio)) + (dpi == 0 ? 0.0f : dmMath::Abs(1.0f - (qualifier.m_Dpi / match_dpi)));
-                if(distance < match_distance) {
-                    match_distance = distance;
-                    match_id = profile.m_Id;
+
+                if(distance < match_distance[category])
+                {
+                    match_distance[category] = distance;
+                    match_id[category] = profile.m_Id;
                 }
             }
         }
 
-        return match_id;
+        // If there doesn't exist one of the correct category, we must choose one from the other category
+        int wantedcategory = IsPortrait(width, height);
+        dmhash_t id = match_id[wantedcategory];
+        if( id == 0 )
+            id = match_id[ (wantedcategory+1) & 0x01 ];
+        return id;
     }
 
     Result GetDisplayProfileDesc(HDisplayProfiles profiles, dmhash_t id, DisplayProfileDesc& desc_out)
