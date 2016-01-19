@@ -16,7 +16,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.outline :as outline]
             [editor.geom :as geom]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
             [editor.validation :as validation]

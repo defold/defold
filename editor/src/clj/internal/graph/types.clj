@@ -1,5 +1,5 @@
 (ns internal.graph.types
-  (:require [dynamo.util :as util]
+  (:require [internal.util :as util]
             [internal.graph.error-values :as ie]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]))
