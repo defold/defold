@@ -51,6 +51,12 @@ int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
 int g_SpecialKeyActive = -1;
 
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeBackspace(JNIEnv* env, jobject obj)
+{
+    g_SpecialKeyActive = 10;
+    _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+}
+
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNative(JNIEnv* env, jobject obj, jint unicode)
 {
     struct Command cmd;
@@ -59,6 +65,25 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNativ
     if (write(_glfwWin.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         LOGF("Failed to write command");
     }
+}
+
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextNative(JNIEnv* env, jobject obj, jstring text)
+{
+    const jsize len = (*env)->GetStringUTFLength(env, text);
+    const char* text_chrs = (*env)->GetStringUTFChars(env, text, (jboolean *)0);
+
+    char* cmd_text = (char*)malloc(len * sizeof(char) + 1);
+    memcpy(cmd_text, text_chrs, (int)len*sizeof(char) );
+    cmd_text[len] = '\0';
+
+    struct Command cmd;
+    cmd.m_Command = CMD_INPUT_MARKED_TEXT;
+    cmd.m_Data = (void*)cmd_text;
+    if (write(_glfwWin.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
+        LOGF("Failed to write command");
+    }
+
+    (*env)->ReleaseStringUTFChars(env, text, text_chrs);
 }
 
 int _glfwPlatformOpenWindow( int width__, int height__,
@@ -316,8 +341,8 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
 
     if (show) {
-        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "showSoftInput", "()V");
-        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, show_soft_input_method);
+        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "showSoftInput", "(I)V");
+        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, show_soft_input_method, type);
     } else {
         jmethodID hide_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "hideSoftInput", "()V");
         (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, hide_soft_input_method);
@@ -328,4 +353,53 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 
 void _glfwResetKeyboard( void )
 {
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID reset_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "resetSoftInput", "()V");
+    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, reset_soft_input_method);
+
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+}
+
+
+void _glfwAndroidSetInputMethod(int use_hidden_input)
+{
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID reset_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setUseHiddenInputField", "(Z)V");
+    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, reset_soft_input_method, use_hidden_input);
+
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }

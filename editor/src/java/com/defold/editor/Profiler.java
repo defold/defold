@@ -13,6 +13,7 @@ public class Profiler {
 
     static int keep = 1000;
     static LinkedList<Sample> samples = new LinkedList<>();
+    static Sample frameSample = null;
     static AtomicInteger frameNumber = new AtomicInteger(0);
 
     private static final ThreadLocal<String> threadName =
@@ -54,6 +55,10 @@ public class Profiler {
 
     public static void beginFrame() {
         frameNumber.incrementAndGet();
+        if (frameSample != null) {
+            end(frameSample);
+        }
+        frameSample = begin("frame", -1);
     }
 
     public static Sample begin(String name, Object user) {
@@ -61,7 +66,7 @@ public class Profiler {
         return new Sample(name, t, t, user);
     }
 
-    public synchronized static void add(Sample s) {
+    public synchronized static void end(Sample s) {
         s.end = System.nanoTime() / 1000000.0;
         samples.add(s);
         while (samples.size() > keep) {
