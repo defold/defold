@@ -126,7 +126,7 @@
                       (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))
 
 (defn make-about-dialog []
-  (let [root ^Parent (FXMLLoader/load (io/resource "about.fxml"))
+  (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1"])]
@@ -143,6 +143,10 @@
 (handler/defhandler :profile :global
   (enabled? [] true)
   (run [] (Profiler/dump "misc/timeseries.csv")))
+
+(handler/defhandler :reload-stylesheet :global
+  (enabled? [] true)
+  (run [] (ui/reload-root-styles!)))
 
 (ui/extend-menu ::menubar nil
                 [{:label "File"
@@ -198,6 +202,9 @@
                   :children [{:label "Profile"
                               :command :profile
                               :acc "Shift+Shortcut+P"}
+                             {:label "Reload Stylesheet"
+                              :acc "F5"
+                              :command :reload-stylesheet}
                              {:label "About"
                               :command :about}]}])
 

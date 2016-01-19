@@ -2770,6 +2770,12 @@ namespace dmGui
      * @variable
      */
 
+    /*# password keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_PASSWORD
+     * @variable
+     */
+
     /*# display on-display keyboard if available
      *
      * The specified type of keyboard is displayed, if it is available on
@@ -2781,6 +2787,7 @@ namespace dmGui
      *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
      *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
      *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_PASSWORD</code></li>
      * </ul>
      * @param autoclose close keyboard automatically when clicking outside
      */
@@ -3400,6 +3407,7 @@ namespace dmGui
         SETKEYBOARD(DEFAULT)
         SETKEYBOARD(NUMBER_PAD)
         SETKEYBOARD(EMAIL)
+        SETKEYBOARD(PASSWORD)
 
 #undef SETKEYBOARD
 
