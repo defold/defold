@@ -14,7 +14,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.properties :as properties]

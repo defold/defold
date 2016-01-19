@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer :all]
-            [dynamo.util :refer :all]))
+            [internal.util :refer :all]))
 
 (g/defnode MainNode
   (property a-property g/Str)
