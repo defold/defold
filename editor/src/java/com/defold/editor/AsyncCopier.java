@@ -34,7 +34,6 @@ public class AsyncCopier {
     private BlockingQueue<WritableImage> freeImages = new ArrayBlockingQueue<>(N_BUFFERS);
     private ArrayList<WritableImage> readyImages = new ArrayList<>();
     private Task<Void> task;
-    private Sample frame;
 
     private static class Buffer {
         int pbo;
@@ -82,7 +81,7 @@ public class AsyncCopier {
                 }
 
                 imageView.setImage(readyImages.remove(readyImages.size() - 1));
-                Profiler.add(setImage);
+                Profiler.end(setImage);
             }
 
             for (WritableImage image : readyImages) {
@@ -97,21 +96,14 @@ public class AsyncCopier {
     }
 
     public void beginFrame(GL2 gl)  {
-        Profiler.beginFrame();
         Sample begin = Profiler.begin("begin", -1);
-        if (frame != null) {
-            Profiler.add(frame);
-        }
-        frame = Profiler.begin("frame", -1);
-
-        displayImage();
 
         if (task != null) {
             try {
                 Sample wait = Profiler.begin("wait", -1);
                 task.get();
                 task = null;
-                Profiler.add(wait);
+                Profiler.end(wait);
             } catch (ExecutionException e) {
                 throw new RuntimeException(e);
             } catch (InterruptedException e) {
@@ -120,7 +112,7 @@ public class AsyncCopier {
         }
 
         gl.getContext().makeCurrent();
-        Profiler.add(begin);
+        Profiler.end(begin);
     }
 
     public void endFrame(GL2 gl) {
@@ -132,7 +124,7 @@ public class AsyncCopier {
         int type = GL2.GL_UNSIGNED_INT_8_8_8_8_REV;
         Sample readPixels = Profiler.begin("readPixels", readTo.pbo);
         gl.glReadPixels(0, 0, width, height, GL2.GL_BGRA, type, 0);
-        Profiler.add(readPixels);
+        Profiler.end(readPixels);
 
         gl.getContext().release();
 
@@ -150,7 +142,7 @@ public class AsyncCopier {
                     gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
                     Sample mapBuffer = Profiler.begin("mapBuffer", readTo.pbo);
                     ByteBuffer buffer = gl.glMapBuffer(GL2.GL_PIXEL_PACK_BUFFER, GL2.GL_READ_ONLY);
-                    Profiler.add(mapBuffer);
+                    Profiler.end(mapBuffer);
 
                     PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
                     Sample setPixels = Profiler.begin("setPixels", readTo.pbo);
@@ -165,7 +157,7 @@ public class AsyncCopier {
                         System.out.println("no image available");
                     }
 
-                    Profiler.add(setPixels);
+                    Profiler.end(setPixels);
 
                     gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
                     gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
@@ -194,7 +186,7 @@ public class AsyncCopier {
             }
         };
         threadPool.submit(task);
-        Profiler.add(end);
+        Profiler.end(end);
     }
 
     public void setSize(GL2 gl, int width, int height) {
