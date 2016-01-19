@@ -1,7 +1,6 @@
 (ns editor.scene
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
-            [dynamo.util :as util]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
@@ -18,7 +17,7 @@
             [editor.ui :as ui]
             [editor.handler :as handler]
             [editor.workspace :as workspace]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.ui :as ui]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -482,7 +481,7 @@
 
 (defn- active-scene-view [app-view]
   (let [view (g/node-value app-view :active-view)]
-    (when (and view (= (g/node-type* view) SceneView))
+    (when (and view (g/node-instance? SceneView view))
       view)))
 
 (defn- play-handler [view-id]

@@ -18,7 +18,7 @@
             [editor.properties :as properties]
             [editor.material :as material]
             [editor.validation :as validation]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [editor.gl.shader ShaderLifecycle]
