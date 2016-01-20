@@ -93,7 +93,7 @@
   {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}
   {:label "Mouse Type" :type :choicebox :key "scene-mouse-type" :default :one-button :options [[:one-button "One Button"] [:three "Three Buttons"]]})
 
-(defn open-preferences [prefs]
+(defn open-prefs [prefs]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")
         stage (Stage.)
         scene (Scene. root)]
@@ -115,4 +115,4 @@
     (ui/show! stage)))
 
 #_(let [prefs (prefs/make-prefs "defold")]
-   (ui/run-now (open-preferences prefs)))
+  (ui/run-now (open-prefs prefs)))
