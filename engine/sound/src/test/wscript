@@ -68,7 +68,9 @@ def build(bld):
             "door_opening.wav",
             "drumloop.wav",
             "onefootstep.wav",
-            "osc2_sin_440hz.wav"]
+            "osc2_sin_440hz.wav",
+            "float32.wav",
+            "float64.wav",]
 
     for rate in [22050, 32000, 44000, 44100]:
         for tone in [440, 2000]:
