@@ -286,12 +286,12 @@ namespace dmSound
             memset(instance, 0, sizeof(*instance));
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
-            // NOTE: +1 for "over-fetch" when up-sampling, +8 for buffer overrun check
-            instance->m_FramesSize = (params->m_FrameCount + 1) * sizeof(int64_t) * SOUND_MAX_MIX_CHANNELS + 8;
+            // NOTE: +1 for "over-fetch" when up-sampling, +sizeof(FRAMES_MAGIC_NUMBER) for buffer overrun check
+            instance->m_FramesSize = (params->m_FrameCount + 1) * sizeof(int64_t) * SOUND_MAX_MIX_CHANNELS + sizeof(FRAMES_MAGIC_NUMBER);
             instance->m_Frames = malloc(instance->m_FramesSize);
             instance->m_FrameCount = 0;
 
-            *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) = FRAMES_MAGIC_NUMBER;
+            *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - sizeof(FRAMES_MAGIC_NUMBER)) = FRAMES_MAGIC_NUMBER;
         }
 
         sound->m_SoundData.SetCapacity(max_sound_data);
@@ -698,7 +698,7 @@ namespace dmSound
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
-        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - sizeof(FRAMES_MAGIC_NUMBER)) );
 
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T), (instance->m_FrameCount - index) * sizeof(T));
         instance->m_FrameCount -= index;
@@ -752,7 +752,7 @@ namespace dmSound
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
-        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - sizeof(FRAMES_MAGIC_NUMBER)) );
 
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T) * 2, (instance->m_FrameCount - index) * sizeof(T) * 2);
         instance->m_FrameCount -= index;
@@ -774,7 +774,7 @@ namespace dmSound
         }
         instance->m_FrameCount -= mix_buffer_count;
 
-        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - sizeof(FRAMES_MAGIC_NUMBER)) );
     }
 
     template <typename T, int offset, int scale>
@@ -795,7 +795,7 @@ namespace dmSound
         }
         instance->m_FrameCount -= mix_buffer_count;
 
-        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - sizeof(FRAMES_MAGIC_NUMBER)) );
     }
 
     typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count);
