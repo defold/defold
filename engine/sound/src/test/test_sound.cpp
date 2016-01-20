@@ -26,6 +26,10 @@ extern unsigned char TONE_MONO_22050_OGG[];
 extern uint32_t TONE_MONO_22050_OGG_SIZE;
 extern unsigned char BOOSTER_ON_SFX_WAV[];
 extern uint32_t BOOSTER_ON_SFX_WAV_SIZE;
+extern unsigned char FLOAT32_WAV[];
+extern uint32_t FLOAT32_WAV_SIZE;
+extern unsigned char FLOAT64_WAV[];
+extern uint32_t FLOAT64_WAV_SIZE;
 
 class dmSoundTest : public ::testing::Test
 {
@@ -47,6 +51,12 @@ public:
 
     void*    m_DoorOpening;
     uint32_t m_DoorOpeningSize;
+
+    void*    m_Float32Format;
+    uint32_t m_Float32FormatSize;
+
+    void*    m_Float64Format;
+    uint32_t m_Float64FormatSize;
 
     void LoadFile(const char* file_name, void** buffer, uint32_t* size)
     {
@@ -98,6 +108,12 @@ public:
 
         m_DoorOpening = (void*) DOOR_OPENING_WAV;
         m_DoorOpeningSize = DOOR_OPENING_WAV_SIZE;
+
+        m_Float32Format = (void*) FLOAT32_WAV;
+        m_Float32FormatSize = FLOAT32_WAV_SIZE;
+
+        m_Float64Format = (void*) FLOAT64_WAV;
+        m_Float64FormatSize = FLOAT64_WAV_SIZE;
     }
 
     virtual void TearDown()
@@ -683,6 +699,44 @@ TEST_F(dmSoundTest, WavDecodeBug)
     dmSoundCodec::Delete(codec);
 }
 
+TEST_F(dmSoundTest, WavDecodeFloat)
+{
+    uint32_t bitdepths[] = {32, 64};
+    void* files[] = {m_Float32Format, m_Float64Format};
+    uint32_t sizes[] = {m_Float32FormatSize, m_Float64FormatSize};
+
+    for( int i = 0; i < 2; ++i )
+    {
+        dmLogInfo("Playing float%d.wav", bitdepths[i]);
+
+        dmSound::HSoundData sd = 0;
+        dmSound::Result r = dmSound::NewSoundData(files[i], sizes[i], dmSound::SOUND_DATA_TYPE_WAV, &sd);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        dmSound::HSoundInstance instance = 0;
+        r = dmSound::NewSoundInstance(sd, &instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+        r = dmSound::Play(instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        while (dmSound::IsPlaying(instance))
+        {
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+
+            dmTime::Sleep(1000);
+        }
+
+        r = dmSound::DeleteSoundInstance(instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        r = dmSound::DeleteSoundData(sd);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    }
+}
 
 int main(int argc, char **argv)
 {

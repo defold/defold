@@ -28,6 +28,7 @@ namespace dmSound
     const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
     const uint32_t MAX_GROUPS = 32;
     const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
+    const uint64_t FRAMES_MAGIC_NUMBER = 0xABCD1234DEADC0DE;
 
     /**
      * Value with memory for "ramping" of values. See also struct Ramp below.
@@ -145,6 +146,8 @@ namespace dmSound
         uint32_t        m_Looping : 1;
         uint32_t        m_EndOfStream : 1;
         uint32_t        m_Playing : 1;
+
+        uint32_t        m_FramesSize;
     };
 
     struct SoundGroup
@@ -283,9 +286,12 @@ namespace dmSound
             memset(instance, 0, sizeof(*instance));
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
-            // NOTE: +1 for "over-fetch" when up-sampling
-            instance->m_Frames = malloc((params->m_FrameCount + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            // NOTE: +1 for "over-fetch" when up-sampling, +8 for buffer overrun check
+            instance->m_FramesSize = (params->m_FrameCount + 1) * sizeof(int64_t) * SOUND_MAX_MIX_CHANNELS + 8;
+            instance->m_Frames = malloc(instance->m_FramesSize);
             instance->m_FrameCount = 0;
+
+            *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) = FRAMES_MAGIC_NUMBER;
         }
 
         sound->m_SoundData.SetCapacity(max_sound_data);
@@ -325,6 +331,7 @@ namespace dmSound
         if (g_SoundSystem)
         {
             SoundSystem* sound = g_SoundSystem;
+
             dmSoundCodec::Delete(sound->m_CodecContext);
 
             for (uint32_t i = 0; i < sound->m_Instances.Size(); ++i)
@@ -354,8 +361,6 @@ namespace dmSound
         }
 
         return result;
-
-        return RESULT_OK;
     }
 
     void GetStats(Stats* stats)
@@ -402,7 +407,6 @@ namespace dmSound
     {
         if (sound_data->m_Data != 0x0)
             free((void*) sound_data->m_Data);
-
         SoundSystem* sound = g_SoundSystem;
         sound->m_SoundDataPool.Push(sound_data->m_Index);
         sound_data->m_Index = 0xffff;
@@ -413,6 +417,12 @@ namespace dmSound
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance)
     {
         SoundSystem* ss = g_SoundSystem;
+
+        if( sound_data->m_Size == 0 )
+        {
+            dmLogError("Stream is empty");
+            return RESULT_INVALID_STREAM_DATA;
+        }
 
         if (ss->m_InstancesPool.Remaining() == 0)
         {
@@ -688,6 +698,7 @@ namespace dmSound
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
 
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T), (instance->m_FrameCount - index) * sizeof(T));
         instance->m_FrameCount -= index;
@@ -741,6 +752,7 @@ namespace dmSound
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
 
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T) * 2, (instance->m_FrameCount - index) * sizeof(T) * 2);
         instance->m_FrameCount -= index;
@@ -761,6 +773,8 @@ namespace dmSound
             mix_buffer[2 * i + 1] += s;
         }
         instance->m_FrameCount -= mix_buffer_count;
+
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
     }
 
     template <typename T, int offset, int scale>
@@ -780,6 +794,8 @@ namespace dmSound
             mix_buffer[2 * i + 1] += s2;
         }
         instance->m_FrameCount -= mix_buffer_count;
+
+        assert( FRAMES_MAGIC_NUMBER == *(uint64_t*)( (uint8_t*)instance->m_Frames + instance->m_FramesSize - 8) );
     }
 
     typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count);
@@ -800,15 +816,23 @@ namespace dmSound
     Mixer g_Mixers[] = {
             Mixer(1, 8, MixResampleUpMono<uint8_t, 128, 255>),
             Mixer(1, 16, MixResampleUpMono<int16_t, 0, 1>),
+            Mixer(1, 32, MixResampleUpStereo<float, 0, 65535>),
+            Mixer(1, 64, MixResampleUpStereo<double, 0, 65535>),
             Mixer(2, 8, MixResampleUpStereo<uint8_t, 128, 255>),
             Mixer(2, 16, MixResampleUpStereo<int16_t, 0, 1>),
+            Mixer(2, 32, MixResampleUpStereo<float, 0, 65535>),
+            Mixer(2, 64, MixResampleUpStereo<double, 0, 65535>),
     };
 
     Mixer g_IdentityMixers[] = {
             Mixer(1, 8, MixResampleIdentityMono<uint8_t, 128, 255>),
             Mixer(1, 16, MixResampleIdentityMono<int16_t, 0, 1>),
+            Mixer(1, 32, MixResampleIdentityStereo<float, 0, 65535>),
+            Mixer(1, 64, MixResampleIdentityStereo<double, 0, 65535>),
             Mixer(2, 8, MixResampleIdentityStereo<uint8_t, 128, 255>),
             Mixer(2, 16, MixResampleIdentityStereo<int16_t, 0, 1>),
+            Mixer(2, 32, MixResampleIdentityStereo<float, 0, 65535>),
+            Mixer(2, 64, MixResampleIdentityStereo<double, 0, 65535>),
     };
 
     static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
@@ -816,7 +840,7 @@ namespace dmSound
         const uint32_t rate = info->m_Rate;
         assert(rate <= mix_rate);
 
-        void (*mixer)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count) = 0;
+        MixerFunction mixer = 0;
 
         if (rate == mix_rate) {
             uint32_t n = sizeof(g_IdentityMixers) / sizeof(g_IdentityMixers[0]);
@@ -839,6 +863,14 @@ namespace dmSound
                 }
             }
         }
+
+        if( mixer == 0 )
+        {
+            dmLogError("Couldn't find mixer for sound instance %p", instance);
+            instance->m_FrameCount = 0;
+            return;
+        }
+
         mixer(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count);
     }
 

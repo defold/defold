@@ -111,6 +111,7 @@ namespace dmSoundCodec
         bool data_found = false;
 
         if (buffer_size < sizeof(RiffHeader)) {
+            dmLogWarning("WAV riff header seems invalid: size %u", buffer_size);
             return RESULT_INVALID_FORMAT;
         }
 
@@ -130,6 +131,7 @@ namespace dmSoundCodec
 
                 memcpy(&header, current, sizeof(header));
                 header.SwapHeader();
+
                 if (header.m_ChunkID == FOUR_CC('f', 'm', 't', ' ')) {
                     FmtChunk fmt;
                     if (current + sizeof(fmt) > end) {
@@ -141,8 +143,28 @@ namespace dmSoundCodec
                     fmt.Swap();
                     fmt_found = true;
 
-                    if (fmt.m_AudioFormat != 1) {
-                        dmLogWarning("Only wav-files with PCM format supported");
+                    bool supported = false;
+                    if(fmt.m_AudioFormat == 1 )
+                    {
+                        if( !(fmt.m_BitsPerSample == 8 || fmt.m_BitsPerSample == 16) )
+                        {
+                            dmLogWarning("Format not supported: Engine supports PCM 8 or 16 bit. Got PCM %d bit", fmt.m_BitsPerSample);
+                            return RESULT_INVALID_FORMAT;
+                        }
+                        supported = true;
+                    }
+                    if(fmt.m_AudioFormat == 3 )
+                    {
+                        if( !(fmt.m_BitsPerSample == 32 || fmt.m_BitsPerSample == 64) )
+                        {
+                            dmLogWarning("Format not supported: Engine supports 32 or 64 bit float format. Got %d bit float format", fmt.m_BitsPerSample);
+                            return RESULT_INVALID_FORMAT;
+                        }
+                        supported = true;
+                    }
+                    if( !supported )
+                    {
+                        dmLogWarning("Only wav-files with 8 or 16 bit PCM format (format=1) and 32 or 64 bit float (format=3) supported, got format=%d and bitdepth=%d", fmt.m_AudioFormat, fmt.m_BitsPerSample);
                         return RESULT_INVALID_FORMAT;
                     }
                     streamTemp.m_Info.m_Rate = fmt.m_SampleRate;
