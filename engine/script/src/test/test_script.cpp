@@ -229,6 +229,21 @@ TEST_F(ScriptTest, TestUserType) {
     ASSERT_EQ(dmMessage::RESULT_OK, result);
     ASSERT_EQ(dmHashString64("test_path"), url.m_Path);
 
+    dmMessage::HSocket socket = 0;
+    result = dmMessage::NewSocket("default", &socket);
+    ASSERT_EQ(dmMessage::RESULT_OK, result);
+
+    dmMessage::ResetURL(url);
+    result = dmScript::ResolveURL(L, "default:/foo#bar", &url, &dummy->m_URL);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, result);
+    ASSERT_STREQ("default", dmMessage::GetSocketName(url.m_Socket));
+    ASSERT_EQ(dmHashString64("/foo"), url.m_Path);
+    ASSERT_EQ(dmHashString64("bar"), url.m_Fragment);
+
+    result = dmMessage::DeleteSocket(socket);
+    ASSERT_EQ(dmMessage::RESULT_OK, result);
+
     // Destruction
     luaL_unref(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
     memset(dummy, 0, sizeof(TestDummy));
