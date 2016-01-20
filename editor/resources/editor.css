@@ -456,6 +456,10 @@ Defold Orange       #fd6623             Guides etc
     -fx-background-insets: 0;
 }
 
+GridPane.prefs {
+    -fx-padding: 1em;
+}
+
 .tab-pane > .tab-header-area > .headers-region > .tab > .tab-container > .tab-label {
     -fx-alignment: CENTER;
     -fx-text-fill: -fx-text-background-color;
