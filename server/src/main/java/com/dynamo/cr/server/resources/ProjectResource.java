@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.util.List;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
@@ -220,6 +221,39 @@ public class ProjectResource extends BaseResource {
         }
     }
 
+    // Check if the repository has a branch with a specific name.
+    static boolean hasBranchWithName(String repository, String branchName) throws IOException {
+        Repository repo = null;
+
+        if (branchName == null) {
+            return false;
+        }
+
+        try {
+            FileRepositoryBuilder builder = new FileRepositoryBuilder();
+            repo = builder.setGitDir(new File(repository))
+                    .findGitDir()
+                    .build();
+
+            Git git = new Git(repo);
+            List<Ref> call = git.branchList().call();
+            for (Ref ref : call) {
+                if (("refs/heads/" + branchName).equals(ref.getName())) {
+                    return true;
+                }
+            }
+
+        } catch (GitAPIException e) {
+            throw new IOException("Could not determine if name was a branch: ", e);
+        } finally {
+            if (repo != null) {
+                repo.close();
+            }
+        }
+
+        return false;
+    }
+
     @HEAD
     @Path("/archive/{version}")
     @RolesAllowed(value = { "member" })
@@ -276,6 +310,12 @@ public class ProjectResource extends BaseResource {
                     .setURI(repository)
                     .setBare(false)
                     .setDirectory(cloneTo);
+
+            if (hasBranchWithName(repository, version)) {
+                clone.setBranch(version);
+            } else {
+                clone.setBranch("master");
+            }
 
             try {
                 Git git = clone.call();
