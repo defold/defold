@@ -1,4 +1,4 @@
-(ns dynamo.defnode-test
+(ns internal.defnode-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
@@ -491,18 +491,18 @@
      (property a-property schema.core/Str  (default "Genosha"))
      (property b-property schema.core/Bool (default false))
      (property c-property schema.core/Int  (default 42))
-     dynamo.defnode_test.MarkerInterface))
+     internal.defnode_test.MarkerInterface))
 
 (deftest redefining-nodes-updates-existing-world-instances
   (with-clean-system
-    (binding [*ns* (find-ns 'dynamo.defnode-test)]
+    (binding [*ns* (find-ns 'internal.defnode-test)]
       (eval original-node-definition))
 
-    (let [node-type-var          (resolve 'dynamo.defnode-test/MutagenicNode)
+    (let [node-type-var          (resolve 'internal.defnode-test/MutagenicNode)
           node-type              (var-get node-type-var)
           [original-node-id] (tx-nodes (g/make-node world node-type))
           node-before-mutation  (g/node-by-id original-node-id)]
-      (binding [*ns* (find-ns 'dynamo.defnode-test)]
+      (binding [*ns* (find-ns 'internal.defnode-test)]
         (eval replacement-node-definition))
 
       (let [node-after-mutation (g/node-by-id original-node-id)]
@@ -539,7 +539,7 @@
 (deftest compile-error-using-property-with-missing-argument-for-dynamic
   (is (thrown? AssertionError
                (eval '(dynamo.graph/defnode BadDynamicArgument
-                        (property foo dynamo.defnode-test/NeedsADifferentInput))))))
+                        (property foo internal.defnode-test/NeedsADifferentInput))))))
 
 ;;; example taken from editor/collection.clj
 (def Vec3    [(g/one g/Num "x")

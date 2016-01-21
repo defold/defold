@@ -22,7 +22,7 @@
             [editor.scene :as scene]
             [editor.outline :as outline]
             [editor.validation :as validation]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -460,16 +460,3 @@
   (enabled? [selection] (move-enabled? selection))
   (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-down)))
- 
-(ui/extend-menu ::menubar :editor.app-view/edit
-                [{:label "Atlas"
-                  :id ::atlas
-                  :children [{:label "Move Up"
-                              :acc "Alt+UP"
-                              :command :move-up
-                              }
-                             {:label "Move Down"
-                              :acc "Alt+DOWN"
-                              :command :move-down
-                              }
-                             ]}])

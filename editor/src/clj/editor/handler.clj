@@ -63,7 +63,7 @@
   ([selection] (= 1 (count selection)))
   ([selection type]
    (and (single-selection? selection)
-        (= type (g/node-type* (first selection))))))
+        (g/node-instance? type (first selection)))))
 
 (defn get-single-selection [selection type]
   (and (single-selection? selection type)
