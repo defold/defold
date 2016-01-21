@@ -1,6 +1,6 @@
 (ns internal.graph
   (:require [clojure.set :as set]
-            [dynamo.util :refer [removev map-vals stackify project]]
+            [internal.util :refer [removev map-vals stackify project]]
             [internal.graph.types :as gt]
             [schema.core :as s])
   (:import [schema.core Maybe Either]))
