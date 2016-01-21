@@ -6,6 +6,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.project :as project]
+            [editor.prefs-dialog :as prefs-dialog]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource])
@@ -116,6 +117,10 @@
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
+(handler/defhandler :preferences :global
+  (enabled? [] true)
+  (run [prefs] (prefs-dialog/open-prefs prefs)))
+
 (handler/defhandler :close :global
   (enabled? [] true)
   (run [app-view] (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
@@ -170,6 +175,9 @@
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
+                             {:label "Preferences..."
+                              :command :preferences
+                              :acc "Shortcut+,"}
                              {:label "Quit"
                               :acc "Shortcut+Q"
                               :command :quit}]}
