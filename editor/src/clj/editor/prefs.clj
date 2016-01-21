@@ -8,7 +8,7 @@
 
 (defn- color->web [^Color c]
   (let [v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
-    (apply format "0x%02x%02x%02x%02x" (map #(long (Math/round (* 255 %))) v))))
+    (apply format "0x%02x%02x%02x%02x" (map #(long (Math/round (double (* 255 %)))) v))))
 
 (def ^:private write-handlers {Color (transit/write-handler "Color" (fn [x] (color->web x)))})
 (def ^:private read-handlers {"Color" (transit/read-handler (fn [x] (Color/web x)))})
