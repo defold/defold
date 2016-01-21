@@ -275,7 +275,8 @@
         (proxy-super updateItem (and object (:text render-data)) empty)
         (let [name (or (and (not empty) (:text render-data)) nil)]
           (proxy-super setText name))
-        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))))))
+        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))
+        (proxy-super setTooltip (:tooltip render-data))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
