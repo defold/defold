@@ -1,17 +1,17 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
-            [dynamo.util :as util]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
+  (:import [com.defold.control LongField]
+           [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -196,6 +196,10 @@
   (text ^String [this])
   (text! [this ^String val]))
 
+(defprotocol HasValue
+  (value [this])
+  (value! [this val]))
+
 (defprotocol HasUserData
   (user-data [this key])
   (user-data! [this key val]))
@@ -227,6 +231,26 @@
   (items [this])
   (items! [this items])
   (cell-factory! [this render-fn]))
+
+(extend-type LongField
+  HasValue
+  (value [this] (Integer/parseInt (.getText this)))
+  (value! [this val] (.setText this (str val))))
+
+(extend-type TextInputControl
+  HasValue
+  (value [this] (text this))
+  (value! [this val] (text! this val)))
+
+(extend-type CheckBox
+  HasValue
+  (value [this] (.isSelected this))
+  (value! [this val] (.setSelected this val)))
+
+(extend-type ColorPicker
+  HasValue
+  (value [this] (.getValue this))
+  (value! [this val] (.setValue this val)))
 
 (extend-type TextInputControl
   Text
@@ -276,7 +300,8 @@
         (proxy-super updateItem (and object (:text render-data)) empty)
         (let [name (or (and (not empty) (:text render-data)) nil)]
           (proxy-super setText name))
-        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))))))
+        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))
+        (proxy-super setTooltip (:tooltip render-data))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))

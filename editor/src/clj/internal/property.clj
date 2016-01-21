@@ -2,7 +2,7 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
             [clojure.tools.macro :as ctm]
-            [dynamo.util :as util]
+            [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]

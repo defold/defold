@@ -12,7 +12,7 @@
             [editor.gl.vertex :as vtx]            
             [editor.geom :as geom]
             [editor.types :as types]            
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]

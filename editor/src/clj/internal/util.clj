@@ -1,4 +1,4 @@
-(ns dynamo.util
+(ns internal.util
   "Helpful utility functions for graph"
   (:require [camel-snake-kebab :refer [->Camel_Snake_Case_String]]
             [clojure.java.io :as io]
@@ -22,12 +22,6 @@
 
 (defn removev [pred coll]
   (filterv (complement pred) coll))
-
-(defn applym
-  "Like apply, but with a map. Flattens the key/value pairs
-into an arglist."
-  [f m]
-  (apply f (mapcat identity m)))
 
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
@@ -108,11 +102,6 @@ into an arglist."
     (str/replace "_" " ")))
 
 (def safe-inc (fnil inc 0))
-
-(def mac? (-> (System/getProperty "os.name")
-            (.toLowerCase)
-            (.indexOf "mac")
-            (>= 0)))
 
 (defn collify
   [val-or-coll]
