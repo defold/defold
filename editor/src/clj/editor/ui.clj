@@ -1,6 +1,5 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
-            [dynamo.util :as util]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]

@@ -3,7 +3,7 @@
   (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
-            [dynamo.util :as util]
+            [internal.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
