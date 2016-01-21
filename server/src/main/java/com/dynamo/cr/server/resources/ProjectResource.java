@@ -221,39 +221,6 @@ public class ProjectResource extends BaseResource {
         }
     }
 
-    // Check if the repository has a branch with a specific name.
-    static boolean hasBranchWithName(String repository, String branchName) throws IOException {
-        Repository repo = null;
-
-        if (branchName == null) {
-            return false;
-        }
-
-        try {
-            FileRepositoryBuilder builder = new FileRepositoryBuilder();
-            repo = builder.setGitDir(new File(repository))
-                    .findGitDir()
-                    .build();
-
-            Git git = new Git(repo);
-            List<Ref> call = git.branchList().call();
-            for (Ref ref : call) {
-                if (("refs/heads/" + branchName).equals(ref.getName())) {
-                    return true;
-                }
-            }
-
-        } catch (GitAPIException e) {
-            throw new IOException("Could not determine if name was a branch: ", e);
-        } finally {
-            if (repo != null) {
-                repo.close();
-            }
-        }
-
-        return false;
-    }
-
     @HEAD
     @Path("/archive/{version}")
     @RolesAllowed(value = { "member" })
@@ -311,15 +278,9 @@ public class ProjectResource extends BaseResource {
                     .setBare(false)
                     .setDirectory(cloneTo);
 
-            if (hasBranchWithName(repository, version)) {
-                clone.setBranch(version);
-            } else {
-                clone.setBranch("master");
-            }
-
             try {
                 Git git = clone.call();
-                git.checkout().setName(version).call();
+                git.checkout().setName(sha1).call();
             } catch (JGitInternalException|RefAlreadyExistsException e) {
                 throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
             } catch (RefNotFoundException e) {
