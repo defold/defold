@@ -6,7 +6,7 @@
             [editor.workspace :as workspace]
             [editor.project :as project]
             [editor.gui :as gui]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
