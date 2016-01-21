@@ -64,6 +64,7 @@ struct Facebook
     int m_Callback;
     int m_Self;
     int m_RefCount;
+    int m_DisableFaceBookEvents;
 
     dmMutex::Mutex m_Mutex;
     dmArray<Command> m_CmdQueue;
@@ -795,6 +796,7 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
         // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
         // Better solution?
+        g_Facebook.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
         const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
 
         jmethodID jni_constructor = env->GetMethodID(fb_class, "<init>", "(Landroid/app/Activity;Ljava/lang/String;)V");
@@ -802,7 +804,11 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
         g_Facebook.m_FBApp = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
         env->DeleteLocalRef(str_app_id);
 
-        env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Activate);
+
+        if(!g_Facebook.m_DisableFaceBookEvents)
+        {
+            env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Activate);
+        }
 
         Detach();
     }
@@ -815,7 +821,10 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
     if (g_Facebook.m_FBApp != NULL)
     {
         JNIEnv* env = Attach();
-        env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
+        if(!g_Facebook.m_DisableFaceBookEvents)
+        {
+            env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
+        }
         env->DeleteGlobalRef(g_Facebook.m_FBApp);
         Detach();
         g_Facebook.m_FBApp = NULL;
@@ -826,7 +835,7 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 
 void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* event)
 {
-    if( g_Facebook.m_FBApp )
+    if( (g_Facebook.m_FBApp) && (!g_Facebook.m_DisableFaceBookEvents ) )
     {
         JNIEnv* env = Attach();
 
