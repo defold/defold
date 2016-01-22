@@ -11,12 +11,13 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem TreeCell Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
+           [javafx.css Styleable]
            [javafx.util Callback Duration]))
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
@@ -120,16 +121,39 @@
 (defn scene [^Node node]
   (.getScene node))
 
-(defn add-style! [^Node node ^String class]
+(defn add-style! [^Styleable node ^String class]
   (let [styles (.getStyleClass node)]
     (when-not (.contains styles class)
       (.add styles class))))
 
-(defn remove-styles! [^Node node ^java.util.Collection classes]
+(defn add-styles! [^Styleable node classes]
+  (doseq [class classes]
+    (add-style! node class)))
+
+(defn remove-styles! [^Styleable node ^java.util.Collection classes]
   (.removeAll (.getStyleClass node) classes))
 
-(defn remove-style! [^Node node ^String class]
-  (remove-styles! node (java.util.Collections/singleton class)))
+(defn remove-style! [^Styleable node ^String class]
+  (remove-styles! node [class]))
+
+(defn update-tree-cell-style! [^TreeCell cell]
+  (let [tree-view (.getTreeView cell)
+        expanded-count (.getExpandedItemCount tree-view)
+        last-index (- expanded-count 1)
+        index (.getIndex cell)]
+    (cond
+      (and (= index 0) (not (.isEmpty cell)))
+      (do
+        (add-style! cell "first-tree-item")
+        (remove-style! cell "last-tree-item"))
+      
+      (and (= index last-index) (not (.isEmpty cell)))
+      (do
+        (add-style! cell "last-tree-item")
+        (remove-style! cell "first-tree-item"))
+
+      :else
+      (remove-styles! cell ["first-tree-item" "last-tree-item"]))))
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
@@ -449,9 +473,14 @@
                 (make-menu-command label icon (:acc item) command command-contexts user-data)))))))))
 
 (defn- make-menu-items [menu command-contexts]
-  (->> menu
-       (map (fn [item] (make-menu-item item command-contexts)))
-       (remove nil?)))
+  (let [menu-items (->> menu
+                        (map (fn [item] (make-menu-item item command-contexts)))
+                        (remove nil?))]
+    (when-let [head (first menu-items)]
+      (add-style! head "first-menu-item"))
+    (when-let [tail (last menu-items)]
+      (add-style! tail "last-menu-item"))
+    menu-items))
 
 (defn- ^ContextMenu make-context-menu [menu-items]
   (let [^ContextMenu context-menu (ContextMenu.)]
