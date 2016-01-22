@@ -230,6 +230,20 @@
   ([] "Defold Editor 2.0")
   ([project-title] (str (make-title) " - " project-title)))
 
+(defn- restyle-tabs [^TabPane tab-pane]
+  (let [tabs (seq (.getTabs tab-pane))
+        first-tab (first tabs)
+        last-tab (last tabs)
+        middle-tabs (butlast (rest tabs))]
+    (when first-tab
+      (ui/add-style! first-tab "first-tab")
+      (ui/remove-style! first-tab "last-tab"))
+    (when (and last-tab (not= first-tab last-tab))
+      (ui/add-style! last-tab "last-tab")
+      (ui/remove-style! last-tab "first-tab"))
+    (doseq [middle middle-tabs]
+      (ui/remove-styles! middle ["first-tab" "last-tab"]))))
+
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
@@ -246,6 +260,7 @@
       (.addListener
         (reify ListChangeListener
           (onChanged [this change]
+            (restyle-tabs tab-pane)
             (on-tabs-changed app-view)))))
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
