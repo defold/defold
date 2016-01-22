@@ -637,3 +637,72 @@ GridPane.prefs {
     -fx-border-color: -defold-yellow;
     -fx-effect: dropshadow(three-pass-box, -defold-yellow, 3, 0.5, 0, 0)
 }
+
+/*.form .clear-button {
+    -fx-background-color: #00ff00;
+}*/
+
+
+/* buttons */
+
+/*.small-button {
+    -fx-text-fill: #ff00ff;
+}*/
+
+/* menu items */
+
+/*.first-menu-item {
+    -fx-background-color: #ff0000;
+}
+
+.last-menu-item {
+    -fx-background-color: #0000ff;
+}*/
+
+/* property related */
+
+/*.composite-property-control-container {
+    -fx-background-color: #00ff00;
+}
+
+.property-category {
+    -fx-background-color: #0000ff;
+}
+
+.property-label {
+    -fx-background-color: #ff0000;
+}
+
+.property-component-label {
+    -fx-background-color: #00ff00;
+}
+
+#properties .tooltip {
+    -fx-background-color: #ff00ff;
+}*/
+
+/* tabs */
+
+/*.first-tab > .tab-container > .tab-label {
+    -fx-background-color: #ff0000;
+}
+
+.last-tab > .tab-container > .tab-label {
+    -fx-background-color: #0000ff;
+}*/
+
+/* trees */
+
+/*.first-tree-item {
+    -fx-background-color: #ff0000;
+}
+
+.last-tree-item {
+    -fx-background-color: #0000ff;
+}*/
+
+/* changes */
+
+/*#changes-container > .tool-bar {
+    -fx-background-color: #00ff00;
+}*/
