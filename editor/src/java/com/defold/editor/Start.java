@@ -142,41 +142,46 @@ public class Start extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        Splash splash = new Splash();
+        try {
+	        Splash splash = new Splash();
 
-        Future<?> extractFuture = threadPool.submit(() -> {
-            try {
-                NativeArtifacts.extractNatives();
-            } catch (Exception e) {
-                logger.error("failed to extract native libs", e);
-            }
-        });
+	        Future<?> extractFuture = threadPool.submit(() -> {
+	            try {
+	                NativeArtifacts.extractNatives();
+	            } catch (Exception e) {
+	                logger.error("failed to extract native libs", e);
+	            }
+	        });
 
-        threadPool.submit(() -> {
-            try {
-                pool.add(makeEditor());
-                javafx.application.Platform.runLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            extractFuture.get();
-                            openEditor(new String[0]);
-                            splash.close();
-                        } catch (Throwable t) {
-                            t.printStackTrace();
-                        }
-                    }
-                });
-            } catch (Throwable t) {
-                t.printStackTrace();
-                String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
-                javafx.application.Platform.runLater(() -> {
-                    splash.setLaunchError(message);
-                    splash.setErrorShowing(true);
-                });
-            }
-            return null;
-        });
+	        threadPool.submit(() -> {
+	            try {
+	                pool.add(makeEditor());
+	                javafx.application.Platform.runLater(new Runnable() {
+	                    @Override
+	                    public void run() {
+	                        try {
+	                            extractFuture.get();
+	                            openEditor(new String[0]);
+	                            splash.close();
+	                        } catch (Throwable t) {
+	                            t.printStackTrace();
+	                        }
+	                    }
+	                });
+	            } catch (Throwable t) {
+	                t.printStackTrace();
+	                String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+	                javafx.application.Platform.runLater(() -> {
+	                    splash.setLaunchError(message);
+	                    splash.setErrorShowing(true);
+	                });
+	            }
+	            return null;
+	        });
+        } catch (Throwable t) {
+            t.printStackTrace(System.err);
+            throw t;
+        }
     }
 
     @Override

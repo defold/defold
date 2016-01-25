@@ -64,6 +64,9 @@ TEST(dmDisplayProfilesTest, TestOptimalProfile)
     ASSERT_EQ(q_hash[1],  dmRender::GetOptimalDisplayProfile(profiles, 720, 1280, 0, 0));
     ASSERT_EQ(q_hash[2],  dmRender::GetOptimalDisplayProfile(profiles, 721, 1280, 0, 0));   // testing result is first found match
     ASSERT_EQ(q_hash[4],  dmRender::GetOptimalDisplayProfile(profiles, 1280, 722, 0, 0));   // testing multiple qualifiers
+    // testing really large screen (i.e. if you start using a new device, but haven't yet added new display profiles)
+    ASSERT_EQ(q_hash[4],  dmRender::GetOptimalDisplayProfile(profiles, 10000, 5625, 0, 0));
+    ASSERT_EQ(q_hash[2],  dmRender::GetOptimalDisplayProfile(profiles, 5625, 10000, 0, 0));
 
     dmArray<dmhash_t> choices;
     choices.SetCapacity(2);

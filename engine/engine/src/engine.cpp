@@ -36,6 +36,16 @@ using namespace Vectormath::Aos;
 extern unsigned char CONNECT_PROJECT[];
 extern uint32_t CONNECT_PROJECT_SIZE;
 
+#if defined(__ANDROID__)
+// On Android we need to notify the activity which input method to use
+// before the keyboard is brought up. This choice is stored as a
+// game.project config and used in dmEngine::Init(), passed along to
+// the GLFW Android implementation.
+extern "C" {
+    extern void _glfwAndroidSetInputMethod(int);
+}
+#endif
+
 namespace dmEngine
 {
 #define SYSTEM_SOCKET_NAME "@system"
@@ -765,6 +775,20 @@ namespace dmEngine
             free(tmp);
         }
         dmGameObject::SortComponentTypes(engine->m_Register);
+
+#if defined(__ANDROID__)
+        {
+            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
+
+            int use_hidden_inputfield = 0;
+            if (!strcmp(input_method, "HiddenInputField"))
+                use_hidden_inputfield = 1;
+            else if (strcmp(input_method, "KeyEvents"))
+                dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
+
+            _glfwAndroidSetInputMethod(use_hidden_inputfield);
+        }
+#endif
 
         return true;
 

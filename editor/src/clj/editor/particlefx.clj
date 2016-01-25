@@ -16,7 +16,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.outline :as outline]
             [editor.geom :as geom]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
             [editor.validation :as validation]
@@ -629,16 +629,16 @@
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
   (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
 
-(defn- emitter? [node-id node-type]
-  (when (= EmitterNode node-type)
+(defn- emitter? [node-id]
+  (when (g/node-instance? EmitterNode node-id)
     node-id))
 
 (defn- pfx? [node-id node-type]
-  (if (= ParticleFXNode node-type)
+  (if (g/node-instance? ParticleFXNode node-id)
     node-id
     (when (contains? (g/declared-inputs node-type) :source-id)
       (let [source-id (g/node-value node-id :source-id)]
-        (when (= ParticleFXNode (g/node-type (g/node-by-id source-id)))
+        (when (g/node-instance? ParticleFXNode source-id)
           source-id)))))
 
 (defn- v4->euler [v]
@@ -681,12 +681,11 @@
   (active? [selection] (and (= 1 (count selection))
                             (let [node-id (first selection)
                                   type (g/node-type (g/node-by-id node-id))]
-                              (or (emitter? node-id type)
+                              (or (emitter? node-id)
                                   (pfx? node-id type)))))
   (run [user-data]
        (let [parent-id (:_node-id user-data)
-             parent-type (g/node-type (g/node-by-id parent-id))
-             self (if (emitter? parent-id parent-type)
+             self (if (emitter? parent-id)
                     (core/scope parent-id)
                     parent-id)]
          (add-modifier-handler self parent-id (:modifier-type user-data))))
@@ -694,7 +693,7 @@
            (when (not user-data)
              (let [self (let [node-id (first selection)
                               type (g/node-type (g/node-by-id node-id))]
-                          (or (emitter? node-id type)
+                          (or (emitter? node-id)
                               (pfx? node-id type)))]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon modifier-icon

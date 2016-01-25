@@ -100,6 +100,9 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
+(defn- create-component-label [text]
+   (doto (Label. text) (ui/add-style! "property-component-label")))
+
 (defn- create-multi-textfield! [labels property-fn]
   (let [text-fields (mapv (fn [l] (TextField.)) labels)
         box (doto (HBox.)
@@ -121,7 +124,7 @@
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (doto (.getChildren box)
-        (.add (Label. label))
+        (.add (create-component-label label))
         (.add t)))
     [box update-ui-fn]))
 
@@ -150,7 +153,7 @@
       (ui/on-action! ^TextField t f))
     (doseq [[t f] (map vector text-fields fields)
             :let [children (if (:label f)
-                             [(Label. (:label f)) t]
+                             [(create-component-label (:label f)) t]
                              [t])]]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
@@ -208,12 +211,13 @@
 
 (defmethod create-property-control! (g/protocol resource/Resource) [_ workspace property-fn]
   (let [box (HBox.)
-        button (Button. "...")
+        button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)
         update-ui-fn (fn [values message]
                        (let [val (properties/unify-values values)]
                          (ui/text! text (when val (resource/proj-path val))))
                        (update-field-message [text] message))]
+    (ui/add-style! box "composite-property-control-container")
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                      (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! text (fn [_] (let [path (ui/text text)
@@ -319,11 +323,16 @@
       (update-message-tooltip ctrl)
       (hide-message-tooltip ctrl))))
 
+
+(defn- create-property-label [label]
+  (doto (Label. label) (ui/add-style! "property-label")))
+
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
-  (let [label (Label. (properties/label property))
+  (let [label (create-property-label (properties/label property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
         reset-btn (doto (Button. "x")
                     (.setVisible (properties/overridden? property))
+                    (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
                                      (.requestFocus control))))
@@ -355,6 +364,9 @@
       (ui/add-style! grid "form")
       (create-properties workspace grid properties property-fn)))
 
+(defn- create-category-label [label]
+  (doto (Label. label) (ui/add-style! "property-category")))
+
 (defn- make-pane [parent workspace properties]
   (let [vbox (VBox. (double 10.0))]
       (.setPadding vbox (Insets. 10 10 10 10))
@@ -375,7 +387,7 @@
                                               []
                                               (do
                                                 (when category
-                                                  (let [label (Label. category)]
+                                                  (let [label (create-category-label category)]
                                                     (ui/add-child! vbox label)))
                                                 (make-grid vbox workspace properties property-fn)))]
                              (recur (rest sections) (into result update-fns)))

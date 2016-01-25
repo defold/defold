@@ -407,10 +407,11 @@
                                                  (let [cell (proxy [TreeCell] []
                                                             (updateItem [resource empty]
                                                               (let [this ^TreeCell this]
-                                                                ; TODO - fix reflection warning
+                                                                ;; TODO - fix reflection warning
                                                                 (proxy-super updateItem resource empty)
-                                                                   (let [name (or (and (not empty) (not (nil? resource)) (resource/resource-name resource)) nil)]
-                                                                     (proxy-super setText name))
+                                                                (ui/update-tree-cell-style! this)
+                                                                (let [name (or (and (not empty) (not (nil? resource)) (resource/resource-name resource)) nil)]
+                                                                  (proxy-super setText name))
                                                                    (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource) 16)))))]
                                                    (doto cell
                                                      (.setOnDragOver over-handler)

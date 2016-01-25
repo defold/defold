@@ -6,11 +6,13 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.project :as project]
+            [editor.prefs-dialog :as prefs-dialog]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
+           [com.defold.editor Profiler]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
@@ -21,7 +23,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -115,6 +117,10 @@
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
+(handler/defhandler :preferences :global
+  (enabled? [] true)
+  (run [prefs] (prefs-dialog/open-prefs prefs)))
+
 (handler/defhandler :close :global
   (enabled? [] true)
   (run [app-view] (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
@@ -125,7 +131,7 @@
                       (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))
 
 (defn make-about-dialog []
-  (let [root ^Parent (FXMLLoader/load (io/resource "about.fxml"))
+  (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1"])]
@@ -138,6 +144,14 @@
 (handler/defhandler :about :global
   (enabled? [] true)
   (run [] (make-about-dialog)))
+
+(handler/defhandler :profile :global
+  (enabled? [] true)
+  (run [] (Profiler/dump "misc/timeseries.csv")))
+
+(handler/defhandler :reload-stylesheet :global
+  (enabled? [] true)
+  (run [] (ui/reload-root-styles!)))
 
 (ui/extend-menu ::menubar nil
                 [{:label "File"
@@ -161,6 +175,9 @@
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
+                             {:label "Preferences..."
+                              :command :preferences
+                              :acc "Shortcut+,"}
                              {:label "Quit"
                               :acc "Shortcut+Q"
                               :command :quit}]}
@@ -188,9 +205,21 @@
                               :acc "Shortcut+BACKSPACE"
                               :icon_ "icons/redo.png"
                               :command :delete}
-                             ]}
+                             {:label :separator}
+                             {:label "Move Up"
+                              :acc "Alt+UP"
+                              :command :move-up}
+                             {:label "Move Down"
+                              :acc "Alt+DOWN"
+                              :command :move-down}]}
                  {:label "Help"
-                  :children [{:label "About"
+                  :children [{:label "Profile"
+                              :command :profile
+                              :acc "Shift+Shortcut+P"}
+                             {:label "Reload Stylesheet"
+                              :acc "F5"
+                              :command :reload-stylesheet}
+                             {:label "About"
                               :command :about}]}])
 
 (defrecord DummySelectionProvider []
@@ -200,6 +229,20 @@
 (defn- make-title
   ([] "Defold Editor 2.0")
   ([project-title] (str (make-title) " - " project-title)))
+
+(defn- restyle-tabs [^TabPane tab-pane]
+  (let [tabs (seq (.getTabs tab-pane))
+        first-tab (first tabs)
+        last-tab (last tabs)
+        middle-tabs (butlast (rest tabs))]
+    (when first-tab
+      (ui/add-style! first-tab "first-tab")
+      (ui/remove-style! first-tab "last-tab"))
+    (when (and last-tab (not= first-tab last-tab))
+      (ui/add-style! last-tab "last-tab")
+      (ui/remove-style! last-tab "first-tab"))
+    (doseq [middle middle-tabs]
+      (ui/remove-styles! middle ["first-tab" "last-tab"]))))
 
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
@@ -217,6 +260,7 @@
       (.addListener
         (reify ListChangeListener
           (onChanged [this change]
+            (restyle-tabs tab-pane)
             (on-tabs-changed app-view)))))
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
@@ -270,10 +314,40 @@
         (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. (resource/abs-path resource))))))
 
+(defn- gen-tooltip [workspace project app-view resource]
+  (let [resource-type (resource/resource-type resource)
+        view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
+    (when-let [make-preview-fn (:make-preview-fn view-type)]
+      (let [tooltip (Tooltip.)]
+        (doto tooltip
+          (.setGraphic (doto (ImageView.)
+                         (.setScaleY -1.0)))
+          (.setOnShowing (ui/event-handler
+                           e
+                           (let [image-view ^ImageView (.getGraphic tooltip)]
+                             (when-not (.getImage image-view)
+                               (let [resource-node (project/get-resource-node project resource)
+                                         view-graph (g/make-graph! :history false :volatility 2)
+                                         opts (assoc ((:id view-type) (:view-opts resource-type))
+                                                     :app-view app-view
+                                                     :project project
+                                                     :workspace workspace)
+                                         preview (make-preview-fn view-graph resource-node opts 256 256)]
+                                     (.setImage image-view ^Image (g/node-value preview :image))
+                                     (ui/user-data! image-view :graph view-graph))))))
+          (.setOnHiding (ui/event-handler
+                          e
+                          (let [image-view ^ImageView (.getGraphic tooltip)]
+                            (when-let [graph (ui/user-data image-view :graph)]
+                              (g/delete-graph! graph))))))))))
+
+(defn- make-resource-dialog [workspace project app-view]
+  (when-let [resource (first (dialogs/make-resource-dialog workspace {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
+    (open-resource app-view workspace project resource)))
+
 (handler/defhandler :open-asset :global
   (enabled? [] true)
-  (run [workspace project app-view] (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
-                                      (open-resource app-view workspace project resource))))
+  (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn fetch-libraries [workspace project]
   (workspace/set-project-dependencies! workspace (project/project-dependencies project))

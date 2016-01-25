@@ -78,6 +78,13 @@
       (is (not (g/error? (prop b :own-data))))
       (is (not (g/error? (prop b :next-data)))))))
 
+(deftest test-cycles
+  (with-clean-system
+    (let [[a b c] (tx-nodes (g/make-nodes world [a [ProducerNode :data "data"]
+                                                 b [ComplexProperty :own-data "data" :next-data "data"]]
+                                          (g/connect a :data b :data)))]
+      (is (not (g/error? (prop b :own-data)))))))
+
 ; Simulating a content pipeline build
 (g/defnode ProjectNode
   (property resource-nodes #{g/NodeID})

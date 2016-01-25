@@ -11,7 +11,18 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
-import android.util.Log;
+import android.widget.EditText;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnectionWrapper;
+import android.view.inputmethod.InputConnection;
+import android.text.InputType;
+import android.view.inputmethod.CompletionInfo;
+import android.view.ViewGroup;
+
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.common.*;
 
@@ -27,7 +38,21 @@ public class DefoldActivity extends NativeActivity {
         public int getValue() { return this.value; };
     }
 
+
+    // Must match values from glfw.h
+    public enum GLFWKeyboardType {
+        GLFW_KEYBOARD_DEFAULT    (0),
+        GLFW_KEYBOARD_NUMBER_PAD (1),
+        GLFW_KEYBOARD_EMAIL      (2),
+        GLFW_KEYBOARD_PASSWORD   (3);
+        private final int value;
+        private GLFWKeyboardType(int value) { this.value = value; };
+        public int getValue() { return this.value; };
+    }
+
     private InputMethodManager imm = null;
+    private EditText mTextEdit = null;
+    private boolean mUseHiddenInputField = false;
 
     private static final String TAG = "DefoldActivity";
 
@@ -36,11 +61,109 @@ public class DefoldActivity extends NativeActivity {
      * not copied over to the corresponding native AInputEvent.
      * Therefore it is implemented in android_window.c so that the characters can be sent to glfw.
      */
+    public native void FakeBackspace();
     public native void glfwInputCharNative(int unicode);
+    public native void glfwSetMarkedTextNative(String text);
+
+    private class DefoldInputWrapper extends InputConnectionWrapper {
+        private DefoldActivity _ctx;
+        private String mComposingText = "";
+
+        public DefoldInputWrapper(DefoldActivity ctx, InputConnection target, boolean mutable) {
+            super(target, mutable);
+            _ctx = ctx;
+            mComposingText = "";
+        }
+
+        @Override
+        public CharSequence getTextBeforeCursor(int n, int flags)
+        {
+            // Hacky Android: Need to trick the input system into thinking
+            // there is at least one char to delete, otherwise we wont
+            // be getting any backspace events if the EditText is empty.
+            return " ";
+        }
+
+        @Override
+        public boolean setComposingText(CharSequence text, int newCursorPosition)
+        {
+            mComposingText = text.toString();
+            _ctx.sendMarkedText(mComposingText);
+
+            return super.setComposingText(text, newCursorPosition);
+        }
+
+        @Override
+        public boolean commitCompletion (CompletionInfo text)
+        {
+            return super.commitCompletion(text);
+        }
+
+        @Override
+        public boolean finishComposingText ()
+        {
+            _ctx.sendInputText(new String(mComposingText));
+            _ctx.sendMarkedText("");
+
+            // If we are finished composing, clear the composing text
+            if (mComposingText.length() > 0) {
+                this.setComposingText("", 0);
+            }
+            mComposingText = "";
+
+            return super.finishComposingText();
+        }
+
+        @Override
+        public boolean commitText(CharSequence text, int newCursorPosition)
+        {
+            _ctx.sendInputText(text.toString());
+
+            // When committing new text, we assume the composing text should be cleared.
+            mComposingText = "";
+            _ctx.clearComposingText();
+
+            return super.commitText(text, newCursorPosition);
+        }
+
+        @Override
+        public boolean sendKeyEvent(KeyEvent event) {
+            return super.sendKeyEvent(event);
+        }
+
+
+        @Override
+        public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+            if (beforeLength == 1 && afterLength == 0) {
+                _ctx.clearText();
+                _ctx.clearComposingText();
+                _ctx.FakeBackspace();
+            }
+
+            return super.deleteSurroundingText(beforeLength, afterLength);
+        }
+
+        }
+
+    public synchronized void sendInputText(final String text) {
+        int charCount = text.length();
+        for (int i = 0; i < charCount; ++i) {
+            int c = text.codePointAt(i);
+            glfwInputCharNative(c);
+        }
+
+        sendMarkedText("");
+    }
+
+    public synchronized void sendMarkedText(final String text) {
+        glfwSetMarkedTextNative(text);
+    }
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        final DefoldActivity self = this;
 
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         imm = (InputMethodManager)DefoldActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
 
         try {
@@ -57,7 +180,6 @@ public class DefoldActivity extends NativeActivity {
             throw new RuntimeException("Error getting activity info", e);
         }
 
-        final DefoldActivity self = this;
         new Thread(new Runnable() {
             public void run() {
                 try {
@@ -153,13 +275,135 @@ public class DefoldActivity extends NativeActivity {
     /** show virtual keyboard
      * Implemented here to ensure that calls from native code are delayed and run on the UI thread.
      */
-    public void showSoftInput() {
+    public void showSoftInput(final int keyboardType) {
+        final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                imm.showSoftInput(getWindow().getDecorView(), InputMethodManager.SHOW_FORCED);
+
+                if (mTextEdit != null) {
+                    mTextEdit.setVisibility(View.GONE);
+                    ViewGroup vg = (ViewGroup)(mTextEdit.getParent());
+                    vg.removeView(mTextEdit);
+                    mTextEdit = null;
+                }
+
+                if (mUseHiddenInputField) {
+
+                    // Convert GLFW input enum into EditText enum
+                    final int input_type;
+                    if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_PASSWORD.getValue()) {
+                        input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                    } else if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_EMAIL.getValue()) {
+                        input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                    } else if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_NUMBER_PAD.getValue()) {
+                        input_type = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_NORMAL;
+                    } else {
+                        input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+                    }
+
+                    mTextEdit = new EditText(self) {
+                        @Override
+                        public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+
+                            // We set manual input connection to catch all keyboard interaction
+                            InputConnection inpc = super.onCreateInputConnection(outAttrs);
+                            outAttrs.inputType = input_type;
+                            return new DefoldInputWrapper(self, inpc, true);
+
+                        }
+
+                        @Override
+                        public boolean onCheckIsTextEditor() {
+                            return true;
+                        }
+                    };
+
+
+                    // Disable the fullscreen keyboard mode (present in landscape)
+                    // If we don't do this, we get a large grey input box above the keyboard
+                    // blocking the game view.
+                    mTextEdit.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+
+                    FrameLayout.LayoutParams mEditTextLayoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+                    mEditTextLayoutParams.gravity = Gravity.TOP;
+                    mEditTextLayoutParams.setMargins(0, 0, 0, 0);
+                    mTextEdit.setLayoutParams(mEditTextLayoutParams);
+                    mTextEdit.setVisibility(View.VISIBLE);
+                    mTextEdit.setInputType(input_type);
+
+                    // Start on an empty slate each time we bring up the keyboard
+                    mTextEdit.setText("");
+
+                    getWindow().addContentView(mTextEdit, mEditTextLayoutParams);
+
+                    mTextEdit.bringToFront();
+                    mTextEdit.setSelection(0);
+                    mTextEdit.requestFocus();
+
+                    imm.showSoftInput(mTextEdit, InputMethodManager.SHOW_FORCED);
+                } else {
+
+                    // "Old style" key event inputs
+                    imm.showSoftInput(getWindow().getDecorView(), InputMethodManager.SHOW_FORCED);
+
+                }
             }
         });
+    }
+
+    /**
+     * Clears the internal text field if hidden input method is used.
+     */
+    public void clearText() {
+        final DefoldActivity self = this;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mTextEdit != null) {
+                    mTextEdit.setText("");
+                }
+            }
+        });
+    }
+
+    /**
+     * Clears the composing part of the text field if hidden input method is used.
+     */
+    public void clearComposingText() {
+        final DefoldActivity self = this;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mTextEdit != null) {
+                    mTextEdit.clearComposingText();
+                }
+            }
+        });
+    }
+
+    /**
+     * Clears both internal text and composing part of text field if hidden input method is used.
+     */
+    public void resetSoftInput() {
+        final DefoldActivity self = this;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mTextEdit != null) {
+                    mTextEdit.setText("");
+                    mTextEdit.clearComposingText();
+                }
+            }
+        });
+    }
+
+    /**
+     * Method to switch between "old" (key event) or "new" (hidden text input) method.
+     * Called from C (android_window.c).
+     */
+    public void setUseHiddenInputField(boolean useHiddenInputField) {
+        mUseHiddenInputField = useHiddenInputField;
     }
 
     /** hide virtual keyboard

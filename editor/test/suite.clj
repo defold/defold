@@ -4,8 +4,7 @@
             [editor.messages :as m])
   (:import [clojure.lang Compiler]))
 
-(def test-namespaces '[dynamo.defnode-test
-                       dynamo.integration.defective-nodes
+(def test-namespaces '[dynamo.integration.defective-nodes
                        dynamo.integration.dependencies
                        dynamo.integration.error-substitute-values
                        dynamo.integration.garbage-collection
@@ -16,8 +15,6 @@
                        dynamo.integration.schema-validation
                        dynamo.integration.validation
                        dynamo.integration.visibility-enablement
-                       dynamo.transaction-test
-                       dynamo.util-test
                        editor.buffers-test
                        editor.camera-test
                        editor.diff-view-test
@@ -64,6 +61,9 @@
                        internal.property-test
                        internal.system-test
                        internal.value-test
+                       internal.defnode-test
+                       internal.transaction-test
+                       internal.util-test
                        potemkin.imports-test
                        potemkin.namespaces-test])
 

@@ -230,11 +230,6 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene))
 
-(defn- connect-if-output [out-node out-label in-node in-label]
-  (if ((-> out-node g/node-type g/output-labels) out-label)
-    (g/connect (g/node-id out-node) out-label (g/node-id in-node) in-label)
-    []))
-
 (defn- gen-component-id [go-node base]
   (let [ids (g/node-value go-node :child-ids)]
     (loop [postfix 0]
@@ -270,7 +265,7 @@
             (project/select project [comp-node])))))))
 
 (handler/defhandler :add-from-file :global
-  (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
+  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
   (label [] "Add Component File")
   (run [selection] (add-component-handler (first selection))))
 
@@ -345,7 +340,7 @@
 
 (handler/defhandler :add :global
   (label [user-data] (add-embedded-component-label user-data))
-  (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
+  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
   (run [user-data] (add-embedded-component-handler user-data))
   (options [selection user-data]
            (let [self (first selection)

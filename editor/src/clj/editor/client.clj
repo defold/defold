@@ -1,5 +1,5 @@
 (ns editor.client
-  (:require [dynamo.file.protobuf :as protobuf]
+  (:require [editor.protobuf :as protobuf]
             [editor.prefs :as prefs])
   (:import [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]

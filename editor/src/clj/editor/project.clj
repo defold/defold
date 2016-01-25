@@ -266,25 +266,24 @@ ordinary paths."
 (defn- add-resources [project resources]
   (load-nodes! project (make-nodes! project resources)))
 
+(defn- resource-node-pairs [project resources]
+  (doall (filter (comp some? second) (map #(do [% (get-resource-node project %)]) resources))))
+
 (defn- remove-resources [project resources]
-  (let [internal (filter loadable? resources)
-        external (filter (complement loadable?) resources)]
-    (doseq [resource internal
-            :let [resource-node (get-resource-node project resource)]
-            :when resource-node]
+  (let [internals (resource-node-pairs project (filter loadable? resources))
+        externals (resource-node-pairs project (filter (complement loadable?) resources))]
+    (doseq [[resource resource-node] internals]
       (let [current-outputs (outputs resource-node)
             new-node (first (make-nodes! project [resource]))
             new-outputs (set (outputs new-node))
-            outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+            outputs-to-make (remove new-outputs current-outputs)]
         (g/transact
           (concat
             (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))
-    (doseq [resource external
-            :let [resource-node (get-resource-node project resource)]
-            :when resource-node]
+    (doseq [[resource resource-node] externals]
       (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))))
 
 (defn- move-resources [project moved]
@@ -301,22 +300,20 @@ ordinary paths."
           reset-undo? (or (some loadable? all)
                           (not (empty? moved)))
           unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
-          to-reload (concat (:changed changes) (doall (filter #(some? (get-resource-node project %)) (:added changes))))
-          to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
+          to-reload (resource-node-pairs project (concat (:changed changes) (:added changes)))
+          to-add (doall (filter #(nil? (get-resource-node project %)) (:added changes)))]
       ;; Order is important, since move-resources reuses/patches the resource node
       (move-resources project moved)
       (add-resources project to-add)
       (remove-resources project (:removed changes))
-      (doseq [resource to-reload
-              :let [resource-node (get-resource-node project resource)]
-              :when resource-node]
+      (doseq [[resource resource-node] to-reload]
         (let [current-outputs (outputs resource-node)]
           (if (loadable? resource)
             (let [nodes (make-nodes! project [resource])]
               (load-nodes! project nodes)
               (let [new-node (first nodes)
                     new-outputs (set (outputs new-node))
-                    outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+                    outputs-to-make (remove new-outputs current-outputs)]
                 (g/transact
                   (concat
                     (g/delete-node resource-node)

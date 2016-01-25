@@ -6,8 +6,7 @@
             [editor.workspace :as workspace]
             [editor.project :as project]
             [editor.geom :as geom]
-            [editor.spine :as spine]
-            [internal.render.pass :as pass])
+            [editor.spine :as spine])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]

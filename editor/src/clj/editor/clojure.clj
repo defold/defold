@@ -1,4 +1,4 @@
-(ns internal.clojure
+(ns editor.clojure
   (:require [clojure.java.io :as io]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [dynamo.graph :as g]

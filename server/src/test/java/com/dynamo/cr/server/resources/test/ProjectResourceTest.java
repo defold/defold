@@ -8,15 +8,20 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.io.StringReader;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
 import java.net.URI;
 import java.net.URL;
-import java.util.Random;
 
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -250,6 +255,35 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(0, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
     }
 
+    private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
+        final ZipFile file = new ZipFile( path );
+        try
+        {
+            final Enumeration<? extends ZipEntry> entries = file.entries();
+            while ( entries.hasMoreElements() )
+            {
+                final ZipEntry entry = entries.nextElement();
+                final String entryName = entry.getName();
+                if( !entryName.endsWith("Info.plist") )
+                    continue;
+
+                try {
+                    XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
+                    plist.load(file.getInputStream( entry ));
+                    return plist;
+                } catch (ConfigurationException e) {
+                    throw new IOException("Failed to read Info.plist", e);
+                }
+            }
+
+            // Info.plist not found
+            throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
+        }
+        finally
+        {
+            file.close();
+        }
+    }
 
     @Test
     public void uploadEngine() throws Exception {
@@ -257,9 +291,8 @@ public class ProjectResourceTest extends AbstractResourceTest {
         f.deleteOnExit();
         FileOutputStream out = new FileOutputStream(f);
 
-        byte[] buf = new byte[12242];
-        new Random().nextBytes(buf);
-        out.write(buf);
+        byte[] originalbundle = FileUtils.readFileToByteArray(new File("test_data/test.ipa"));
+        out.write(originalbundle);
         out.close();
         ClientResponse resp = ownerProjectResource
                 .path("/engine")
@@ -268,8 +301,9 @@ public class ProjectResourceTest extends AbstractResourceTest {
                 .post(ClientResponse.class, new FileInputStream(f));
         assertEquals(200, resp.getStatus());
 
-        byte[] uploaded = FileUtils.readFileToByteArray(new File(String.format("tmp/engine_root/%d/ios/Defold.ipa", proj1.getId())));
-        assertArrayEquals(buf, uploaded);
+        String downloadpath = String.format("tmp/engine_root/%d/ios/Defold.ipa", proj1.getId());
+        byte[] uploaded = FileUtils.readFileToByteArray(new File(downloadpath));
+        assertArrayEquals(originalbundle, uploaded);
 
         ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         String iOSUrl = projectInfo.getIOSExecutableUrl();
@@ -279,11 +313,11 @@ public class ProjectResourceTest extends AbstractResourceTest {
         byte[] downloaded = ownerProjectResource
                 .path("/engine")
                 .path("ios")
-                .path(key)
+                .path(key+".ipa")
                 .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
                 .get(byte[].class);
 
-        assertArrayEquals(buf, downloaded);
+        assertArrayEquals(originalbundle, downloaded);
 
         String manifestString = ownerProjectResource
                 .path("/engine_manifest")
@@ -292,14 +326,22 @@ public class ProjectResourceTest extends AbstractResourceTest {
                 .accept("text/xml")
                 .get(String.class);
 
-        XMLPropertyListConfiguration manifest = new XMLPropertyListConfiguration();
-        manifest.load(new StringReader(manifestString));
+        XMLPropertyListConfiguration downloadedmanifest = new XMLPropertyListConfiguration();
+        downloadedmanifest.load(new StringReader(manifestString));
 
-        XMLPropertyListConfiguration item = (XMLPropertyListConfiguration) manifest.getList("items").get(0);
-        XMLPropertyListConfiguration asset = (XMLPropertyListConfiguration) item.getList("assets").get(0);
-        URL url = new URL(asset.getString("url"));
+        XMLPropertyListConfiguration downloadedmanifest_item = (XMLPropertyListConfiguration) downloadedmanifest.getList("items").get(0);
+        XMLPropertyListConfiguration downloadedmanifest_asset = (XMLPropertyListConfiguration) downloadedmanifest_item.getList("assets").get(0);
+
+        URL url = new URL(downloadedmanifest_asset.getString("url"));
         byte[] downloadedFromManifest = IOUtils.toByteArray(url.openStream());
-        assertArrayEquals(buf, downloadedFromManifest);
+        assertArrayEquals(originalbundle, downloadedFromManifest);
+
+        // Check that the bundle id from the downloaded bundle and the downloaded manifest match
+        XMLPropertyListConfiguration downloadedbundleplist = readPlistFromBundle(downloadpath);
+        String downloadedbundleid = downloadedbundleplist.getString("CFBundleIdentifier");
+        String downloadedmanifest_bundleid = downloadedmanifest_item.getString("metadata.bundle-identifier");
+
+        assertEquals(downloadedmanifest_bundleid, downloadedbundleid);
     }
 
 }

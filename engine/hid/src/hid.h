@@ -175,6 +175,7 @@ namespace dmHID
         KEYBOARD_TYPE_DEFAULT,
         KEYBOARD_TYPE_NUMBER_PAD,
         KEYBOARD_TYPE_EMAIL,
+        KEYBOARD_TYPE_PASSWORD,
     };
 
     enum MouseButton

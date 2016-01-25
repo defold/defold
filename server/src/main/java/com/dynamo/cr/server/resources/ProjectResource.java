@@ -1,13 +1,16 @@
 package com.dynamo.cr.server.resources;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.security.RolesAllowed;
@@ -30,6 +33,8 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
+import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.AbstractFileFilter;
@@ -431,11 +436,41 @@ public class ProjectResource extends BaseResource {
         return Response.ok().build();
     }
 
+
+    private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
+        final ZipFile file = new ZipFile( path );
+        try
+        {
+            final Enumeration<? extends ZipEntry> entries = file.entries();
+            while ( entries.hasMoreElements() )
+            {
+                final ZipEntry entry = entries.nextElement();
+                final String entryName = entry.getName();
+                if( !entryName.endsWith("Info.plist") )
+                    continue;
+
+                try {
+                    XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
+                    plist.load(file.getInputStream( entry ));
+                    return plist;
+                } catch (ConfigurationException e) {
+                    throw new IOException("Failed to read Info.plist", e);
+                }
+            }
+
+            // Info.plist not found
+            throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
+        }
+        finally
+        {
+            file.close();
+        }
+    }
+
     @GET
     @RolesAllowed(value = { "anonymous" })
-    @Produces(MediaType.APPLICATION_OCTET_STREAM)
-    @Path("/engine/{platform}/{key}")
-    public byte[] downloadEngine(@PathParam("project") String projectId,
+    @Path("/engine/{platform}/{key}.ipa")
+    public Response downloadEngine(@PathParam("project") String projectId,
                                  @PathParam("key") String key,
                                  @PathParam("platform") String platform) throws IOException {
 
@@ -451,7 +486,20 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
         }
 
-        return server.downloadEngine(projectId, platform);
+        final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
+
+        StreamingOutput output = new StreamingOutput() {
+            @Override
+            public void write(OutputStream os) throws IOException, WebApplicationException {
+                FileUtils.copyFile(file, os);
+                os.close();
+            }
+        };
+
+        return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM)
+                .header("content-length", Long.toString(file.length()))
+                .header("content-disposition", String.format("attachment; filename=\"%s.ipa\"", key))
+                .build();
     }
 
     @GET
@@ -481,7 +529,19 @@ public class ProjectResource extends BaseResource {
         stream.close();
 
         URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
-        String manifestPrim = manifest.replace("${URL}", engineUri.toString());
+
+        final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), projectId, platform);
+
+        String bundleid = "unknown";
+        try {
+            final XMLPropertyListConfiguration bundleplist = readPlistFromBundle( ipaPath );
+            bundleid = bundleplist.getString("CFBundleIdentifier");
+        } catch (Exception e) {
+            throw new ServerException("Failed to read plist", e, Status.INTERNAL_SERVER_ERROR);
+        }
+
+        String manifestPrim = manifest.replace("${URL}", engineUri.toString()+".ipa");
+        manifestPrim = manifestPrim.replace("${BUNDLEID}", bundleid);
         return manifestPrim;
     }
 

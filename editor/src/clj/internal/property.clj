@@ -2,7 +2,7 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
             [clojure.tools.macro :as ctm]
-            [dynamo.util :as util]
+            [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]
@@ -14,7 +14,7 @@
 
 (defn property-default-setter
   [basis node property _ new-value]
-  (first (gt/replace-node basis node (assoc (ig/node-by-id-at basis node) property new-value))))
+  (first (gt/replace-node basis node (gt/set-property (ig/node-by-id-at basis node) basis property new-value))))
 
 (defrecord PropertyTypeImpl
   [name value-type default tags dynamic]
@@ -25,6 +25,9 @@
 
   gt/Dynamics
   (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic)))
+
+(defn make-property-type [key type]
+  (->PropertyTypeImpl (name key) type nil nil nil))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))

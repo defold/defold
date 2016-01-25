@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
-            [dynamo.util :as util]
+            [editor.system :as system]
             [editor.collection :as collection]
             [editor.geom :as geom]
             [editor.platformer :as platformer]
@@ -10,7 +10,7 @@
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
             [integration.test-util :as test-util]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [javax.vecmath Point3d]))
 
 (defn- make-aabb [min max]
@@ -74,7 +74,7 @@
                    path          "/sprite/small_atlas.sprite"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   renderables   (g/node-value (g/graph-value (g/node-id->graph-id view) :renderer) :renderables)]
+                   renderables   (g/node-value view :renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
@@ -101,7 +101,7 @@
                (test-util/mouse-press! view 0 0)
                (is (test-util/selected? project resource-node))
                ; Toggling
-               (let [modifiers (if util/mac? [:meta] [:control])]
+               (let [modifiers (if system/mac? [:meta] [:control])]
                  (test-util/mouse-click! view 32 32)
                  (is (test-util/selected? project go-node))
                  (test-util/mouse-click! view 32 32 modifiers)

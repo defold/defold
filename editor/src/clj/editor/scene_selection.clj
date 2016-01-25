@@ -1,7 +1,7 @@
 (ns editor.scene-selection
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
-            [dynamo.util :as util]
+            [editor.system :as system]
             [editor.background :as background]
             [editor.colors :as colors]
             [editor.camera :as c]
@@ -15,7 +15,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.workspace :as workspace]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [service.log :as log]
             [editor.scene :as scene])
   (:import [com.defold.editor Start UIUtil]
@@ -84,12 +84,12 @@
                                   (let [selection-set (set selection)
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
                                     (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
-        selection (or (not-empty (sel-filter-fn (map :node-id selection))) (filter #(not (nil? %)) [(:node-id (g/node-value controller :scene))]))]
+        selection (or (not-empty (sel-filter-fn (map :node-id selection))) (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
     (select-fn selection op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:control})
-(def toggle-modifiers (if util/mac? mac-toggle-modifiers other-toggle-modifiers))
+(def toggle-modifiers (if system/mac? mac-toggle-modifiers other-toggle-modifiers))
 
 (defn handle-selection-input [self action user-data]
   (let [start      (g/node-value self :start)
@@ -137,7 +137,7 @@
 
   (input selection g/Any)
   (input picking-selection g/Any)
-  (input scene g/Any)
+  (input root-id g/NodeID)
 
   (output picking-rect Rect :cached (g/fnk [start current] (scene/calc-picking-rect start current)))
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
@@ -146,14 +146,14 @@
   (output input-handler Runnable :cached (g/always handle-selection-input)))
 
 (scene/defcontroller :selection
-  (make [project resource-node view renderer]
+  (make [project resource-node view]
         (let [view-graph  (g/node-id->graph-id view)]
           (g/make-nodes view-graph
                   [selection  [SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]]
 
-                  (g/connect resource-node        :scene                     selection        :scene)
-                  (g/connect selection            :renderable                renderer         :tool-renderables)
+                  (g/connect resource-node        :_node-id                  selection        :root-id)
+                  (g/connect selection            :renderable                view             :tool-renderables)
                   (g/connect selection            :input-handler             view             :input-handlers)
-                  (g/connect selection            :picking-rect              renderer         :picking-rect)
-                  (g/connect renderer             :picking-selection         selection        :picking-selection)
+                  (g/connect selection            :picking-rect              view             :picking-rect)
+                  (g/connect view                 :picking-selection         selection        :picking-selection)
                   (g/connect view                 :selection                 selection        :selection)))))

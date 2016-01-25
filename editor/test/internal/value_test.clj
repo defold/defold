@@ -1,7 +1,7 @@
 (ns internal.value-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.util :as util]
+            [internal.util :as util]
             [internal.node :as in]
             [internal.transaction :as it]
             [support.test-support :refer :all]))

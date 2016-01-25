@@ -1,10 +1,10 @@
-(ns dynamo.util-test
+(ns internal.util-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [dynamo.util :refer :all]))
+            [internal.util :refer :all]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]

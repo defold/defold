@@ -13,7 +13,7 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.pipeline.lua-scan :as lua-scan]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]

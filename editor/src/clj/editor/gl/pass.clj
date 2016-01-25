@@ -1,4 +1,4 @@
-(ns internal.render.pass
+(ns editor.gl.pass
   (:require [dynamo.graph :as g]
             [editor.types :as types])
   (:import [javax.media.opengl GL GL2]

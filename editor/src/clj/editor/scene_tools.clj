@@ -6,7 +6,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.math :as math]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
            [editor.types Camera AABB Region Rect]

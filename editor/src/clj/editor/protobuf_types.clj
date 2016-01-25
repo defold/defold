@@ -11,7 +11,7 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.math :as math]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]

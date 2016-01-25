@@ -6,7 +6,7 @@
             [editor.workspace :as workspace]
             [editor.project :as project]
             [editor.gui :as gui]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
@@ -112,8 +112,8 @@
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
-(defn- render-order [renderer]
-  (let [renderables (g/node-value renderer :renderables)]
+(defn- render-order [view]
+  (let [renderables (g/node-value view :renderables)]
     (->> (get renderables pass/transparent)
       (map :node-id)
       (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
@@ -126,10 +126,9 @@
           project (test-util/setup-project! workspace)
           app-view (test-util/setup-app-view!)
           node-id (test-util/resource-node project "/gui/layers.gui")
-          view (test-util/open-scene-view! project app-view node-id 16 16)
-          renderer (g/graph-value (g/node-id->graph-id view) :renderer)]
-      (is (= ["box" "pie" "box1" "text"] (render-order renderer)))
+          view (test-util/open-scene-view! project app-view node-id 16 16)]
+      (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
-      (is (= ["pie" "box1" "box" "text"] (render-order renderer)))
+      (is (= ["pie" "box1" "box" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "")
-      (is (= ["box" "pie" "box1" "text"] (render-order renderer))))))
+      (is (= ["box" "pie" "box1" "text"] (render-order view))))))

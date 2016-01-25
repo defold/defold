@@ -55,7 +55,7 @@
 
 (defn gen-arcs
   [nodes]
-  (pair (map-nodes #(-> % gt/node-type gt/output-labels) nodes) (map-nodes #(-> % gt/node-type gt/input-labels) nodes)))
+  (pair (map-nodes #(-> % g/node-type gt/output-labels) nodes) (map-nodes #(-> % g/node-type gt/input-labels) nodes)))
 
 (def gen-label
   (gen/not-empty

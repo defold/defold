@@ -1335,6 +1335,38 @@ namespace dmGameSystem
             {
                 CancelAnimation(component);
             }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::SetConstantSpineModel* ddf = (dmGameSystemDDF::SetConstantSpineModel*)params.m_Message->m_Data;
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
+                        dmGameObject::PropertyVar(ddf->m_Value), CompSpineModelSetConstantCallback, component);
+                if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
+                {
+                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
+                    dmLogError("'%s:%s#%s' has no constant named '%s'",
+                            dmMessage::GetSocketName(receiver.m_Socket),
+                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
+                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
+                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                }
+            }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::ResetConstantSpineModel* ddf = (dmGameSystemDDF::ResetConstantSpineModel*)params.m_Message->m_Data;
+                dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
+                uint32_t size = constants.Size();
+                for (uint32_t i = 0; i < size; ++i)
+                {
+                    if( constants[i].m_NameHash == ddf->m_NameHash)
+                    {
+                        constants[i] = constants[size - 1];
+                        component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
+                        constants.Pop();
+                        ReHash(component);
+                        break;
+                    }
+                }
+            }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

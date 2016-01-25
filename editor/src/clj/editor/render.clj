@@ -5,7 +5,7 @@
             [editor.gl.vertex :as vtx]
             [editor.types :as types]
             [editor.scene :as scene]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [editor.types AABB]
            [javax.vecmath Point3d]))
 
