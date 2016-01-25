@@ -186,6 +186,8 @@ namespace dmParticle
         uint32_t            m_MaxParticleCount;
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
+        /// Instance seeding to avoid same frame instances to look the same.
+        uint16_t            m_InstanceSeeding;
         /// Stats
         Stats               m_Stats;
     };
