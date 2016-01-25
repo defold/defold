@@ -341,6 +341,7 @@
                                                               (updateItem [item empty]
                                                                 (let [this ^TreeCell this]
                                                                   (proxy-super updateItem item empty)
+                                                                  (ui/update-tree-cell-style! this)
                                                                   (if empty
                                                                     (do
                                                                       (proxy-super setText nil)

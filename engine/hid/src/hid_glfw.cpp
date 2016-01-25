@@ -59,11 +59,11 @@ namespace dmHID
             }
             assert(g_Context == 0);
             g_Context = context;
-            if (glfwSetCharCallback(CharacterCallback)) {
+            if (glfwSetCharCallback(CharacterCallback) == 0) {
                 dmLogFatal("could not set glfw char callback.");
                 return false;
             }
-            if (glfwSetMarkedTextCallback(MarkedTextCallback)) {
+            if (glfwSetMarkedTextCallback(MarkedTextCallback) == 0) {
                 dmLogFatal("could not set glfw marked text callback.");
                 return false;
             }
@@ -210,10 +210,13 @@ namespace dmHID
             case KEYBOARD_TYPE_EMAIL:
                 t = GLFW_KEYBOARD_EMAIL;
                 break;
+            case KEYBOARD_TYPE_PASSWORD:
+                t = GLFW_KEYBOARD_PASSWORD;
+                break;
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
         }
-        glfwShowKeyboard(1, type, (int) autoclose);
+        glfwShowKeyboard(1, t, (int) autoclose);
     }
 
     void HideKeyboard(HContext context)

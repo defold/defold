@@ -22,7 +22,7 @@
             [editor.scene :as scene]
             [editor.outline :as outline]
             [editor.validation :as validation]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -376,7 +376,7 @@
 
 (defn- get-single-selection [node-type selection]
   (when (and (single-selection selection)
-             (= (g/node-type (g/node-by-id (first selection))) node-type))
+             (g/node-instance? node-type (first selection)))
     (first selection)))
 
 (defn- atlas-selection [selection] (get-single-selection AtlasNode selection))
@@ -432,7 +432,7 @@
 
 (defn- move-active? [selection]
   (when-let [image (image-selection selection)]
-    (= (g/node-type (g/node-by-id (image-parent image))) AtlasAnimation)))
+    (g/node-instance? AtlasAnimation (image-parent image))))
 
 (defn- move-image [parent image direction]
   (let [order-delta (if (= direction :move-up) -1 1)
@@ -460,16 +460,3 @@
   (enabled? [selection] (move-enabled? selection))
   (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-down)))
- 
-(ui/extend-menu ::menubar :editor.app-view/edit
-                [{:label "Atlas"
-                  :id ::atlas
-                  :children [{:label "Move Up"
-                              :acc "Alt+UP"
-                              :command :move-up
-                              }
-                             {:label "Move Down"
-                              :acc "Alt+DOWN"
-                              :command :move-down
-                              }
-                             ]}])

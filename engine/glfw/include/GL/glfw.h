@@ -286,6 +286,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_KEYBOARD_DEFAULT    (0)
 #define GLFW_KEYBOARD_NUMBER_PAD (1)
 #define GLFW_KEYBOARD_EMAIL      (2)
+#define GLFW_KEYBOARD_PASSWORD   (3)
 
 /* Mouse button definitions */
 #define GLFW_MOUSE_BUTTON_1      0
