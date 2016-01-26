@@ -162,6 +162,7 @@ namespace dmParticle
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
         : m_MaxParticleCount(max_particle_count)
         , m_NextVersionNumber(1)
+        , m_InstanceSeeding(0)
         {
             memset(&m_Stats, 0, sizeof(m_Stats));
             m_Instances.SetCapacity(max_instance_count);
