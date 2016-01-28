@@ -36,6 +36,7 @@ struct Command
     lua_State* m_L;
     const char* m_Results;
     const char* m_Error;
+    int m_ErrorCode;
 };
 
 struct Facebook
@@ -72,13 +73,16 @@ struct Facebook
 
 Facebook g_Facebook;
 
-static void PushError(lua_State*L, const char* error)
+static void PushError(lua_State*L, const char* error, int error_code)
 {
     // Could be extended with error codes etc
     if (error != NULL) {
         lua_newtable(L);
         lua_pushstring(L, "error");
         lua_pushstring(L, error);
+        lua_rawset(L, -3);
+        lua_pushstring(L, "error_code");
+        lua_pushnumber(L, error_code);
         lua_rawset(L, -3);
     } else {
         lua_pushnil(L);
@@ -92,6 +96,7 @@ static void RunStateCallback(Command* cmd)
 
         int state = cmd->m_State;
         const char* error = cmd->m_Error;
+        int error_code = cmd->m_ErrorCode;
 
         int top = lua_gettop(L);
 
@@ -113,7 +118,7 @@ static void RunStateCallback(Command* cmd)
         }
 
         lua_pushnumber(L, (lua_Number) state);
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         (void)ret;
@@ -129,6 +134,7 @@ static void RunCallback(Command* cmd)
     if (g_Facebook.m_Callback != LUA_NOREF) {
         lua_State* L = cmd->m_L;
         const char* error = cmd->m_Error;
+        int error_code = cmd->m_ErrorCode;
 
         int top = lua_gettop(L);
 
@@ -148,7 +154,7 @@ static void RunCallback(Command* cmd)
             return;
         }
 
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = dmScript::PCall(L, 2, LUA_MULTRET);
         (void)ret;
@@ -165,6 +171,7 @@ static void RunDialogResultCallback(Command* cmd)
     if (g_Facebook.m_Callback != LUA_NOREF) {
         lua_State* L = cmd->m_L;
         const char* error = cmd->m_Error;
+        int error_code = cmd->m_ErrorCode;
 
         int top = lua_gettop(L);
 
@@ -198,7 +205,7 @@ static void RunDialogResultCallback(Command* cmd)
             lua_pushnil(L);
         }
 
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         (void)ret;
@@ -240,44 +247,48 @@ extern "C" {
 #endif
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
-  (JNIEnv* env, jobject, jlong userData, jint state, jstring error)
+  (JNIEnv* env, jobject, jlong userData, jint state, jstring error, jint error_code)
 {
     Command cmd;
     cmd.m_Type = CMD_LOGIN;
     cmd.m_State = (int)state;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
+    cmd.m_ErrorCode = (int)error_code;
     QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRead
-  (JNIEnv* env, jobject, jlong userData, jstring error)
+  (JNIEnv* env, jobject, jlong userData, jstring error, jint error_code)
 {
     Command cmd;
     cmd.m_Type = CMD_REQUEST_READ;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
+    cmd.m_ErrorCode = (int)error_code;
     QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPublish
-  (JNIEnv* env, jobject, jlong userData, jstring error)
+  (JNIEnv* env, jobject, jlong userData, jstring error, jint error_code)
 {
     Command cmd;
     cmd.m_Type = CMD_REQUEST_PUBLISH;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
+    cmd.m_ErrorCode = (int)error_code;
     QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
-  (JNIEnv *env, jobject, jlong userData, jstring results, jstring error)
+  (JNIEnv *env, jobject, jlong userData, jstring results, jstring error, jint error_code)
 {
     Command cmd;
     cmd.m_Type = CMD_DIALOG_COMPLETE;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Results = StrDup(env, results);
     cmd.m_Error = StrDup(env, error);
+    cmd.m_ErrorCode = (int)error_code;
     QueueCommand(&cmd);
 }
 
@@ -582,7 +593,7 @@ int Facebook_ShowDialog(lua_State* L)
     char params_json[1024];
     params_json[0] = '{';
     params_json[1] = '\0';
-    char tmp[256];
+    char tmp[1024];
 
     lua_pushnil(L);
     int i = 0;
@@ -599,7 +610,7 @@ int Facebook_ShowDialog(lua_State* L)
         }
 
         // escape string characters such as "
-        char k_escaped[128];
+        char k_escaped[1024];
         char v_escaped[1024];
         escape_json_str(k, k_escaped, k_escaped+sizeof(k_escaped));
         escape_json_str(vp, v_escaped, v_escaped+sizeof(v_escaped));
@@ -710,6 +721,9 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
     SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
+
+    SETCONSTANT(ERROR_SDK,                  dmFacebook::ERROR_SDK);
+    SETCONSTANT(ERROR_DIALOG_NOT_SUPPORTED, dmFacebook::ERROR_DIALOG_NOT_SUPPORTED);
 
 #undef SETCONSTANT
 

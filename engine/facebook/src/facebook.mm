@@ -34,7 +34,7 @@ struct Facebook
 
 Facebook g_Facebook;
 
-static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error);
+static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error, dmFacebook::Error error_code);
 
 // AppDelegate used temporarily to hijack all AppDelegate messages
 // An improvment could be to create generic proxy
@@ -82,29 +82,43 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             if (results[@"postId"]) {
                 [new_res setValue:results[@"postId"] forKey:@"post_id"];
             }
-            RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
+            RunDialogResultCallback(g_Facebook.m_MainThread, new_res, nil, dmFacebook::ERROR_NONE);
         } else {
-            RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+            NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"Share result was nil" };
+            NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+            RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
         }
     }
 
     - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
-        RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
+    // Note: sharerDidCancel does not seem to ever be called.
+    //       The reason being, according to one comment on a SO question;
+    //       "I think it is a legacy thing that wasn't removed because it would break apps"
+    //
+    //       http://stackoverflow.com/questions/33120665/fbsdk-sharerdidcancel-is-not-getting-called-in-ios
+    //
     - (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
-        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-        [errorDetail setValue:@"Share dialog was cancelled" forKey:NSLocalizedDescriptionKey];
-        RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"Share dialog was cancelled" };
+        NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
     // App invite related methods
     - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didCompleteWithResults:(NSDictionary *)results {
-        RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+        if (results != nil) {
+            RunDialogResultCallback(g_Facebook.m_MainThread, results, nil, dmFacebook::ERROR_NONE);
+        } else {
+            NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"App invite result was nil" };
+            NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+            RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
+        }
     }
 
     - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didFailWithError:(NSError *)error {
-        RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
     // Game request related methods
@@ -128,20 +142,22 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                     [new_res setObject:results[key] forKey:@"request_id"];
                 }
             }
-            RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
+            RunDialogResultCallback(g_Facebook.m_MainThread, new_res, nil, dmFacebook::ERROR_NONE);
         } else {
-            RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+            NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"Game request result was nil" };
+            NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+            RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
         }
     }
 
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didFailWithError:(NSError *)error {
-        RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
     - (void)gameRequestDialogDidCancel:(FBSDKGameRequestDialog *)gameRequestDialog {
-        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-        [errorDetail setValue:@"Game request dialog was cancelled" forKey:NSLocalizedDescriptionKey];
-        RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        NSDictionary *errorDetail = @{ NSLocalizedDescriptionKey : @"Game request dialog was cancelled" };
+        NSError *error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+        RunDialogResultCallback(g_Facebook.m_MainThread, nil, error, dmFacebook::ERROR_SDK);
     }
 
 
@@ -215,13 +231,16 @@ static id GetTableValue(lua_State* L, int table_index, NSArray* keys, int expect
     return r;
 }
 
-static void PushError(lua_State*L, NSError* error)
+static void PushError(lua_State*L, NSError* error, dmFacebook::Error error_code)
 {
     // Could be extended with error codes etc
     if (error != 0) {
         lua_newtable(L);
         lua_pushstring(L, "error");
         lua_pushstring(L, [error.localizedDescription UTF8String]);
+        lua_rawset(L, -3);
+        lua_pushstring(L, "error_code");
+        lua_pushnumber(L, error_code);
         lua_rawset(L, -3);
     } else {
         lua_pushnil(L);
@@ -239,7 +258,7 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* error)
+static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* error, dmFacebook::Error error_code)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -259,7 +278,7 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
         }
 
         lua_pushnumber(L, (lua_Number) status);
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
         if (ret != 0) {
@@ -276,7 +295,7 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
     }
 }
 
-static void RunCallback(lua_State*L, NSError* error)
+static void RunCallback(lua_State*L, NSError* error, dmFacebook::Error error_code)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -295,7 +314,7 @@ static void RunCallback(lua_State*L, NSError* error)
             return;
         }
 
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
         if (ret != 0) {
@@ -343,7 +362,7 @@ static void ObjCToLua(lua_State*L, id obj)
     }
 }
 
-static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error)
+static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error, dmFacebook::Error error_code)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -364,7 +383,7 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
         ObjCToLua(L, result);
 
-        PushError(L, error);
+        PushError(L, error, error_code);
 
         int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
         if (ret != 0) {
@@ -404,11 +423,11 @@ static void UpdateUserData(lua_State* L)
         [g_Facebook.m_Me release];
         if (!error) {
             g_Facebook.m_Me = [[NSDictionary alloc] initWithDictionary: graphresult];
-            RunStateCallback(L, dmFacebook::STATE_OPEN, error);
+            RunStateCallback(L, dmFacebook::STATE_OPEN, nil, dmFacebook::ERROR_NONE);
         } else {
             g_Facebook.m_Me = nil;
             dmLogWarning("Failed to fetch user-info: %s", [[error localizedDescription] UTF8String]);
-            RunStateCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
+            RunStateCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error, dmFacebook::ERROR_SDK);
         }
 
     }];
@@ -502,11 +521,11 @@ int Facebook_Login(lua_State* L)
         [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
 
             if (error) {
-                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
+                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error, dmFacebook::ERROR_SDK);
             } else if (result.isCancelled) {
                 NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
                 [errorDetail setValue:@"Login was cancelled" forKey:NSLocalizedDescriptionKey];
-                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail], dmFacebook::ERROR_SDK);
             } else {
 
                 if ([result.grantedPermissions containsObject:@"public_profile"] &&
@@ -520,7 +539,7 @@ int Facebook_Login(lua_State* L)
                     //        This will show in the facebook.permissions() call anyway.
                     NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
                     [errorDetail setValue:@"Not granted all requested permissions." forKey:NSLocalizedDescriptionKey];
-                    RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+                    RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail], dmFacebook::ERROR_SDK);
                 }
             }
 
@@ -589,7 +608,11 @@ int Facebook_RequestReadPermissions(lua_State* L)
     AppendArray(L, permissions, 1);
 
     [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
+        if (!error) {
+            RunCallback(main_thread, error, dmFacebook::ERROR_NONE);
+        } else {
+            RunCallback(main_thread, error, dmFacebook::ERROR_SDK);
+        }
     }];
 
     assert(top == lua_gettop(L));
@@ -642,7 +665,11 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
     [g_Facebook.m_Login setDefaultAudience: audience];
     [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
+        if (!error) {
+            RunCallback(main_thread, error, dmFacebook::ERROR_NONE);
+        } else {
+            RunCallback(main_thread, error, dmFacebook::ERROR_SDK);
+        }
     }];
 
     assert(top == lua_gettop(L));
@@ -878,7 +905,7 @@ static int Facebook_ShowDialog(lua_State* L)
         NSError* error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
 
         lua_State* main_thread = dmScript::GetMainThread(L);
-        RunDialogResultCallback(main_thread, 0, error);
+        RunDialogResultCallback(main_thread, 0, error, dmFacebook::ERROR_DIALOG_NOT_SUPPORTED);
     }
 
     assert(top == lua_gettop(L));
@@ -1030,6 +1057,9 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
     SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
+
+    SETCONSTANT(ERROR_SDK,                  dmFacebook::ERROR_SDK);
+    SETCONSTANT(ERROR_DIALOG_NOT_SUPPORTED, dmFacebook::ERROR_DIALOG_NOT_SUPPORTED);
 
 #undef SETCONSTANT
 

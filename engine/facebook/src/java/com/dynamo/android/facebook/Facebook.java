@@ -38,6 +38,7 @@ public class Facebook implements Handler.Callback {
     public static final String MSG_KEY_ACTION           = "defold.fb.msg.action";
     public static final String MSG_KEY_SUCCESS          = "defold.fb.msg.success";
     public static final String MSG_KEY_ERROR            = "defold.fb.msg.error";
+    public static final String MSG_KEY_ERROR_CODE       = "defold.fb.msg.error_code";
     public static final String MSG_KEY_STATE            = "defold.fb.msg.state";
     public static final String MSG_KEY_USER             = "defold.fb.msg.user";
     public static final String MSG_KEY_ACCESS_TOKEN     = "defold.fb.msg.access_token";
@@ -59,15 +60,15 @@ public class Facebook implements Handler.Callback {
     private Activity activity;
 
     public interface Callback {
-        void onDone(String error);
+        void onDone(String error, int error_code);
     }
 
     public interface StateCallback {
-        void onDone(int state, String error);
+        void onDone(int state, String error, int error_code);
     }
 
     public interface DialogCallback {
-        void onDone(Bundle result, String error);
+        void onDone(Bundle result, String error, int error_code);
     }
 
     public Facebook(Activity activity, String appId) {
@@ -160,9 +161,13 @@ public class Facebook implements Handler.Callback {
         boolean handled = false;
         Bundle data = msg.getData();
         String error = null;
+        int error_code = 0;
         boolean success = data.containsKey(MSG_KEY_SUCCESS);
         if (data.containsKey(MSG_KEY_ERROR)) {
             error = data.getString(MSG_KEY_ERROR);
+        }
+        if (data.containsKey(MSG_KEY_ERROR_CODE)) {
+            error_code = data.getInt(MSG_KEY_ERROR_CODE);
         }
         String action = data.getString(MSG_KEY_ACTION);
         if (action.equals(ACTION_LOGIN)) {
@@ -184,13 +189,13 @@ public class Facebook implements Handler.Callback {
                 }
             }
 
-            this.stateCallback.onDone(data.getInt(MSG_KEY_STATE), error);
+            this.stateCallback.onDone(data.getInt(MSG_KEY_STATE), error, error_code);
 
         } else if (action.equals(ACTION_REQ_READ_PERMS) || action.equals(ACTION_REQ_PUB_PERMS)) {
-            this.callback.onDone(error);
+            this.callback.onDone(error, error_code);
 
         } else if (action.equals(ACTION_SHOW_DIALOG)) {
-            this.dialogCallback.onDone(data.getBundle(MSG_KEY_DIALOG_RESULT), error);
+            this.dialogCallback.onDone(data.getBundle(MSG_KEY_DIALOG_RESULT), error, error_code);
 
         }
         return handled;
