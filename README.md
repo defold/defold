@@ -147,7 +147,7 @@ Build engine for host target. For other targets use ``--platform=``
 
 Build at least once with 64 bit support (to support the particle editor, i.e. allowing opening collections)
 
-    $ ./scripts/build.py build_engine --skip-tests —-platform=x86_64-darwin
+    $ ./scripts/build.py build_engine --skip-tests --platform=x86_64-darwin
 
 When the initial build is complete the workflow is to use waf directly. For
 example
