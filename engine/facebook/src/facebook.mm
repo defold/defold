@@ -56,6 +56,10 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                        openURL:(NSURL *)url
                        sourceApplication:(NSString *)sourceApplication
                        annotation:(id)annotation {
+        if(!g_Facebook.m_Login)
+        {
+            return false;
+        }
         return [[FBSDKApplicationDelegate sharedInstance] application:application
                                                               openURL:url
                                                     sourceApplication:sourceApplication
@@ -63,6 +67,10 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         if(!g_Facebook.m_DisableFaceBookEvents)
         {
             [FBSDKAppEvents activateApp];
@@ -70,12 +78,20 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+        if(!g_Facebook.m_Login)
+        {
+            return false;
+        }
         return [[FBSDKApplicationDelegate sharedInstance] application:application
                                         didFinishLaunchingWithOptions:launchOptions];
     }
 
     // Sharing related methods
     - (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults :(NSDictionary *)results {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         if (results != nil) {
             // fix result so it complies with JS result fields
             NSMutableDictionary* new_res = [NSMutableDictionary dictionary];
@@ -89,10 +105,18 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     - (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:@"Share dialog was cancelled" forKey:NSLocalizedDescriptionKey];
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
@@ -100,15 +124,27 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
     // App invite related methods
     - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didCompleteWithResults:(NSDictionary *)results {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
     }
 
     - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didFailWithError:(NSError *)error {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     // Game request related methods
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didCompleteWithResults:(NSDictionary *)results {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         if (results != nil) {
             // fix result so it complies with JS result fields
             NSMutableDictionary* new_res = [NSMutableDictionary dictionaryWithDictionary:@{
@@ -135,10 +171,18 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didFailWithError:(NSError *)error {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     - (void)gameRequestDialogDidCancel:(FBSDKGameRequestDialog *)gameRequestDialog {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:@"Game request dialog was cancelled" forKey:NSLocalizedDescriptionKey];
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
@@ -481,6 +525,10 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
  */
 int Facebook_Login(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -499,6 +547,7 @@ int Facebook_Login(lua_State* L)
     } else {
 
         NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
+
         [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
 
             if (error) {
@@ -540,6 +589,10 @@ int Facebook_Login(lua_State* L)
  */
 int Facebook_Logout(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     [g_Facebook.m_Login logOut];
     [g_Facebook.m_Me release];
     g_Facebook.m_Me = 0;
@@ -573,6 +626,10 @@ int Facebook_Logout(lua_State* L)
  */
 int Facebook_RequestReadPermissions(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -624,6 +681,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -657,6 +718,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
 int Facebook_AccessToken(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
     lua_pushstring(L, token);
     return 1;
@@ -680,6 +745,10 @@ int Facebook_AccessToken(lua_State* L)
  */
 int Facebook_Permissions(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -720,6 +789,10 @@ int Facebook_Permissions(lua_State* L)
  */
 int Facebook_Me(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     if (g_Facebook.m_Me) {
@@ -812,6 +885,10 @@ int Facebook_Me(lua_State* L)
  */
 static int Facebook_ShowDialog(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -978,13 +1055,17 @@ static const luaL_reg Facebook_methods[] =
 
 dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {
+    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
+    if( !app_id )
+    {
+        dmLogDebug("No facebook.appid. Disabling module");
+        return dmExtension::RESULT_OK;
+    }
     g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
     dmExtension::RegisterUIApplicationDelegate(g_Facebook.m_Delegate);
 
-    // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-    // Better solution?
     g_Facebook.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
-    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
+
     [FBSDKSettings setAppID: [NSString stringWithUTF8String: app_id]];
 
     g_Facebook.m_Login = [[FBSDKLoginManager alloc] init];
@@ -994,6 +1075,11 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
 dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     dmExtension::UnregisterUIApplicationDelegate(g_Facebook.m_Delegate);
     [g_Facebook.m_Login release];
     return dmExtension::RESULT_OK;
