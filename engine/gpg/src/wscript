@@ -1,0 +1,17 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    gpgext = bld.new_task_gen(features = 'cxx cstaticlib embed ddf',
+                              includes = ['.', '../proto'],
+                              proto_gen_py = True,
+                              proto_gen_cc = True,
+                              protoc_includes = '../proto',
+                              target = 'gpgext')
+
+    gpgext.find_sources_in_dirs('.')
+

@@ -107,7 +107,7 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
-                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
+                                      '-Wno-psabi', '-std=c++11', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
@@ -494,6 +494,10 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
         </receiver>
 
+        <!-- For Google Play Game Sevices (gpg) -->
+        <meta-data android:name="com.google.android.gms.games.APP_ID"
+                   android:value="\ 1082452513575" />
+
         <!-- For GCM (push) -->
         <meta-data
             android:name="com.google.android.gms.version"
@@ -597,6 +601,8 @@ def android_package(task):
         activities += '<activity android:name="%s" %s/>' % (activity, attr)
 
     package = 'com.defold.%s' % task.exe_name
+    # TODO: HACK!
+    package = 'com.defold.testa.gpgs'
     if task.android_package:
         package = task.android_package
 
