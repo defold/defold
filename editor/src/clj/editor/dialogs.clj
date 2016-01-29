@@ -4,14 +4,15 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [service.log :as log])
+            [service.log :as log]
+            [editor.project :as project])
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ProgressBar TextField ListView SelectionMode]
+           [javafx.scene.control Button ProgressBar TextField TreeView TreeItem ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
@@ -152,7 +153,72 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
-    @return))
+    (let [res @return]
+      ;; TODO; this is differnt from tree-res
+      (def list-res res)
+      res)))
+
+(defn- update-search-dialog [^TreeView tree-view workspace project exts term]
+  (let [matching-resources (map :resource (project/search-in-files project exts term))
+        resource-tree      (g/node-value workspace :resource-tree)
+        [_ new-tree]       (workspace/filter-resource-tree resource-tree (set matching-resources))
+        ;; TODO; refactor to fix the cyclic dependencies
+        update-tree-view   (ns-resolve (find-ns 'editor.asset-browser)
+                                       'update-tree-view)]
+    (when new-tree
+      (update-tree-view tree-view new-tree nil)
+      (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
+        (.setExpanded item true)))))
+
+(defn make-search-in-files-dialog [workspace project]
+  (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
+        stage     (Stage.)
+        scene     (Scene. root)
+        controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
+        return    (atom nil)
+        term      (atom nil)
+        exts      (atom nil)
+        close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
+        tree-view ^TreeView (:resources-tree controls)]
+
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Search in files")
+
+    (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
+    (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
+
+    (ui/cell-factory! (:resources-tree controls) (fn [r] {:text (resource/resource-name r)
+                                                          :icon (workspace/resource-icon r)}))
+
+    (ui/observe (.textProperty ^TextField (:search controls))
+                (fn observe [_ _ ^String new]
+                  (reset! term new)
+                  (update-search-dialog tree-view workspace project @exts @term)))
+
+    (ui/observe (.textProperty ^TextField (:types controls))
+                (fn observe [_ _ ^String new]
+                  (reset! exts new)
+                  (update-search-dialog tree-view workspace project @exts @term)))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+      (ui/event-handler event
+                        (let [code (.getCode ^KeyEvent event)]
+                          (when (cond
+                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources-tree controls))
+                                  (= code KeyCode/ESCAPE) true
+                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources-tree controls)))
+                                                              true)
+                                  :else                   false)
+                            (.close stage)))))
+
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    (let [res @return]
+      ;; TODO; this is different from list-res
+      (def tree-res res)
+      res)))
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
@@ -206,7 +272,7 @@
 
     (.bind (.textProperty ^TextField (:path controls))
       (.concat (.concat (.textProperty ^TextField (:location controls)) "/") (.concat (.textProperty ^TextField (:name controls)) (str "." ext))))
-    
+
     (ui/on-action! (:browse controls) (fn [_] (let [location (-> (doto (DirectoryChooser.)
                                                                    (.setInitialDirectory (File. (str base-dir "/" (ui/text (:location controls)))))
                                                                    (.setTitle "Set Path"))

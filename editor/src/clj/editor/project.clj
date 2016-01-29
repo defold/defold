@@ -1,6 +1,6 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
-ordinary paths."
+  ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
@@ -11,8 +11,9 @@ ordinary paths."
             [editor.outline :as outline]
             [editor.validation :as validation]
             [service.log :as log]
-            ; TODO - HACK
-            [internal.graph.types :as gt])
+            ;; TODO - HACK
+            [internal.graph.types :as gt]
+            [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
@@ -121,6 +122,32 @@ ordinary paths."
         (workspace/resource-sync! (g/node-value project :workspace) false))
       ;; TODO: error message somewhere...
       (println (validation/error-message save-data)))))
+
+(defn compile-find-in-files-regex
+  "Convert a search-string to a java regex"
+  [search-str]
+  (let [clean-str (str/replace search-str #"[\.\(\)\[\]\^\$]" "")]
+    (re-pattern (str/replace clean-str #"\*" ".*"))))
+
+(defn search-in-files
+  "Returns a list of {:resource resource :content content} with resources that matches the search-str"
+  [project file-extensions-str search-str]
+  (let [save-data      (->> (save-data project)
+                            (filter #(= :file (and (:resource %)
+                                 (resource/source-type (:resource %))))))
+        file-exts      (some-> file-extensions-str
+                               (str/replace #" " "")
+                               (str/split #","))
+        file-exts      (->> file-exts
+                            (remove empty?)
+                            (map str/lower-case)
+                            set)
+        matching-files (filter #(or (empty? file-exts)
+                                    (contains? file-exts
+                                               (-> % :resource resource/resource-type :ext)))
+                               save-data)
+        pattern        (compile-find-in-files-regex search-str)]
+    (filter #(re-find pattern (:content %)) matching-files)))
 
 (handler/defhandler :save-all :global
     (enabled? [] true)

@@ -146,7 +146,7 @@
       (do
         (add-style! cell "first-tree-item")
         (remove-style! cell "last-tree-item"))
-      
+
       (and (= index last-index) (not (.isEmpty cell)))
       (do
         (add-style! cell "last-tree-item")
@@ -330,6 +330,21 @@
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
 
+(defn- make-tree-cell [render-fn]
+  (let [cell (proxy [TreeCell] []
+               (updateItem [resource empty]
+                 (let [this ^TreeCell this
+                       render-data (and resource (render-fn resource))]
+                   (update-tree-cell-style! this)
+                   (when-let [text (:text render-data)]
+                     (proxy-super setText text))
+                   (when-let [icon (:icon render-data)]
+                     (proxy-super setGraphic (jfx/get-image-view icon 16))))))]
+    cell))
+
+(defn- make-tree-cell-factory [render-fn]
+  (reify Callback (call ^TreeCell [this view] (make-tree-cell render-fn))))
+
 (extend-type ButtonBase
   HasAction
   (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
@@ -365,7 +380,16 @@
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (filter (comp not nil?))
-                      (mapv #(.getValue ^TreeItem %)))))
+                      (mapv #(.getValue ^TreeItem %))))
+
+  CollectionView
+  (selection [this] (do
+                      (log/info :sm (.getSelectionModel this))
+                      (log/info :si (.getSelectedItem (.getSelectionModel this)))
+                      (when-let [item (.getSelectedItem (.getSelectionModel this))]
+                        item)))
+  (cell-factory! [this render-fn]
+    (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-roots [^TreeView tree-view path-fn id-fn]
   (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
