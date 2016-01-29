@@ -865,10 +865,8 @@ instructions.configure=\
         # - The beta channel is based on the latest commit in the dev-branch, i.e. origin/dev
         if self.channel == 'stable':
             release_sha1 = model['releases'][0]['sha1']
-        elif self.channel == 'beta':
-            release_sha1 = self._git_sha1()
         else:
-            raise Exception('Unknown channel %s' % self.channel)
+            release_sha1 = self._git_sha1()
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
