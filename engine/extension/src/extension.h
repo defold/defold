@@ -76,6 +76,8 @@ namespace dmExtension
         bool        m_AppInitialized;
     };
 
+    typedef void (*OnActivityResult)(void *env, void* activity, int32_t request_code, int32_t result_code, void* result);
+
     /**
      * Get first extension
      * @return
@@ -116,6 +118,11 @@ namespace dmExtension
      * @param delegate an id<UIApplicationDelegate>
      */
     void UnregisterUIApplicationDelegate(void* delegate);
+
+    void RegisterOnActivityResultListener(OnActivityResult listener);
+
+    void UnregisterOnActivityResultListener(OnActivityResult listener);
+
 
     /**
      * Internal function

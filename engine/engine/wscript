@@ -77,6 +77,7 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
+        conf.env['STATICLIB_GPG'] = 'gpg'
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win" and architecture == 'x86':
@@ -117,6 +118,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
+    conf.env['STATICLIB_GPGEXT'] = 'gpgext'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'

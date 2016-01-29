@@ -39,6 +39,7 @@ def build(bld):
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
+        exported_symbols.append('GpgExt')
     elif 'js-web' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL'
         exported_symbols.append('FacebookExt')
@@ -68,7 +69,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GPGEXT GPG RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -87,21 +88,21 @@ def build(bld):
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
-    obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
-        uselib_local = 'engine',
-        exported_symbols = exported_symbols,
-        includes = '../build ../proto . ..',
-        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-        defines = '_XBOX DM_RELEASE=1',
-        proto_gen_py = True,
-        protoc_includes = '../proto',
-        target = 'dmengine_release',
-        source=['main.cpp'],
-        activities = activities,
-        extra_packages = extra_packages,
-        jars = android_jar_paths)
+    #obj = bld.new_task_gen(
+    #    features = 'cc cxx cprogram apk web',
+    #    uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GPGEXT GPG RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+    #    uselib_local = 'engine',
+    #    exported_symbols = exported_symbols,
+    #    includes = '../build ../proto . ..',
+    #    #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+    #    defines = '_XBOX DM_RELEASE=1',
+    #    proto_gen_py = True,
+    #    protoc_includes = '../proto',
+    #    target = 'dmengine_release',
+    #    source=['main.cpp'],
+    #    activities = activities,
+    #    extra_packages = extra_packages,
+    #    jars = android_jar_paths)
 
     if bld.env.BUILD_PLATFORM == 'win32':
         obj.source.append('engine.rc')
@@ -109,15 +110,15 @@ def build(bld):
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
 
-    obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW X',
-        uselib_local = 'engine',
-        includes = '../build ../proto . ..',
-        proto_gen_py = True,
-        protoc_includes = '../proto',
-        target = 'dmengine_headless',
-        source='main.cpp')
+    #obj = bld.new_task_gen(
+    #    features = 'cc cxx cprogram apk web',
+    #    uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW X',
+    #    uselib_local = 'engine',
+    #    includes = '../build ../proto . ..',
+    #    proto_gen_py = True,
+    #    protoc_includes = '../proto',
+    #    target = 'dmengine_headless',
+    #    source='main.cpp')
 
     bld.new_task_gen(source = '../proto/engine_ddf.proto',
                      target = 'engine_doc.sdoc',
