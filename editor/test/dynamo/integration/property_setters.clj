@@ -1,7 +1,6 @@
 (ns dynamo.integration.property-setters
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.integration.property-setters :refer :all]
             [support.test-support :as ts]))
 
 (g/defnode ResourceNode
