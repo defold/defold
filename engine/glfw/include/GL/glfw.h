@@ -30,6 +30,8 @@
 #ifndef __glfw_h_
 #define __glfw_h_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
