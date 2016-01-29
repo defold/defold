@@ -15,8 +15,7 @@
       <TextField id="search" />
       <Label text="File types to search in (comma separated)" />
       <TextField id="types"/>
-      <ListView id="resources" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" styleClass="flat-list-view"/>
-      <Label id="path" />
+      <TreeView id="resources-tree" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
     <HBox maxHeight="-Infinity" maxWidth="+Infinity" minHeight="-Infinity" minWidth="-Infinity">
       <children>
         <HBox fx:id="actionParent" alignment="CENTER">
