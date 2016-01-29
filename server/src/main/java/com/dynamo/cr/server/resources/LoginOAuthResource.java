@@ -157,6 +157,17 @@ public class LoginOAuthResource extends BaseResource {
         String action = "login";
         String loginToken = stateJson.get("login_token").getTextValue();
 
+        // ----------------------------------------------------------------
+        // NOTICE: This is temporary debug logging code, needs to removed
+        // as soon as we have figured out why we are loosing signups.
+        if (loginToken != null) {
+            int takeLength = Math.min(10, loginToken.length());
+            logger.warn("loginToken: {}", loginToken.substring(0, takeLength));
+        } else {
+            logger.warn("loginToken was null");
+        }
+        // ----------------------------------------------------------------
+
         if (responseUrl.getError() != null) {
             action = "cancel";
         } else if (code == null) {
@@ -186,6 +197,19 @@ public class LoginOAuthResource extends BaseResource {
         String redirectTo = stateJson.get("redirect_to").getTextValue();
         redirectTo = redirectTo.replace("{token}", loginToken);
         redirectTo = redirectTo.replace("{action}", action);
+
+        // ----------------------------------------------------------------
+        // NOTICE: This is temporary debug logging code, needs to removed
+        // as soon as we have figured out why we are loosing signups.
+        if (redirectTo != null) {
+            int takeLengthFrom = Math.min(50, redirectTo.length());
+            int takeLengthTo = Math.min(60, redirectTo.length());
+            logger.warn("redirectTo: {}", redirectTo.substring(takeLengthFrom, takeLengthTo));
+        } else {
+            logger.warn("redirectTo was null");
+        }
+        // ----------------------------------------------------------------
+
         UriBuilder uriBuilder = UriBuilder.fromUri(redirectTo);
 
         return Response
