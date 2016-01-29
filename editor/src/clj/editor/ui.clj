@@ -11,7 +11,8 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem TreeCell Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [javafx.scene.layout Region]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem TreeCell Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -141,19 +142,30 @@
         expanded-count (.getExpandedItemCount tree-view)
         last-index (- expanded-count 1)
         index (.getIndex cell)]
-    (cond
-      (and (= index 0) (not (.isEmpty cell)))
-      (do
-        (add-style! cell "first-tree-item")
-        (remove-style! cell "last-tree-item"))
-      
-      (and (= index last-index) (not (.isEmpty cell)))
-      (do
-        (add-style! cell "last-tree-item")
-        (remove-style! cell "first-tree-item"))
+    (remove-styles! cell ["first-tree-item" "last-tree-item"])
+    (when (not (.isEmpty cell))
+      (add-styles! cell (remove nil? [(when (= index 0) "first-tree-item")
+                                      (when (= index last-index) "last-tree-item")])))))
 
-      :else
-      (remove-styles! cell ["first-tree-item" "last-tree-item"]))))
+(defn update-list-cell-style! [^ListCell cell]
+  (let [list-view (.getListView cell)
+        count (.size (.getItems list-view))
+        last-index (- count 1)
+        index (.getIndex cell)]
+    (remove-styles! cell ["first-list-item" "last-list-item"])
+    (when (not (.isEmpty cell))
+      (add-styles! cell (remove nil? [(when (= index 0) "first-list-item")
+                                      (when (= index last-index) "last-list-item")])))))
+
+
+(defn restyle-tabs! [^TabPane tab-pane]
+  (let [tabs (seq (.getTabs tab-pane))]
+    (doseq [tab tabs]
+      (remove-styles! tab ["first-tab" "last-tab"]))
+    (when-let [first-tab (first tabs)]
+      (add-style! first-tab "first-tab"))
+    (when-let [last-tab (last tabs)]
+      (add-style! last-tab "last-tab"))))
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
@@ -320,11 +332,13 @@
     (updateItem [object empty]
       (let [^ListCell this this
             render-data (and object (render-fn object))]
-        ; TODO - fix reflection warning
+                                        ; TODO - fix reflection warning
         (proxy-super updateItem (and object (:text render-data)) empty)
+        (update-list-cell-style! this)
         (let [name (or (and (not empty) (:text render-data)) nil)]
           (proxy-super setText name))
-        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))
+        (when-let [icon (:icon render-data)]
+          (proxy-super setGraphic (jfx/get-image-view icon 16)))
         (proxy-super setTooltip (:tooltip render-data))))))
 
 (defn- make-list-cell-factory [render-fn]
@@ -434,11 +448,16 @@
   {:control control
    :menu-id menu-id})
 
+(defn- wrap-menu-image [node]
+  (doto (Pane.)
+    (children! [node])
+    (add-style! "menu-image-wrapper")))
+
 (defn- make-submenu [label icon menu-items]
   (when (seq menu-items)
     (let [menu (Menu. label)]
       (when icon
-        (.setGraphic menu (jfx/get-image-view icon 16)))
+        (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
@@ -449,7 +468,7 @@
     (when acc
       (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
     (when icon
-      (.setGraphic menu-item (jfx/get-image-view icon 16)))
+      (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
     (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
     (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
     (user-data! menu-item ::menu-user-data user-data)
