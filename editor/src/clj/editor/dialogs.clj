@@ -4,7 +4,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [service.log :as log])
+            [service.log :as log]
+            [editor.project :as project])
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
@@ -154,6 +155,54 @@
 
     @return))
 
+(defn make-search-in-files-dialog [workspace project]
+  (let [root     ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
+        stage    (Stage.)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["resources" "ok" "search" "types"])
+        return   (atom nil)
+        term     (atom nil)
+        exts     (atom nil)
+        close    (fn close [] (reset! return (ui/selection (:resources controls))) (.close stage))]
+
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Find in files")
+
+    (ui/cell-factory! (:resources controls) (fn cell-factory [r]
+                                              {:text (resource/resource-name r)
+                                               :icon (workspace/resource-icon r)}))
+
+    (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
+    (ui/on-double! (:resources controls) (fn on-double! [_] (close)))
+
+    (ui/observe (.textProperty ^TextField (:search controls))
+                (fn observe [_ _ ^String new]
+                  (reset! term new)
+                  (ui/items! (:resources controls)
+                             (map :resource (project/search-in-files project @exts @term)))))
+
+    (ui/observe (.textProperty ^TextField (:types controls))
+                (fn observe [_ _ ^String new]
+                  (reset! exts new)
+                  (ui/items! (:resources controls)
+                             (map :resource (project/search-in-files project @exts @term)))))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+      (ui/event-handler event
+                        (let [code (.getCode ^KeyEvent event)]
+                          (when (cond
+                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources controls))
+                                  (= code KeyCode/ESCAPE) true
+                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources controls))) true)
+                                  true                    false)
+                            (.close stage)))))
+
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    @return))
+
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
         stage (Stage.)
@@ -206,7 +255,7 @@
 
     (.bind (.textProperty ^TextField (:path controls))
       (.concat (.concat (.textProperty ^TextField (:location controls)) "/") (.concat (.textProperty ^TextField (:name controls)) (str "." ext))))
-    
+
     (ui/on-action! (:browse controls) (fn [_] (let [location (-> (doto (DirectoryChooser.)
                                                                    (.setInitialDirectory (File. (str base-dir "/" (ui/text (:location controls)))))
                                                                    (.setTitle "Set Path"))
