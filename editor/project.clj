@@ -7,6 +7,7 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
+  :pedantic?        :abort
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.4"]
                      [org.clojure/core.match                      "0.2.2"]
@@ -24,9 +25,6 @@
                      [ch.qos.logback/logback-classic              "1.1.3"]
                      [joda-time/joda-time                         "2.8.1"]
                      [commons-io/commons-io                       "2.4"]
-                     [org.clojure/tools.nrepl                     "0.2.11"]
-                     [cider/cider-nrepl                           "0.9.1" :exclusions [org.clojure/tools.nrepl]]
-                     [refactor-nrepl                              "1.1.0"]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.1.0"]
@@ -47,7 +45,13 @@
                      ;; Temporarily removed upnp (not used and not installed by default).
                      ;; Move source to editor?
                      #_[dlib/upnp                                   "0.1"]
-                     [org.clojure/data.json "0.2.6"]]
+                     [org.clojure/data.json "0.2.6"]
+
+                     ;; Dev REPL suff
+                     [org.clojure/tools.nrepl                     "0.2.11"]
+                     [cider/cider-nrepl                           "0.9.1" :exclusions [org.clojure/tools.nrepl]]
+                     [refactor-nrepl                              "1.1.0" :exclusions [org.clojure/tools.nrepl]]
+                     ]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
@@ -88,21 +92,19 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults {:doc/format :markdown}}
 
+  :main ^:skip-aot com.defold.editor.Start
+
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
-                      :uberjar     {:main com.defold.editor.Start
-                                    :prep-tasks ["protobuf" "javac" "compile" ["run" "-m" " aot"]]
-                                    :aot  ^:replace []
+                      :uberjar     {:prep-tasks ["protobuf" "javac" "compile" ["run" "-m" " aot"]]
+                                    :aot ^:replace []
                                     :source-paths ["sidecar"]}
-                      :repl        {:source-paths   ["dev"]
-                                    :prep-tasks     ^:replace []
-                                    :aot            ^:replace []
-                                    :repl-options   {:init-ns user}}
-                      :dev         {:dependencies   [[org.clojure/test.check   "0.7.0"]
-                                                     [org.mockito/mockito-core "1.10.19"]
-                                                     [criterium "0.4.3"]
-                                                     [ring "1.4.0"]]
-                                    :repl-options   {:port 4001}
-                                    :proto-paths    ["test/proto"]
-                                    :main ^:skip-aot com.defold.editor.Start
-                                    :source-paths   ["sidecar"]
+                      :dev         {:dependencies [[org.clojure/test.check   "0.7.0"]
+                                                   [org.mockito/mockito-core "1.10.19"]
+                                                   [org.clojure/tools.trace  "0.7.9"]
+                                                   [criterium "0.4.3"]
+                                                   [ring "1.4.0"]]
+                                    :repl-options {:init-ns user}
+                                    :proto-paths ["test/proto"]
+                                    :java-source-paths ["dev/java"]
+                                    :source-paths ["dev/clj"]
                                     :resource-paths ["test/resources"]}})
