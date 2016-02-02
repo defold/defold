@@ -18,13 +18,28 @@ Consider putting it in an alias in your bash profile.
 * From the `defold/editor` directory, run `lein builtins`
 
 ## Running Tests
-`lein test` will run all the tests including the integration tests
+`lein test` will run all the tests including the integration tests.
+
+If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 
 ## Running the Editor
 `lein run` will launch the editor as well as providing a nprel port
 for you to jack into
 
-**PLEASE NOTE** 2 NREPL servers are started, you must connect to the first one!
+**PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
+
+## Jacking into a REPL
+
+You can also use `M-x cider-jack-in` or launch the editor inside Cursive for debugging with breakpoints etc.
+
+First set the envrinment varaible `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
+
+After you jacked in do the following to load and start the app;
+
+```
+user=> (dev)
+dev=> (go)
+```
 
 ## Running Benchmarks
 `lein benchmark` will run the benchmarks and put the results to the
