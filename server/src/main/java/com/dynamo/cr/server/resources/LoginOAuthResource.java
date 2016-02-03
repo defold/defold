@@ -160,11 +160,17 @@ public class LoginOAuthResource extends BaseResource {
         // ----------------------------------------------------------------
         // NOTICE: This is temporary debug logging code, needs to removed
         // as soon as we have figured out why we are loosing signups.
-        if (loginToken != null) {
-            int takeLength = Math.min(10, loginToken.length());
-            logger.warn("loginToken: {}", loginToken.substring(0, takeLength));
-        } else {
-            logger.warn("loginToken was null");
+        try {
+            if (loginToken != null) {
+                int takeLength = Math.min(10, loginToken.length());
+                logger.warn("loginToken: {}", loginToken.substring(0, takeLength));
+            } else {
+                logger.warn("loginToken was null");
+            }
+        } catch (Exception e) {
+            logger.warn("exception while printing loginToken");
+        } catch (Throwable e) {
+            logger.warn("throwable while printing loginToken");
         }
         // ----------------------------------------------------------------
 
@@ -201,12 +207,18 @@ public class LoginOAuthResource extends BaseResource {
         // ----------------------------------------------------------------
         // NOTICE: This is temporary debug logging code, needs to removed
         // as soon as we have figured out why we are loosing signups.
-        if (redirectTo != null) {
-            int takeLengthFrom = Math.min(50, redirectTo.length());
-            int takeLengthTo = Math.min(60, redirectTo.length());
-            logger.warn("redirectTo: {}", redirectTo.substring(takeLengthFrom, takeLengthTo));
-        } else {
-            logger.warn("redirectTo was null");
+        try {
+            if (redirectTo != null) {
+                int takeLengthFrom = Math.min(50, redirectTo.length());
+                int takeLengthTo = Math.min(60, redirectTo.length());
+                logger.warn("redirectTo: {}", redirectTo.substring(takeLengthFrom, takeLengthTo));
+            } else {
+                logger.warn("redirectTo was null");
+            }
+        } catch (Exception e) {
+            logger.warn("exception while printing redirectTo");
+        } catch (Throwable e) {
+            logger.warn("throwable while printing redirectTo");
         }
         // ----------------------------------------------------------------
 
