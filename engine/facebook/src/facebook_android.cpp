@@ -15,8 +15,7 @@
 #include <android_native_app_glue.h>
 
 #include "facebook.h"
-
-#define LIB_NAME "facebook"
+#include "facebook_analytics.h"
 
 extern struct android_app* g_AndroidApp;
 
@@ -56,6 +55,10 @@ struct Facebook
     jmethodID m_RequestReadPermissions;
     jmethodID m_RequestPublishPermissions;
     jmethodID m_ShowDialog;
+
+    jmethodID m_PostEvent;
+    jmethodID m_EnableEventUsage;
+    jmethodID m_DisableEventUsage;
 
     jobject m_FBApp;
     jmethodID m_Activate;
@@ -333,9 +336,13 @@ static JNIEnv* Attach()
     return env;
 }
 
-static void Detach()
+static bool Detach(JNIEnv* env)
 {
+    bool exception = (bool) env->ExceptionCheck();
+    env->ExceptionClear();
     g_AndroidApp->activity->vm->DetachCurrentThread();
+
+    return !exception;
 }
 
 static void VerifyCallback(lua_State* L)
@@ -365,7 +372,10 @@ int Facebook_Login(lua_State* L)
 
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_Login, (jlong)L);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -380,7 +390,10 @@ int Facebook_Logout(lua_State* L)
 
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_Logout);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -424,7 +437,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestReadPermissions, (jlong)L, str_permissions);
     env->DeleteLocalRef(str_permissions);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -453,7 +469,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestPublishPermissions , (jlong)L, (jint)audience, str_permissions);
     env->DeleteLocalRef(str_permissions);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -474,7 +493,12 @@ int Facebook_AccessToken(lua_State* L)
     } else {
         lua_pushnil(L);
     }
-    Detach();
+
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
+
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
@@ -489,7 +513,10 @@ int Facebook_Permissions(lua_State* L)
 
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IteratePermissions, (jlong)L);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top + 1 == lua_gettop(L));
     return 1;
@@ -505,10 +532,82 @@ int Facebook_Me(lua_State* L)
 
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IterateMe, (jlong)L);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top + 1 == lua_gettop(L));
     return 1;
+}
+
+int Facebook_PostEvent(lua_State* L)
+{
+    int argc = lua_gettop(L);
+    const char* event = dmFacebook::Analytics::getEvent(L, 1);
+    double valueToSum = luaL_checknumber(L, 2);
+
+    // Transform LUA table to a format that can be used by all platforms.
+    const char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    const char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    unsigned int length = 0;
+    // TABLE is an optional argument and should only be parsed if provided.
+    if (argc == 3)
+    {
+        length = dmFacebook::Analytics::MAX_PARAMS;
+        dmFacebook::Analytics::getTable(L, 3, keys, values, &length);
+    }
+
+    // Prepare Java call
+    JNIEnv* env = Attach();
+    jstring jEvent = env->NewStringUTF(event);
+    jlong jValueToSum = (jlong) (unsigned long long) valueToSum;
+    jclass jStringClass = env->FindClass("java/lang/String");
+    jobjectArray jKeys = env->NewObjectArray(length, jStringClass, 0);
+    jobjectArray jValues = env->NewObjectArray(length, jStringClass, 0);
+    for (unsigned int i = 0; i < length; ++i)
+    {
+        jstring jKey = env->NewStringUTF(keys[i]);
+        env->SetObjectArrayElement(jKeys, i, jKey);
+        jstring jValue = env->NewStringUTF(values[i]);
+        env->SetObjectArrayElement(jValues, i, jValue);
+    }
+
+    // Call com.dynamo.android.facebook.FacebookJNI.postEvent
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_PostEvent, jEvent, jValueToSum, jKeys, jValues);
+
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
+
+    return 0;
+}
+
+int Facebook_EnableEventUsage(lua_State* L)
+{
+    JNIEnv* env = Attach();
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_EnableEventUsage);
+
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
+
+    return 0;
+}
+
+int Facebook_DisableEventUsage(lua_State* L)
+{
+    JNIEnv* env = Attach();
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_DisableEventUsage);
+
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
+
+    return 0;
 }
 
 
@@ -620,7 +719,10 @@ int Facebook_ShowDialog(lua_State* L)
     env->DeleteLocalRef(str_dialog);
     env->DeleteLocalRef(str_params);
 
-    Detach();
+    if (!Detach(env))
+    {
+        luaL_error(L, "An unexpected error occurred.");
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -635,6 +737,9 @@ static const luaL_reg Facebook_methods[] =
     {"request_read_permissions", Facebook_RequestReadPermissions},
     {"request_publish_permissions", Facebook_RequestPublishPermissions},
     {"me", Facebook_Me},
+    {"post_event", Facebook_PostEvent},
+    {"enable_event_usage", Facebook_EnableEventUsage},
+    {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
@@ -666,6 +771,10 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
         g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
 
+        g_Facebook.m_PostEvent = env->GetMethodID(fb_class, "postEvent", "(Ljava/lang/String;J[Ljava/lang/String;[Ljava/lang/String;)V");
+        g_Facebook.m_EnableEventUsage = env->GetMethodID(fb_class, "enableEventUsage", "()V");
+        g_Facebook.m_DisableEventUsage = env->GetMethodID(fb_class, "disableEventUsage", "()V");
+
         // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
         // Better solution?
         const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
@@ -675,7 +784,10 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_FB = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
         env->DeleteLocalRef(str_app_id);
 
-        Detach();
+        if (!Detach(env))
+        {
+            luaL_error(params->m_L, "An unexpected error occurred.");
+        }
     }
 
     g_Facebook.m_RefCount++;
@@ -712,6 +824,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
 #undef SETCONSTANT
+
+    dmFacebook::Analytics::registerConstants(L);
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
@@ -767,7 +881,12 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
         {
             JNIEnv* env = Attach();
             env->DeleteGlobalRef(g_Facebook.m_FB);
-            Detach();
+
+            if (!Detach(env))
+            {
+                luaL_error(params->m_L, "An unexpected error occurred.");
+            }
+
             g_Facebook.m_FB = NULL;
             dmMutex::Delete(g_Facebook.m_Mutex);
         }
@@ -810,7 +929,7 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
             env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Activate);
         }
 
-        Detach();
+        return Detach(env) ? dmExtension::RESULT_OK : dmExtension::RESULT_INIT_ERROR;
     }
 
     return dmExtension::RESULT_OK;
@@ -818,6 +937,7 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
 dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
+    bool javaStatus = false;
     if (g_Facebook.m_FBApp != NULL)
     {
         JNIEnv* env = Attach();
@@ -826,11 +946,14 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
             env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
         }
         env->DeleteGlobalRef(g_Facebook.m_FBApp);
-        Detach();
+
+        javaStatus = !Detach(env);
+
         g_Facebook.m_FBApp = NULL;
         memset(&g_Facebook, 0x00, sizeof(Facebook));
     }
-    return dmExtension::RESULT_OK;
+
+    return javaStatus ? dmExtension::RESULT_OK : dmExtension::RESULT_OK; // There is no return value defined for finalize functions
 }
 
 void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* event)
@@ -844,7 +967,10 @@ void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* even
         else if( event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP )
             env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
 
-        Detach();
+        if (!Detach(env))
+    {
+        luaL_error(params->m_L, "An unexpected error occurred.");
+    }
     }
 }
 
