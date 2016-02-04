@@ -24,6 +24,8 @@ import com.dynamo.android.DispatcherActivity;
 import com.facebook.AccessToken;
 import com.facebook.login.LoginManager;
 import com.facebook.login.DefaultAudience;
+import com.facebook.appevents.AppEventsLogger;
+import com.facebook.FacebookSdk;
 
 public class Facebook implements Handler.Callback {
     private static final String TAG = "defold.facebook";
@@ -57,6 +59,7 @@ public class Facebook implements Handler.Callback {
     private Map<String, String> me;
     private String accessToken;
     private Activity activity;
+    private AppEventsLogger eventLogger;
 
     public interface Callback {
         void onDone(String error);
@@ -75,6 +78,7 @@ public class Facebook implements Handler.Callback {
         this.me = null;
         this.accessToken = null;
         this.activity = activity;
+        this.eventLogger = AppEventsLogger.newLogger(this.activity);
     }
 
     private void startActivity(String action) {
@@ -153,6 +157,38 @@ public class Facebook implements Handler.Callback {
         extras.putString(INTENT_EXTRA_DIALOGTYPE, dialogType);
         extras.putBundle(INTENT_EXTRA_DIALOGPARAMS, params);
         startActivity(ACTION_SHOW_DIALOG, extras);
+    }
+
+    public void postEvent(String event, long valueToSum, String[] keys, String[] values) {
+        try {
+            if (this.eventLogger != null) {
+                if (keys.length == 0) {
+                    this.eventLogger.logEvent(event, valueToSum);
+                } else {
+                    Bundle bundle = new Bundle(keys.length);
+                    for (int i = 0; i < keys.length; ++i) {
+                        bundle.putString(keys[i], values[i]);
+                    }
+
+                    this.eventLogger.logEvent(event, valueToSum, bundle);
+                }
+            }
+        } catch (RuntimeException exception) {
+            Log.e(TAG, "Unable to post event to Facebook Analytics");
+        } catch (Exception exception) {
+            Log.e(TAG, "An error occurred while attempting to post event to Facebook Analytics");
+        } catch (Throwable throwable) {
+            Log.e(TAG, "A critical error occurred while attempting to post event to Facebook Analytics");
+        }
+    }
+
+    public void disableEventUsage() {
+        FacebookSdk.setLimitEventAndDataUsage(this.activity, true);
+        throw new RuntimeException("Something's broken!");
+    }
+
+    public void enableEventUsage() {
+        FacebookSdk.setLimitEventAndDataUsage(this.activity, false);
     }
 
     @Override

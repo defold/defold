@@ -270,4 +270,16 @@ class FacebookJNI {
 
     }
 
+    public void postEvent(String event, long valueToSum, String[] keys, String[] values) {
+        facebook.postEvent(event, valueToSum, keys, values);
+    }
+
+    public void enableEventUsage() {
+        facebook.disableEventUsage();
+    }
+
+    public void disableEventUsage() {
+        facebook.enableEventUsage();
+    }
+
 }
