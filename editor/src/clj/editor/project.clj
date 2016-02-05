@@ -1,6 +1,6 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
-ordinary paths."
+  ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
@@ -12,7 +12,8 @@ ordinary paths."
             [editor.validation :as validation]
             [service.log :as log]
             ; TODO - HACK
-            [internal.graph.types :as gt])
+            [internal.graph.types :as gt]
+            [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
@@ -121,6 +122,51 @@ ordinary paths."
         (workspace/resource-sync! (g/node-value project :workspace) false))
       ;; TODO: error message somewhere...
       (println (validation/error-message save-data)))))
+
+(defn compile-find-in-files-regex
+  "Convert a search-string to a java regex"
+  [search-str]
+  (let [clean-str (str/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
+    (re-pattern (format "^(.*)(%s)(.*)$" (str/replace clean-str #"\*" ".*")))))
+
+(defn- line->caret-pos [content line]
+  (let [line-counts (map (comp inc count) (str/split-lines content))]
+    (reduce + (take line line-counts))))
+
+(defn search-in-files
+  "Returns a list of {:resource resource :content content :matches [{:line :snippet}]}
+  with resources that matches the search-str"
+  [project file-extensions-str search-str]
+  (let [save-data      (->> (save-data project)
+                            (filter #(= :file (and (:resource %)
+                                 (resource/source-type (:resource %))))))
+        file-exts      (some-> file-extensions-str
+                               (str/replace #" " "")
+                               (str/split #","))
+        file-exts      (->> file-exts
+                            (remove empty?)
+                            (map str/lower-case)
+                            set)
+        matching-files (filter #(or (empty? file-exts)
+                                    (contains? file-exts
+                                               (-> % :resource resource/resource-type :ext)))
+                               save-data)
+        pattern        (compile-find-in-files-regex search-str)]
+    (->> matching-files
+         (filter :content)
+         (map (fn [{:keys [content] :as hit}]
+                (assoc hit :matches
+                       (->> (str/split-lines (:content hit))
+                            (keep-indexed (fn [idx l]
+                                            (let [[_ pre m post] (re-matches pattern l)]
+                                              (when m
+                                                {:line           idx
+                                                 :caret-position (line->caret-pos (:content hit) idx)
+                                                 :match          (str (apply str (take-last 8 (str/triml pre)))
+                                                                      m
+                                                                      (apply str (take 8 (str/trimr post))))}))))
+                            (take 10)))))
+         (filter #(seq (:matches %))))))
 
 (handler/defhandler :save-all :global
     (enabled? [] true)
