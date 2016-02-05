@@ -17,7 +17,7 @@
            [javafx.beans.value ChangeListener]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout Pane GridPane HBox VBox Priority]
-           [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ChoiceBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
+           [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
            [com.defold.control ListCell TableCell]))
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
@@ -97,14 +97,16 @@
 (defmethod create-field-control :choicebox [{:keys [options path help]} {:keys [set cancel]} _]
   (let [option-map (into {} options)
         inv-options (clojure.set/map-invert option-map)
-        internal-change (atom false)
-        cb (doto (ChoiceBox.)
-             (-> (.getItems) (.addAll (object-array (map first options))))
-             (.setConverter (proxy [StringConverter] []
+        converter (proxy [StringConverter] []
                               (toString [value]
                                 (get option-map value (str value)))
                               (fromString [s]
-                                (inv-options s)))))
+                                (inv-options s)))
+        internal-change (atom false)
+        cb (doto (ComboBox.)
+             (-> (.getItems) (.addAll (object-array (map first options))))
+             (.setConverter converter)
+             (ui/cell-factory! (fn [val] {:text (option-map val)})))
         update-fn (fn [value]
                     (reset! internal-change true)
                     (.setValue cb value)
