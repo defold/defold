@@ -100,8 +100,10 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
-(defn- create-component-label [text]
-   (doto (Label. text) (ui/add-style! "property-component-label")))
+(defn- create-property-component [ctrls]
+  (doto (HBox.)
+    (ui/add-style! "property-component")
+    (ui/children! ctrls)))
 
 (defn- create-multi-textfield! [labels property-fn]
   (let [text-fields (mapv (fn [l] (TextField.)) labels)
@@ -111,7 +113,6 @@
                        (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) text-fields)]
                          (ui/text! t v))
                        (update-field-message text-fields message))]
-    (.setSpacing box 6)
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_] (let [v (to-double (.getText ^TextField t))
                                                   current-vals (properties/values (property-fn))]
@@ -123,9 +124,8 @@
     (doseq [[t label] (map vector text-fields labels)]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
-      (doto (.getChildren box)
-        (.add (create-component-label label))
-        (.add t)))
+      (.add (.getChildren box) (create-property-component [(Label. label) t])))
+    
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec3 [_ _ property-fn]
@@ -142,7 +142,6 @@
                        (doseq [[t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
                          (ui/text! t v))
                        (update-field-message text-fields message))]
-    (.setSpacing box 6)
     (doseq [[t f] (map (fn [f t]
                          [t (fn [_] (let [v (to-double (.getText ^TextField t))
                                           current-vals (properties/values (property-fn))]
@@ -153,12 +152,12 @@
       (ui/on-action! ^TextField t f))
     (doseq [[t f] (map vector text-fields fields)
             :let [children (if (:label f)
-                             [(create-component-label (:label f)) t]
+                             [(Label. (:label f)) t]
                              [t])]]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (-> (.getChildren box)
-        (.addAll ^java.util.Collection children)))
+        (.add (create-property-component children))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
