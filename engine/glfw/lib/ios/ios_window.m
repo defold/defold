@@ -777,7 +777,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     keyboardType = type;
 }
 
-- (BOOL) secureTextEntry
+- (BOOL) isSecureTextEntry
 {
     return secureTextEntry;
 }

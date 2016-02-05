@@ -279,7 +279,7 @@ public class ProjectResource extends BaseResource {
 
             try {
                 Git git = clone.call();
-                git.checkout().setName(version).call();
+                git.checkout().setName(sha1).call();
             } catch (JGitInternalException|RefAlreadyExistsException e) {
                 throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
             } catch (RefNotFoundException e) {

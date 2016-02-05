@@ -276,13 +276,7 @@ namespace dmGameObject
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
 
-            if( receiver.m_Fragment != 0 )
-            {
-                dmLogWarning("Fragment has no meaning for this function: %s", lua_tostring(L, instance_arg));
-            }
-
             instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
-
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));

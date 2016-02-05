@@ -679,6 +679,15 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(head1, head2);
     }
 
+    @Test
+    public void getArchiveByBranch() {
+        String branch1 = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
+        String branch2 = getArchiveETag("testbranch").getHeaders().getFirst("ETag");
+        assertEquals(branch1, branch2);
+        String branch_fail = getArchiveETag("non-existing-branch").getHeaders().getFirst("ETag");
+        assertEquals(null, branch_fail);
+    }
+
     private static void alterFile(String cloneDir, String name, String content) throws IOException {
         File file = new File(cloneDir + "/" + name);
         assertTrue(file.exists());
