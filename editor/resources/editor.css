@@ -691,8 +691,13 @@ GridPane.prefs {
     -fx-background-color: #ff0000;
 }
 
-.property-component-label {
-    -fx-background-color: #00ff00;
+.property-component {
+    -fx-alignment: baseline-left;
+    -fx-padding: 0 10 0 0;
+}
+
+.property-component .label {
+    -fx-background-color: #ff00ff;
 }
 
 #properties .tooltip {
@@ -731,6 +736,3 @@ GridPane.prefs {
     -fx-padding: 0 30 0 0;
     -fx-background-color: #ff00ff;
 }*/
-
-
-
