@@ -1,12 +1,11 @@
 (ns editor.project-test
   (:require [clojure.test :refer :all]
-    [clojure.java.io :as io]
-    [dynamo.graph :as g]
-    [support.test-support :refer [with-clean-system]]
-    [editor.workspace :as workspace]
-    [editor.project :as project]
-    [integration.test-util :as test-util])
-  (:import [java.io StringReader]))
+            [dynamo.graph :as g]
+            [editor
+             [project :as project]
+             [workspace :as workspace]]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]))
 
 (def ^:private load-counter (atom 0))
 
@@ -14,9 +13,9 @@
   (inherits project/ResourceNode)
   (property value-piece g/Str)
   (property value g/Str
-    (set (fn [basis self old-value new-value]
-           (let [input (g/node-value self :value-input :basis basis)]
-             (g/set-property self :value-piece (str (first input)))))))
+            (set (fn [basis self old-value new-value]
+                   (let [input (g/node-value self :value-input :basis basis)]
+                     (g/set-property self :value-piece (str (first input)))))))
   (input value-input g/Str))
 
 (g/defnode BNode
@@ -27,9 +26,9 @@
   (swap! load-counter inc)
   (let [data (read-string (slurp resource))]
     (concat
-      (g/set-property self :value-piece "set incorrectly")
-      (project/connect-resource-node project (:b data) self [[:value :value-input]])
-      (g/set-property self :value "bogus value"))))
+     (g/set-property self :value-piece "set incorrectly")
+     (project/connect-resource-node project (:b data) self [[:value :value-input]])
+     (g/set-property self :value "bogus value"))))
 
 (defn- load-b [project self resource]
   (swap! load-counter inc)
@@ -45,16 +44,21 @@
   (with-clean-system
     (let [workspace (workspace/make-workspace world "resources/load_project")]
       (g/transact
-        (register-resource-types workspace [{:ext "type_a"
-                                             :node-type ANode
-                                             :load-fn load-a
-                                             :label "Type A"}
-                                            {:ext "type_b"
-                                             :node-type BNode
-                                             :load-fn load-b
-                                             :label "Type B"}]))
+       (register-resource-types workspace [{:ext "type_a"
+                                            :node-type ANode
+                                            :load-fn load-a
+                                            :label "Type A"}
+                                           {:ext "type_b"
+                                            :node-type BNode
+                                            :load-fn load-b
+                                            :label "Type B"}]))
       (workspace/resource-sync! workspace)
       (let [project (test-util/setup-project! workspace)
             a1 (project/get-resource-node project "/a1.type_a")]
         (is (= 3 @load-counter))
         (is (= "t" (g/node-value a1 :value-piece)))))))
+
+(deftest comple-find-in-files-regex-test
+  (is (= "^(.*)(foo)(.*)$" (str (project/compile-find-in-files-regex "foo"))))
+  (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar"))))
+  (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar[]().$^")))))

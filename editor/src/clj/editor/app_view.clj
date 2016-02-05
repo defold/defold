@@ -168,6 +168,9 @@
                              {:label "Open Asset"
                               :acc "Shift+Shortcut+R"
                               :command :open-asset}
+                             {:label "Search in Files"
+                              :acc "Shift+Shortcut+F"
+                              :command :search-in-files}
                              {:label :separator}
                              {:label "Close"
                               :acc "Shortcut+W"
@@ -282,11 +285,13 @@
                          (ui/user-data! ::resource-node resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             view-graph (g/make-graph! :history false :volatility 2)
-            opts       (assoc ((:id view-type) (:view-opts resource-type))
-                              :app-view app-view
-                              :project project
-                              :workspace workspace
-                              :tab tab)
+            opts       (merge (get (:view-opts resource-type) (:id view-type))
+                              {:app-view  app-view
+                               :project   project
+                               :workspace workspace
+                               :tab       tab}
+                              (when-let [cp (:caret-position resource)]
+                                {:initial-caret-position cp}))
             view       (make-view-fn view-graph parent resource-node opts)]
         (ui/user-data! tab ::view view)
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
@@ -334,6 +339,14 @@
 (handler/defhandler :open-asset :global
   (enabled? [] true)
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
+
+(defn- make-search-in-files-dialog [workspace project app-view]
+  (when-let [resource (dialogs/make-search-in-files-dialog workspace project)]
+    (open-resource app-view workspace project resource)))
+
+(handler/defhandler :search-in-files :global
+  (enabled? [] true)
+  (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
 (defn fetch-libraries [workspace project]
   (workspace/set-project-dependencies! workspace (project/project-dependencies project))
