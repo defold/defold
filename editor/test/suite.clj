@@ -1,8 +1,7 @@
 (ns suite
   (:require [clojure.java.io :as io]
-            [clojure.test :as test]
-            [editor.messages :as m])
-  (:import [clojure.lang Compiler]))
+            [clojure.test :as test])
+  (:import clojure.lang.Compiler))
 
 (def test-namespaces '[dynamo.integration.defective-nodes
                        dynamo.integration.dependencies
@@ -37,6 +36,7 @@
                        editor.project-test
                        editor.ui-test
                        editor.updater-test
+                       editor.workspace-test
                        integration.asset-browser-test
                        integration.benchmark-test
                        integration.build-test
@@ -45,6 +45,7 @@
                        integration.outline-test
                        integration.reload-test
                        integration.save-test
+                       integration.search-in-files-test
                        integration.scene-test
                        integration.scope-test
                        integration.tex-packing-test
