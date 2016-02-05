@@ -24,6 +24,8 @@ Consider putting it in an alias in your bash profile.
 `lein run` will launch the editor as well as providing a nprel port
 for you to jack into
 
+**PLEASE NOTE** 2 NREPL servers are started, you must connect to the first one!
+
 ## Running Benchmarks
 `lein benchmark` will run the benchmarks and put the results to the
 `test/benchmark/bench-result.txt` file. Make sure to have everything
