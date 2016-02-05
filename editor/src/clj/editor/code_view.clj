@@ -78,17 +78,20 @@
   (input caret-position g/Int)
   (output new-content g/Any :cached update-text-area))
 
-(defn- setup-code-view [view-id code-node]
+(defn- setup-code-view [view-id code-node initial-caret-position]
   (g/transact
-    (concat
-      (g/connect code-node :_node-id view-id :code-node)
-      (g/connect code-node :code view-id :code)
-      (g/connect code-node :caret-position view-id :caret-position)))
+   (concat
+    (g/connect code-node :_node-id view-id :code-node)
+    (g/connect code-node :code view-id :code)
+    (g/connect code-node :caret-position view-id :caret-position)
+    (g/set-property code-node :caret-position initial-caret-position)))
   view-id)
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [text-area (setup-text-area (UndolessTextArea.))
-        view-id (setup-code-view (g/make-node! graph CodeView :text-area text-area) code-node)]
+        view-id (setup-code-view (g/make-node! graph CodeView :text-area text-area)
+                                 code-node
+                                 (or (:initial-caret-position opts) 0))]
     (ui/children! parent [text-area])
     (ui/fill-control text-area)
     (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))

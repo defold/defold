@@ -12,14 +12,15 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.layout Region]
-           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem TreeCell Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
            [javafx.css Styleable]
-           [javafx.util Callback Duration]))
+           [javafx.util Callback Duration]
+           [com.defold.control TreeCell]))
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
@@ -332,17 +333,41 @@
     (updateItem [object empty]
       (let [^ListCell this this
             render-data (and object (render-fn object))]
-                                        ; TODO - fix reflection warning
         (proxy-super updateItem (and object (:text render-data)) empty)
         (update-list-cell-style! this)
-        (let [name (or (and (not empty) (:text render-data)) nil)]
-          (proxy-super setText name))
-        (when-let [icon (:icon render-data)]
-          (proxy-super setGraphic (jfx/get-image-view icon 16)))
+        (if empty
+          (do
+            (proxy-super setText nil)
+            (proxy-super setGraphic nil))
+          (do
+            (proxy-super setText (:text render-data))
+            (let [icon (:icon render-data)]
+              (proxy-super setGraphic (jfx/get-image-view icon 16)))))
         (proxy-super setTooltip (:tooltip render-data))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
+
+(defn- make-tree-cell [render-fn]
+  (let [cell (proxy [TreeCell] []
+               (updateItem [resource empty]
+                 (let [^TreeCell this this
+                       render-data (and resource (render-fn resource))]
+                   (proxy-super updateItem resource empty)
+                   (update-tree-cell-style! this)
+                   (if empty
+                     (do
+                       (proxy-super setText nil)
+                       (proxy-super setGraphic nil))
+                     (do
+                       (when-let [text (:text render-data)]
+                         (proxy-super setText text))
+                       (when-let [icon (:icon render-data)]
+                         (proxy-super setGraphic (jfx/get-image-view icon 16))))))))]
+    cell))
+
+(defn- make-tree-cell-factory [render-fn]
+  (reify Callback (call ^TreeCell [this view] (make-tree-cell render-fn))))
 
 (extend-type ButtonBase
   HasAction
@@ -379,7 +404,13 @@
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (filter (comp not nil?))
-                      (mapv #(.getValue ^TreeItem %)))))
+                      (mapv #(.getValue ^TreeItem %))))
+
+  CollectionView
+  (selection [this] (when-let [item ^TreeItem (.getSelectedItem (.getSelectionModel this))]
+                      (.getValue item)))
+  (cell-factory! [this render-fn]
+    (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-roots [^TreeView tree-view path-fn id-fn]
   (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
