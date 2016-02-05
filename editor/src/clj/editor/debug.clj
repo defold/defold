@@ -1,6 +1,5 @@
 (ns editor.debug
   (:require [cider.nrepl :as cider]
-            [clojure.tools.namespace.repl]
             [clojure.tools.nrepl.server :as nrepl]
             [refactor-nrepl.middleware :as refactor]))
 
