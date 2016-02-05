@@ -1,6 +1,6 @@
 (ns internal.system
-  (:require [dynamo.util :as util]
-            [dynamo.util :refer [map-vals]]
+  (:require [internal.util :as util]
+            [internal.util :refer [map-vals]]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]

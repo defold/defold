@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :as ts]
-            [dynamo.util :as u]
+            [internal.util :as u]
             [internal.graph.types :as gt]
             [internal.system :as is]))
 

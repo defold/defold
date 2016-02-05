@@ -1,100 +1,102 @@
-<!doctype html>
-<html lang="en-us">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<meta name="viewport"
-    content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
-<title>{{DEFOLD_APP_TITLE}}</title>
-<link rel="stylesheet" type="text/css" href="{{DEFOLD_CSS}}">
-</style>
-{{{DEFOLD_DEV_HEAD}}}
-</head>
-<body>
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+        <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+
+		<title>{{DEFOLD_APP_TITLE}}</title>
+		<style>
+			canvas {
+			  /* Full app dimensions. Fit in container */
+			  width: {{DEFOLD_DISPLAY_WIDTH}}px;
+			  height: {{DEFOLD_DISPLAY_HEIGHT}}px;
+			  max-width: 100%;
+			  max-height: 100%;
+			}
+			
+			.canvas-app-container {
+			  width: {{DEFOLD_DISPLAY_WIDTH}}px;
+			  height: {{DEFOLD_DISPLAY_HEIGHT}}px;
+			  background: rgb(255,255,255) no-repeat center url("try_game.png");
+			  /* A positioned parent for loading visuals */
+			  position: relative;
+			  /* Firefox fullscreen will resize container to screen. */
+			  text-align: center;
+			  vertical-align: middle;
+			}
+			
+			.canvas-app-container:-webkit-full-screen {
+			  /* Auto width and height in Safari/Chrome fullscreen. */
+			  width: auto;
+			  height: auto;
+			}
+			
+			.canvas-app-progress {
+			  position: absolute;
+			  background-color: rgb(245, 245, 245);
+			  height: 20px;
+			  /* Fill up container width. */
+			  width: 100%;
+			  bottom: 0px;
+			}
+			
+			.canvas-app-progress-bar {
+			  font-size: 12px;
+			  height: 20px;
+			  color: rgb(255, 255, 255);
+			  background-color: rgb(30, 100, 234);
+			  text-align: center;
+			  line-height: 20px;
+			}
+			
+			.button {
+			  color: #fff;
+			  background-color: #1e64ea;
+			  border-color: transparent;
+			  padding: 10px 20px;
+			}
+		</style>
+
+		{{{DEFOLD_DEV_HEAD}}}
+	</head>
+	
+	<body>
     <div id="fb-root"></div>
 
-    <div class="fullscreenControl">
-        <span> <input class="fullscreen" type="button"
-            value="Fullscreen" onclick="Module.requestFullScreen(0,0)">
-        </span>
-    </div>
+	<div id="app-container" class="canvas-app-container">
+	    <canvas id="canvas" class="canvas-app-canvas" tabindex="1"></canvas>
+	</div>
+	
+	<button id="fullscreen" class="button">Fullscreen</button>
+	
+	<!-- -->
+	  {{{DEFOLD_DEV_INLINE}}}
+	  <script type='text/javascript' src="dmloader.js"></script>
+	  <script type='text/javascript' src="{{DEFOLD_ENGINE}}" async onload="{{DEFOLD_DEV_INIT}}"></script>
+	<!-- -->
+	
+	<script type='text/javascript'>
+	    /* Load app on click in container. */
+	    document.getElementById("app-container").onclick = function (e) {
+	        Module.runApp("canvas", "{{DEFOLD_SPLASH_IMAGE}}", "archive");
+	        document.getElementById("app-container").style.background = 'none';
+	        document.getElementById("app-container").onclick = null;
+	    };
 
-    <div class="download_modal_container" id="defold_modal">
-        <div
-            class="download_modal_content absolute-centre splash_border"
-            id="defold_splash">
-            <div class="absolute-centre download_modal_content">
-                <image class="splashImage" src="{{DEFOLD_SPLASH_IMAGE}}"></image>
-                <div class="statusText">
-                    <span id="defold_status" class="statusOffset">Downloading...</span>
-                </div>
-                <progress class="gradient" value="0" max="100"
-                    id="defold_progress"></progress>
-            </div>
-        </div>
-    </div>
-
-    <div>
-        <canvas class="application" id="canvas"
-            oncontextmenu="event.preventDefault()"></canvas>
-    </div>
-
-    <script type='text/javascript'>
-      var preloadModal = document.getElementById('defold_modal');
-      var statusElement = document.getElementById('defold_status');
-      var progressElement = document.getElementById('defold_progress');
-
-      var SplashControl = {
-        splashVisible: true,
-        resizeTimeout: 0,
-
-        onSetMessage: function(text) {
-          statusElement.innerHTML = text;
-        },
-
-        onSetProgress: function(current, max) {
-          if (progressElement) {
-                progressElement.value = current;
-                progressElement.max = max;
-              }
-        },
-
-        onDismissSplash : function() {
-          preloadModal.hidden = true;
-          SplashControl.splashVisible = false;
-          SplashControl.unregisterResizeHandler();
-        },
-
-        alignSplashScreen: function() {
-          // React to changes in screen size here.
-        },
-
-      onWindowResize: function(evt) {
-        clearTimeout(SplashControl.resizeTimeout);
-        SplashControl.resizeTimeout = setTimeout(SplashControl.alignSplashScreen, 100);
-      },
-
-        registerResizeHandler : function() {
-          window.addEventListener('resize', SplashControl.onWindowResize);
-        },
-
-        unregisterResizeHandler : function() {
-          window.removeEventListener('resize', SplashControl.onWindowResize);
-        }
-      };
-
-    </script>
-    <script type='text/javascript' src="combine.js"></script>
-    <script type='text/javascript' src="{{DEFOLD_MODULE_JS}}"></script>
-    <script type='text/javascript'>
-      SplashControl.alignSplashScreen();
-      if (SplashControl.splashVisible) {
-        SplashControl.registerResizeHandler();
-      }
-    </script>
-    {{{DEFOLD_DEV_INLINE}}}
-    <script type="text/javascript"
-        src="//connect.facebook.net/en_US/sdk.js"></script>
-    {{{DEFOLD_JS_INIT}}}
+	    /* Fullscreen button */
+	    document.getElementById("fullscreen").onclick = function (e) {
+	      /* Enter fullscreen, don't lock pointer and don't resize canvas down. */
+	      var elem = document.getElementById("app-container");
+	      var rfs = elem.requestFullscreen ||
+	                elem.requestFullScreen ||
+	                elem.mozRequestFullScreen ||
+	                elem.webkitRequestFullscreen ||
+	                (function() {});
+	      rfs.apply(elem, []);
+	    };
+	</script>
+    <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
 </body>
 </html>

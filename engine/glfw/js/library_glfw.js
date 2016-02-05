@@ -102,7 +102,7 @@ var LibraryGLFW = {
         case 104 : return 310 ; // GLFW_KEY_KP_8
         case 105 : return 311 ; // GLFW_KEY_KP_9
         default  : return keycode;
-      };
+      }
     },
 
     // UCS-2 to UTF16 (ISO 10646)
@@ -131,8 +131,6 @@ var LibraryGLFW = {
 
     onKeyPress: function(event) {
       // charCode is only available whith onKeyPress event
-      var char = GLFW.getUnicodeChar(event.charCode);
-
       if (event.charCode) {
         var char = GLFW.getUnicodeChar(event.charCode);
         if (char !== null && GLFW.charFunc) {
@@ -323,41 +321,7 @@ var LibraryGLFW = {
                 document['webkitCancelFullScreen'] ||
           (function() {});
       CFS.apply(document, []);
-    },
-
-    webResizeScreenToAspectRatio: function() {
-        if (typeof window != 'undefined') {
-          var canvas = document.getElementById('canvas');
-          var x = canvas.width;
-          var y = canvas.height;
-          // The total screen size in device pixels in integers.
-          var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
-          var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
-          // Compute (w,h) that will be the target CSS pixel size of the canvas.
-          var w = screenWidth;
-          var h = screenHeight;
-          // Make sure aspect ratio remains after the resize
-          if (w*y < x*h) {
-            h = (w * y / x) | 0;
-          } else if (w*y > x*h) {
-            w = (h * x / y) | 0;
-          }
-          var topMargin = ((screenHeight - h) / 2) | 0;
-          // Back to CSS pixels.
-          topMargin /= window.devicePixelRatio;
-          w /= window.devicePixelRatio;
-          h /= window.devicePixelRatio;
-          // Round to nearest 6 digits of precision.
-          w = Math.round(w*1000000)/1000000;
-          h = Math.round(h*1000000)/1000000;
-          topMargin = Math.round(topMargin*1000000)/1000000;
-          var canvas = document.getElementById('canvas');
-          canvas.style.width = w + 'px';
-          canvas.style.height = h + 'px';
-          Module['canvas'].style.marginTop = topMargin + 'px';
-        }
     }
-
   },
 
 /*******************************************************************************
@@ -476,11 +440,8 @@ var LibraryGLFW = {
       antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
       depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
       stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
-    }
+    };
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
-
-    GLFW.addEventListener("resize", GLFW.webResizeScreenToAspectRatio);
-    GLFW.webResizeScreenToAspectRatio();
 
     return 1; // GL_TRUE
   },
@@ -599,11 +560,11 @@ var LibraryGLFW = {
   },
 
   /* Joystick input */
-  glfwGetJoystickParam: function(joy, param) { throw "glfwGetJoystickParam is not implemented."; },
+  glfwGetJoystickParam: function(joy, param) { return 0; },
 
-  glfwGetJoystickPos: function(joy, pos, numaxes) { throw "glfwGetJoystickPos is not implemented."; },
+  glfwGetJoystickPos: function(joy, pos, numaxes) { return 0; },
 
-  glfwGetJoystickButtons: function(joy, buttons, numbuttons) { throw "glfwGetJoystickButtons is not implemented."; },
+  glfwGetJoystickButtons: function(joy, buttons, numbuttons) { return 0; },
 
   /* Time */
   glfwGetTime: function() {
@@ -705,18 +666,6 @@ var LibraryGLFW = {
     if (show_keyboard) {
       Module['canvas'].focus();
     }
-  },
-
-  glfwGetJoystickParam: function(joy, param) {
-      return 0;
-  },
-
-  glfwGetJoystickPos: function(joy, pos, numaxes) {
-      return 0;
-  },
-
-  glfwGetJoystickButtons: function(joy, buttons, numbuttons) {
-      return 0;
   },
 
   glfwGetJoystickDeviceId: function(joy, device_id) {

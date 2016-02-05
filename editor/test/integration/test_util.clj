@@ -113,7 +113,7 @@
     (fake-input! view type x y []))
   ([view type x y modifiers]
     (let [pos [x y 0.0]]
-      (g/transact (g/set-property view :picking-rect (scene/calc-picking-rect pos pos))))
+      (g/transact (g/set-property view :tool-picking-rect (scene/calc-picking-rect pos pos))))
     (let [handlers  (g/sources-of view :input-handlers)
           user-data (g/node-value view :selected-tool-renderables)
           action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)

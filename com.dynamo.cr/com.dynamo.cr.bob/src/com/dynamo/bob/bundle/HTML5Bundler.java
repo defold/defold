@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,8 +33,8 @@ import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
 public class HTML5Bundler implements IBundler {
-    private static final String SplitFileDir = "split";
-    private static final String SplitFileJson = "preload_files.json";
+    private static final String SplitFileDir = "archive";
+    private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static final String[] SplitFileNames = {
         "game.projectc",
@@ -85,7 +86,7 @@ public class HTML5Bundler implements IBundler {
             generator.writeStartArray();
             int offset = 0;
             for (File split : this.subdivisions) {
-                String path = String.format("%s/%s", SplitFileDir, split.getName());
+                String path = split.getName();
 
                 generator.writeStartObject();
                 generator.writeFieldName("name");
@@ -147,14 +148,15 @@ public class HTML5Bundler implements IBundler {
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         String js = Bob.getDmengineExe(Platform.JsWeb, project.hasOption("debug"));
-
+        String engine = Paths.get(js).getFileName().toString();
+        		
         String jsMemInit = js + ".mem";
 
         File projectRoot = new File(project.getRootDirectory());
         URL html = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template.html");
-        URL css = getResource(projectProperties, projectRoot, "html5", "cssfile", "engine_template.css");
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
-        String version = projectProperties.getStringValue("project", "version", "1.0");
+        URL tryImage = getResource(projectProperties, projectRoot, "html5", "try_game", "try_game.png");
+        String version = projectProperties.getStringValue("project", "version", "0.0");
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -168,9 +170,11 @@ public class HTML5Bundler implements IBundler {
         }
 
         Map<String, Object> infoData = new HashMap<String, Object>();
+        infoData.put("DEFOLD_ENGINE", engine);
         infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
         infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
+        infoData.put("DEFOLD_TRY_GAME_IMAGE", getName(tryImage));
         infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         if (0 < customHeapSize) {
             infoData.put("DEFOLD_STACK_SIZE", String.format("TOTAL_MEMORY: %d, \n", customHeapSize));
@@ -179,25 +183,17 @@ public class HTML5Bundler implements IBundler {
         }
 
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
-        infoData.put("DEFOLD_JS", String.format("%s.js", title));
 
-        infoData.put("DEFOLD_MODULE_JS", String.format("%s_module.js", title));
-        infoData.put("DEFOLD_CSS", String.format("%s.css", title));
-
+        String devInit = "";
         String devHead = "";
         String inlineHtml = "";
-        String jsInit = String.format("<script type=\"text/javascript\" src=\"%s\" async", String.format("%s.js", title));
-
         boolean includeDevTool = projectProperties.getBooleanValue("html5", "include_dev_tool", false);
         if (includeDevTool) {
+            devInit = "MemoryStats.Initialise()";
             devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
             inlineHtml = IOUtils.toString(getResource("development.inl"));
-            jsInit += " onload=\"MemoryStats.Initialise()\"";
         }
-
-        jsInit += "></script>";
-        infoData.put("DEFOLD_JS_INIT", jsInit);
-
+      	infoData.put("DEFOLD_DEV_INIT", devInit);
         infoData.put("DEFOLD_DEV_HEAD", devHead);
         infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
 
@@ -207,7 +203,7 @@ public class HTML5Bundler implements IBundler {
         createSplitFiles(buildDir, splitDir);
 
         // Copy engine
-        FileUtils.copyFile(new File(js), new File(appDir, String.format("%s.js", title)));
+        FileUtils.copyFile(new File(js), new File(appDir, engine));
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
@@ -217,13 +213,10 @@ public class HTML5Bundler implements IBundler {
             FileUtils.copyFile(jsMemFile, new File(appDir, String.format("%s.js.mem", title)));
         }
 
-        URL module = getResource("module_template.js");
-        format(module, infoData, new File(appDir, String.format("%s_module.js", title)));
-        format(html, infoData, new File(appDir, String.format("%s.html", title)));
-        format(css, infoData, new File(appDir, String.format("%s.css", title)));
-
-        FileUtils.copyURLToFile(getResource("combine.js"), new File(appDir, "combine.js"));
+        format(html, infoData, new File(appDir, "index.html"));
+        FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
+        FileUtils.copyURLToFile(tryImage, new File(appDir, getName(tryImage)));
 
         if (includeDevTool) {
             FileUtils.copyURLToFile(getResource("development.css"), new File(appDir, "development.css"));
