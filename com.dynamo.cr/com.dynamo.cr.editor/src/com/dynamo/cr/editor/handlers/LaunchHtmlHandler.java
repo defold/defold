@@ -151,7 +151,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
 
     private void launchBrowser() throws IOException, URISyntaxException, UnsupportedOperationException {
 
-        String launchPath = String.format("http://localhost:%3$d/build/default/%1$s/%2$s/%2$s.html", HTML_DIR, getEscapedTitle(), Activator.SERVER_PORT);
+        String launchPath = String.format("http://localhost:%3$d/build/default/%1$s/%2$s/index.html", HTML_DIR, getEscapedTitle(), Activator.SERVER_PORT);
         if (Desktop.isDesktopSupported()) {
             Desktop desktop = Desktop.getDesktop();
             if (desktop.isSupported(Desktop.Action.BROWSE)) {
