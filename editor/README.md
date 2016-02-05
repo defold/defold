@@ -22,6 +22,20 @@ Consider putting it in an alias in your bash profile.
 
 If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 
+## Setup NREPL for debugging
+
+If you want to work on the editor chances are you want to `connect` or `jack-in` to a REPL as described below.
+
+For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, Cider (etc) dependencies there;
+
+```
+{:user {:plugins [[cider/cider-nrepl "0.10.2"]
+                  [refactor-nrepl "1.1.0" :exclusions [org.clojure/clojure]]]
+        :dependencies [[org.clojure/tools.nrepl "0.2.12"]]}}
+```
+
+Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
+
 ## Running the Editor
 `lein run` will launch the editor as well as providing a nprel port
 for you to jack into

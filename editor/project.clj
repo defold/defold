@@ -43,13 +43,7 @@
                      ;; NOTE: Ancient libraries, not available via Maven
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
-                     [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]
-
-                     ;; Dev REPL suff
-                     [org.clojure/tools.nrepl                     "0.2.12"]
-                     [cider/cider-nrepl                           "0.10.2" :exclusions [org.clojure/tools.nrepl]]
-                     [refactor-nrepl                              "1.2.0" :exclusions [org.clojure/tools.nrepl]]
-                     ]
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
