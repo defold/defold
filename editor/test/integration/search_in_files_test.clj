@@ -17,6 +17,9 @@
         (testing "search is case insensitive"
           (is (= 11 (count (project/search-in-files project "go" "seSSiOn")))))
 
+        (testing "empty search string gives no results"
+          (is (zero? (count (project/search-in-files project "" "")))))
+
         (is (= 21 (count (project/search-in-files project nil "session"))))
         (is (= 21 (count (project/search-in-files project "" "session"))))
         (is (= 0 (count (project/search-in-files project "lua" "session"))))
