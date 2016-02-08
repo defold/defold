@@ -162,9 +162,9 @@
                                               (when m
                                                 {:line           idx
                                                  :caret-position (line->caret-pos (:content hit) idx)
-                                                 :match          (str (apply str (take-last 8 (str/triml pre)))
+                                                 :match          (str (apply str (take-last 24 (str/triml pre)))
                                                                       m
-                                                                      (apply str (take 8 (str/trimr post))))}))))
+                                                                      (apply str (take 24 (str/trimr post))))}))))
                             (take 10)))))
          (filter #(seq (:matches %))))))
 
