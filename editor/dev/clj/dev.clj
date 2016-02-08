@@ -1,9 +1,29 @@
-(ns user
-  (:require [clojure.pprint :refer [pprint]]
+(ns dev
+  (:require [clojure.java.io :as io]
+            [clojure.java.javadoc :refer (javadoc)]
+            [clojure.pprint :refer (pprint print-table)]
+            [clojure.reflect :refer (reflect)]
+            [clojure.repl :refer (apropos dir doc find-doc pst source)]
+            [clojure.set :as set]
+            [clojure.string :as str]
+            [clojure.test :as test]
+            [clojure.tools.namespace.repl :as repl :refer (clear refresh refresh-all)]
+            [clojure.tools.trace :refer (trace deftrace trace-forms trace-ns trace-vars)]
+            [editor.boot]
+            [suite]
             [dynamo.graph :as g]
-            [clojure.tools.namespace.repl :refer [refresh clear]]
             [internal.graph.types :as gt]
-            [internal.java :as java]))
+            [internal.java :as java])
+  (:import [com.defold.editor DevStart]))
+
+(defn start []
+  (def jfx-app (future (DevStart/main (into-array String [])))))
+
+(def go start)
+
+(defn run-all-my-tests []
+  (refresh)
+  (suite/suite))
 
 (defmacro tap [x] `(do (prn ~(str "**** " &form " ") ~x) ~x))
 

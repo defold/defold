@@ -23,7 +23,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos Point2D]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label Slider TextField Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
@@ -100,8 +100,10 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
-(defn- create-component-label [text]
-   (doto (Label. text) (ui/add-style! "property-component-label")))
+(defn- create-property-component [ctrls]
+  (doto (HBox.)
+    (ui/add-style! "property-component")
+    (ui/children! ctrls)))
 
 (defn- create-multi-textfield! [labels property-fn]
   (let [text-fields (mapv (fn [l] (TextField.)) labels)
@@ -111,7 +113,6 @@
                        (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) text-fields)]
                          (ui/text! t v))
                        (update-field-message text-fields message))]
-    (.setSpacing box 6)
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_] (let [v (to-double (.getText ^TextField t))
                                                   current-vals (properties/values (property-fn))]
@@ -123,9 +124,8 @@
     (doseq [[t label] (map vector text-fields labels)]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
-      (doto (.getChildren box)
-        (.add (create-component-label label))
-        (.add t)))
+      (.add (.getChildren box) (create-property-component [(Label. label) t])))
+    
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec3 [_ _ property-fn]
@@ -142,7 +142,6 @@
                        (doseq [[t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
                          (ui/text! t v))
                        (update-field-message text-fields message))]
-    (.setSpacing box 6)
     (doseq [[t f] (map (fn [f t]
                          [t (fn [_] (let [v (to-double (.getText ^TextField t))
                                           current-vals (properties/values (property-fn))]
@@ -153,12 +152,12 @@
       (ui/on-action! ^TextField t f))
     (doseq [[t f] (map vector text-fields fields)
             :let [children (if (:label f)
-                             [(create-component-label (:label f)) t]
+                             [(Label. (:label f)) t]
                              [t])]]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (-> (.getChildren box)
-        (.addAll ^java.util.Collection children)))
+        (.add (create-property-component children))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
@@ -188,13 +187,15 @@
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
   (let [options (:options edit-type)
         inv-options (clojure.set/map-invert options)
-        cb (doto (ChoiceBox.)
+        converter (proxy [StringConverter] []
+                    (toString [value]
+                      (get options value (str value)))
+                    (fromString [s]
+                      (inv-options s)))
+        cb (doto (ComboBox.)
              (-> (.getItems) (.addAll (object-array (map first options))))
-             (.setConverter (proxy [StringConverter] []
-                              (toString [value]
-                                (get options value (str value)))
-                              (fromString [s]
-                                (inv-options s)))))
+             (.setConverter converter)
+             (ui/cell-factory! (fn [val]  {:text (options val)})))
         update-ui-fn (fn [values message]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
@@ -275,12 +276,19 @@
         node-coords (.localToScene node (.getX offset) (.getY offset))]
     (.add node-coords (.add scene-coords window-coords))))
 
+(def ^:private severity-tooltip-style-map
+  {g/FATAL "tooltip-error"
+   g/SEVERE "tooltip-error"
+   g/WARNING "tooltip-warning"
+   g/INFO "tooltip-warning"})
+
 (defn- show-message-tooltip [^Node control]
   (when-let [tip (ui/user-data control ::field-message)]
     ;; FIXME: Hack to position tooltip somewhat below control so .show doesn't immediately trigger an :exit.
-    (let [tooltip (Tooltip. tip)
+    (let [tooltip (Tooltip. (:message tip))
           control-bounds (.getLayoutBounds control)
           tooltip-coords (node-screen-coords control (Point2D. 0.0 (+ (.getHeight control-bounds) 11.0)))]
+      (ui/add-style! tooltip (severity-tooltip-style-map (:severity tip)))
       (ui/user-data! control ::tooltip tooltip)
       (.show tooltip control (.getX tooltip-coords) (.getY tooltip-coords)))))
 
@@ -295,7 +303,7 @@
     (show-message-tooltip control)))
 
 (defn- install-tooltip-message [ctrl msg]
-  (ui/user-data! ctrl ::field-message (:message msg))
+  (ui/user-data! ctrl ::field-message msg)
   (ui/on-mouse! ctrl
     (when msg
       (fn [verb e]
@@ -304,25 +312,24 @@
           :exit (hide-message-tooltip ctrl)
           :move nil)))))
 
-(def ^:private severity-style-map
+(def ^:private severity-field-style-map
   {g/FATAL "field-error"
    g/SEVERE "field-error"
    g/WARNING "field-warning"
    g/INFO "field-warning"})
 
-(defn- update-message-style [ctrl msg]
+(defn- update-field-message-style [ctrl msg]
   (if msg
-    (ui/add-style! ctrl (severity-style-map (:severity msg)))
-    (ui/remove-styles! ctrl (vals severity-style-map))))
+    (ui/add-style! ctrl (severity-field-style-map (:severity msg)))
+    (ui/remove-styles! ctrl (vals severity-field-style-map))))
 
 (defn- update-field-message [ctrls msg]
   (doseq [ctrl ctrls]
     (install-tooltip-message ctrl msg)
-    (update-message-style ctrl msg)
+    (update-field-message-style ctrl msg)
     (if msg
       (update-message-tooltip ctrl)
       (hide-message-tooltip ctrl))))
-
 
 (defn- create-property-label [label]
   (doto (Label. label) (ui/add-style! "property-label")))
