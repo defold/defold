@@ -91,7 +91,7 @@
   (let [text-area (setup-text-area (UndolessTextArea.))
         view-id (setup-code-view (g/make-node! graph CodeView :text-area text-area)
                                  code-node
-                                 (or (:initial-caret-position opts) 0))]
+                                 (or (:caret-position opts) 0))]
     (ui/children! parent [text-area])
     (ui/fill-control text-area)
     (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
