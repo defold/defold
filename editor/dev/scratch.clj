@@ -1,7 +1,6 @@
 (ns scratch
   (:require [dynamo.graph :as g]
             [internal.value-test :refer :all]
-            [dynamo.util :as util]
             [internal.graph.error-values :as ie]
             [support.test-support :as ts]))
 

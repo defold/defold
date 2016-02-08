@@ -14,7 +14,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.properties :as properties]
@@ -1268,23 +1268,13 @@
   (handler/single-selection? selection LayerNode))
 
 (handler/defhandler :move-up :global
-  (enabled? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
+  (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected -1))))
 
 (handler/defhandler :move-down :global
-  (enabled? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
+  (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected 1))))
-
-(ui/extend-menu ::menubar :editor.app-view/edit
-                [{:label "Gui"
-                  :id ::gui
-                  :children [{:label "Move Up"
-                              :acc "Alt+UP"
-                              :command :move-up}
-                             {:label "Move Down"
-                              :acc "Alt+DOWN"
-                              :command :move-down}]}])

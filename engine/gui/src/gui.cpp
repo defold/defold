@@ -2739,6 +2739,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Enabled = enabled;
+        n->m_Node.m_DirtyLocal |= enabled ? 1 : 0;
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
