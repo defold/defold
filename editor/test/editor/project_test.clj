@@ -60,5 +60,9 @@
 
 (deftest comple-find-in-files-regex-test
   (is (= "^(.*)(foo)(.*)$" (str (project/compile-find-in-files-regex "foo"))))
-  (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar"))))
-  (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar[]().$^")))))
+  (testing "* is handled correctly"
+    (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar")))))
+  (testing "other wildcard chars are stripped"
+    (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar[]().$^")))))
+  (testing "case insensitive search strings"
+    (is (= "^(.*)(fooo)(.*)$" (str (project/compile-find-in-files-regex "fOoO"))))))
