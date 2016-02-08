@@ -407,7 +407,6 @@
                                                  (let [cell (proxy [TreeCell] []
                                                             (updateItem [resource empty]
                                                               (let [this ^TreeCell this]
-                                                                ;; TODO - fix reflection warning
                                                                 (proxy-super updateItem resource empty)
                                                                 (ui/update-tree-cell-style! this)
                                                                 (let [name (or (and (not empty) (not (nil? resource)) (resource/resource-name resource)) nil)]
