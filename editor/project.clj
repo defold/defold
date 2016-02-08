@@ -7,7 +7,7 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.8.0-alpha2"]
+  :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.4"]
                      [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
@@ -40,7 +40,7 @@
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]
 
-                     [javax/vecmath                               "1.5.2"]
+                     [javax.vecmath/vecmath                       "1.5.2"]
                      ; Keep jna version in sync with bundle.py. See JNA_VERSION
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
@@ -100,7 +100,7 @@
                       :dev         {:dependencies   [[org.clojure/test.check   "0.7.0"]
                                                      [org.mockito/mockito-core "1.10.19"]
                                                      [criterium "0.4.3"]
-                                                     [ring "1.4.0-RC1"]]
+                                                     [ring "1.4.0"]]
                                     :repl-options   {:port 4001}
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
