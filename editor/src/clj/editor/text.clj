@@ -15,7 +15,7 @@
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [text-area (TextArea.)]
     (.setText text-area (slurp (g/node-value resource-node :resource)))
-    (when-let [cp (:initial-caret-position opts)]
+    (when-let [cp (:caret-position opts)]
       (.positionCaret text-area cp))
     (.add (.getChildren ^Pane parent) text-area)
     (ui/fill-control text-area)
