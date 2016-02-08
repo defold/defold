@@ -272,7 +272,8 @@
       (ui/timer-start! auto-refresh-timer))
     app-view))
 
-(defn- create-new-tab [app-view workspace project resource resource-node resource-type view-type make-view-fn tabs]
+(defn- create-new-tab [app-view workspace project resource resource-node
+                       resource-type view-type make-view-fn tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
@@ -280,13 +281,12 @@
                      (ui/user-data! ::resource-node resource-node))
         _          (.add tabs tab)
         view-graph (g/make-graph! :history false :volatility 2)
-        opts       (merge (get (:view-opts resource-type) (:id view-type))
+        opts       (merge opts
+                          (get (:view-opts resource-type) (:id view-type))
                           {:app-view  app-view
                            :project   project
                            :workspace workspace
-                           :tab       tab}
-                          (when-let [cp (:caret-position resource)]
-                            {:initial-caret-position cp}))
+                           :tab       tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (ui/user-data! tab ::view view)
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
@@ -298,22 +298,25 @@
                            (.handle close-handler event)))))
     tab))
 
-(defn open-resource [app-view workspace project resource]
-  (let [resource-type (resource/resource-type resource)
-        view-type     (or (first (:view-types resource-type))
-                          (workspace/get-view-type workspace :text))]
-    (if-let [make-view-fn (:make-view-fn view-type)]
-      (let [resource-node     (project/get-resource-node project resource)
-            ^TabPane tab-pane (g/node-value app-view :tab-pane)
-            tabs              (.getTabs tab-pane)
-            tab               (or (first (filter #(= (:file resource) (:file (ui/user-data % ::resource))) tabs))
-                                  (create-new-tab app-view workspace project resource resource-node
-                                                  resource-type view-type make-view-fn tabs))]
-        (.select (.getSelectionModel tab-pane) tab)
-        (when-let [focus (and (:caret-position resource) (:focus-fn view-type))]
-          (focus (ui/user-data tab ::view) (select-keys resource [:caret-position])))
-        (project/select! project [resource-node]))
-      (.open (Desktop/getDesktop) (File. (resource/abs-path resource))))))
+(defn open-resource
+  ([app-view workspace project resource]
+   (open-resource app-view workspace project resource {}))
+  ([app-view workspace project resource opts]
+   (let [resource-type (resource/resource-type resource)
+         view-type     (or (first (:view-types resource-type))
+                           (workspace/get-view-type workspace :text))]
+     (if-let [make-view-fn (:make-view-fn view-type)]
+       (let [resource-node     (project/get-resource-node project resource)
+             ^TabPane tab-pane (g/node-value app-view :tab-pane)
+             tabs              (.getTabs tab-pane)
+             tab               (or (first (filter #(= resource (ui/user-data % ::resource)) tabs))
+                                   (create-new-tab app-view workspace project resource resource-node
+                                                   resource-type view-type make-view-fn tabs opts))]
+         (.select (.getSelectionModel tab-pane) tab)
+         (when-let [focus (:focus-fn view-type)]
+           (focus (ui/user-data tab ::view) opts))
+         (project/select! project [resource-node]))
+       (.open (Desktop/getDesktop) (File. (resource/abs-path resource)))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
@@ -351,8 +354,9 @@
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
-  (when-let [resource (dialogs/make-search-in-files-dialog workspace project)]
-    (open-resource app-view workspace project resource)))
+  (let [[resource opts] (dialogs/make-search-in-files-dialog workspace project)]
+    (when resource
+      (open-resource app-view workspace project resource opts))))
 
 (handler/defhandler :search-in-files :global
   (enabled? [] true)
