@@ -14,6 +14,9 @@
         (is (every? #(re-find #"session" (:content %)) res))
         (is (every? :line (:matches (first res))))
 
+        (testing "search is case insensitive"
+          (is (= 11 (count (project/search-in-files project "go" "seSSiOn")))))
+
         (is (= 21 (count (project/search-in-files project nil "session"))))
         (is (= 21 (count (project/search-in-files project "" "session"))))
         (is (= 0 (count (project/search-in-files project "lua" "session"))))

@@ -127,7 +127,9 @@
   "Convert a search-string to a java regex"
   [search-str]
   (let [clean-str (str/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
-    (re-pattern (format "^(.*)(%s)(.*)$" (str/replace clean-str #"\*" ".*")))))
+    (re-pattern (format "^(.*)(%s)(.*)$"
+                        (str/lower-case
+                         (str/replace clean-str #"\*" ".*"))))))
 
 (defn- line->caret-pos [content line]
   (let [line-counts (map (comp inc count) (str/split-lines content))]
@@ -157,6 +159,7 @@
          (map (fn [{:keys [content] :as hit}]
                 (assoc hit :matches
                        (->> (str/split-lines (:content hit))
+                            (map str/lower-case)
                             (keep-indexed (fn [idx l]
                                             (let [[_ pre m post] (re-matches pattern l)]
                                               (when m
