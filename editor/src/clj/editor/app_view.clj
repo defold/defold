@@ -272,36 +272,46 @@
       (ui/timer-start! auto-refresh-timer))
     app-view))
 
+(defn- create-new-tab [app-view workspace project resource resource-node resource-type view-type make-view-fn tabs]
+  (let [parent     (AnchorPane.)
+        tab        (doto (Tab. (resource/resource-name resource))
+                     (.setContent parent)
+                     (ui/user-data! ::resource resource)
+                     (ui/user-data! ::resource-node resource-node))
+        _          (.add tabs tab)
+        view-graph (g/make-graph! :history false :volatility 2)
+        opts       (merge (get (:view-opts resource-type) (:id view-type))
+                          {:app-view  app-view
+                           :project   project
+                           :workspace workspace
+                           :tab       tab}
+                          (when-let [cp (:caret-position resource)]
+                            {:initial-caret-position cp}))
+        view       (make-view-fn view-graph parent resource-node opts)]
+    (ui/user-data! tab ::view view)
+    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
+    (let [close-handler (.getOnClosed tab)]
+      (.setOnClosed tab (ui/event-handler
+                         event
+                         (g/delete-graph! view-graph)
+                         (when close-handler
+                           (.handle close-handler event)))))
+    tab))
+
 (defn open-resource [app-view workspace project resource]
   (let [resource-type (resource/resource-type resource)
-        view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
+        view-type     (or (first (:view-types resource-type))
+                          (workspace/get-view-type workspace :text))]
     (if-let [make-view-fn (:make-view-fn view-type)]
-      (let [resource-node (project/get-resource-node project resource)
-            ^TabPane tab-pane   (g/node-value app-view :tab-pane)
-            parent     (AnchorPane.)
-            tab        (doto (Tab. (resource/resource-name resource))
-                         (.setContent parent)
-                         (ui/user-data! ::resource resource)
-                         (ui/user-data! ::resource-node resource-node))
-            tabs       (doto (.getTabs tab-pane) (.add tab))
-            view-graph (g/make-graph! :history false :volatility 2)
-            opts       (merge (get (:view-opts resource-type) (:id view-type))
-                              {:app-view  app-view
-                               :project   project
-                               :workspace workspace
-                               :tab       tab}
-                              (when-let [cp (:caret-position resource)]
-                                {:initial-caret-position cp}))
-            view       (make-view-fn view-graph parent resource-node opts)]
-        (ui/user-data! tab ::view view)
-        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
-        (let [close-handler (.getOnClosed tab)]
-          (.setOnClosed tab (ui/event-handler
-                             event
-                             (g/delete-graph! view-graph)
-                             (when close-handler
-                               (.handle close-handler event)))))
+      (let [resource-node     (project/get-resource-node project resource)
+            ^TabPane tab-pane (g/node-value app-view :tab-pane)
+            tabs              (.getTabs tab-pane)
+            tab               (or (first (filter #(= (:file resource) (:file (ui/user-data % ::resource))) tabs))
+                                  (create-new-tab app-view workspace project resource resource-node
+                                                  resource-type view-type make-view-fn tabs))]
         (.select (.getSelectionModel tab-pane) tab)
+        (when-let [focus (and (:caret-position resource) (:focus-fn view-type))]
+          (focus (ui/user-data tab ::view) (select-keys resource [:caret-position])))
         (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. (resource/abs-path resource))))))
 
