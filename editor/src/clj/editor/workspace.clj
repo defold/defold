@@ -226,6 +226,12 @@ ordinary paths."
                 :view-types {:default {:id :default}}
                 :resource-listeners (atom [])))
 
-(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
-  (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
+(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn focus-fn]}]
+  (let [view-type (merge {:id id}
+                         (when make-view-fn
+                           {:make-view-fn make-view-fn})
+                         (when make-preview-fn
+                           {:make-preview-fn make-preview-fn})
+                         (when focus-fn
+                           {:focus-fn focus-fn}))]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))

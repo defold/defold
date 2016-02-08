@@ -104,7 +104,13 @@
                        (ui/timer-stop! refresh-timer))))
       view-id)))
 
+(defn update-caret-pos [code-node {:keys [caret-position]}]
+  (g/transact
+   (concat
+    (g/set-property code-node :caret-position caret-position))))
+
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
+                                :focus-fn update-caret-pos
                                 :make-view-fn make-view))
