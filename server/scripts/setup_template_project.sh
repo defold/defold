@@ -13,6 +13,7 @@ setup_proj() {
     git init
     git add .
     git commit -m initial
+    git checkout -b testbranch
     git tag -a 1.0 -m "1.0"
     git config receive.denycurrentbranch ignore
     popd > /dev/null

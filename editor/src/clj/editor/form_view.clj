@@ -126,7 +126,7 @@
 
 (defmethod create-field-control :resource [{:keys [filter path help]} {:keys [set cancel]} {:keys [workspace]}]
   (let [hbox (HBox.)
-        button (Button. "...")
+        button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
@@ -566,6 +566,7 @@
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
         reset-btn (doto (Button. "x")
+                    (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_] (clear path))))
         [control api] (create-field-control field-info field-ops ctxt)
         update-ui-fn (fn [{:keys [value source]}]

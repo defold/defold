@@ -2,7 +2,7 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.pprint :as pp]
             [clojure.set :as set]
-            [dynamo.util :as util]
+            [internal.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
