@@ -263,16 +263,17 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
-    (let [resource @return]
+    (let [resource (update @return :children
+                           (fn [children] (remove #(instance? MatchContextResource %) children)))]
       (cond
-        (:parent-resource resource)
-        (assoc (:parent-resource resource) :caret-position (:caret-position resource))
+        (instance? MatchContextResource resource)
+        [(:parent-resource resource) {:caret-position (:caret-position resource)}]
 
         (not-empty (:children resource))
         nil
 
         :else
-        resource))))
+        [resource {}]))))
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
