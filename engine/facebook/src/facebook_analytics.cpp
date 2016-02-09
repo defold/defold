@@ -40,6 +40,10 @@ const char* dmFacebook::Analytics::lookupEvent(unsigned int index)
 const char* dmFacebook::Analytics::getEvent(lua_State* L, int index)
 {
     const char* event = 0;
+    if (lua_isnil(L, index))
+    {
+        luaL_argerror(L, index, "Facebook Analytics event cannot be nil");
+    }
     if (lua_isnumber(L, index))
     {
         unsigned int eventNumber = (unsigned int) luaL_checknumber(L, index);
