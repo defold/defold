@@ -104,6 +104,8 @@ class Configuration(object):
                  branch = None,
                  channel = None,
                  eclipse_version = None,
+                 local_build = False,
+                 skip_sync = False,
                  waf_options = []):
 
         if sys.platform == 'win32':
@@ -134,6 +136,8 @@ class Configuration(object):
         self.branch = branch
         self.channel = channel
         self.eclipse_version = eclipse_version
+        self.local_build = local_build
+        self.skip_sync = skip_sync
         self.waf_options = waf_options
 
         self.thread_pool = None
@@ -487,9 +491,31 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+
+    def __update_directory(self, source, destination):
+        for sname in os.listdir(source):
+            spath = os.path.join(source, sname)
+            dpath = os.path.join(destination, sname)
+            if os.path.isfile(spath) and os.path.exists(dpath):
+                print('Updating local resource: %s' % (dpath))
+                shutil.copyfile(spath, dpath)
+
+
     def build_bob(self):
         # NOTE: A bit expensive to sync everything
-        self._sync_archive()
+        if not self.skip_sync:
+            self._sync_archive()
+        if self.local_build:
+            sources = ['tmp/dynamo_home/bin', 'tmp/dynamo_home/ext/lib', 'tmp/dynamo_home/lib']
+            local_dir = os.path.join(self.dynamo_home, 'archive', self._git_sha1(), 'engine')
+            platforms = os.listdir(local_dir)
+            for source in sources:
+                for sname in os.listdir(source):
+                    spath = os.path.join(source, sname)
+                    if os.path.isdir(spath) and sname in platforms:
+                        dpath = os.path.join(local_dir, sname)
+                        self.__update_directory(spath, dpath)
+
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
         for s in ["copy.sh"]:
@@ -1168,6 +1194,16 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = '3.8',
                       help = 'Eclipse version')
 
+    parser.add_option('--local-build', dest='local_build',
+                      action='store_true',
+                      default=False,
+                      help='Update the current archive with local artifacts when building bob')
+
+    parser.add_option('--skip-sync', dest='skip_sync',
+                      action='store_true',
+                      default=False,
+                      help='Do not download engine resources from S3 when building bob')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -1191,6 +1227,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       branch = options.branch,
                       channel = options.channel,
                       eclipse_version = options.eclipse_version,
+                      local_build = options.local_build,
+                      skip_sync = options.skip_sync,
                       waf_options = waf_options)
 
     for cmd in args:
