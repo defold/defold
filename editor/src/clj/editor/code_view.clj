@@ -105,9 +105,10 @@
       view-id)))
 
 (defn update-caret-pos [code-node {:keys [caret-position]}]
-  (g/transact
-   (concat
-    (g/set-property code-node :caret-position caret-position))))
+  (when caret-position
+    (g/transact
+     (concat
+      (g/set-property code-node :caret-position caret-position)))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
