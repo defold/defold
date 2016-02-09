@@ -314,7 +314,7 @@
                                                    resource-type view-type make-view-fn tabs opts))]
          (.select (.getSelectionModel tab-pane) tab)
          (when-let [focus (:focus-fn view-type)]
-           (focus (ui/user-data tab ::view) opts))
+           (focus resource-node opts))
          (project/select! project [resource-node]))
        (.open (Desktop/getDesktop) (File. (resource/abs-path resource)))))))
 
