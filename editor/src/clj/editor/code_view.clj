@@ -104,10 +104,12 @@
                        (ui/timer-stop! refresh-timer))))
       view-id)))
 
-(defn update-caret-pos [code-node {:keys [caret-position]}]
-  (g/transact
-   (concat
-    (g/set-property code-node :caret-position caret-position))))
+(defn update-caret-pos [view-id {:keys [caret-position]}]
+  (when caret-position
+    (when-let [code-node (g/node-value view-id :code-node)]
+      (g/transact
+       (concat
+        (g/set-property code-node :caret-position caret-position))))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace

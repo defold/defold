@@ -22,8 +22,9 @@
     (g/make-node! graph TextView :text-area text-area)))
 
 (defn update-caret-pos [text-node {:keys [caret-position]}]
-  (when-let [^TextArea text-area (g/node-value text-node :text-area)]
-    (.positionCaret text-area caret-position)))
+  (when caret-position
+    (when-let [^TextArea text-area (g/node-value text-node :text-area)]
+      (.positionCaret text-area caret-position))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
