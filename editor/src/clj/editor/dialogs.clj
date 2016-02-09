@@ -263,8 +263,9 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
-    (let [resource (update @return :children
-                           (fn [children] (remove #(instance? MatchContextResource %) children)))]
+    (let [resource (and @return
+                        (update @return :children
+                                (fn [children] (remove #(instance? MatchContextResource %) children))))]
       (cond
         (instance? MatchContextResource resource)
         [(:parent-resource resource) {:caret-position (:caret-position resource)}]
