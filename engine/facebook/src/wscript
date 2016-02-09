@@ -10,6 +10,7 @@ def build(bld):
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ' facebook.mm'
+        source += ' facebook_analytics.cpp'
         embed_source += ' ../resources/ios/close.png ../resources/ios/close@2x.png'
 
     if 'android' in bld.env['PLATFORM']:

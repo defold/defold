@@ -9,8 +9,7 @@
 #import <objc/runtime.h>
 
 #include "facebook.h"
-
-#define LIB_NAME "facebook"
+#include "facebook_analytics.h"
 
 struct Facebook
 {
@@ -740,6 +739,53 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+int Facebook_PostEvent(lua_State* L)
+{
+    int argc = lua_gettop(L);
+    const char* event = dmFacebook::Analytics::getEvent(L, 1);
+    double valueToSum = luaL_checknumber(L, 2);
+
+    // Transform LUA table to a format that can be used by all platforms.
+    const char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    const char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    unsigned int length = 0;
+    // TABLE is an optional argument and should only be parsed if provided.
+    if (argc == 3)
+    {
+        length = dmFacebook::Analytics::MAX_PARAMS;
+        dmFacebook::Analytics::getTable(L, 3, keys, values, &length);
+    }
+
+    // Prepare for Objective-C
+    NSString* objcEvent = [NSString stringWithCString:event encoding:NSASCIIStringEncoding];
+    NSMutableDictionary* params = [NSMutableDictionary dictionary];
+    for (unsigned int i = 0; i < length; ++i)
+    {
+        NSString* objcKey = [NSString stringWithCString:keys[i] encoding:NSASCIIStringEncoding];
+        NSString* objcValue = [NSString stringWithCString:values[i] encoding:NSASCIIStringEncoding];
+
+        params[objcKey] = objcValue;
+    }
+
+    [FBSDKAppEvents logEvent:objcEvent valueToSum:valueToSum parameters:params];
+
+    return 0;
+}
+
+int Facebook_EnableEventUsage(lua_State* L)
+{
+    [FBSDKSettings setLimitEventAndDataUsage:false];
+
+    return 0;
+}
+
+int Facebook_DisableEventUsage(lua_State* L)
+{
+    [FBSDKSettings setLimitEventAndDataUsage:true];
+
+    return 0;
+}
+
 /*# show facebook web dialog
  *
  * Display a Facebook web dialog of the type specified in the <code>dialog</code> parameter.
@@ -894,6 +940,9 @@ static const luaL_reg Facebook_methods[] =
     {"request_read_permissions", Facebook_RequestReadPermissions},
     {"request_publish_permissions", Facebook_RequestPublishPermissions},
     {"me", Facebook_Me},
+    {"post_event", Facebook_PostEvent},
+    {"enable_event_usage", Facebook_EnableEventUsage},
+    {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
@@ -1032,6 +1081,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
 #undef SETCONSTANT
+
+    dmFacebook::Analytics::registerConstants(L);
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
