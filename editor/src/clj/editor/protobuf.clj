@@ -125,8 +125,13 @@
        (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3)))
      (.build))))
 
+(def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
+
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
-  (keyword (s/replace (.getName field-desc) "_" "-")))
+  (let [field-name (.getName field-desc)]
+    (keyword (if (re-find upper-pattern field-name)
+               (->kebab-case field-name)
+               (s/replace field-name "_" "-")))))
 
 (defn pb->map
   [^Message pb]

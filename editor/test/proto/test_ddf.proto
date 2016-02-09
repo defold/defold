@@ -93,3 +93,8 @@ message BytesMsg
 {
     required bytes value = 1;
 }
+
+message JavaCasingMsg
+{
+	required string javaCasing = 1;
+}
