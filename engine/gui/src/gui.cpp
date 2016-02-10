@@ -1613,6 +1613,7 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
             node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
             node->m_Node.m_LocalTransform = Matrix4::identity();
+            node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
             node->m_Node.m_PerimeterVertices = 32;
             node->m_Node.m_OuterBounds = PIEBOUNDS_ELLIPSE;
             node->m_Node.m_BlendMode = 0;
