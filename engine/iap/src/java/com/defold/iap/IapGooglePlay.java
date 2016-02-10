@@ -26,6 +26,8 @@ import com.android.vending.billing.IInAppBillingService;
 
 public class IapGooglePlay implements Handler.Callback {
     public static final String PARAM_PRODUCT = "product";
+    public static final String PARAM_PURCHASE_DATA = "purchase_data";
+    public static final String PARAM_AUTOFINISH_TRANSACTIONS = "auto_finish_transactions";
     public static final String PARAM_MESSENGER = "com.defold.iap.messenger";
 
     public static final String RESPONSE_CODE = "RESPONSE_CODE";
@@ -41,7 +43,8 @@ public class IapGooglePlay implements Handler.Callback {
     public static enum Action {
         BUY,
         RESTORE,
-        PROCESS_PENDING_CONSUMABLES
+        PROCESS_PENDING_CONSUMABLES,
+        FINISH_TRANSACTION
     }
 
     public static final String TAG = "iap";
@@ -57,6 +60,7 @@ public class IapGooglePlay implements Handler.Callback {
 
     private IPurchaseListener purchaseListener;
     private boolean initialized;
+    private boolean autoFinishTransactions;
 
     private static class SkuRequest {
         private ArrayList<String> skuList;
@@ -123,8 +127,9 @@ public class IapGooglePlay implements Handler.Callback {
         }
     }
 
-    public IapGooglePlay(Activity activity) {
+    public IapGooglePlay(Activity activity, boolean autoFinishTransactions) {
         this.activity = activity;
+        this.autoFinishTransactions = autoFinishTransactions;
     }
 
     private void init() {
@@ -254,8 +259,28 @@ public class IapGooglePlay implements Handler.Callback {
                 IapGooglePlay.this.purchaseListener = listener;
                 Intent intent = new Intent(activity, IapGooglePlayActivity.class);
                 intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.putExtra(PARAM_AUTOFINISH_TRANSACTIONS, IapGooglePlay.this.autoFinishTransactions);
                 intent.putExtra(PARAM_PRODUCT, product);
                 intent.setAction(Action.BUY.toString());
+                activity.startActivity(intent);
+            }
+        });
+    }
+
+    public void finishTransaction(final String receipt, final IPurchaseListener listener) {
+        if(IapGooglePlay.this.autoFinishTransactions) {
+            return;
+        }
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                init();
+                IapGooglePlay.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapGooglePlayActivity.class);
+                intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.putExtra(PARAM_AUTOFINISH_TRANSACTIONS, false);
+                intent.putExtra(PARAM_PURCHASE_DATA, receipt);
+                intent.setAction(Action.FINISH_TRANSACTION.toString());
                 activity.startActivity(intent);
             }
         });
@@ -269,6 +294,7 @@ public class IapGooglePlay implements Handler.Callback {
                 IapGooglePlay.this.purchaseListener = listener;
                 Intent intent = new Intent(activity, IapGooglePlayActivity.class);
                 intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.putExtra(PARAM_AUTOFINISH_TRANSACTIONS, IapGooglePlay.this.autoFinishTransactions);
                 intent.setAction(Action.PROCESS_PENDING_CONSUMABLES.toString());
                 activity.startActivity(intent);
             }
@@ -283,6 +309,7 @@ public class IapGooglePlay implements Handler.Callback {
                 IapGooglePlay.this.purchaseListener = listener;
                 Intent intent = new Intent(activity, IapGooglePlayActivity.class);
                 intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.putExtra(PARAM_AUTOFINISH_TRANSACTIONS, IapGooglePlay.this.autoFinishTransactions);
                 intent.setAction(Action.RESTORE.toString());
                 activity.startActivity(intent);
             }
