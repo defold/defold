@@ -456,13 +456,13 @@
          point="com.dynamo.cr.editor.ui.tip">
       <tip
             editor-id="com.dynamo.cr.go.editors.CollectionEditor"
-            link="See &lt;a href=&quot;http://doc.defold.com/doc/scene_editing&quot;&gt;Scene Editing&lt;/a&gt; for more info."
+            link="See &lt;a href=&quot;http://doc.defold.com/doc/scene-editing&quot;&gt;Scene Editing&lt;/a&gt; for more info."
             tip="Tracking: Alt + Right Button (Three Button) or Option + Ctrl + Mouse Button (One Button)\nDollying: Alt + Middle Button (Three Button) or Ctrl + Mouse Button (One Button)\nSnapping: Shift while manipulating objects\nOpen the Scene menu for more useful operations"
             title="Hot Keys">
       </tip>
       <tip
             editor-id="com.dynamo.cr.go.ui.goEditor"
-            link="See &lt;a href=&quot;http://doc.defold.com/doc/scene_editing&quot;&gt;Scene Editing&lt;/a&gt; for more info."
+            link="See &lt;a href=&quot;http://doc.defold.com/doc/scene-editing&quot;&gt;Scene Editing&lt;/a&gt; for more info."
             tip="Use the Q, W and R keys to enable different manipulators for the selected objects.\nSnapping: Shift while manipulating objects.\nOpen the Scene menu for more useful operations."
             title="Manipulators">
       </tip>
