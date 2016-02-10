@@ -117,4 +117,6 @@ namespace dmFacebook {
 
 };
 
+const char* CStringArrayToJson(const char** array, unsigned int length);
+
 #endif
