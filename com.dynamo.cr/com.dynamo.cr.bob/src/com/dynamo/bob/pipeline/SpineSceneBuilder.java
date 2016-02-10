@@ -276,6 +276,8 @@ public class SpineSceneBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()));
         SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
         ProtoUtil.merge(input, builder);
+        BuilderUtil.checkResource(this.project, input, "spine_json", builder.getSpineJson());
+        BuilderUtil.checkResource(this.project, input, "atlas", builder.getAtlas());
         taskBuilder.addInput(input.getResource(builder.getSpineJson()));
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
         return taskBuilder.build();
