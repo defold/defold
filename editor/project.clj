@@ -90,6 +90,7 @@
                       :uberjar {:prep-tasks   ["clean" "protobuf" "javac" ["run" "-m" " aot"] "compile"]
                                 :jvm-opts     ["-Dclojure.compiler.direct-linking=true"]
                                 :aot          :all
+                                :omit-source  true
                                 :source-paths ["sidecar"]}
                       :dev     {:dependencies      [[org.clojure/test.check   "0.9.0"]
                                                     [org.mockito/mockito-core "1.10.19"]
