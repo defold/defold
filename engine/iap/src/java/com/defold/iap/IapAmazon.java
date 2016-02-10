@@ -38,9 +38,11 @@ public class IapAmazon implements PurchasingListener {
     private HashMap<RequestId, IPurchaseListener> purchaseListeners;
 
     private Activity activity;
+    private boolean autoFinishTransactions;
 
-    public IapAmazon(Activity activity) {
+    public IapAmazon(Activity activity, boolean autoFinishTransactions) {
         this.activity = activity;
+        this.autoFinishTransactions = autoFinishTransactions;
         this.listProductsListeners = new HashMap<RequestId, IListProductsListener>();
         this.purchaseListeners = new HashMap<RequestId, IPurchaseListener>();
         PurchasingService.registerListener(activity, this);
@@ -86,6 +88,13 @@ public class IapAmazon implements PurchasingListener {
         }
     }
 
+    public void finishTransaction(final String receipt, final IPurchaseListener listener) {
+        if(this.autoFinishTransactions) {
+            return;
+        }
+        PurchasingService.notifyFulfillment(receipt, FulfillmentResult.FULFILLED);
+    }
+
     private void doGetPurchaseUpdates(final IPurchaseListener listener, final boolean reset) {
         synchronized (purchaseListeners) {
             RequestId req = PurchasingService.getPurchaseUpdates(reset);
@@ -119,7 +128,7 @@ public class IapAmazon implements PurchasingListener {
         transaction.put("state", state);
         transaction.put("date", toISO8601(receipt.getPurchaseDate()));
         transaction.put("trans_ident", receipt.getReceiptId());
-        transaction.put("receipt", receipt.toJSON());
+        transaction.put("receipt", receipt.getReceiptId());
 
         // Only for amazon (this far), but required for using their server side receipt validation.
         transaction.put("is_sandbox_mode", PurchasingService.IS_SANDBOX_MODE);
@@ -164,8 +173,9 @@ public class IapAmazon implements PurchasingListener {
                     item.put("title", product.getTitle());
                     item.put("description", product.getDescription());
                     if (product.getPrice() != null) {
-                        item.put("price_string", product.getPrice());
-                        item.put("price", product.getPrice());
+                        String priceString = product.getPrice();
+                        item.put("price_string", priceString);
+                        item.put("price", priceString.replaceAll("[^0-9.]", ""));
                     }
                     data.put(key, item);
                 }
@@ -230,7 +240,7 @@ public class IapAmazon implements PurchasingListener {
 
         listener.onPurchaseResult(code, data);
 
-        if (fulfilReceiptId != null) {
+        if (fulfilReceiptId != null && autoFinishTransactions) {
             PurchasingService.notifyFulfillment(fulfilReceiptId, FulfillmentResult.FULFILLED);
         }
     }
@@ -267,7 +277,9 @@ public class IapAmazon implements PurchasingListener {
                         for (Receipt receipt : purchaseUpdatesResponse.getReceipts()) {
                             JSONObject trans = makeTransactionObject(purchaseUpdatesResponse.getUserData(), receipt, IapJNI.TRANS_STATE_PURCHASED);
                             listener.onPurchaseResult(IapJNI.BILLING_RESPONSE_RESULT_OK, trans.toString());
-                            PurchasingService.notifyFulfillment(receipt.getReceiptId(), FulfillmentResult.FULFILLED);
+                            if(autoFinishTransactions) {
+                                PurchasingService.notifyFulfillment(receipt.getReceiptId(), FulfillmentResult.FULFILLED);
+                            }
                         }
                         if (purchaseUpdatesResponse.hasMore()) {
                             doGetPurchaseUpdates(listener, false);
