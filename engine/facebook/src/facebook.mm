@@ -832,6 +832,8 @@ int Facebook_PostEvent(lua_State* L)
 
 /*# Enable event usage with Facebook Analytics
  *
+ * @name enable_event_usage
+ *
  * <p>
  * This function will enable event usage for Facebook Analytics which means
  * that Facebook will be able to use event data for ad-tracking.
@@ -850,6 +852,8 @@ int Facebook_EnableEventUsage(lua_State* L)
 }
 
 /*# Disable event usage with Facebook Analytics
+ *
+ * @name disable_event_usage
  *
  * <p>
  * This function will disable event usage for Facebook Analytics which means
