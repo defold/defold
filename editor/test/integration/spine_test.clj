@@ -4,7 +4,7 @@
             [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.spine :as spine])
   (:import [java.io File]
