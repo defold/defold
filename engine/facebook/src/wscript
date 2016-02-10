@@ -1,8 +1,21 @@
 #! /usr/bin/env python
 import os, re
 
-def configure(conf):
+import waf_dynamo
+
+def init():
     pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+    dynamo_home = conf.env.DYNAMO_HOME
+    if not dynamo_home:
+        conf.fatal("DYNAMO_HOME not set")
+    if not conf.env.PREFIX:
+        conf.fatal("PREFIX is not set")
 
 def build(bld):
     embed_source = ''
@@ -38,6 +51,7 @@ def build(bld):
     elif 'js-web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/js-web/js', '../src/js/library_facebook.js', postpone = False)
         source += ' facebook_emscripten.cpp'
+        source += ' facebook_analytics.cpp'
 
     facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                 includes = '.',

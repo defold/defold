@@ -8,8 +8,7 @@
 #include <stdlib.h>
 
 #include "facebook.h"
-
-#define LIB_NAME "facebook"
+#include "facebook_analytics.h"
 
 // Must match iOS for now
 enum Audience
@@ -26,7 +25,6 @@ struct Facebook
     {
         memset(this, 0, sizeof(*this));
         m_Callback = LUA_NOREF;
-        m_Self = LUA_NOREF;
         m_Initialized = false;
     }
     int m_Callback;
@@ -58,6 +56,9 @@ extern "C" {
     void dmFacebookDoLogout();
     void dmFacebookRequestReadPermissions(const char* permissions, OnRequestReadPermissionsCallback callback, lua_State* L);
     void dmFacebookRequestPublishPermissions(const char* permissions, int audience, OnRequestPublishPermissionsCallback callback, lua_State* L);
+    void dmFacebookPostEvent(const char* event, double valueToSum, const char* keys, const char* values);
+    void dmFacebookEnableEventUsage();
+    void dmFacebookDisableEventUsage();
 }
 
 // TODO: Move out to common stuff (also in engine/iap/src/iap_android.cpp and script_json among others)
@@ -501,6 +502,54 @@ int Facebook_ShowDialog(lua_State* L)
     return 0;
 }
 
+int Facebook_PostEvent(lua_State* L)
+{
+    int argc = lua_gettop(L);
+    const char* event = dmFacebook::Analytics::getEvent(L, 1);
+    double valueToSum = luaL_checknumber(L, 2);
+
+    // Transform LUA table to a format that can be used by all platforms.
+    const char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    const char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    unsigned int length = 0;
+    // TABLE is an optional argument and should only be parsed if provided.
+    if (argc == 3)
+    {
+        length = dmFacebook::Analytics::MAX_PARAMS;
+        dmFacebook::Analytics::getTable(L, 3, keys, values, &length);
+    }
+
+    const char* json_keys = CStringArrayToJson(keys, length);
+    const char* json_values = CStringArrayToJson(values, length);
+
+    dmLogInfo("event        : %s", event);
+    dmLogInfo("value_to_sum : %f", valueToSum);
+    dmLogInfo("keys         : %s", json_keys);
+    dmLogInfo("values       : %s", json_values);
+
+    // Forward call to JavaScript
+    dmFacebookPostEvent(event, valueToSum, json_keys, json_values);
+
+    free((void*) json_keys);
+    free((void*) json_values);
+
+    return 0;
+}
+
+int Facebook_EnableEventUsage(lua_State* L)
+{
+    dmFacebookEnableEventUsage();
+
+    return 0;
+}
+
+int Facebook_DisableEventUsage(lua_State* L)
+{
+    dmFacebookDisableEventUsage();
+
+    return 0;
+}
+
 
 static const luaL_reg Facebook_methods[] =
 {
@@ -511,6 +560,9 @@ static const luaL_reg Facebook_methods[] =
     {"request_read_permissions", Facebook_RequestReadPermissions},
     {"request_publish_permissions", Facebook_RequestPublishPermissions},
     {"me", Facebook_Me},
+    {"post_event", Facebook_PostEvent},
+    {"enable_event_usage", Facebook_EnableEventUsage},
+    {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
@@ -561,6 +613,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
 #undef SETCONSTANT
+
+    dmFacebook::Analytics::registerConstants(L);
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

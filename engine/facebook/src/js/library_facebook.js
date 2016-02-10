@@ -105,6 +105,43 @@ var LibraryFacebook = {
             }
         },
 
+        // https://developers.facebook.com/docs/reference/javascript/FB.AppEvents.LogEvent
+        dmFacebookPostEvent: function(event, value_to_sum, keys, values) {
+            var params = {};
+            try {
+                event = Pointer_stringify(event);
+                keys = JSON.parse(Pointer_stringify(keys));
+                values = JSON.parse(Pointer_stringify(values));
+                for (var i = 0; i < keys.length; ++i) {
+                    params[keys[i]] = values[i];
+                }
+            } catch (e) {
+                console.error("Unable to parse data from Defold: " + e);
+            }
+
+            console.log('event         : ' + event);
+            console.log('value_to_sum  : ' + value_to_sum);
+            console.log('keys          : ' + JSON.stringify(keys));
+            console.log('values        : ' + JSON.stringify(values));
+            console.log('params        : ' + JSON.stringify(params));
+
+            try {
+                FB.AppEvents.logEvent(event, value_to_sum, params);
+            } catch (e) {
+                console.error("Unable to post event to Facebook Analytics: " + e);
+            }
+        },
+
+        // https://developers.facebook.com/docs/javascript/reference/v2.0
+        dmFacebookEnableEventUsage: function() {
+            console.error("Limiting Facebook Analytics is not supported for Canvas");
+        },
+
+        // https://developers.facebook.com/docs/javascript/reference/v2.0
+        dmFacebookDisableEventUsage: function() {
+            console.error("Limiting Facebook Analytics is not supported for Canvas");
+        },
+
         // https://developers.facebook.com/docs/reference/javascript/FB.login/v2.0
         dmFacebookDoLogin: function(state_open, state_closed, state_failed, callback, lua_state) {
             try {
