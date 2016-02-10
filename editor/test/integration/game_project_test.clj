@@ -5,7 +5,7 @@
             [integration.test-util :as test-util]
             [editor.game-project :as gp]
             [editor.workspace :as workspace]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [service.log :as log])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]

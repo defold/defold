@@ -4,7 +4,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system undo-stack]]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
@@ -276,4 +276,3 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "resources/broken_project"))]
       (is (g/error? (project/save-data project))))))
-

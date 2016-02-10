@@ -5,7 +5,7 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [service.log :as log]
-            [editor.project :as project])
+            [editor.defold-project :as project])
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]

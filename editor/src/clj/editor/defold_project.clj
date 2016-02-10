@@ -1,4 +1,4 @@
-(ns editor.project
+(ns editor.defold-project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
   ordinary paths."
   (:require [clojure.java.io :as io]
