@@ -5,7 +5,7 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.login :as login]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.ui :as ui]
             [editor.workspace :as workspace]

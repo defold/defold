@@ -28,12 +28,11 @@
                        editor.math-test
                        editor.pipeline.tex-gen-test
                        editor.prefs-test
-                       editor.project-test
+                       editor.defold-project-test
                        editor.properties-test
                        editor.protobuf-test
                        editor.texture.math-test
                        editor.texture.packing-test
-                       editor.project-test
                        editor.ui-test
                        editor.updater-test
                        editor.workspace-test
