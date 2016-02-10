@@ -739,6 +739,64 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+/*# post an event to Facebook Analytics
+ *
+ * This function will post an event to Facebook Analtyics where it can be used
+ * in the Facebook Insights system.
+ *
+ * @name post_event
+ *
+ * @param event (constant|text) An event can either be one of the predefined
+ * constants below or a text which can be used to define a custom event that is
+ * registered with Facebook Analytics.
+ * <ul>
+ *     <li>facebook.EVENT_ACHIEVED_LEVEL</li>
+ *     <li>facebook.EVENT_ACTIVATED_APP</li>
+ *     <li>facebook.EVENT_ADDED_PAYMENT_INFO</li>
+ *     <li>facebook.EVENT_ADDED_TO_CART</li>
+ *     <li>facebook.EVENT_ADDED_TO_WISHLIST</li>
+ *     <li>facebook.EVENT_COMPLETED_REGISTRATION</li>
+ *     <li>facebook.EVENT_COMPLETED_TUTORIAL</li>
+ *     <li>facebook.EVENT_DEACTIVATED_APP</li>
+ *     <li>facebook.EVENT_INITIATED_CHECKOUT</li>
+ *     <li>facebook.EVENT_PURCHASED</li>
+ *     <li>facebook.EVENT_RATED</li>
+ *     <li>facebook.EVENT_SEARCHED</li>
+ *     <li>facebook.EVENT_SESSION_INTERRUPTIONS</li>
+ *     <li>facebook.EVENT_SPENT_CREDITS</li>
+ *     <li>facebook.EVENT_TIME_BETWEEN_SESSIONS</li>
+ *     <li>facebook.EVENT_UNLOCKED_ACHIEVEMENT</li>
+ *     <li>facebook.EVENT_VIEWED_CONTENT</li>
+ * </ul>
+ *
+ * @param value_to_sum (number) A numeric value for the event. This should
+ * represent the value of the event, such as the level achieved, price for an
+ * item or number of orcs killed.
+ *
+ * @param params (table) A table with parameters and their values. A key in the
+ * table can either be one of the predefined constants below or a text which
+ * can be used to define a custom parameter. Optional argument.
+ * <ul>
+ *     <li>facebook.PARAM_CONTENT_ID</li>
+ *     <li>facebook.PARAM_CONTENT_TYPE</li>
+ *     <li>facebook.PARAM_CURRENCY</li>
+ *     <li>facebook.PARAM_DESCRIPTION</li>
+ *     <li>facebook.PARAM_LEVEL</li>
+ *     <li>facebook.PARAM_MAX_RATING_VALUE</li>
+ *     <li>facebook.PARAM_NUM_ITEMS</li>
+ *     <li>facebook.PARAM_PAYMENT_INFO_AVAILABLE</li>
+ *     <li>facebook.PARAM_REGISTRATION_METHOD</li>
+ *     <li>facebook.PARAM_SEARCH_STRING</li>
+ *     <li>facebook.PARAM_SOURCE_APPLICATION</li>
+ *     <li>facebook.PARAM_SUCCESS</li>
+ * </ul>
+ *
+ * @examples
+ * <pre>
+ * params = {facebook.PARAM_LEVEL = 30, facebook.PARAM_NUM_ITEMS = 2};
+ * facebook.post_event(facebook.EVENT_SPENT_CREDITS, 25, params);
+ * </pre>
+ */
 int Facebook_PostEvent(lua_State* L)
 {
     int argc = lua_gettop(L);
@@ -772,6 +830,18 @@ int Facebook_PostEvent(lua_State* L)
     return 0;
 }
 
+/*# Enable event usage with Facebook Analytics
+ *
+ * <p>
+ * This function will enable event usage for Facebook Analytics which means
+ * that Facebook will be able to use event data for ad-tracking.
+ * </p>
+ * <p>
+ * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
+ * Facebook Canvas platform, therefore this function has no effect on Facebook
+ * Canvas.
+ * </p>
+ */
 int Facebook_EnableEventUsage(lua_State* L)
 {
     [FBSDKSettings setLimitEventAndDataUsage:false];
@@ -779,6 +849,19 @@ int Facebook_EnableEventUsage(lua_State* L)
     return 0;
 }
 
+/*# Disable event usage with Facebook Analytics
+ *
+ * <p>
+ * This function will disable event usage for Facebook Analytics which means
+ * that Facebook won't be able to use event data for ad-tracking. Events will
+ * still be sent to Facebook for insights.
+ * </p>
+ * <p>
+ * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
+ * Facebook Canvas platform, therefore this function has no effect on Facebook
+ * Canvas.
+ * </p>
+ */
 int Facebook_DisableEventUsage(lua_State* L)
 {
     [FBSDKSettings setLimitEventAndDataUsage:true];
@@ -1024,6 +1107,215 @@ static const luaL_reg Facebook_methods[] =
  * @name facebook.AUDIENCE_EVERYONE
  * @variable
  */
+
+ /*# Log this event when an app is being activated.
+  *
+  * <p>
+  * <b>NOTE!</b> This event is automatically logged when the facebook
+  * extension is activated. Posting this event manually will result in
+  * duplicated events.
+  * </p>
+  *
+  * @name facebook.EVENT_ACTIVATED_APP
+  * @variable
+  */
+
+ /*# Log this event when the user has entered their payment info.
+  *
+  * @name facebook.EVENT_ADDED_PAYMENT_INFO
+  * @variable
+  */
+
+ /*# Log this event when the user has added an item to their cart. The
+  *  valueToSum passed to logEvent should be the item's price.
+  *
+  * @name facebook.EVENT_ADDED_TO_CART
+  * @variable
+  */
+
+ /*# Log this event when the user has added an item to their wishlist. The
+  *  valueToSum passed to logEvent should be the item's price.
+  *
+  * @name facebook.EVENT_ADDED_TO_WISHLIST
+  * @variable
+  */
+
+ /*# Log this event when a user has completed registration with the app.
+  *
+  * @name facebook.EVENT_COMPLETED_REGISTRATION
+  * @variable
+  */
+
+ /*# Log this event when the user has completed a tutorial in the app.
+  *
+  * @name facebook.EVENT_COMPLETED_TUTORIAL
+  * @variable
+  */
+
+ /*# Log this event when an app is being deactivated.
+  *
+  * <p>
+  * <b>NOTE!</b> This event is automatically logged by the facebook extension,
+  * posting this event manually will result in duplicated events.
+  * </p>
+  *
+  * @name facebook.EVENT_DEACTIVATED_APP
+  * @variable
+  */
+
+ /*# Log this event when the user has entered the checkout process. The
+  *  valueToSum passed to logEvent should be the total price in the cart.
+  *
+  * @name facebook.EVENT_INITIATED_CHECKOUT
+  * @variable
+  */
+
+ /*# Log this event when the user has completed a purchase.
+  *
+  * @name facebook.EVENT_PURCHASED
+  * @variable
+  */
+
+ /*# Log this event when the user has rated an item in the app. The valueToSum
+  *  passed to logEvent should be the numeric rating.
+  *
+  * @name facebook.EVENT_RATED
+  * @variable
+  */
+
+ /*# Log this event when a user has performed a search within the app.
+  *
+  * @name facebook.EVENT_SEARCHED
+  * @variable
+  */
+
+ /*# Log this event when there has been interruptions in the current session
+  *  for the user.
+  *
+  * <p>
+  * <b>NOTE!</b> This event is currently an undocumented event in the Facebook
+  * SDK.
+  * </p>
+  *
+  * @name facebook.EVENT_SESSION_INTERRUPTIONS
+  * @variable
+  */
+
+ /*# Log this event when the user has spent app credits. The valueToSum passed
+  *  to logEvent should be the number of credits spent.
+  *
+  * <p>
+  * <b>NOTE!</b> This event is currently an undocumented event in the Facebook
+  * SDK.
+  * </p>
+  *
+  * @name facebook.EVENT_SPENT_CREDITS
+  * @variable
+  */
+
+ /*# Log this event when measuring the time between user sessions.
+  *
+  * @name facebook.EVENT_TIME_BETWEEN_SESSIONS
+  * @variable
+  */
+
+ /*# Log this event when the user has unlocked an achievement in the app.
+  *
+  * @name facebook.EVENT_UNLOCKED_ACHIEVEMENT
+  * @variable
+  */
+
+ /*# Log this event when a user has viewed a form of content in the app.
+  *
+  * @name facebook.EVENT_VIEWED_CONTENT
+  * @variable
+  */
+
+ /*# Parameter key used to specify an ID for the specific piece of content
+  *  being logged about. Could be an EAN, article identifier, etc., depending
+  *  on the nature of the app.
+  *
+  * @name facebook.PARAM_CONTENT_ID
+  * @variable
+  */
+
+ /*# Parameter key used to specify a generic content type/family for the logged
+  *  event, e.g. "music", "photo", "video". Options to use will vary based upon
+  *  what the app is all about.
+  *
+  * @name facebook.PARAM_CONTENT_TYPE
+  * @variable
+  */
+
+ /*# Parameter key used to specify currency used with logged event. E.g. "USD",
+  *  "EUR", "GBP". See ISO-4217 for specific values.
+  *
+  * @name facebook.PARAM_CURRENCY
+  * @variable
+  */
+
+ /*# Parameter key used to specify a description appropriate to the event being
+  *  logged. E.g., the name of the achievement unlocked in the
+  *  facebook.EVENT_UNLOCKED_ACHIEVEMENT event.
+  *
+  * @name facebook.PARAM_DESCRIPTION
+  * @variable
+  */
+
+ /*# Parameter key used to specify the level achieved.
+  *
+  * @name facebook.PARAM_LEVEL
+  * @variable
+  */
+
+ /*# Parameter key used to specify the maximum rating available for the
+  *  facebook.EVENT_RATED event. E.g., "5" or "10".
+  *
+  * @name facebook.PARAM_MAX_RATING_VALUE
+  * @variable
+  */
+
+ /*# Parameter key used to specify how many items are being processed for an
+  *  facebook.EVENT_INITIATED_CHECKOUT or facebook.EVENT_PURCHASED event.
+  *
+  * @name facebook.PARAM_NUM_ITEMS
+  * @variable
+  */
+
+ /*# Parameter key used to specify whether payment info is available for the
+  *  facebook.EVENT_INITIATED_CHECKOUT event.
+  *
+  * @name facebook.PARAM_PAYMENT_INFO_AVAILABLE
+  * @variable
+  */
+
+ /*# Parameter key used to specify method user has used to register for the
+  *  app, e.g., "Facebook", "email", "Twitter", etc.
+  *
+  * @name facebook.PARAM_REGISTRATION_METHOD
+  * @variable
+  */
+
+ /*# Parameter key used to specify the string provided by the user for a search
+  *  operation.
+  *
+  * @name facebook.PARAM_SEARCH_STRING
+  * @variable
+  */
+
+ /*# Parameter key used to specify source application package.
+  *
+  * @name facebook.PARAM_SOURCE_APPLICATION
+  * @variable
+  */
+
+ /*# Parameter key used to specify whether the activity being logged about was
+  *  successful or not.
+  *
+  * @name facebook.PARAM_SUCCESS
+  * @variable
+  */
+
 
 dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {
