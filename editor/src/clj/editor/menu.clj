@@ -23,6 +23,7 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
+(set! *warn-on-reflection* true)
 
 (defn merge-menus [menu other-menu]
   (let [first-set (into #{} (map :label menu))

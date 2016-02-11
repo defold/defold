@@ -84,6 +84,7 @@
                          the copy -->
                     <globmapper from="darwin/luajit-2.0.3" to="x86-darwin/luajit"/>
                     <globmapper from="linux/luajit-2.0.3" to="x86-linux/luajit"/>
+                    <globmapper from="x86_64-linux/luajit-2.0.3" to="x86_64-linux/luajit"/>
                     <globmapper from="win32/luajit-2.0.3" to="x86-win32/luajit"/>
                 </compositemapper>
             </chainedmapper>

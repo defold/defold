@@ -2,8 +2,8 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [editor.project :as project]
-            [editor.workspace :as workspace]            
+            [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [support.test-support :refer [with-clean-system undo-stack]]
             [integration.test-util :as test-util]
             [service.log :as log]))
@@ -36,7 +36,3 @@
         (g/transact (g/set-property node-id :image old-image))
         (is (= (count old-sources) (count (g/sources-of node-id :dep-build-targets))))
         (is (= (set old-sources) (set (g/sources-of node-id :dep-build-targets))))))))
-
-
-
-

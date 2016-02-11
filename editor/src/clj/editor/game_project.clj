@@ -2,10 +2,12 @@
   (:require [clojure.string :as s]
             [dynamo.graph :as g]
             [editor.game-project-core :as gpcore]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [service.log :as log]))
+
+(set! *warn-on-reflection* true)
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 

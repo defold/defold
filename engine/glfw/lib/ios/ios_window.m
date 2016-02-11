@@ -445,6 +445,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     return (t.index - f.index);
 }
 
+- (id< UITextInputDelegate >) inputDelegate {
+    return inputDelegate;
+}
+
 - (void) setInputDelegate: (id <UITextInputDelegate>) delegate {
     inputDelegate = delegate;
 }

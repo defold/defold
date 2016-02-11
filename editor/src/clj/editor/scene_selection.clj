@@ -11,7 +11,7 @@
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.workspace :as workspace]

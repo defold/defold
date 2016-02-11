@@ -4,7 +4,7 @@
             [support.test-support :refer [with-clean-system]]
             [editor.collection :as collection]
             [editor.handler :as handler]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.types :as types]
             [editor.particle-lib :as plib]
             [integration.test-util :as test-util])

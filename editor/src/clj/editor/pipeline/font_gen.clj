@@ -5,6 +5,8 @@
            [com.dynamo.render.proto Font$FontDesc Font$FontMap]
            [java.awt.image BufferedImage]))
 
+(set! *warn-on-reflection* true)
+
 (defn generate [font-desc font-path resolver]
   (let [^Font$FontDesc font-desc (protobuf/map->pb Font$FontDesc font-desc)
         font-map-builder (Font$FontMap/newBuilder)

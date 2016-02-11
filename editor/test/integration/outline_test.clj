@@ -3,7 +3,7 @@
             [service.log :as log]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
@@ -242,4 +242,3 @@
               expected-prefixes ["Collection" "nil-go" "nil-component"]]
           (is (= 3 (count labels))) ; collection + go + script
           (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
-  

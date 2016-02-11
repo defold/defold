@@ -17,7 +17,7 @@
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
             [editor.prefs :as prefs]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.properties-view :as properties-view]
             [editor.scene-selection :as scene-selection]
             [editor.scene :as scene]
@@ -65,6 +65,8 @@
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.defold.control ListCell TreeCell]))
 
+(set! *warn-on-reflection* true)
+
 (defn- setup-console [^VBox root]
   (let [^TextArea node (.lookup root "#console")]
    (.appendText node "Hello Console")))
@@ -105,11 +107,13 @@
     (setup-console root)
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
+          ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^Tab assets          (.lookup root "#assets")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
+      (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
                          :project-graph (project/graph project)

@@ -7,6 +7,7 @@
            [com.dynamo.render.proto Render$DisplayProfiles]
            [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]))
 
+(set! *warn-on-reflection* true)
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -452,7 +453,7 @@
     ]
    })
 
-(defn produce-form-data 
+(defn produce-form-data
   ([node-id pb def]
     (produce-form-data node-id pb def (protobuf-form-data node-id pb def)))
   ([node-id pb def form-data]

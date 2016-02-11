@@ -6,7 +6,7 @@
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.font :as font]
-            [editor.project :as project])
+            [editor.defold-project :as project])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))

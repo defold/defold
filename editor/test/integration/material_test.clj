@@ -4,7 +4,7 @@
             [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
-            [editor.project :as project])
+            [editor.defold-project :as project])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))

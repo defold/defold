@@ -4,6 +4,8 @@
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]))
 
+(set! *warn-on-reflection* true)
+
 (defn pfnk?
   "True if the function has a schema. (I.e., it is a valid production function"
   [f]

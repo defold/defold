@@ -75,4 +75,3 @@
 (defn logout [prefs]
   (prefs/set-prefs prefs "email" nil)
   (prefs/set-prefs prefs "token" nil))
-

@@ -8,6 +8,8 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]))
 
+(set! *warn-on-reflection* true)
+
 (defn schema? [x] (satisfies? s/Schema x))
 
 (defn var-get-recursive [var-or-value]

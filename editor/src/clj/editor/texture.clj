@@ -9,6 +9,8 @@
   (:import [editor.types Rect Image TexturePacking EngineFormatTexture]
            [java.awt.image BufferedImage]))
 
+(set! *warn-on-reflection* true)
+
 (defn- basename [path]
   (-> path
       (str/split #"/")

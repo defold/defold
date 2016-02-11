@@ -134,11 +134,9 @@ public class DefoldActivity extends NativeActivity {
 
         @Override
         public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-            if (beforeLength == 1 && afterLength == 0) {
-                _ctx.clearText();
-                _ctx.clearComposingText();
-                _ctx.FakeBackspace();
-            }
+            _ctx.clearText();
+            _ctx.clearComposingText();
+            _ctx.FakeBackspace();
 
             return super.deleteSurroundingText(beforeLength, afterLength);
         }

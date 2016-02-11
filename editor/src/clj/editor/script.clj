@@ -7,7 +7,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
@@ -22,6 +22,8 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
+
+(set! *warn-on-reflection* true)
 
 (def script-defs [{:ext "script"
                    :label "Script"

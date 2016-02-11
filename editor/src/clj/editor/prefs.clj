@@ -6,6 +6,8 @@
            [java.io ByteArrayOutputStream StringBufferInputStream]
            [javafx.scene.paint Color]))
 
+(set! *warn-on-reflection* true)
+
 (defn- color->web [^Color c]
   (let [v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
     (apply format "0x%02x%02x%02x%02x" (map #(long (Math/round (double (* 255 %)))) v))))

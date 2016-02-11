@@ -1,6 +1,8 @@
 (ns editor.form
   (:require [dynamo.graph :as g]))
 
+(set! *warn-on-reflection* true)
+
 (defn set-value! [{:keys [user-data set]} path value]
   (set user-data path value))
 
@@ -43,5 +45,3 @@
       (reduce merge
               {}
               sections-defaults))))
-
-

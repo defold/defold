@@ -4,6 +4,10 @@ import android.app.Activity;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+
+import android.net.Uri;
 
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -60,6 +64,20 @@ public class AdTruthJNI {
                         @Override
                         public void onReceivedError(WebView view, int errorCode,
                                 String description, String failingUrl) {
+
+                            if (errorCode == WebViewClient.ERROR_UNSUPPORTED_SCHEME) {
+
+                                // Try to find an app that can open the url scheme,
+                                // otherwise continue as usual error.
+                                Intent intent = new Intent(Intent.ACTION_VIEW);
+                                intent.setData(Uri.parse(failingUrl));
+                                PackageManager packageManager = activity.getPackageManager();
+                                if (intent.resolveActivity(packageManager) != null) {
+                                    activity.startActivity(intent);
+                                    return;
+                                }
+                            }
+
                             if (!AdTruthJNI.this.hasError) {
                                 AdTruthJNI.this.hasError = true;
                                 Log.d(TAG, "onReceivedError: " + failingUrl);

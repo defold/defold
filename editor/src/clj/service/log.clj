@@ -19,6 +19,8 @@
   (:require clojure.string)
   (:import (org.slf4j LoggerFactory)))
 
+(set! *warn-on-reflection* true)
+
 (def ^:dynamic *logging-suppressed* false)
 
 (defmacro without-logging [& body]

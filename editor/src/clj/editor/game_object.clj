@@ -8,7 +8,7 @@
             [editor.geom :as geom]
             [editor.handler :as handler]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.sound :as sound]
@@ -29,6 +29,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
+
+(set! *warn-on-reflection* true)
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...

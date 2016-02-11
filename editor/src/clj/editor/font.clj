@@ -2,13 +2,13 @@
   (:require [clojure.string :as s]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [editor.graph-util :as gu]            
+            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
             [editor.workspace :as workspace]
@@ -313,7 +313,7 @@
     (value (gu/passthrough font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]]))
     (validate (validation/validate-resource font)))
-      
+
   (property material (g/protocol resource/Resource)
     (value (gu/passthrough material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]

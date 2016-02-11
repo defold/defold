@@ -4,6 +4,8 @@
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureProfile]
            [java.awt.image BufferedImage]))
 
+(set! *warn-on-reflection* true)
+
 (defn ->bytes [^BufferedImage image texture-profile]
   (let [texture-profile (protobuf/map->pb Graphics$TextureProfile texture-profile)
         texture-image (TextureGenerator/generate ^BufferedImage image ^Graphics$TextureProfile texture-profile)]

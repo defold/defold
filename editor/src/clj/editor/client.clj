@@ -8,6 +8,8 @@
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
+(set! *warn-on-reflection* true)
+
 (defn- make-client-config []
   (let [cc (DefaultClientConfig.)]
     (.add (.getClasses cc) ProtobufProviders$ProtobufMessageBodyReader)

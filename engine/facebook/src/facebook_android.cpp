@@ -210,7 +210,7 @@ static void RunDialogResultCallback(Command* cmd)
     }
 }
 
-void QueueCommand(Command* cmd)
+static void QueueCommand(Command* cmd)
 {
     dmMutex::ScopedLock lk(g_Facebook.m_Mutex);
     if (g_Facebook.m_CmdQueue.Full())
@@ -220,7 +220,7 @@ void QueueCommand(Command* cmd)
     g_Facebook.m_CmdQueue.Push(*cmd);
 }
 
-const char* StrDup(JNIEnv* env, jstring s)
+static const char* StrDup(JNIEnv* env, jstring s)
 {
     if (s != NULL)
     {
@@ -285,7 +285,6 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeE
   (JNIEnv* env, jobject, jlong user_data, jstring key, jstring value)
 {
     lua_State* L = (lua_State*)user_data;
-
     if (key) {
         const char* str_key = env->GetStringUTFChars(key, 0);
         lua_pushstring(L, str_key);
@@ -351,6 +350,10 @@ static void VerifyCallback(lua_State* L)
 
 int Facebook_Login(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -373,6 +376,10 @@ int Facebook_Login(lua_State* L)
 
 int Facebook_Logout(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -386,7 +393,7 @@ int Facebook_Logout(lua_State* L)
     return 0;
 }
 
-void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
+static void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 {
     lua_pushnil(L);
     *buffer = 0;
@@ -404,6 +411,10 @@ void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 
 int Facebook_RequestReadPermissions(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -432,6 +443,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -461,6 +476,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
 int Facebook_AccessToken(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     JNIEnv* env = Attach();
@@ -481,6 +500,10 @@ int Facebook_AccessToken(lua_State* L)
 
 int Facebook_Permissions(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -497,6 +520,10 @@ int Facebook_Permissions(lua_State* L)
 
 int Facebook_Me(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -566,6 +593,10 @@ static void escape_json_str(const char* unescaped, char* escaped, char* end_ptr)
 
 int Facebook_ShowDialog(lua_State* L)
 {
+    if(!g_Facebook.m_FBApp)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -641,46 +672,6 @@ static const luaL_reg Facebook_methods[] =
 
 dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    if (g_Facebook.m_FB == NULL)
-    {
-        g_Facebook.m_Mutex = dmMutex::New();
-        g_Facebook.m_CmdQueue.SetCapacity(8);
-
-        JNIEnv* env = Attach();
-
-        jclass activity_class = env->FindClass("android/app/NativeActivity");
-        jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
-        jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
-        jclass class_loader = env->FindClass("java/lang/ClassLoader");
-        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-        jstring str_class_name = env->NewStringUTF("com.dynamo.android.facebook.FacebookJNI");
-        jclass fb_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
-        env->DeleteLocalRef(str_class_name);
-
-        g_Facebook.m_Login = env->GetMethodID(fb_class, "login", "(J)V");
-        g_Facebook.m_Logout = env->GetMethodID(fb_class, "logout", "()V");
-        g_Facebook.m_IterateMe = env->GetMethodID(fb_class, "iterateMe", "(J)V");
-        g_Facebook.m_IteratePermissions = env->GetMethodID(fb_class, "iteratePermissions", "(J)V");
-        g_Facebook.m_GetAccessToken = env->GetMethodID(fb_class, "getAccessToken", "()Ljava/lang/String;");
-        g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
-        g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
-        g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
-
-        // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-        // Better solution?
-        const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
-
-        jmethodID jni_constructor = env->GetMethodID(fb_class, "<init>", "(Landroid/app/Activity;Ljava/lang/String;)V");
-        jstring str_app_id = env->NewStringUTF(app_id);
-        g_Facebook.m_FB = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
-        env->DeleteLocalRef(str_app_id);
-
-        Detach();
-    }
-
-    g_Facebook.m_RefCount++;
-    g_Facebook.m_Callback = LUA_NOREF;
-
     lua_State* L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
@@ -716,11 +707,59 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 
+    if( !g_Facebook.m_FBApp )
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    if (g_Facebook.m_FB == NULL)
+    {
+        g_Facebook.m_Mutex = dmMutex::New();
+        g_Facebook.m_CmdQueue.SetCapacity(8);
+
+        JNIEnv* env = Attach();
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
+        jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
+        jclass class_loader = env->FindClass("java/lang/ClassLoader");
+        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+        jstring str_class_name = env->NewStringUTF("com.dynamo.android.facebook.FacebookJNI");
+        jclass fb_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
+        env->DeleteLocalRef(str_class_name);
+
+        g_Facebook.m_Login = env->GetMethodID(fb_class, "login", "(J)V");
+        g_Facebook.m_Logout = env->GetMethodID(fb_class, "logout", "()V");
+        g_Facebook.m_IterateMe = env->GetMethodID(fb_class, "iterateMe", "(J)V");
+        g_Facebook.m_IteratePermissions = env->GetMethodID(fb_class, "iteratePermissions", "(J)V");
+        g_Facebook.m_GetAccessToken = env->GetMethodID(fb_class, "getAccessToken", "()Ljava/lang/String;");
+        g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
+        g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
+        g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
+
+        jmethodID jni_constructor = env->GetMethodID(fb_class, "<init>", "(Landroid/app/Activity;Ljava/lang/String;)V");
+
+        const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
+        jstring str_app_id = env->NewStringUTF(app_id);
+        g_Facebook.m_FB = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
+        env->DeleteLocalRef(str_app_id);
+
+        Detach();
+    }
+
+    g_Facebook.m_RefCount++;
+    g_Facebook.m_Callback = LUA_NOREF;
+
     return dmExtension::RESULT_OK;
 }
 
 dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 {
+    if( !g_Facebook.m_FBApp )
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     {
         dmMutex::ScopedLock lk(g_Facebook.m_Mutex);
         for (uint32_t i=0;i!=g_Facebook.m_CmdQueue.Size();i++)
@@ -778,6 +817,12 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
 
 dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {
+    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
+    if( !app_id )
+    {
+        dmLogDebug("No facebook.appid. Disabling module");
+        return dmExtension::RESULT_OK;
+    }
     if( g_Facebook.m_FBApp == NULL )
     {
         JNIEnv* env = Attach();
@@ -793,17 +838,12 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
         g_Facebook.m_Activate = env->GetMethodID(fb_class, "activate", "()V");
         g_Facebook.m_Deactivate = env->GetMethodID(fb_class, "deactivate", "()V");
-
-        // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-        // Better solution?
         g_Facebook.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
-        const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
 
         jmethodID jni_constructor = env->GetMethodID(fb_class, "<init>", "(Landroid/app/Activity;Ljava/lang/String;)V");
         jstring str_app_id = env->NewStringUTF(app_id);
         g_Facebook.m_FBApp = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
         env->DeleteLocalRef(str_app_id);
-
 
         if(!g_Facebook.m_DisableFaceBookEvents)
         {

@@ -1,5 +1,7 @@
 (ns internal.history)
 
+(set! *warn-on-reflection* true)
+
 (defprotocol Iterator
   (inext  [this] "Advance cursor to the next-most-recent item")
   (iprev  [this] "Step cursor backward to the previous-to-current item")

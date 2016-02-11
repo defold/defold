@@ -13,6 +13,8 @@ ordinary paths."
            [org.apache.commons.io FilenameUtils IOUtils]
            [editor.resource FileResource]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol SelectionProvider
   (selection [this]))
 
@@ -66,6 +68,25 @@ ordinary paths."
 
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
+
+(defn filter-resource-tree
+  "Filters a resource tree with set of given matches.
+  Returns nil or a vector of [number-of-matches [resources...]]"
+  [tree matches & [cnt]]
+  (let [matching-children (->> tree :children
+                               (map #(filter-resource-tree % matches 0))
+                               (remove nil?)
+                               (remove (fn [[children-cnt matches]]
+                                         (and (empty? matches)
+                                              (zero? children-cnt))))
+                               seq)]
+    (cond
+      (contains? matches tree)
+      [1 tree]
+
+      matching-children
+      [(apply + (or cnt 0) (map first matching-children))
+       (assoc tree :children (map second matching-children))])))
 
 (defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template label]}]
   (let [resource-type {:ext ext
@@ -207,6 +228,12 @@ ordinary paths."
                 :view-types {:default {:id :default}}
                 :resource-listeners (atom [])))
 
-(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
-  (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
+(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn focus-fn]}]
+  (let [view-type (merge {:id id}
+                         (when make-view-fn
+                           {:make-view-fn make-view-fn})
+                         (when make-preview-fn
+                           {:make-preview-fn make-preview-fn})
+                         (when focus-fn
+                           {:focus-fn focus-fn}))]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))

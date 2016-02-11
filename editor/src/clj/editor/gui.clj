@@ -9,7 +9,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
@@ -34,6 +34,8 @@
            [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
            [org.apache.commons.io FilenameUtils]
            [editor.gl.shader ShaderLifecycle]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private texture-icon "icons/32/Icons_25-AT-Image.png")
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
@@ -604,7 +606,7 @@
                                                [:anim-data :anim-data]
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource texture)))
-  
+
   (input texture-resource (g/protocol resource/Resource))
   (input image BufferedImage)
   (input anim-data g/Any)
@@ -613,7 +615,7 @@
 
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (g/fnk [dep-build-targets] dep-build-targets))
-  
+
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
                                     (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output node-outline outline/OutlineData (g/fnk [_node-id name]
@@ -641,7 +643,7 @@
                                                [:material-shader :font-shader]
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource font)))
-            
+
   (input font-resource (g/protocol resource/Resource))
   (input font-map g/Any)
   (input font-data font/FontData)
@@ -650,7 +652,7 @@
 
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any :cached (g/fnk [dep-build-targets] dep-build-targets))
-  
+
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
                                                            :label name
@@ -850,7 +852,7 @@
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource script)))
 
-  
+
   (property material (g/protocol resource/Resource)
     (value (gu/passthrough material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
@@ -858,7 +860,7 @@
                                        [:samplers :samplers]
                                        [:build-targets :dep-build-targets]]))
     (validate (validation/validate-resource material)))
-  
+
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))

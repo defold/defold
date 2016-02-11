@@ -4,6 +4,8 @@
             [editor.protobuf :as protobuf])
   (:import [com.defold.editor.pipeline LuaScanner  LuaScanner$Property LuaScanner$Property$Status]))
 
+(set! *warn-on-reflection* true)
+
 (defn src->modules [source]
   (LuaScanner/scan source))
 

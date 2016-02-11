@@ -148,7 +148,7 @@ static void RunStateCallback(lua_State* L, int state, const char *error)
         lua_pushnumber(L, (lua_Number) state);
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        dmScript::PCall(L, 3, LUA_MULTRET);
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -179,7 +179,7 @@ static void RunCallback(lua_State* L, const char *error)
 
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 2, LUA_MULTRET);
+        dmScript::PCall(L, 2, LUA_MULTRET);
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -228,7 +228,7 @@ static void RunDialogResultCallback(lua_State* L, const char *result_json, const
 
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        dmScript::PCall(L, 3, LUA_MULTRET);
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -257,6 +257,10 @@ void OnLoginComplete(void* L, int state, const char* error, const char* me_json,
 
 int Facebook_Login(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -276,6 +280,10 @@ int Facebook_Login(lua_State* L)
 
 int Facebook_Logout(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -293,7 +301,7 @@ int Facebook_Logout(lua_State* L)
 }
 
 // TODO: Move out to common stuff (also in engine/facebook/src/facebook_android.cpp)
-void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
+static void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 {
     lua_pushnil(L);
     *buffer = 0;
@@ -310,7 +318,7 @@ void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 }
 
 
-void OnRequestReadPermissionsComplete(void* L, const char* error, const char* permissions_json)
+static void OnRequestReadPermissionsComplete(void* L, const char* error, const char* permissions_json)
 {
     if (permissions_json != 0)
     {
@@ -321,6 +329,10 @@ void OnRequestReadPermissionsComplete(void* L, const char* error, const char* pe
 
 int Facebook_RequestReadPermissions(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -341,7 +353,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     return 0;
 }
 
-void OnRequestPublishPermissionsComplete(void* L, const char* error, const char* permissions_json)
+static void OnRequestPublishPermissionsComplete(void* L, const char* error, const char* permissions_json)
 {
     if (permissions_json != 0)
     {
@@ -352,6 +364,10 @@ void OnRequestPublishPermissionsComplete(void* L, const char* error, const char*
 
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -375,7 +391,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 }
 
 
-void OnAccessTokenComplete(void* L, const char* access_token)
+static void OnAccessTokenComplete(void* L, const char* access_token)
 {
     if(access_token != 0)
     {
@@ -390,6 +406,10 @@ void OnAccessTokenComplete(void* L, const char* access_token)
 
 int Facebook_AccessToken(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     dmFacebookAccessToken( (OnAccessTokenCallback) OnAccessTokenComplete, L);
@@ -400,6 +420,10 @@ int Facebook_AccessToken(lua_State* L)
 
 int Facebook_Permissions(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     if(g_Facebook.m_PermissionsJson != 0)
@@ -429,6 +453,10 @@ int Facebook_Permissions(lua_State* L)
 
 int Facebook_Me(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     if(g_Facebook.m_MeJson != 0)
@@ -458,13 +486,17 @@ int Facebook_Me(lua_State* L)
 
 
 
-void OnShowDialogComplete(void* L, const char* result_json, const char* error)
+static void OnShowDialogComplete(void* L, const char* result_json, const char* error)
 {
     RunDialogResultCallback((lua_State*)L, result_json, error);
 }
 
 int Facebook_ShowDialog(lua_State* L)
 {
+    if( !g_Facebook.m_appId )
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -517,19 +549,6 @@ static const luaL_reg Facebook_methods[] =
 
 dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    if(!g_Facebook.m_Initialized)
-    {
-        // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-        // Better solution?
-        g_Facebook.m_appId = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
-
-        dmFacebookInitialize(g_Facebook.m_appId);
-
-        dmLogDebug("FB initialized.");
-
-        g_Facebook.m_Initialized = true;
-    }
-
     lua_State* L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
@@ -564,6 +583,23 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
+
+    if(!g_Facebook.m_Initialized)
+    {
+        g_Facebook.m_appId = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
+        if( g_Facebook.m_appId )
+        {
+            dmFacebookInitialize(g_Facebook.m_appId);
+
+            dmLogDebug("FB initialized.");
+
+            g_Facebook.m_Initialized = true;
+        }
+        else
+        {
+            dmLogDebug("No facebook.appid. Disabling module");
+        }
+    }
 
     return dmExtension::RESULT_OK;
 }

@@ -8,7 +8,7 @@
             [editor.game-project :as game-project]
             [editor.image :as image]
             [editor.platformer :as platformer]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.sprite :as sprite]

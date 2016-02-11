@@ -5,7 +5,7 @@
   (:import [com.defold.editor.test TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform TestDdf$DefaultValue
             TestDdf$OptionalNoDefaultValue TestDdf$EmptyMsg TestDdf$Uint64Msg TestDdf$RepeatedUints
             TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$BooleanMsg TestDdf$BytesMsg
-            TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
+            TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage TestDdf$JavaCasingMsg]
            [javax.vecmath Point3d Vector3d]
            [com.google.protobuf ByteString]))
 
@@ -46,6 +46,11 @@
     (is (= "three" (:string-value new-m)))
     (is (identical? java.lang.Boolean/FALSE (:bool-value new-m)))
     (is (= m new-m))))
+
+(deftest java-casing
+  (let [m {:java-casing "test"}
+        new-m (round-trip TestDdf$JavaCasingMsg m)]
+    (is (= "test" (:java-casing new-m)))))
 
 (deftest default-vals
   (testing "Defaults readable"

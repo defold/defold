@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [support.test-support :refer [with-clean-system]]
             [editor.library :as library]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
@@ -34,7 +34,7 @@
     (is (= urls (library/parse-library-urls "this file:/scriptlib sure file:/imagelib1 aint file:/imagelib2 no file:/bogus url")))))
 
 
-                    
+
 
 (deftest initial-state
   (with-clean-system
@@ -91,10 +91,3 @@
           (is (= 3 (count files)))
           (is (= 4 (count states)))
           (is (every? (fn [state] (= (:tag state) "tag")) (filter :file states))))))))
-
-
-
-
-
-
-

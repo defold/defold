@@ -10,6 +10,8 @@
             [plumbing.fnk.pfnk :as pf]
             [schema.core :as s]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private default-validation-fn (constantly true))
 
 (defn property-default-setter

@@ -2,9 +2,11 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.workspace :as workspace]
-            [editor.project :as project])
+            [editor.defold-project :as project])
   (:import [java.io ByteArrayOutputStream]
            [org.apache.commons.io IOUtils]))
+
+(set! *warn-on-reflection* true)
 
 (def sound-defs [{:ext "wav"
                   :icon "icons/32/Icons_26-AT-Sound.png"}

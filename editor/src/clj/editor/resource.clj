@@ -8,6 +8,8 @@
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol ResourceListener
   (handle-changes [this changes]))
 

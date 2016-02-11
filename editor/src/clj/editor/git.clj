@@ -21,9 +21,9 @@ There's there different functions in this namespace
          [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
          [org.eclipse.jgit.treewalk.filter PathFilter]))
 
-; TODO: Renamed, modified but not staged is broken (missing blob)
-
 (set! *warn-on-reflection* true)
+
+;; TODO: Renamed, modified but not staged is broken (missing blob)
 
 (defn show-file [^Git git name]
   (let [repo (.getRepository git)

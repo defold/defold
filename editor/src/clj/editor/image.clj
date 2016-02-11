@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.geom :refer [clamper]]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -14,7 +14,9 @@
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
 
-; TODO - fix real profiles
+(set! *warn-on-reflection* true)
+
+;; TODO - fix real profiles
 (def test-profile {:name "test-profile"
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba

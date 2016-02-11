@@ -9,6 +9,8 @@
   (:import [editor.types AABB]
            [javax.vecmath Point3d]))
 
+(set! *warn-on-reflection* true)
+
 (vtx/defvertex vtx-pos-tex-col
   (vec3 position)
   (vec2 texcoord0)
