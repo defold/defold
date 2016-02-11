@@ -6,7 +6,7 @@
             [editor.collection :as collection]
             [editor.geom :as geom]
             [editor.platformer :as platformer]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
             [integration.test-util :as test-util]

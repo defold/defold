@@ -1,6 +1,6 @@
 (ns integration.search-in-files-test
   (:require [clojure.test :refer :all]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]))
 

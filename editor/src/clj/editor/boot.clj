@@ -17,7 +17,7 @@
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
             [editor.prefs :as prefs]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.properties-view :as properties-view]
             [editor.scene-selection :as scene-selection]
             [editor.scene :as scene]

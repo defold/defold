@@ -4,14 +4,14 @@
             [editor.graph-util :as gu]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.handler :as handler]
-            [editor.gl :as gl]            
+            [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]            
+            [editor.gl.vertex :as vtx]
             [editor.geom :as geom]
-            [editor.types :as types]            
+            [editor.types :as types]
             [editor.gl.pass :as pass]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -210,7 +210,7 @@
   (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vertex-binding]
     (shader/set-uniform tile-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
-                        
+
 (g/defnk produce-scene [_node-id texture-set-data aabb gpu-texture]
   (let [^BufferedImage img (:image texture-set-data)
         width (.getWidth img)
@@ -260,13 +260,13 @@
   (property tile-height g/Int
             (default 0)
             (validate validate-tile-height))
-  
+
   (property tile-margin g/Int
             (default 0)
             (validate validate-tile-dimensions))
-  
+
   (property tile-spacing g/Int (default 0))
-  
+
   (property collision (g/protocol resource/Resource) ; optional
     (value (gu/passthrough collision-resource))
     (set (project/gen-resource-setter [[:resource :collision-resource]
@@ -274,7 +274,7 @@
     (validate (g/fnk [collision-resource collision-content]
                      ;; collision-resource is optional, but depend on resource & content to trigg auto error aggregation
                      )))
-  
+
   (property material-tag g/Str (default "tile"))
   (property convex-hulls g/Any (dynamic visible (g/always false)))
   (property convex-hull-points g/Any (dynamic visible (g/always false)))
@@ -297,7 +297,7 @@
   (output packed-image BufferedImage (g/fnk [texture-set-data] (:image texture-set-data)))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
-  (output anim-data g/Any :cached produce-anim-data)) 
+  (output anim-data g/Any :cached produce-anim-data))
 
 (defn- int->boolean [i]
   (not= 0 i))

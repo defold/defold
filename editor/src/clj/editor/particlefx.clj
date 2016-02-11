@@ -7,7 +7,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
@@ -444,7 +444,7 @@
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
-  
+
   (property material (g/protocol resource/Resource)
             (value (gu/passthrough material-resource))
             (set (project/gen-resource-setter [[:resource :material-resource]]))

@@ -8,7 +8,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.render :as render]
@@ -597,7 +597,7 @@
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource atlas "Missing atlas"
                                                     [anim-data])))
-  
+
   (property sample-rate g/Num)
 
   (input spine-json-resource (g/protocol resource/Resource))
