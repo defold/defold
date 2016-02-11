@@ -25,7 +25,6 @@ public class EditorApplication {
                 }
             }.start();
         }
-        runtime.require("editor.enable-reflection-warnings");
         runtime.require("editor.boot");
     }
 
