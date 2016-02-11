@@ -7,6 +7,8 @@
            [javafx.scene.layout Pane]
            [javafx.scene.control TextArea]))
 
+(set! *warn-on-reflection* true)
+
 (g/defnode TextView
   (inherits core/ResourceNode)
 

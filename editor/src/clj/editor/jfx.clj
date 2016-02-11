@@ -5,8 +5,9 @@
            [java.io File]
            [java.util ArrayList]))
 
+(set! *warn-on-reflection* true)
 
-; Image cache
+;; Image cache
 (defonce cached-images (atom {}))
 (defn- load-image [name]
   (if-let [url (io/resource (str name))]
@@ -27,4 +28,3 @@
       (.setFitWidth iv size)
       (.setFitHeight iv size)
       iv)))
-

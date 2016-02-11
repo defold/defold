@@ -2,6 +2,8 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]))
 
+(set! *warn-on-reflection* true)
+
 (defonce ^:dynamic *handlers* (atom {}))
 
 ; TODO: Validate arguments for all functions and log appropriate message

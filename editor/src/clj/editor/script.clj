@@ -23,6 +23,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
+(set! *warn-on-reflection* true)
+
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"

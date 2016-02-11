@@ -20,6 +20,8 @@
            [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
            [com.defold.control ListCell TableCell]))
 
+(set! *warn-on-reflection* true)
+
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
 ;; FIXME: When using field controls for cell editing, we would really like to add a ui/on-focus! and set the new val when focus is lost, but due to a javafx bug the
@@ -81,12 +83,12 @@
                       (doto check
                         (.setIndeterminate false)
                         (.setSelected value))))]
-    
+
     (ui/on-action! check (fn [_] (set path (.isSelected check))))
     (ui/on-key! check (fn [key]
                         (when (= key KeyCode/ESCAPE)
                           (cancel))))
-;; See FIXME above.    
+;; See FIXME above.
 ;;     (ui/on-focus! check (fn [got-focus]
 ;;                           (when (not got-focus)
 ;;                             (set path (.isSelected check)))))
@@ -141,7 +143,7 @@
     (ui/on-key! text (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))
-    
+
     (ui/children! hbox [ text button])
     (ui/tooltip! text help)
     [hbox {:update update-fn
@@ -309,7 +311,7 @@
                                             (.setImpl_showRelativeToWindow cm true)
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
-                    
+
 
 (defmethod create-field-control :table [field-info {:keys [set cancel] :as field-ops} ctxt]
   (assert (not cancel) "no support for nested tables")
@@ -382,7 +384,7 @@
                     (ui/remove-style! this "editing-cell")
                     (.setText this (get-value-string item))
                     (.setGraphic this nil)))))))))))
-  
+
 (defn- nil->neg1 [index]
   (if (nil? index)
     -1
@@ -552,7 +554,7 @@
                 (fn [& _]
                   (when-not @internal-select-change
                     (update-list-and-form))))
-    
+
     [hbox {:update update-fn}]))
 
 
@@ -562,7 +564,7 @@
     label))
 
 (defn- field-label-valign [field-info]
-  (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER)) 
+  (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
 
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)

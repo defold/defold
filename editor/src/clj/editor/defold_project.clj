@@ -20,6 +20,8 @@
            [editor.resource FileResource]
            [com.defold.editor Platform]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:dynamic *load-cache* nil)
 
 (def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")

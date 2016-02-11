@@ -7,6 +7,8 @@
             [editor.workspace :as workspace]
             [service.log :as log]))
 
+(set! *warn-on-reflection* true)
+
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
 (defn- label [key]

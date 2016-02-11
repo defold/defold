@@ -2,6 +2,8 @@
   (:require [dynamo.graph :as g]
             [clojure.string :as str]))
 
+(set! *warn-on-reflection* true)
+
 (defn- error-seq [e]
   (tree-seq :causes :causes e))
 

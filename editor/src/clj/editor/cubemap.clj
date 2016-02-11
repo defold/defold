@@ -19,6 +19,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d]))
 
+(set! *warn-on-reflection* true)
+
 (def cubemap-icon "icons/32/Icons_23-Cubemap.png")
 
 (vtx/defvertex normal-vtx

@@ -35,6 +35,8 @@ the `do-gl` macro from `editor.gl`."
            [java.util.concurrent.atomic AtomicLong AtomicBoolean]
            [javax.media.opengl GL GL2]))
 
+(set! *warn-on-reflection* true)
+
 (defn put-byte   [^ByteBuffer bb position v] (.put       bb position v))
 (defn put-short  [^ByteBuffer bb position v] (.putShort  bb position v))
 (defn put-int    [^ByteBuffer bb position v] (.putInt    bb position v))
