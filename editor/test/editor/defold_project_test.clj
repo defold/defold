@@ -1,8 +1,8 @@
-(ns editor.project-test
+(ns editor.defold-project-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor
-             [project :as project]
+             [defold-project :as project]
              [workspace :as workspace]]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]))

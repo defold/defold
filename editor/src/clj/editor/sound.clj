@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.workspace :as workspace]
-            [editor.project :as project])
+            [editor.defold-project :as project])
   (:import [java.io ByteArrayOutputStream]
            [org.apache.commons.io IOUtils]))
 

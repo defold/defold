@@ -9,7 +9,7 @@
             [editor.geom :as geom]
             [editor.handler :as handler]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.outline :as outline]
