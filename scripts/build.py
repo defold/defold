@@ -319,7 +319,7 @@ class Configuration(object):
             f.write('int main() { return 0; }')
 
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
-        self.exec_env_command(['%s/emcc' self._form_ems_path(), '-o%s' % exe_file])
+        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
