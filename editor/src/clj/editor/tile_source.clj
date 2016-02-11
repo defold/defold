@@ -28,6 +28,8 @@
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer ByteOrder FloatBuffer]))
 
+(set! *warn-on-reflection* true)
+
 (def atlas-icon "icons/32/Icons_47-Tilesource.png")
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")

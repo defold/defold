@@ -22,6 +22,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
+(set! *warn-on-reflection* true)
+
 (def sprite-icon "icons/16/Icons_14-Sprite.png")
 
 ; Render assets

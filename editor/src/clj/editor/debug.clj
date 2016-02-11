@@ -1,5 +1,7 @@
 (ns editor.debug)
 
+(set! *warn-on-reflection* true)
+
 (defonce ^:private repl-server (agent nil))
 
 ;; Try/catching the requires here because the dependencies might be missing

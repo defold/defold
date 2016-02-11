@@ -14,6 +14,8 @@
   (:import [internal.graph.types IBasis]
            [internal.graph.error_values ErrorValue]))
 
+(set! *warn-on-reflection* true)
+
 (declare node-input-forms property-validation-exprs)
 
 (def ^:dynamic *suppress-schema-warnings* false)

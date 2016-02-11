@@ -14,7 +14,9 @@
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
 
-; TODO - fix real profiles
+(set! *warn-on-reflection* true)
+
+;; TODO - fix real profiles
 (def test-profile {:name "test-profile"
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba
