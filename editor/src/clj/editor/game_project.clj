@@ -2,7 +2,7 @@
   (:require [clojure.string :as s]
             [dynamo.graph :as g]
             [editor.game-project-core :as gpcore]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [service.log :as log]))

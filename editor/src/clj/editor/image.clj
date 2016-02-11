@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.geom :refer [clamper]]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.workspace :as workspace]

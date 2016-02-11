@@ -10,7 +10,7 @@
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
