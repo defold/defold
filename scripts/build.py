@@ -313,8 +313,8 @@ class Configuration(object):
 
     def activate_ems(self):
         # Compile a file warm up the emscripten caches (libc etc)
-        c_file = tempfile(suffic='.c')
-        exe_file = tempfile(suffic='.js')
+        c_file = tempfile.mktemp(suffix='.c')
+        exe_file = tempfile.mktemp(suffix='.js')
         with open(c_file) as f:
             f.write('int main() { return 0; }')
 
