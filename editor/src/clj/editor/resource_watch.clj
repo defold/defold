@@ -18,7 +18,7 @@
 
 (defn parse-include-dirs [include-string]
   (filter (comp not str/blank?) (str/split include-string  #"[,\s]")))
-  
+
 (defn- extract-game-project-include-dirs [reader]
   (let [settings (game-project-core/parse-settings reader)]
     (parse-include-dirs (str (game-project-core/get-setting settings ["library" "include_dirs"])))))
@@ -120,4 +120,3 @@
   (not (or (seq (:added diff))
            (seq (:removed diff))
            (seq (:changed diff)))))
-

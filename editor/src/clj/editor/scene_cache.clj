@@ -2,6 +2,8 @@
   (:require [clojure.core.cache :as cache]
             [editor.volatile-cache :as vcache]))
 
+(set! *warn-on-reflection* true)
+
 (defonce ^:private object-caches (atom {}))
 
 (defn register-object-cache! [cache-id make-fn update-fn destroy-batch-fn]

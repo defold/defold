@@ -34,6 +34,8 @@
            [com.google.protobuf ByteString]
            [editor.properties CurveSpread Curve]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
 (def ^:private emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
 (def ^:private emitter-template "templates/template.emitter")

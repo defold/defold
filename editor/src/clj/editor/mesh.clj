@@ -22,6 +22,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
+(set! *warn-on-reflection* true)
+
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
 
 (defn- build-mesh [self basis resource dep-resources user-data]

@@ -13,6 +13,8 @@ ordinary paths."
            [org.apache.commons.io FilenameUtils IOUtils]
            [editor.resource FileResource]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol SelectionProvider
   (selection [this]))
 
