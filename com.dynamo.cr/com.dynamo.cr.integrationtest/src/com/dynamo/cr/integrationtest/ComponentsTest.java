@@ -119,10 +119,8 @@ public class ComponentsTest extends AbstractSceneTest {
                 }).when(getView()).selectFile(anyString(), any(String[].class));
 
                 // Perform operation
-                if (!resourceType.isEmbeddable()) {
-                    presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());
-                    verifyExcecution();
-                }
+                presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());
+                verifyExcecution();
             }
         }
 
