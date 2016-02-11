@@ -315,7 +315,7 @@ class Configuration(object):
         # Compile a file warm up the emscripten caches (libc etc)
         c_file = tempfile.mktemp(suffix='.c')
         exe_file = tempfile.mktemp(suffix='.js')
-        with open(c_file) as f:
+        with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
 
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
