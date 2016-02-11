@@ -273,7 +273,7 @@
     app-view))
 
 (defn- create-new-tab [app-view workspace project resource resource-node
-                       resource-type view-type make-view-fn tabs opts]
+                       resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
