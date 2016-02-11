@@ -33,6 +33,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
+(set! *warn-on-reflection* true)
+
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding

@@ -35,6 +35,8 @@
            [org.apache.commons.io FilenameUtils]
            [editor.gl.shader ShaderLifecycle]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private texture-icon "icons/32/Icons_25-AT-Image.png")
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private gui-icon "icons/32/Icons_38-GUI.png")
