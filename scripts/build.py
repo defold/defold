@@ -312,7 +312,14 @@ class Configuration(object):
         return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
 
     def activate_ems(self):
+        # Compile a file warm up the emscripten caches (libc etc)
+        c_file = tempfile(suffic='.c')
+        exe_file = tempfile(suffic='.js')
+        with open(c_file) as f:
+            f.write('int main() { return 0; }')
+
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+        self.exec_env_command(['%s/emcc' self._form_ems_path(), '-o%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
