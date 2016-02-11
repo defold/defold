@@ -2,6 +2,8 @@
   (:require [editor.types :refer [->Region]])
   (:import [editor.types Region]))
 
+(set! *warn-on-reflection* true)
+
 (defn- width [^Region r]
   (- (:right r) (:left r)))
 

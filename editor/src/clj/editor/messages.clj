@@ -2,6 +2,8 @@
   (:import [java.util ResourceBundle])
   (:require [clojure.java.io :as io]))
 
+(set! *warn-on-reflection* true)
+
 (defn bundle-map
   [^ResourceBundle bundle]
   (let [ks (enumeration-seq (.getKeys bundle))]

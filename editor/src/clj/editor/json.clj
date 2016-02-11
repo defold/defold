@@ -19,7 +19,9 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-; TODO - missing icon
+(set! *warn-on-reflection* true)
+
+;; TODO - missing icon
 (def json-icon "icons/32/Icons_29-AT-Unkown.png")
 
 (g/defnk produce-content [resource]

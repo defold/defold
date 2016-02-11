@@ -30,6 +30,8 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 
+(set! *warn-on-reflection* true)
+
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
 

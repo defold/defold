@@ -22,12 +22,12 @@
            [javafx.util Callback Duration]
            [com.defold.control TreeCell]))
 
+(set! *warn-on-reflection* true)
+
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
 (import com.sun.javafx.application.PlatformImpl)
 (PlatformImpl/startup (constantly nil))
-
-(set! *warn-on-reflection* true)
 
 (defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))

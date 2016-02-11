@@ -35,6 +35,8 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
+(set! *warn-on-reflection* true)
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)

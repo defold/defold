@@ -11,6 +11,8 @@
            [javafx.stage Stage Modality DirectoryChooser]
            [javafx.util StringConverter]))
 
+(set! *warn-on-reflection* true)
+
 (defonce ^:dynamic *pages* (atom {}))
 
 (defmacro defpage [name & prefs]

@@ -6,6 +6,8 @@
             [service.log :as log])
   (:import [editor.resource FileResource ZipResource]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol ItemIterator
   (value [this])
   (parent [this]))

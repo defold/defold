@@ -8,6 +8,8 @@
             [service.log :as log])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
+(set! *warn-on-reflection* true)
+
 (declare graphs)
 
 (def ^:private maximum-cached-items     40000)

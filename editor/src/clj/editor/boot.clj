@@ -65,6 +65,8 @@
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.defold.control ListCell TreeCell]))
 
+(set! *warn-on-reflection* true)
+
 (defn- setup-console [^VBox root]
   (let [^TextArea node (.lookup root "#console")]
    (.appendText node "Hello Console")))

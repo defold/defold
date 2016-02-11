@@ -4,6 +4,8 @@
             [clojure.edn :as edn])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
+(set! *warn-on-reflection* true)
+
 (defn- non-blank [vals]
   (remove s/blank? vals))
 

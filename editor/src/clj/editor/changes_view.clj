@@ -13,6 +13,8 @@
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.storage.file FileRepositoryBuilder]))
 
+(set! *warn-on-reflection* true)
+
 (def short-status {:add "A" :modify "M" :delete "D" :rename "R"})
 
 (defn refresh! [git list-view]

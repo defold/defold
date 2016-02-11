@@ -6,6 +6,8 @@
   (:import [java.io ByteArrayOutputStream]
            [org.apache.commons.io IOUtils]))
 
+(set! *warn-on-reflection* true)
+
 (def sound-defs [{:ext "wav"
                   :icon "icons/32/Icons_26-AT-Sound.png"}
                  {:ext "ogg"
