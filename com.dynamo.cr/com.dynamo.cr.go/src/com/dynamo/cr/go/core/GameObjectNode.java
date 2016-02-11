@@ -55,6 +55,17 @@ public class GameObjectNode extends GameObjectInstanceNode {
         });
     }
 
+    @Override
+    protected boolean isValidParent(Node node) {
+        while(node != null) {
+            if(node instanceof CollectionNode) {
+                return true;
+            }
+            node = node.getParent();
+        }
+        return false;
+    }
+
     public String getUniqueId(String baseId) {
         List<Node> children = getChildren();
         List<String> ids = new ArrayList<String>(children.size());
