@@ -4,14 +4,16 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [service.log :as log])
+            [service.log :as log]
+            [editor.defold-project :as project])
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
            [javafx.event ActionEvent EventHandler]
+           [javafx.collections FXCollections ObservableList]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ProgressBar TextField ListView SelectionMode]
+           [javafx.scene.control Button ProgressBar TextField TreeView TreeItem ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
@@ -154,6 +156,131 @@
 
     @return))
 
+(declare tree-item)
+
+(defn- ^ObservableList list-children [parent]
+  (let [children (:children parent)
+        items    (into-array TreeItem (mapv tree-item children))]
+    (if (empty? children)
+      (FXCollections/emptyObservableList)
+      (doto (FXCollections/observableArrayList)
+        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
+
+(defn- tree-item [parent]
+  (let [cached (atom false)]
+    (proxy [TreeItem] [parent]
+      (isLeaf []
+        (empty? (:children (.getValue ^TreeItem this))))
+      (getChildren []
+        (let [this ^TreeItem this
+              ^ObservableList children (proxy-super getChildren)]
+          (when-not @cached
+            (reset! cached true)
+            (.setAll children (list-children (.getValue this))))
+          children)))))
+
+(defn- update-tree-view [^TreeView tree-view resource-tree]
+  (let [root (.getRoot tree-view)
+        ^TreeItem new-root (tree-item resource-tree)]
+    (if (.getValue new-root)
+      (.setRoot tree-view new-root)
+      (.setRoot tree-view nil))
+    tree-view))
+
+(defrecord MatchContextResource [parent-resource line caret-position match]
+  resource/Resource
+  (children [this]      [])
+  (resource-name [this] (format "%d: %s" line match))
+  (resource-type [this] (resource/resource-type parent-resource))
+  (source-type [this]   (resource/source-type parent-resource))
+  (read-only? [this]    (resource/read-only? parent-resource))
+  (path [this]          (resource/path parent-resource))
+  (abs-path [this]      (resource/abs-path parent-resource))
+  (proj-path [this]     (resource/proj-path parent-resource))
+  (url [this]           (resource/url parent-resource))
+  (workspace [this]     (resource/workspace parent-resource))
+  (resource-hash [this] (resource/resource-hash parent-resource)))
+
+(defn- append-match-snippet-nodes [tree matching-resources]
+  (when tree
+    (if (empty? (:children tree))
+      (assoc tree :children (map #(->MatchContextResource tree (:line %) (:caret-position %) (:match %))
+                                 (:matches (first (get matching-resources tree)))))
+      (update tree :children (fn [children]
+                               (map #(append-match-snippet-nodes % matching-resources) children))))))
+
+(defn- update-search-dialog [^TreeView tree-view workspace project exts term]
+  (let [matching-resources (project/search-in-files project exts term)
+        resource-tree      (g/node-value workspace :resource-tree)
+        [_ new-tree]       (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
+        tree-with-hits     (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
+    (update-tree-view tree-view tree-with-hits)
+    (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
+      (.setExpanded item true))
+    (let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
+                           (filter (fn [^TreeItem item]
+                                     (instance? MatchContextResource (.getValue item))))
+                           first)]
+      (.select (.getSelectionModel tree-view) first-match))))
+
+(defn make-search-in-files-dialog [workspace project]
+  (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
+        stage     (Stage.)
+        scene     (Scene. root)
+        controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
+        return    (atom nil)
+        term      (atom nil)
+        exts      (atom nil)
+        close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
+        tree-view ^TreeView (:resources-tree controls)]
+
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Search in files")
+
+    (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
+    (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
+
+    (ui/cell-factory! (:resources-tree controls) (fn [r] {:text (resource/resource-name r)
+                                                          :icon (workspace/resource-icon r)}))
+
+    (ui/observe (.textProperty ^TextField (:search controls))
+                (fn observe [_ _ ^String new]
+                  (reset! term new)
+                  (update-search-dialog tree-view workspace project @exts @term)))
+
+    (ui/observe (.textProperty ^TextField (:types controls))
+                (fn observe [_ _ ^String new]
+                  (reset! exts new)
+                  (update-search-dialog tree-view workspace project @exts @term)))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+      (ui/event-handler event
+                        (let [code (.getCode ^KeyEvent event)]
+                          (when (cond
+                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources-tree controls))
+                                  (= code KeyCode/ESCAPE) true
+                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources-tree controls)))
+                                                              true)
+                                  :else                   false)
+                            (.close stage)))))
+
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    (let [resource (and @return
+                        (update @return :children
+                                (fn [children] (remove #(instance? MatchContextResource %) children))))]
+      (cond
+        (instance? MatchContextResource resource)
+        [(:parent-resource resource) {:caret-position (:caret-position resource)}]
+
+        (not-empty (:children resource))
+        nil
+
+        :else
+        [resource {}]))))
+
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
         stage (Stage.)
@@ -206,7 +333,7 @@
 
     (.bind (.textProperty ^TextField (:path controls))
       (.concat (.concat (.textProperty ^TextField (:location controls)) "/") (.concat (.textProperty ^TextField (:name controls)) (str "." ext))))
-    
+
     (ui/on-action! (:browse controls) (fn [_] (let [location (-> (doto (DirectoryChooser.)
                                                                    (.setInitialDirectory (File. (str base-dir "/" (ui/text (:location controls)))))
                                                                    (.setTitle "Set Path"))

@@ -6,7 +6,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.validation :as validation]
@@ -21,6 +21,8 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
+
+(set! *warn-on-reflection* true)
 
 (def sprite-icon "icons/16/Icons_14-Sprite.png")
 
@@ -227,7 +229,7 @@
                                                [:gpu-texture :gpu-texture]
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource image)))
-  
+
   (property default-animation g/Str
             (validate (validation/validate-animation default-animation anim-data))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
@@ -238,7 +240,7 @@
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource material)))
 
-  
+
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/always

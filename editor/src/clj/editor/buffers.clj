@@ -2,6 +2,8 @@
   (:import [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
            [com.google.protobuf ByteString]))
 
+(set! *warn-on-reflection* true)
+
 (defn slurp-bytes
   [^ByteBuffer buff]
   (let [buff (.duplicate buff)

@@ -8,7 +8,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]

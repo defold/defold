@@ -7,6 +7,8 @@
             [plumbing.core :refer [fnk]])
   (:import [javax.media.opengl GL2]))
 
+(set! *warn-on-reflection* true)
+
 (def grad-top-color    colors/mid-grey)
 (def grad-bottom-color colors/bright-black)
 

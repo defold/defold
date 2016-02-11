@@ -18,13 +18,42 @@ Consider putting it in an alias in your bash profile.
 * From the `defold/editor` directory, run `lein builtins`
 
 ## Running Tests
-`lein test` will run all the tests including the integration tests
+`lein test` will run all the tests including the integration tests.
+
+If you are using a repl, you can also run the tests by calling `(suite/suite)`.
+
+## Setup NREPL for debugging
+
+If you want to work on the editor chances are you want to `connect` or `jack-in` to a REPL as described below.
+
+For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, Cider (etc) dependencies there;
+
+```
+{:user {:plugins [[cider/cider-nrepl "0.10.2"]
+                  [refactor-nrepl "1.1.0" :exclusions [org.clojure/clojure]]]
+        :dependencies [[org.clojure/tools.nrepl "0.2.12"]]}}
+```
+
+Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
 ## Running the Editor
 `lein run` will launch the editor as well as providing a nprel port
 for you to jack into
 
-**PLEASE NOTE** 2 NREPL servers are started, you must connect to the first one!
+**PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
+
+## Jacking into a REPL
+
+You can also use `M-x cider-jack-in` or launch the editor inside Cursive for debugging with breakpoints etc.
+
+First set the envrinment varaible `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
+
+After you jacked in do the following to load and start the app;
+
+```
+user=> (dev)
+dev=> (go)
+```
 
 ## Running Benchmarks
 `lein benchmark` will run the benchmarks and put the results to the

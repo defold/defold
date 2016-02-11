@@ -6,7 +6,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.workspace :as workspace]
@@ -18,6 +18,8 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d]))
+
+(set! *warn-on-reflection* true)
 
 (def cubemap-icon "icons/32/Icons_23-Cubemap.png")
 

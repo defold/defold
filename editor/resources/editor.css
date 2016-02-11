@@ -450,6 +450,7 @@ Defold Orange       #fd6623             Guides etc
     -fx-tab-min-height: 0.0em;
     -fx-tab-max-height: 100.0em;
 }
+
 .tab {
     -fx-padding: 0.0em 0.8em 0.0em 0.0em;
     -fx-background-radius: 0;
@@ -484,7 +485,6 @@ GridPane.prefs {
     -fx-padding: 0.0em;
     -fx-background-insets: 0;
 }
-
 
 .tab-content-area {
     -fx-background-color_: red;
@@ -638,6 +638,14 @@ GridPane.prefs {
     -fx-effect: dropshadow(three-pass-box, -defold-yellow, 3, 0.5, 0, 0)
 }
 
+.form .tooltip-error {
+    -fx-background-color: -defold-red;
+}
+
+.form .tooltip-warning {
+    -fx-background-color: -defold-yellow;
+}
+
 /*.form .clear-button {
     -fx-background-color: #00ff00;
 }*/
@@ -659,6 +667,16 @@ GridPane.prefs {
     -fx-background-color: #0000ff;
 }*/
 
+/* combobox list cells */
+
+/*.combo-box .list-view .first-list-item {
+    -fx-background-color: #ff0000;
+}
+
+.combo-box .list-view .last-list-item {
+    -fx-background-color: #0000ff;
+}*/
+
 /* property related */
 
 /*.composite-property-control-container {
@@ -673,8 +691,13 @@ GridPane.prefs {
     -fx-background-color: #ff0000;
 }
 
-.property-component-label {
-    -fx-background-color: #00ff00;
+.property-component {
+    -fx-alignment: baseline-left;
+    -fx-padding: 0 10 0 0;
+}
+
+.property-component .label {
+    -fx-background-color: #ff00ff;
 }
 
 #properties .tooltip {
@@ -705,4 +728,11 @@ GridPane.prefs {
 
 /*#changes-container > .tool-bar {
     -fx-background-color: #00ff00;
+}*/
+
+/* context menu image */
+
+/*.context-menu .menu-image-wrapper {
+    -fx-padding: 0 30 0 0;
+    -fx-background-color: #ff00ff;
 }*/

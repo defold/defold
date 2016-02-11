@@ -4,7 +4,7 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.outline :as outline])
   (:import [com.defold.editor Start]

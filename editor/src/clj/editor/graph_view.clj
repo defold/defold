@@ -8,6 +8,8 @@
            [javafx.scene.image Image ImageView]
            [java.io File]))
 
+(set! *warn-on-reflection* true)
+
 (defn- ^String node-label [^Object node]
   (.getSimpleName (.getClass node)))
 

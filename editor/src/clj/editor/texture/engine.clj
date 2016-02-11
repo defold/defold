@@ -9,6 +9,7 @@
            [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
            [com.sun.jna Pointer]))
 
+(set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
 ; Set up some compile-time aliases for those long Java constant names

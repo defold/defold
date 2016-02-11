@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [editor.resource :as resource]

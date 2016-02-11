@@ -10,7 +10,7 @@
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
@@ -33,8 +33,8 @@
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
-           [javafx.geometry BoundingBox Pos]
-           [javafx.scene Scene Node Parent]
+           [javafx.geometry BoundingBox Pos VPos HPos]
+           [javafx.scene Scene Group Node Parent]
            [javafx.scene.control Tab Button]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
@@ -581,50 +581,59 @@
     (.setOnMouseDragged parent event-handler)
     (.setOnScroll parent event-handler)))
 
-(defn- make-scene-view [scene-graph ^Parent parent opts]
+(defn- make-gl-pane [view-id parent opts]
   (let [image-view (doto (ImageView.)
-                     ;; Conform image view Y-axis to GL rendering
-                     (.setScaleY -1.0))]
-    (.add (.getChildren ^Pane parent) image-view)
-    (let [view-id (g/make-node! scene-graph SceneView :image-view image-view :select-buffer (make-select-buffer))]
-      (let [l (ui/change-listener
-                observable old-val new-val
-                (let [bb ^BoundingBox new-val
-                      w (.getWidth bb)
-                      h (.getHeight bb)]
-                  (when (and (> w 0) (> h 0))
-                    (let [viewport (types/->Region 0 w 0 h)]
-                      (g/transact (g/set-property view-id :viewport viewport))
-                      (if-let [view-id (ui/user-data image-view ::view-id)]
-                        (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                          (doto drawable
-                            (.setSize w h))
-                          (let [context (make-current drawable)]
-                            (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                              (.setSize ^GL2 (.getGL context) w h))
-                            (.release context)))
-                        (do
-                          (register-event-handler! parent view-id)
-                          (ui/user-data! image-view ::view-id view-id)
-                          (let [^Tab tab      (:tab opts)
-                                repainter     (ui/->timer
+                     (.setScaleY -1.0))
+        pane (proxy [com.defold.control.Region] []
+               (layoutChildren []
+                 (let [this ^com.defold.control.Region this
+                       w (.getWidth this)
+                       h (.getHeight this)]
+                   (.setFitWidth image-view w)
+                   (.setFitHeight image-view h)
+                   (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
+                   (when (and (> w 0) (> h 0))
+                     (let [viewport (types/->Region 0 w 0 h)]
+                       (g/transact (g/set-property view-id :viewport viewport))
+                       (if-let [view-id (ui/user-data image-view ::view-id)]
+                         (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                           (doto drawable
+                             (.setSize w h))
+                           (let [context (make-current drawable)]
+                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                               (.setSize ^GL2 (.getGL context) w h))
+                             (.release context)))
+                         (do
+                           (register-event-handler! parent view-id)
+                           (ui/user-data! image-view ::view-id view-id)
+                           (let [^Tab tab      (:tab opts)
+                                 repainter     (ui/->timer
                                                 (fn [dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt))))]
-                            (ui/on-close tab
-                                         (fn [e]
-                                           (ui/timer-stop! repainter)
-                                           (scene-view-dispose view-id)
-                                           (scene-cache/drop-context! nil true)))
-                            (ui/timer-start! repainter))
-                          (let [drawable (make-drawable w h)]
-                            (g/transact
+                             (ui/on-close tab
+                                          (fn [e]
+                                            (ui/timer-stop! repainter)
+                                            (scene-view-dispose view-id)
+                                            (scene-cache/drop-context! nil true)))
+                             (ui/timer-start! repainter))
+                           (let [drawable (make-drawable w h)]
+                             (g/transact
                               (concat
-                                (g/set-property view-id :drawable drawable)
-                                (g/set-property view-id :async-copier (make-copier image-view drawable viewport)))))
-                          (frame-selection view-id false)))))))]
-        (.addListener (.boundsInParentProperty (.getParent parent)) l))
-      view-id)))
+                               (g/set-property view-id :drawable drawable)
+                               (g/set-property view-id :async-copier (make-copier image-view drawable viewport)))))
+                           (frame-selection view-id false)))))
+                   (proxy-super layoutChildren))))]
+    (.add (.getChildren pane) image-view)
+    (g/set-property! view-id :image-view image-view)
+    pane))
+
+(defn- make-scene-view [scene-graph ^Parent parent opts]
+  (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer))
+        gl-pane (make-gl-pane view-id parent opts)]
+    (ui/fill-control gl-pane)
+    (ui/children! parent [gl-pane])
+    view-id))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables]
   (when-let [^GLContext context (make-current drawable)]

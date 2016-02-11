@@ -9,7 +9,7 @@
             [editor.geom :as geom]
             [editor.handler :as handler]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.outline :as outline]
@@ -30,6 +30,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
+
+(set! *warn-on-reflection* true)
 
 (def collection-icon "icons/32/Icons_09-Collection.png")
 (def path-sep "/")
