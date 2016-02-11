@@ -22,6 +22,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
+(set! *warn-on-reflection* true)
+
 (def switcher-icon "icons/board_game.png")
 
 ; Config

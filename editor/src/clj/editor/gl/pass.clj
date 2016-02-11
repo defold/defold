@@ -4,6 +4,8 @@
   (:import [javax.media.opengl GL GL2]
            [javax.media.opengl.glu GLU]))
 
+(set! *warn-on-reflection* true)
+
 (defrecord RenderPass [nm selection model-transform]
   types/Pass
   (types/selection?       [this] selection)

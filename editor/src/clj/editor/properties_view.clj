@@ -37,6 +37,8 @@
            [com.google.protobuf ProtocolMessageEnum]
            [editor.properties CurveSpread Curve]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private grid-hgap 4)
 (def ^:private grid-vgap 6)
 
@@ -125,7 +127,7 @@
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (.add (.getChildren box) (create-property-component [(Label. label) t])))
-    
+
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec3 [_ _ property-fn]
@@ -356,7 +358,7 @@
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
     (.add (.getChildren grid) reset-btn)
-    
+
     [key update-ui-fn]))
 
 (defn- create-properties [workspace grid properties property-fn]

@@ -31,6 +31,8 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
+(set! *warn-on-reflection* true)
+
 (def collection-icon "icons/32/Icons_09-Collection.png")
 (def path-sep "/")
 

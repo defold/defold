@@ -12,6 +12,8 @@
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol Sampler
   (sample [this]))
 

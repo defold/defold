@@ -8,6 +8,8 @@
            [javafx.scene.control TextArea]
            [com.defold.control UndolessTextArea]))
 
+(set! *warn-on-reflection* true)
+
 (defn- opseqs [text-area]
   (ui/user-data text-area ::opseqs))
 

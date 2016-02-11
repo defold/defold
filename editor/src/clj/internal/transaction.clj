@@ -10,6 +10,8 @@
             [internal.property :as ip]
             [internal.system :as is]))
 
+(set! *warn-on-reflection* true)
+
 ;; ---------------------------------------------------------------------------
 ;; Configuration parameters
 ;; ---------------------------------------------------------------------------

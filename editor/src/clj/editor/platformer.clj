@@ -21,6 +21,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d]))
 
+(set! *warn-on-reflection* true)
+
 (def platformer-icon "icons/diagramm.png")
 
 (def cp-trigger 5)
