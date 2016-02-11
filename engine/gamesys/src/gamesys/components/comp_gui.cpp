@@ -366,7 +366,8 @@ namespace dmGameSystem
             {
                 if (node_desc->m_Id)
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
-                result = SetNode(scene, n, node_desc);
+                if(!SetNode(scene, n, node_desc))
+                    return false;
                 if(layouts_count != 0)
                     dmGui::SetNodeLayoutDesc(scene, n, node_desc, 0, layouts_count);
             }
