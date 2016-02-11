@@ -31,6 +31,9 @@
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]
                      [javax.vecmath/vecmath                       "1.5.2"]
+                     [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
+                     [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
 
                      ;; Keep jna version in sync with bundle.py. See JNA_VERSION
                      [net.java.dev.jna/jna                        "4.1.0"]
@@ -38,12 +41,7 @@
 
                      ;; Keep jogl version in sync with bundle.py. See JOGL_VERSION
                      [org.jogamp.gluegen/gluegen-rt-main          "2.0.2"]
-                     [org.jogamp.jogl/jogl-all-main               "2.0.2"]
-
-                     ;; NOTE: Ancient libraries, not available via Maven
-                     [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
-                     [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
-                     [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]]
+                     [org.jogamp.jogl/jogl-all-main               "2.0.2"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]

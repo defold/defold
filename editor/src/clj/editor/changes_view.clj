@@ -29,7 +29,8 @@
                   :command :revert}])
 
 (handler/defhandler :revert :asset-browser
-  (enabled? [selection] (prn selection) (pos? (count selection)))
+  (enabled? [selection]
+            (pos? (count selection)))
   (run [selection git list-view workspace]
        (doseq [status selection]
          (git/revert git [(or (:new-path status) (:old-path status))]))
@@ -37,7 +38,9 @@
        (workspace/resource-sync! workspace)))
 
 (handler/defhandler :diff :asset-browser
-  (enabled? [selection] (= 1 (count selection)))
+  (enabled? [selection]
+            (and (= 1 (count selection))
+                 (not= :add (:change-type (first selection)))))
   (run [selection ^Git git list-view]
        (let [status (first selection)
              old-name (or (:old-path status) (:new-path status) )
