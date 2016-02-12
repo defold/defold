@@ -35,10 +35,14 @@ struct IAP
         m_Callback = LUA_NOREF;
         m_Self = LUA_NOREF;
         m_InitCount = 0;
-    }
+        m_AutoFinishTransactions = true;
+        m_PendingTransactions = 0;
+  }
     int                  m_InitCount;
     int                  m_Callback;
     int                  m_Self;
+    bool                 m_AutoFinishTransactions;
+    NSMutableDictionary* m_PendingTransactions;
     IAPListener          m_Listener;
     SKPaymentTransactionObserver* m_Observer;
 };
@@ -252,7 +256,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
     if (!dmScript::IsInstanceValid(L))
     {
-        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        dmLogError("Could not run iap callback because the instance has been deleted.");
         lua_pop(L, 2);
         assert(top == lua_gettop(L));
         return;
@@ -284,6 +288,11 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
     {
         for (SKPaymentTransaction * transaction in transactions) {
 
+            if ((!g_IAP.m_AutoFinishTransactions) && (transaction.transactionState == SKPaymentTransactionStatePurchased)) {
+                uint64_t receipt_hash = dmHashBuffer64(transaction.transactionReceipt.bytes, transaction.transactionReceipt.length);
+                [g_IAP.m_PendingTransactions setObject:transaction forKey:[NSNumber numberWithInteger:receipt_hash] ];
+            }
+
             bool has_listener = false;
             if (self.m_IAP->m_Listener.m_Callback != LUA_NOREF) {
                 const IAPListener& l = self.m_IAP->m_Listener;
@@ -296,7 +305,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
                 case SKPaymentTransactionStatePurchasing:
                     break;
                 case SKPaymentTransactionStatePurchased:
-                    if (has_listener > 0) {
+                    if (has_listener > 0 && g_IAP.m_AutoFinishTransactions) {
                         [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
                     }
                     break;
@@ -384,6 +393,9 @@ int IAP_List(lua_State* L)
  *
  * @name iap.buy
  * @param id product to buy (identifier)
+ *
+ * @note calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
+ *
  * @examples
  *
  * <pre>
@@ -395,6 +407,12 @@ int IAP_List(lua_State* L)
  *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_RESTORED
  *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED
  *         print(transaction.user_id)     -- only available for Amazon IAP transactions
+ *
+ *         -- required if auto finish transactions is disabled in project settings
+ *         if (transaction.state == iap.TRANS_STATE_PURCHASED) then
+ *             -- do server-side verification of purchase here..
+ *             iap.finish(self, transation)
+ *         end
  *     else
  *         print(error.error, error.reason)
  *     end
@@ -416,6 +434,63 @@ int IAP_Buy(lua_State* L)
 
     [[SKPaymentQueue defaultQueue] addPayment:payment];
     [payment release];
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
+/*# finish buying product
+ *
+ * @name iap.finish
+ * @param transaction transaction table parameter as supplied in listener callback
+ *
+ * @note calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings (otherwise ignored).
+ * The transaction.state field must equal iap.TRANS_STATE_PURCHASED.
+ *
+ */
+int IAP_Finish(lua_State* L)
+{
+    if(g_IAP.m_AutoFinishTransactions)
+    {
+        dmLogWarning("Calling iap.finish when autofinish transactions is enabled. Ignored.");
+        return 0;
+    }
+
+    int top = lua_gettop(L);
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    lua_getfield(L, -1, "state");
+    if (lua_isnumber(L, -1))
+    {
+        if(lua_tointeger(L, -1) != SKPaymentTransactionStatePurchased)
+        {
+            dmLogError("Transaction error. Invalid transaction state for transaction finish (must be iap.TRANS_STATE_PURCHASED).");
+            lua_pop(L, 1);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "receipt");
+    if (!lua_isstring(L, -1)) {
+        dmLogError("Transaction error. Invalid transaction data for transaction finish, does not contain 'receipt' key.");
+        lua_pop(L, 1);
+    }
+    else
+    {
+          const char *str = lua_tostring(L, -1);
+          uint64_t receipt_hash = dmHashBuffer64(str, strlen(str));
+          lua_pop(L, 1);
+          SKPaymentTransaction * transaction = [g_IAP.m_PendingTransactions objectForKey:[NSNumber numberWithInteger:receipt_hash]];
+          if(transaction == 0x0) {
+              dmLogError("Transaction error. Invalid receipt for transaction finish.");
+          } else {
+              [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
+              [g_IAP.m_PendingTransactions removeObjectForKey:[NSNumber numberWithInteger:receipt_hash]];
+          }
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -488,6 +563,7 @@ static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
     {"buy", IAP_Buy},
+    {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
     {0, 0}
@@ -534,8 +610,11 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
     // Extend extension functionality with per system initalization?
     if (g_IAP.m_InitCount == 0) {
+        g_IAP.m_AutoFinishTransactions = dmConfigFile::GetInt(params->m_ConfigFile, "iap.auto_finish_transactions", 1) == 1;
+        g_IAP.m_PendingTransactions = [[NSMutableDictionary alloc]initWithCapacity:2];
     }
     g_IAP.m_InitCount++;
+
 
     lua_State*L = params->m_L;
     int top = lua_gettop(L);
@@ -576,6 +655,11 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     }
 
     if (g_IAP.m_InitCount == 0) {
+        if (g_IAP.m_PendingTransactions) {
+             [g_IAP.m_PendingTransactions release];
+             g_IAP.m_PendingTransactions = 0;
+        }
+
         if (g_IAP.m_Observer) {
             [[SKPaymentQueue defaultQueue] removeTransactionObserver: g_IAP.m_Observer];
             [g_IAP.m_Observer release];
