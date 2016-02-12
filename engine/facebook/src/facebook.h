@@ -1,6 +1,8 @@
 #ifndef DM_FACEBOOK_H
 #define DM_FACEBOOK_H
 
+#define LIB_NAME "facebook"
+
 namespace dmFacebook {
 
     enum State {
