@@ -350,6 +350,11 @@ Typically the getFactory and createExternalGLContext are in the same statement. 
 created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
 are unknown though.
 
+
+Updating "Build Report" template
+---------------------
+The build report template is a single HTML file found under `com.dynamo.cr/com.dynamo.cr.bob/lib/report_template.html`. Third party JS and CSS libraries used (DataTables.js, Jquery, Bootstrap, D3 and Dimple.js) are concatenated into two HTML inline tags and added to this file. If the libraries need to be updated/changed please use the `inline_libraries.py` script found in `share/report_libs/`.
+
 Emscripten
 ----------
 

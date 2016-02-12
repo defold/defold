@@ -25,11 +25,13 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         public void setKey(String key);
         public void setCertificate(String certificate);
         public void releaseModeSelected(boolean selection);
+        public void generateReportSelected(boolean selection);
     }
 
     private Button packageApplication;
     private IPresenter presenter;
     private Button releaseMode;
+    private Button generateReport;
 
     public BundleAndroidDialog(Shell parentShell) {
         super(parentShell);
@@ -59,16 +61,6 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         containerLayout.marginTop = 10;
         container.setLayout(containerLayout);
         container.setLayoutData(new GridData(GridData.FILL_BOTH));
-
-        releaseMode = new Button(container, SWT.CHECK);
-        releaseMode.setText("Release mode");
-        releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
-        releaseMode.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                presenter.releaseModeSelected(releaseMode.getSelection());
-            }
-        });
 
         Label certificateLabel = new Label(container, SWT.NONE);
         certificateLabel.setText("Certificate:");
@@ -117,6 +109,27 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
             }
         });
         selectKeyButton.setText("...");
+
+        releaseMode = new Button(container, SWT.CHECK);
+        releaseMode.setText("Release mode");
+        releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        releaseMode.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.releaseModeSelected(releaseMode.getSelection());
+            }
+        });
+
+        generateReport = new Button(container, SWT.CHECK);
+        generateReport.setText("Generate build report");
+        generateReport.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        generateReport.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.generateReportSelected(generateReport.getSelection());
+            }
+        });
+
 
         return area;
     }

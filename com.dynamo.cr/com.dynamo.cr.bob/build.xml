@@ -236,6 +236,9 @@
             <fileset dir=".">
                 <include name="libexec/**/*"/>
             </fileset>
+            <fileset dir=".">
+                <include name="lib/report_template.html"/>
+            </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
