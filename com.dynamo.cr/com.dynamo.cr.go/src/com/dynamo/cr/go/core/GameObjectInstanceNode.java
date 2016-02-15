@@ -19,6 +19,17 @@ public abstract class GameObjectInstanceNode extends InstanceNode {
     }
 
     @Override
+    protected boolean isValidParent(Node node) {
+        while(node != null) {
+            if(node instanceof CollectionNode) {
+                return true;
+            }
+            node = node.getParent();
+        }
+        return false;
+    }
+
+    @Override
     protected void childRemoved(Node child) {
         // TODO this is a poor way to remove children from the selection
         // It should preferably be done in Node immediately, but seemed like a too complex change at the moment
