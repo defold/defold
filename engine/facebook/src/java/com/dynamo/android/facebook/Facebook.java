@@ -159,7 +159,7 @@ public class Facebook implements Handler.Callback {
         startActivity(ACTION_SHOW_DIALOG, extras);
     }
 
-    public void postEvent(String event, long valueToSum, String[] keys, String[] values) {
+    public void postEvent(String event, double valueToSum, String[] keys, String[] values) {
         try {
             if (this.eventLogger != null) {
                 if (keys.length == 0) {

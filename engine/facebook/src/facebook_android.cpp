@@ -588,7 +588,7 @@ int Facebook_PostEvent(lua_State* L)
     // Prepare Java call
     JNIEnv* env = Attach();
     jstring jEvent = env->NewStringUTF(event);
-    jlong jValueToSum = (jlong) (unsigned long long) valueToSum;
+    jdouble jValueToSum = (jdouble) valueToSum;
     jclass jStringClass = env->FindClass("java/lang/String");
     jobjectArray jKeys = env->NewObjectArray(length, jStringClass, 0);
     jobjectArray jValues = env->NewObjectArray(length, jStringClass, 0);
@@ -843,7 +843,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
         g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
         g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
-        g_Facebook.m_PostEvent = env->GetMethodID(fb_class, "postEvent", "(Ljava/lang/String;J[Ljava/lang/String;[Ljava/lang/String;)V");
+        g_Facebook.m_PostEvent = env->GetMethodID(fb_class, "postEvent", "(Ljava/lang/String;D[Ljava/lang/String;[Ljava/lang/String;)V");
         g_Facebook.m_EnableEventUsage = env->GetMethodID(fb_class, "enableEventUsage", "()V");
         g_Facebook.m_DisableEventUsage = env->GetMethodID(fb_class, "disableEventUsage", "()V");
 
@@ -992,7 +992,8 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
         memset(&g_Facebook, 0x00, sizeof(Facebook));
     }
 
-    return javaStatus ? dmExtension::RESULT_OK : dmExtension::RESULT_OK; // There is no return value defined for finalize functions
+    // javaStatus should really be checked and an error returned if something is wrong.
+    return dmExtension::RESULT_OK;
 }
 
 void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* event)
@@ -1007,9 +1008,9 @@ void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* even
             env->CallVoidMethod(g_Facebook.m_FBApp, g_Facebook.m_Deactivate);
 
         if (!Detach(env))
-    {
-        luaL_error(params->m_L, "An unexpected error occurred.");
-    }
+        {
+            luaL_error(params->m_L, "An unexpected error occurred.");
+        }
     }
 }
 
