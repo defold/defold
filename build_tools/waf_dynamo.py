@@ -829,7 +829,8 @@ def embed_build(task):
 
     cpp_str = """
 #include <stdint.h>
-unsigned char %s[] =
+#include "dlib/align.h"
+unsigned char DM_ALIGNED(16) %s[] =
 """
     cpp_out_file.write(cpp_str % (symbol))
     cpp_out_file.write('{\n    ')
