@@ -276,7 +276,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 float [] sdfParams = new float[] { sdf_world_scale * fontMap.getSdfScale(), sdf_world_scale * fontMap.getSdfOffset(), sdf_world_scale * fontMap.getSdfOutline(), 1.0f  };
                 shader.setUniforms(gl, "uni_sdf_params", sdfParams);
                 shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)fontMap.getOutlineAlpha() * (float)node.getOutlineAlpha() * color[3]));
-
+                color[3] *= (float) fontMap.getAlpha();
             } else {
                 shader = this.shaderBMFont;
                 shader.enable(gl);

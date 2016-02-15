@@ -87,6 +87,7 @@ namespace dmRender
         float                   m_SdfScale;
         float                   m_SdfOffset;
         float                   m_SdfOutline;
+        float                   m_Alpha;
         float                   m_OutlineAlpha;
         float                   m_ShadowAlpha;
 
@@ -137,6 +138,7 @@ namespace dmRender
         font_map->m_SdfScale = params.m_SdfScale;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
+        font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
 
@@ -221,6 +223,7 @@ namespace dmRender
         font_map->m_SdfScale = params.m_SdfScale;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
+        font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
 
@@ -417,7 +420,7 @@ namespace dmRender
         te.m_Next = -1;
         te.m_Tail = -1;
 
-        te.m_FaceColor = dmGraphics::PackRGBA(params.m_FaceColor);
+        te.m_FaceColor = dmGraphics::PackRGBA(Vector4(params.m_FaceColor.getXYZ(), params.m_FaceColor.getW() * font_map->m_Alpha));
         te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), params.m_OutlineColor.getW() * font_map->m_OutlineAlpha));
         te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), params.m_ShadowColor.getW() * font_map->m_ShadowAlpha));
         te.m_Depth = params.m_Depth;

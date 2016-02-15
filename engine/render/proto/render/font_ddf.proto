@@ -73,6 +73,7 @@ message FontMap
 
     optional bytes glyph_data = 20; // glyph data may be compressed
 
-    optional float outline_alpha = 21 [default = 1.0];
-    optional float shadow_alpha = 22 [default = 1.0];
+    optional float alpha = 21 [default = 1.0];
+    optional float outline_alpha = 22 [default = 1.0];
+    optional float shadow_alpha = 23 [default = 1.0];
 }

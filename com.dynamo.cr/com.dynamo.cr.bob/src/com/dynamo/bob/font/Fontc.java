@@ -316,6 +316,7 @@ public class Fontc {
             fontMapBuilder.setSdfScale(1.0f / sdf_scale);
             fontMapBuilder.setSdfOffset(-sdf_offset / sdf_scale);
             fontMapBuilder.setSdfOutline(this.fontDesc.getOutlineWidth());
+            fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
         }
