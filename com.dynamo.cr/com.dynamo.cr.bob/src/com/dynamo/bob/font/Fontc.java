@@ -316,6 +316,8 @@ public class Fontc {
             fontMapBuilder.setSdfScale(1.0f / sdf_scale);
             fontMapBuilder.setSdfOffset(-sdf_offset / sdf_scale);
             fontMapBuilder.setSdfOutline(this.fontDesc.getOutlineWidth());
+            fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
+            fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
         }
 
         // Load external image resource for BMFont files
