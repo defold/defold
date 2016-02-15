@@ -16,7 +16,7 @@
          point="com.dynamo.cr.editor.ui.tip">
       <tip
             editor-id="com.dynamo.cr.projed.projectEditor"
-            link="See &lt;a href=&quot;http://doc.defold.com/doc/project_settings&quot;&gt;Project Settings&lt;/a&gt; for more info."
+            link="See &lt;a href=&quot;http://doc.defold.com/doc/project-settings&quot;&gt;Project Settings&lt;/a&gt; for more info."
             tip="Edit your project settings in this file."
             title="Project Settings">
       </tip>

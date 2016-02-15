@@ -27,6 +27,7 @@ import com.defold.iap.IapGooglePlay.Action;
 public class IapGooglePlayActivity extends Activity {
 
     private boolean hasPendingPurchases = false;
+    private boolean autoFinishTransactions = true;
     private Messenger messenger;
     ServiceConnection serviceConn;
     IInAppBillingService service;
@@ -89,6 +90,11 @@ public class IapGooglePlayActivity extends Activity {
 
     private boolean consume(String purchaseData) {
         try {
+            if (purchaseData == null) {
+                Log.e(IapGooglePlay.TAG, String.format("Failed to consume purchase, purchaseData was null!"));
+                return false;
+            }
+
             JSONObject pd = new JSONObject(purchaseData);
             String token = pd.getString("purchaseToken");
             int consumeResponse = service.consumePurchase(3, getPackageName(), token);
@@ -108,9 +114,9 @@ public class IapGooglePlayActivity extends Activity {
         return false;
     }
 
-    private boolean consumeAndSendMessage(String purchaseData, String signature)
+    private boolean processPurchase(String purchaseData, String signature)
     {
-        if (!consume(purchaseData)) {
+        if (this.autoFinishTransactions && !consume(purchaseData)) {
             Log.e(IapGooglePlay.TAG, "Failed to consume and send message");
             return false;
         }
@@ -143,14 +149,14 @@ public class IapGooglePlayActivity extends Activity {
                 for (int i = 0; i < purchaseDataList.size(); ++i) {
                     String purchaseData = purchaseDataList.get(i);
                     String signature = signatureList.get(i);
-                    if (!consumeAndSendMessage(purchaseData, signature)) {
+                    if (!processPurchase(purchaseData, signature)) {
                         // abort and retry some other time
                         break;
                     }
                 }
             }
         } catch (RemoteException e) {
-            Log.e(IapGooglePlay.TAG, "Failed to consume purchase", e);
+            Log.e(IapGooglePlay.TAG, "Failed to process purchase", e);
         }
     }
 
@@ -193,6 +199,7 @@ public class IapGooglePlayActivity extends Activity {
         final Bundle extras = intent.getExtras();
         this.messenger = (Messenger) extras.getParcelable(IapGooglePlay.PARAM_MESSENGER);
         final Action action = Action.valueOf(intent.getAction());
+        this.autoFinishTransactions = extras.getBoolean(IapGooglePlay.PARAM_AUTOFINISH_TRANSACTIONS);
 
         serviceConn = new ServiceConnection() {
             @Override
@@ -209,6 +216,9 @@ public class IapGooglePlayActivity extends Activity {
                     restore();
                 } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
                     processPendingConsumables();
+                    finish();
+                } else if (action == Action.FINISH_TRANSACTION) {
+                    consume(extras.getString(IapGooglePlay.PARAM_PURCHASE_DATA));
                     finish();
                 }
             }
@@ -239,9 +249,11 @@ public class IapGooglePlayActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (hasPendingPurchases) {
-            // Not sure connectitno is up so need to check here.
+            // Not sure connection is up so need to check here.
             if (service != null) {
-                processPendingConsumables();
+                if(autoFinishTransactions) {
+                    processPendingConsumables();
+                }
             }
             hasPendingPurchases = false;
         }
@@ -278,7 +290,7 @@ public class IapGooglePlayActivity extends Activity {
             String purchaseData = data.getStringExtra(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA);
             String dataSignature = data.getStringExtra(IapGooglePlay.RESPONSE_INAPP_SIGNATURE);
             if (responseCode == IapJNI.BILLING_RESPONSE_RESULT_OK) {
-                 consumeAndSendMessage(purchaseData, dataSignature);
+                processPurchase(purchaseData, dataSignature);
             } else {
                  bundle = new Bundle();
                  bundle.putString("action", Action.BUY.toString());
