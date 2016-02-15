@@ -551,8 +551,8 @@ int Facebook_PostEvent(lua_State* L)
         dmFacebook::Analytics::GetParameterTable(L, 3, keys, values, &length);
     }
 
-    const char* json_keys = dmJson::CStringArrayToJson(keys, length);
-    const char* json_values = dmJson::CStringArrayToJson(values, length);
+    const char* json_keys = dmJson::CStringArrayToJsonString(keys, length);
+    const char* json_values = dmJson::CStringArrayToJsonString(values, length);
 
     // Forward call to JavaScript
     dmFacebookPostEvent(event, valueToSum, json_keys, json_values);
