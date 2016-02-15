@@ -196,7 +196,7 @@ namespace dmGameSystem
             if (gui_result != dmGui::RESULT_OK)
             {
                 dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                result = false;
+                dmGui::SetNodeLayer(scene, n, "");
             }
         }
         else
@@ -366,7 +366,8 @@ namespace dmGameSystem
             {
                 if (node_desc->m_Id)
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
-                result = SetNode(scene, n, node_desc);
+                if(!SetNode(scene, n, node_desc))
+                    return false;
                 if(layouts_count != 0)
                     dmGui::SetNodeLayoutDesc(scene, n, node_desc, 0, layouts_count);
             }
