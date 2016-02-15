@@ -331,6 +331,9 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  * @param callback result callback
  * @examples
  *
+ * @note nested calls, that is calling iap.list from within callback is not supported.
+ *  Doing so will result in call being ignored with the engine reporting "Unexpected callback set".
+ *
  * <pre>
  * local function iap_callback(self, products, error)
  *     if error == nil then
