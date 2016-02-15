@@ -27,6 +27,7 @@ var LibraryGLFW = {
 
     keyFunc: null,
     charFunc: null,
+    markedTextFunc: null,
     mouseButtonFunc: null,
     mousePosFunc: null,
     mouseWheelFunc: null,
@@ -584,6 +585,12 @@ var LibraryGLFW = {
 
   glfwSetCharCallback: function(cbfun) {
     GLFW.charFunc = cbfun;
+    return 1;
+  },
+
+  glfwSetMarkedTextCallback: function(cbfun) {
+    GLFW.markedTextFunc = cbfun;
+    return 1;
   },
 
   glfwSetMouseButtonCallback: function(cbfun) {
