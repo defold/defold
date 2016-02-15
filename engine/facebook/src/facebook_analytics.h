@@ -70,9 +70,9 @@ namespace dmFacebook {
 
         /**
          * \brief Get the event identifier (Facebook SDK string or custom)
-         * based on the argument on the LUA stack provided specified by index.
+         * based on the argument on the Lua stack provided specified by index.
          *
-         * \param L The LUA stack.
+         * \param L The Lua stack.
          * \param index The position on the stack where the event can be found.
          *
          * \exception If the event is neither represented as a string or a
@@ -86,11 +86,13 @@ namespace dmFacebook {
 
         /**
          * \brief Get the parameter identifier (Facebook SDK string or custom)
-         * based on the argument on the LUA stack provided specified by index.
+         * based on the argument on the Lua stack provided specified by index.
          *
-         * \param L The LUA stack.
+         * \param L The Lua stack.
          * \param index The position on the stack where the parameter can be
          * found.
+         * \param tableIndex The absolute position on the stack where the table
+         * that contains all parameters are stored.
          *
          * \exception If the parameter is neither represented as a string or a
          * number an argerror will be thrown. If the event is represented as a
@@ -99,14 +101,14 @@ namespace dmFacebook {
          *
          * \return A parameter identifier to be used with Facebook Analytics.
          */
-        const char* GetParameter(lua_State* L, int index);
+        const char* GetParameter(lua_State* L, int index, int tableIndex);
 
         /**
-         * \brief Get the values from a table on the LUA stack at the position
+         * \brief Get the values from a table on the Lua stack at the position
          * specified by index and populate the arrays keys and values with the
          * table content.
          *
-         * \param L The LUA stack.
+         * \param L The Lua stack.
          * \param index The position on the stack where the table can be found.
          * \param keys An array that should be populated with keys from the
          * table.
@@ -123,7 +125,7 @@ namespace dmFacebook {
          * \brief Push constants for predefined events and predefined paramters
          * onto the stack L.
          *
-         * \param L The LUA stack.
+         * \param L The Lua stack.
          */
         void RegisterConstants(lua_State* L);
 

@@ -1189,18 +1189,6 @@ static const luaL_reg Facebook_methods[] =
  * @variable
  */
 
- /*# Log this event when an app is being activated.
-  *
-  * <p>
-  * <b>NOTE!</b> This event is automatically logged when the facebook
-  * extension is activated. Posting this event manually will result in
-  * duplicated events.
-  * </p>
-  *
-  * @name facebook.EVENT_ACTIVATED_APP
-  * @variable
-  */
-
  /*# Log this event when the user has entered their payment info.
   *
   * @name facebook.EVENT_ADDED_PAYMENT_INFO
@@ -1233,17 +1221,6 @@ static const luaL_reg Facebook_methods[] =
   * @variable
   */
 
- /*# Log this event when an app is being deactivated.
-  *
-  * <p>
-  * <b>NOTE!</b> This event is automatically logged by the facebook extension,
-  * posting this event manually will result in duplicated events.
-  * </p>
-  *
-  * @name facebook.EVENT_DEACTIVATED_APP
-  * @variable
-  */
-
  /*# Log this event when the user has entered the checkout process. The
   *  value_to_sum passed to facebook.post_event should be the total price in
   * the cart.
@@ -1268,18 +1245,6 @@ static const luaL_reg Facebook_methods[] =
  /*# Log this event when a user has performed a search within the app.
   *
   * @name facebook.EVENT_SEARCHED
-  * @variable
-  */
-
- /*# Log this event when there has been interruptions in the current session
-  *  for the user.
-  *
-  * <p>
-  * <b>NOTE!</b> This event is currently an undocumented event in the Facebook
-  * SDK.
-  * </p>
-  *
-  * @name facebook.EVENT_SESSION_INTERRUPTIONS
   * @variable
   */
 

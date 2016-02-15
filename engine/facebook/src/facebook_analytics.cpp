@@ -98,12 +98,12 @@ const char* dmFacebook::Analytics::GetEvent(lua_State* L, int index)
     return event;
 }
 
-const char* dmFacebook::Analytics::GetParameter(lua_State* L, int index)
+const char* dmFacebook::Analytics::GetParameter(lua_State* L, int index, int tableIndex)
 {
     const char* parameter = 0;
     if (lua_isnil(L, index))
     {
-        luaL_argerror(L, index, "Facebook Analytics parameter cannot be nil");
+        luaL_argerror(L, tableIndex, "Facebook Analytics parameter cannot be nil");
     }
     else if (lua_isnumber(L, index))
     {
@@ -112,7 +112,7 @@ const char* dmFacebook::Analytics::GetParameter(lua_State* L, int index)
         parameter = ::LookupParameter(parameter_number);
         if (parameter == 0)
         {
-            luaL_argerror(L, index,
+            luaL_argerror(L, tableIndex,
                 "Facebook Analytics parameter does not exist");
         }
     }
@@ -122,13 +122,13 @@ const char* dmFacebook::Analytics::GetParameter(lua_State* L, int index)
         parameter = luaL_checklstring(L, index, &len);
         if (len == 0)
         {
-            luaL_argerror(L, index,
+            luaL_argerror(L, tableIndex,
                 "Facebook Analytics parameter cannot be empty");
         }
     }
     else
     {
-        luaL_argerror(L, index,
+        luaL_argerror(L, tableIndex,
             "Facebook Analytics parameter must be number or string");
     }
 
@@ -145,7 +145,7 @@ void dmFacebook::Analytics::GetParameterTable(lua_State* L, int index, const cha
     while (lua_next(L, -2) && position < (*length))
     {
         lua_pushvalue(L, -2);
-        keys[position] = dmFacebook::Analytics::GetParameter(L, -1);
+        keys[position] = dmFacebook::Analytics::GetParameter(L, -1, index);
         values[position] = lua_tostring(L, -2);
         lua_pop(L, 2);
 
@@ -165,18 +165,18 @@ void dmFacebook::Analytics::RegisterConstants(lua_State* L)
         lua_pushnumber(L, (lua_Number) val); lua_setfield(L, -2, #name);
 
     SETCONSTANT(EVENT_ACHIEVED_LEVEL,           dmFacebook::Analytics::ACHIEVED_LEVEL);
-    SETCONSTANT(EVENT_ACTIVATED_APP,            dmFacebook::Analytics::ACTIVATED_APP);
+    // SETCONSTANT(EVENT_ACTIVATED_APP,         dmFacebook::Analytics::ACTIVATED_APP);
     SETCONSTANT(EVENT_ADDED_PAYMENT_INFO,       dmFacebook::Analytics::ADDED_PAYMENT_INFO);
     SETCONSTANT(EVENT_ADDED_TO_CART,            dmFacebook::Analytics::ADDED_TO_CART);
     SETCONSTANT(EVENT_ADDED_TO_WISHLIST,        dmFacebook::Analytics::ADDED_TO_WISHLIST);
     SETCONSTANT(EVENT_COMPLETED_REGISTRATION,   dmFacebook::Analytics::COMPLETED_REGISTRATION);
     SETCONSTANT(EVENT_COMPLETED_TUTORIAL,       dmFacebook::Analytics::COMPLETED_TUTORIAL);
-    SETCONSTANT(EVENT_DEACTIVATED_APP,          dmFacebook::Analytics::DEACTIVATED_APP);
+    // SETCONSTANT(EVENT_DEACTIVATED_APP,       dmFacebook::Analytics::DEACTIVATED_APP);
     SETCONSTANT(EVENT_INITIATED_CHECKOUT,       dmFacebook::Analytics::INITIATED_CHECKOUT);
     SETCONSTANT(EVENT_PURCHASED,                dmFacebook::Analytics::PURCHASED);
     SETCONSTANT(EVENT_RATED,                    dmFacebook::Analytics::RATED);
     SETCONSTANT(EVENT_SEARCHED,                 dmFacebook::Analytics::SEARCHED);
-    SETCONSTANT(EVENT_SESSION_INTERRUPTIONS,    dmFacebook::Analytics::SESSION_INTERRUPTIONS);
+    // SETCONSTANT(EVENT_SESSION_INTERRUPTIONS, dmFacebook::Analytics::SESSION_INTERRUPTIONS);
     SETCONSTANT(EVENT_SPENT_CREDITS,            dmFacebook::Analytics::SPENT_CREDITS);
     SETCONSTANT(EVENT_TIME_BETWEEN_SESSIONS,    dmFacebook::Analytics::TIME_BETWEEN_SESSIONS);
     SETCONSTANT(EVENT_UNLOCKED_ACHIEVEMENT,     dmFacebook::Analytics::UNLOCKED_ACHIEVEMENT);
