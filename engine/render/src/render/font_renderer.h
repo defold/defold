@@ -62,7 +62,13 @@ namespace dmRender
         float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
-        ///
+        /// Font alpha
+        float m_Alpha;
+        /// Font outline alpha
+        float m_OutlineAlpha;
+        /// Font shadow alpha
+        float m_ShadowAlpha;
+
         uint32_t m_CacheWidth;
         uint32_t m_CacheHeight;
         uint8_t m_GlyphChannels;
