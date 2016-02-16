@@ -59,7 +59,7 @@ public class ArchiveBuilder {
         if(compRatio > 0.95) {
             // Store uncompressed if we gain less than 5%
             outFile.write(tmp_buf, 0, fileSize);
-            compressedSize = 0xFFFFFFFF;
+            compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
         } else {
             outFile.write(compress_buf, 0, compressedSize);
         }
@@ -112,7 +112,7 @@ public class ArchiveBuilder {
         for (ArchiveEntry e : entries) {
             alignBuffer(outFile, 4);
             resourcesOffset.add((int) outFile.getFilePointer());
-            if(e.compressedSize != 0xFFFFFFFF) {
+            if(e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 e.compressedSize = compress(e.fileName, e.size, outFile);
             } else {
                 copy(e.fileName, outFile);
@@ -141,7 +141,7 @@ public class ArchiveBuilder {
             if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
                 outFile.seek(resourcesOffset.get(i));
                 int size = e.size;
-                if (e.compressedSize != 0xffffffff) {
+                if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                     size = e.compressedSize;
                 }
                 byte[] buf = new byte[size];

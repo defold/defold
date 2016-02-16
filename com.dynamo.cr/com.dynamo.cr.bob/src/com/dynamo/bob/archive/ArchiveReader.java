@@ -86,7 +86,7 @@ public class ArchiveReader {
             entry.resourceOffset = inFile.readInt();
             entry.size = inFile.readInt();
             entry.compressedSize = inFile.readInt();
-            if (entry.compressedSize == 0xFFFFFFFF) {
+            if (entry.compressedSize == FLAG_UNCOMPRESSED) {
                 entry.compressedSize = entry.size;
             }
             entry.flags = inFile.readInt();
