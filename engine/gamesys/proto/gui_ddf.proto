@@ -159,6 +159,8 @@ message SceneDesc
     repeated LayoutDesc  layouts                 = 9;
 
     optional AdjustReference adjust_reference    = 10 [default = ADJUST_REFERENCE_LEGACY];
+
+    optional uint32      max_nodes               = 11 [default = 512];
 }
 
 /*# reports a layout change
