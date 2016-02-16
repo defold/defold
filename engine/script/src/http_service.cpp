@@ -196,7 +196,7 @@ namespace dmHttpService
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
             if (worker->m_Client) {
-                dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 3);
+                dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
             }
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
