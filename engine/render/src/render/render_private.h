@@ -113,6 +113,8 @@ namespace dmRender
         uint16_t            m_RenderOrder;
         float               m_Width;
         float               m_Height;
+        float               m_Leading;
+        float               m_Tracking;
         bool                m_LineBreak;
         int32_t             m_Next;
         int32_t             m_Tail;

@@ -52,7 +52,7 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene);
 
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
 
-void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics);
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
 static const float EPSILON = 0.000001f;
 static const float TEXT_GLYPH_WIDTH = 1.0f;
@@ -176,7 +176,7 @@ dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t pat
     return dmHashBuffer64(path, path_size);
 }
 
-void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
 {
     out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
     out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
