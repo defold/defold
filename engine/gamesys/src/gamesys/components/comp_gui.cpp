@@ -452,6 +452,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
+        dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
         gui_component->m_Instance = params.m_Instance;
@@ -460,8 +461,9 @@ namespace dmGameSystem
         gui_component->m_AddedToUpdate = 0;
 
         dmGui::NewSceneParams scene_params;
-        // 512 is a hard cap since the render key has 9 bits for node index
-        scene_params.m_MaxNodes = 512;
+        // 1024 is a hard cap since the render key has 10 bits for node index
+        assert(scene_desc->m_MaxNodes <= 1024);
+        scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;

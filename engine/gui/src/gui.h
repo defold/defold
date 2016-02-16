@@ -375,7 +375,7 @@ namespace dmGui
     };
 
     struct RenderEntry {
-        uint32_t m_RenderKey;
+        uint64_t m_RenderKey;
         HNode m_Node;
     };
 

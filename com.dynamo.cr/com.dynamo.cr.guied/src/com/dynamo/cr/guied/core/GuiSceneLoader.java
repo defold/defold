@@ -174,6 +174,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setScript(sceneBuilder.getScript());
         node.setMaterial(sceneBuilder.getMaterial());
         node.setAdjustReference(sceneBuilder.getAdjustReference());
+        node.setMaxNodes(sceneBuilder.getMaxNodes());
         if (sceneBuilder.hasBackgroundColor()) {
             node.setBackgroundColor(LoaderUtil.toRGB(sceneBuilder.getBackgroundColor()));
         }
@@ -395,6 +396,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         b.setScript(node.getScript());
         b.setMaterial(node.getMaterial());
         b.setAdjustReference(node.getAdjustReference());
+        b.setMaxNodes(node.getMaxNodes());
         b.setBackgroundColor(LoaderUtil.toVector4(node.getBackgroundColor(), 1.0));
         for (Node n : node.getTexturesNode().getChildren()) {
             TextureNode texNode = (TextureNode) n;
