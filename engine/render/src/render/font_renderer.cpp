@@ -114,7 +114,7 @@ namespace dmRender
         float    m_SdfParams[4];
     };
 
-    static float GetLineTextMetrics(HFontMap font_map, const char* text, int n);
+    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
 
     HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
     {
@@ -340,6 +340,8 @@ namespace dmRender
     , m_Depth(0)
     , m_RenderOrder(0)
     , m_Width(FLT_MAX)
+    , m_Leading(1.0f)
+    , m_Tracking(0.0f)
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
@@ -351,10 +353,11 @@ namespace dmRender
     struct LayoutMetrics
     {
         HFontMap m_FontMap;
-        LayoutMetrics(HFontMap font_map) : m_FontMap(font_map) {}
+        float m_Tracking;
+        LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
         float operator()(const char* text, uint32_t n)
         {
-            return GetLineTextMetrics(m_FontMap, text, n);
+            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n);
         }
     };
 
@@ -418,6 +421,8 @@ namespace dmRender
         te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
+        te.m_Leading = params.m_Leading;
+        te.m_Tracking = params.m_Tracking;
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
@@ -574,7 +579,11 @@ namespace dmRender
             }
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-            LayoutMetrics lm(font_map);
+            float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
+            float leading = line_height * te.m_Leading;
+            float tracking = line_height * te.m_Tracking;
+
+            LayoutMetrics lm(font_map, tracking);
             float layout_width;
             int line_count = Layout(text, width, lines, max_lines, &layout_width, lm);
             float x_offset = OffsetX(te.m_Align, te.m_Width);
@@ -614,7 +623,7 @@ namespace dmRender
             for (int line = 0; line < line_count; ++line) {
                 TextLine& l = lines[line];
                 int16_t x = (int16_t)(x_offset - OffsetX(te.m_Align, l.m_Width) + 0.5f);
-                int16_t y = (int16_t) (y_offset - line * (font_map->m_MaxAscent + font_map->m_MaxDescent) + 0.5f);
+                int16_t y = (int16_t) (y_offset - line * leading + 0.5f);
                 const char* cursor = &text[l.m_Index];
                 int n = l.m_Count;
                 for (int j = 0; j < n; ++j)
@@ -693,7 +702,7 @@ namespace dmRender
                             v5 = v2;
                         }
                     }
-                    x += (int16_t)g->m_Advance;
+                    x += (int16_t)(g->m_Advance + tracking);
                 }
             }
             entry_key = te.m_Next;
@@ -757,7 +766,7 @@ namespace dmRender
         }
     }
 
-    static float GetLineTextMetrics(HFontMap font_map, const char* text, int n)
+    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n)
     {
         float width = 0;
         const char* cursor = text;
@@ -775,19 +784,19 @@ namespace dmRender
                 first = g;
             last = g;
             // NOTE: We round advance here just as above in DrawText
-            width += (int16_t) g->m_Advance;
+            width += (int16_t) (g->m_Advance + tracking);
         }
         if (n > 0 && 0 != last)
         {
             float last_end_point = last->m_LeftBearing + last->m_Width;
             float last_right_bearing = last->m_Advance - last_end_point;
-            width = width - last_right_bearing;
+            width = width - last_right_bearing - tracking;
         }
 
         return width;
     }
 
-    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, TextMetrics* metrics)
+    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         metrics->m_MaxAscent = font_map->m_MaxAscent;
         metrics->m_MaxDescent = font_map->m_MaxDescent;
@@ -799,10 +808,13 @@ namespace dmRender
         const uint32_t max_lines = 128;
         dmRender::TextLine lines[max_lines];
 
-        LayoutMetrics lm(font_map);
+        float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
+
+        LayoutMetrics lm(font_map, tracking * line_height);
         float layout_width;
-        Layout(text, width, lines, max_lines, &layout_width, lm);
+        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm);
         metrics->m_Width = layout_width;
+        metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
     }
 
 }
