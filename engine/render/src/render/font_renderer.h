@@ -80,6 +80,8 @@ namespace dmRender
     {
         /// Total string width
         float m_Width;
+        /// Total string height
+        float m_Height;
         /// Max ascent of font
         float m_MaxAscent;
         /// Max descent of font, positive value
@@ -156,6 +158,10 @@ namespace dmRender
         float       m_Width;
         /// Text render box height. Used for vertical alignment
         float       m_Height;
+        /// Text line spacing
+        float       m_Leading;
+        /// Text letter spacing
+        float       m_Tracking;
         /// True for linebreak
         bool        m_LineBreak;
         /// Horizontal alignment
@@ -196,7 +202,7 @@ namespace dmRender
      * @param line_break line break characters
      * @param metrics Metrics, out-value
      */
-    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, TextMetrics* metrics);
+    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
 
 }
 

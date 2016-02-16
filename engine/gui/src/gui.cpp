@@ -79,6 +79,8 @@ namespace dmGui
             PROP(slice9, PROPERTY_SLICE9 )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
+            { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
+            { dmHashString64("tracking"), PROPERTY_TEXT_PARAMS, 1 },
     };
 #undef PROP
 
@@ -1612,6 +1614,7 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
             node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
             node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
+            node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
             node->m_Node.m_LocalTransform = Matrix4::identity();
             node->m_Node.m_PerimeterVertices = 32;
             node->m_Node.m_OuterBounds = PIEBOUNDS_ELLIPSE;
@@ -2092,6 +2095,28 @@ namespace dmGui
         return n->m_Node.m_LineBreak;
     }
 
+    void SetNodeTextLeading(HScene scene, HNode node, float leading)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setX(leading);
+    }
+    float GetNodeTextLeading(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getX();
+    }
+
+    void SetNodeTextTracking(HScene scene, HNode node, float tracking)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setY(tracking);
+    }
+    float GetNodeTextTracking(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getY();
+    }
+
     void* GetNodeTexture(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2244,12 +2269,12 @@ namespace dmGui
         return n->m_Node.m_ClippingInverted;
     }
 
-    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
-        return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, metrics);
+        return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, leading, tracking, metrics);
     }
 
-    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics)
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         memset(metrics, 0, sizeof(*metrics));
         void** font = scene->m_Fonts.Get(font_id);
@@ -2257,7 +2282,7 @@ namespace dmGui
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, metrics);
+        scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
     }
 

@@ -223,15 +223,16 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         Texture textTexture = textRenderHandle.getTexture(gl);
         FontMap fontMap = textRenderHandle.getFontMap();
 
-        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle), actualText, node.getSize().x,
-                node.isLineBreak());
+        float  ascent = fontMap.getMaxAscent();
+        float descent = fontMap.getMaxDescent();
+        float lineHeight = ascent + descent;
+        float tracking = lineHeight * (float)node.getTracking();
+
+        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle, tracking), actualText, node.getSize().x, node.isLineBreak());
         double width = 0;
         for (TextLine l : lines) {
             width = Math.max(width, l.width);
         }
-
-        float  ascent = fontMap.getMaxAscent();
-        float descent = fontMap.getMaxDescent();
 
         double x0 = -pivotOffsetX(node, width);
         double y0 = -pivotOffsetY(node, ascent, descent, lines.size());
@@ -322,10 +323,10 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
                         }
 
-                        x += g.getAdvance();
+                        x += g.getAdvance() + (float)tracking;
                     }
                 }
-                y -= ascent + descent;
+                y -= (float)(lineHeight * node.getLeading());
             }
 
             gl.glEnd();
@@ -342,9 +343,11 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             double h = 0;
             double w = 0;
             for (TextLine t : lines) {
-                h += ascent + descent;
+                h += lineHeight * node.getLeading();
                 w = Math.max(w, t.width);
             }
+
+            h -= (node.getLeading() - 1.0) * lineHeight;
 
             y0 += ascent;
             double x1 = x0 + w;
