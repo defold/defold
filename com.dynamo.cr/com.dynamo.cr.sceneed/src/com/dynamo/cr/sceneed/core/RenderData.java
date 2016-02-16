@@ -14,7 +14,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private Object userData;
     private long key;
     // Index overrides distance if set
-    private Integer index = null;
+    private Long index = null;
 
     /*
      * NOTE: Do *NOT* use bit 63 in order to avoid signed numbers!
@@ -56,7 +56,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
      * Setting the index overrides the distance calculation in the render key.
      * @param index
      */
-    public void setIndex(int index) {
+    public void setIndex(long index) {
         this.index = index;
     }
 
