@@ -129,7 +129,7 @@
           (for [view [outline-view asset-browser]]
             (g/update-property app-view :auto-pulls conj [view :tree-view]))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
-    (graph-view/setup-graph-view root *project-graph*)
+    (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
 
