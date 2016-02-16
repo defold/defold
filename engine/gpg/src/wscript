@@ -1,0 +1,24 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    source = []
+
+    if re.match('.*?android', bld.env.PLATFORM):
+        source += ['gpg.cpp']
+    else:
+        source += ['gpg_null.cpp']
+
+    gpgext = bld.new_task_gen(features = 'cxx cstaticlib embed ddf',
+                              includes = ['.', '../proto'],
+                              source = source,
+                              proto_gen_py = True,
+                              proto_gen_cc = True,
+                              protoc_includes = '../proto',
+                              target = 'gpgext')
+
+
