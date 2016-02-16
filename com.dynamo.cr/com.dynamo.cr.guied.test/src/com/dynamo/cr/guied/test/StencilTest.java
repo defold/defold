@@ -84,7 +84,7 @@ public class StencilTest extends AbstractNodeTest {
             Collections.sort(allNodes, new Comparator<GuiNode>() {
                 @Override
                 public int compare(GuiNode o1, GuiNode o2) {
-                    return o1.getRenderKey() - o2.getRenderKey();
+                    return Long.compare(o1.getRenderKey(), o2.getRenderKey());
                 }
             });
             for (GuiNode n : allNodes) {
@@ -190,9 +190,9 @@ public class StencilTest extends AbstractNodeTest {
     }
 
     private void assertRenderOrder(GuiNode ... guiNodes) {
-        int renderKey = guiNodes[0].getRenderKey();
+        long renderKey = guiNodes[0].getRenderKey();
         for (int i = 1; i < guiNodes.length; ++i) {
-            int next = guiNodes[i].getRenderKey();
+            long next = guiNodes[i].getRenderKey();
             assertTrue(renderKey < next);
             renderKey = next;
         }
@@ -649,7 +649,7 @@ public class StencilTest extends AbstractNodeTest {
      * - a (clipper)
      *   - b (layer1)
      * - c
-     * 
+     *
      * Expected order: a, b, c
      */
     @Test

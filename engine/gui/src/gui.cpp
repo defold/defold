@@ -31,15 +31,15 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
-    const uint32_t LAYER_RANGE = 3;
-    const uint32_t INDEX_RANGE = 9;
-    const uint32_t CLIPPER_RANGE = 8;
+    const uint64_t LAYER_RANGE = 3;
+    const uint64_t INDEX_RANGE = 10;
+    const uint64_t CLIPPER_RANGE = 8;
 
-    const uint32_t SUB_INDEX_SHIFT = 0;
-    const uint32_t SUB_LAYER_SHIFT = INDEX_RANGE;
-    const uint32_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
-    const uint32_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
-    const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
+    const uint64_t SUB_INDEX_SHIFT = 0;
+    const uint64_t SUB_LAYER_SHIFT = INDEX_RANGE;
+    const uint64_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
+    const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
+    const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
     inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity);
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
@@ -243,7 +243,7 @@ namespace dmGui
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
-        // 512 is a hard cap since only 9 bits is available in the render key
+        // 1024 is a hard cap for max nodes since only 10 bits is available in the render key.
         params->m_MaxNodes = 512;
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
@@ -810,7 +810,7 @@ namespace dmGui
         return (1 << bits) - 1;
     }
 
-    static uint32_t CalcRenderKey(uint16_t layer, uint16_t index, uint8_t inv_clipper_id, uint16_t sub_layer, uint16_t sub_index) {
+    static uint64_t CalcRenderKey(uint64_t layer, uint64_t index, uint64_t inv_clipper_id, uint64_t sub_layer, uint64_t sub_index) {
         return (layer << LAYER_SHIFT)
                 | (index << INDEX_SHIFT)
                 | (inv_clipper_id << CLIPPER_SHIFT)
@@ -890,7 +890,7 @@ namespace dmGui
                         clipper.m_NodeIndex = index;
                         clipper.m_ParentIndex = parent_index;
                         clipper.m_NextNonInvIndex = INVALID_INDEX;
-                        clipper.m_VisibleRenderKey = ~0;
+                        clipper.m_VisibleRenderKey = ~0ULL;
                         n->m_ClipperIndex = clipper_index;
                         if (n->m_Node.m_ClippingInverted) {
                             StencilScope* parent_scope = 0x0;
@@ -957,7 +957,7 @@ namespace dmGui
         scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
     }
 
-    static uint32_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
+    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
         if (scope != 0x0) {
             return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
         } else {
@@ -984,8 +984,8 @@ namespace dmGui
                         } else {
                             Increment(current_scope);
                         }
-                        uint32_t clipping_key = CalcRenderKey(current_scope, 0, 0);
-                        uint32_t render_key = CalcRenderKey(current_scope, layer, 1);
+                        uint64_t clipping_key = CalcRenderKey(current_scope, 0, 0);
+                        uint64_t render_key = CalcRenderKey(current_scope, layer, 1);
                         CollectRenderEntries(scene, n->m_ChildHead, 2, current_scope, clippers, render_entries);
                         if (layer > 0) {
                             render_key = CalcRenderKey(current_scope, layer, 1);
