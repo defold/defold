@@ -116,6 +116,9 @@ message NodeDesc
 
     optional string     template              = 34 [(resource)=true];
     optional bool       template_node_child   = 35;
+
+    optional float      text_leading   = 36 [default = 1.0];
+    optional float      text_tracking  = 37 [default = 0.0];
 }
 
 message SceneDesc
