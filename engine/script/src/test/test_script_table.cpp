@@ -98,7 +98,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
         }
         double value_read = lua_tonumber(L, -1);
         double value_expected = fn(2.0 * M_PI * (double)i / (double)0xffff);
-        double diff = abs(value_read - value_expected);
+        double diff = fabs(value_read - value_expected);
         EXPECT_GT(epsilon, diff);
         lua_pop(L, 1);
 
