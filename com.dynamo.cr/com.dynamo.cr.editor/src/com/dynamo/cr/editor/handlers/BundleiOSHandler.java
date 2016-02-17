@@ -2,6 +2,7 @@ package com.dynamo.cr.editor.handlers;
 
 import java.util.Map;
 
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jface.dialogs.Dialog;
 
 import com.dynamo.cr.target.bundle.BundleiOSDialog;
@@ -52,6 +53,9 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         options.put("platform", "armv7-darwin");
         if(!presenter.isReleaseMode()) {
             options.put("debug", "true");
+        }
+        if(presenter.shouldGenerateReport()) {
+            options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
         }
     }
 
