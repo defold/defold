@@ -65,6 +65,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             textNode.setShadow(LoaderUtil.toRGB(builder.getShadow()));
             textNode.setShadowAlpha(builder.hasShadowAlpha() ? builder.getShadowAlpha() : builder.getShadow().getW());
             textNode.setLineBreak(builder.getLineBreak());
+            textNode.setLeading(builder.getTextLeading());
+            textNode.setTracking(builder.getTextTracking());
             node = textNode;
         } else if (builder.getType() == Type.TYPE_TEMPLATE) {
             TemplateNode templateNode = (TemplateNode) node;
@@ -114,6 +116,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setShadow(LoaderUtil.toVector4(text.getShadow(), 1));
             builder.setShadowAlpha((float)text.getShadowAlpha());
             builder.setLineBreak(text.isLineBreak());
+            builder.setTextLeading((float)text.getLeading());
+            builder.setTextTracking((float)text.getTracking());
         } else if (node instanceof TemplateNode) {
             builder.setType(NodeDesc.Type.TYPE_TEMPLATE);
             TemplateNode templateNode = (TemplateNode) node;

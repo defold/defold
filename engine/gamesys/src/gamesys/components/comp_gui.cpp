@@ -228,6 +228,8 @@ namespace dmGameSystem
                 dmGui::SetNodeText(scene, n, node_desc->m_Text);
                 dmGui::SetNodeFont(scene, n, node_desc->m_Font);
                 dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
+                dmGui::SetNodeTextLeading(scene, n, node_desc->m_TextLeading);
+                dmGui::SetNodeTextTracking(scene, n, node_desc->m_TextTracking);
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_PIE:
@@ -637,6 +639,9 @@ namespace dmGameSystem
             params.m_Depth = 0;
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
+            params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
+            params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
+
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
@@ -1530,11 +1535,12 @@ namespace dmGameSystem
         }
     }
 
-    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
+    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, width, line_break, &metrics);
+        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, width, line_break, leading, tracking, &metrics);
         out_metrics->m_Width = metrics.m_Width;
+        out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;
         out_metrics->m_MaxDescent = metrics.m_MaxDescent;
     }
