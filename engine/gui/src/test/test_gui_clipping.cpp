@@ -1048,6 +1048,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart) {
     dmGui::HNode i = AddClipperBox("i");
     dmGui::HNode j = AddInvClipperBox("j", i);
     dmGui::HNode k = AddInvClipperBox("k", j);
+    (void)d;
+    (void)g;
+    (void)h;
+    (void)k;
 
     dmLogInfo("Expected warning in test");
     Render();
@@ -1082,6 +1086,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart2) {
     dmGui::HNode i = AddClipperBox("i");
     dmGui::HNode j = AddInvClipperBox("j", i);
     dmGui::HNode k = AddInvClipperBox("k", j);
+    (void)d;
+    (void)g;
+    (void)h;
+    (void)k;
 
     dmLogInfo("Expected warning in test");
     Render();
@@ -1116,6 +1124,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
     dmGui::HNode f = AddClipperBox("f", e);
     dmGui::HNode g = AddInvClipperBox("g", f);
     dmGui::HNode h = AddInvClipperBox("h", b);
+    (void)d;
+    (void)g;
+    (void)h;
+    (void)k;
 
     dmLogInfo("Expected warning in test");
     Render();
