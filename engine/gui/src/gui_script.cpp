@@ -1,4 +1,5 @@
 #include "gui_script.h"
+#include <float.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -1862,14 +1863,32 @@ namespace dmGui
         return 1;
     }
 
+    static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
+    {
+        if( lua_isnoneornil(L, index) )
+        {
+            return defaultvalue;
+        }
+        return (float) luaL_checknumber(L, index);
+    }
+
+    static inline bool LuaUtilGetDefaultBool(lua_State* L, int index, bool defaultvalue)
+    {
+        if( lua_isnoneornil(L, index) )
+        {
+            return defaultvalue;
+        }
+        return lua_toboolean(L, index);
+    }
+
     /*# get text metrics
      * Get text metrics
      *
      * @name gui.get_text_metrics
      * @param font font id. (hash|string)
      * @param text text to measure
-     * @param width max-width. use for line-breaks
-     * @param line_breaks true to break lines accordingly to width
+     * @param width max-width. use for line-breaks (default=FLT_MAX)
+     * @param line_breaks true to break lines accordingly to width (default=false)
      * @param leading scale value for line spacing (default=1)
      * @param tracking scale value for letter spacing (default=0)
      * @return a table with the following fields: width, height, max_ascent, max_descent
@@ -1890,10 +1909,11 @@ namespace dmGui
         }
 
         const char* text = luaL_checkstring(L, 2);
-        float width = luaL_checknumber(L, 3);
-        bool line_break = lua_toboolean(L, 4);
-        float leading = luaL_checknumber(L, 5);
-        float tracking = luaL_checknumber(L, 6);
+
+        float width     = LuaUtilGetDefaultFloat(L, 3, FLT_MAX);
+        bool line_break = LuaUtilGetDefaultBool(L, 4, false);
+        float leading   = LuaUtilGetDefaultFloat(L, 5, 1.0f);
+        float tracking  = LuaUtilGetDefaultFloat(L, 6, 0.0f);
         PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
 
         assert(top + 1 == lua_gettop(L));
