@@ -217,15 +217,15 @@ public class TextNode extends GuiNode {
 
     public void setLeading(double leading) {
         this.leading = leading;
-        GuiNodeStateBuilder.setField(this, "Leading", (float) leading);
+        GuiNodeStateBuilder.setField(this, "TextLeading", (float) leading);
     }
 
     public void resetLeading() {
-        this.leading = (Float)GuiNodeStateBuilder.resetField(this, "Leading");
+        this.leading = (Float)GuiNodeStateBuilder.resetField(this, "TextLeading");
     }
 
     public boolean isLeadingOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Leading", (float)this.leading);
+        return GuiNodeStateBuilder.isFieldOverridden(this, "TextLeading", (float)this.leading);
     }
 
 
@@ -235,15 +235,15 @@ public class TextNode extends GuiNode {
 
     public void setTracking(double tracking) {
         this.tracking = tracking;
-        GuiNodeStateBuilder.setField(this, "Tracking", (float) tracking);
+        GuiNodeStateBuilder.setField(this, "TextTracking", (float) tracking);
     }
 
     public void resetTracking() {
-        this.tracking = (Float)GuiNodeStateBuilder.resetField(this, "Tracking");
+        this.tracking = (Float)GuiNodeStateBuilder.resetField(this, "TextTracking");
     }
 
     public boolean isTrackingOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Tracking", (float)this.tracking);
+        return GuiNodeStateBuilder.isFieldOverridden(this, "TextTracking", (float)this.tracking);
     }
 
 
