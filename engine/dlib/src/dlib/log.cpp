@@ -11,7 +11,6 @@
 #include "thread.h"
 #include "math.h"
 #include "time.h"
-#include "time.h"
 #include "path.h"
 #include "sys.h"
 
@@ -448,7 +447,6 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
     va_end(lst);
-
 
     if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
