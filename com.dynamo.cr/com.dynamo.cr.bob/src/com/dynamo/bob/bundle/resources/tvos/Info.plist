@@ -41,8 +41,6 @@
 	<string>{{project.title}}</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleResourceSpecification</key>
-	<string>ResourceRules.plist</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleSignature</key>
