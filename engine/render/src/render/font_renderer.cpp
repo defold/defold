@@ -781,6 +781,8 @@ namespace dmRender
         const char* cursor = text;
         const Glyph* first = 0;
         const Glyph* last = 0;
+        float minx = 0;
+        float maxx = 0;
         for (int i = 0; i < n; ++i)
         {
             uint32_t c = dmUtf8::NextChar(&cursor);
@@ -790,19 +792,32 @@ namespace dmRender
             }
 
             if (i == 0)
+            {
                 first = g;
+            }
+            else
+            {
+                width += tracking;
+            }
+
             last = g;
             // NOTE: We round advance here just as above in DrawText
-            width += (int16_t) (g->m_Advance + tracking);
+            width += (int16_t)g->m_Advance;
+
+            minx = minx < width ? minx : width;
+            maxx = maxx > width ? maxx : width;
         }
         if (n > 0 && 0 != last)
         {
             float last_end_point = last->m_LeftBearing + last->m_Width;
             float last_right_bearing = last->m_Advance - last_end_point;
-            width = width - last_right_bearing - tracking;
+            width = width - last_right_bearing;
+
+            minx = minx < width ? minx : width;
+            maxx = maxx > width ? maxx : width;
         }
 
-        return width;
+        return maxx - minx;
     }
 
     void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
@@ -823,7 +838,7 @@ namespace dmRender
         float layout_width;
         uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm);
         metrics->m_Width = layout_width;
-        metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
+        metrics->m_Height = num_lines * (line_height * fabsf(leading)) - line_height * (fabsf(leading) - 1.0f);
     }
 
 }

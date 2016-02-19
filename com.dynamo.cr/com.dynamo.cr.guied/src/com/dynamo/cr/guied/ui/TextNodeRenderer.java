@@ -20,6 +20,7 @@ import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.core.TextNode;
 import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.guied.util.TextUtil;
+import com.dynamo.cr.guied.util.TextUtil.TextLineSize;
 import com.dynamo.cr.guied.util.TextUtil.TextMetric;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -44,13 +45,13 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     private Shader shaderBMFont;
 
     public static class TextLine {
-        public TextLine(String text, double width) {
+        public TextLine(String text, TextLineSize size) {
             this.text = text;
-            this.width = width;
+            this.size = size;
         }
 
         public String text;
-        public double width;
+        public TextLineSize size;
     }
 
     public TextNodeRenderer() {
@@ -149,7 +150,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     private double[] lineOffsets(TextNode node, List<TextLine> lines, double width) {
         double[] result = new double[lines.size()];
         for (int i = 0; i < result.length; ++i) {
-            result[i] = pivotOffsetX(node, width - lines.get(i).width);
+            result[i] = pivotOffsetX(node, width - lines.get(i).size.getWidth());
         }
 
         return result;
@@ -229,18 +230,21 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         float tracking = lineHeight * (float)node.getTracking();
 
         List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle, tracking), actualText, node.getSize().x, node.isLineBreak());
-        double width = 0;
+        double minwidth = 0;
+        double maxwidth = 0;
         for (TextLine l : lines) {
-            width = Math.max(width, l.width);
+            minwidth = Math.min(minwidth, l.size.minX);
+            maxwidth = Math.max(maxwidth, l.size.maxX);
         }
+        TextLineSize linesize = new TextLineSize(minwidth, maxwidth);
 
-        double x0 = -pivotOffsetX(node, width);
+        double x0 = -pivotOffsetX(node, linesize.getWidth());
         double y0 = -pivotOffsetY(node, ascent, descent, lines.size());
 
         float[] color = node.calcNormRGBA();
 
         if (transparent) {
-            double[] xOffsets = lineOffsets(node, lines, width);
+            double[] xOffsets = lineOffsets(node, lines, linesize.getWidth());
             float sU = 0;
             float sV = 0;
 
@@ -340,15 +344,16 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             }
         } else {
             gl.glColor4fv(renderContext.selectColor(node, color), 0);
-            double h = 0;
-            double w = 0;
-            for (TextLine t : lines) {
-                h += lineHeight * node.getLeading();
-                w = Math.max(w, t.width);
+
+            double w = linesize.getWidth();
+            double h = lines.size() * (lineHeight * Math.abs(node.getLeading())) - lineHeight * (Math.abs(node.getLeading()) - 1.0f);
+
+            if( node.getLeading() < 0 )
+            {
+                y0 += h - lineHeight;
             }
 
-            h -= (node.getLeading() - 1.0) * lineHeight;
-
+            x0 += linesize.minX;
             y0 += ascent;
             double x1 = x0 + w;
             double y1 = y0 - h;

@@ -71,7 +71,7 @@ namespace dmRender
                     if (c != 0)
                         trim = 1;
                     w = metrics(row_start, n-trim);
-                    if (w <= width)
+                    if (fabsf(w) <= width)
                     {
                         last_n = n-trim;
                         last_w = w;
@@ -86,8 +86,8 @@ namespace dmRender
                         c = dmUtf8::NextChar(&last_cursor);
                     }
                 }
-            } while (w <= width && c != 0 && c != '\n');
-            if (w > width && last_n == 0)
+            } while (fabsf(w) <= width && c != 0 && c != '\n');
+            if (fabsf(w) > width && last_n == 0)
             {
                 int trim = 0;
                 if (c != 0)
@@ -102,7 +102,7 @@ namespace dmRender
                 tl.m_Index = (row_start - str);
                 tl.m_Count = last_n;
                 l++;
-                max_width = dmMath::Max(max_width, last_w);
+                max_width = dmMath::Max(max_width, fabsf(last_w));
             } else {
                 // Out of lines
             }
