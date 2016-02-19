@@ -78,12 +78,7 @@
 	<!-- -->
 	
 	<script type='text/javascript'>
-	    /* Load app on click in container. */
-	    document.getElementById("app-container").onclick = function (e) {
-	        Module.runApp("canvas", "{{DEFOLD_SPLASH_IMAGE}}", "archive");
-	        document.getElementById("app-container").style.background = 'none';
-	        document.getElementById("app-container").onclick = null;
-	    };
+        Module.runApp("canvas", "{{DEFOLD_SPLASH_IMAGE}}", "archive");
 
 	    /* Fullscreen button */
 	    document.getElementById("fullscreen").onclick = function (e) {
@@ -95,8 +90,8 @@
 	                elem.webkitRequestFullscreen ||
 	                (function() {});
 	      rfs.apply(elem, []);
+	      document.getElementById("canvas").focus();
 	    };
 	</script>
-    <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
 </body>
 </html>

@@ -155,7 +155,6 @@ public class HTML5Bundler implements IBundler {
         File projectRoot = new File(project.getRootDirectory());
         URL html = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template.html");
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
-        URL tryImage = getResource(projectProperties, projectRoot, "html5", "try_game", "try_game.png");
         String version = projectProperties.getStringValue("project", "version", "0.0");
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         File appDir = new File(bundleDirectory, title);
@@ -174,7 +173,6 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
         infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
-        infoData.put("DEFOLD_TRY_GAME_IMAGE", getName(tryImage));
         infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         if (0 < customHeapSize) {
             infoData.put("DEFOLD_STACK_SIZE", String.format("TOTAL_MEMORY: %d, \n", customHeapSize));
@@ -216,7 +214,6 @@ public class HTML5Bundler implements IBundler {
         format(html, infoData, new File(appDir, "index.html"));
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
-        FileUtils.copyURLToFile(tryImage, new File(appDir, getName(tryImage)));
 
         if (includeDevTool) {
             FileUtils.copyURLToFile(getResource("development.css"), new File(appDir, "development.css"));

@@ -249,10 +249,11 @@ var CanvasInput = {
     arrowKeysHandler : function(e) {
         switch(e.keyCode) {
             case 37: case 38: case 39:  case 40: // Arrow keys
-            case 32: e.preventDefault(); e.stopPropagation(); return false; // Space
+            case 32: e.preventDefault(); e.stopPropagation(); // Space
             default: break; // do not block other keys
         }
     },
+    
     onFocusIn : function(e) {
         window.addEventListener("keydown", CanvasInput.arrowKeysHandler, false);
     },
