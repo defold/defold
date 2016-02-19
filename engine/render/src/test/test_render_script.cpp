@@ -168,7 +168,11 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
+
+    printf("EXPECTED ERRORS ======>\n");
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    printf("<====== EXPECTED ERRORS END\n");
+
     dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
@@ -183,7 +187,10 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_MATERIAL, command->m_Type);
 
     dmRender::ClearRenderScriptInstanceMaterials(render_script_instance);
+
+    printf("EXPECTED ERRORS ======>\n");
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    printf("<====== EXPECTED ERRORS END\n");
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -211,7 +218,10 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+
+    printf("EXPECTED ERRORS ======>\n");
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    printf("<====== EXPECTED ERRORS END\n");
 
     dmRenderDDF::WindowResized window_resize;
     window_resize.m_Width = 1;
@@ -253,7 +263,9 @@ TEST_F(dmRenderScriptTest, TestRenderScriptUserMessage)
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    printf("EXPECTED ERRORS ======>\n");
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    printf("<====== EXPECTED ERRORS END\n");
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));

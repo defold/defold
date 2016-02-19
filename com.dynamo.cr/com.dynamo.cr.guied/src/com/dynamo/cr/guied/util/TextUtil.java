@@ -11,6 +11,19 @@ import com.dynamo.render.proto.Font.FontMap;
 
 public class TextUtil {
 
+    public static class TextLineSize {
+        public double minX;
+        public double maxX;
+        public TextLineSize(double minx, double maxx) {
+            this.minX = minx;
+            this.maxX = maxx;
+        }
+
+        public double getWidth() {
+            return maxX - minX;
+        }
+    }
+
     public static class TextMetric {
 
         public FontRendererHandle textHandler;
@@ -21,13 +34,21 @@ public class TextUtil {
             this.tracking = tracking;
         }
 
-        private double getLineTextMetrics(String text, int n) {
-            double w = 0.0;
+        private TextLineSize getLineTextMetrics(String text, int n) {
             FontMap.Glyph last = null;
+
+            double minx = 0;
+            double maxx = 0;
 
             if (!text.isEmpty()) {
 
+                double w = 0.0;
                 for (int i = 0; i < text.length() && i < n; i++) {
+                    if( i > 0 )
+                    {
+                        w += this.tracking;
+                    }
+
                     char c = text.charAt(i);
                     FontMap.Glyph g = this.textHandler.getGlyph(c);
                     if (g == null) {
@@ -36,17 +57,22 @@ public class TextUtil {
 
                     last = g;
 
-                    w += g.getAdvance() + this.tracking;
+                    w += g.getAdvance();
+
+                    minx = Math.min(w, minx);
+                    maxx = Math.max(w, maxx);
                 }
 
                 if (last != null) {
                     double last_end_point = last.getLeftBearing() + last.getWidth();
                     double last_right_bearing = last.getAdvance() - last_end_point;
-                    w = w - last_right_bearing - this.tracking;
+                    w = w - last_right_bearing;
+
+                    minx = Math.min(w, minx);
+                    maxx = Math.max(w, maxx);
                 }
             }
-
-            return w;
+            return new TextLineSize(minx, maxx);
         }
 
     }
@@ -126,7 +152,9 @@ public class TextUtil {
             int n = 0, last_n = 0;
             TextCursor row_start = new TextCursor(cursor);
             TextCursor last_cursor = new TextCursor(cursor);
-            double w = 0.0, last_w = 0.0;
+
+            TextLineSize w = new TextLineSize(0, 0);
+            TextLineSize last_w = new TextLineSize(0, 0);
 
             do {
                 cursor.setN(n);
@@ -139,7 +167,7 @@ public class TextUtil {
                         trim = 1;
 
                     w = metric.getLineTextMetrics(row_start.getText(), n-trim);
-                    if (w <= width) {
+                    if (Math.abs(w.getWidth()) <= width) {
                         last_n = n-trim;
                         last_w = w;
                         last_cursor = new TextCursor(cursor);
@@ -156,9 +184,9 @@ public class TextUtil {
 
                 }
 
-            } while (w <= width && c != 0 && c != '\n');
+            } while (Math.abs(w.getWidth()) <= width && c != 0 && c != '\n');
 
-            if (w > width && last_n == 0) {
+            if (Math.abs(w.getWidth()) > width && last_n == 0) {
                 int trim = 0;
                 if (c != 0)
                     trim = 1;
