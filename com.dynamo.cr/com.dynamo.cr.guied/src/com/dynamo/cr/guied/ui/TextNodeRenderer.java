@@ -155,14 +155,15 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         return result;
     }
 
-    private double pivotOffsetY(TextNode node, double ascent, double descent, int lineCount) {
+    private double pivotOffsetY(TextNode node, double ascent, double descent, double leading, int lineCount) {
         Pivot p = node.getPivot();
 
+        double lineHeight = ascent + descent;
         switch (p) {
         case PIVOT_CENTER:
         case PIVOT_E:
         case PIVOT_W:
-            return -(ascent + descent) * (lineCount) * 0.5 + ascent;
+            return -(lineCount * lineHeight * leading - lineHeight * (leading - 1.0f)) * 0.5 + ascent;
 
         case PIVOT_N:
         case PIVOT_NE:
@@ -172,7 +173,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         case PIVOT_S:
         case PIVOT_SW:
         case PIVOT_SE:
-            return -(ascent + descent) * (lineCount - 1) - descent;
+            return -(lineHeight * leading * (lineCount - 1)) - descent;
         }
 
         assert false;
@@ -235,7 +236,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         }
 
         double x0 = -pivotOffsetX(node, width);
-        double y0 = -pivotOffsetY(node, ascent, descent, lines.size());
+        double y0 = -pivotOffsetY(node, ascent, descent, node.getLeading(), lines.size());
 
         float[] color = node.calcNormRGBA();
 
