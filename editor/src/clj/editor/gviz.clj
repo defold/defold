@@ -1,15 +1,18 @@
 (ns editor.gviz
   (:require [dynamo.graph :as g]
             [clojure.java.io :as io])
-  (:import [java.io File BufferedWriter StringWriter]
+  (:import [java.io File BufferedWriter StringWriter IOException]
            [java.awt Desktop]))
 
 (set! *warn-on-reflection* true)
 
 (defn installed? []
-  (let [p (.exec (Runtime/getRuntime) "dot -V")]
-    (.waitFor p)
-    (= 0 (.exitValue p))))
+  (try
+    (let [p (.exec (Runtime/getRuntime) "dot -V")]
+      (.waitFor p)
+      (= 0 (.exitValue p)))
+    (catch IOException e
+      false)))
 
 (defn- source [[source _ _ _]] source)
 (defn- target [[_ _ target _]] target)
