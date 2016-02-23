@@ -468,16 +468,17 @@ namespace dmRender
         }
     }
 
-    static float OffsetY(uint32_t valign, float height, float ascent, float descent, uint32_t line_count)
+    static float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
     {
+        float line_height = ascent + descent;
         switch (valign)
         {
             case TEXT_VALIGN_TOP:
                 return height - ascent;
             case TEXT_VALIGN_MIDDLE:
-                return height * 0.5f + (ascent + descent) * line_count * 0.5f - ascent;
+                return height * 0.5f + (line_count * (line_height * leading) - line_height * (leading - 1.0f)) * 0.5f - ascent;
             case TEXT_VALIGN_BOTTOM:
-                return (ascent + descent) * (line_count - 1) + descent;
+                return (line_height * leading * (line_count - 1)) + descent;
             default:
                 return height - ascent;
         }
@@ -596,7 +597,7 @@ namespace dmRender
             float layout_width;
             int line_count = Layout(text, width, lines, max_lines, &layout_width, lm);
             float x_offset = OffsetX(te.m_Align, te.m_Width);
-            float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, line_count);
+            float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
             uint32_t face_color = te.m_FaceColor;
             uint32_t outline_color = te.m_OutlineColor;
