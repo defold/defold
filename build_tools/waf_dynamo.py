@@ -45,7 +45,7 @@ def new_copy_task(name, input_ext, output_ext):
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 ARM_TVOS_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
-IOS_SDK_VERSION="9.1"
+IOS_SDK_VERSION="9.2"
 TVOS_SDK_VERSION="9.1"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -65,9 +65,9 @@ MIN_TVOS_SDK_VERSION="9.0"
 def default_flags(self):
     build_util = create_build_utility(self.env)
 
-    if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
+    if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os() or 'tvos' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
-        if 'ios' == build_util.get_target_os():
+        if 'ios' == build_util.get_target_os()  or 'tvos' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
