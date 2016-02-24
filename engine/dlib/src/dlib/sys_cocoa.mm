@@ -8,15 +8,13 @@
 #include "sys_private.h"
 #include "dstrings.h"
 
-#if defined(__arm__) || defined(__arm64__)
+#if defined(__arm__) || defined(__arm64__) || defined(__TVOS__)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <AdSupport/AdSupport.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #else
-#if !defined(__TVOS__)
 #import <AppKit/NSWorkspace.h>
-#endif
 #import <Foundation/NSLocale.h>
 #endif
 
@@ -323,11 +321,12 @@ namespace dmSys
 
     Result OpenURL(const char* url)
     {
-#if defined(__TVOS__)
-        return RESULT_UNKNOWN;
-#else
         NSString* ns_url = [NSString stringWithUTF8String: url];
+#if defined(__TVOS__)
+        BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
+#else
         BOOL ret = [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString: ns_url]];
+#endif
         if (ret == YES)
         {
             return RESULT_OK;
@@ -336,7 +335,6 @@ namespace dmSys
         {
             return RESULT_UNKNOWN;
         }
-#endif
     }
 
     void SetNetworkConnectivityHost(const char* host)
