@@ -74,12 +74,6 @@ public class TVOSBundler implements IBundler {
             new File(buildDir, "game.darc").delete();
         }
 
-        // Copy ResourceRules.plist
-        InputStream resourceRulesIn = getClass().getResourceAsStream("resources/tvos/ResourceRules.plist");
-        File resourceRulesOutFile = new File(appDir, "ResourceRules.plist");
-        FileUtils.copyInputStreamToFile(resourceRulesIn, resourceRulesOutFile);
-        resourceRulesIn.close();
-
         // Copy icons and launch image
         TVOSImagesHelper imh = new TVOSImagesHelper(projectProperties, projectRoot, appDir);
         imh.createAssetsCar();
@@ -125,8 +119,7 @@ public class TVOSBundler implements IBundler {
 
 
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
-                    "-f", "-s", identity, "--resource-rules="
-                            + resourceRulesOutFile.getAbsolutePath(),
+                    "-f", "-s", identity,
                     "--entitlements", entitlementOut.getAbsolutePath(),
                     appDir.getAbsolutePath());
             processBuilder.environment().put("EMBEDDED_PROFILE_NAME",
