@@ -33,10 +33,10 @@ namespace dmRender
     , m_SdfOutline(0)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
+    , m_GlyphChannels(1)
     , m_GlyphData(0)
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
-    , m_GlyphChannels(1)
     , m_CacheCellPadding(0)
     {
 
@@ -453,37 +453,6 @@ namespace dmRender
         text_context->m_TextEntries.Push(te);
     }
 
-    static float OffsetX(uint32_t align, float width)
-    {
-        switch (align)
-        {
-            case TEXT_ALIGN_LEFT:
-                return 0.0f;
-            case TEXT_ALIGN_CENTER:
-                return width * 0.5f;
-            case TEXT_ALIGN_RIGHT:
-                return width;
-            default:
-                return 0.0f;
-        }
-    }
-
-    static float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
-    {
-        float line_height = ascent + descent;
-        switch (valign)
-        {
-            case TEXT_VALIGN_TOP:
-                return height - ascent;
-            case TEXT_VALIGN_MIDDLE:
-                return height * 0.5f + (line_count * (line_height * leading) - line_height * (leading - 1.0f)) * 0.5f - ascent;
-            case TEXT_VALIGN_BOTTOM:
-                return (line_height * leading * (line_count - 1)) + descent;
-            default:
-                return height - ascent;
-        }
-    }
-
     static Glyph* GetGlyph(HFontMap font_map, uint32_t c) {
         Glyph* g = font_map->m_Glyphs.Get(c);
         if (!g)
@@ -604,8 +573,8 @@ namespace dmRender
             uint32_t shadow_color = te.m_ShadowColor;
 
             // No support for non-uniform scale with SDF so just peek at the first
-            // row to extracat scale factor. The purpose of this scaling is to have
-            // world space distances in the computation, for good 'antialiasing' no matter
+            // row to extract scale factor. The purpose of this scaling is to have
+            // world space distances in the computation, for good 'anti aliasing' no matter
             // what scale is being rendered in. Scaling down does, however, not work well.
             const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
             float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
