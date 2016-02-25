@@ -209,8 +209,8 @@
       (update tree :children (fn [children]
                                (map #(append-match-snippet-nodes % matching-resources) children))))))
 
-(defn- update-search-dialog [^TreeView tree-view workspace project exts term]
-  (let [matching-resources (project/search-in-files project exts term)
+(defn- update-search-dialog [^TreeView tree-view workspace project save-data exts term]
+  (let [matching-resources (project/search-in-files save-data exts term)
         resource-tree      (g/node-value workspace :resource-tree)
         [_ new-tree]       (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
         tree-with-hits     (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
@@ -232,7 +232,8 @@
         term      (atom nil)
         exts      (atom nil)
         close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
-        tree-view ^TreeView (:resources-tree controls)]
+        tree-view ^TreeView (:resources-tree controls)
+        save-data (project/save-data project)]
 
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Search in files")
@@ -246,12 +247,12 @@
     (ui/observe (.textProperty ^TextField (:search controls))
                 (fn observe [_ _ ^String new]
                   (reset! term new)
-                  (update-search-dialog tree-view workspace project @exts @term)))
+                  (update-search-dialog tree-view workspace project save-data @exts @term)))
 
     (ui/observe (.textProperty ^TextField (:types controls))
                 (fn observe [_ _ ^String new]
                   (reset! exts new)
-                  (update-search-dialog tree-view workspace project @exts @term)))
+                  (update-search-dialog tree-view workspace project save-data @exts @term)))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event

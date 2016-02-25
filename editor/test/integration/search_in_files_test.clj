@@ -9,20 +9,21 @@
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
-            res       (project/search-in-files project "go" "session")]
+            save-data (project/save-data project)
+            res       (project/search-in-files save-data "go" "session")]
         (is (= 11 (count res)))
         (is (every? #(re-find #"session" (:content %)) res))
         (is (every? :line (:matches (first res))))
 
         (testing "search is case insensitive"
-          (is (= 11 (count (project/search-in-files project "go" "seSSiOn")))))
+          (is (= 11 (count (project/search-in-files save-data "go" "seSSiOn")))))
 
         (testing "empty search string gives no results"
-          (is (zero? (count (project/search-in-files project "" "")))))
+          (is (zero? (count (project/search-in-files save-data "" "")))))
 
-        (is (= 21 (count (project/search-in-files project nil "session"))))
-        (is (= 21 (count (project/search-in-files project "" "session"))))
-        (is (= 0 (count (project/search-in-files project "lua" "session"))))
-        (is (= 11 (count (project/search-in-files project "lua,go" "session"))))
-        (is (= 11 (count (project/search-in-files project " lua,  go" "session"))))
-        (is (= 11 (count (project/search-in-files project " lua,  GO" "session"))))))))
+        (is (= 21 (count (project/search-in-files save-data nil "session"))))
+        (is (= 21 (count (project/search-in-files save-data "" "session"))))
+        (is (= 0 (count (project/search-in-files save-data "lua" "session"))))
+        (is (= 11 (count (project/search-in-files save-data "lua,go" "session"))))
+        (is (= 11 (count (project/search-in-files save-data " lua,  go" "session"))))
+        (is (= 11 (count (project/search-in-files save-data " lua,  GO" "session"))))))))
