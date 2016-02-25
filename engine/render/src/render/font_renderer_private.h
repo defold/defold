@@ -111,6 +111,39 @@ namespace dmRender
         *text_width = max_width;
         return l;
     }
+
+    // Helper to calculate horizontal pivot point
+    static float OffsetX(uint32_t align, float width)
+    {
+        switch (align)
+        {
+            case TEXT_ALIGN_LEFT:
+                return 0.0f;
+            case TEXT_ALIGN_CENTER:
+                return width * 0.5f;
+            case TEXT_ALIGN_RIGHT:
+                return width;
+            default:
+                return 0.0f;
+        }
+    }
+
+    // Helper to calculate vertical pivot point
+    static float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
+    {
+        float line_height = ascent + descent;
+        switch (valign)
+        {
+            case TEXT_VALIGN_TOP:
+                return height - ascent;
+            case TEXT_VALIGN_MIDDLE:
+                return height * 0.5f + (line_count * (line_height * leading) - line_height * (leading - 1.0f)) * 0.5f - ascent;
+            case TEXT_VALIGN_BOTTOM:
+                return (line_height * leading * (line_count - 1)) + descent;
+            default:
+                return height - ascent;
+        }
+    }
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE
