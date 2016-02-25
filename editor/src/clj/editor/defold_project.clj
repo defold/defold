@@ -140,11 +140,11 @@
 (defn search-in-files
   "Returns a list of {:resource resource :content content :matches [{:line :snippet}]}
   with resources that matches the search-str"
-  [project file-extensions-str search-str]
+  [save-data file-extensions-str search-str]
   (when-not (empty? search-str)
-    (let [save-data      (->> (save-data project)
-                              (filter #(= :file (and (:resource %)
-                                                     (resource/source-type (:resource %))))))
+    (let [save-data      (filter #(= :file (and (:resource %)
+                                                (resource/source-type (:resource %))))
+                                 save-data)
           file-exts      (some-> file-extensions-str
                                  (str/replace #" " "")
                                  (str/split #","))
