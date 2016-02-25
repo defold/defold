@@ -80,6 +80,8 @@
                  {:label "Paste"
                   :command :paste
                   :acc "Shortcut+V"}
+                 {:label "Rename"
+                  :command :rename}
                  {:label "Delete"
                   :command :delete
                   :icon "icons/cross.png"
@@ -138,6 +140,28 @@
             (let [abs-path (or (resource/abs-path r) (.getAbsolutePath ^File (tmp-file tmp r)))]
               (File. abs-path)))
           resources)))
+
+(defn- rename [resource]
+  (when resource
+    (let [workspace        (resource/workspace resource)
+          srcf             (File. (resource/abs-path resource))
+          dir?             (.isDirectory srcf)
+          ext              (:ext (resource/resource-type resource))
+          ^String new-name (dialogs/make-rename-dialog
+                            (if dir? "Rename folder" "Rename file")
+                            (if dir? "New folder name" "New file name")
+                            (if dir?
+                              (resource/resource-name resource)
+                              (string/replace (resource/resource-name resource)
+                                              (re-pattern (str "." ext))
+                                              ""))
+                            ext)
+          dstf             (and new-name (File. (.getParent srcf) new-name))]
+      (when dstf
+        (if dir?
+          (FileUtils/moveDirectory srcf dstf)
+          (FileUtils/moveFile srcf dstf))
+        (workspace/resource-sync! workspace [[srcf dstf]])))))
 
 (defn- delete [resources]
   (when (not (empty? resources))
@@ -208,6 +232,13 @@
              (FileUtils/copyFile src-file tgt-file)))
          (select-files! workspace tree-view (mapv second pairs))
          (workspace/resource-sync! (resource/workspace resource)))))
+
+(handler/defhandler :rename :asset-browser
+  (enabled? [selection]
+            (and (= 1 (count selection))
+                 (not (resource/read-only? (first selection)))))
+  (run [selection]
+    (rename (first selection))))
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
