@@ -22,7 +22,7 @@ PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
 PACKAGES_TVOS="protobuf-2.3.0 gtest-1.5.0 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5".split()
+PACKAGES_WIN32="PVRTexLib-4.5 openal-1.1".split()
 PACKAGES_LINUX="PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
@@ -316,7 +316,14 @@ class Configuration(object):
         return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
 
     def activate_ems(self):
+        # Compile a file warm up the emscripten caches (libc etc)
+        c_file = tempfile.mktemp(suffix='.c')
+        exe_file = tempfile.mktemp(suffix='.js')
+        with open(c_file, 'w') as f:
+            f.write('int main() { return 0; }')
+
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')

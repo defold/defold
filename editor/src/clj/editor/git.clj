@@ -19,7 +19,7 @@ There's there different functions in this namespace
          [org.eclipse.jgit.revwalk RevCommit RevWalk]
          [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
          [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
-         [org.eclipse.jgit.treewalk.filter PathFilter]))
+         [org.eclipse.jgit.treewalk.filter PathFilter NotIgnoredFilter]))
 
 (set! *warn-on-reflection* true)
 
@@ -81,21 +81,17 @@ There's there different functions in this namespace
       (merge (to-map modified :modified)))))
 
 (defn unified-status [^Git git]
-  "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored.
-   NOTE: RenameDetector doesn't seems to take .gitignore into account but we filter out entries as a last step"
-  (let [repository (.getRepository git)
-        tw (TreeWalk. repository)
-        ignored (:ignored-not-in-index (status git))]
+  "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
+  (let [repository       (.getRepository git)
+        tw               (TreeWalk. repository)
+        rev-commit-index (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
+        file-tree-index  (.addTree tw (FileTreeIterator. repository))]
     (.setRecursive tw true)
-    (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
-    (.addTree tw (FileTreeIterator. repository))
+    (.setFilter tw (NotIgnoredFilter. file-tree-index))
     (let [rd (RenameDetector. repository)]
       (.addAll rd (DiffEntry/scan tw))
-      (->>
-        (.compute rd (.getObjectReader tw) nil)
-        (mapv diff-entry->map)
-        (remove (fn [e] (and (= :add (:change-type e)) (contains? ignored (:new-path e)))))
-        (vec)))))
+      (->> (.compute rd (.getObjectReader tw) nil)
+           (mapv diff-entry->map)))))
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus

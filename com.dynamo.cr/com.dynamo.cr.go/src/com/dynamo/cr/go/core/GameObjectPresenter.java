@@ -93,7 +93,8 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
         IResourceType[] resourceTypes = registry.getResourceTypes();
         List<IResourceType> embeddableTypes = new ArrayList<IResourceType>();
         for (IResourceType t : resourceTypes) {
-            if (t.isEmbeddable()) {
+            String typeClass = t.getTypeClass();
+            if (t.isEmbeddable() && (typeClass != null && typeClass.equals("component"))) {
                 embeddableTypes.add(t);
             }
         }
