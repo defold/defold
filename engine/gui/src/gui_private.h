@@ -57,7 +57,7 @@ namespace dmGui
     {
         StencilScope            m_Scope;
         StencilScope            m_ChildScope;
-        uint32_t                m_VisibleRenderKey;
+        uint64_t                m_VisibleRenderKey;
         uint16_t                m_ParentIndex;
         uint16_t                m_NextNonInvIndex;
         uint16_t                m_NodeIndex;

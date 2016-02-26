@@ -90,7 +90,7 @@ public class NodeUtil {
                         break;
                     }
                 }
-                if (!nodeAccepted) {
+                if (!nodeAccepted || !node.isValidParent(parent)) {
                     return false;
                 }
             }

@@ -203,6 +203,7 @@ public class IOSBundler implements IBundler {
                 entitlementOut.deleteOnExit();
                 entitlements.save(entitlementOut);
             } catch (ConfigurationException e) {
+                logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
                 throw new RuntimeException(e);
             }
 

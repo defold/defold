@@ -14,9 +14,11 @@ public class TextUtil {
     public static class TextMetric {
 
         public FontRendererHandle textHandler;
+        private double tracking;
 
-        public TextMetric(FontRendererHandle textHandler) {
+        public TextMetric(FontRendererHandle textHandler, double tracking) {
             this.textHandler = textHandler;
+            this.tracking = tracking;
         }
 
         private double getLineTextMetrics(String text, int n) {
@@ -34,13 +36,13 @@ public class TextUtil {
 
                     last = g;
 
-                    w += g.getAdvance();
+                    w += g.getAdvance() + this.tracking;
                 }
 
                 if (last != null) {
                     double last_end_point = last.getLeftBearing() + last.getWidth();
                     double last_right_bearing = last.getAdvance() - last_end_point;
-                    w = w - last_right_bearing;
+                    w = w - last_right_bearing - this.tracking;
                 }
             }
 

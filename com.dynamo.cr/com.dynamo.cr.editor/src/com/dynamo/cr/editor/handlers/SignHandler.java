@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -107,9 +108,9 @@ public class SignHandler extends AbstractHandler {
 
             monitor.beginTask("Signing and uploading...", 10);
 
+            String profile = presenter.getProfile();
             try {
                 String identity = presenter.getIdentity();
-                String profile = presenter.getProfile();
 
                 IProject project = EditorUtil.getProject();
                 InputStream projectIS = EditorUtil.getContentRoot(project).getFile("game.project").getContents();
@@ -164,7 +165,10 @@ public class SignHandler extends AbstractHandler {
 
                 projectClient.uploadEngine("ios", stream);
             } catch (Exception e) {
-                final String msg = e.getMessage();
+                String msg = e.getMessage();
+                if(e instanceof ConfigurationException) {
+                    msg = "Error reading provisioning profile '" + profile + "'. Make sure this is a valid provisioning profile file.";
+                }
                 final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
                 shell.getDisplay().asyncExec(new Runnable() {
                     @Override
@@ -172,7 +176,7 @@ public class SignHandler extends AbstractHandler {
                         ErrorDialog.openError(shell, "Error signing executable", "Unable to sign application", status);
                     }
                 });
-                logger.error("Unable to sign application", e);
+                logger.error("Unable to sign application" + (msg.isEmpty() == true ? "" : " (" + msg + ")"), e);
             }
         }
 

@@ -10,6 +10,7 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
     private String certificate = "";
     private String key = "";
     private boolean releaseMode;
+    private boolean generateReport;
 
     @Inject
     public BundleAndroidPresenter(IBundleAndroidView view) {
@@ -73,6 +74,16 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
     @Override
     public void releaseModeSelected(boolean selection) {
         this.releaseMode = selection;
+        validate();
+    }
+
+    public boolean shouldGenerateReport() {
+        return generateReport;
+    }
+
+    @Override
+    public void generateReportSelected(boolean selection) {
+        this.generateReport = selection;
         validate();
     }
 

@@ -54,39 +54,46 @@
    (catch Throwable _
      nil)))
 
-(def create-property-control! nil)
-
 (declare update-field-message)
 
 (defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
 
 (defmethod create-property-control! String [_ _ property-fn]
-  (let [text (TextField.)
+  (let [text         (TextField.)
         update-ui-fn (fn [values message]
                        (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_]
-                          (properties/set-values! (property-fn) (repeat (.getText text)))))
+                       (update-field-message [text] message))
+        update-fn    (fn [_]
+                       (properties/set-values! (property-fn) (repeat (.getText text))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
-  (let [text (TextField.)
+  (let [text         (TextField.)
         update-ui-fn (fn [values message]
                        (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_] (if-let [v (to-int (.getText text))]
-                                  (properties/set-values! (property-fn) (repeat v))
-                                  (update-ui-fn (properties/values (property-fn)) (properties/validation-message (property-fn))))))
+                       (update-field-message [text] message))
+        update-fn    (fn [_]
+                       (if-let [v (to-int (.getText text))]
+                         (properties/set-values! (property-fn) (repeat v))
+                         (update-ui-fn (properties/values (property-fn))
+                                       (properties/validation-message (property-fn)))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
-  (let [text (TextField.)
+  (let [text         (TextField.)
         update-ui-fn (fn [values message]
                        (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_] (if-let [v (to-double (.getText text))]
-                                  (properties/set-values! (property-fn) (repeat v))
-                                  (update-ui-fn (properties/values (property-fn)) (properties/validation-message (property-fn))))))
+                       (update-field-message [text] message))
+        update-fn    (fn [_] (if-let [v (to-double (.getText text))]
+                               (properties/set-values! (property-fn) (repeat v))
+                               (update-ui-fn (properties/values (property-fn))
+                                             (properties/validation-message (property-fn)))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
@@ -438,7 +445,8 @@
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties] (update-pane parent-view _node-id workspace selected-node-properties))))
+  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties]
+                                   (update-pane parent-view _node-id workspace selected-node-properties))))
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)

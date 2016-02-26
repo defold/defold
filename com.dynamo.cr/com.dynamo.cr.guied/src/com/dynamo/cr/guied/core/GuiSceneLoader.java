@@ -65,6 +65,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             textNode.setShadow(LoaderUtil.toRGB(builder.getShadow()));
             textNode.setShadowAlpha(builder.hasShadowAlpha() ? builder.getShadowAlpha() : builder.getShadow().getW());
             textNode.setLineBreak(builder.getLineBreak());
+            textNode.setLeading(builder.getTextLeading());
+            textNode.setTracking(builder.getTextTracking());
             node = textNode;
         } else if (builder.getType() == Type.TYPE_TEMPLATE) {
             TemplateNode templateNode = (TemplateNode) node;
@@ -114,6 +116,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setShadow(LoaderUtil.toVector4(text.getShadow(), 1));
             builder.setShadowAlpha((float)text.getShadowAlpha());
             builder.setLineBreak(text.isLineBreak());
+            builder.setTextLeading((float)text.getLeading());
+            builder.setTextTracking((float)text.getTracking());
         } else if (node instanceof TemplateNode) {
             builder.setType(NodeDesc.Type.TYPE_TEMPLATE);
             TemplateNode templateNode = (TemplateNode) node;
@@ -174,6 +178,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setScript(sceneBuilder.getScript());
         node.setMaterial(sceneBuilder.getMaterial());
         node.setAdjustReference(sceneBuilder.getAdjustReference());
+        node.setMaxNodes(sceneBuilder.getMaxNodes());
         if (sceneBuilder.hasBackgroundColor()) {
             node.setBackgroundColor(LoaderUtil.toRGB(sceneBuilder.getBackgroundColor()));
         }
@@ -395,6 +400,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         b.setScript(node.getScript());
         b.setMaterial(node.getMaterial());
         b.setAdjustReference(node.getAdjustReference());
+        b.setMaxNodes(node.getMaxNodes());
         b.setBackgroundColor(LoaderUtil.toVector4(node.getBackgroundColor(), 1.0));
         for (Node n : node.getTexturesNode().getChildren()) {
             TextureNode texNode = (TextureNode) n;

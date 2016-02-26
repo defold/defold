@@ -23,7 +23,7 @@ Depending on the components that have acquired input focus, and whether they con
 
 == Input bindings
 
-The input bindings is a project wide table that allows you to specify how raw input should translated into meaningful *actions* before they are dispatched to your Lua scripts. The input bindings is by default named "game.input_binding" and and is found in the "input" folder at the root of your project. You can, however, easily change its name and location and update the project settings so the engine will find the bindings (see link:http://doc.defold.com/doc/project_settings[Project settings]).
+The input bindings is a project wide table that allows you to specify how raw input should translated into meaningful *actions* before they are dispatched to your Lua scripts. The input bindings is by default named "game.input_binding" and and is found in the "input" folder at the root of your project. You can, however, easily change its name and location and update the project settings so the engine will find the bindings (see link:http://doc.defold.com/doc/project-settings[Project settings]).
 
 image::images/input/input_set_bindings.png["Input set bindings", align="center"]
 
@@ -140,11 +140,11 @@ Since the elements are in a numbered table, array-like, you can traverse it easi
 ----
 function on_input(self, action_id, action)
         if action_id == hash("touch") and #action.touch > 1 and #action.touch < 4 then
-                -- If there's 2-3 touch point we'll spawn 
+                -- If there's 2-3 touch point we'll spawn
                 -- magic spark particles at each point.
                 for i, tpoint in ipairs(action.touch) do
                         local pos = vmath.vector3(tpoint.x, tpoint.y, 0)
-                        factory.create("#factory", pos)        
+                        factory.create("#factory", pos)
                 end
         end
 end
@@ -253,7 +253,7 @@ image::images/input/input_stack_order.png["Input stack order", align="center"]
 A component's +on_input()+ code can actively control whether actions should be passed on down the stack or not:
 
 1. If the component +on_input()+ code returns +false+, or if there is no return statement in the code (an omitted return statement implies a +nil+ return which is a false value in Lua) input actions will be passed on to the next game object on the input stack.
-2. If any of a game object components' scripts return +true+ in its +on_input()+ then the input is consumed and not passed on to other objects further down the input stack. 
+2. If any of a game object components' scripts return +true+ in its +on_input()+ then the input is consumed and not passed on to other objects further down the input stack.
 
 [NOTE]
 ====
@@ -314,7 +314,7 @@ function on_message(self, message_id, message, sender)
                 -- First, show the pause menu.
                 local node = gui.get_node("background")
                 gui.set_enabled(node, true)
-                                
+
                 -- Now, acquire input. We're gonna be on top of
                 -- the input stack. Yay!
                 msg.post(".", "acquire_input_focus")
@@ -338,12 +338,12 @@ function on_input(self, action_id, action)
                         -- First, hide the pause menu.
                         local node = gui.get_node("background")
                         gui.set_enabled(node, false)
-                
+
                         -- Finally, release input.
-                        msg.post(".", "release_input_focus")        
+                        msg.post(".", "release_input_focus")
                 end
         end
-        
+
         -- As long as we're listening to input, we're gonna consume it.
         -- This disables game controls while the pause menu is showing.
         return true

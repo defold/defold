@@ -21,6 +21,7 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.guied.util.Layouts;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
@@ -39,6 +40,10 @@ public class GuiSceneNode extends ComponentTypeNode {
 
     @Property(editorType = EditorType.DROP_DOWN, displayName = "Adjust Mode")
     private AdjustReference adjustReference = AdjustReference.ADJUST_REFERENCE_PARENT;
+
+    @Property(displayName = "Max Nodes")
+    @Range(min = 1, max = 1024)
+    private int maxNodes = 512;
 
     private RGB backgroundColor = new RGB(0, 0, 0);
 
@@ -94,6 +99,14 @@ public class GuiSceneNode extends ComponentTypeNode {
 
     public void setAdjustReference( AdjustReference adjustReference) {
         this.adjustReference = adjustReference;
+    }
+
+    public int getMaxNodes() {
+        return this.maxNodes;
+    }
+
+    public void setMaxNodes(int maxNodes) {
+        this.maxNodes = maxNodes;
     }
 
     public RGB getBackgroundColor() {
@@ -295,7 +308,7 @@ public class GuiSceneNode extends ComponentTypeNode {
         }
     }
 
-    private static int calcRenderKey(Scope scope, int layer, int index) {
+    private static long calcRenderKey(Scope scope, int layer, int index) {
         if (scope != null) {
             return GuiNode.calcRenderKey(scope.rootLayer, scope.rootIndex, scope.index, layer, index);
         } else {

@@ -41,7 +41,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
     private static Logger logger = LoggerFactory.getLogger(AbstractBundleHandler.class);
     protected Shell shell;
     private IProjectClient projectClient;
-    private String outputDirectory;
+    protected String outputDirectory;
 
     protected abstract void setProjectOptions(Map<String, String> options);
 

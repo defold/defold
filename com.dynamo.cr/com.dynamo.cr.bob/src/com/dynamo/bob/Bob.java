@@ -190,6 +190,9 @@ public class Bob {
         options.addOption("tp", "texture-profiles", true, "Use texture profiles");
         options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
 
+        options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
+        options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {

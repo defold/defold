@@ -15,7 +15,7 @@
 #include "../gui_private.h"
 
 typedef std::map<dmGui::HNode, dmGui::StencilScope> StateMap;
-typedef std::map<dmGui::HNode, uint32_t> RenderOrderMap;
+typedef std::map<dmGui::HNode, uint64_t> RenderOrderMap;
 typedef std::map<dmGui::HNode, uint32_t> ShapeMap;
 
 /* Conversions from intricate state structure. */
@@ -117,8 +117,8 @@ public:
     Renderer m_Renderer;
 
     std::map<dmGui::HNode, dmGui::StencilScope> m_NodeToClipping;
-    std::map<dmGui::HNode, uint32_t> m_NodeToRenderOrder;
-    std::map<dmGui::HNode, uint32_t> m_NodeToClippingOrder;
+    std::map<dmGui::HNode, uint64_t> m_NodeToRenderOrder;
+    std::map<dmGui::HNode, uint64_t> m_NodeToClippingOrder;
 
     void Clear() {
         m_NodeToClipping.clear();
@@ -237,13 +237,13 @@ public:
         scope = it->second;
     }
 
-    void GetRenderOrder(dmGui::HNode node, uint32_t& order) {
+    void GetRenderOrder(dmGui::HNode node, uint64_t& order) {
         RenderOrderMap::iterator it = m_NodeToRenderOrder.find(node);
         ASSERT_TRUE(it != m_NodeToRenderOrder.end());
         order = it->second;
     }
 
-    void GetClippingOrder(dmGui::HNode node, uint32_t& order) {
+    void GetClippingOrder(dmGui::HNode node, uint64_t& order) {
         RenderOrderMap::iterator it = m_NodeToClippingOrder.find(node);
         ASSERT_TRUE(it != m_NodeToClippingOrder.end());
         order = it->second;
@@ -276,10 +276,10 @@ public:
     }
 
     void AssertRenderOrder(dmGui::HNode nodes[], uint32_t count) {
-        uint32_t render_order;
+        uint64_t render_order;
         GetRenderOrder(nodes[0], render_order);
         for (uint32_t i = 1; i < count; ++i) {
-            uint32_t next;
+            uint64_t next;
             GetRenderOrder(nodes[i], next);
             ASSERT_TRUE(render_order < next);
             render_order = next;
@@ -307,9 +307,9 @@ public:
     }
 
     void AssertClipperOrder(dmGui::HNode clipper, dmGui::HNode node) {
-        uint32_t clipping_order;
+        uint64_t clipping_order;
         GetClippingOrder(clipper, clipping_order);
-        uint32_t render_order;
+        uint64_t render_order;
         GetRenderOrder(node, render_order);
         ASSERT_TRUE(clipping_order < render_order);
     }
@@ -1048,6 +1048,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart) {
     dmGui::HNode i = AddClipperBox("i");
     dmGui::HNode j = AddInvClipperBox("j", i);
     dmGui::HNode k = AddInvClipperBox("k", j);
+    (void)d;
+    (void)g;
+    (void)h;
+    (void)k;
 
     dmLogInfo("Expected warning in test");
     Render();
@@ -1082,6 +1086,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart2) {
     dmGui::HNode i = AddClipperBox("i");
     dmGui::HNode j = AddInvClipperBox("j", i);
     dmGui::HNode k = AddInvClipperBox("k", j);
+    (void)d;
+    (void)g;
+    (void)h;
+    (void)k;
 
     dmLogInfo("Expected warning in test");
     Render();
@@ -1116,6 +1124,10 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
     dmGui::HNode f = AddClipperBox("f", e);
     dmGui::HNode g = AddInvClipperBox("g", f);
     dmGui::HNode h = AddInvClipperBox("h", b);
+    (void)d;
+    (void)g;
+    (void)h;
+    (void)k;
 
     dmLogInfo("Expected warning in test");
     Render();

@@ -180,7 +180,7 @@
       (recur (File. path)))
     f))
 
-(defn- to-folder [^File file]
+(defn- to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
 
 (defn- select-files! [workspace tree-view files]
@@ -341,7 +341,7 @@
            (.scrollTo view (inc (.getIndex cell)))))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
          (when (not (resource/read-only? tgt-resource))
-           (let [^Path tgt-path (-> tgt-resource resource/abs-path File. ^File to-folder .getAbsolutePath ->path)
+           (let [^Path tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
                  tgt-descendant? (not (empty? (filter (fn [^Path p] (or
                                                                       (.equals tgt-path (.getParent p))
                                                                       (.startsWith tgt-path p))) (map (fn [^File f] (-> f .getAbsolutePath ->path)) (.getFiles db)))))]

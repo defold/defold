@@ -50,6 +50,9 @@ namespace dmGameSystem
         params.m_SdfOffset = ddf->m_SdfOffset;
         params.m_SdfScale = ddf->m_SdfScale;
         params.m_SdfOutline = ddf->m_SdfOutline;
+        params.m_OutlineAlpha = ddf->m_OutlineAlpha;
+        params.m_ShadowAlpha = ddf->m_ShadowAlpha;
+        params.m_Alpha = ddf->m_Alpha;
 
         params.m_CacheWidth = ddf->m_CacheWidth;
         params.m_CacheHeight = ddf->m_CacheHeight;

@@ -1297,6 +1297,47 @@ namespace dmRender
      * @variable
      */
 
+    /*# sets the depth test function
+    *
+    * @name render.set_depth_func
+    * @param func depth test function (constant)
+    * <ul>
+    *   <li><code>render.COMPARE_FUNC_NEVER</code></li>
+    *   <li><code>render.COMPARE_FUNC_LESS</code></li>
+    *   <li><code>render.COMPARE_FUNC_LEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_GREATER</code></li>
+    *   <li><code>render.COMPARE_FUNC_GEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_EQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_NOTEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_ALWAYS</code></li>
+    * </ul>
+    */
+    int RenderScript_SetDepthFunc(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t func = luaL_checknumber(L, 1);
+        switch (func)
+        {
+            case dmGraphics::COMPARE_FUNC_NEVER:
+            case dmGraphics::COMPARE_FUNC_LESS:
+            case dmGraphics::COMPARE_FUNC_LEQUAL:
+            case dmGraphics::COMPARE_FUNC_GREATER:
+            case dmGraphics::COMPARE_FUNC_GEQUAL:
+            case dmGraphics::COMPARE_FUNC_EQUAL:
+            case dmGraphics::COMPARE_FUNC_NOTEQUAL:
+            case dmGraphics::COMPARE_FUNC_ALWAYS:
+                break;
+            default:
+                return luaL_error(L, "Invalid depth func: %s.set_depth_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_FUNC, func)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+
     /*# sets the stencil test function
     *
     * @name render.set_stencil_func
@@ -1662,6 +1703,7 @@ namespace dmRender
         {"set_blend_func",                  RenderScript_SetBlendFunc},
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
+        {"set_depth_func",                  RenderScript_SetDepthFunc},
         {"set_stencil_mask",                RenderScript_SetStencilMask},
         {"set_stencil_func",                RenderScript_SetStencilFunc},
         {"set_stencil_op",                  RenderScript_SetStencilOp},

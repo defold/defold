@@ -32,7 +32,8 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         public void start();
         public void setIdentity(String identity);
         public void setProvisioningProfile(String profile);
-		public void releaseModeSelected(boolean selection);
+        public void releaseModeSelected(boolean selection);
+        public void generateReportSelected(boolean selection);
     }
 
     private Text profileText;
@@ -40,6 +41,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
     private ComboViewer identitiesComboViewer;
     private IPresenter presenter;
     private Button releaseMode;
+    private Button generateReport;
     
     public BundleiOSDialog(Shell parentShell) {
         super(parentShell);
@@ -69,16 +71,6 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         containerLayout.marginTop = 10;
         container.setLayout(containerLayout);
         container.setLayoutData(new GridData(GridData.FILL_BOTH));
-
-        releaseMode = new Button(container, SWT.CHECK);
-        releaseMode.setText("Release mode");
-        releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
-        releaseMode.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                presenter.releaseModeSelected(releaseMode.getSelection());
-            }
-        });
 
         Label signingIdentityLabel = new Label(container, SWT.NONE);
         signingIdentityLabel.setText("Code signing identity:");
@@ -122,6 +114,26 @@ public class BundleiOSDialog extends TitleAreaDialog implements
             }
         });
         selectProfileButton.setText("...");
+
+        releaseMode = new Button(container, SWT.CHECK);
+        releaseMode.setText("Release mode");
+        releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        releaseMode.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.releaseModeSelected(releaseMode.getSelection());
+            }
+        });
+
+        generateReport = new Button(container, SWT.CHECK);
+        generateReport.setText("Generate build report");
+        generateReport.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        generateReport.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.generateReportSelected(generateReport.getSelection());
+            }
+        });
 
         return area;
     }

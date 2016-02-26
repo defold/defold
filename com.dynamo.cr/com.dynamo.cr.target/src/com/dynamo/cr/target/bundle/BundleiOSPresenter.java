@@ -15,6 +15,7 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
     private String identity = "";
     private String[] identities = new String[0];
     private boolean releaseMode;
+    private boolean generateReport;
 
     @Inject
     public BundleiOSPresenter(IBundleiOSView view, IIdentityLister lister) {
@@ -84,6 +85,16 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
     @Override
     public void releaseModeSelected(boolean selection) {
         this.releaseMode = selection;
+        validate();
+    }
+
+    public boolean shouldGenerateReport() {
+        return generateReport;
+    }
+
+    @Override
+    public void generateReportSelected(boolean selection) {
+        this.generateReport = selection;
         validate();
     }
 

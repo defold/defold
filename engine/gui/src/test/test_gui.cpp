@@ -52,7 +52,7 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene);
 
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
 
-void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics);
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
 static const float EPSILON = 0.000001f;
 static const float TEXT_GLYPH_WIDTH = 1.0f;
@@ -176,9 +176,10 @@ dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t pat
     return dmHashBuffer64(path, path_size);
 }
 
-void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
 {
     out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
+    out_metrics->m_Height = TEXT_MAX_ASCENT + TEXT_MAX_DESCENT;
     out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
     out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
 }
@@ -2329,44 +2330,57 @@ TEST_F(dmGuiTest, AdjustMode)
             ref_scale.getXYZ()
     };
 
-    for (uint32_t i = 0; i < 3; ++i)
+    dmGui::NodeType types[4] = {dmGui::NODE_TYPE_BOX, dmGui::NODE_TYPE_PIE, dmGui::NODE_TYPE_TEMPLATE, dmGui::NODE_TYPE_TEXT};
+    float size_vals[4] = { 10.0f, 10.0f, 10.0f, 1.0f }; // Since the text nodes' transform isn't calculated with CALCULATE_NODE_BOUNDARY, the size will be 1
+
+    for( uint32_t t = 0; t < sizeof(types)/sizeof(types[0]); ++t )
     {
-        dmGui::AdjustMode mode = modes[i];
-        Vector3 adjust_scale = adjust_scales[i];
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            dmGui::AdjustMode mode = modes[i];
+            Vector3 adjust_scale = adjust_scales[i];
 
-        const char* center_name = "center";
-        dmGui::HNode center_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
-        dmGui::SetNodeText(m_Scene, center_node, center_name);
-        dmGui::SetNodePivot(m_Scene, center_node, dmGui::PIVOT_CENTER);
-        dmGui::SetNodeAdjustMode(m_Scene, center_node, mode);
+            const float pos_val = 15.0f;
+            const float size_val = size_vals[t];
 
-        const char* bl_name = "bottom_left";
-        dmGui::HNode bl_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
-        dmGui::SetNodeText(m_Scene, bl_node, bl_name);
-        dmGui::SetNodePivot(m_Scene, bl_node, dmGui::PIVOT_SW);
-        dmGui::SetNodeAdjustMode(m_Scene, bl_node, mode);
+            const char* center_name = "center";
+            dmGui::HNode center_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t]);
+            dmGui::SetNodeText(m_Scene, center_node, center_name);
+            dmGui::SetNodePivot(m_Scene, center_node, dmGui::PIVOT_CENTER);
+            dmGui::SetNodeAdjustMode(m_Scene, center_node, mode);
 
-        const char* tr_name = "top_right";
-        dmGui::HNode tr_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
-        dmGui::SetNodeText(m_Scene, tr_node, tr_name);
-        dmGui::SetNodePivot(m_Scene, tr_node, dmGui::PIVOT_NE);
-        dmGui::SetNodeAdjustMode(m_Scene, tr_node, mode);
+            const char* bl_name = "bottom_left";
+            dmGui::HNode bl_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t]);
+            dmGui::SetNodeText(m_Scene, bl_node, bl_name);
+            dmGui::SetNodePivot(m_Scene, bl_node, dmGui::PIVOT_SW);
+            dmGui::SetNodeAdjustMode(m_Scene, bl_node, mode);
 
-        dmGui::RenderScene(m_Scene, &RenderNodes, this);
+            const char* tr_name = "top_right";
+            dmGui::HNode tr_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t]);
+            dmGui::SetNodeText(m_Scene, tr_node, tr_name);
+            dmGui::SetNodePivot(m_Scene, tr_node, dmGui::PIVOT_NE);
+            dmGui::SetNodeAdjustMode(m_Scene, tr_node, mode);
 
-        Vector3 offset((physical_width - width * adjust_scale.getX()) * 0.5f, (physical_height - height * adjust_scale.getY()) * 0.5f, 0.0f);
+            dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
-        Point3 center_p = m_NodeTextToRenderedPosition[center_name] + m_NodeTextToRenderedSize[center_name] * 0.5f;
-        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), center_p.getX());
-        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), center_p.getY());
+            Vector3 offset((physical_width - width * adjust_scale.getX()) * 0.5f, (physical_height - height * adjust_scale.getY()) * 0.5f, 0.0f);
 
-        Point3 bl_p = m_NodeTextToRenderedPosition[bl_name];
-        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), bl_p.getX());
-        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), bl_p.getY());
+            Point3 center_p = m_NodeTextToRenderedPosition[center_name] + m_NodeTextToRenderedSize[center_name] * 0.5f;
+            ASSERT_EQ(offset.getX() + pos_val * adjust_scale.getX(), center_p.getX());
+            ASSERT_EQ(offset.getY() + pos_val * adjust_scale.getY(), center_p.getY());
 
-        Point3 tr_p = m_NodeTextToRenderedPosition[tr_name] + m_NodeTextToRenderedSize[center_name];
-        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), tr_p.getX());
-        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), tr_p.getY());
+            Point3 bl_p = m_NodeTextToRenderedPosition[bl_name];
+            ASSERT_EQ(offset.getX() + pos_val * adjust_scale.getX(), bl_p.getX());
+            ASSERT_EQ(offset.getY() + pos_val * adjust_scale.getY(), bl_p.getY());
+
+            Point3 tr_p = m_NodeTextToRenderedPosition[tr_name] + m_NodeTextToRenderedSize[center_name];
+            ASSERT_EQ(offset.getX() + pos_val * adjust_scale.getX(), tr_p.getX());
+            ASSERT_EQ(offset.getY() + pos_val * adjust_scale.getY(), tr_p.getY());
+
+            dmGui::DeleteNode(m_Scene, center_node);
+            dmGui::DeleteNode(m_Scene, bl_node);
+            dmGui::DeleteNode(m_Scene, tr_node);
+        }
     }
 }
 

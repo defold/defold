@@ -9,7 +9,7 @@ from BuildUtility import BuildUtility, BuildUtilityException, create_build_utili
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
 ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
-ANDROID_NDK_VERSION='10b'
+ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14'
 ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='9'
@@ -845,7 +845,8 @@ def embed_build(task):
 
     cpp_str = """
 #include <stdint.h>
-unsigned char %s[] =
+#include "dlib/align.h"
+unsigned char DM_ALIGNED(16) %s[] =
 """
     cpp_out_file.write(cpp_str % (symbol))
     cpp_out_file.write('{\n    ')
@@ -1099,10 +1100,7 @@ def detect(conf):
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        if build_platform == 'linux':
-            arch = 'x86'
-        else:
-            arch = 'x86_64'
+        arch = 'x86_64'
 
         bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
         conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)

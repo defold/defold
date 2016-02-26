@@ -1,6 +1,7 @@
 (ns editor.graph-view
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.gviz :as gviz]
             [editor.ui :as ui])
   (:import [javafx.application Platform]
            [javafx.scene Parent]
@@ -10,65 +11,13 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- ^String node-label [^Object node]
-  (.getSimpleName (.getClass node)))
+(defonce ^:private ^:dynamic *root-id* nil)
+(defonce ^:private ^:dynamic *input-fn* (constantly false))
+(defonce ^:private ^:dynamic *output-fn* (constantly false))
 
-; TODO: How to check for interface instead?
-(defn- include-node? [node]
-  (and (= -1 (.indexOf (node-label node) "Placeholder"))
-       (= -1 (.indexOf (node-label node) "ImageResource"))
-       (= -1 (.indexOf (node-label node) "TextNode"))))
-
-(defn- conj-set [set val]
-  (if set
-    (conj set val)
-    #{val}))
-
-(defn- write-dot-graph [graph]
-  (let [arcs (:arcs graph)
-        nodes (:nodes graph)
-        dot-arcs (->> arcs
-                   (filter (fn [a] (include-node? (nodes (:source a)))))
-                   (map (fn [a] {:source (nodes (:source a))
-                                 :source-label (get-in a [:source-attributes :label])
-                                 :target (nodes (:target a))
-                                 :target-label (get-in a [:target-attributes :label])})))
-        included-nodes (reduce (fn [acc a] (-> acc
-                                             (conj (:source a))
-                                             (conj (:target a)))) #{} dot-arcs)
-        node-sockets (->> dot-arcs
-                       (reduce (fn [acc a] (-> acc
-                                             (update-in [(:source a)] conj-set (:source-label a))
-                                             (update-in [(:target a)] conj-set (:target-label a)))) {}))
-        dot-file (File/createTempFile "graph" ".dot")]
-
-    (.deleteOnExit dot-file)
-
-    (with-open [w (io/writer dot-file)]
-      (.write w "digraph G {\n")
-      (.write w "node [label=\"\\N\"];\n")
-
-      (doseq [n included-nodes]
-        (let [props (map name (node-sockets n))]
-           (.write w (format "%s [shape=record, label=\"<%s> %s|" (g/node-id n) (node-label n) (node-label n)) )
-           (.write w (clojure.string/join "|" (map (fn [x] (format "<%s> %s" x x)) props)))
-           (.write w "\"];\n")))
-
-      (doseq [a dot-arcs]
-        (let [source       (:source a)
-              target       (:target a)
-              source-label (name (:source-label a))
-              target-label (name (:target-label a))]
-          (.write w (format "%s:\"%s\" -> %s:\"%s\";\n" (g/node-id source) source-label (g/node-id target) target-label))))
-      (.write w "}\n"))
-    dot-file))
-
-(defn- update-graph-view [^Parent root graph-id]
-  (let [graph     (g/graph graph-id)
-        dot-file  (write-dot-graph graph)
-        dot-image (File/createTempFile "graph" ".png")
-        process   (.exec (Runtime/getRuntime) (format "dot %s -Tpng -o%s" dot-file dot-image))]
-    (.waitFor process)
+(defn- update-graph-view [^Parent root]
+  (when-let [dot-image (-> (gviz/subgraph->dot (g/now) :root-id *root-id* :input-fn *input-fn* :output-fn *output-fn*)
+                         (gviz/dot->image))]
     (Platform/runLater
       (fn []
         (let [^ImageView image-view  (.lookup root "#graph-image")
@@ -89,7 +38,7 @@
           (.setFitHeight image-view height)
           (.setImage image-view image))))))
 
-(defn setup-graph-view [^Parent root graph-id]
+(defn setup-graph-view [^Parent root]
   (let [^Button button  (.lookup root "#graph-refresh")
-        handler (ui/event-handler event (update-graph-view root graph-id))]
+        handler (ui/event-handler event (update-graph-view root))]
     (.setOnAction button handler)))

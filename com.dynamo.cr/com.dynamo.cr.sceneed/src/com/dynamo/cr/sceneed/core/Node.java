@@ -659,4 +659,9 @@ public abstract class Node implements IAdaptable, Serializable {
         this.euler = (Vector3d)in.readObject();
         this.scale = (Vector3d)in.readObject();
     }
+
+    protected boolean isValidParent(Node parent) {
+        return true;
+    }
+
 }
