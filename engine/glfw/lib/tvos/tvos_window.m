@@ -120,6 +120,24 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 
 @implementation AppDelegateProxy
 
+- (BOOL)application:(UIApplication *)application
+            openURL:(NSURL *)url
+            options:(NSDictionary<NSString *,id> *)options
+{
+    SEL sel = @selector(application:openURL:options:);
+    BOOL handled = NO;
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: sel])  {
+            if ([g_AppDelegates[i] application:application openURL:url options:options]) {
+                handled = YES;
+            }
+        }
+    }
+    
+    return handled;
+}
+
 - (void)forwardInvocation:(NSInvocation *)anInvocation {
     BOOL invoked = NO;
     if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]]) {

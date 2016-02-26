@@ -53,9 +53,8 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
 @implementation FacebookAppDelegate
     - (BOOL)application:(UIApplication *)application
-                       openURL:(NSURL *)url
-                       sourceApplication:(NSString *)sourceApplication
-                       annotation:(id)annotation {
+                        openURL:(NSURL *)url
+                        options:(NSDictionary<NSString *,id> *)options {
         if(!g_Facebook.m_Login)
         {
             return false;
