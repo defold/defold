@@ -126,39 +126,44 @@
       (swap! tokens assoc name (token name))
       (get-token name))))
 
-(defmulti make-scanner-rule :type)
+(defmulti make-rule (fn [rule token] (:type rule)))
 
-(defmethod make-scanner-rule :default [_]
-  (assert false "default scanner rule should be handled separately"))
+(defmethod make-rule :default [rule _]
+  (assert false (str "default rule " rule " should be handled separately")))
 
 (defn- white-space-detector [space?]
   (reify IWhitespaceDetector
     (isWhitespace [this c] (boolean (space? c)))))
 
-(defmethod make-scanner-rule :whitespace [{:keys [space? class]}]
-  (if class
-    (WhitespaceRule. (white-space-detector space?) (get-attr-token class))
-    (WhitespaceRule. (white-space-detector space?))))
+(defn- is-space? [^Character c] (Character/isWhitespace c))
+
+(defmethod make-rule :whitespace [{:keys [space?]} token]
+  (let [space? (or space? is-space?)]
+    (if token
+      (WhitespaceRule. (white-space-detector space?) token)
+      (WhitespaceRule. (white-space-detector space?)))))
 
 (defn- word-detector [start? part?]
   (reify IWordDetector
     (isWordStart [this c] (boolean (start? c)))
     (isWordPart [this c] (boolean (part? c)))))
 
-(defmethod make-scanner-rule :keyword [{:keys [start? part? keywords class]}]
-  (let [word-rule (WordRule. (word-detector start? part?))
-        token (get-attr-token class)]
+(defmethod make-rule :keyword [{:keys [start? part? keywords]} token]
+  (let [word-rule (WordRule. (word-detector start? part?))]
     (doseq [keyword keywords]
       (.addWord word-rule keyword token))
     word-rule))
 
-(defmethod make-scanner-rule :word [{:keys [start? part? class]}]
-  (WordRule. (word-detector start? part?) (get-attr-token class)))
+(defmethod make-rule :word [{:keys [start? part?]} token]
+  (WordRule. (word-detector start? part?) token))
 
-(defmethod make-scanner-rule :singleline [{:keys [start end esc class]}]
+(defmethod make-rule :singleline [{:keys [start end esc]} token]
   (if esc
-    (SingleLineRule. start end (get-attr-token class) esc)
-    (SingleLineRule. start end (get-attr-token class))))
+    (SingleLineRule. start end token esc)
+    (SingleLineRule. start end token)))
+
+(defmethod make-rule :multiline [{:keys [start end esc eof]} token]
+  (MultiLineRule. start end token (if esc esc char0) (boolean eof)))
 
 (defn- to-lazy-seq [^ICharacterScanner charscanner read-counter]
   (lazy-seq
@@ -187,8 +192,8 @@
             Token/UNDEFINED))))
     (getSuccessToken ^IToken [this] token)))
 
-(defmethod make-scanner-rule :custom [{:keys [scanner class]}]
-  (make-predicate-rule scanner (get-attr-token class)))
+(defmethod make-rule :custom [{:keys [scanner]} token]
+  (make-predicate-rule scanner token))
 
 (deftype NumberRule [^IToken token]
   IRule
@@ -205,8 +210,11 @@
          (.unread scanner)
          Token/UNDEFINED)))))
 
-(defmethod make-scanner-rule :number [{:keys [class]}]
-  (NumberRule. (get-attr-token class)))
+(defmethod make-rule :number [_ token]
+  (NumberRule. token))
+
+(defn- make-scanner-rule [{:keys [class] :as rule}]
+  (make-rule rule (when class (get-attr-token class))))
 
 (defn- make-scanner [rules]
   (let [scanner (RuleBasedScanner.)
@@ -246,21 +254,11 @@
       (getConfiguredContentTypes [source-viewer]
         (into-array String (replace default-content-type-map (map :partition syntax)))))))
 
-(defmulti make-partition-rule :type)
-
-(defmethod make-partition-rule :multiline [{:keys [partition start end eof]}]
-  (MultiLineRule. start end (get-token partition) char0 (boolean eof)))
-
-(defmethod make-partition-rule :singleline [{:keys [partition start end]}]
-  ;; end = nil -> end of line rule
-  (SingleLineRule. start end (get-token partition) char0 false))
-
-(defmethod make-partition-rule :custom [{partition :partition partitioner :scanner}]
-  (make-predicate-rule partitioner (get-token partition)))
-    
-        
 (defn- default-partition? [partition]
   (= (:type partition) :default))
+
+(defn- make-partition-rule [rule]
+  (make-rule rule (get-token (:partition rule))))
 
 (defn- make-partition-scanner [partitions]
   (let [rules (map make-partition-rule (remove default-partition? partitions))]
