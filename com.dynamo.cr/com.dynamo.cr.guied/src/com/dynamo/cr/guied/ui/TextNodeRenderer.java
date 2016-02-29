@@ -155,14 +155,15 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         return result;
     }
 
-    private double pivotOffsetY(TextNode node, double ascent, double descent, int lineCount) {
+    private double pivotOffsetY(TextNode node, double ascent, double descent, double leading, int lineCount) {
         Pivot p = node.getPivot();
 
+        double lineHeight = ascent + descent;
         switch (p) {
         case PIVOT_CENTER:
         case PIVOT_E:
         case PIVOT_W:
-            return -(ascent + descent) * (lineCount) * 0.5 + ascent;
+            return -(lineCount * lineHeight * leading - lineHeight * (leading - 1.0f)) * 0.5 + ascent;
 
         case PIVOT_N:
         case PIVOT_NE:
@@ -172,7 +173,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         case PIVOT_S:
         case PIVOT_SW:
         case PIVOT_SE:
-            return -(ascent + descent) * (lineCount - 1) - descent;
+            return -(lineHeight * leading * (lineCount - 1)) - descent;
         }
 
         assert false;
@@ -223,18 +224,19 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         Texture textTexture = textRenderHandle.getTexture(gl);
         FontMap fontMap = textRenderHandle.getFontMap();
 
-        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle), actualText, node.getSize().x,
-                node.isLineBreak());
+        float  ascent = fontMap.getMaxAscent();
+        float descent = fontMap.getMaxDescent();
+        float lineHeight = ascent + descent;
+        float tracking = lineHeight * (float)node.getTracking();
+
+        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle, tracking), actualText, node.getSize().x, node.isLineBreak());
         double width = 0;
         for (TextLine l : lines) {
             width = Math.max(width, l.width);
         }
 
-        float  ascent = fontMap.getMaxAscent();
-        float descent = fontMap.getMaxDescent();
-
         double x0 = -pivotOffsetX(node, width);
-        double y0 = -pivotOffsetY(node, ascent, descent, lines.size());
+        double y0 = -pivotOffsetY(node, ascent, descent, node.getLeading(), lines.size());
 
         float[] color = node.calcNormRGBA();
 
@@ -322,10 +324,10 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
                         }
 
-                        x += g.getAdvance();
+                        x += g.getAdvance() + (float)tracking;
                     }
                 }
-                y -= ascent + descent;
+                y -= (float)(lineHeight * node.getLeading());
             }
 
             gl.glEnd();
@@ -342,9 +344,11 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             double h = 0;
             double w = 0;
             for (TextLine t : lines) {
-                h += ascent + descent;
+                h += lineHeight * node.getLeading();
                 w = Math.max(w, t.width);
             }
+
+            h -= (node.getLeading() - 1.0) * lineHeight;
 
             y0 += ascent;
             double x1 = x0 + w;

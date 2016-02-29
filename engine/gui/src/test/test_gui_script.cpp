@@ -29,7 +29,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
     return &src;
 }
 
-void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics);
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
 class dmGuiScriptTest : public ::testing::Test
 {
@@ -58,7 +58,7 @@ public:
     }
 };
 
-void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
 {
     out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
     out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
@@ -361,6 +361,36 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
             "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_ELLIPSE)\n"
             "    gui.set_fill_angle(n, 90)\n"
             "    assert(gui.get_fill_angle(n) == 90)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestTextNodeScript)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n = gui.new_text_node(vmath.vector3(0, 0, 0), \"name\")\n"
+            "    gui.set_leading(n, 2.5)\n"
+            "    assert(gui.get_leading(n) == 2.5)\n"
+            "    gui.set_tracking(n, 0.5)\n"
+            "    assert(gui.get_tracking(n) == 0.5)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
