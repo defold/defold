@@ -118,7 +118,7 @@
     (long (* Integer/MAX_VALUE (.z p)))))
 
 (defn render-key [camera viewport ^Matrix4d world-transform tmp-p3d]
-  (:index renderable (- Long/MAX_VALUE (z-distance camera viewport world-transform tmp-p3d))))
+  (- Long/MAX_VALUE (z-distance camera viewport world-transform tmp-p3d)))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -250,7 +250,7 @@
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene) parent-world)
-                                :render-key (render-key camera viewport world-transform tmp-p3d)))]
+                                :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected (types/selection? pass))
