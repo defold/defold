@@ -196,7 +196,7 @@ namespace dmGameSystem
             if (gui_result != dmGui::RESULT_OK)
             {
                 dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                result = false;
+                dmGui::SetNodeLayer(scene, n, "");
             }
         }
         else
@@ -228,6 +228,8 @@ namespace dmGameSystem
                 dmGui::SetNodeText(scene, n, node_desc->m_Text);
                 dmGui::SetNodeFont(scene, n, node_desc->m_Font);
                 dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
+                dmGui::SetNodeTextLeading(scene, n, node_desc->m_TextLeading);
+                dmGui::SetNodeTextTracking(scene, n, node_desc->m_TextTracking);
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_PIE:
@@ -366,7 +368,8 @@ namespace dmGameSystem
             {
                 if (node_desc->m_Id)
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
-                result = SetNode(scene, n, node_desc);
+                if(!SetNode(scene, n, node_desc))
+                    return false;
                 if(layouts_count != 0)
                     dmGui::SetNodeLayoutDesc(scene, n, node_desc, 0, layouts_count);
             }
@@ -451,6 +454,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
+        dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
         gui_component->m_Instance = params.m_Instance;
@@ -459,8 +463,9 @@ namespace dmGameSystem
         gui_component->m_AddedToUpdate = 0;
 
         dmGui::NewSceneParams scene_params;
-        // 512 is a hard cap since the render key has 9 bits for node index
-        scene_params.m_MaxNodes = 512;
+        // 1024 is a hard cap since the render key has 10 bits for node index
+        assert(scene_desc->m_MaxNodes <= 1024);
+        scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
@@ -634,6 +639,9 @@ namespace dmGameSystem
             params.m_Depth = 0;
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
+            params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
+            params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
+
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
@@ -1451,6 +1459,7 @@ namespace dmGameSystem
 
             size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
             gui_input_action.m_TextCount = text_count;
+            gui_input_action.m_HasText = params.m_InputAction->m_HasText;
 
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
@@ -1526,11 +1535,12 @@ namespace dmGameSystem
         }
     }
 
-    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
+    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, width, line_break, &metrics);
+        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, width, line_break, leading, tracking, &metrics);
         out_metrics->m_Width = metrics.m_Width;
+        out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;
         out_metrics->m_MaxDescent = metrics.m_MaxDescent;
     }

@@ -31,15 +31,15 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
-    const uint32_t LAYER_RANGE = 3;
-    const uint32_t INDEX_RANGE = 9;
-    const uint32_t CLIPPER_RANGE = 8;
+    const uint64_t LAYER_RANGE = 3;
+    const uint64_t INDEX_RANGE = 10;
+    const uint64_t CLIPPER_RANGE = 8;
 
-    const uint32_t SUB_INDEX_SHIFT = 0;
-    const uint32_t SUB_LAYER_SHIFT = INDEX_RANGE;
-    const uint32_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
-    const uint32_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
-    const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
+    const uint64_t SUB_INDEX_SHIFT = 0;
+    const uint64_t SUB_LAYER_SHIFT = INDEX_RANGE;
+    const uint64_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
+    const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
+    const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
     inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity);
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
@@ -79,6 +79,8 @@ namespace dmGui
             PROP(slice9, PROPERTY_SLICE9 )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
+            { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
+            { dmHashString64("tracking"), PROPERTY_TEXT_PARAMS, 1 },
     };
 #undef PROP
 
@@ -243,7 +245,7 @@ namespace dmGui
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
-        // 512 is a hard cap since only 9 bits is available in the render key
+        // 1024 is a hard cap for max nodes since only 10 bits is available in the render key.
         params->m_MaxNodes = 512;
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
@@ -810,7 +812,7 @@ namespace dmGui
         return (1 << bits) - 1;
     }
 
-    static uint32_t CalcRenderKey(uint16_t layer, uint16_t index, uint8_t inv_clipper_id, uint16_t sub_layer, uint16_t sub_index) {
+    static uint64_t CalcRenderKey(uint64_t layer, uint64_t index, uint64_t inv_clipper_id, uint64_t sub_layer, uint64_t sub_index) {
         return (layer << LAYER_SHIFT)
                 | (index << INDEX_SHIFT)
                 | (inv_clipper_id << CLIPPER_SHIFT)
@@ -890,7 +892,7 @@ namespace dmGui
                         clipper.m_NodeIndex = index;
                         clipper.m_ParentIndex = parent_index;
                         clipper.m_NextNonInvIndex = INVALID_INDEX;
-                        clipper.m_VisibleRenderKey = ~0;
+                        clipper.m_VisibleRenderKey = ~0ULL;
                         n->m_ClipperIndex = clipper_index;
                         if (n->m_Node.m_ClippingInverted) {
                             StencilScope* parent_scope = 0x0;
@@ -957,7 +959,7 @@ namespace dmGui
         scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
     }
 
-    static uint32_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
+    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
         if (scope != 0x0) {
             return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
         } else {
@@ -984,8 +986,8 @@ namespace dmGui
                         } else {
                             Increment(current_scope);
                         }
-                        uint32_t clipping_key = CalcRenderKey(current_scope, 0, 0);
-                        uint32_t render_key = CalcRenderKey(current_scope, layer, 1);
+                        uint64_t clipping_key = CalcRenderKey(current_scope, 0, 0);
+                        uint64_t render_key = CalcRenderKey(current_scope, layer, 1);
                         CollectRenderEntries(scene, n->m_ChildHead, 2, current_scope, clippers, render_entries);
                         if (layer > 0) {
                             render_key = CalcRenderKey(current_scope, layer, 1);
@@ -1157,7 +1159,7 @@ namespace dmGui
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
                 }
-                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG || anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
                     t2 *= 2.0f;
                     if (t2 > 1.0f) {
                         t2 = 2.0f - t2;
@@ -1398,10 +1400,15 @@ namespace dmGui
                         lua_settable(L, -3);
                     }
 
-                    if (ia->m_TextCount > 0)
+                    if (ia->m_TextCount > 0 || ia->m_HasText)
                     {
                         lua_pushliteral(L, "text");
-                        lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        if (ia->m_TextCount == 0) {
+                            lua_pushstring(L, "");
+                        } else {
+                            lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        }
+
                         lua_settable(L, -3);
                     }
 
@@ -1607,7 +1614,9 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
             node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
             node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
+            node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
             node->m_Node.m_LocalTransform = Matrix4::identity();
+            node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
             node->m_Node.m_PerimeterVertices = 32;
             node->m_Node.m_OuterBounds = PIEBOUNDS_ELLIPSE;
             node->m_Node.m_BlendMode = 0;
@@ -2087,6 +2096,28 @@ namespace dmGui
         return n->m_Node.m_LineBreak;
     }
 
+    void SetNodeTextLeading(HScene scene, HNode node, float leading)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setX(leading);
+    }
+    float GetNodeTextLeading(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getX();
+    }
+
+    void SetNodeTextTracking(HScene scene, HNode node, float tracking)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setY(tracking);
+    }
+    float GetNodeTextTracking(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getY();
+    }
+
     void* GetNodeTexture(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2239,12 +2270,12 @@ namespace dmGui
         return n->m_Node.m_ClippingInverted;
     }
 
-    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
-        return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, metrics);
+        return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, leading, tracking, metrics);
     }
 
-    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics)
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         memset(metrics, 0, sizeof(*metrics));
         void** font = scene->m_Fonts.Get(font_id);
@@ -2252,7 +2283,7 @@ namespace dmGui
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, metrics);
+        scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
     }
 
@@ -2734,6 +2765,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Enabled = enabled;
+        n->m_Node.m_DirtyLocal |= enabled ? 1 : 0;
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)

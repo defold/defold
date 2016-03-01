@@ -5,7 +5,7 @@ ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.pl
 IOS_SDK_VERSION=8.1
 
 ANDROID_ROOT=~/android
-ANDROID_NDK_VERSION=10b
+ANDROID_NDK_VERSION=10e
 ANDROID_VERSION=14
 ANDROID_GCC_VERSION='4.8'
 
@@ -63,13 +63,12 @@ function cmi_cross() {
     pushd $PREFIX  >/dev/null
     tar cfz $TGZ lib
     popd >/dev/null
-    popd >/dev/null
 
     echo "../build/$TGZ created"
     mv $PREFIX/$TGZ ../build
 
     rm -rf tmp
-    rm -rf $PREFIX
+    #rm -rf $PREFIX
 }
 
 function cmi_buildplatform() {

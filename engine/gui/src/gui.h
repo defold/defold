@@ -167,6 +167,8 @@ namespace dmGui
 
         /// Total string width
         float m_Width;
+        /// Total string height
+        float m_Height;
         /// Max ascent of font
         float m_MaxAscent;
         /// Max descent of font, positive value
@@ -179,9 +181,10 @@ namespace dmGui
      * @param text text to measure
      * @param width max width. used only when line_break is true
      * @param line_break line break characters
+     * @param tracking letter spacing
      * @param out_metrics the metrics of the supplied text
      */
-    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, TextMetrics* out_metrics);
+    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* out_metrics);
 
     /**
      * Stencil clipping render state
@@ -246,8 +249,7 @@ namespace dmGui
         PROPERTY_SHADOW     = 6,
         PROPERTY_SLICE9     = 7,
         PROPERTY_PIE_PARAMS = 8,
-
-        PROPERTY_RESERVED   = 9,
+        PROPERTY_TEXT_PARAMS= 9,
 
         PROPERTY_COUNT      = 10,
     };
@@ -363,6 +365,7 @@ namespace dmGui
         int32_t  m_TouchCount;
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
+        uint32_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
@@ -374,7 +377,7 @@ namespace dmGui
     };
 
     struct RenderEntry {
-        uint32_t m_RenderKey;
+        uint64_t m_RenderKey;
         HNode m_Node;
     };
 
@@ -810,6 +813,10 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
     void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
     bool GetNodeLineBreak(HScene scene, HNode node);
+    void SetNodeTextLeading(HScene scene, HNode node, float leading);
+    float GetNodeTextLeading(HScene scene, HNode node);
+    void SetNodeTextTracking(HScene scene, HNode node, float tracking);
+    float GetNodeTextTracking(HScene scene, HNode node);
 
     void* GetNodeTexture(HScene scene, HNode node);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
@@ -882,8 +889,8 @@ namespace dmGui
      */
     bool GetNodeClippingInverted(HScene scene, HNode node);
 
-    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
-    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);

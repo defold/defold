@@ -37,7 +37,7 @@
       exchange-info)))
 
 (defn- open-login-dialog [prefs client]
-  (let [root ^Parent (FXMLLoader/load (io/resource "login.fxml"))
+  (let [root ^Parent (ui/load-fxml "login.fxml")
         stage (Stage.)
         scene (Scene. root)
         web-view ^WebView (.lookup root "#web")
@@ -75,4 +75,3 @@
 (defn logout [prefs]
   (prefs/set-prefs prefs "email" nil)
   (prefs/set-prefs prefs "token" nil))
-

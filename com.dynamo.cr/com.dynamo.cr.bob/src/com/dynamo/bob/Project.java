@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.FileWriter;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -42,6 +43,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 /**
@@ -421,6 +423,23 @@ public class Project {
 
         for (String command : commands) {
             if (command.equals("build")) {
+
+                // Do early test if report files are writeable before we start building
+                boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
+                FileWriter fileJSONWriter = null;
+                FileWriter fileHTMLWriter = null;
+
+                if (this.hasOption("build-report")) {
+                    String reportJSONPath = this.option("build-report", "report.json");
+                    File reportJSONFile = new File(reportJSONPath);
+                    fileJSONWriter = new FileWriter(reportJSONFile);
+                }
+                if (this.hasOption("build-report-html")) {
+                    String reportHTMLPath = this.option("build-report-html", "report.html");
+                    File reportHTMLFile = new File(reportHTMLPath);
+                    fileHTMLWriter = new FileWriter(reportHTMLFile);
+                }
+
                 IProgress m = monitor.subProgress(99);
                 m.beginTask("Building...", newTasks.size());
                 result = runTasks(m);
@@ -428,6 +447,29 @@ public class Project {
                 if (anyFailing(result)) {
                     break;
                 }
+
+                // Generate and save build report
+                if (generateReport) {
+                    IProgress mrep = monitor.subProgress(1);
+                    mrep.beginTask("Generating report...", 1);
+                    ReportGenerator rg = new ReportGenerator(this);
+                    String reportJSON = rg.generateJSON();
+
+                    // Save JSON report
+                    if (this.hasOption("build-report")) {
+                        fileJSONWriter.write(reportJSON);
+                        fileJSONWriter.close();
+                    }
+
+                    // Save HTML report
+                    if (this.hasOption("build-report-html")) {
+                        String reportHTML = rg.generateHTML(reportJSON);
+                        fileHTMLWriter.write(reportHTML);
+                        fileHTMLWriter.close();
+                    }
+                    mrep.done();
+                }
+
             } else if (command.equals("clean")) {
                 IProgress m = monitor.subProgress(1);
                 m.beginTask("Cleaning...", newTasks.size());
@@ -731,6 +773,14 @@ run:
      */
     public boolean hasOption(String key) {
         return options.containsKey(key);
+    }
+
+    /**
+     * Get a map of all options
+     * @return A map of options
+     */
+    public Map<String, String> getOptions() {
+        return options;
     }
 
     class Walker extends FileSystemWalker {

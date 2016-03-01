@@ -7,22 +7,11 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResDisplayProfilesCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void *preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename);
+    dmResource::Result ResDisplayProfilesCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResDisplayProfilesDestroy(dmResource::HFactory factory,
-                                            void* context,
-                                            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResDisplayProfilesDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResDisplayProfilesRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResDisplayProfilesRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif

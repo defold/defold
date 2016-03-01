@@ -1,6 +1,6 @@
 (ns internal.property-test
   (:require [clojure.test :refer :all]
-            [dynamo.util :as util]
+            [internal.util :as util]
             [editor.types :as types]
             [internal.graph.types :as gt]
             [dynamo.graph :as g]

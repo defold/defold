@@ -4,41 +4,30 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResFragmentProgramCreate(dmResource::HFactory factory,
-                                                   void* context,
-                                                   const void* buffer, uint32_t buffer_size,
-                                                   void* preload_data,
-                                                   dmResource::SResourceDescriptor* resource,
-                                                   const char* filename)
+    dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
-        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(graphics_context, buffer, buffer_size);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(graphics_context, params.m_Buffer, params.m_BufferSize);
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        resource->m_Resource = (void*) prog;
+        params.m_Resource->m_Resource = (void*) prog;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFragmentProgramDestroy(dmResource::HFactory factory,
-                                                    void* context,
-                                                    dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmGraphics::DeleteFragmentProgram((dmGraphics::HFragmentProgram) resource->m_Resource);
+        dmGraphics::DeleteFragmentProgram((dmGraphics::HFragmentProgram) params.m_Resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFragmentProgramRecreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename)
+    dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGraphics::HFragmentProgram prog = (dmGraphics::HFragmentProgram)resource->m_Resource;
+        dmGraphics::HFragmentProgram prog = (dmGraphics::HFragmentProgram)params.m_Resource->m_Resource;
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmGraphics::ReloadFragmentProgram(prog, buffer, buffer_size);
+        dmGraphics::ReloadFragmentProgram(prog, params.m_Buffer, params.m_BufferSize);
         return dmResource::RESULT_OK;
     }
 }

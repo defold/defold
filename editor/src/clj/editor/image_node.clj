@@ -4,6 +4,8 @@
             [editor.types :as types]
             [editor.core :as core]))
 
+(set! *warn-on-reflection* true)
+
 (g/defnode ImageResourceNode
   "Produces an image on demand. Can be shown in an outline view."
   (inherits i/ImageSource)

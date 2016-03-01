@@ -729,6 +729,8 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
             }
 
             _glfwWin.iconified = iconified;
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback( _glfwWin.active ? 1 : 0 );
             return 0;
         }
 
@@ -1889,6 +1891,10 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 }
 
 void _glfwShowKeyboard( int show, int type, int auto_close )
+{
+}
+
+void _glfwResetKeyboard( void )
 {
 }
 

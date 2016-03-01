@@ -50,11 +50,12 @@
 #else
 #define DM_PROFILE(scope_name, name) \
     static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
-    if (DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
+    if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
     {\
         DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
     }\
     dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name);\
+
 
     #define DM_COUNTER(name, amount) \
     dmProfile::AddCounter(name, amount);

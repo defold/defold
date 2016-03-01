@@ -2,6 +2,8 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s]))
 
+(set! *warn-on-reflection* true)
+
 (s/defn doubling :- g/Num
   "Return a lazy infinite sequence of doublings of i"
   ([i :- g/Num]

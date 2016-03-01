@@ -98,7 +98,7 @@
             attitude (* sign Math/PI 0.5)
             bank 0]
         (map rad->deg [bank heading attitude]))
-      
+
       :default
       (let [sqx (* x x)
             sqy (* y y)

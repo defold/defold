@@ -49,8 +49,9 @@ namespace dmGameSystem
         uint16_t                    m_RegionsX;
         uint16_t                    m_RegionsY;
         dmArray<TileGridRegion>     m_Regions;
+        uint16_t                    m_Enabled : 1;
         uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_Padding : 15;
+        uint16_t                    m_Padding : 14;
     };
 
     struct TileGridWorld

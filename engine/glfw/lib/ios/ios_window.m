@@ -134,6 +134,23 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
                 handled = YES;
         }
     }
+    return handled;
+}
+
+-(BOOL) application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation{
+    SEL sel = @selector(application:openURL:sourceApplication:annotation:);
+    BOOL handled = NO;
+
+   for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: sel])  {
+            if ([g_AppDelegates[i] application: application openURL: url sourceApplication:sourceApplication annotation:(id)annotation])
+                handled = YES;
+        }
+    }
+
+    // handleOpenURL is deprecated. We call it from here as if openURL is implemented, handleOpenURL won't be called.
+    if ([self application: application handleOpenURL:url])
+        handled = YES;
 
     return handled;
 }
@@ -212,12 +229,63 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
     assert(false && "app delegate not found");
 }
 
+@interface IndexedPosition : UITextPosition {
+    NSUInteger _index;
+}
+@property (nonatomic) NSUInteger index;
++ (IndexedPosition *)positionWithIndex:(NSUInteger)index;
+@end
+
+@interface IndexedRange : UITextRange {
+    NSRange _range;
+}
+@property (nonatomic) NSRange range;
++ (IndexedRange *)rangeWithNSRange:(NSRange)range;
+
+@end
+
+@implementation IndexedPosition
+@synthesize index = _index;
+
++ (IndexedPosition *)positionWithIndex:(NSUInteger)index {
+    IndexedPosition *pos = [[IndexedPosition alloc] init];
+    pos.index = index;
+    return [pos autorelease];
+}
+
+@end
+
+@implementation IndexedRange
+@synthesize range = _range;
+
++ (IndexedRange *)rangeWithNSRange:(NSRange)nsrange {
+    if (nsrange.location == NSNotFound)
+        return nil;
+    IndexedRange *range = [[IndexedRange alloc] init];
+    range.range = nsrange;
+    return [range autorelease];
+}
+
+- (UITextPosition *)start {
+    return [IndexedPosition positionWithIndex:self.range.location];
+}
+
+- (UITextPosition *)end {
+        return [IndexedPosition positionWithIndex:(self.range.location + self.range.length)];
+}
+
+-(BOOL)isEmpty {
+    return (self.range.length == 0);
+}
+@end
+
+
 /*
 This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView subclass.
 The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
-@interface EAGLView : UIView<UIKeyInput, UITextInputTraits> {
+@interface EAGLView : UIView<UIKeyInput, UITextInput> {
 
 @private
     GLint backingWidth;
@@ -229,6 +297,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     int countDown;
     int swapInterval;
     UIKeyboardType keyboardType;
+    BOOL secureTextEntry;
+    id <UITextInputDelegate> inputDelegate;
+    NSMutableString *markedText;
 }
 
 - (void)swapBuffers;
@@ -248,6 +319,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (BOOL) createFramebuffer;
 - (void) destroyFramebuffer;
+- (void) clearMarkedText;
 
 @end
 
@@ -264,6 +336,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
   self = [super init];
   if (self != nil) {
       [self setSwapInterval: 1];
+      markedText = [[NSMutableString alloc] initWithCapacity:128];
   }
     viewRenderbuffer = 0;
     viewFramebuffer = 0;
@@ -293,12 +366,143 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
         [self setupView];
     }
+
+    markedText = [[NSMutableString alloc] initWithCapacity:128];
     return self;
 }
 
 - (void)setupView
 {
 }
+
+//========================================================================
+// UITextInput protocol methods
+//
+// These are used for;
+//   * Keyboard input (insertText:)
+//   * Keeping track of "marked text" (unfinished keyboard input)
+//========================================================================
+
+- (UITextRange *)selectedTextRange {
+    // We always return the "caret" position as the end of the marked text
+    return [IndexedRange rangeWithNSRange:NSMakeRange(markedText.length, 0)];
+}
+
+- (UITextRange *)markedTextRange {
+    return [IndexedRange rangeWithNSRange:NSMakeRange(0, markedText.length)];
+}
+
+- (void)unmarkText {
+    if ([markedText length] > 0) {
+        [self insertText: markedText];
+
+        // Clear marked text
+        [inputDelegate textWillChange: self];
+        [markedText setString: @""];
+        [inputDelegate textDidChange: self];
+        _glfwSetMarkedText("");
+    }
+}
+
+- (NSString *)textInRange:(UITextRange *)range
+{
+    IndexedRange* _range = (IndexedRange*)range;
+    NSString* sub_string = [markedText substringWithRange:_range.range];
+    return sub_string;
+}
+
+- (void)replaceRange:(UITextRange *)range
+            withText:(NSString *)text
+{
+    IndexedRange* _range = (IndexedRange*)range;
+    [markedText replaceCharactersInRange:_range.range withString:text];
+}
+
+- (UITextRange *)textRangeFromPosition:(UITextPosition *)fromPosition
+                            toPosition:(UITextPosition *)toPosition
+{
+    IndexedPosition *from = (IndexedPosition *)fromPosition;
+    IndexedPosition *to = (IndexedPosition *)toPosition;
+    NSRange range = NSMakeRange(MIN(from.index, to.index), ABS(to.index - from.index));
+    return [IndexedRange rangeWithNSRange:range];
+}
+
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position
+                                  offset:(NSInteger)offset
+{
+    IndexedPosition *pos = (IndexedPosition *)position;
+    NSInteger end = pos.index + offset;
+    if (end > markedText.length || end < 0)
+        return nil;
+    return [IndexedPosition positionWithIndex:end];
+}
+
+- (NSInteger)offsetFromPosition:(UITextPosition *)fromPosition
+                     toPosition:(UITextPosition *)toPosition
+{
+    IndexedPosition *f = (IndexedPosition *)fromPosition;
+    IndexedPosition *t = (IndexedPosition *)toPosition;
+    return (t.index - f.index);
+}
+
+- (id< UITextInputDelegate >) inputDelegate {
+    return inputDelegate;
+}
+
+- (void) setInputDelegate: (id <UITextInputDelegate>) delegate {
+    inputDelegate = delegate;
+}
+
+- (id <UITextInputTokenizer>) tokenizer {
+    return [[UITextInputStringTokenizer alloc] initWithTextInput:self];
+}
+
+- (UITextWritingDirection) baseWritingDirectionForPosition: (UITextPosition *)position inDirection: (UITextStorageDirection)direction {
+    return UITextWritingDirectionRightToLeft;
+}
+
+- (UITextAutocorrectionType) autocorrectionType {
+    return UITextAutocorrectionTypeNo;
+}
+
+- (UITextSpellCheckingType) spellCheckingType {
+    return UITextSpellCheckingTypeNo;
+}
+
+
+//========================================================================
+// UITextInput protocol methods stubs
+//
+// We use only a subset of the methods in the UITextInput protocol
+// to get "marked text" functionality. The methods below need to be
+// implemented just to satisfy the protocol but are not used.
+//========================================================================
+
+- (void)setSelectedTextRange:(UITextRange *)range {}
+- (UITextPosition *) endOfDocument { return nil; }
+- (UITextPosition *) beginningOfDocument { return nil; }
+
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point { return nil; }
+- (NSArray *)selectionRectsForRange:(UITextRange *)range { return nil; }
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point
+                               withinRange:(UITextRange *)range { return nil; }
+- (UITextRange *)characterRangeAtPoint:(CGPoint)point { return nil; }
+
+- (UITextPosition *)positionWithinRange:(UITextRange *)range
+                    farthestInDirection:(UITextLayoutDirection)direction { return nil; }
+- (UITextRange *)characterRangeByExtendingPosition:(UITextPosition *)position
+                                       inDirection:(UITextLayoutDirection)direction { return nil; }
+- (CGRect)firstRectForRange:(UITextRange *)range { return CGRectMake(0, 0, 0, 0); }
+- (CGRect)caretRectForPosition:(UITextPosition *)position { return CGRectMake(0, 0, 0, 0); }
+
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position
+                             inDirection:(UITextLayoutDirection)direction
+                                  offset:(NSInteger)offset { return nil; }
+
+- (NSComparisonResult)comparePosition:(UITextPosition *)position
+                           toPosition:(UITextPosition *)other { return nil; }
+
+- (void) setBaseWritingDirection: (UITextWritingDirection)writingDirection forRange:(UITextRange *)range { }
 
 - (void)swapBuffers
 {
@@ -525,6 +729,11 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     return YES;
 }
 
+- (void)setMarkedText:(NSString *)newMarkedText selectedRange:(NSRange)selectedRange {
+    [markedText setString:newMarkedText];
+    _glfwSetMarkedText([markedText UTF8String]);
+}
+
 - (void)insertText:(NSString *)theText
 {
     int length = [theText length];
@@ -544,8 +753,22 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)deleteBackward
 {
-    _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
-    self.textkeyActive = TEXT_KEY_COOLDOWN;
+    if (markedText.length > 0)
+    {
+        [markedText setString:@""];
+        _glfwSetMarkedText("");
+    } else {
+        _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+        self.textkeyActive = TEXT_KEY_COOLDOWN;
+    }
+}
+
+- (void)clearMarkedText
+{
+    [inputDelegate textWillChange: self];
+    [markedText setString: @""];
+    [inputDelegate textDidChange: self];
+    _glfwSetMarkedText("");
 }
 
 - (UIKeyboardType) keyboardType
@@ -556,6 +779,16 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void) setKeyboardType: (UIKeyboardType) type
 {
     keyboardType = type;
+}
+
+- (BOOL) isSecureTextEntry
+{
+    return secureTextEntry;
+}
+
+- (void) setSecureTextEntry: (BOOL) secureEntry
+{
+    secureTextEntry = secureEntry;
 }
 
 - (UIReturnKeyType) returnKeyType
@@ -1015,8 +1248,20 @@ _GLFWwin g_Savewin;
     });
 }
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
+- (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    BOOL handled = NO;
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)]) {
+            if ([g_AppDelegates[i] application:application willFinishLaunchingWithOptions:launchOptions])
+                handled = YES;
+        }
+    }
+    return handled;
+}
+
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     [self forceDeviceOrientation];
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
@@ -1072,6 +1317,8 @@ _GLFWwin g_Savewin;
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(0);
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
@@ -1081,6 +1328,8 @@ _GLFWwin g_Savewin;
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
     _glfwWin.iconified = GL_FALSE;
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(1);
 }
 
 - (void)applicationWillTerminate:(UIApplication *)application
@@ -1303,6 +1552,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 void _glfwShowKeyboard( int show, int type, int auto_close )
 {
     EAGLView* view = (EAGLView*) _glfwWin.view;
+    view.secureTextEntry = NO;
     switch (type) {
         case GLFW_KEYBOARD_DEFAULT:
             view.keyboardType = UIKeyboardTypeDefault;
@@ -1312,6 +1562,10 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
             break;
         case GLFW_KEYBOARD_EMAIL:
             view.keyboardType = UIKeyboardTypeEmailAddress;
+            break;
+        case GLFW_KEYBOARD_PASSWORD:
+            view.secureTextEntry = YES;
+            view.keyboardType = UIKeyboardTypeDefault;
             break;
         default:
             view.keyboardType = UIKeyboardTypeDefault;
@@ -1325,6 +1579,16 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
         view.keyboardActive = NO;
         [_glfwWin.view resignFirstResponder];
     }
+}
+
+//========================================================================
+// Reset keyboard input state (clears marked text)
+//========================================================================
+
+void _glfwResetKeyboard( void )
+{
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    [view clearMarkedText];
 }
 
 //========================================================================

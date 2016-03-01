@@ -1,5 +1,7 @@
 (ns internal.graph.error-values
-  (:require [dynamo.util :as util]))
+  (:require [internal.util :as util]))
+
+(set! *warn-on-reflection* true)
 
 (def INFO     0)
 (def WARNING 10)

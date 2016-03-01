@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.geom :refer [clamper]]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -14,7 +14,9 @@
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
 
-; TODO - fix real profiles
+(set! *warn-on-reflection* true)
+
+;; TODO - fix real profiles
 (def test-profile {:name "test-profile"
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba
@@ -195,7 +197,7 @@ region will be identical to the nearest pixel of the source image."
 
 (defn make-texture-build-target [workspace node-id image]
   (let [texture-type     (workspace/get-resource-type workspace "texture")
-        texture-resource (workspace/make-memory-resource workspace texture-type (str (gensym)))]
+        texture-resource (resource/make-memory-resource workspace texture-type (str (gensym)))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource texture-resource)
      :build-fn  build-texture

@@ -26,8 +26,8 @@ enum TransactionState
 
 enum ErrorReason
 {
-	REASON_UNSPECIFIED = 0,
-	REASON_USER_CANCELED = 1,
+    REASON_UNSPECIFIED = 0,
+    REASON_USER_CANCELED = 1,
 };
 
 enum BillingResponse
@@ -90,10 +90,12 @@ struct IAP
         m_Self = LUA_NOREF;
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
+        m_autoFinishTransactions = true;
     }
     int                  m_InitCount;
     int                  m_Callback;
     int                  m_Self;
+    bool                 m_autoFinishTransactions;
     lua_State*           m_L;
     IAPListener          m_Listener;
 
@@ -104,6 +106,7 @@ struct IAP
     jmethodID            m_Buy;
     jmethodID            m_Restore;
     jmethodID            m_ProcessPendingConsumables;
+    jmethodID            m_FinishTransaction;
     int                  m_Pipefd[2];
 };
 
@@ -177,6 +180,53 @@ int IAP_Buy(lua_State* L)
     return 0;
 }
 
+int IAP_Finish(lua_State* L)
+{
+    if(g_IAP.m_autoFinishTransactions)
+    {
+        dmLogWarning("Calling iap.finish when autofinish transactions is enabled. Ignored.");
+        return 0;
+    }
+
+
+    int top = lua_gettop(L);
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    lua_getfield(L, -1, "state");
+    if (lua_isnumber(L, -1))
+    {
+        if(lua_tointeger(L, -1) != TRANS_STATE_PURCHASED)
+        {
+            dmLogError("Invalid transaction state (must be iap.TRANS_STATE_PURCHASED).");
+            lua_pop(L, 1);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "receipt");
+    if (!lua_isstring(L, -1)) {
+        dmLogError("Transaction error. Invalid transaction data, does not contain 'receipt' key.");
+        lua_pop(L, 1);
+    }
+    else
+    {
+        const char * receipt = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        JNIEnv* env = Attach();
+        jstring receiptUTF = env->NewStringUTF(receipt);
+        env->CallVoidMethod(g_IAP.m_IAP, g_IAP.m_FinishTransaction, receiptUTF, g_IAP.m_IAPJNI);
+        env->DeleteLocalRef(receiptUTF);
+        Detach();
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 int IAP_Restore(lua_State* L)
 {
     // TODO: Missing callback here for completion/error
@@ -224,6 +274,7 @@ static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
     {"buy", IAP_Buy},
+    {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
     {0, 0}
@@ -383,7 +434,7 @@ void HandleProductResult(const Command* cmd)
         }
         dmJson::Free(&doc);
     } else {
-        dmLogError("Google Play error %d", cmd->m_ResponseCode);
+        dmLogError("IAP error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
         PushError(L, "failed to fetch product", REASON_UNSPECIFIED);
     }
@@ -440,7 +491,7 @@ void HandlePurchaseResult(const Command* cmd)
         lua_pushnil(L);
         PushError(L, "user canceled purchase", REASON_USER_CANCELED);
     } else {
-        dmLogError("Google Play error %d", cmd->m_ResponseCode);
+        dmLogError("IAP error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
         PushError(L, "failed to buy product", REASON_UNSPECIFIED);
     }
@@ -495,6 +546,8 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
             dmLogFatal("Could not add file descriptor to looper: %d", result);
         }
 
+        g_IAP.m_autoFinishTransactions = dmConfigFile::GetInt(params->m_ConfigFile, "iap.auto_finish_transactions", 1) == 1;
+
         JNIEnv* env = Attach();
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
@@ -502,7 +555,17 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
         jclass class_loader = env->FindClass("java/lang/ClassLoader");
         jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-        jstring str_class_name = env->NewStringUTF("com.defold.iap.Iap");
+
+        const char* provider = dmConfigFile::GetString(params->m_ConfigFile, "android.iap_provider", "GooglePlay");
+        const char* class_name = "com.defold.iap.IapGooglePlay";
+
+        if (!strcmp(provider, "Amazon"))
+            class_name = "com.defold.iap.IapAmazon";
+        else if (strcmp(provider, "GooglePlay"))
+            dmLogWarning("Unknown IAP provider name [%s], defaulting to GooglePlay", provider);
+
+        jstring str_class_name = env->NewStringUTF(class_name);
+
         jclass iap_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
         env->DeleteLocalRef(str_class_name);
 
@@ -515,9 +578,10 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         g_IAP.m_Restore = env->GetMethodID(iap_class, "restore", "(Lcom/defold/iap/IPurchaseListener;)V");
         g_IAP.m_Stop = env->GetMethodID(iap_class, "stop", "()V");
         g_IAP.m_ProcessPendingConsumables = env->GetMethodID(iap_class, "processPendingConsumables", "(Lcom/defold/iap/IPurchaseListener;)V");
+        g_IAP.m_FinishTransaction = env->GetMethodID(iap_class, "finishTransaction", "(Ljava/lang/String;Lcom/defold/iap/IPurchaseListener;)V");
 
-        jmethodID jni_constructor = env->GetMethodID(iap_class, "<init>", "(Landroid/app/Activity;)V");
-        g_IAP.m_IAP = env->NewGlobalRef(env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz));
+        jmethodID jni_constructor = env->GetMethodID(iap_class, "<init>", "(Landroid/app/Activity;Z)V");
+        g_IAP.m_IAP = env->NewGlobalRef(env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz, g_IAP.m_autoFinishTransactions));
 
         jni_constructor = env->GetMethodID(iap_jni_class, "<init>", "()V");
         g_IAP.m_IAPJNI = env->NewGlobalRef(env->NewObject(iap_jni_class, jni_constructor));
@@ -581,4 +645,4 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, 0, FinalizeIAP)
+DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, 0, 0, FinalizeIAP)

@@ -4,6 +4,7 @@
 #include "internal.h"
 
 #define CMD_INPUT_CHAR (0)
+#define CMD_INPUT_MARKED_TEXT (1)
 
 struct Command
 {

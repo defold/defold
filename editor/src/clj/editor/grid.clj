@@ -6,10 +6,12 @@
             [editor.types :as types]
             [editor.camera :as c]
             [editor.validation :as validation]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [editor.types AABB Camera]
            [javax.media.opengl GL GL2]
            [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
+
+(set! *warn-on-reflection* true)
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
 (def grid-color [0.44705 0.44314 0.5098 1.0])

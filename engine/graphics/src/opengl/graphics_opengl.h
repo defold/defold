@@ -14,11 +14,14 @@ namespace dmGraphics
         void*                   m_WindowResizeCallbackUserData;
         WindowCloseCallback     m_WindowCloseCallback;
         void*                   m_WindowCloseCallbackUserData;
+        WindowFocusCallback     m_WindowFocusCallback;
+        void*                   m_WindowFocusCallbackUserData;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
         uint32_t                m_Dpi;
+        uint32_t                m_MaxTextureSize;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
         // Counter to keep track of various modifications. Used for cache flush etc

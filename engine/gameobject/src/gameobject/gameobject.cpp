@@ -36,6 +36,8 @@ namespace dmGameObject
 
     static Prototype EMPTY_PROTOTYPE;
 
+    static void Unlink(Collection* collection, Instance* instance);
+
 #define PROP_FLOAT(var_name, prop_name)\
     const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
 
@@ -179,7 +181,7 @@ namespace dmGameObject
         delete regist;
     }
 
-    void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
+    void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
 
     HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
     {
@@ -505,6 +507,12 @@ namespace dmGameObject
             dmResource::Release(collection->m_Factory, instance->m_Prototype);
         }
         EraseSwapLevelIndex(collection, instance);
+
+        if (instance->m_Parent != INVALID_INSTANCE_INDEX)
+        {
+            Unlink(collection, instance);
+        }
+
         uint16_t instance_index = instance->m_Index;
         operator delete ((void*)instance);
         collection->m_Instances[instance_index] = 0x0;
@@ -604,6 +612,7 @@ namespace dmGameObject
             bool result = CreateComponents(collection, instance);
             if (!result) {
                 // We can not call Delete here. Delete call DestroyFunction for every component
+                ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
                 instance = 0;
             }
@@ -788,7 +797,7 @@ namespace dmGameObject
     }
 
     // Supplied 'proto' will be released after this function is done.
-    HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+    static HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (collection->m_ToBeDeleted) {
             dmLogWarning("Spawning is not allowed when the collection is being deleted.");
@@ -852,7 +861,7 @@ namespace dmGameObject
     }
 
     // Returns if successful or not
-    bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
+    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
         // Path prefix for collection objects
         char root_path[32];
@@ -1071,6 +1080,7 @@ namespace dmGameObject
                     SetScriptPropertiesFromBuffer(instance, instance_desc.m_Id, instance_properties->property_buffer, instance_properties->property_buffer_size);
                 }
             } else {
+                ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
                 success = false;
             }
@@ -2985,9 +2995,9 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
-    void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
-        Collection* collection = (Collection*)user_data;
+        Collection* collection = (Collection*) params.m_UserData;
         for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
             dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
@@ -3001,7 +3011,7 @@ namespace dmGameObject
                 {
                     Prototype::Component& component = instance->m_Prototype->m_Components[j];
                     ComponentType* type = component.m_Type;
-                    if (component.m_ResourceId == descriptor->m_NameHash)
+                    if (component.m_ResourceId == params.m_Resource->m_NameHash)
                     {
                         if (type->m_OnReloadFunction)
                         {
@@ -3010,13 +3020,13 @@ namespace dmGameObject
                             {
                                 user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                             }
-                            ComponentOnReloadParams params;
-                            params.m_Instance = instance;
-                            params.m_Resource = descriptor->m_Resource;
-                            params.m_World = collection->m_ComponentWorlds[component.m_TypeIndex];
-                            params.m_Context = type->m_Context;
-                            params.m_UserData = user_data;
-                            type->m_OnReloadFunction(params);
+                            ComponentOnReloadParams on_reload_params;
+                            on_reload_params.m_Instance = instance;
+                            on_reload_params.m_Resource = params.m_Resource->m_Resource;
+                            on_reload_params.m_World = collection->m_ComponentWorlds[component.m_TypeIndex];
+                            on_reload_params.m_Context = type->m_Context;
+                            on_reload_params.m_UserData = user_data;
+                            type->m_OnReloadFunction(on_reload_params);
                         }
                     }
                     if (type->m_InstanceHasUserData)

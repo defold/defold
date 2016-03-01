@@ -5,10 +5,10 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -19,7 +19,9 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-; TODO - missing icon
+(set! *warn-on-reflection* true)
+
+;; TODO - missing icon
 (def json-icon "icons/32/Icons_29-AT-Unkown.png")
 
 (g/defnk produce-content [resource]

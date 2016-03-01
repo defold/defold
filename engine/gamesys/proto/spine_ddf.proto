@@ -242,3 +242,16 @@ message SpineEvent
     optional float float = 6 [default = 0.0];
     optional uint64 string = 7 [default = 0];
 }
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetConstantSpineModel
+{
+    required uint64         name_hash   = 1;
+    required dmMath.Vector4 value       = 2;
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message ResetConstantSpineModel
+{
+    required uint64         name_hash   = 1;
+}

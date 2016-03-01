@@ -11,16 +11,16 @@
 
 using namespace Vectormath::Aos;
 
-dmResource::Result ResCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result ResCreate(const dmResource::ResourceCreateParams& params)
 {
     // The resource is not relevant for this test
-    resource->m_Resource = (void*)new uint8_t[4];
+    params.m_Resource->m_Resource = (void*)new uint8_t[4];
     return dmResource::RESULT_OK;
 }
-dmResource::Result ResDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result ResDestroy(const dmResource::ResourceDestroyParams& params)
 {
     // The resource is not relevant for this test
-    delete [] (uint8_t*)resource->m_Resource;
+    delete [] (uint8_t*)params.m_Resource->m_Resource;
     return dmResource::RESULT_OK;
 }
 

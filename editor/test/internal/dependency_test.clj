@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :as ts]
-            [dynamo.util :refer :all]
+            [internal.util :refer :all]
             [internal.system :as is]))
 
 (defn- dependencies

@@ -1,6 +1,8 @@
 (ns internal.cache
   (:require [clojure.core.cache :as cc]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:dynamic *cache-debug* nil)
 
 ;; ----------------------------------------

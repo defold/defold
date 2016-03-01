@@ -2,6 +2,8 @@
   (:require [clojure.java.io :as io])
   (:import [java.io File]))
 
+(set! *warn-on-reflection* true)
+
 (defrecord Watcher [root file-filter state changes])
 
 (defn- file-map-seq [^File root file-filter]
