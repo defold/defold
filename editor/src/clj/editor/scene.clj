@@ -111,14 +111,14 @@
   (let [[w h] (vp-dims viewport)]
     (and (> w 0) (> h 0))))
 
-(defn z-distance [camera viewport renderable ^Point3d tmp-p3d]
-  (let [^Matrix4d t (or (:world-transform renderable) geom/Identity4d)
+(defn z-distance [camera viewport ^Matrix4d world-transform ^Point3d tmp-p3d]
+  (let [^Matrix4d t (or world-transform geom/Identity4d)
         _ (.transform t tmp-p3d)
         p (c/camera-project camera viewport tmp-p3d)]
     (long (* Integer/MAX_VALUE (.z p)))))
 
-(defn render-key [camera viewport renderable tmp-p3d]
-  (:index renderable (- Long/MAX_VALUE (z-distance camera viewport renderable tmp-p3d))))
+(defn render-key [camera viewport ^Matrix4d world-transform tmp-p3d]
+  (- Long/MAX_VALUE (z-distance camera viewport world-transform tmp-p3d)))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -249,8 +249,8 @@
                                 :selected selected
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene) parent-world))
-                         (assoc :render-key (render-key camera viewport renderable tmp-p3d)))]
+                                :aabb (geom/aabb-transform ^AABB (:aabb scene) parent-world)
+                                :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected (types/selection? pass))
