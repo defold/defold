@@ -14,13 +14,13 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private Object userData;
     private long key;
     // Index overrides distance if set
-    private Integer index = null;
+    private Long index = null;
 
     /*
      * NOTE: Do *NOT* use bit 63 in order to avoid signed numbers!
      */
     private final static long DISTANCE_SHIFT = 0;
-    private final static long PASS_SHIFT = DISTANCE_SHIFT + 32;
+    private final static long PASS_SHIFT = DISTANCE_SHIFT + 34;
     private final static long MANIPULATOR_SHIFT = 62;
 
     public RenderData(Pass pass, INodeRenderer<T> nodeRenderer, T node,
@@ -56,7 +56,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
      * Setting the index overrides the distance calculation in the render key.
      * @param index
      */
-    public void setIndex(int index) {
+    public void setIndex(long index) {
         this.index = index;
     }
 
@@ -74,7 +74,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
             // scale z (1,0) to int-space
             distance = (long)(z * Integer.MAX_VALUE);
         } else {
-            distance = this.index;
+            distance = ((long)this.index) & 0x3FFFFFFFFL;
         }
         key = (((long) pass.ordinal()) << PASS_SHIFT) | (distance << DISTANCE_SHIFT);
 

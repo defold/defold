@@ -1,0 +1,8 @@
+components {
+  id: "script"
+  component: "/component_text_input.scriptc"
+}
+components {
+  id: "it"
+  component: "/input_target.it"
+}

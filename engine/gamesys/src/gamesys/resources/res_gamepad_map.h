@@ -6,22 +6,11 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResGamepadMapCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void *preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResGamepadMapCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResGamepadMapDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResGamepadMapDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResGamepadMapRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResGamepadMapRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_GAMEPAD_MAP_H

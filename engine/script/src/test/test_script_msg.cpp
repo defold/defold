@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <string.h>
 
 #include "script.h"
 #include "test/test_ddf.h"
@@ -231,6 +232,137 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+static void ExtractURL(const dmMessage::StringURL& url, char* socket, char* path, char* fragment)
+{
+    memcpy(socket, url.m_Socket, url.m_SocketSize);
+    socket[url.m_SocketSize] = 0;
+    memcpy(path, url.m_Path, url.m_PathSize);
+    path[url.m_PathSize] = 0;
+    memcpy(fragment, url.m_Fragment, url.m_FragmentSize);
+    fragment[url.m_FragmentSize] = 0;
+}
+
+TEST_F(ScriptMsgTest, ResolveURL)
+{
+    int top = lua_gettop(L);
+
+    dmHashEnableReverseHash(true);
+
+    char socket[256];
+    char path[256];
+    char fragment[256];
+    dmMessage::StringURL string_url;
+
+    // The ParseURL function
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL(0, &string_url));
+    ExtractURL(string_url, socket, path, fragment);
+    ASSERT_EQ( dmHashString64(""), dmHashString64(socket));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(path));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(fragment));
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("", &string_url));
+    ExtractURL(string_url, socket, path, fragment);
+    ASSERT_EQ( dmHashString64(""), dmHashString64(socket));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(path));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(fragment));
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#", &string_url));
+    ExtractURL(string_url, socket, path, fragment);
+    ASSERT_EQ( dmHashString64(""), dmHashString64(socket));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(path));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(fragment));
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("path#", &string_url));
+    ExtractURL(string_url, socket, path, fragment);
+    ASSERT_EQ( dmHashString64(""), dmHashString64(socket));
+    ASSERT_EQ( dmHashString64("path"), dmHashString64(path));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(fragment));
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#fragment", &string_url));
+    ExtractURL(string_url, socket, path, fragment);
+    ASSERT_EQ( dmHashString64(""), dmHashString64(socket));
+    ASSERT_EQ( dmHashString64(""), dmHashString64(path));
+    ASSERT_EQ( dmHashString64("fragment"), dmHashString64(fragment));
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("path#fragment", &string_url));
+    ExtractURL(string_url, socket, path, fragment);
+    ASSERT_EQ( dmHashString64(""), dmHashString64(socket));
+    ASSERT_EQ( dmHashString64("path"), dmHashString64(path));
+    ASSERT_EQ( dmHashString64("fragment"), dmHashString64(fragment));
+
+
+    // The resolve function
+    dmMessage::URL receiver;
+
+    // nil
+    lua_pushnil(L);
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
+    ASSERT_EQ(dmHashString64("default_fragment"), receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+    //
+    lua_pushstring(L, "");
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
+    ASSERT_EQ(dmHashString64("default_fragment"), receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+    //
+    lua_pushstring(L, "foo#bar");
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("foo"), receiver.m_Path);
+    ASSERT_EQ(dmHashString64("bar"), receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+    //
+    lua_pushstring(L, "#");
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
+    ASSERT_EQ(dmHashString64("default_fragment"), receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+    //
+    lua_pushstring(L, "#fragment");
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
+    ASSERT_EQ(dmHashString64("fragment"), receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+    //
+    lua_pushstring(L, ".");
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
+    ASSERT_EQ(0, receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+    //
+    lua_pushstring(L, "foo");
+    memset(&receiver, 0, sizeof(receiver));
+    dmScript::ResolveURL(L, 1, &receiver, 0x0);
+    ASSERT_EQ(dmHashString64("foo"), receiver.m_Path);
+    ASSERT_EQ(0, receiver.m_Fragment);
+    ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
+    lua_pop(L, 1);
+
+
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmHashEnableReverseHash(false);
 }
 
 TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)

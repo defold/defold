@@ -1,30 +1,33 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
-            [dynamo.util :as util]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
+  (:import [com.defold.control LongField]
+           [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [javafx.scene.layout Region]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
-           [javafx.util Callback Duration]))
+           [javafx.css Styleable]
+           [javafx.util Callback Duration]
+           [com.defold.control TreeCell]))
+
+(set! *warn-on-reflection* true)
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
 (import com.sun.javafx.application.PlatformImpl)
 (PlatformImpl/startup (constantly nil))
-
-(set! *warn-on-reflection* true)
 
 (defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
@@ -120,22 +123,57 @@
 (defn scene [^Node node]
   (.getScene node))
 
-(defn add-style! [^Node node ^String class]
+(defn add-style! [^Styleable node ^String class]
   (let [styles (.getStyleClass node)]
     (when-not (.contains styles class)
       (.add styles class))))
 
-(defn remove-styles! [^Node node ^java.util.Collection classes]
+(defn add-styles! [^Styleable node classes]
+  (doseq [class classes]
+    (add-style! node class)))
+
+(defn remove-styles! [^Styleable node ^java.util.Collection classes]
   (.removeAll (.getStyleClass node) classes))
 
-(defn remove-style! [^Node node ^String class]
-  (remove-styles! node (java.util.Collections/singleton class)))
+(defn remove-style! [^Styleable node ^String class]
+  (remove-styles! node [class]))
+
+(defn update-tree-cell-style! [^TreeCell cell]
+  (let [tree-view (.getTreeView cell)
+        expanded-count (.getExpandedItemCount tree-view)
+        last-index (- expanded-count 1)
+        index (.getIndex cell)]
+    (remove-styles! cell ["first-tree-item" "last-tree-item"])
+    (when (not (.isEmpty cell))
+      (add-styles! cell (remove nil? [(when (= index 0) "first-tree-item")
+                                      (when (= index last-index) "last-tree-item")])))))
+
+(defn update-list-cell-style! [^ListCell cell]
+  (let [list-view (.getListView cell)
+        count (.size (.getItems list-view))
+        last-index (- count 1)
+        index (.getIndex cell)]
+    (remove-styles! cell ["first-list-item" "last-list-item"])
+    (when (not (.isEmpty cell))
+      (add-styles! cell (remove nil? [(when (= index 0) "first-list-item")
+                                      (when (= index last-index) "last-list-item")])))))
+
+
+(defn restyle-tabs! [^TabPane tab-pane]
+  (let [tabs (seq (.getTabs tab-pane))]
+    (doseq [tab tabs]
+      (remove-styles! tab ["first-tab" "last-tab"]))
+    (when-let [first-tab (first tabs)]
+      (add-style! first-tab "first-tab"))
+    (when-let [last-tab (last tabs)]
+      (add-style! last-tab "last-tab"))))
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
-          styles (seq (.getStylesheets root))]
-      (.setAll (.getStylesheets root) ^java.util.Collection (into (list) styles)))))
+          styles (vec (.getStylesheets root))]
+      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
+      (.setAll (.getStylesheets root) ^java.util.Collection styles))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -184,9 +222,20 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
+(defn load-fxml [path]
+  (let [root ^Parent (FXMLLoader/load (io/resource path))
+        css (io/file "editor.css")]
+    (when (and (.exists css) (seq (.getStylesheets root)))
+      (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
+    root))
+
 (defprotocol Text
   (text ^String [this])
   (text! [this ^String val]))
+
+(defprotocol HasValue
+  (value [this])
+  (value! [this val]))
 
 (defprotocol HasUserData
   (user-data [this key])
@@ -219,6 +268,26 @@
   (items [this])
   (items! [this items])
   (cell-factory! [this render-fn]))
+
+(extend-type LongField
+  HasValue
+  (value [this] (Integer/parseInt (.getText this)))
+  (value! [this val] (.setText this (str val))))
+
+(extend-type TextInputControl
+  HasValue
+  (value [this] (text this))
+  (value! [this val] (text! this val)))
+
+(extend-type CheckBox
+  HasValue
+  (value [this] (.isSelected this))
+  (value! [this val] (.setSelected this val)))
+
+(extend-type ColorPicker
+  HasValue
+  (value [this] (.getValue this))
+  (value! [this val] (.setValue this val)))
 
 (extend-type TextInputControl
   Text
@@ -264,14 +333,41 @@
     (updateItem [object empty]
       (let [^ListCell this this
             render-data (and object (render-fn object))]
-        ; TODO - fix reflection warning
         (proxy-super updateItem (and object (:text render-data)) empty)
-        (let [name (or (and (not empty) (:text render-data)) nil)]
-          (proxy-super setText name))
-        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))))))
+        (update-list-cell-style! this)
+        (if empty
+          (do
+            (proxy-super setText nil)
+            (proxy-super setGraphic nil))
+          (do
+            (proxy-super setText (:text render-data))
+            (let [icon (:icon render-data)]
+              (proxy-super setGraphic (jfx/get-image-view icon 16)))))
+        (proxy-super setTooltip (:tooltip render-data))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
+
+(defn- make-tree-cell [render-fn]
+  (let [cell (proxy [TreeCell] []
+               (updateItem [resource empty]
+                 (let [^TreeCell this this
+                       render-data (and resource (render-fn resource))]
+                   (proxy-super updateItem resource empty)
+                   (update-tree-cell-style! this)
+                   (if empty
+                     (do
+                       (proxy-super setText nil)
+                       (proxy-super setGraphic nil))
+                     (do
+                       (when-let [text (:text render-data)]
+                         (proxy-super setText text))
+                       (when-let [icon (:icon render-data)]
+                         (proxy-super setGraphic (jfx/get-image-view icon 16))))))))]
+    cell))
+
+(defn- make-tree-cell-factory [render-fn]
+  (reify Callback (call ^TreeCell [this view] (make-tree-cell render-fn))))
 
 (extend-type ButtonBase
   HasAction
@@ -308,7 +404,13 @@
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (filter (comp not nil?))
-                      (mapv #(.getValue ^TreeItem %)))))
+                      (mapv #(.getValue ^TreeItem %))))
+
+  CollectionView
+  (selection [this] (when-let [item ^TreeItem (.getSelectedItem (.getSelectionModel this))]
+                      (.getValue item)))
+  (cell-factory! [this render-fn]
+    (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-roots [^TreeView tree-view path-fn id-fn]
   (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
@@ -377,11 +479,16 @@
   {:control control
    :menu-id menu-id})
 
+(defn- wrap-menu-image [node]
+  (doto (Pane.)
+    (children! [node])
+    (add-style! "menu-image-wrapper")))
+
 (defn- make-submenu [label icon menu-items]
   (when (seq menu-items)
     (let [menu (Menu. label)]
       (when icon
-        (.setGraphic menu (jfx/get-image-view icon 16)))
+        (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
@@ -392,7 +499,7 @@
     (when acc
       (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
     (when icon
-      (.setGraphic menu-item (jfx/get-image-view icon 16)))
+      (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
     (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
     (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
     (user-data! menu-item ::menu-user-data user-data)
@@ -416,9 +523,14 @@
                 (make-menu-command label icon (:acc item) command command-contexts user-data)))))))))
 
 (defn- make-menu-items [menu command-contexts]
-  (->> menu
-       (map (fn [item] (make-menu-item item command-contexts)))
-       (remove nil?)))
+  (let [menu-items (->> menu
+                        (map (fn [item] (make-menu-item item command-contexts)))
+                        (remove nil?))]
+    (when-let [head (first menu-items)]
+      (add-style! head "first-menu-item"))
+    (when-let [tail (last menu-items)]
+      (add-style! tail "last-menu-item"))
+    menu-items))
 
 (defn- ^ContextMenu make-context-menu [menu-items]
   (let [^ContextMenu context-menu (ContextMenu.)]
@@ -522,7 +634,7 @@
 
 (defn modal-progress [title total-work worker-fn]
   (run-now
-    (let [root ^Parent (FXMLLoader/load (io/resource "progress.fxml"))
+    (let [root ^Parent (load-fxml "progress.fxml")
           stage (Stage.)
           scene (Scene. root)
           title-control ^Label (.lookup root "#title")

@@ -259,7 +259,7 @@ namespace dmScript
      * version = 0.1
      * custom_resources = main/data/,assets/level_data.json
      * </pre>
-     * 
+     *
      * @name sys.load_resource
      * @param filename resource to load, full path (string)
      * @return loaded data, which is empty if the file could not be found (string)
@@ -298,10 +298,11 @@ namespace dmScript
     /*# get system information
      * <p>
      * Returns a table with the following members:
-     * device_model, system_name, system_version, language, territory, gmt_offset (minutes), device_ident, ad_ident and ad_tracking_enabled.
+     * device_model, manufacturer, system_name, system_version, language, device_language, territory, gmt_offset (minutes), device_ident, ad_ident and ad_tracking_enabled.
      * </p>
-     * <p><code>device_model</code> is currently only available on iOS and Android.</p>
+     * <p><code>device_model</code> and <code>manufacturer</code> is currently only available on iOS and Android.</p>
      * <p><code>language</code> is in ISO-639 format (two characters) and <code>territory</code> in ISO-3166 format (two characters).</p>
+     * <p><code>device_language</code> is in ISO-639 format (two characters) and if applicable by a dash (-) and an ISO 15924 script code. Reflects device preferred language.</p>
      * <p><code>device_ident</code> is "identifierForVendor" and <code>ad_ident</code> is "advertisingIdentifier" on iOS</p>
      * <p><code>device_ident</code> is "android_id" and <code>ad_ident</code> is advertising ID provided by Google Play on Android.</p>
      *

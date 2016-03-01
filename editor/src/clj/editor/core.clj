@@ -6,6 +6,7 @@
             [editor.types :as types]
             [inflections.core :as inflect]))
 
+(set! *warn-on-reflection* true)
 
 ;; ---------------------------------------------------------------------------
 ;; Copy/paste support

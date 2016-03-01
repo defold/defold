@@ -99,78 +99,132 @@ namespace dmResource
     typedef uintptr_t ResourceType;
 
     /**
+     * Parameters to ResourcePreload callback.
+     */
+    struct ResourcePreloadParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// File name of the loaded file
+        const char* m_Filename;
+        /// Buffer containing the loaded file
+        const void* m_Buffer;
+        /// Size of data buffer
+        uint32_t m_BufferSize;
+        /// Hinter info. Use this when calling PreloadHint
+        HPreloadHintInfo m_HintInfo;
+        /// Writable user data that will be passed on to ResourceCreate function
+        void** m_PreloadData;
+    };
+
+    /**
      * Resource preloading function. This may be called from a separate loading thread
      * but will not keep any mutexes held while executing the call. During this call
      * PreloadHint can be called with the supplied hint_info handle.
      * If RESULT_OK is returned, the resource Create function is guaranteed to be called
      * with the preload_data value supplied.
-     * @param factory Factory handle
-     * @param context User context
-     * @param buffer Buffer
-     * @param buffer_size Buffer size
-     * @param preload_data Pointer to pass on to the Create function
+     * @param param Resource preloading parameters
      * @return RESULT_OK on success
      */
-    typedef Result (*FResourcePreload)(HFactory factory,
-                                              HPreloadHintInfo hint_info,
-                                              void* context,
-                                              const void* buffer, uint32_t buffer_size,
-                                              void** preload_data,
-                                              const char* filename);
+    typedef Result (*FResourcePreload)(const ResourcePreloadParams& params);
+
+    /**
+     * Parameters to ResourceCreate callback.
+     */
+    struct ResourceCreateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// File name of the loaded file
+        const char* m_Filename;
+        /// Buffer containing the loaded file
+        const void* m_Buffer;
+        /// Size of the data buffer
+        uint32_t m_BufferSize;
+        /// Preloaded data from Preload phase
+        void* m_PreloadData;
+        /// Resource descriptor to fill in
+        SResourceDescriptor* m_Resource;
+    };
 
     /**
      * Resource create function
-     * @param factory Factory handle
-     * @param context User context
-     * @param buffer Buffer
-     * @param buffer_size Buffer size
-     * @param preload_data Preload data produced in FResourcePreload callback
-     * @param resource Resource descriptor
+     * @param params Resource creation arguments
      * @return CREATE_RESULT_OK on success
      */
-    typedef Result (*FResourceCreate)(HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void* preload_data,
-                                           SResourceDescriptor* resource,
-                                           const char* filename);
+    typedef Result (*FResourceCreate)(const ResourceCreateParams& params);
+
+    /**
+     * Parameters to ResourceDestroy callback.
+     */
+    struct ResourceDestroyParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Resource descriptor for resource to destroy
+        SResourceDescriptor* m_Resource;
+    };
 
     /**
      * Resource destroy function
-     * @param factory Factory handle
-     * @param context User context
-     * @param resource Resource handle
+     * @param params Resource destruction arguments
      * @return CREATE_RESULT_OK on success
      */
-    typedef Result (*FResourceDestroy)(HFactory factory,
-                                            void* context,
-                                            SResourceDescriptor* resource);
+    typedef Result (*FResourceDestroy)(const ResourceDestroyParams& params);
+
+    /**
+     * Parameters to ResourceRecreate callback.
+     */
+    struct ResourceRecreateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// File name of the loaded file
+        const char* m_Filename;
+        /// Data buffer containing the loaded file
+        const void* m_Buffer;
+        /// Size of data buffer
+        uint32_t m_BufferSize;
+        /// Resource descriptor to write into
+        SResourceDescriptor* m_Resource;
+    };
 
     /**
      * Resource recreate function. Recreate resource in-place.
-     * @param factory Factory handle
-     * @param context User context
-     * @param buffer Buffer
-     * @param buffer_size Buffer size
-     * @param resource Resource descriptor
+     * @params params Parameters for resource creation
      * @return CREATE_RESULT_OK on success
      */
-    typedef Result (*FResourceRecreate)(HFactory factory,
-                                              void* context,
-                                              const void* buffer, uint32_t buffer_size,
-                                              SResourceDescriptor* resource,
-                                              const char* filename);
+    typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
+
+    /**
+     * Parameters to ResourceReloaded callback.
+     */
+    struct ResourceReloadedParams
+    {
+        /// User data supplied when the callback was registered
+        void* m_UserData;
+        /// Descriptor of the reloaded resource
+        SResourceDescriptor* m_Resource;
+        /// Name of the resource, same as provided to Get() when the resource was obtained
+        const char* m_Name;
+    };
 
     /**
      * Function called when a resource has been reloaded.
-     * @param user_data User data supplied when the callback was registered
-     * @param resource Descriptor of the reloaded resource
-     * @param name Name of the resource, same as provided to Get() when the resource was obtained
+     * @param params Parameters
      * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
      * @see RegisterResourceReloadedCallback
      * @see Get
      */
-    typedef void (*ResourceReloadedCallback)(void* user_data, SResourceDescriptor* resource, const char* name);
+    typedef void (*ResourceReloadedCallback)(const ResourceReloadedParams& params);
 
     /**
      * Set default NewFactoryParams params

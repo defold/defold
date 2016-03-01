@@ -272,7 +272,7 @@ int _glfwPlatformInit( void )
     _glfwPlatformSetTime( 0.0 );
 
     _glfwLibrary.DesktopMode =
-	(NSDictionary *)CGDisplayCurrentMode( CGMainDisplayID() );
+       (CGDisplayModeRef)CGDisplayCopyDisplayMode( CGMainDisplayID() );
 
     // NOTE:
     // Restore working directory. Don't know why glfw change directory above.
@@ -299,6 +299,8 @@ int _glfwPlatformTerminate( void )
 
     [_glfwLibrary.AutoreleasePool release];
     _glfwLibrary.AutoreleasePool = nil;
+
+    CGDisplayModeRelease((CGDisplayModeRef)_glfwLibrary.DesktopMode);
 
     return GL_TRUE;
 }

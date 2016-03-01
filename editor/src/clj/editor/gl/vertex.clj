@@ -35,6 +35,8 @@ the `do-gl` macro from `editor.gl`."
            [java.util.concurrent.atomic AtomicLong AtomicBoolean]
            [javax.media.opengl GL GL2]))
 
+(set! *warn-on-reflection* true)
+
 (defn put-byte   [^ByteBuffer bb position v] (.put       bb position v))
 (defn put-short  [^ByteBuffer bb position v] (.putShort  bb position v))
 (defn put-int    [^ByteBuffer bb position v] (.putInt    bb position v))
@@ -515,7 +517,7 @@ the `do-gl` macro from `editor.gl`."
   (let [vbo (first (gl/gl-gen-buffers gl 1))]
     (update-vbo gl vbo data)))
 
-(defn- destroy-vbos [^GL2 gl vbos]
+(defn- destroy-vbos [^GL2 gl vbos _]
   (apply gl/gl-delete-buffers gl vbos))
 
 (scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)

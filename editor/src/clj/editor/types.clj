@@ -6,9 +6,12 @@
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
-; ----------------------------------------
-; Protocols here help avoid circular dependencies
-; ----------------------------------------
+(set! *warn-on-reflection* true)
+
+;; ----------------------------------------
+;; Protocols here help avoid circular dependencies
+;; ----------------------------------------
+
 (defprotocol R3Min
   (min-p ^Point3d  [this]))
 

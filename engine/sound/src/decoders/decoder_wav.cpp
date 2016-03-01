@@ -141,8 +141,9 @@ namespace dmSoundCodec
                     fmt.Swap();
                     fmt_found = true;
 
-                    if (fmt.m_AudioFormat != 1) {
-                        dmLogWarning("Only wav-files with PCM format supported");
+                    if( fmt.m_AudioFormat != 1 )
+                    {
+                        dmLogWarning("Only wav-files with 8 or 16 bit PCM format (format=1) supported, got format=%d and bitdepth=%d", fmt.m_AudioFormat, fmt.m_BitsPerSample);
                         return RESULT_INVALID_FORMAT;
                     }
                     streamTemp.m_Info.m_Rate = fmt.m_SampleRate;

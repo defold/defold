@@ -181,6 +181,11 @@ namespace dmParticle
         {
             Emitter* emitter = &instance->m_Emitters[i];
             uint32_t original_seed = seed_base + i;
+
+            // Add the context seed (and increase it) to avoid
+            // instances spawned the same frame to be identical.
+            original_seed += context->m_InstanceSeeding++;
+
             InitEmitter(emitter, &ddf->m_Emitters[i], original_seed);
             emitter->m_Seed = original_seed;
         }
@@ -293,7 +298,7 @@ namespace dmParticle
                 for (uint32_t emitter_i = emitter_count; emitter_i < prototype_emitter_count; ++emitter_i)
                 {
                     Emitter* emitter = &emitters[emitter_i];
-                    uint32_t original_seed = seed_base + emitter_i;
+                    uint32_t original_seed = seed_base + emitter_i + context->m_InstanceSeeding++;
                     InitEmitter(emitter, &ddf->m_Emitters[emitter_i], original_seed);
                     emitter->m_Seed = original_seed;
                 }

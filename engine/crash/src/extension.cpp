@@ -377,6 +377,6 @@ namespace dmCrash
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(CrashExt, "Crash", 0, 0, InitializeCrash, 0, FinalizeCrash)
+    DM_DECLARE_EXTENSION(CrashExt, "Crash", 0, 0, InitializeCrash, 0, 0, FinalizeCrash)
 }
 

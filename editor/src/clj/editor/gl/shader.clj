@@ -91,11 +91,13 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.gl.protocols :refer [GlBind]]
           [editor.types :as types]
           [editor.workspace :as workspace]
-          [editor.project :as project]
+          [editor.defold-project :as project]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
          [javax.media.opengl GL GL2 GLContext]
          [javax.vecmath Matrix4d Vector4f Point3d]))
+
+(set! *warn-on-reflection* true)
 
 ;; ======================================================================
 ;; shader translation comes from https://github.com/overtone/shadertone.
@@ -486,7 +488,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (delete-shader gl program)
   (make-shader-program gl data))
 
-(defn- destroy-shader-programs [^GL2 gl programs]
+(defn- destroy-shader-programs [^GL2 gl programs _]
   (doseq [[program _] programs]
     (delete-shader gl program)))
 

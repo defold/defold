@@ -17,7 +17,7 @@
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
             [editor.prefs :as prefs]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.properties-view :as properties-view]
             [editor.scene-selection :as scene-selection]
             [editor.scene :as scene]
@@ -53,7 +53,7 @@
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button Control ColorPicker Label ListView TextField
-            TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+            TitledPane TextArea TreeItem TreeView Menu MenuItem MenuBar Tab TabPane ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
@@ -64,6 +64,8 @@
            [java.nio.file Paths]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.defold.control ListCell TreeCell]))
+
+(set! *warn-on-reflection* true)
 
 (defn- setup-console [^VBox root]
   (let [^TextArea node (.lookup root "#console")]
@@ -87,12 +89,12 @@
 (def the-root (atom nil))
 
 (defn load-stage [workspace project prefs]
-  (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
+  (let [^VBox root (ui/load-fxml "editor.fxml")
         stage (Stage.)
         scene (Scene. root)]
     (ui/observe (.focusedProperty stage) (fn [property old-val new-val]
                                            (when (true? new-val)
-                                             (workspace/fs-sync workspace))))
+                                             (workspace/resource-sync! workspace))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -105,11 +107,13 @@
     (setup-console root)
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
+          ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^Tab assets          (.lookup root "#assets")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
+      (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
                          :project-graph (project/graph project)
@@ -125,7 +129,7 @@
           (for [view [outline-view asset-browser]]
             (g/update-property app-view :auto-pulls conj [view :tree-view]))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
-    (graph-view/setup-graph-view root *project-graph*)
+    (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
 
@@ -164,6 +168,7 @@
       (material/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
       (gui/register-resource-types workspace)))
+    (workspace/resource-sync! workspace)
     workspace))
 
 (defn open-project
@@ -173,6 +178,9 @@
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
+        _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
+        _            (workspace/update-dependencies! workspace)
+        _            (workspace/resource-sync! workspace)
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
@@ -202,7 +210,7 @@
 
 
 (defn open-welcome [prefs]
-  (let [^VBox root (FXMLLoader/load (io/resource "welcome.fxml"))
+  (let [^VBox root (ui/load-fxml "welcome.fxml")
         stage (Stage.)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")

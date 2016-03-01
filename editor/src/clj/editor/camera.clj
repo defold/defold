@@ -316,15 +316,12 @@
       local-camera)
     local-camera))
 
-(g/defnk produce-camera [_node-id local-camera viewport reframe aabb]
+(g/defnk produce-camera [_node-id local-camera viewport]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
-     (let [scene-camera (if reframe
-                    (reframe-camera-tx _node-id local-camera viewport aabb)
-                    local-camera)
-           aspect (/ (double w) h)]
-       (set-orthographic scene-camera (:fov scene-camera) aspect -100000 100000))
+     (let [aspect (/ (double w) h)]
+       (set-orthographic local-camera (:fov local-camera) aspect -100000 100000))
      local-camera)))
 
 (defn handle-input [self action user-data]
@@ -369,12 +366,10 @@
 (g/defnode CameraController
   (property name g/Keyword (default :local-camera))
   (property local-camera Camera)
-  (property reframe g/Bool)
   (property ui-state g/Any (default (constantly (atom {:movement :idle}))))
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
   (input viewport Region)
-  (input aabb AABB)
 
   (output viewport Region (g/fnk [viewport] viewport))
   (output camera Camera produce-camera)

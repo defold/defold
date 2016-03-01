@@ -21,8 +21,10 @@ public:
 
 TEST_F(dmJsonTest, Empty)
 {
-    const char* json = "";
-    dmJson::Result r = dmJson::Parse(json, &doc);
+    dmJson::Result r = dmJson::Parse(0x0, &doc);
+    ASSERT_EQ(dmJson::RESULT_OK, r);
+    ASSERT_EQ(0, doc.m_NodeCount);
+    r = dmJson::Parse("", &doc);
     ASSERT_EQ(dmJson::RESULT_OK, r);
     ASSERT_EQ(0, doc.m_NodeCount);
 }

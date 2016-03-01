@@ -1,0 +1,21 @@
+function init(self)
+
+    local maxnumproxies = tonumber(sys.get_config("collection_proxy.max_count"))
+    if maxnumproxies > 8 then
+        print("This test was designed for max 8 proxy collections. Please adjust accordingly")
+        msg.post("@system:", "exit", {code = 1})
+        return
+    end
+
+    msg.post("#", "start_level")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("start_level") then
+        -- some script tells us to start loading the level
+        msg.post("#proxy", "async_load")
+    elseif message_id == hash("proxy_loaded") then
+        -- enable the collection and let the loader know
+        msg.post(sender, "enable")
+    end
+end

@@ -250,7 +250,7 @@ namespace dmHttpClient
         client->m_HttpSendContentLength = params->m_HttpSendContentLength;
         client->m_HttpWrite = params->m_HttpWrite;
         client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
-        client->m_MaxGetRetries = 4;
+        client->m_MaxGetRetries = 1;
         client->m_RequestTimeout = 0;
         client->m_RequestStart = 0;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));

@@ -3,12 +3,13 @@
             [editor.core :as core]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
             [editor.handler :as handler]
             [editor.math :as math]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.outline :as outline]
@@ -17,7 +18,7 @@
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.validation :as validation]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
@@ -29,6 +30,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
+
+(set! *warn-on-reflection* true)
 
 (def collection-icon "icons/32/Icons_09-Collection.png")
 (def path-sep "/")
@@ -139,13 +142,15 @@
 
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
-    (value (g/fnk [source-resource] source-resource))
-    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:build-targets :build-targets]
-                                       [:scene         :scene]])))
+                                       [:scene         :scene]]))
+    (validate (g/fnk [embedded path scene]
+                (when (and (not embedded) (nil? path))
+                  (g/error-warning "Missing prototype")))))
 
   (property embedded g/Bool (dynamic visible (g/always false)))
 
@@ -162,10 +167,10 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-go-outline)
-  (output ddf-message g/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+  (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
                                              (gen-embed-ddf id child-ids position rotation scale save-data)
-                                             (gen-ref-ddf id child-ids position rotation scale path))))
+                                             (gen-ref-ddf id child-ids position rotation scale source-resource))))
   (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
                                                                              [(assoc target :instance-data {:resource (:resource target)
                                                                                                             :instance-msg ddf-message
@@ -202,7 +207,7 @@
                _ (math/split-mat4 transform pos rot scale)]
            (merge instance-msg
                   {:id (str path-sep (:id instance-msg))
-                   :prototype (workspace/proj-path resource)
+                   :prototype (resource/proj-path resource)
                    :children (map #(str path-sep %) (:children instance-msg))
                    :position (math/vecmath->clj pos)
                    :rotation (math/vecmath->clj rot)
@@ -292,10 +297,10 @@
         child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
     (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids) instance-data))))
 
-(g/defnk produce-coll-inst-outline [_node-id id path source-outline source]
+(g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source]
   (-> source-outline
     (assoc :node-id _node-id
-      :label (format "%s (%s)" id (resource/resource->proj-path path))
+      :label (format "%s (%s)" id (resource/resource->proj-path source-resource))
       :icon collection-icon)
     (update :child-reqs (fn [reqs]
                           (mapv (fn [req] (update req :tx-attach-fn #(fn [self-id child-id]
@@ -309,14 +314,13 @@
   (inherits InstanceNode)
 
   (property path (g/protocol resource/Resource)
-    (value (g/fnk [source-resource] source-resource))
-    (validate (validation/validate-resource source-resource "Missing prototype" [scene]))
+    (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:scene         :scene]
-                                       [:build-targets :build-targets]])))
-
+                                       [:build-targets :build-targets]]))
+    (validate (validation/validate-resource path "Missing prototype" [scene])))
 
   (input source g/Any)
   (input source-resource (g/protocol resource/Resource))
@@ -327,9 +331,9 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
-  (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (output ddf-message g/Any :cached (g/fnk [id source-resource ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            {:id id
-                                            :collection (resource/resource->proj-path path)
+                                            :collection (resource/resource->proj-path source-resource)
                                             :position (math/vecmath->clj position)
                                             :rotation (math/vecmath->clj rotation)
                                             :scale3 (math/vecmath->clj scale)}))
@@ -363,11 +367,11 @@
   (= 1 (count selection)))
 
 (defn- selected-collection? [selection]
-  (= CollectionNode (g/node-type* (first selection))))
+  (g/node-instance? CollectionNode (first selection)))
 
 (defn- selected-embedded-instance? [selection]
   (let [node (first selection)]
-    (and (= GameObjectInstanceNode (g/node-type* node))
+    (and (g/node-instance? GameObjectInstanceNode node)
          (g/node-value node :embedded))))
 
 (defn- add-game-object-file [selection]
@@ -376,7 +380,7 @@
         workspace (:workspace (g/node-value coll-node :resource))
         ext       "go"]
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Game Object File"}))]
-      (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
+      (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
             id (gen-instance-id coll-node base)
             op-seq (gensym)
             [go-node] (g/tx-nodes-added
@@ -475,7 +479,7 @@
                          ext           "collection"
                          resource-type (workspace/get-resource-type workspace ext)]
                      (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Collection File"}))]
-                       (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
+                       (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
                              id (gen-instance-id coll-node base)
                              op-seq (gensym)
                              [coll-inst-node] (g/tx-nodes-added
@@ -514,7 +518,7 @@
                                    (:position embedded)
                                    (v4->euler (:rotation embedded))
                                    [scale scale scale] false false))))
-            new-instance-data (filter #(and (= :create-node (:type %)) (= GameObjectInstanceNode (g/node-type (:node %)))) tx-go-creation)
+            new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
             rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))

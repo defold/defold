@@ -12,15 +12,10 @@
 
 namespace dmGameObject
 {
-    dmResource::Result ResCollectionPreload(dmResource::HFactory factory,
-                                                dmResource::HPreloadHintInfo hint_info,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void** preload_data,
-                                                const char* filename)
+    dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(buffer, buffer_size, &collection_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -31,31 +26,26 @@ namespace dmGameObject
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
             if (instance_desc.m_Prototype != 0x0)
             {
-                dmResource::PreloadHint(hint_info, instance_desc.m_Prototype);
+                dmResource::PreloadHint(params.m_HintInfo, instance_desc.m_Prototype);
             }
         }
 
-        *preload_data = collection_desc;
+        *params.m_PreloadData = collection_desc;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollectionCreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void* preload_data,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
+    dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params)
     {
-        Register* regist = (Register*) context;
+        Register* regist = (Register*) params.m_Context;
         dmResource::Result res = dmResource::RESULT_OK;
 
-        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) preload_data;
+        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
 
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmMutex::Lock(regist->m_Mutex);
 
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
-        HCollection collection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity);
+        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
         if (collection == 0)
         {
             dmMutex::Unlock(regist->m_Mutex);
@@ -73,7 +63,7 @@ namespace dmGameObject
             dmGameObject::HInstance instance = 0x0;
             if (instance_desc.m_Prototype != 0x0)
             {
-                dmResource::Result error = dmResource::Get(factory, instance_desc.m_Prototype, (void**)&proto);
+                dmResource::Result error = dmResource::Get(params.m_Factory, instance_desc.m_Prototype, (void**)&proto);
                 if (error == dmResource::RESULT_OK) {
                     instance = dmGameObject::NewInstance(collection, proto, instance_desc.m_Prototype);
                     if (instance == 0) {
@@ -171,32 +161,32 @@ namespace dmGameObject
                             res = dmResource::RESULT_FORMAT_ERROR;
                             goto bail;
                         }
-                        ComponentSetPropertiesParams params;
-                        params.m_Instance = instance;
+                        ComponentSetPropertiesParams set_params;
+                        set_params.m_Instance = instance;
                         uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
                         for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
                         {
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData);
                                 if (!r)
                                 {
-                                    dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, filename);
+                                    dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, params.m_Filename);
                                     res = dmResource::RESULT_FORMAT_ERROR;
                                     goto bail;
                                 }
                                 else
                                 {
-                                    params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                                    params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
+                                    set_params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                                    set_params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
                                 }
                                 break;
                             }
                         }
                         uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
-                        params.m_UserData = component_instance_data;
-                        type->m_SetPropertiesFunction(params);
+                        set_params.m_UserData = component_instance_data;
+                        type->m_SetPropertiesFunction(set_params);
                     }
                     if (component.m_Type->m_InstanceHasUserData)
                         ++component_instance_data_index;
@@ -211,7 +201,7 @@ namespace dmGameObject
         if (collection_desc->m_CollectionInstances.m_Count != 0)
             dmLogError("Sub collections must be merged before loading.");
 
-        resource->m_Resource = (void*) collection;
+        params.m_Resource->m_Resource = (void*) collection;
 bail:
         dmDDF::FreeMessage(collection_desc);
 
@@ -225,11 +215,9 @@ bail:
         return res;
     }
 
-    dmResource::Result ResCollectionDestroy(dmResource::HFactory factory,
-                                                 void* context,
-                                                 dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        HCollection collection = (HCollection) resource->m_Resource;
+        HCollection collection = (HCollection) params.m_Resource->m_Resource;
         DeleteCollection(collection);
         return dmResource::RESULT_OK;
     }

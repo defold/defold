@@ -49,7 +49,7 @@
       (is (empty? (set/difference (arc-node-references fragment) (set serial-ids)))))))
 
 (defn- pasted-node [type paste-data]
-  (first (filter #(= type (g/node-type* %)) (:nodes paste-data))))
+  (first (filter #(g/node-instance? type %) (:nodes paste-data))))
 
 (deftest simple-paste
   (ts/with-clean-system
@@ -202,10 +202,10 @@
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node4 :produces-value node3 :discards-value)])
       [node3 (g/copy [node1] {:traverse? (comp stop-at-stoppers)
-                              :serializer (fn [node]
-                                            (if (= StopperNode (g/node-type node))
+                              :serializer (fn [basis node]
+                                            (if (g/node-instance? StopperNode (g/node-id node))
                                               (serialize-stopper node)
-                                              (g/default-node-serializer node)))})]))
+                                              (g/default-node-serializer basis node)))})]))
 
 (deftest serialization-uses-predicates
   (ts/with-clean-system

@@ -66,6 +66,12 @@ TEST(dmSys, GetResourcesPath)
     printf("GetResourcesPath: '%s'\n", path);
 }
 
+namespace dmSys
+{
+    void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
+}
+
+
 TEST(dmSys, GetSystemInfo)
 {
     dmSys::SystemInfo info;
@@ -79,6 +85,32 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("Territory: '%s'", info.m_Territory);
     dmLogInfo("GMT offset: '%d'", info.m_GmtOffset);
     dmLogInfo("Device identifier: '%d'", info.m_DeviceIdentifier);
+
+    memset(&info, 0x0, sizeof(info));
+
+#ifdef CHECK_LANG_TERR
+#error "CHECK_LANG_TERR already defined"
+#endif
+#define CHECK_LANG_TERR(lang_str, lang, dev_lang, territory) \
+    dmSys::FillLanguageTerritory(lang_str, &info); \
+    ASSERT_STREQ(lang, info.m_Language); \
+    ASSERT_STREQ(dev_lang, info.m_DeviceLanguage); \
+    ASSERT_STREQ(territory, info.m_Territory);
+
+    CHECK_LANG_TERR((const char*)0x0, "en", "en", "US");
+    CHECK_LANG_TERR("", "en", "en", "US");
+    CHECK_LANG_TERR("e", "e", "e", "");
+    CHECK_LANG_TERR("sv", "sv", "sv", "");
+    CHECK_LANG_TERR("sv_SE", "sv", "sv", "SE");
+    CHECK_LANG_TERR("sv-SE", "sv", "sv", "SE");
+    CHECK_LANG_TERR("zh_Hant_CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh-Hant-CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh_Hant-CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh-Hant_CN", "zh", "zh-Hant", "CN");
+    CHECK_LANG_TERR("zh_Hant-xxx_xxx_CN", "zh", "zh-Hant-xxx_xxx", "CN");
+
+#undef CHECK_LANG_TERR
+
 }
 
 TEST(dmSys, EngineInfo)

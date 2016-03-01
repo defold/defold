@@ -6,7 +6,7 @@
             [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.atlas :as atlas]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.collection :as collection]))
 

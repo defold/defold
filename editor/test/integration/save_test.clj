@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [integration.test-util :as test-util]))
 
 (deftest save-all

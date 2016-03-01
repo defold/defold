@@ -9,8 +9,7 @@
 #import <objc/runtime.h>
 
 #include "facebook.h"
-
-#define LIB_NAME "facebook"
+#include "facebook_analytics.h"
 
 struct Facebook
 {
@@ -24,6 +23,7 @@ struct Facebook
     NSDictionary* m_Me;
     int m_Callback;
     int m_Self;
+    int m_DisableFaceBookEvents;
     lua_State* m_MainThread;
     id<UIApplicationDelegate,
        FBSDKSharingDelegate,
@@ -55,6 +55,10 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                        openURL:(NSURL *)url
                        sourceApplication:(NSString *)sourceApplication
                        annotation:(id)annotation {
+        if(!g_Facebook.m_Login)
+        {
+            return false;
+        }
         return [[FBSDKApplicationDelegate sharedInstance] application:application
                                                               openURL:url
                                                     sourceApplication:sourceApplication
@@ -62,16 +66,31 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
-        [FBSDKAppEvents activateApp];
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
+        if(!g_Facebook.m_DisableFaceBookEvents)
+        {
+            [FBSDKAppEvents activateApp];
+        }
     }
 
     - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+        if(!g_Facebook.m_Login)
+        {
+            return false;
+        }
         return [[FBSDKApplicationDelegate sharedInstance] application:application
                                         didFinishLaunchingWithOptions:launchOptions];
     }
 
     // Sharing related methods
     - (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults :(NSDictionary *)results {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         if (results != nil) {
             // fix result so it complies with JS result fields
             NSMutableDictionary* new_res = [NSMutableDictionary dictionary];
@@ -85,10 +104,18 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     - (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:@"Share dialog was cancelled" forKey:NSLocalizedDescriptionKey];
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
@@ -96,15 +123,27 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
     // App invite related methods
     - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didCompleteWithResults:(NSDictionary *)results {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
     }
 
     - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didFailWithError:(NSError *)error {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     // Game request related methods
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didCompleteWithResults:(NSDictionary *)results {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         if (results != nil) {
             // fix result so it complies with JS result fields
             NSMutableDictionary* new_res = [NSMutableDictionary dictionaryWithDictionary:@{
@@ -117,6 +156,12 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                 } else {
                     [new_res setObject:results[key] forKey:key];
                 }
+
+                // Alias request_id == request,
+                // want to have same result fields on both Android & iOS.
+                if ([key isEqualToString:@"request"]) {
+                    [new_res setObject:results[key] forKey:@"request_id"];
+                }
             }
             RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
         } else {
@@ -125,10 +170,18 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didFailWithError:(NSError *)error {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     - (void)gameRequestDialogDidCancel:(FBSDKGameRequestDialog *)gameRequestDialog {
+        if(!g_Facebook.m_Login)
+        {
+            return;
+        }
         NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:@"Game request dialog was cancelled" forKey:NSLocalizedDescriptionKey];
         RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
@@ -471,6 +524,10 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
  */
 int Facebook_Login(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -489,6 +546,7 @@ int Facebook_Login(lua_State* L)
     } else {
 
         NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
+
         [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
 
             if (error) {
@@ -530,6 +588,10 @@ int Facebook_Login(lua_State* L)
  */
 int Facebook_Logout(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     [g_Facebook.m_Login logOut];
     [g_Facebook.m_Me release];
     g_Facebook.m_Me = 0;
@@ -563,6 +625,10 @@ int Facebook_Logout(lua_State* L)
  */
 int Facebook_RequestReadPermissions(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -614,6 +680,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -647,6 +717,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
 int Facebook_AccessToken(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
     lua_pushstring(L, token);
     return 1;
@@ -670,6 +744,10 @@ int Facebook_AccessToken(lua_State* L)
  */
 int Facebook_Permissions(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -710,6 +788,10 @@ int Facebook_Permissions(lua_State* L)
  */
 int Facebook_Me(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
 
     if (g_Facebook.m_Me) {
@@ -728,6 +810,140 @@ int Facebook_Me(lua_State* L)
 
     assert(top + 1 == lua_gettop(L));
     return 1;
+}
+
+/*# post an event to Facebook Analytics
+ *
+ * This function will post an event to Facebook Analytics where it can be used
+ * in the Facebook Insights system.
+ *
+ * @name post_event
+ *
+ * @param event (constant|text) An event can either be one of the predefined
+ * constants below or a text which can be used to define a custom event that is
+ * registered with Facebook Analytics.
+ * <ul>
+ *     <li>facebook.EVENT_ACHIEVED_LEVEL</li>
+ *     <li>facebook.EVENT_ACTIVATED_APP</li>
+ *     <li>facebook.EVENT_ADDED_PAYMENT_INFO</li>
+ *     <li>facebook.EVENT_ADDED_TO_CART</li>
+ *     <li>facebook.EVENT_ADDED_TO_WISHLIST</li>
+ *     <li>facebook.EVENT_COMPLETED_REGISTRATION</li>
+ *     <li>facebook.EVENT_COMPLETED_TUTORIAL</li>
+ *     <li>facebook.EVENT_DEACTIVATED_APP</li>
+ *     <li>facebook.EVENT_INITIATED_CHECKOUT</li>
+ *     <li>facebook.EVENT_PURCHASED</li>
+ *     <li>facebook.EVENT_RATED</li>
+ *     <li>facebook.EVENT_SEARCHED</li>
+ *     <li>facebook.EVENT_SESSION_INTERRUPTIONS</li>
+ *     <li>facebook.EVENT_SPENT_CREDITS</li>
+ *     <li>facebook.EVENT_TIME_BETWEEN_SESSIONS</li>
+ *     <li>facebook.EVENT_UNLOCKED_ACHIEVEMENT</li>
+ *     <li>facebook.EVENT_VIEWED_CONTENT</li>
+ * </ul>
+ *
+ * @param value_to_sum (number) A numeric value for the event. This should
+ * represent the value of the event, such as the level achieved, price for an
+ * item or number of orcs killed.
+ *
+ * @param params (table) A table with parameters and their values. A key in the
+ * table can either be one of the predefined constants below or a text which
+ * can be used to define a custom parameter. Optional argument.
+ * <ul>
+ *     <li>facebook.PARAM_CONTENT_ID</li>
+ *     <li>facebook.PARAM_CONTENT_TYPE</li>
+ *     <li>facebook.PARAM_CURRENCY</li>
+ *     <li>facebook.PARAM_DESCRIPTION</li>
+ *     <li>facebook.PARAM_LEVEL</li>
+ *     <li>facebook.PARAM_MAX_RATING_VALUE</li>
+ *     <li>facebook.PARAM_NUM_ITEMS</li>
+ *     <li>facebook.PARAM_PAYMENT_INFO_AVAILABLE</li>
+ *     <li>facebook.PARAM_REGISTRATION_METHOD</li>
+ *     <li>facebook.PARAM_SEARCH_STRING</li>
+ *     <li>facebook.PARAM_SOURCE_APPLICATION</li>
+ *     <li>facebook.PARAM_SUCCESS</li>
+ * </ul>
+ *
+ * @examples
+ * <pre>
+ * params = {facebook.PARAM_LEVEL = 30, facebook.PARAM_NUM_ITEMS = 2};
+ * facebook.post_event(facebook.EVENT_SPENT_CREDITS, 25, params);
+ * </pre>
+ */
+int Facebook_PostEvent(lua_State* L)
+{
+    int argc = lua_gettop(L);
+    const char* event = dmFacebook::Analytics::GetEvent(L, 1);
+    double valueToSum = luaL_checknumber(L, 2);
+
+    // Transform LUA table to a format that can be used by all platforms.
+    const char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    const char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    unsigned int length = 0;
+    // TABLE is an optional argument and should only be parsed if provided.
+    if (argc == 3)
+    {
+        length = dmFacebook::Analytics::MAX_PARAMS;
+        dmFacebook::Analytics::GetParameterTable(L, 3, keys, values, &length);
+    }
+
+    // Prepare for Objective-C
+    NSString* objcEvent = [NSString stringWithCString:event encoding:NSASCIIStringEncoding];
+    NSMutableDictionary* params = [NSMutableDictionary dictionary];
+    for (unsigned int i = 0; i < length; ++i)
+    {
+        NSString* objcKey = [NSString stringWithCString:keys[i] encoding:NSASCIIStringEncoding];
+        NSString* objcValue = [NSString stringWithCString:values[i] encoding:NSASCIIStringEncoding];
+
+        params[objcKey] = objcValue;
+    }
+
+    [FBSDKAppEvents logEvent:objcEvent valueToSum:valueToSum parameters:params];
+
+    return 0;
+}
+
+/*# Enable event usage with Facebook Analytics
+ *
+ * @name enable_event_usage
+ *
+ * <p>
+ * This function will enable event usage for Facebook Analytics which means
+ * that Facebook will be able to use event data for ad-tracking.
+ * </p>
+ * <p>
+ * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
+ * Facebook Canvas platform, therefore this function has no effect on Facebook
+ * Canvas.
+ * </p>
+ */
+int Facebook_EnableEventUsage(lua_State* L)
+{
+    [FBSDKSettings setLimitEventAndDataUsage:false];
+
+    return 0;
+}
+
+/*# Disable event usage with Facebook Analytics
+ *
+ * @name disable_event_usage
+ *
+ * <p>
+ * This function will disable event usage for Facebook Analytics which means
+ * that Facebook won't be able to use event data for ad-tracking. Events will
+ * still be sent to Facebook for insights.
+ * </p>
+ * <p>
+ * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
+ * Facebook Canvas platform, therefore this function has no effect on Facebook
+ * Canvas.
+ * </p>
+ */
+int Facebook_DisableEventUsage(lua_State* L)
+{
+    [FBSDKSettings setLimitEventAndDataUsage:true];
+
+    return 0;
 }
 
 /*# show facebook web dialog
@@ -754,8 +970,11 @@ int Facebook_Me(lua_State* L)
  *   <li><code>to</code> (string)</li>
  * </ul>
  *
- * <b>IMPORTANT</b>The Facebook SDK for Android allows just one recipient in the "to"-field.
- * Furthermore, the field has been deprecated on iOS. Use the "suggestions" field instead.
+ * On success, the "result" table parameter passed to the callback function will include the following fields:
+ * <ul>
+ *   <li><code>request_id</code> (string)</li>
+ *   <li><code>to</code> (table)</li>
+ * </ul>
  *
  * Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
  *
@@ -771,6 +990,11 @@ int Facebook_Me(lua_State* L)
  *   <li><code>people_ids</code> (table)</li>
  *   <li><code>place_id</code> (string)</li>
  *   <li><code>ref</code> (string)</li>
+ * </ul>
+ *
+ * On success, the "result" table parameter passed to the callback function will include the following fields:
+ * <ul>
+ *   <li><code>post_id</code> (string)</li>
  * </ul>
  *
  * Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params
@@ -794,6 +1018,10 @@ int Facebook_Me(lua_State* L)
  */
 static int Facebook_ShowDialog(lua_State* L)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
@@ -876,6 +1104,9 @@ static const luaL_reg Facebook_methods[] =
     {"request_read_permissions", Facebook_RequestReadPermissions},
     {"request_publish_permissions", Facebook_RequestPublishPermissions},
     {"me", Facebook_Me},
+    {"post_event", Facebook_PostEvent},
+    {"enable_event_usage", Facebook_EnableEventUsage},
+    {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
@@ -958,14 +1189,194 @@ static const luaL_reg Facebook_methods[] =
  * @variable
  */
 
+ /*# Log this event when the user has entered their payment info.
+  *
+  * @name facebook.EVENT_ADDED_PAYMENT_INFO
+  * @variable
+  */
+
+ /*# Log this event when the user has added an item to their cart. The
+  *  value_to_sum passed to facebook.post_event should be the item's price.
+  *
+  * @name facebook.EVENT_ADDED_TO_CART
+  * @variable
+  */
+
+ /*# Log this event when the user has added an item to their wishlist. The
+  *  value_to_sum passed to facebook.post_event should be the item's price.
+  *
+  * @name facebook.EVENT_ADDED_TO_WISHLIST
+  * @variable
+  */
+
+ /*# Log this event when a user has completed registration with the app.
+  *
+  * @name facebook.EVENT_COMPLETED_REGISTRATION
+  * @variable
+  */
+
+ /*# Log this event when the user has completed a tutorial in the app.
+  *
+  * @name facebook.EVENT_COMPLETED_TUTORIAL
+  * @variable
+  */
+
+ /*# Log this event when the user has entered the checkout process. The
+  *  value_to_sum passed to facebook.post_event should be the total price in
+  * the cart.
+  *
+  * @name facebook.EVENT_INITIATED_CHECKOUT
+  * @variable
+  */
+
+ /*# Log this event when the user has completed a purchase.
+  *
+  * @name facebook.EVENT_PURCHASED
+  * @variable
+  */
+
+ /*# Log this event when the user has rated an item in the app. The
+  *  value_to_sum  passed to facebook.post_event should be the numeric rating.
+  *
+  * @name facebook.EVENT_RATED
+  * @variable
+  */
+
+ /*# Log this event when a user has performed a search within the app.
+  *
+  * @name facebook.EVENT_SEARCHED
+  * @variable
+  */
+
+ /*# Log this event when the user has spent app credits. The value_to_sum
+  *  passed to facebook.post_event should be the number of credits spent.
+  *
+  * <p>
+  * <b>NOTE!</b> This event is currently an undocumented event in the Facebook
+  * SDK.
+  * </p>
+  *
+  * @name facebook.EVENT_SPENT_CREDITS
+  * @variable
+  */
+
+ /*# Log this event when measuring the time between user sessions.
+  *
+  * @name facebook.EVENT_TIME_BETWEEN_SESSIONS
+  * @variable
+  */
+
+ /*# Log this event when the user has unlocked an achievement in the app.
+  *
+  * @name facebook.EVENT_UNLOCKED_ACHIEVEMENT
+  * @variable
+  */
+
+ /*# Log this event when a user has viewed a form of content in the app.
+  *
+  * @name facebook.EVENT_VIEWED_CONTENT
+  * @variable
+  */
+
+ /*# Parameter key used to specify an ID for the specific piece of content
+  *  being logged about. Could be an EAN, article identifier, etc., depending
+  *  on the nature of the app.
+  *
+  * @name facebook.PARAM_CONTENT_ID
+  * @variable
+  */
+
+ /*# Parameter key used to specify a generic content type/family for the logged
+  *  event, e.g. "music", "photo", "video". Options to use will vary based upon
+  *  what the app is all about.
+  *
+  * @name facebook.PARAM_CONTENT_TYPE
+  * @variable
+  */
+
+ /*# Parameter key used to specify currency used with logged event. E.g. "USD",
+  *  "EUR", "GBP". See ISO-4217 for specific values.
+  *
+  * @name facebook.PARAM_CURRENCY
+  * @variable
+  */
+
+ /*# Parameter key used to specify a description appropriate to the event being
+  *  logged. E.g., the name of the achievement unlocked in the
+  *  facebook.EVENT_UNLOCKED_ACHIEVEMENT event.
+  *
+  * @name facebook.PARAM_DESCRIPTION
+  * @variable
+  */
+
+ /*# Parameter key used to specify the level achieved.
+  *
+  * @name facebook.PARAM_LEVEL
+  * @variable
+  */
+
+ /*# Parameter key used to specify the maximum rating available for the
+  *  facebook.EVENT_RATED event. E.g., "5" or "10".
+  *
+  * @name facebook.PARAM_MAX_RATING_VALUE
+  * @variable
+  */
+
+ /*# Parameter key used to specify how many items are being processed for an
+  *  facebook.EVENT_INITIATED_CHECKOUT or facebook.EVENT_PURCHASED event.
+  *
+  * @name facebook.PARAM_NUM_ITEMS
+  * @variable
+  */
+
+ /*# Parameter key used to specify whether payment info is available for the
+  *  facebook.EVENT_INITIATED_CHECKOUT event.
+  *
+  * @name facebook.PARAM_PAYMENT_INFO_AVAILABLE
+  * @variable
+  */
+
+ /*# Parameter key used to specify method user has used to register for the
+  *  app, e.g., "Facebook", "email", "Twitter", etc.
+  *
+  * @name facebook.PARAM_REGISTRATION_METHOD
+  * @variable
+  */
+
+ /*# Parameter key used to specify the string provided by the user for a search
+  *  operation.
+  *
+  * @name facebook.PARAM_SEARCH_STRING
+  * @variable
+  */
+
+ /*# Parameter key used to specify source application package.
+  *
+  * @name facebook.PARAM_SOURCE_APPLICATION
+  * @variable
+  */
+
+ /*# Parameter key used to specify whether the activity being logged about was
+  *  successful or not.
+  *
+  * @name facebook.PARAM_SUCCESS
+  * @variable
+  */
+
+
 dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {
+    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
+    if( !app_id )
+    {
+        dmLogDebug("No facebook.appid. Disabling module");
+        return dmExtension::RESULT_OK;
+    }
     g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
     dmExtension::RegisterUIApplicationDelegate(g_Facebook.m_Delegate);
 
-    // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-    // Better solution?
-    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
+    g_Facebook.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
+
     [FBSDKSettings setAppID: [NSString stringWithUTF8String: app_id]];
 
     g_Facebook.m_Login = [[FBSDKLoginManager alloc] init];
@@ -975,6 +1386,11 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
 dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
+    if(!g_Facebook.m_Login)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     dmExtension::UnregisterUIApplicationDelegate(g_Facebook.m_Delegate);
     [g_Facebook.m_Login release];
     return dmExtension::RESULT_OK;
@@ -1014,6 +1430,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
 #undef SETCONSTANT
 
+    dmFacebook::Analytics::RegisterConstants(L);
+
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 
@@ -1025,4 +1443,4 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, 0, FinalizeFacebook)
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, 0, 0, FinalizeFacebook)

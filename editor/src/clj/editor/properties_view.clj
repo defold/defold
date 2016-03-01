@@ -9,7 +9,8 @@
             [editor.jfx :as jfx]
             [editor.types :as types]
             [editor.properties :as properties]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.resource :as resource])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
@@ -22,7 +23,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos Point2D]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label Slider TextField Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
@@ -35,6 +36,8 @@
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.google.protobuf ProtocolMessageEnum]
            [editor.properties CurveSpread Curve]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private grid-hgap 4)
 (def ^:private grid-vgap 6)
@@ -51,39 +54,46 @@
    (catch Throwable _
      nil)))
 
-(def create-property-control! nil)
-
 (declare update-field-message)
 
 (defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
 
 (defmethod create-property-control! String [_ _ property-fn]
-  (let [text (TextField.)
+  (let [text         (TextField.)
         update-ui-fn (fn [values message]
                        (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_]
-                          (properties/set-values! (property-fn) (repeat (.getText text)))))
+                       (update-field-message [text] message))
+        update-fn    (fn [_]
+                       (properties/set-values! (property-fn) (repeat (.getText text))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
-  (let [text (TextField.)
+  (let [text         (TextField.)
         update-ui-fn (fn [values message]
                        (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_] (if-let [v (to-int (.getText text))]
-                                  (properties/set-values! (property-fn) (repeat v))
-                                  (update-ui-fn (properties/values (property-fn)) (properties/validation-message (property-fn))))))
+                       (update-field-message [text] message))
+        update-fn    (fn [_]
+                       (if-let [v (to-int (.getText text))]
+                         (properties/set-values! (property-fn) (repeat v))
+                         (update-ui-fn (properties/values (property-fn))
+                                       (properties/validation-message (property-fn)))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
-  (let [text (TextField.)
+  (let [text         (TextField.)
         update-ui-fn (fn [values message]
                        (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_] (if-let [v (to-double (.getText text))]
-                                  (properties/set-values! (property-fn) (repeat v))
-                                  (update-ui-fn (properties/values (property-fn)) (properties/validation-message (property-fn))))))
+                       (update-field-message [text] message))
+        update-fn    (fn [_] (if-let [v (to-double (.getText text))]
+                               (properties/set-values! (property-fn) (repeat v))
+                               (update-ui-fn (properties/values (property-fn))
+                                             (properties/validation-message (property-fn)))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
@@ -99,6 +109,11 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
+(defn- create-property-component [ctrls]
+  (doto (HBox.)
+    (ui/add-style! "property-component")
+    (ui/children! ctrls)))
+
 (defn- create-multi-textfield! [labels property-fn]
   (let [text-fields (mapv (fn [l] (TextField.)) labels)
         box (doto (HBox.)
@@ -107,7 +122,6 @@
                        (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) text-fields)]
                          (ui/text! t v))
                        (update-field-message text-fields message))]
-    (.setSpacing box 6)
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_] (let [v (to-double (.getText ^TextField t))
                                                   current-vals (properties/values (property-fn))]
@@ -119,9 +133,8 @@
     (doseq [[t label] (map vector text-fields labels)]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
-      (doto (.getChildren box)
-        (.add (Label. label))
-        (.add t)))
+      (.add (.getChildren box) (create-property-component [(Label. label) t])))
+
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec3 [_ _ property-fn]
@@ -138,7 +151,6 @@
                        (doseq [[t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
                          (ui/text! t v))
                        (update-field-message text-fields message))]
-    (.setSpacing box 6)
     (doseq [[t f] (map (fn [f t]
                          [t (fn [_] (let [v (to-double (.getText ^TextField t))
                                           current-vals (properties/values (property-fn))]
@@ -154,7 +166,7 @@
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (-> (.getChildren box)
-        (.addAll ^java.util.Collection children)))
+        (.add (create-property-component children))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
@@ -184,13 +196,15 @@
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
   (let [options (:options edit-type)
         inv-options (clojure.set/map-invert options)
-        cb (doto (ChoiceBox.)
+        converter (proxy [StringConverter] []
+                    (toString [value]
+                      (get options value (str value)))
+                    (fromString [s]
+                      (inv-options s)))
+        cb (doto (ComboBox.)
              (-> (.getItems) (.addAll (object-array (map first options))))
-             (.setConverter (proxy [StringConverter] []
-                              (toString [value]
-                                (get options value (str value)))
-                              (fromString [s]
-                                (inv-options s)))))
+             (.setConverter converter)
+             (ui/cell-factory! (fn [val]  {:text (options val)})))
         update-ui-fn (fn [values message]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
@@ -205,19 +219,19 @@
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace property-fn]
+(defmethod create-property-control! (g/protocol resource/Resource) [_ workspace property-fn]
   (let [box (HBox.)
-        button (Button. "...")
+        button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)
         update-ui-fn (fn [values message]
                        (let [val (properties/unify-values values)]
-                         (ui/text! text (when val (workspace/proj-path val))))
+                         (ui/text! text (when val (resource/proj-path val))))
                        (update-field-message [text] message))]
+    (ui/add-style! box "composite-property-control-container")
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                      (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! text (fn [_] (let [path (ui/text text)
-                                      resource (or (workspace/find-resource workspace path)
-                                                   (workspace/file-resource workspace path))]
+                                      resource (workspace/resolve-workspace-resource workspace path)]
                                   (properties/set-values! (property-fn) (repeat resource)))))
     (ui/children! box [text button])
     [box update-ui-fn]))
@@ -271,12 +285,19 @@
         node-coords (.localToScene node (.getX offset) (.getY offset))]
     (.add node-coords (.add scene-coords window-coords))))
 
+(def ^:private severity-tooltip-style-map
+  {g/FATAL "tooltip-error"
+   g/SEVERE "tooltip-error"
+   g/WARNING "tooltip-warning"
+   g/INFO "tooltip-warning"})
+
 (defn- show-message-tooltip [^Node control]
   (when-let [tip (ui/user-data control ::field-message)]
     ;; FIXME: Hack to position tooltip somewhat below control so .show doesn't immediately trigger an :exit.
-    (let [tooltip (Tooltip. tip)
+    (let [tooltip (Tooltip. (:message tip))
           control-bounds (.getLayoutBounds control)
           tooltip-coords (node-screen-coords control (Point2D. 0.0 (+ (.getHeight control-bounds) 11.0)))]
+      (ui/add-style! tooltip (severity-tooltip-style-map (:severity tip)))
       (ui/user-data! control ::tooltip tooltip)
       (.show tooltip control (.getX tooltip-coords) (.getY tooltip-coords)))))
 
@@ -291,7 +312,7 @@
     (show-message-tooltip control)))
 
 (defn- install-tooltip-message [ctrl msg]
-  (ui/user-data! ctrl ::field-message (:message msg))
+  (ui/user-data! ctrl ::field-message msg)
   (ui/on-mouse! ctrl
     (when msg
       (fn [verb e]
@@ -300,30 +321,34 @@
           :exit (hide-message-tooltip ctrl)
           :move nil)))))
 
-(def ^:private severity-style-map
+(def ^:private severity-field-style-map
   {g/FATAL "field-error"
    g/SEVERE "field-error"
    g/WARNING "field-warning"
    g/INFO "field-warning"})
 
-(defn- update-message-style [ctrl msg]
+(defn- update-field-message-style [ctrl msg]
   (if msg
-    (ui/add-style! ctrl (severity-style-map (:severity msg)))
-    (ui/remove-styles! ctrl (vals severity-style-map))))
+    (ui/add-style! ctrl (severity-field-style-map (:severity msg)))
+    (ui/remove-styles! ctrl (vals severity-field-style-map))))
 
 (defn- update-field-message [ctrls msg]
   (doseq [ctrl ctrls]
     (install-tooltip-message ctrl msg)
-    (update-message-style ctrl msg)
+    (update-field-message-style ctrl msg)
     (if msg
       (update-message-tooltip ctrl)
       (hide-message-tooltip ctrl))))
 
+(defn- create-property-label [label]
+  (doto (Label. label) (ui/add-style! "property-label")))
+
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
-  (let [label (Label. (properties/label property))
+  (let [label (create-property-label (properties/label property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
         reset-btn (doto (Button. "x")
                     (.setVisible (properties/overridden? property))
+                    (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
                                      (.requestFocus control))))
@@ -340,7 +365,7 @@
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
     (.add (.getChildren grid) reset-btn)
-    
+
     [key update-ui-fn]))
 
 (defn- create-properties [workspace grid properties property-fn]
@@ -354,6 +379,9 @@
       (ui/add-child! parent grid)
       (ui/add-style! grid "form")
       (create-properties workspace grid properties property-fn)))
+
+(defn- create-category-label [label]
+  (doto (Label. label) (ui/add-style! "property-category")))
 
 (defn- make-pane [parent workspace properties]
   (let [vbox (VBox. (double 10.0))]
@@ -375,7 +403,7 @@
                                               []
                                               (do
                                                 (when category
-                                                  (let [label (Label. category)]
+                                                  (let [label (create-category-label category)]
                                                     (ui/add-child! vbox label)))
                                                 (make-grid vbox workspace properties property-fn)))]
                              (recur (rest sections) (into result update-fns)))
@@ -417,7 +445,8 @@
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties] (update-pane parent-view _node-id workspace selected-node-properties))))
+  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties]
+                                   (update-pane parent-view _node-id workspace selected-node-properties))))
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
