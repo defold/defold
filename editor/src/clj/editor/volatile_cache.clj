@@ -1,6 +1,8 @@
 (ns editor.volatile-cache
   (:require [clojure.core.cache :as cache]))
 
+(set! *warn-on-reflection* true)
+
 (cache/defcache VolatileCache [cache accessed]
   cache/CacheProtocol
   (lookup [_ item]

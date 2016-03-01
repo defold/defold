@@ -1,5 +1,6 @@
 (ns integration.test-util
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
             [editor.cubemap :as cubemap]
@@ -7,7 +8,7 @@
             [editor.game-project :as game-project]
             [editor.image :as image]
             [editor.platformer :as platformer]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.sprite :as sprite]
@@ -26,7 +27,9 @@
             [editor.mesh :as mesh]
             [editor.material :as material])
   (:import [java.io File]
-           [javax.imageio ImageIO]))
+           [java.nio.file Files attribute.FileAttribute]
+           [javax.imageio ImageIO]
+           [org.apache.commons.io FilenameUtils FileUtils]))
 
 (def project-path "resources/test_project")
 
@@ -61,7 +64,15 @@
         (particlefx/register-resource-types workspace)
         (gui/register-resource-types workspace)
         (material/register-resource-types workspace)))
+      (workspace/resource-sync! workspace)
       workspace)))
+
+(defn setup-scratch-workspace! [graph project-path]
+  (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
+                              (.toFile)
+                              (.getAbsolutePath))]
+    (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
+    (setup-workspace! graph temp-project-path)))
 
 (defn setup-project!
   [workspace]
@@ -72,8 +83,7 @@
     project))
 
 (defn resource-node [project path]
-  (let [workspace (g/node-value project :workspace)]
-    (project/get-resource-node project (workspace/file-resource workspace path))))
+  (project/get-resource-node project path))
 
 (defn empty-selection? [project]
   (let [sel (g/node-value project :selected-node-ids)]
@@ -103,7 +113,7 @@
     (fake-input! view type x y []))
   ([view type x y modifiers]
     (let [pos [x y 0.0]]
-      (g/transact (g/set-property view :picking-rect (scene/calc-picking-rect pos pos))))
+      (g/transact (g/set-property view :tool-picking-rect (scene/calc-picking-rect pos pos))))
     (let [handlers  (g/sources-of view :input-handlers)
           user-data (g/node-value view :selected-tool-renderables)
           action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)

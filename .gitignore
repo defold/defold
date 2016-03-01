@@ -8,3 +8,5 @@
 /go/bin
 
 /.ccache
+.idea
+/editor/defold-editor.iml

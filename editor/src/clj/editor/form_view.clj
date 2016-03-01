@@ -3,7 +3,8 @@
             [editor.form :as form]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.resource :as resource])
   (:import [javafx.animation AnimationTimer]
            [java.util Collection]
            [javafx.scene Parent Group]
@@ -16,8 +17,10 @@
            [javafx.beans.value ChangeListener]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout Pane GridPane HBox VBox Priority]
-           [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ChoiceBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
+           [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
            [com.defold.control ListCell TableCell]))
+
+(set! *warn-on-reflection* true)
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
@@ -80,12 +83,12 @@
                       (doto check
                         (.setIndeterminate false)
                         (.setSelected value))))]
-    
+
     (ui/on-action! check (fn [_] (set path (.isSelected check))))
     (ui/on-key! check (fn [key]
                         (when (= key KeyCode/ESCAPE)
                           (cancel))))
-;; See FIXME above.    
+;; See FIXME above.
 ;;     (ui/on-focus! check (fn [got-focus]
 ;;                           (when (not got-focus)
 ;;                             (set path (.isSelected check)))))
@@ -96,14 +99,16 @@
 (defmethod create-field-control :choicebox [{:keys [options path help]} {:keys [set cancel]} _]
   (let [option-map (into {} options)
         inv-options (clojure.set/map-invert option-map)
-        internal-change (atom false)
-        cb (doto (ChoiceBox.)
-             (-> (.getItems) (.addAll (object-array (map first options))))
-             (.setConverter (proxy [StringConverter] []
+        converter (proxy [StringConverter] []
                               (toString [value]
                                 (get option-map value (str value)))
                               (fromString [s]
-                                (inv-options s)))))
+                                (inv-options s)))
+        internal-change (atom false)
+        cb (doto (ComboBox.)
+             (-> (.getItems) (.addAll (object-array (map first options))))
+             (.setConverter converter)
+             (ui/cell-factory! (fn [val] {:text (option-map val)})))
         update-fn (fn [value]
                     (reset! internal-change true)
                     (.setValue cb value)
@@ -125,20 +130,20 @@
 
 (defmethod create-field-control :resource [{:keys [filter path help]} {:keys [set cancel]} {:keys [workspace]}]
   (let [hbox (HBox.)
-        button (Button. "...")
+        button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
-                                    (set path (workspace/proj-path resource)))))
+                                    (set path (resource/proj-path resource)))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
-                                  (when-let [resource-path (and resource (workspace/proj-path resource))]
+                                  (when-let [resource-path (and resource (resource/proj-path resource))]
                                     (set path resource-path)
                                     (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))
-    
+
     (ui/children! hbox [ text button])
     (ui/tooltip! text help)
     [hbox {:update update-fn
@@ -306,7 +311,7 @@
                                             (.setImpl_showRelativeToWindow cm true)
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
-                    
+
 
 (defmethod create-field-control :table [field-info {:keys [set cancel] :as field-ops} ctxt]
   (assert (not cancel) "no support for nested tables")
@@ -379,7 +384,7 @@
                     (ui/remove-style! this "editing-cell")
                     (.setText this (get-value-string item))
                     (.setGraphic this nil)))))))))))
-  
+
 (defn- nil->neg1 [index]
   (if (nil? index)
     -1
@@ -549,7 +554,7 @@
                 (fn [& _]
                   (when-not @internal-select-change
                     (update-list-and-form))))
-    
+
     [hbox {:update update-fn}]))
 
 
@@ -559,12 +564,13 @@
     label))
 
 (defn- field-label-valign [field-info]
-  (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER)) 
+  (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
 
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
         reset-btn (doto (Button. "x")
+                    (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_] (clear path))))
         [control api] (create-field-control field-info field-ops ctxt)
         update-ui-fn (fn [{:keys [value source]}]
@@ -677,14 +683,16 @@
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
   (let [workspace (:workspace opts)
         view-id (g/make-node! graph FormView :parent-view parent :workspace workspace)
-        repainter (proxy [AnimationTimer] []
-                    (handle [now]
-                      (g/node-value view-id :form)))]
+        repainter (ui/->timer (fn [dt] (g/node-value view-id :form)))]
     (g/transact
-     (concat
-      (g/set-property view-id :repainter repainter)
-      (g/connect resource-node :form-data view-id :form-data)))
-    (.start repainter)
+      (concat
+        (g/set-property view-id :repainter repainter)
+        (g/connect resource-node :form-data view-id :form-data)))
+    (ui/timer-start! repainter)
+    (let [^Tab tab (:tab opts)]
+      (ui/on-close tab
+                   (fn [e]
+                     (ui/timer-stop! repainter))))
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]

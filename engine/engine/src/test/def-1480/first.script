@@ -1,0 +1,25 @@
+function init(self)
+    msg.post("#", "start_test")
+    self.elapsed = 0
+end
+
+
+function update(self, dt)
+    -- Add update code here
+    -- Remove this function if not needed
+    self.elapsed = self.elapsed + dt
+    if self.elapsed > 0.5 then
+        print("Engine shutting down")
+        msg.post("@system:", "exit", {code = 0})
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    -- print("on_message")
+    if message_id == hash("start_test") then
+        msg.post("#proxy", "async_load")
+    elseif message_id == hash("proxy_loaded") then
+        -- enable the collection and let the loader know
+        msg.post(sender, "enable")
+    end
+end

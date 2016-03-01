@@ -230,6 +230,19 @@ void _glfwInputChar( int character, int action )
 
 
 //========================================================================
+// Register unfinished (marked) keyboard input
+//========================================================================
+
+void _glfwSetMarkedText( char* text )
+{
+    if( _glfwWin.markedTextCallback )
+    {
+        _glfwWin.markedTextCallback( text );
+    }
+}
+
+
+//========================================================================
 // Register mouse button clicks
 //========================================================================
 
@@ -521,6 +534,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     _glfwWin.windowRefreshCallback = NULL;
     _glfwWin.keyCallback           = NULL;
     _glfwWin.charCallback          = NULL;
+    _glfwWin.markedTextCallback    = NULL;
     _glfwWin.mousePosCallback      = NULL;
     _glfwWin.mouseButtonCallback   = NULL;
     _glfwWin.mouseWheelCallback    = NULL;
@@ -983,6 +997,20 @@ GLFWAPI void GLFWAPIENTRY glfwSetWindowRefreshCallback( GLFWwindowrefreshfun cbf
 
     // Set callback function
     _glfwWin.windowRefreshCallback = cbfun;
+}
+
+//========================================================================
+// Set callback function for window focus events
+//========================================================================
+GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    // Set callback function
+    _glfwWin.windowFocusCallback = cbfun;
 }
 
 

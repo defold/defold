@@ -4,9 +4,9 @@
             [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.gui :as gui]
-            [internal.render.pass :as pass])
+            [editor.gl.pass :as pass])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
@@ -81,14 +81,26 @@
          node-id   (test-util/resource-node project "/logic/main.gui")]
      (is (some? (g/node-value node-id :material-shader))))))
 
+(defn- font-resource-node [project gui-font-node]
+  (project/get-resource-node project (g/node-value gui-font-node :font)))
+
+(defn- build-targets-deps [gui-scene-node]
+  (map :node-id (:deps (first (g/node-value gui-scene-node :build-targets)))))
+
 (deftest gui-fonts
   (with-clean-system
    (let [workspace (test-util/setup-workspace! world)
          project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         font-node (get-in outline [:children 2 :children 0 :node-id])]
-     (is (some? (g/node-value font-node :font-map))))))
+         gui-scene-node   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value gui-scene-node :node-outline)
+         gui-font-node (get-in outline [:children 2 :children 0 :node-id])
+         old-font (font-resource-node project gui-font-node)
+         new-font (project/get-resource-node project "/fonts/big_score.font")]
+     (is (some? (g/node-value gui-font-node :font-map)))
+     (is (some #{old-font} (build-targets-deps gui-scene-node)))
+     (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
+     (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
+     (is (some #{new-font} (build-targets-deps gui-scene-node))))))
 
 (deftest gui-text-node
   (with-clean-system
@@ -100,8 +112,8 @@
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
-(defn- render-order [renderer]
-  (let [renderables (g/node-value renderer :renderables)]
+(defn- render-order [view]
+  (let [renderables (g/node-value view :renderables)]
     (->> (get renderables pass/transparent)
       (map :node-id)
       (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
@@ -114,10 +126,9 @@
           project (test-util/setup-project! workspace)
           app-view (test-util/setup-app-view!)
           node-id (test-util/resource-node project "/gui/layers.gui")
-          view (test-util/open-scene-view! project app-view node-id 16 16)
-          renderer (g/graph-value (g/node-id->graph-id view) :renderer)]
-      (is (= ["box" "pie" "box1" "text"] (render-order renderer)))
+          view (test-util/open-scene-view! project app-view node-id 16 16)]
+      (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
-      (is (= ["pie" "box1" "box" "text"] (render-order renderer)))
+      (is (= ["pie" "box1" "box" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "")
-      (is (= ["box" "pie" "box1" "text"] (render-order renderer))))))
+      (is (= ["box" "pie" "box1" "text"] (render-order view))))))

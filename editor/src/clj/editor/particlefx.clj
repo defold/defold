@@ -1,12 +1,13 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.colors :as colors]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
@@ -15,7 +16,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.outline :as outline]
             [editor.geom :as geom]
-            [internal.render.pass :as pass]
+            [editor.gl.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
             [editor.validation :as validation]
@@ -32,6 +33,8 @@
            [java.nio ByteBuffer]
            [com.google.protobuf ByteString]
            [editor.properties CurveSpread Curve]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
 (def ^:private emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
@@ -427,30 +430,32 @@
   (property space g/Keyword
             (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/always "Emission Space")))
+
   (property tile-source (g/protocol resource/Resource)
-    (dynamic label (g/always "Image"))
-    (value (g/fnk [tile-source-resource] tile-source-resource))
-    (validate (validation/validate-resource tile-source-resource "Missing image" [texture-set-data gpu-texture anim-data]))
-    (set (project/gen-resource-setter [[:resource :tile-source-resource]
-                                       [:texture-set-data :texture-set-data]
-                                       [:gpu-texture :gpu-texture]
-                                       [:anim-data :anim-data]])))
+            (dynamic label (g/always "Image"))
+            (value (gu/passthrough tile-source-resource))
+            (set (project/gen-resource-setter [[:resource :tile-source-resource]
+                                               [:texture-set-data :texture-set-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:anim-data :anim-data]]))
+            (validate (validation/validate-resource tile-source "Missing image"
+                                                    [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
             (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
+
   (property material (g/protocol resource/Resource)
-            (value (g/fnk [material-resource] material-resource))
-            (validate (g/fnk [material-resource]
-                             (when (nil? material-resource)
-                               (g/error-warning "Missing material"))))
-            (set (project/gen-resource-setter [[:resource :material-resource]])))
+            (value (gu/passthrough material-resource))
+            (set (project/gen-resource-setter [[:resource :material-resource]]))
+            (validate (validation/validate-resource material)))
 
   (property blend-mode g/Keyword
-    (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
-    (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+
   (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
@@ -514,7 +519,7 @@
         pb  (reduce (fn [pb [label resource]]
                       (assoc-in pb label resource))
                     pb (map (fn [[label res]]
-                              [label (workspace/proj-path (get dep-resources res))])
+                              [label (resource/proj-path (get dep-resources res))])
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Particle$ParticleFX pb)}))
 
@@ -522,7 +527,7 @@
 
 (g/defnk produce-build-targets [_node-id project-id resource rt-pb-data dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(workspace/proj-path (:resource res)) res]) dep-build-targets))
+        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field]
                                   (if (vector? field)
                                     (mapv
@@ -626,16 +631,16 @@
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
   (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
 
-(defn- emitter? [node-id node-type]
-  (when (= EmitterNode node-type)
+(defn- emitter? [node-id]
+  (when (g/node-instance? EmitterNode node-id)
     node-id))
 
 (defn- pfx? [node-id node-type]
-  (if (= ParticleFXNode node-type)
+  (if (g/node-instance? ParticleFXNode node-id)
     node-id
     (when (contains? (g/declared-inputs node-type) :source-id)
       (let [source-id (g/node-value node-id :source-id)]
-        (when (= ParticleFXNode (g/node-type (g/node-by-id source-id)))
+        (when (g/node-instance? ParticleFXNode source-id)
           source-id)))))
 
 (defn- v4->euler [v]
@@ -678,12 +683,11 @@
   (active? [selection] (and (= 1 (count selection))
                             (let [node-id (first selection)
                                   type (g/node-type (g/node-by-id node-id))]
-                              (or (emitter? node-id type)
+                              (or (emitter? node-id)
                                   (pfx? node-id type)))))
   (run [user-data]
        (let [parent-id (:_node-id user-data)
-             parent-type (g/node-type (g/node-by-id parent-id))
-             self (if (emitter? parent-id parent-type)
+             self (if (emitter? parent-id)
                     (core/scope parent-id)
                     parent-id)]
          (add-modifier-handler self parent-id (:modifier-type user-data))))
@@ -691,7 +695,7 @@
            (when (not user-data)
              (let [self (let [node-id (first selection)
                               type (g/node-type (g/node-by-id node-id))]
-                          (or (emitter? node-id type)
+                          (or (emitter? node-id)
                               (pfx? node-id type)))]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon modifier-icon
@@ -796,7 +800,7 @@
       (swap! pfx-sim-ref plib/reload rt-pb-data))
     (assoc pfx-sim :protobuf-msg rt-pb-data)))
 
-(defn- destroy-pfx-sims [_ pfx-sims]
+(defn- destroy-pfx-sims [_ pfx-sims _]
   (doseq [pfx-sim pfx-sims]
     (plib/destroy-sim @(:pfx-sim pfx-sim))))
 

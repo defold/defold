@@ -91,69 +91,54 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResTileGridPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                            void* context,
-                                            const void* buffer, uint32_t buffer_size,
-                                            void **preload_data,
-                                            const char* filename)
+    dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &tile_grid_ddf);
+        dmDDF::Result e  = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tile_grid_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(hint_info, tile_grid_ddf->m_TileSet);
-        dmResource::PreloadHint(hint_info, tile_grid_ddf->m_Material);
+        dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_TileSet);
+        dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_Material);
 
-        *preload_data = tile_grid_ddf;
+        *params.m_PreloadData = tile_grid_ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTileGridCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResTileGridCreate(const dmResource::ResourceCreateParams& params)
     {
         TileGridResource* tile_grid = new TileGridResource();
-        dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) preload_data;
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) params.m_PreloadData;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, tile_grid_ddf, tile_grid, filename);
+        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, tile_grid, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) tile_grid;
+            params.m_Resource->m_Resource = (void*) tile_grid;
         }
         else
         {
-            ReleaseResources(factory, tile_grid);
+            ReleaseResources(params.m_Factory, tile_grid);
             delete tile_grid;
         }
         return r;
     }
 
-    dmResource::Result ResTileGridDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        TileGridResource* tile_grid = (TileGridResource*) resource->m_Resource;
-        ReleaseResources(factory, tile_grid);
+        TileGridResource* tile_grid = (TileGridResource*) params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, tile_grid);
         delete tile_grid;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTileGridRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params)
     {
         // TODO: Reload is temporarily disabled until issue 678 is fixed
-//        TileGridResource* tile_grid = (TileGridResource*)resource->m_Resource;
+//        TileGridResource* tile_grid = (TileGridResource*)params.m_Resource->m_Resource;
 //        TileGridResource tmp_tile_grid;
-//        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_grid, filename);
+//        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_grid, filename);
 //        if (r == dmResource::RESULT_OK)
 //        {
 //            ReleaseResources(factory, tile_grid);

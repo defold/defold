@@ -2,19 +2,22 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.math :as math]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.project :as project]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
-            [internal.render.pass :as pass])
+            [editor.validation :as validation]
+            [editor.gl.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -33,11 +36,11 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [resource spine-json atlas sample-rate]
+(g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
    :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (workspace/proj-path spine-json)
-               :atlas (workspace/proj-path atlas)
+              {:spine-json (resource/proj-path spine-json-resource)
+               :atlas (resource/proj-path atlas-resource)
                :sample-rate sample-rate})})
 
 (defprotocol Interpolator
@@ -372,7 +375,7 @@
 
 (defn- build-spine-scene [self basis resource dep-resources user-data]
   (let [pb (:spine-scene-pb user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
 (g/defnk produce-scene-build-targets [_node-id resource spine-scene-pb atlas dep-build-targets]
@@ -421,7 +424,10 @@
                       :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
                       :inherit-scale (get b "inheritScale" true)}) (get spine-scene "bones"))
         indexed-bone-children (reduce (fn [m [i b]] (update-in m [(:parent b)] conj [i b])) {} (map-indexed (fn [i b] [i b]) bones))
-        ordered-bones (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) (first (get indexed-bone-children nil)))
+        root (first (get indexed-bone-children nil))
+        ordered-bones (if root
+                        (tree-seq (constantly true) (fn [[i b]] (get indexed-bone-children (:id b))) root)
+                        [])
         bones-remap (into {} (map-indexed (fn [i [first-i b]] [first-i i]) ordered-bones))
         bones (mapv second ordered-bones)
         bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
@@ -576,12 +582,26 @@
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json (g/protocol workspace/Resource))
-  (property atlas (g/protocol workspace/Resource))
+  (property spine-json (g/protocol resource/Resource)
+            (value (gu/passthrough spine-json-resource))
+            (set (project/gen-resource-setter [[:resource :spine-json-resource]
+                                               [:content :spine-scene]]))
+            (validate (validation/validate-resource spine-json "Missing spine json"
+                                                    [spine-scene])))
+
+  (property atlas (g/protocol resource/Resource)
+            (value (gu/passthrough atlas-resource))
+            (set (project/gen-resource-setter [[:resource :atlas-resource]
+                                               [:anim-data :anim-data]
+                                               [:gpu-texture :gpu-texture]
+                                               [:build-targets :dep-build-targets]]))
+            (validate (validation/validate-resource atlas "Missing atlas"
+                                                    [anim-data])))
+
   (property sample-rate g/Num)
 
-  ;; TODO - replace with use of property setter/getter
-  #_(trigger reconnect :property-touched #'reconnect)
+  (input spine-json-resource (g/protocol resource/Resource))
+  (input atlas-resource (g/protocol resource/Resource))
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -599,18 +619,16 @@
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
         spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas          (workspace/resolve-resource resource (:atlas spine))]
-    (concat
-      (g/set-property self :spine-json spine-resource)
-      (g/set-property self :atlas atlas)
-      (g/set-property self :sample-rate (:sample-rate spine))
-      (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
-      (connect-atlas project self atlas))))
+    (g/set-property self
+                    :spine-json spine-resource
+                    :atlas atlas
+                    :sample-rate (:sample-rate spine))))
 
 (g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
-  {:spine-scene (workspace/proj-path spine-scene-resource)
+  {:spine-scene (resource/proj-path spine-scene-resource)
    :default-animation default-animation
    :skin skin
-   :material (workspace/proj-path material-resource)
+   :material (resource/proj-path material-resource)
    :blend-mode blend-mode})
 
 (g/defnk produce-model-save-data [resource model-pb]
@@ -619,7 +637,7 @@
 
 (defn- build-spine-model [self basis resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
 (g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets]
@@ -643,7 +661,7 @@
                                                [:aabb :aabb]
                                                [:build-targets :dep-build-targets]])))
   (property blend-mode g/Any (default :blend_mode_alpha)
-            (validate (validation/validate-blend-mode blend-mode Spine$SpineModelDesc$BlendMode))
+            (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/always
                                  (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
                                    {:type :choicebox

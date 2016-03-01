@@ -1,4 +1,5 @@
 #include "gui_script.h"
+#include <float.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -778,6 +779,9 @@ namespace dmGui
      *   <li><code>gui.PROP_OUTLINE</code></li>
      *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>gui.PROP_FILL_ANGLE</code></li>
+     *   <li><code>gui.PROP_INNER_RADIUS</code></li>
+     *   <li><code>gui.PROP_SLICE9</code></li>
      * </ul>
      * <p>
      *
@@ -1060,7 +1064,7 @@ namespace dmGui
         if (font != 0x0)
         {
             dmGui::TextMetrics metrics;
-            scene->m_Context->m_GetTextMetricsCallback(font, text, 0.0f, false, &metrics);
+            scene->m_Context->m_GetTextMetricsCallback(font, text, 0.0f, false, 1, 0, &metrics);
             size.setX(metrics.m_Width);
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
@@ -1800,10 +1804,10 @@ namespace dmGui
         return 0;
     }
 
-    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break)
+    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break, float leading, float tracking)
     {
         dmGui::TextMetrics metrics;
-        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, &metrics);
+        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
         if (r != RESULT_OK) {
             const char* id_string = (const char*)dmHashReverse64(font_id_hash, 0x0);
             if (id_string != 0x0) {
@@ -1818,6 +1822,9 @@ namespace dmGui
         lua_pushliteral(L, "width");
         lua_pushnumber(L, metrics.m_Width);
         lua_rawset(L, -3);
+        lua_pushliteral(L, "height");
+        lua_pushnumber(L, metrics.m_Height);
+        lua_rawset(L, -3);
         lua_pushliteral(L, "max_ascent");
         lua_pushnumber(L, metrics.m_MaxAscent);
         lua_rawset(L, -3);
@@ -1831,7 +1838,7 @@ namespace dmGui
      *
      * @name gui.get_text_metrics_from_node
      * @param node text node to measure text from
-     * @return a table with the following fields: width, max_ascent, max_descent
+     * @return a table with the following fields: width, height, max_ascent, max_descent
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
     {
@@ -1848,10 +1855,30 @@ namespace dmGui
         const char* text = dmGui::GetNodeText(scene, hnode);
         float width = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE).getX();
         bool line_break = dmGui::GetNodeLineBreak(scene, hnode);
-        PushTextMetrics(L, scene, font_id_hash, text, width, line_break);
+        float leading = dmGui::GetNodeTextLeading(scene, hnode);
+        float tracking = dmGui::GetNodeTextTracking(scene, hnode);
+        PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
+    {
+        if( lua_isnoneornil(L, index) )
+        {
+            return defaultvalue;
+        }
+        return (float) luaL_checknumber(L, index);
+    }
+
+    static inline bool LuaUtilGetDefaultBool(lua_State* L, int index, bool defaultvalue)
+    {
+        if( lua_isnoneornil(L, index) )
+        {
+            return defaultvalue;
+        }
+        return lua_toboolean(L, index);
     }
 
     /*# get text metrics
@@ -1860,9 +1887,11 @@ namespace dmGui
      * @name gui.get_text_metrics
      * @param font font id. (hash|string)
      * @param text text to measure
-     * @param width max-width. use for line-breaks
-     * @param line_breaks true to break lines accordingly to width
-     * @return a table with the following fields: width, max_ascent, max_descent
+     * @param width max-width. use for line-breaks (default=FLT_MAX)
+     * @param line_breaks true to break lines accordingly to width (default=false)
+     * @param leading scale value for line spacing (default=1)
+     * @param tracking scale value for letter spacing (default=0)
+     * @return a table with the following fields: width, height, max_ascent, max_descent
      */
     static int LuaGetTextMetrics(lua_State* L)
     {
@@ -1880,9 +1909,12 @@ namespace dmGui
         }
 
         const char* text = luaL_checkstring(L, 2);
-        float width = luaL_checknumber(L, 3);
-        bool line_break = lua_toboolean(L, 4);
-        PushTextMetrics(L, scene, font_id_hash, text, width, line_break);
+
+        float width     = LuaUtilGetDefaultFloat(L, 3, FLT_MAX);
+        bool line_break = LuaUtilGetDefaultBool(L, 4, false);
+        float leading   = LuaUtilGetDefaultFloat(L, 5, 1.0f);
+        float tracking  = LuaUtilGetDefaultFloat(L, 6, 0.0f);
+        PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -2359,6 +2391,98 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets the leading of the text node
+     *
+     * @name gui.set_leading
+     * @param node node for which to set the leading (node)
+     * @param leading a scaling number for the line spacing (default=1) (number)
+     */
+    static int LuaSetLeading(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_Number leading = luaL_checknumber(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeTextLeading(scene, hnode, leading);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the leading of the text node
+     *
+     * @name gui.get_leading
+     * @param node node from where to get the leading (node)
+     * @return scaling number (default=1) (number)
+     */
+    static int LuaGetLeading(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, (lua_Number) dmGui::GetNodeTextLeading(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the tracking of the text node
+     *
+     * @name gui.set_tracking
+     * @param node node for which to set the tracking (node)
+     * @param tracking a scaling number for the letter spacing (default=0) (number)
+     */
+    static int LuaSetTracking(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_Number tracking = luaL_checknumber(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeTextTracking(scene, hnode, tracking);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the tracking of the text node
+     *
+     * @name gui.get_tracking
+     * @param node node from where to get the tracking (node)
+     * @return scaling number (default=0) (number)
+     */
+    static int LuaGetTracking(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, (lua_Number) dmGui::GetNodeTextTracking(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# determines if the node is pickable by the supplied coordinates
      *
      * @name gui.pick_node
@@ -2767,6 +2891,12 @@ namespace dmGui
      * @variable
      */
 
+    /*# password keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_PASSWORD
+     * @variable
+     */
+
     /*# display on-display keyboard if available
      *
      * The specified type of keyboard is displayed, if it is available on
@@ -2778,6 +2908,7 @@ namespace dmGui
      *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
      *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
      *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_PASSWORD</code></li>
      * </ul>
      * @param autoclose close keyboard automatically when clicking outside
      */
@@ -2801,6 +2932,19 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
         dmHID::HideKeyboard(scene->m_Context->m_HidContext);
+        return 0;
+    }
+
+    /*# reset on-display keyboard if available
+     *
+     * Reset input context of keyboard. This will clear marked text.
+     *
+     * @name gui.reset_keyboard
+     */
+    static int LuaResetKeyboard(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmHID::ResetKeyboard(scene->m_Context->m_HidContext);
         return 0;
     }
 
@@ -3042,6 +3186,7 @@ namespace dmGui
         {"clone_tree",      LuaCloneTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
+        {"reset_keyboard",  LuaResetKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
@@ -3053,6 +3198,10 @@ namespace dmGui
         {"get_inner_radius", LuaGetInnerRadius},
         {"set_outer_bounds", LuaSetOuterBounds},
         {"get_outer_bounds", LuaGetOuterBounds},
+        {"set_leading",     LuaSetLeading},
+        {"get_leading",     LuaGetLeading},
+        {"set_tracking",    LuaSetTracking},
+        {"get_tracking",    LuaGetTracking},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
@@ -3105,6 +3254,24 @@ namespace dmGui
     /*# size property
      *
      * @name gui.PROP_SIZE
+     * @variable
+     */
+
+    /*# fill_angle property
+     *
+     * @name gui.PROP_FILL_ANGLE
+     * @variable
+     */
+
+    /*# inner_radius property
+     *
+     * @name gui.PROP_INNER_RADIUS
+     * @variable
+     */
+
+    /*# slice9 property
+     *
+     * @name gui.PROP_SLICE9
      * @variable
      */
 
@@ -3271,6 +3438,9 @@ namespace dmGui
         SETPROP(outline, OUTLINE)
         SETPROP(shadow, SHADOW)
         SETPROP(size, SIZE)
+        SETPROP(fill_angle, FILL_ANGLE)
+        SETPROP(inner_radius, INNER_RADIUS)
+        SETPROP(slice9, SLICE9)
 
 #undef SETPROP
 
@@ -3362,6 +3532,7 @@ namespace dmGui
         SETKEYBOARD(DEFAULT)
         SETKEYBOARD(NUMBER_PAD)
         SETKEYBOARD(EMAIL)
+        SETKEYBOARD(PASSWORD)
 
 #undef SETKEYBOARD
 

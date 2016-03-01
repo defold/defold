@@ -57,22 +57,25 @@ TEST_P(ResourceTest, Test)
 }
 
 TEST_P(ResourceTest, TestPreload)
-{    
+{
     const char* resource_name = GetParam();
     void* resource;
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
-    for (uint32_t i=0;i<50;i++)
+
+    uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+    while (dmTime::GetTime() < stop_time)
     {
-        r = dmResource::UpdatePreloader(pr, 10*1000);
+        // Simulate running at 30fps
+        r = dmResource::UpdatePreloader(pr, 33*1000);
         if (r != dmResource::RESULT_PENDING)
             break;
-        dmTime::Sleep(10*1000);
+        dmTime::Sleep(33*1000);
     }
-    
+
     ASSERT_EQ(dmResource::RESULT_OK, r);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
-    
+
     dmResource::DeletePreloader(pr);
     dmResource::Release(m_Factory, resource);
 }
@@ -520,7 +523,7 @@ INSTANTIATE_TEST_CASE_P(TileSet, ComponentTest, ::testing::ValuesIn(valid_tilese
 
 /* Texture */
 
-const char* valid_texture_resources[] = {"/texture/valid_png.texturec"};
+const char* valid_texture_resources[] = {"/texture/valid_png.texturec", "/texture/blank_4096_png.texturec"};
 INSTANTIATE_TEST_CASE_P(Texture, ResourceTest, ::testing::ValuesIn(valid_texture_resources));
 
 ResourceFailParams invalid_texture_resources[] =

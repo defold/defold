@@ -275,6 +275,7 @@ namespace dmGameObject
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
+
             instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
             if (!instance)
             {

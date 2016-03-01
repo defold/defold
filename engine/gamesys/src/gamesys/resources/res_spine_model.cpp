@@ -23,74 +23,58 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Material);
     }
 
-    dmResource::Result ResSpineModelPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void** preload_data,
-            const char* filename)
+    dmResource::Result ResSpineModelPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::SpineModelDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(hint_info, ddf->m_SpineScene);
-        dmResource::PreloadHint(hint_info, ddf->m_Material);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_SpineScene);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
-        *preload_data = ddf;
+        *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpineModelCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void* preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResSpineModelCreate(const dmResource::ResourceCreateParams& params)
     {
         SpineModelResource* model_resource = new SpineModelResource();
-        model_resource->m_Model = (dmGameSystemDDF::SpineModelDesc*) preload_data;
-        dmResource::Result r = AcquireResources(factory, model_resource, filename);
+        model_resource->m_Model = (dmGameSystemDDF::SpineModelDesc*) params.m_PreloadData;
+        dmResource::Result r = AcquireResources(params.m_Factory, model_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            resource->m_Resource = (void*) model_resource;
+            params.m_Resource->m_Resource = (void*) model_resource;
         }
         else
         {
-            ReleaseResources(factory, model_resource);
+            ReleaseResources(params.m_Factory, model_resource);
             delete model_resource;
         }
         return r;
     }
 
-    dmResource::Result ResSpineModelDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource)
+    dmResource::Result ResSpineModelDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        SpineModelResource* model_resource = (SpineModelResource*)resource->m_Resource;
-        ReleaseResources(factory, model_resource);
+        SpineModelResource* model_resource = (SpineModelResource*)params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, model_resource);
         delete model_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpineModelRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename)
+    dmResource::Result ResSpineModelRecreate(const dmResource::ResourceRecreateParams& params)
     {
-
         dmGameSystemDDF::SpineModelDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        SpineModelResource* model_resource = (SpineModelResource*)resource->m_Resource;
-        ReleaseResources(factory, model_resource);
+        SpineModelResource* model_resource = (SpineModelResource*)params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, model_resource);
         model_resource->m_Model = ddf;
-        return AcquireResources(factory, model_resource, filename);
+        return AcquireResources(params.m_Factory, model_resource, params.m_Filename);
     }
 }

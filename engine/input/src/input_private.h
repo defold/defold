@@ -73,7 +73,8 @@ namespace dmInput
 
     struct TextBinding
     {
-        dmHID::TextPacket m_Packet;
+        dmHID::TextPacket m_TextPacket;
+        dmHID::MarkedTextPacket m_MarkedTextPacket;
         dmArray<TextTrigger> m_Triggers;
     };
 

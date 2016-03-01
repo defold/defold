@@ -1,0 +1,8 @@
+function on_input(self, action_id, action)
+    -- check text input
+    if action_id == hash("test_action") then
+        assert("testओ", action.text)
+    else
+        assert(false, "unkown action")
+    end
+end

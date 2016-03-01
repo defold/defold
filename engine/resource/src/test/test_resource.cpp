@@ -35,12 +35,12 @@ protected:
     dmResource::HFactory factory;
 };
 
-dmResource::Result DummyCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void *preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result DummyCreate(const dmResource::ResourceCreateParams& params)
 {
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result DummyDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result DummyDestroy(const dmResource::ResourceDestroyParams& params)
 {
     return dmResource::RESULT_OK;
 }
@@ -113,29 +113,15 @@ struct TestResourceContainer
     std::vector<TestResource::ResourceFoo*> m_Resources;
 };
 
-dmResource::Result ResourceContainerPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 void **preload_data,
-                                                 const char* filename);
+dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadParams& params);
 
-dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 void *preload_data,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename);
+dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParams& params);
 
-dmResource::Result ResourceContainerDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+dmResource::Result ResourceContainerDestroy(const dmResource::ResourceDestroyParams& params);
 
-dmResource::Result FooResourceCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void *preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename);
+dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams& params);
 
-dmResource::Result FooResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& params);
 
 class GetResourceTest : public ::testing::TestWithParam<const char*>
 {
@@ -203,15 +189,10 @@ public:
     const char*        m_ResourceName;
 };
 
-dmResource::Result ResourceContainerPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 void **preload_data,
-                                                 const char* filename)
+dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadParams& params)
 {
-    (void) factory;
     TestResource::ResourceContainerDesc* resource_container_desc;
-    dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
+    dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
     if (e != dmDDF::RESULT_OK)
     {
         return dmResource::RESULT_FORMAT_ERROR;
@@ -219,36 +200,30 @@ dmResource::Result ResourceContainerPreload(dmResource::HFactory factory, dmReso
 
     for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
     {
-        dmResource::PreloadHint(hint_info, resource_container_desc->m_Resources[i]);
+        dmResource::PreloadHint(params.m_HintInfo, resource_container_desc->m_Resources[i]);
     }
 
-    *preload_data = resource_container_desc;
+    *params.m_PreloadData = resource_container_desc;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
-                                                 void* context,
-                                                 const void* buffer, uint32_t buffer_size,
-                                                 void* preload_data,
-                                                 dmResource::SResourceDescriptor* resource,
-                                                 const char* filename)
+dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParams& params)
 {
-    (void) factory;
-    GetResourceTest* self = (GetResourceTest*) context;
+    GetResourceTest* self = (GetResourceTest*) params.m_Context;
     self->m_ResourceContainerCreateCallCount++;
 
-    TestResource::ResourceContainerDesc* resource_container_desc = (TestResource::ResourceContainerDesc*) preload_data;
+    TestResource::ResourceContainerDesc* resource_container_desc = (TestResource::ResourceContainerDesc*) params.m_PreloadData;
 
     TestResourceContainer* resource_cont = new TestResourceContainer();
     resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
-    resource->m_Resource = (void*) resource_cont;
+    params.m_Resource->m_Resource = (void*) resource_cont;
 
     bool error = false;
     dmResource::Result factory_e = dmResource::RESULT_OK;
     for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
     {
         TestResource::ResourceFoo* sub_resource;
-        factory_e = dmResource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
+        factory_e = dmResource::Get(params.m_Factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
         if (factory_e != dmResource::RESULT_OK)
         {
             error = true;
@@ -262,10 +237,10 @@ dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
     {
         for (uint32_t i = 0; i < resource_cont->m_Resources.size(); ++i)
         {
-            dmResource::Release(factory, resource_cont->m_Resources[i]);
+            dmResource::Release(params.m_Factory, resource_cont->m_Resources[i]);
         }
         delete resource_cont;
-        resource->m_Resource = 0;
+        params.m_Resource->m_Resource = 0;
         return factory_e;
     }
     else
@@ -274,39 +249,34 @@ dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
     }
 }
 
-dmResource::Result ResourceContainerDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result ResourceContainerDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    GetResourceTest* self = (GetResourceTest*) context;
+    GetResourceTest* self = (GetResourceTest*) params.m_Context;
     self->m_ResourceContainerDestroyCallCount++;
 
-    TestResourceContainer* resource_cont = (TestResourceContainer*) resource->m_Resource;
+    TestResourceContainer* resource_cont = (TestResourceContainer*) params.m_Resource->m_Resource;
 
     std::vector<TestResource::ResourceFoo*>::iterator i;
     for (i = resource_cont->m_Resources.begin(); i != resource_cont->m_Resources.end(); ++i)
     {
-        dmResource::Release(factory, *i);
+        dmResource::Release(params.m_Factory, *i);
     }
     delete resource_cont;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result FooResourceCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void* preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename)
+dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams& params)
 {
-    GetResourceTest* self = (GetResourceTest*) context;
+    GetResourceTest* self = (GetResourceTest*) params.m_Context;
     self->m_FooResourceCreateCallCount++;
 
     TestResource::ResourceFoo* resource_foo;
 
-    dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceFoo_DESCRIPTOR, (void**) &resource_foo);
+    dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &TestResource_ResourceFoo_DESCRIPTOR, (void**) &resource_foo);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) resource_foo;
-        resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
+        params.m_Resource->m_Resource = (void*) resource_foo;
+        params.m_Resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
         return dmResource::RESULT_OK;
     }
     else
@@ -315,12 +285,12 @@ dmResource::Result FooResourceCreate(dmResource::HFactory factory,
     }
 }
 
-dmResource::Result FooResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    GetResourceTest* self = (GetResourceTest*) context;
+    GetResourceTest* self = (GetResourceTest*) params.m_Context;
     self->m_FooResourceDestroyCallCount++;
 
-    dmDDF::FreeMessage(resource->m_Resource);
+    dmDDF::FreeMessage(params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 
@@ -636,48 +606,39 @@ TEST_P(GetResourceTest, PreloadGetAbort)
     }
 }
 
-dmResource::Result RecreateResourceCreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void *preload_data,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
+dmResource::Result RecreateResourceCreate(const dmResource::ResourceCreateParams& params)
 {
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
-    if (buffer_size < TMP_BUFFER_SIZE) {
-        memcpy(tmp, buffer, buffer_size);
-        tmp[buffer_size] = '\0';
+    if (params.m_BufferSize < TMP_BUFFER_SIZE) {
+        memcpy(tmp, params.m_Buffer, params.m_BufferSize);
+        tmp[params.m_BufferSize] = '\0';
         int* recreate_resource = new int(atoi(tmp));
-        resource->m_Resource = (void*) recreate_resource;
-        resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
+        params.m_Resource->m_Resource = (void*) recreate_resource;
+        params.m_Resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
         return dmResource::RESULT_OK;
     } else {
         return dmResource::RESULT_OUT_OF_MEMORY;
     }
 }
 
-dmResource::Result RecreateResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result RecreateResourceDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    int* recreate_resource = (int*) resource->m_Resource;
+    int* recreate_resource = (int*) params.m_Resource->m_Resource;
     delete recreate_resource;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result RecreateResourceRecreate(dmResource::HFactory factory,
-                                                  void* context,
-                                                  const void* buffer, uint32_t buffer_size,
-                                                  dmResource::SResourceDescriptor* resource,
-                                                  const char* filename)
+dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreateParams& params)
 {
-    int* recreate_resource = (int*) resource->m_Resource;
+    int* recreate_resource = (int*) params.m_Resource->m_Resource;
     assert(recreate_resource);
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
-    if (buffer_size < TMP_BUFFER_SIZE) {
-        memcpy(tmp, buffer, buffer_size);
-        tmp[buffer_size] = '\0';
+    if (params.m_BufferSize < TMP_BUFFER_SIZE) {
+        memcpy(tmp, params.m_Buffer, params.m_BufferSize);
+        tmp[params.m_BufferSize] = '\0';
         *recreate_resource = atoi(tmp);
         return dmResource::RESULT_OK;
     } else {
@@ -704,23 +665,18 @@ TEST(dmResource, InvalidUri)
     ASSERT_EQ((void*) 0, factory);
 }
 
-dmResource::Result AdResourceCreate(dmResource::HFactory factory,
-                                           void* context,
-                                           const void* buffer, uint32_t buffer_size,
-                                           void *preload_data,
-                                           dmResource::SResourceDescriptor* resource,
-                                           const char* filename)
+dmResource::Result AdResourceCreate(const dmResource::ResourceCreateParams& params)
 {
-    char* duplicate = (char*)malloc((buffer_size + 1) * sizeof(char));
-    memcpy(duplicate, buffer, buffer_size);
-    duplicate[buffer_size] = '\0';
-    resource->m_Resource = duplicate;
+    char* duplicate = (char*)malloc((params.m_BufferSize + 1) * sizeof(char));
+    memcpy(duplicate, params.m_Buffer, params.m_BufferSize);
+    duplicate[params.m_BufferSize] = '\0';
+    params.m_Resource->m_Resource = duplicate;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result AdResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result AdResourceDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    free(resource->m_Resource);
+    free(params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 
@@ -903,31 +859,22 @@ TEST(RecreateTest, RecreateTestHttp)
 
 char filename_resource_filename[ 128 ];
 
-dmResource::Result FilenameResourceCreate(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                void *preload_data,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
+dmResource::Result FilenameResourceCreate(const dmResource::ResourceCreateParams& params)
 {
-    if (strcmp(filename_resource_filename, filename) == 0)
+    if (strcmp(filename_resource_filename, params.m_Filename) == 0)
         return dmResource::RESULT_OK;
     else
         return dmResource::RESULT_FORMAT_ERROR;
 }
 
-dmResource::Result FilenameResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result FilenameResourceDestroy(const dmResource::ResourceDestroyParams& params)
 {
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result FilenameResourceRecreate(dmResource::HFactory factory,
-                                                  void* context,
-                                                  const void* buffer, uint32_t buffer_size,
-                                                  dmResource::SResourceDescriptor* resource,
-                                                  const char* filename)
+dmResource::Result FilenameResourceRecreate(const dmResource::ResourceRecreateParams& params)
 {
-    if (strcmp(filename_resource_filename, filename) == 0)
+    if (strcmp(filename_resource_filename, params.m_Filename) == 0)
         return dmResource::RESULT_OK;
     else
         return dmResource::RESULT_FORMAT_ERROR;
@@ -995,11 +942,11 @@ struct CallbackUserData
     const char* m_Name;
 };
 
-void ReloadCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+void ReloadCallback(const dmResource::ResourceReloadedParams& params)
 {
-    CallbackUserData* data = (CallbackUserData*)user_data;
-    data->m_Descriptor = descriptor;
-    data->m_Name = name;
+    CallbackUserData* data = (CallbackUserData*) params.m_UserData;
+    data->m_Descriptor = params.m_Resource;
+    data->m_Name = params.m_Name;
 }
 
 TEST(RecreateTest, ReloadCallbackTest)

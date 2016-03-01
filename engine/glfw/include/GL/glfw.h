@@ -286,6 +286,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_KEYBOARD_DEFAULT    (0)
 #define GLFW_KEYBOARD_NUMBER_PAD (1)
 #define GLFW_KEYBOARD_EMAIL      (2)
+#define GLFW_KEYBOARD_PASSWORD   (3)
 
 /* Mouse button definitions */
 #define GLFW_MOUSE_BUTTON_1      0
@@ -445,6 +446,7 @@ typedef void (GLFWCALL * GLFWmouseposfun)(int,int);
 typedef void (GLFWCALL * GLFWmousewheelfun)(int);
 typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
+typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWtouchfun)(GLFWTouch*,int);
 
@@ -489,13 +491,15 @@ GLFWAPI void GLFWAPIENTRY glfwGetMousePos( int *xpos, int *ypos );
 GLFWAPI void GLFWAPIENTRY glfwSetMousePos( int xpos, int ypos );
 GLFWAPI int  GLFWAPIENTRY glfwGetMouseWheel( void );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheel( int pos );
-GLFWAPI void GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun );
-GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetMarkedTextCallback( GLFWmarkedtextfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type, int auto_close );
-GLFWAPI void GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun );
-GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
-GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
-GLFWAPI void GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
+GLFWAPI void GLFWAPIENTRY glfwResetKeyboard( void );
+GLFWAPI int  GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count);
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
@@ -547,6 +551,10 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 // Defold extension
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
+
+// Trying to mimic somewhat the features of glfw 3.0
+typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
+GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
 
 #ifdef __cplusplus
 }

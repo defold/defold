@@ -13,6 +13,8 @@
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.storage.file FileRepositoryBuilder]))
 
+(set! *warn-on-reflection* true)
+
 (def short-status {:add "A" :modify "M" :delete "D" :rename "R"})
 
 (defn refresh! [git list-view]
@@ -29,15 +31,18 @@
                   :command :revert}])
 
 (handler/defhandler :revert :asset-browser
-  (enabled? [selection] (prn selection) (pos? (count selection)))
+  (enabled? [selection]
+            (pos? (count selection)))
   (run [selection git list-view workspace]
        (doseq [status selection]
          (git/revert git [(or (:new-path status) (:old-path status))]))
        (refresh! git list-view)
-       (workspace/fs-sync workspace)))
+       (workspace/resource-sync! workspace)))
 
 (handler/defhandler :diff :asset-browser
-  (enabled? [selection] (= 1 (count selection)))
+  (enabled? [selection]
+            (and (= 1 (count selection))
+                 (not= :add (:change-type (first selection)))))
   (run [selection ^Git git list-view]
        (let [status (first selection)
              old-name (or (:old-path status) (:new-path status) )

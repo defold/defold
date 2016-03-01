@@ -7,22 +7,11 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResEmitterCreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            void *preload_data,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResEmitterCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResEmitterDestroy(dmResource::HFactory factory,
-            void* context,
-            dmResource::SResourceDescriptor* resource);
+    dmResource::Result ResEmitterDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResEmitterRecreate(dmResource::HFactory factory,
-            void* context,
-            const void* buffer, uint32_t buffer_size,
-            dmResource::SResourceDescriptor* resource,
-            const char* filename);
+    dmResource::Result ResEmitterRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_EMITTER_H

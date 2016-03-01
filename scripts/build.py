@@ -21,19 +21,19 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5".split()
+PACKAGES_WIN32="PVRTexLib-4.5 openal-1.1".split()
 PACKAGES_LINUX="PVRTexLib-4.5".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.22.0"
+EMSCRIPTEN_VERSION_STR = "1.35.23"
 # The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
 EMSCRIPTEN_VERSION_STR_LINUX = "master"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_SDK_LINUX = "sdk-{0}-32bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
+EMSCRIPTEN_SDK_LINUX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH="gtest-1.5.0".split()
@@ -289,7 +289,7 @@ class Configuration(object):
 
     def _form_ems_path(self):
         path = ''
-        if self.host == 'linux':
+        if 'linux' in self.host:
             path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         else:
             path = join(self.ext, EMSCRIPTEN_DIR)
@@ -304,7 +304,7 @@ class Configuration(object):
 
     def get_ems_sdk_name(self):
         sdk = EMSCRIPTEN_SDK_OSX
-        if 'linux' == self.host:
+        if 'linux' in self.host:
             sdk = EMSCRIPTEN_SDK_LINUX
         return sdk;
 
@@ -312,7 +312,14 @@ class Configuration(object):
         return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
 
     def activate_ems(self):
+        # Compile a file warm up the emscripten caches (libc etc)
+        c_file = tempfile.mktemp(suffix='.c')
+        exe_file = tempfile.mktemp(suffix='.js')
+        with open(c_file, 'w') as f:
+            f.write('int main() { return 0; }')
+
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
@@ -437,7 +444,7 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push adtruth facebook crash engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push iac adtruth facebook crash engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -964,12 +971,13 @@ instructions.configure=\
             sys.exit(5)
 
         from boto.s3.connection import S3Connection
+        from boto.s3.connection import OrdinaryCallingFormat
         from boto.s3.key import Key
 
         # NOTE: We hard-code host (region) here and it should not be required.
         # but we had problems with certain buckets with period characters in the name.
         # Probably related to the following issue https://github.com/boto/boto/issues/621
-        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com')
+        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket

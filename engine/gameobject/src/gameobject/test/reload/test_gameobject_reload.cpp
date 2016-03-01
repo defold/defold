@@ -76,13 +76,9 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data,dmResource::SResourceDescriptor* resource, const char* filename);
-    static dmResource::Result ResReloadTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
-    static dmResource::Result ResReloadTargetRecreate(dmResource::HFactory factory,
-                                              void* context,
-                                              const void* buffer, uint32_t buffer_size,
-                                              dmResource::SResourceDescriptor* resource,
-                                              const char* filename);
+    static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams& params);
+    static dmResource::Result ResReloadTargetDestroy(const dmResource::ResourceDestroyParams& params);
+    static dmResource::Result ResReloadTargetRecreate(const dmResource::ResourceRecreateParams& params);
 
     static dmGameObject::CreateResult CompReloadTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     static dmGameObject::CreateResult CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
@@ -103,13 +99,13 @@ public:
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
-dmResource::Result ReloadTest::ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result ReloadTest::ResReloadTargetCreate(const dmResource::ResourceCreateParams& params)
 {
     TestGameObjectDDF::ReloadTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(buffer, buffer_size, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params.m_Buffer, params.m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) obj;
+        params.m_Resource->m_Resource = (void*) obj;
         return dmResource::RESULT_OK;
     }
     else
@@ -118,24 +114,20 @@ dmResource::Result ReloadTest::ResReloadTargetCreate(dmResource::HFactory factor
     }
 }
 
-dmResource::Result ReloadTest::ResReloadTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result ReloadTest::ResReloadTargetDestroy(const dmResource::ResourceDestroyParams& params)
 {
-    dmDDF::FreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result ReloadTest::ResReloadTargetRecreate(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename)
+dmResource::Result ReloadTest::ResReloadTargetRecreate(const dmResource::ResourceRecreateParams& params)
 {
-    dmDDF::FreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
     TestGameObjectDDF::ReloadTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(buffer, buffer_size, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params.m_Buffer, params.m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        resource->m_Resource = (void*) obj;
+        params.m_Resource->m_Resource = (void*) obj;
         return dmResource::RESULT_OK;
     }
     else

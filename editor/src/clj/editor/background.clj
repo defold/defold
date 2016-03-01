@@ -3,9 +3,11 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.colors :as colors]
-            [internal.render.pass :as p]
+            [editor.gl.pass :as p]
             [plumbing.core :refer [fnk]])
   (:import [javax.media.opengl GL2]))
+
+(set! *warn-on-reflection* true)
 
 (def grad-top-color    colors/mid-grey)
 (def grad-bottom-color colors/bright-black)

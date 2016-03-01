@@ -6,17 +6,14 @@
             [service.log :as log])
   (:import [editor.resource FileResource ZipResource]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol ItemIterator
   (value [this])
   (parent [this]))
 
-(defn- node-instance? [type node]
-  (let [node-type (g/node-type node)
-        all-types (into #{node-type} (g/supertypes node-type))]
-    (all-types type)))
-
 (defn- req-satisfied? [req node]
-  (and (node-instance? (:node-type req) node)
+  (and (g/node-instance*? (:node-type req) node)
        (reduce (fn [v [field valid-fn]] (and v (valid-fn (get node field)))) true (:values req))))
 
 (defn- find-req [node reqs]

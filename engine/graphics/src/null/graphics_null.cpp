@@ -759,6 +759,11 @@ namespace dmGraphics
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
+    uint32_t GetMaxTextureSize(HContext context)
+    {
+        return 1024;
+    }
+
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
         Texture* tex = new Texture();
@@ -768,11 +773,11 @@ namespace dmGraphics
         tex->m_Data = 0;
 
         if (params.m_OriginalWidth == 0) {
-        	tex->m_OriginalWidth = params.m_Width;
-        	tex->m_OriginalHeight = params.m_Height;
+            tex->m_OriginalWidth = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
         } else {
-        	tex->m_OriginalWidth = params.m_OriginalWidth;
-        	tex->m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_OriginalWidth = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
         return tex;

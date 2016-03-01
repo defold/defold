@@ -8,7 +8,7 @@
 
 namespace dmHID
 {
-    const uint32_t MAX_CHAR_COUNT = 16;
+    const uint32_t MAX_CHAR_COUNT = 256;
 
     /// Hid context handle
     typedef struct Context* HContext;
@@ -175,6 +175,7 @@ namespace dmHID
         KEYBOARD_TYPE_DEFAULT,
         KEYBOARD_TYPE_NUMBER_PAD,
         KEYBOARD_TYPE_EMAIL,
+        KEYBOARD_TYPE_PASSWORD,
     };
 
     enum MouseButton
@@ -213,6 +214,13 @@ namespace dmHID
     {
         char     m_Text[MAX_CHAR_COUNT];
         uint32_t m_Size;
+    };
+
+    struct MarkedTextPacket
+    {
+        char     m_Text[MAX_CHAR_COUNT];
+        uint32_t m_Size;
+        uint32_t m_HasText : 1;
     };
 
     struct MousePacket
@@ -390,6 +398,8 @@ namespace dmHID
 
     /**
      * Obtain a keyboard packet reflecting the current input state of a HID context.
+     * @note If no keyboard is connected, the internal buffers will not be changed, out_packet will not be updated,
+     * and the function returns false.
      *
      * @param context context from which to retrieve the packet
      * @param out_packet Keyboard packet out argument
@@ -400,11 +410,24 @@ namespace dmHID
     /**
      * Get text-input package
      * @note The function clears the internal buffer and subsequent calls will return an empty package (size 0)
+     * If no keyboard is connected, the internal buffers will not be changed, out_packet will not be updated,
+     * and the function returns false.
      * @param context context
      * @param out_packet package
      * @return If the packet was successfully updated or not.
      */
     bool GetTextPacket(HContext context, TextPacket* out_packet);
+
+    /**
+     * Get marked text-input package
+     * @note The function clears the internal buffer and subsequent calls will return an empty package (size 0)
+     * If no keyboard is connected, the internal buffers will not be changed, out_packet will not be updated,
+     * and the function returns false.
+     * @param context context
+     * @param out_packet package
+     * @return If the packet was successfully updated or not.
+     */
+    bool GetMarkedTextPacket(HContext context, MarkedTextPacket* out_packet);
 
     /**
      * Obtain a mouse packet reflecting the current input state of a HID context.
@@ -454,6 +477,22 @@ namespace dmHID
     void SetKey(HContext context, Key key, bool value);
 
     /**
+     * Add a keyboard character input
+     *
+     * @param context context handle
+     * @param chr The character (unicode)
+     */
+    void AddKeyboardChar(HContext context, int chr);
+
+    /**
+     * Set current marked text
+     *
+     * @param context context handle
+     * @param text The marked text string
+     */
+    void SetMarkedText(HContext context, char* text);
+
+    /**
      * Show keyboard if applicable
      * @param context context
      * @param type keyboard type
@@ -466,6 +505,12 @@ namespace dmHID
      * @param context context
      */
     void HideKeyboard(HContext context);
+
+    /**
+     * Reset keyboard
+     * @param context context
+     */
+    void ResetKeyboard(HContext context);
 
     /**
      * Convenience function to retrieve the state of a mouse button from a mouse packet.

@@ -183,6 +183,7 @@ static void computeIconifiedState()
 
 static void handleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
+
     switch (cmd)
     {
     case APP_CMD_SAVE_STATE:
@@ -231,6 +232,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
         computeIconifiedState();
+        if(_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(1);
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
@@ -242,6 +245,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
         computeIconifiedState();
+        if(_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(0);
         break;
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
@@ -527,7 +532,16 @@ static int LooperCallback(int fd, int events, void* data)
     struct Command cmd;
     if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
         if (cmd.m_Command == CMD_INPUT_CHAR) {
+            // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
+            _glfwInputChar( (int)cmd.m_Data, GLFW_RELEASE );
             _glfwInputChar( (int)cmd.m_Data, GLFW_PRESS );
+
+        } else if (cmd.m_Command == CMD_INPUT_MARKED_TEXT) {
+            _glfwSetMarkedText( (char*)cmd.m_Data );
+
+            // Need to free marked text string thas was
+            // allocated in android_window.c
+            free(cmd.m_Data);
         }
     } else {
         LOGF("read error in looper callback");

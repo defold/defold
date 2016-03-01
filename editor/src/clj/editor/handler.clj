@@ -2,6 +2,8 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]))
 
+(set! *warn-on-reflection* true)
+
 (defonce ^:dynamic *handlers* (atom {}))
 
 ; TODO: Validate arguments for all functions and log appropriate message
@@ -63,7 +65,7 @@
   ([selection] (= 1 (count selection)))
   ([selection type]
    (and (single-selection? selection)
-        (= type (g/node-type* (first selection))))))
+        (g/node-instance? type (first selection)))))
 
 (defn get-single-selection [selection type]
   (and (single-selection? selection type)

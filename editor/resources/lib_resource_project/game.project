@@ -1,0 +1,6 @@
+[project]
+title = Library test project
+
+[bootstrap]
+main_collection = /main/main.collectionc
+

@@ -80,12 +80,18 @@ public class SSDP implements ISSDP {
         mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
     }
 
-    private void sendSearch() throws IOException {
+    private void sendSearch() {
         byte[] buf = M_SEARCH_PAYLOAD.getBytes();
         DatagramPacket p = new DatagramPacket(buf, buf.length, SSDP_MCAST_ADDR,
                 SSDP_MCAST_PORT);
         for (DatagramSocket s : sockets) {
-            s.send(p);
+            try {
+                s.send(p);
+            } catch (IOException e) {
+                // Might get no route to host etc on an interface, but
+                // that is no good reason to stop searching there, so just
+                // ignore and continue with next interface.
+            }
         }
     }
 

@@ -16,11 +16,13 @@ def build(bld):
             lib_dirs['library_script.js'] = '../lib/js'
             bld.env['JS_LIB_PATHS'] = lib_dirs
 
+    web_libs = ["library_sys.js", "library_script.js"]
     libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
     test_script_ddf = bld.new_task_gen(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
+                                        web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script_ddf',
                                         source = 'test_script_ddf.cpp test_ddf.proto')
@@ -31,6 +33,7 @@ def build(bld):
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
+                                        web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script_msg',
                                         source = 'test_script_msg.cpp test_ddf.proto')
@@ -41,6 +44,7 @@ def build(bld):
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
+                                        web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script_hash',
                                         source = 'test_script_hash.cpp test_hash.lua')
@@ -51,6 +55,7 @@ def build(bld):
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
+                                     web_libs = web_libs,
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
                                      source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua')
@@ -62,6 +67,7 @@ def build(bld):
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
+                                     web_libs = web_libs,
                                      proto_gen_py = True,
                                      embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat',
                                      target = 'test_script_table',
@@ -73,6 +79,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_sys',
                                        source = 'test_script_sys.cpp test_sys.lua')
@@ -80,12 +87,13 @@ def build(bld):
     test_script_sys.install_path = None
 
     test_script = bld.new_task_gen(features = flist,
-                                       includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
-                                       proto_gen_py = True,
-                                       target = 'test_script',
-                                       source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua')
+                                        includes = '..',
+                                        uselib = libs,
+                                        uselib_local = 'script',
+                                        web_libs = web_libs,
+                                        proto_gen_py = True,
+                                        target = 'test_script',
+                                        source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua')
 
     test_script.install_path = None
 
@@ -93,6 +101,7 @@ def build(bld):
                                           includes = '..',
                                           uselib = libs,
                                           uselib_local = 'script',
+                                          web_libs = web_libs,
                                           proto_gen_py = True,
                                           target = 'test_script_module',
                                           source = 'test_script_module.cpp test_module.lua test_module_missing.lua')
@@ -103,6 +112,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_json',
                                        source = 'test_script_json.cpp test_json.lua')
@@ -113,6 +123,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_http',
                                        source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
@@ -123,6 +134,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_zlib',
                                        source = 'test_script_zlib.cpp test_zlib.lua')
@@ -133,6 +145,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_image',
                                        source = 'test_script_image.cpp test_image.lua')
@@ -143,6 +156,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_user_type',
                                        source = 'test_script_user_type.cpp')
@@ -153,6 +167,7 @@ def build(bld):
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
+                                       web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_luasocket',
                                        source = 'test_script_luasocket.cpp test_luasocket.lua')
