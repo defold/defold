@@ -212,7 +212,6 @@ bail:
     {
         uint32_t size = entry_info->m_Size;
         uint32_t compressed_size = entry_info->m_CompressedSize;
-        int decompressed_size = 0;
 
         if (archive->m_Meta)
         {
@@ -243,11 +242,10 @@ bail:
                         return RESULT_UNKNOWN;
                     }
                 }
-
-                dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
+                dmLZ4::Result r = dmLZ4::DecompressBufferFast(compressed_buf, compressed_size, buffer, size);
                 free(compressed_buf);
 
-                if (r == dmLZ4::RESULT_OK && decompressed_size == size)
+                if (r == dmLZ4::RESULT_OK)
                 {
                     return RESULT_OK;
                 }
@@ -296,8 +294,8 @@ bail:
             if (compressed_size != 0xFFFFFFFF)
             {
                 // Entry is compressed
-                dmLZ4::Result result = dmLZ4::DecompressBuffer(decrypted, compressed_size, buffer, size, &decompressed_size);
-                if (result == dmLZ4::RESULT_OK && decompressed_size == size)
+                dmLZ4::Result result = dmLZ4::DecompressBufferFast(decrypted, compressed_size, buffer, size);
+                if (result == dmLZ4::RESULT_OK)
                 {
                     ret = RESULT_OK;
                 }
