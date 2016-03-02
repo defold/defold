@@ -28,7 +28,7 @@ def build(bld):
                               target = 'gpgsext')
 
 
-    bld.new_task_gen(source = 'ggs.h',
+    bld.new_task_gen(source = 'gpgs.h',
                      target = 'gpgs_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 

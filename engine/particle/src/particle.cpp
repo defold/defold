@@ -523,7 +523,7 @@ namespace dmParticle
             Instance* instance = context->m_Instances[i];
 
             // empty slot
-            if ((HInstance) instance == INVALID_INSTANCE) continue;
+            if (instance == (Instance*) INVALID_INSTANCE) continue;
             // don't update sleeping instances
             if (IsSleeping(instance))
             {
@@ -1303,7 +1303,7 @@ namespace dmParticle
             for (uint32_t i = 0; i < instance_count; i++)
             {
                 Instance* instance = context->m_Instances[i];
-                if ((HInstance) instance == INVALID_INSTANCE) continue;
+                if (instance == (Instance*) INVALID_INSTANCE) continue;
                 uint32_t emitter_count = instance->m_Emitters.Size();
                 for (uint32_t j = 0; j < emitter_count; ++j)
                 {
@@ -1319,7 +1319,7 @@ namespace dmParticle
         for (uint32_t i = 0; i < instance_count; ++i)
         {
             Instance* instance = context->m_Instances[i];
-            if ((HInstance) instance == INVALID_INSTANCE) continue;
+            if (instance == (Instance*) INVALID_INSTANCE) continue;
             Prototype* prototype = instance->m_Prototype;
 
             uint32_t emitter_count = instance->m_Emitters.Size();
