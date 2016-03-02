@@ -18,6 +18,10 @@
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
         </receiver>
 
+        <!-- For Google Play Game Sevices (gpg) -->
+        <meta-data android:name="com.google.android.gms.games.APP_ID"
+                   android:value="\ {{gpgs-app-id}}" />
+
         <!-- For GCM (push) -->
         <meta-data
             android:name="com.google.android.gms.version"

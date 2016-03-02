@@ -497,7 +497,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <!-- For Google Play Game Sevices (gpg) -->
         <meta-data android:name="com.google.android.gms.games.APP_ID"
-                   android:value="\ 1082452513575" />
+                   android:value="\ 123456789012" />
 
         <!-- For GCM (push) -->
         <meta-data
