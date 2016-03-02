@@ -1949,9 +1949,12 @@ namespace dmGui
 
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
         Vector4 prop_scale = node.m_Properties[dmGui::PROPERTY_SCALE];
-        node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
-        Vector4 reference_scale = CalculateReferenceScale(scene, n);
-        AdjustPosScale(scene, n, reference_scale, position, node.m_LocalAdjustScale);
+        Vector4 reference_scale = Vector4(1.0, 1.0, 1.0, 1.0);
+        node.m_LocalAdjustScale = reference_scale;
+        if (scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED) {
+            reference_scale = CalculateReferenceScale(scene, n);
+            AdjustPosScale(scene, n, reference_scale, position, node.m_LocalAdjustScale);
+        }
         const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
         Quat r = dmVMath::EulerToQuat(rotation);
         r = normalize(r);
@@ -2942,7 +2945,7 @@ namespace dmGui
         }
         SceneTraversalCache::Data& cache_data = traversal_cache.m_Data[cache_index];
 
-        if (node.m_DirtyLocal || scene->m_ResChanged)
+        if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
         {
             UpdateLocalTransform(scene, n);
         }
@@ -2976,7 +2979,7 @@ namespace dmGui
     inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity)
     {
         const Node& node = n->m_Node;
-        if (node.m_DirtyLocal || scene->m_ResChanged)
+        if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
         {
             UpdateLocalTransform(scene, n);
         }
@@ -3001,7 +3004,7 @@ namespace dmGui
     inline void CalculateParentNodeTransform(HScene scene, InternalNode* n, Matrix4& out_transform)
     {
         const Node& node = n->m_Node;
-        if (node.m_DirtyLocal || scene->m_ResChanged)
+        if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
         {
             UpdateLocalTransform(scene, n);
         }
@@ -3019,7 +3022,7 @@ namespace dmGui
     void CalculateNodeTransform(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
     {
         const Node& node = n->m_Node;
-        if (node.m_DirtyLocal || scene->m_ResChanged)
+        if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
         {
             UpdateLocalTransform(scene, n);
         }
