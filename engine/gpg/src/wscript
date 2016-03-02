@@ -13,7 +13,7 @@ def build(bld):
         source += ['gpgs_interface.cpp']
         source += ['gpgs_impl_native.cpp']
     elif re.match('arm.*?darwin', bld.env.PLATFORM):
-        source += ['gpgs_init_ios.cpp']
+        source += ['gpgs_init_ios.mm']
         source += ['gpgs_interface.cpp']
         source += ['gpgs_impl_native.cpp']
     else:

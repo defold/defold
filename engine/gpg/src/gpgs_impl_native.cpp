@@ -81,7 +81,7 @@ namespace
 
             if (command.m_ParameterStack != NULL)
             {
-                free(command.m_ParameterStack);
+                lua_close(command.m_ParameterStack);
                 command.m_ParameterStack = NULL;
             }
         }
