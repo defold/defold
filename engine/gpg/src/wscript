@@ -1,5 +1,6 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 import os, re
+
 
 def configure(conf):
     pass
@@ -7,9 +8,12 @@ def configure(conf):
 def build(bld):
 
     source = []
-
-    if re.match('.*?android', bld.env.PLATFORM):
+    if re.match('arm.*?android', bld.env.PLATFORM):
         source += ['gpgs_init_android.cpp']
+        source += ['gpgs_interface.cpp']
+        source += ['gpgs_impl_native.cpp']
+    elif re.match('arm.*?darwin', bld.env.PLATFORM):
+        source += ['gpgs_init_ios.cpp']
         source += ['gpgs_interface.cpp']
         source += ['gpgs_impl_native.cpp']
     else:
@@ -24,7 +28,7 @@ def build(bld):
                               target = 'gpgsext')
 
 
-    bld.new_task_gen(source = 'gpgs.h',
+    bld.new_task_gen(source = 'ggs.h',
                      target = 'gpgs_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
@@ -34,5 +38,3 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/doc', 'gpgs_doc.sdoc')
     bld.install_files('${PREFIX}/share/doc', 'gpgs_doc.json')
-
-
