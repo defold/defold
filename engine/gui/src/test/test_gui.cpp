@@ -2471,6 +2471,32 @@ TEST_F(dmGuiTest, Picking)
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, pos.getY()));
 }
 
+TEST_F(dmGuiTest, PickingDisabledAdjust)
+{
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+    float ref_scale = 0.5f;
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
+    dmGui::SetSceneResolution(m_Scene, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+
+    // Account for some loss in precision
+    Vector3 min(EPSILON, EPSILON, 0);
+    Vector3 max = size - min;
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), min.getY()));
+
+    // If the physical window is doubled (as in our case), the visual gui elements are at
+    // 50% of their original positions/sizes since we have disabled adjustments.
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, min.getX(), max.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX()*ref_scale, max.getY()*ref_scale));
+}
+
 TEST_F(dmGuiTest, ScriptPicking)
 {
     uint32_t physical_width = 640;
@@ -3522,6 +3548,94 @@ TEST_F(dmGuiTest, AdjustReference)
     // clean up
     dmGui::DeleteNode(m_Scene, node_level1);
     dmGui::DeleteNode(m_Scene, node_level0);
+
+}
+
+TEST_F(dmGuiTest, AdjustReferenceDisabled)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    uint32_t physical_width = 200;
+    uint32_t physical_height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_LEGACY, dmGui::GetSceneAdjustReference(m_Scene));
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_DISABLED, dmGui::GetSceneAdjustReference(m_Scene));
+
+    // create nodes
+    dmGui::HNode node_levelB = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_levelB, "node_levelB");
+    dmGui::SetNodePivot(m_Scene, node_levelB, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_levelB, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_levelB, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_levelB, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::HNode node_levelC = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_levelC, "node_levelC");
+    dmGui::SetNodePivot(m_Scene, node_levelC, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_levelC, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_levelC, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_levelC, dmGui::ADJUST_MODE_FIT);
+
+    dmGui::SetNodeParent(m_Scene, node_levelC, node_levelB);
+
+    // update
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+
+    /*
+        before resize:
+        A----------------------+
+        |                      |
+        |  B---------------+   |
+        |  |[C]  <-80->    |   |
+        |10+---------------+   |
+        | 10                   |
+        +----------------------+
+
+        after resize:
+        A---------------------------------------------+
+        |                                             |
+        |  B---------------+                          |
+        |  |[C]  <-80->    |                          |
+        |10+---------------+                          |
+        |   10                                        |
+        +---------------------------------------------+
+
+
+        A: window (ADJUST_REFERENCE_DISABLED)
+        B: node_levelB (ADJUST_MOD_STRETCH)
+        C: node_levelC (parent: B, ADJUST_MODE_FIT)
+
+        => neither node B nor C should resize, since we have disabled automatic adjustments
+
+     */
+
+
+    Point3 node_levelB_p = m_NodeTextToRenderedPosition["node_levelB"];
+    Point3 node_levelC_p = m_NodeTextToRenderedPosition["node_levelC"];
+    Vector3 node_levelB_s = m_NodeTextToRenderedSize["node_levelB"];
+    Vector3 node_levelC_s = m_NodeTextToRenderedSize["node_levelC"];
+
+    ASSERT_EQ( 10, node_levelB_p.getX());
+    ASSERT_EQ( 10, node_levelB_p.getY());
+
+    ASSERT_EQ( 80, node_levelB_s.getX());
+    ASSERT_EQ( 30, node_levelB_s.getY());
+
+    ASSERT_EQ( 10, node_levelC_s.getX());
+    ASSERT_EQ( 10, node_levelC_s.getY());
+
+    ASSERT_EQ( 20, node_levelC_p.getX());
+    ASSERT_EQ( 20, node_levelC_p.getY());
+
+    // clean up
+    dmGui::DeleteNode(m_Scene, node_levelC);
+    dmGui::DeleteNode(m_Scene, node_levelB);
 
 }
 
