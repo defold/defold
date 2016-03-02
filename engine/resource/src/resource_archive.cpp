@@ -174,25 +174,29 @@ bail:
         uint32_t first_offset = htonl(archive->m_FirstEntryOffset);
         uint32_t string_pool_offset = htonl(archive->m_StringPoolOffset);
 
-        Entry* first;
+        Entry* entries;
         const char* string_pool;
         if (archive->m_Meta)
         {
             Meta* meta = archive->m_Meta;
-            first = meta->m_Entries;
+            entries = meta->m_Entries;
             string_pool = meta->m_StringPool;
         }
         else
         {
-            first = (Entry*) (first_offset + uintptr_t(archive));
+            entries = (Entry*) (first_offset + uintptr_t(archive));
             string_pool = (const char*) (uintptr_t(archive) + uintptr_t(string_pool_offset));
         }
 
-        for (uint32_t i = 0; i < count; ++i)
+        int first = 0;
+        int last = (int)count-1;
+        while( first <= last )
         {
-            Entry* file_entry = &first[i];
+            int mid = first + (last - first) / 2;
+            Entry* file_entry = &entries[mid];
             const char* entry_name = (const char*) (htonl(file_entry->m_NameOffset) + string_pool);
-            if (strcmp(name, entry_name) == 0)
+            int cmp = strcmp(name, entry_name);
+            if( cmp == 0 )
             {
                 entry->m_Name = name;
                 //entry->m_Resource = (const void*) (htonl(file_entry->m_ResourceOffset) + uintptr_t(archive));
@@ -203,8 +207,15 @@ bail:
                 entry->m_Entry = file_entry;
                 return RESULT_OK;
             }
+            else if( cmp > 0 )
+            {
+                first = mid + 1;
+            }
+            else if( cmp < 0 )
+            {
+                last = mid - 1;
+            }
         }
-
         return RESULT_NOT_FOUND;
     }
 
