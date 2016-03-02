@@ -1,6 +1,7 @@
 #include <assert.h>
 #include "lz4.h"
 #include "../lz4/lz4.h"
+#include "../lz4/lz4hc.h"
 
 namespace dmLZ4
 {
@@ -25,9 +26,29 @@ namespace dmLZ4
         return r;
     }
 
+    Result DecompressBufferFast(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t decompressed_size)
+    {
+        Result r;
+        // When we set an output size larger than 1G (or closer to 2G) lz4 fails for some reason...
+        if(decompressed_size <= DMLZ4_MAX_OUTPUT_SIZE)
+        {
+            int result = LZ4_decompress_fast((const char*)buffer, (char *)decompressed_buffer, decompressed_size);
+            if(result < 0)
+                r = dmLZ4::RESULT_OUTBUFFER_TOO_SMALL;
+            else
+                r = dmLZ4::RESULT_OK;
+        }
+        else
+        {
+            r = dmLZ4::RESULT_OUTPUT_SIZE_TOO_LARGE;
+        }
+
+        return r;
+    }
+
     Result CompressBuffer(const void* buffer, uint32_t buffer_size, void *compressed_buffer, int *compressed_size)
     {
-        *compressed_size = LZ4_compress((const char *)buffer, (char *)compressed_buffer, buffer_size);
+        *compressed_size = LZ4_compress_HC((const char *)buffer, (char *)compressed_buffer, buffer_size, LZ4_compressBound(buffer_size), 9);
 
         Result r;
         if(compressed_size == 0)

@@ -34,6 +34,20 @@ namespace dmLZ4
      */
     Result DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int* decompressed_size);
 
+
+    /**
+     * Decompress buffer from LZ4-format (inflate). Use this function when you know the decompressed size beforehand.
+     * Note that we do not use any framing of the compressed data, so the *complete* data to decompress must
+     * be in the buffer when calling this method.
+     *
+     * @param buffer buffer to decompress
+     * @param buffer_size buffer size
+     * @param decompressed_buffer Pre-allocated buffer to decompress data into
+     * @param decompressed_size size of decompressed data
+     * @return dmLZ4::RESULT_OK on success
+     */
+    Result DecompressBufferFast(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t decompressed_size);
+
     /**
      * Compress buffer to LZ4-format (deflate)
      * Note that we do not use any framing of the compressed data, so the *complete* data to compress must
