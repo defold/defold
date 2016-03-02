@@ -28,33 +28,23 @@
 extern dmGpgs::GooglePlayGameServices* g_gpgs;
 
 
-void Achievement_Fetch_Callback(
-    gpg::AchievementManager::FetchResponse const& response);
+void Achievement_Fetch_Callback(gpg::AchievementManager::FetchResponse const& response);
 void Achievement_ShowAll_Callback(gpg::UIStatus const& response);
 void Event_Fetch_Callback(const gpg::EventManager::FetchResponse& response);
 void Leaderboard_Show_Callback(gpg::UIStatus const& response);
 void Leaderboard_ShowAll_Callback(gpg::UIStatus const& response);
-void Player_FetchInformation_Callback(
-    gpg::PlayerManager::FetchSelfResponse const& response);
-void Player_FetchStatistics_Callback(
-    const gpg::StatsManager::FetchForPlayerResponse& response);
-void Quest_AcceptFetch_Callback(
-    gpg::QuestManager::FetchResponse const& response);
+void Player_FetchInformation_Callback(gpg::PlayerManager::FetchSelfResponse const& response);
+void Player_FetchStatistics_Callback(const gpg::StatsManager::FetchForPlayerResponse& response);
+void Quest_AcceptFetch_Callback(gpg::QuestManager::FetchResponse const& response);
 void Quest_Accept_Callback(gpg::QuestManager::AcceptResponse const& response);
-void Quest_ClaimMilestoneFetch_Callback(
-    gpg::QuestManager::FetchResponse const& response);
-void Quest_ClaimMilestone_Callback(
-    gpg::QuestManager::ClaimMilestoneResponse const& response);
+void Quest_ClaimMilestoneFetch_Callback(gpg::QuestManager::FetchResponse const& response);
+void Quest_ClaimMilestone_Callback(gpg::QuestManager::ClaimMilestoneResponse const& response);
 void Quest_Fetch_Callback(gpg::QuestManager::FetchResponse const& response);
-void Quest_ShowFetch_Callback(
-    gpg::QuestManager::FetchResponse const& response);
+void Quest_ShowFetch_Callback(gpg::QuestManager::FetchResponse const& response);
 void Quest_Show_Callback(gpg::QuestManager::QuestUIResponse const& response);
-void Quest_ShowAll_Callback(
-    gpg::QuestManager::QuestUIResponse const& response);
-void Snapshot_Read_Callback(
-    gpg::SnapshotManager::OpenResponse const & response);
-void Snapshot_Show_Callback(
-    gpg::SnapshotManager::SnapshotSelectUIResponse const& response);
+void Quest_ShowAll_Callback(gpg::QuestManager::QuestUIResponse const& response);
+void Snapshot_Read_Callback(gpg::SnapshotManager::OpenResponse const & response);
+void Snapshot_Show_Callback(gpg::SnapshotManager::SnapshotSelectUIResponse const& response);
 
 namespace
 {
@@ -71,8 +61,7 @@ namespace
         {
             int ct_index = static_cast<int>(callback_type);
             dmGpgs::Command& command = g_gpgs->m_Callbacks[ct_index];
-            luaL_unref(command.m_Context, LUA_REGISTRYINDEX,
-                command.m_Callback);
+            luaL_unref(command.m_Context, LUA_REGISTRYINDEX, command.m_Callback);
             luaL_unref(command.m_Context, LUA_REGISTRYINDEX, command.m_Self);
 
             command.m_Callback = LUA_NOREF;
@@ -238,27 +227,18 @@ namespace
     {
         dmGpgs::AddTableEntry(L, "id", achievement.Id().c_str());
         dmGpgs::AddTableEntry(L, "name", achievement.Name().c_str());
-        dmGpgs::AddTableEntry(L, "state",
-            ::AchievementStateToString(achievement.State()));
-        dmGpgs::AddTableEntry(L, "type",
-            ::AchievementTypeToString(achievement.Type()));
+        dmGpgs::AddTableEntry(L, "state", ::AchievementStateToString(achievement.State()));
+        dmGpgs::AddTableEntry(L, "type", ::AchievementTypeToString(achievement.Type()));
         dmGpgs::AddTableEntry(L, "valid", achievement.Valid());
 
-        dmGpgs::AddTableEntry(L, "description",
-            achievement.Description().c_str());
-        dmGpgs::AddTableEntry(L, "current_steps",
-            (double) achievement.CurrentSteps());
-        dmGpgs::AddTableEntry(L, "total_steps",
-            (double) achievement.TotalSteps());
+        dmGpgs::AddTableEntry(L, "description", achievement.Description().c_str());
+        dmGpgs::AddTableEntry(L, "current_steps", (double) achievement.CurrentSteps());
+        dmGpgs::AddTableEntry(L, "total_steps", (double) achievement.TotalSteps());
         dmGpgs::AddTableEntry(L, "xp", (double) achievement.XP());
-        dmGpgs::AddTableEntry(L, "icon_url",
-            achievement.RevealedIconUrl().c_str());
+        dmGpgs::AddTableEntry(L, "icon_url", achievement.RevealedIconUrl().c_str());
 
-        std::chrono::seconds modified_time =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                achievement.LastModifiedTime());
-        dmGpgs::AddTableEntry(L, "last_modified_time",
-            (double) modified_time.count());
+        std::chrono::seconds modified_time = std::chrono::duration_cast<std::chrono::seconds>(achievement.LastModifiedTime());
+        dmGpgs::AddTableEntry(L, "last_modified_time", (double) modified_time.count());
     }
 
     void PushEvent(lua_State* L, const gpg::Event& event)
@@ -269,8 +249,7 @@ namespace
         dmGpgs::AddTableEntry(L, "description", event.Description().c_str());
         dmGpgs::AddTableEntry(L, "count", (double) event.Count());
         dmGpgs::AddTableEntry(L, "image_url", event.ImageUrl().c_str());
-        dmGpgs::AddTableEntry(L, "visibility",
-            ::EventVisibilityToString(event.Visibility()));
+        dmGpgs::AddTableEntry(L, "visibility", ::EventVisibilityToString(event.Visibility()));
     }
 
     void PushInformation(lua_State* L, const gpg::Player& player)
@@ -278,68 +257,39 @@ namespace
         dmGpgs::AddTableEntry(L, "id", player.Id().c_str());
         dmGpgs::AddTableEntry(L, "name", player.Name().c_str());
 
-        // TODO: Include AvatarUrl in response!
+        dmGpgs::AddTableEntry(L, "icon_url", player.AvatarUrl(gpg::ImageResolution::ICON).c_str());
+        dmGpgs::AddTableEntry(L, "hires_url", player.AvatarUrl(gpg::ImageResolution::HI_RES).c_str());
 
         dmGpgs::AddTableEntry(L, "has_level", player.HasLevelInfo());
-        dmGpgs::AddTableEntry(L, "current_level_min",
-            (double) (player.HasLevelInfo() ?
-                player.CurrentLevel().MinimumXP() : 0));
-        dmGpgs::AddTableEntry(L, "current_level",
-            (double) (player.HasLevelInfo() ?
-                player.CurrentLevel().LevelNumber() : 0));
-        dmGpgs::AddTableEntry(L, "current_level_max",
-            (double) (player.HasLevelInfo() ?
-                player.CurrentLevel().MaximumXP() : 0));
-        dmGpgs::AddTableEntry(L, "next_level_min",
-            (double) (player.HasLevelInfo() ?
-                player.NextLevel().MinimumXP() : 0));
-        dmGpgs::AddTableEntry(L, "next_level",
-            (double) (player.HasLevelInfo() ?
-                player.NextLevel().LevelNumber() : 0));
-        dmGpgs::AddTableEntry(L, "next_level_max",
-            (double) (player.HasLevelInfo() ?
-                player.NextLevel().MaximumXP() : 0));
-        dmGpgs::AddTableEntry(L, "current_level_xp",
-            (double) player.CurrentXP());
-        std::chrono::seconds duration =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                player.LastLevelUpTime());
-        dmGpgs::AddTableEntry(L, "current_level_timestamp",
-            (double) duration.count());
+        dmGpgs::AddTableEntry(L, "current_level_min", (double) (player.HasLevelInfo() ? player.CurrentLevel().MinimumXP() : 0));
+        dmGpgs::AddTableEntry(L, "current_level", (double) (player.HasLevelInfo() ? player.CurrentLevel().LevelNumber() : 0));
+        dmGpgs::AddTableEntry(L, "current_level_max", (double) (player.HasLevelInfo() ? player.CurrentLevel().MaximumXP() : 0));
+        dmGpgs::AddTableEntry(L, "next_level_min", (double) (player.HasLevelInfo() ? player.NextLevel().MinimumXP() : 0));
+        dmGpgs::AddTableEntry(L, "next_level", (double) (player.HasLevelInfo() ? player.NextLevel().LevelNumber() : 0));
+        dmGpgs::AddTableEntry(L, "next_level_max", (double) (player.HasLevelInfo() ? player.NextLevel().MaximumXP() : 0));
+        dmGpgs::AddTableEntry(L, "current_level_xp", (double) player.CurrentXP());
+        std::chrono::seconds duration = std::chrono::duration_cast<std::chrono::seconds>(player.LastLevelUpTime());
+        dmGpgs::AddTableEntry(L, "current_level_timestamp", (double) duration.count());
 
         dmGpgs::AddTableEntry(L, "title", player.Title().c_str());
     }
 
     void PushStatistics(lua_State* L, const gpg::PlayerStats& stats)
     {
-        dmGpgs::AddTableEntry(L, "has_average_session_length",
-            (bool) stats.HasAverageSessionLength());
-        dmGpgs::AddTableEntry(L, "average_session_length",
-            (double) stats.AverageSessionLength());
-        dmGpgs::AddTableEntry(L, "has_churn_probability",
-            (bool) stats.HasChurnProbability());
-        dmGpgs::AddTableEntry(L, "churn_probability",
-            (double) stats.ChurnProbability());
-        dmGpgs::AddTableEntry(L, "has_days_since_last_played",
-            (bool) stats.HasDaysSinceLastPlayed());
-        dmGpgs::AddTableEntry(L, "days_since_last_played",
-            (double) stats.DaysSinceLastPlayed());
-        dmGpgs::AddTableEntry(L, "has_number_of_purchases",
-            (bool) stats.HasNumberOfPurchases());
-        dmGpgs::AddTableEntry(L, "number_of_purchases",
-            (double) stats.NumberOfPurchases());
-        dmGpgs::AddTableEntry(L, "has_number_of_sessions",
-            (bool) stats.HasNumberOfSessions());
-        dmGpgs::AddTableEntry(L, "number_of_sessions",
-            (double) stats.NumberOfSessions());
-        dmGpgs::AddTableEntry(L, "has_session_percentile",
-            (bool) stats.HasSessionPercentile());
-        dmGpgs::AddTableEntry(L, "session_percentile",
-            (double) stats.SessionPercentile());
-        dmGpgs::AddTableEntry(L, "has_spend_percentile",
-            (bool) stats.HasSpendPercentile());
-        dmGpgs::AddTableEntry(L, "spend_percentile",
-            (double) stats.SpendPercentile());
+        dmGpgs::AddTableEntry(L, "has_average_session_length", (bool) stats.HasAverageSessionLength());
+        dmGpgs::AddTableEntry(L, "average_session_length", (double) stats.AverageSessionLength());
+        dmGpgs::AddTableEntry(L, "has_churn_probability", (bool) stats.HasChurnProbability());
+        dmGpgs::AddTableEntry(L, "churn_probability", (double) stats.ChurnProbability());
+        dmGpgs::AddTableEntry(L, "has_days_since_last_played", (bool) stats.HasDaysSinceLastPlayed());
+        dmGpgs::AddTableEntry(L, "days_since_last_played", (double) stats.DaysSinceLastPlayed());
+        dmGpgs::AddTableEntry(L, "has_number_of_purchases", (bool) stats.HasNumberOfPurchases());
+        dmGpgs::AddTableEntry(L, "number_of_purchases", (double) stats.NumberOfPurchases());
+        dmGpgs::AddTableEntry(L, "has_number_of_sessions", (bool) stats.HasNumberOfSessions());
+        dmGpgs::AddTableEntry(L, "number_of_sessions", (double) stats.NumberOfSessions());
+        dmGpgs::AddTableEntry(L, "has_session_percentile", (bool) stats.HasSessionPercentile());
+        dmGpgs::AddTableEntry(L, "session_percentile", (double) stats.SessionPercentile());
+        dmGpgs::AddTableEntry(L, "has_spend_percentile", (bool) stats.HasSpendPercentile());
+        dmGpgs::AddTableEntry(L, "spend_percentile", (double) stats.SpendPercentile());
     }
 
     void PushQuest(lua_State* L, const gpg::Quest& quest)
@@ -349,65 +299,43 @@ namespace
         dmGpgs::AddTableEntry(L, "description", quest.Description().c_str());
         dmGpgs::AddTableEntry(L, "state", ::QuestStateToString(quest.State()));
         dmGpgs::AddTableEntry(L, "valid", (bool) quest.Valid());
-        std::chrono::seconds accepted_time =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                quest.AcceptedTime());
-        dmGpgs::AddTableEntry(L, "accepted_time",
-            (double) accepted_time.count());
-        std::chrono::seconds start_time =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                quest.StartTime());
+        std::chrono::seconds accepted_time = std::chrono::duration_cast<std::chrono::seconds>(quest.AcceptedTime());
+        dmGpgs::AddTableEntry(L, "accepted_time", (double) accepted_time.count());
+        std::chrono::seconds start_time = std::chrono::duration_cast<std::chrono::seconds>(quest.StartTime());
         dmGpgs::AddTableEntry(L, "start_time", (double) start_time.count());
-        std::chrono::seconds expiration_time =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                quest.ExpirationTime());
-        dmGpgs::AddTableEntry(L, "expiration_time",
-            (double) expiration_time.count());
-
+        std::chrono::seconds expiration_time = std::chrono::duration_cast<std::chrono::seconds>(quest.ExpirationTime());
+        dmGpgs::AddTableEntry(L, "expiration_time", (double) expiration_time.count());
         dmGpgs::AddTableEntry(L, "banner_url", quest.BannerUrl().c_str());
         dmGpgs::AddTableEntry(L, "icon_url", quest.IconUrl().c_str());
-
-        dmGpgs::AddTableEntry(L, "current_milestone",
-            quest.CurrentMilestone().Id().c_str());
+        dmGpgs::AddTableEntry(L, "current_milestone", quest.CurrentMilestone().Id().c_str());
     }
 
     void PushMilestone(lua_State* L, const gpg::QuestMilestone& milestone)
     {
         dmGpgs::AddTableEntry(L, "id", milestone.Id().c_str());
-        dmGpgs::AddTableEntry(L, "state",
-            ::MilestoneStateToString(milestone.State()));
+        dmGpgs::AddTableEntry(L, "state", ::MilestoneStateToString(milestone.State()));
         dmGpgs::AddTableEntry(L, "event", milestone.EventId().c_str());
         dmGpgs::AddTableEntry(L, "quest", milestone.QuestId().c_str());
         dmGpgs::AddTableEntry(L, "valid", (bool) milestone.Valid());
-        dmGpgs::AddTableEntry(L, "current_count",
-            (double) milestone.CurrentCount());
-        dmGpgs::AddTableEntry(L, "target_count",
-            (double) milestone.TargetCount());
-
-        // TODO: Include CompletionRewardData in response!
+        dmGpgs::AddTableEntry(L, "current_count", (double) milestone.CurrentCount());
+        dmGpgs::AddTableEntry(L, "target_count", (double) milestone.TargetCount());
+        const std::vector<unsigned char>& reward_data_buffer = milestone.CompletionRewardData();
+        std::string reward_data(reward_data_buffer.begin(), reward_data_buffer.end());
+        dmGpgs::AddTableEntry(L, "reward_data", reward_data.c_str());
     }
 
-    void PushSnapshotMetadata(lua_State* L,
-        const gpg::SnapshotMetadata& snapshot)
+    void PushSnapshotMetadata(lua_State* L, const gpg::SnapshotMetadata& snapshot)
     {
         dmGpgs::AddTableEntry(L, "filename", snapshot.FileName().c_str());
-        dmGpgs::AddTableEntry(L, "description",
-            snapshot.Description().c_str());
+        dmGpgs::AddTableEntry(L, "description", snapshot.Description().c_str());
         dmGpgs::AddTableEntry(L, "valid", snapshot.Valid());
         dmGpgs::AddTableEntry(L, "is_open", snapshot.IsOpen());
-        std::chrono::seconds played_time =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                snapshot.PlayedTime());
+        std::chrono::seconds played_time = std::chrono::duration_cast<std::chrono::seconds>(snapshot.PlayedTime());
         dmGpgs::AddTableEntry(L, "played_time", (double) played_time.count());
-        std::chrono::seconds modified_time =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                snapshot.LastModifiedTime());
-        dmGpgs::AddTableEntry(L, "last_modified_time",
-            (double) modified_time.count());
-        dmGpgs::AddTableEntry(L, "progress_value",
-            (double) snapshot.ProgressValue());
-        dmGpgs::AddTableEntry(L, "cover_image_url",
-            snapshot.CoverImageURL().c_str());
+        std::chrono::seconds modified_time = std::chrono::duration_cast<std::chrono::seconds>(snapshot.LastModifiedTime());
+        dmGpgs::AddTableEntry(L, "last_modified_time", (double) modified_time.count());
+        dmGpgs::AddTableEntry(L, "progress_value", (double) snapshot.ProgressValue());
+        dmGpgs::AddTableEntry(L, "cover_image_url", snapshot.CoverImageURL().c_str());
     }
 
 };
@@ -436,8 +364,7 @@ void dmGpgs::Authentication::Impl::LoginCallback()
     // and therefore this method is called from gpgs_init.
     if (!::EmptyCallback(dmGpgs::Callback::AUTHENTICATION_LOGIN))
     {
-        lua_State* L =
-            ::GetCallbackStack(dmGpgs::Callback::AUTHENTICATION_LOGIN);
+        lua_State* L = ::GetCallbackStack(dmGpgs::Callback::AUTHENTICATION_LOGIN);
 
         lua_pushboolean(L, g_gpgs->m_GameServices->IsAuthorized());
 
@@ -474,8 +401,7 @@ void dmGpgs::Authentication::Impl::LogoutCallback()
     // and therefore this method is called from gpgs_init.
     if (!::EmptyCallback(dmGpgs::Callback::AUTHENTICATION_LOGOUT))
     {
-        lua_State* L =
-            ::GetCallbackStack(dmGpgs::Callback::AUTHENTICATION_LOGOUT);
+        lua_State* L = ::GetCallbackStack(dmGpgs::Callback::AUTHENTICATION_LOGOUT);
 
         lua_pushboolean(L, g_gpgs->m_GameServices->IsAuthorized());
 
@@ -510,8 +436,7 @@ void dmGpgs::Achievement::Impl::Reveal(lua_State* L, const char* identifier)
 // ----------------------------------------------------------------------------
 // Achievement::Increment
 // ----------------------------------------------------------------------------
-void dmGpgs::Achievement::Impl::Increment(
-    lua_State* L, const char* identifier, uint32_t steps)
+void dmGpgs::Achievement::Impl::Increment(lua_State* L, const char* identifier, uint32_t steps)
 {
     g_gpgs->m_GameServices->Achievements().Increment(identifier, steps);
 }
@@ -521,8 +446,7 @@ void dmGpgs::Achievement::Impl::Increment(
 // ----------------------------------------------------------------------------
 // Achievement::Set
 // ----------------------------------------------------------------------------
-void dmGpgs::Achievement::Impl::Set(
-    lua_State* L, const char* identifier, uint32_t steps)
+void dmGpgs::Achievement::Impl::Set(lua_State* L, const char* identifier, uint32_t steps)
 {
     g_gpgs->m_GameServices->Achievements().SetStepsAtLeast(identifier, steps);
 }
@@ -532,16 +456,13 @@ void dmGpgs::Achievement::Impl::Set(
 // ----------------------------------------------------------------------------
 // Achievement::Fetch
 // ----------------------------------------------------------------------------
-void dmGpgs::Achievement::Impl::Fetch(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Achievement::Impl::Fetch(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::ACHIEVEMENT_FETCH, callback);
-    g_gpgs->m_GameServices->Achievements().Fetch(
-        identifier, Achievement_Fetch_Callback);
+    g_gpgs->m_GameServices->Achievements().Fetch(identifier, Achievement_Fetch_Callback);
 }
 
-void Achievement_Fetch_Callback(
-    gpg::AchievementManager::FetchResponse const& response)
+void Achievement_Fetch_Callback(gpg::AchievementManager::FetchResponse const& response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::ACHIEVEMENT_FETCH);
 
@@ -562,8 +483,7 @@ void Achievement_Fetch_Callback(
 void dmGpgs::Achievement::Impl::ShowAll(lua_State* L, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::ACHIEVEMENT_SHOWALL, callback);
-    g_gpgs->m_GameServices->Achievements().ShowAllUI(
-        Achievement_ShowAll_Callback);
+    g_gpgs->m_GameServices->Achievements().ShowAllUI(Achievement_ShowAll_Callback);
 }
 
 void Achievement_ShowAll_Callback(gpg::UIStatus const& response)
@@ -582,8 +502,7 @@ void Achievement_ShowAll_Callback(gpg::UIStatus const& response)
 // ----------------------------------------------------------------------------
 // Event::Increment
 // ----------------------------------------------------------------------------
-void dmGpgs::Event::Impl::Increment(
-    lua_State* L, const char* identifier, uint32_t steps)
+void dmGpgs::Event::Impl::Increment(lua_State* L, const char* identifier, uint32_t steps)
 {
     g_gpgs->m_GameServices->Events().Increment(identifier, steps);
 }
@@ -593,8 +512,7 @@ void dmGpgs::Event::Impl::Increment(
 // ----------------------------------------------------------------------------
 // Event::Fetch
 // ----------------------------------------------------------------------------
-void dmGpgs::Event::Impl::Fetch(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Event::Impl::Fetch(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::EVENT_FETCH, callback);
     g_gpgs->m_GameServices->Events().Fetch(identifier, Event_Fetch_Callback);
@@ -618,8 +536,7 @@ void Event_Fetch_Callback(const gpg::EventManager::FetchResponse& response)
 // ----------------------------------------------------------------------------
 // Leaderboard::SubmitScore
 // ----------------------------------------------------------------------------
-void dmGpgs::Leaderboard::Impl::SubmitScore(lua_State* L,
-    const char* identifier, double score, const char* description)
+void dmGpgs::Leaderboard::Impl::SubmitScore(lua_State* L, const char* identifier, double score, const char* description)
 {
     if (description != NULL)
     {
@@ -637,12 +554,10 @@ void dmGpgs::Leaderboard::Impl::SubmitScore(lua_State* L,
 // ----------------------------------------------------------------------------
 // Leaderboard::Show
 // ----------------------------------------------------------------------------
-void dmGpgs::Leaderboard::Impl::Show(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Leaderboard::Impl::Show(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::LEADERBOARD_SHOW, callback);
-    g_gpgs->m_GameServices->Leaderboards().ShowUI(
-        identifier, Leaderboard_Show_Callback);
+    g_gpgs->m_GameServices->Leaderboards().ShowUI(identifier, Leaderboard_Show_Callback);
 }
 
 void Leaderboard_Show_Callback(gpg::UIStatus const& response)
@@ -664,8 +579,7 @@ void Leaderboard_Show_Callback(gpg::UIStatus const& response)
 void dmGpgs::Leaderboard::Impl::ShowAll(lua_State* L, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::LEADERBOARD_SHOWALL, callback);
-    g_gpgs->m_GameServices->Leaderboards().ShowAllUI(
-        Leaderboard_ShowAll_Callback);
+    g_gpgs->m_GameServices->Leaderboards().ShowAllUI(Leaderboard_ShowAll_Callback);
 }
 
 void Leaderboard_ShowAll_Callback(gpg::UIStatus const& response)
@@ -686,17 +600,13 @@ void Leaderboard_ShowAll_Callback(gpg::UIStatus const& response)
 // ----------------------------------------------------------------------------
 void dmGpgs::Player::Impl::FetchInformation(lua_State* L, int callback)
 {
-    ::RegisterCallback(L,
-        dmGpgs::Callback::PLAYER_FETCH_INFORMATION, callback);
-    g_gpgs->m_GameServices->Players().FetchSelf(
-        Player_FetchInformation_Callback);
+    ::RegisterCallback(L, dmGpgs::Callback::PLAYER_FETCH_INFORMATION, callback);
+    g_gpgs->m_GameServices->Players().FetchSelf(Player_FetchInformation_Callback);
 }
 
-void Player_FetchInformation_Callback(
-    gpg::PlayerManager::FetchSelfResponse const& response)
+void Player_FetchInformation_Callback(gpg::PlayerManager::FetchSelfResponse const& response)
 {
-    lua_State* L = ::GetCallbackStack(
-        dmGpgs::Callback::PLAYER_FETCH_INFORMATION);
+    lua_State* L = ::GetCallbackStack(dmGpgs::Callback::PLAYER_FETCH_INFORMATION);
 
     lua_pushboolean(L, gpg::IsSuccess(response.status));
     lua_newtable(L); // Information
@@ -714,17 +624,13 @@ void Player_FetchInformation_Callback(
 // ----------------------------------------------------------------------------
 void dmGpgs::Player::Impl::FetchStatistics(lua_State* L, int callback)
 {
-    ::RegisterCallback(L,
-        dmGpgs::Callback::PLAYER_FETCH_STATISTICS, callback);
-    g_gpgs->m_GameServices->Stats().FetchForPlayer(
-        Player_FetchStatistics_Callback);
+    ::RegisterCallback(L, dmGpgs::Callback::PLAYER_FETCH_STATISTICS, callback);
+    g_gpgs->m_GameServices->Stats().FetchForPlayer(Player_FetchStatistics_Callback);
 }
 
-void Player_FetchStatistics_Callback(
-    const gpg::StatsManager::FetchForPlayerResponse& response)
+void Player_FetchStatistics_Callback(const gpg::StatsManager::FetchForPlayerResponse& response)
 {
-    lua_State* L = ::GetCallbackStack(
-        dmGpgs::Callback::PLAYER_FETCH_STATISTICS);
+    lua_State* L = ::GetCallbackStack(dmGpgs::Callback::PLAYER_FETCH_STATISTICS);
 
     lua_pushboolean(L, gpg::IsSuccess(response.status));
     lua_newtable(L); // Statistics
@@ -740,21 +646,17 @@ void Player_FetchStatistics_Callback(
 // ----------------------------------------------------------------------------
 // Quest::Accept
 // ----------------------------------------------------------------------------
-void dmGpgs::Quest::Impl::Accept(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Quest::Impl::Accept(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::QUEST_ACCEPT, callback);
-    g_gpgs->m_GameServices->Quests().Fetch(identifier,
-        Quest_AcceptFetch_Callback);
+    g_gpgs->m_GameServices->Quests().Fetch(identifier, Quest_AcceptFetch_Callback);
 }
 
-void Quest_AcceptFetch_Callback(
-    gpg::QuestManager::FetchResponse const& response)
+void Quest_AcceptFetch_Callback(gpg::QuestManager::FetchResponse const& response)
 {
     if (gpg::IsSuccess(response.status))
     {
-        g_gpgs->m_GameServices->Quests().Accept(response.data,
-            Quest_Accept_Callback);
+        g_gpgs->m_GameServices->Quests().Accept(response.data, Quest_Accept_Callback);
     }
     else
     {
@@ -771,8 +673,7 @@ void Quest_AcceptFetch_Callback(
     }
 }
 
-void Quest_Accept_Callback(
-    gpg::QuestManager::AcceptResponse const& response)
+void Quest_Accept_Callback(gpg::QuestManager::AcceptResponse const& response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::QUEST_ACCEPT);
     lua_pushboolean(L, gpg::IsSuccess(response.status));
@@ -791,26 +692,21 @@ void Quest_Accept_Callback(
 // ----------------------------------------------------------------------------
 // Quest::ClaimMilestone
 // ----------------------------------------------------------------------------
-void dmGpgs::Quest::Impl::ClaimMilestone(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Quest::Impl::ClaimMilestone(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::QUEST_CLAIM_MILESTONE, callback);
-    g_gpgs->m_GameServices->Quests().Fetch(identifier,
-        Quest_ClaimMilestoneFetch_Callback);
+    g_gpgs->m_GameServices->Quests().Fetch(identifier, Quest_ClaimMilestoneFetch_Callback);
 }
 
-void Quest_ClaimMilestoneFetch_Callback(
-    gpg::QuestManager::FetchResponse const& response)
+void Quest_ClaimMilestoneFetch_Callback(gpg::QuestManager::FetchResponse const& response)
 {
     if (gpg::IsSuccess(response.status))
     {
-        g_gpgs->m_GameServices->Quests().ClaimMilestone(
-            response.data.CurrentMilestone(), Quest_ClaimMilestone_Callback);
+        g_gpgs->m_GameServices->Quests().ClaimMilestone(response.data.CurrentMilestone(), Quest_ClaimMilestone_Callback);
     }
     else
     {
-        lua_State* L = ::GetCallbackStack(
-            dmGpgs::Callback::QUEST_CLAIM_MILESTONE);
+        lua_State* L = ::GetCallbackStack(dmGpgs::Callback::QUEST_CLAIM_MILESTONE);
         lua_pushboolean(L, false);
         lua_newtable(L); // Quest
         ::PushQuest(L, response.data);
@@ -823,11 +719,9 @@ void Quest_ClaimMilestoneFetch_Callback(
     }
 }
 
-void Quest_ClaimMilestone_Callback(
-    gpg::QuestManager::ClaimMilestoneResponse const& response)
+void Quest_ClaimMilestone_Callback(gpg::QuestManager::ClaimMilestoneResponse const& response)
 {
-    lua_State* L = ::GetCallbackStack(
-        dmGpgs::Callback::QUEST_CLAIM_MILESTONE);
+    lua_State* L = ::GetCallbackStack(dmGpgs::Callback::QUEST_CLAIM_MILESTONE);
     lua_pushboolean(L, gpg::IsSuccess(response.status));
     lua_newtable(L); // Quest
     ::PushQuest(L, response.quest);
@@ -844,16 +738,13 @@ void Quest_ClaimMilestone_Callback(
 // ----------------------------------------------------------------------------
 // Quest::Fetch
 // ----------------------------------------------------------------------------
-void dmGpgs::Quest::Impl::Fetch(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Quest::Impl::Fetch(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::QUEST_FETCH, callback);
-    g_gpgs->m_GameServices->Quests().Fetch(identifier,
-        Quest_Fetch_Callback);
+    g_gpgs->m_GameServices->Quests().Fetch(identifier, Quest_Fetch_Callback);
 }
 
-void Quest_Fetch_Callback(
-    gpg::QuestManager::FetchResponse const& response)
+void Quest_Fetch_Callback(gpg::QuestManager::FetchResponse const& response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::QUEST_FETCH);
     lua_pushboolean(L, gpg::IsSuccess(response.status));
@@ -872,21 +763,17 @@ void Quest_Fetch_Callback(
 // ----------------------------------------------------------------------------
 // Quest::Show
 // ----------------------------------------------------------------------------
-void dmGpgs::Quest::Impl::Show(
-    lua_State* L, const char* identifier, int callback)
+void dmGpgs::Quest::Impl::Show(lua_State* L, const char* identifier, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::QUEST_SHOW, callback);
-    g_gpgs->m_GameServices->Quests().Fetch(identifier,
-        Quest_ShowFetch_Callback);
+    g_gpgs->m_GameServices->Quests().Fetch(identifier, Quest_ShowFetch_Callback);
 }
 
-void Quest_ShowFetch_Callback(
-    gpg::QuestManager::FetchResponse const& response)
+void Quest_ShowFetch_Callback(gpg::QuestManager::FetchResponse const& response)
 {
     if (gpg::IsSuccess(response.status))
     {
-        g_gpgs->m_GameServices->Quests().ShowUI(response.data,
-            Quest_Show_Callback);
+        g_gpgs->m_GameServices->Quests().ShowUI(response.data, Quest_Show_Callback);
     }
     else
     {
@@ -903,8 +790,7 @@ void Quest_ShowFetch_Callback(
     }
 }
 
-void Quest_Show_Callback(
-    gpg::QuestManager::QuestUIResponse const& response)
+void Quest_Show_Callback(gpg::QuestManager::QuestUIResponse const& response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::QUEST_SHOW);
     lua_pushboolean(L, gpg::IsSuccess(response.status));
@@ -929,8 +815,7 @@ void dmGpgs::Quest::Impl::ShowAll(lua_State* L, int callback)
     g_gpgs->m_GameServices->Quests().ShowAllUI(Quest_ShowAll_Callback);
 }
 
-void Quest_ShowAll_Callback(
-    gpg::QuestManager::QuestUIResponse const& response)
+void Quest_ShowAll_Callback(gpg::QuestManager::QuestUIResponse const& response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::QUEST_SHOWALL);
 
@@ -950,22 +835,15 @@ void Quest_ShowAll_Callback(
 // ----------------------------------------------------------------------------
 // Snapshot::Commit
 // ----------------------------------------------------------------------------
-void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename,
-    uint32_t policy, const char* description, uint32_t time_played,
-    int32_t progress, const std::vector<uint8_t>& buffer)
+void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename, uint32_t policy, const char* description, uint32_t time_played, int32_t progress, const std::vector<uint8_t>& buffer)
 {
-    std::chrono::milliseconds time_played_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::seconds(time_played));
+    std::chrono::milliseconds time_played_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::seconds(time_played));
 
-    gpg::SnapshotConflictPolicy conflict_policy =
-        ::IntegerToConflictPolicy(policy);
+    gpg::SnapshotConflictPolicy conflict_policy = ::IntegerToConflictPolicy(policy);
 
     lua_newtable(L); // Metadata
 
-    const gpg::SnapshotManager::OpenResponse& response =
-        g_gpgs->m_GameServices->Snapshots().OpenBlocking(
-            filename, conflict_policy);
+    const gpg::SnapshotManager::OpenResponse& response = g_gpgs->m_GameServices->Snapshots().OpenBlocking(filename, conflict_policy);
     if (gpg::IsSuccess(response.status))
     {
         const gpg::SnapshotMetadata& metadata = response.data;
@@ -976,9 +854,7 @@ void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename,
                 .SetProgressValue(progress)
                 .Create();
 
-        const gpg::SnapshotManager::CommitResponse& commit_response =
-            g_gpgs->m_GameServices->Snapshots().CommitBlocking(
-                metadata, metadata_change, buffer);
+        const gpg::SnapshotManager::CommitResponse& commit_response = g_gpgs->m_GameServices->Snapshots().CommitBlocking(metadata, metadata_change, buffer);
         if (gpg::IsSuccess(commit_response.status))
         {
             ::PushSnapshotMetadata(L, commit_response.data);
@@ -993,9 +869,7 @@ void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename,
 // ----------------------------------------------------------------------------
 void dmGpgs::Snapshot::Impl::Delete(lua_State* L, const char* filename)
 {
-    const gpg::SnapshotManager::OpenResponse& response =
-        g_gpgs->m_GameServices->Snapshots().OpenBlocking(
-            filename, gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD);
+    const gpg::SnapshotManager::OpenResponse& response = g_gpgs->m_GameServices->Snapshots().OpenBlocking(filename, gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD);
     if (gpg::IsSuccess(response.status))
     {
         g_gpgs->m_GameServices->Snapshots().Delete(response.data);
@@ -1015,12 +889,10 @@ void dmGpgs::Snapshot::Impl::Delete(lua_State* L, const char* filename)
 void dmGpgs::Snapshot::Impl::Read(
     lua_State* L, const char* filename, uint32_t policy, int callback)
 {
-    gpg::SnapshotConflictPolicy conflict_policy =
-        ::IntegerToConflictPolicy(policy);
+    gpg::SnapshotConflictPolicy conflict_policy = ::IntegerToConflictPolicy(policy);
 
     ::RegisterCallback(L, dmGpgs::Callback::SNAPSHOT_READ, callback);
-    g_gpgs->m_GameServices->Snapshots().Open(filename, conflict_policy,
-        Snapshot_Read_Callback);
+    g_gpgs->m_GameServices->Snapshots().Open(filename, conflict_policy, Snapshot_Read_Callback);
 }
 
 void Snapshot_Read_Callback(
@@ -1030,8 +902,7 @@ void Snapshot_Read_Callback(
 
     if (gpg::IsSuccess(response.status))
     {
-        const gpg::SnapshotManager::ReadResponse& read_response =
-            g_gpgs->m_GameServices->Snapshots().ReadBlocking(response.data);
+        const gpg::SnapshotManager::ReadResponse& read_response = g_gpgs->m_GameServices->Snapshots().ReadBlocking(response.data);
 
         lua_pushboolean(L, gpg::IsSuccess(read_response.status));
         if (!read_response.data.empty())
@@ -1059,16 +930,13 @@ void Snapshot_Read_Callback(
 // ----------------------------------------------------------------------------
 // Snapshot::Show
 // ----------------------------------------------------------------------------
-void dmGpgs::Snapshot::Impl::Show(
-    lua_State* L, const char* title, int callback)
+void dmGpgs::Snapshot::Impl::Show(lua_State* L, const char* title, int callback)
 {
     ::RegisterCallback(L, dmGpgs::Callback::SNAPSHOT_SHOW, callback);
-    g_gpgs->m_GameServices->Snapshots().ShowSelectUIOperation(
-        false, true, 10, title, Snapshot_Show_Callback);
+    g_gpgs->m_GameServices->Snapshots().ShowSelectUIOperation(false, true, 10, title, Snapshot_Show_Callback);
 }
 
-void Snapshot_Show_Callback(
-    gpg::SnapshotManager::SnapshotSelectUIResponse const& response)
+void Snapshot_Show_Callback(gpg::SnapshotManager::SnapshotSelectUIResponse const& response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::SNAPSHOT_SHOW);
 

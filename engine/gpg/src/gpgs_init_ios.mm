@@ -4,9 +4,9 @@
 #include <extension/extension.h>
 
 #include <dlib/log.h>
-#undef TYPE_BOOL
+#undef TYPE_BOOL                        // TODO: This has to be fixed
 #include <script/script.h>
-#define TYPE_BOOL                1
+#define TYPE_BOOL                1      // TODO: This has to be fixed
 
 #include <gpg/game_services.h>
 #include <gpg/builder.h>
@@ -33,50 +33,31 @@ extern id g_viewController = NULL;
 
 @implementation GPGSAppDelegate
     - (void)viewDidLoad {
-      // [super viewDidLoad];
-
-      // TODO(developer) Configure the sign-in button look/feel
-
-      [GIDSignIn sharedInstance].uiDelegate = self;
-      // [GIDSignIn sharedInstance].allowsSignInWithWebView = NO;
-
-      // Uncomment to automatically sign in the user.
-      //[[GIDSignIn sharedInstance] signInSilently];
+        [GIDSignIn sharedInstance].uiDelegate = self;
     }
 
-    // Implement these methods only if the GIDSignInUIDelegate is not a subclass of
-    // UIViewController.
-
-    // Stop the UIActivityIndicatorView animation that was started when the user
-    // pressed the Sign In button
     - (void)signInWillDispatch:(GIDSignIn *)signIn error:(NSError *)error
     {
-      // [myActivityIndicator stopAnimating];
-        printf("signInWillDispatch\n");
 
     }
 
-    // Present a view that prompts the user to sign in with Google
     - (void)signIn:(GIDSignIn *)signIn presentViewController:(UIViewController *)viewController
     {
-        printf("signIn\n");
-      // [self presentViewController:viewController animated:YES completion:nil];
+
     }
 
-    // Dismiss the "Sign in with Google" view
     - (void)signIn:(GIDSignIn *)signIn dismissViewController:(UIViewController *)viewController
     {
-        printf("signIn\n");
-      // [self dismissViewControllerAnimated:YES completion:nil];
+
     }
 
     - (BOOL)application:(UIApplication *)application
-      openURL:(NSURL *)url
-      sourceApplication:(NSString *)sourceApplication
-      annotation:(id)annotation {
-        printf("\n");
-      return [[GIDSignIn sharedInstance] handleURL:url sourceApplication:sourceApplication annotation:annotation];
-    }
+        openURL:(NSURL *)url
+        sourceApplication:(NSString *)sourceApplication
+        annotation:(id)annotation {
+            printf("\n");
+            return [[GIDSignIn sharedInstance] handleURL:url sourceApplication:sourceApplication annotation:annotation];
+        }
 
 @end
 
@@ -167,33 +148,33 @@ static const luaL_reg gpgs_methods[] =
     {"get_login_status", dmGpgs::Authentication::GetLoginStatus},
     {"logout", dmGpgs::Authentication::Logout},
 
-    {"achievement_unlock", dmGpgs::Achievement::Unlock},
-    {"achievement_reveal", dmGpgs::Achievement::Reveal},
-    {"achievement_increment", dmGpgs::Achievement::Increment},
-    {"achievement_set", dmGpgs::Achievement::Set},
-    {"achievement_fetch", dmGpgs::Achievement::Fetch},
-    {"achievement_show_all", dmGpgs::Achievement::ShowAll},
+    {"unlock_achievement", dmGpgs::Achievement::Unlock},
+    {"reveal_achievement", dmGpgs::Achievement::Reveal},
+    {"increment_achievement", dmGpgs::Achievement::Increment},
+    {"set_achievement", dmGpgs::Achievement::Set},
+    {"fetch_achievement", dmGpgs::Achievement::Fetch},
+    {"show_all_achievements", dmGpgs::Achievement::ShowAll},
 
-    {"event_increment", dmGpgs::Event::Increment},
-    {"event_fetch", dmGpgs::Event::Fetch},
+    {"increment_event", dmGpgs::Event::Increment},
+    {"fetch_event", dmGpgs::Event::Fetch},
 
-    {"leaderboard_submit_score", dmGpgs::Leaderboard::SubmitScore},
-    {"leaderboard_show", dmGpgs::Leaderboard::Show},
-    {"leaderboard_show_all", dmGpgs::Leaderboard::ShowAll},
+    {"submit_score", dmGpgs::Leaderboard::SubmitScore},
+    {"show_leaderboard", dmGpgs::Leaderboard::Show},
+    {"show_all_leaderboards", dmGpgs::Leaderboard::ShowAll},
 
-    {"player_fetch_info", dmGpgs::Player::FetchInformation},
-    {"player_fetch_stats", dmGpgs::Player::FetchStatistics},
+    {"fetch_player_info", dmGpgs::Player::FetchInformation},
+    {"fetch_player_stats", dmGpgs::Player::FetchStatistics},
 
-    {"quest_accept", dmGpgs::Quest::Accept},
-    {"quest_claim_milestone", dmGpgs::Quest::ClaimMilestone},
-    {"quest_fetch", dmGpgs::Quest::Fetch},
-    {"quest_show", dmGpgs::Quest::Show},
-    {"quest_show_all", dmGpgs::Quest::ShowAll},
+    {"accept_quest", dmGpgs::Quest::Accept},
+    {"claim_quest_milestone", dmGpgs::Quest::ClaimMilestone},
+    {"fetch_quest", dmGpgs::Quest::Fetch},
+    {"show_quest", dmGpgs::Quest::Show},
+    {"show_all_quests", dmGpgs::Quest::ShowAll},
 
-    {"snapshot_save", dmGpgs::Snapshot::Commit},
-    {"snapshot_read", dmGpgs::Snapshot::Read},
-    {"snapshot_delete", dmGpgs::Snapshot::Delete},
-    {"snapshot_show", dmGpgs::Snapshot::Show},
+    {"save_snapshot", dmGpgs::Snapshot::Commit},
+    {"read_snapshot", dmGpgs::Snapshot::Read},
+    {"delete_snapshot", dmGpgs::Snapshot::Delete},
+    {"show_snapshot", dmGpgs::Snapshot::Show},
     {0,0}
 
 };

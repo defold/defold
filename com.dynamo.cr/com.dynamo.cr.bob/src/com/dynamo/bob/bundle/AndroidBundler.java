@@ -137,7 +137,7 @@ public class AndroidBundler implements IBundler {
         // (ie number part of: 123456789012.apps.googleusercontent.com)
         String gpgsAppId = "";
         String gpgsClientId = projectProperties.getStringValue("gpgs", "client_id", "");
-        Pattern p = Pattern.compile("^([0-9]+)\\..+$");
+        Pattern p = Pattern.compile("^([0-9]+).+$");
         Matcher m = p.matcher(gpgsClientId);
         if (m.find()) {
             gpgsAppId = m.group(1);
