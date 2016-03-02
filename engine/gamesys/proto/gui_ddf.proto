@@ -125,8 +125,9 @@ message SceneDesc
 {
     enum AdjustReference
     {
-        ADJUST_REFERENCE_LEGACY = 0 [(displayName) = "Root (Deprecated)"];
-        ADJUST_REFERENCE_PARENT = 1 [(displayName) = "Per Node"];
+        ADJUST_REFERENCE_LEGACY   = 0 [(displayName) = "Root (Deprecated)"];
+        ADJUST_REFERENCE_PARENT   = 1 [(displayName) = "Per Node"];
+        ADJUST_REFERENCE_DISABLED = 2 [(displayName) = "Disabled"];
     };
 
     message FontDesc
