@@ -66,8 +66,9 @@ namespace dmGui
 
     enum AdjustReference
     {
-        ADJUST_REFERENCE_LEGACY  = 0,
-        ADJUST_REFERENCE_PARENT = 1
+        ADJUST_REFERENCE_LEGACY   = 0,
+        ADJUST_REFERENCE_PARENT   = 1,
+        ADJUST_REFERENCE_DISABLED = 2
     };
 
     /**
