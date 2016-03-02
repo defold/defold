@@ -10,3 +10,11 @@
 /.ccache
 .idea
 /editor/defold-editor.iml
+share/ext/gtest/build
+share/ext/gtest/tmp
+share/ext/luajit/tmp
+share/ext/protobuf/build
+share/ext/protobuf/cross_tmp
+share/ext/protobuf/tmp
+share/ext/tremolo/build
+share/ext/tremolo/tmp
