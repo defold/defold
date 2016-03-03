@@ -8,7 +8,7 @@ from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
-ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
+ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14'
 ANDROID_TARGET_API_LEVEL='23'
