@@ -6,6 +6,7 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
@@ -60,16 +61,19 @@
           (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
-(defn load-resource-nodes [project node-ids]
-  (doall
-    (for [node-id node-ids
-          :when (g/has-output? (g/node-type* node-id) :resource)
-          :let [resource (g/node-value node-id :resource)]]
-      (load-node project node-id (g/node-type* node-id) resource))))
+(defn load-resource-nodes [project node-ids render-progress!]
+  (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
+    (doall
+     (for [node-id node-ids
+           :when (g/has-output? (g/node-type* node-id) :resource)
+           :let [resource (g/node-value node-id :resource)]]
+       (do
+         (render-progress! (swap! progress progress/advance))
+         (load-node project node-id (g/node-type* node-id) resource))))))
 
-(defn- load-nodes! [project node-ids]
+(defn- load-nodes! [project node-ids render-progress!]
   (g/transact
-    (load-resource-nodes project node-ids)))
+    (load-resource-nodes project node-ids render-progress!)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -114,11 +118,14 @@
             []))))))
 
 (defn load-project
-  ([project] (load-project project (g/node-value project :resources)))
+  ([project]
+   (load-project project (g/node-value project :resources)))
   ([project resources]
+   (load-project project resources progress/null-render-progress!))
+  ([project resources render-progress!]
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
      (let [nodes (make-nodes! project resources)]
-       (load-nodes! project nodes)
+       (load-nodes! project nodes render-progress!)
        project))))
 
 (defn make-embedded-resource [project type data]
@@ -128,16 +135,23 @@
 (defn save-data [project]
   (g/node-value project :save-data :skip-validation true))
 
-(defn save-all [project]
-  (let [save-data (save-data project)]
-    (if-not (g/error? save-data)
-      (do
-        (doseq [{:keys [resource content]} save-data
-                :when (not (resource/read-only? resource))]
-          (spit resource content))
-        (workspace/resource-sync! (g/node-value project :workspace) false))
-      ;; TODO: error message somewhere...
-      (println (validation/error-message save-data)))))
+(defn save-all
+  ([project]
+   (save-all project progress/null-render-progress!))
+  ([project render-progress!]
+   (let [save-data (save-data project)]
+     (if-not (g/error? save-data)
+       (do
+         (progress/progress-mapv
+          (fn [{:keys [resource content]} _]
+            (when-not (resource/read-only? resource)
+              (spit resource content)))
+          save-data
+          render-progress!
+          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+         (workspace/resource-sync! (g/node-value project :workspace) false [] render-progress!))
+       ;; TODO: error message somewhere...
+       (println (validation/error-message save-data))))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
@@ -189,8 +203,11 @@
            (filter #(seq (:matches %)))))))
 
 (handler/defhandler :save-all :global
-    (enabled? [] true)
-    (run [project] (save-all project)))
+  (enabled? [] true)
+  (run [project] (future
+                   (ui/with-disabled-ui
+                     (ui/with-progress [render-fn ui/default-render-progress!]
+                       (save-all project render-fn))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -217,12 +234,24 @@
 (defn prune-build-cache! [cache build-targets]
   (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
 
-(defn build [project node]
-  (let [basis (g/now)
-        build-cache (g/node-value project :build-cache)
-        build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets)))]
-    (prune-build-cache! build-cache build-targets)
-    (mapv #(build-target basis (second %) build-targets build-cache) build-targets)))
+(defn build
+  ([project node]
+   (build project node progress/null-render-progress!))
+  ([project node render-progress!]
+   (try
+     (let [basis         (g/now)
+           build-cache   (g/node-value project :build-cache)
+           build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
+                                                 (g/node-value node :build-targets)))]
+       (prune-build-cache! build-cache build-targets)
+       (progress/progress-mapv
+        (fn [target _]
+          (build-target basis (second target) build-targets build-cache))
+        build-targets
+        render-progress!
+        (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))
+     (catch Throwable e
+       (println e)))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
@@ -263,38 +292,45 @@
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
 
-(defn build-and-write [project node]
-  (clear-build-cache project)
-  (clear-fs-build-cache project)
-  (let [files-on-disk (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
-        build-results (build project node)
-        fs-build-cache (g/node-value project :fs-build-cache)]
-    (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
-    (prune-fs-build-cache! fs-build-cache build-results)
-    (doseq [result build-results
-            :let [{:keys [resource content key]} result
-                  abs-path (resource/abs-path resource)
-                  mtime (let [f (File. abs-path)]
-                          (if (.exists f)
-                            (.lastModified f)
-                            0))
-                  build-key [key mtime]
-                  cached? (= (get @fs-build-cache resource) build-key)]]
-      (when (not cached?)
-        (let [parent (-> (File. (resource/abs-path resource))
-                       (.getParentFile))]
-          ; Create underlying directories
-          (when (not (.exists parent))
-            (.mkdirs parent))
-          ; Write bytes
-          (with-open [out (io/output-stream resource)]
-            (.write out ^bytes content))
-          (let [f (File. abs-path)]
-            (swap! fs-build-cache assoc resource [key (.lastModified f)])))))))
+(defn build-and-write
+  ([project node]
+   (build-and-write project node progress/null-render-progress!))
+  ([project node render-progress!]
+   (clear-build-cache project)
+   (clear-fs-build-cache project)
+   (let [files-on-disk  (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
+         build-results  (build project node render-progress!)
+         fs-build-cache (g/node-value project :fs-build-cache)]
+     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
+     (prune-fs-build-cache! fs-build-cache build-results)
+     (progress/progress-mapv
+      (fn [result _]
+        (let [{:keys [resource content key]} result
+              abs-path (resource/abs-path resource)
+              mtime (let [f (File. abs-path)]
+                      (if (.exists f)
+                        (.lastModified f)
+                        0))
+              build-key [key mtime]
+              cached? (= (get @fs-build-cache resource) build-key)]
+          (when (not cached?)
+            (let [parent (-> (File. (resource/abs-path resource))
+                             (.getParentFile))]
+              ;; Create underlying directories
+              (when (not (.exists parent))
+                (.mkdirs parent))
+              ;; Write bytes
+              (with-open [out (io/output-stream resource)]
+                (.write out ^bytes content))
+              (let [f (File. abs-path)]
+                (swap! fs-build-cache assoc resource [key (.lastModified f)]))))))
+      build-results
+      render-progress!
+      (fn [{:keys [resource]}] (str "Writing " (resource/resource->proj-path resource)))))))
 
 (handler/defhandler :undo :global
-    (enabled? [project-graph] (g/has-undo? project-graph))
-    (run [project-graph] (g/undo! project-graph)))
+  (enabled? [project-graph] (g/has-undo? project-graph))
+  (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
@@ -329,16 +365,20 @@
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
-(defn- add-resources [project resources]
-  (load-nodes! project (make-nodes! project resources)))
+(defn- add-resources [project resources render-progress!]
+  (load-nodes! project (make-nodes! project resources) render-progress!))
 
 (defn- resource-node-pairs [project resources]
-  (doall (filter (comp some? second) (map #(do [% (get-resource-node project %)]) resources))))
+  (->> resources
+       (map (fn [resource]
+              [resource (get-resource-node project resource)]))
+       (filterv (comp some? second))))
 
-(defn- remove-resources [project resources]
+(defn- remove-resources [project resources render-progress!]
   (let [internals (resource-node-pairs project (filter loadable? resources))
         externals (resource-node-pairs project (filter (complement loadable?) resources))]
-    (doseq [[resource resource-node] internals]
+    (progress/progress-mapv
+     (fn [[resource resource-node] _]
       (let [current-outputs (outputs resource-node)
             new-node (first (make-nodes! project [resource]))
             new-outputs (set (outputs new-node))
@@ -349,8 +389,15 @@
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))
-    (doseq [[resource resource-node] externals]
-      (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))))
+     internals
+     render-progress!
+     (fn [[resource _]] (str "Removing " (resource/resource->proj-path resource))))
+    (progress/progress-mapv
+     (fn [[resource resource-node] _]
+       (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))
+     externals
+     render-progress!
+     (fn [[resource _]] (str "Invalidating " (resource/resource->proj-path resource))))))
 
 (defn- move-resources [project moved]
   (g/transact
@@ -359,40 +406,47 @@
           :when resource-node]
       (g/set-property resource-node :resource to))))
 
-(defn- handle-resource-changes [project changes]
+(defn- handle-resource-changes [project changes render-progress!]
   (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-    (let [moved (:moved changes)
-          all (reduce into [] (vals (select-keys changes [:added :removed :changed])))
-          reset-undo? (or (some loadable? all)
-                          (not (empty? moved)))
+    (let [moved           (:moved changes)
+          all             (reduce into [] (vals (select-keys changes [:added :removed :changed])))
+          reset-undo?     (or (some loadable? all)
+                              (not (empty? moved)))
           unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
-          to-reload (resource-node-pairs project (concat (:changed changes) (:added changes)))
-          to-add (doall (filter #(nil? (get-resource-node project %)) (:added changes)))]
+          to-reload       (resource-node-pairs project (concat (:changed changes) (:added changes)))
+          to-add          (filter #(nil? (get-resource-node project %)) (:added changes))
+          progress        (atom (progress/make "" 4))]
       ;; Order is important, since move-resources reuses/patches the resource node
+      (render-progress! (swap! progress progress/message "Moving resources"))
       (move-resources project moved)
-      (add-resources project to-add)
-      (remove-resources project (:removed changes))
-      (doseq [[resource resource-node] to-reload]
-        (let [current-outputs (outputs resource-node)]
-          (if (loadable? resource)
-            (let [nodes (make-nodes! project [resource])]
-              (load-nodes! project nodes)
-              (let [new-node (first nodes)
-                    new-outputs (set (outputs new-node))
-                    outputs-to-make (remove new-outputs current-outputs)]
-                (g/transact
+      (render-progress! (swap! progress progress/advance 1 "Adding resources"))
+      (add-resources project to-add render-progress!)
+      (render-progress! (swap! progress progress/advance 1 "Removing resources"))
+      (remove-resources project (:removed changes) (progress/nest-render-progress render-progress! @progress))
+      (render-progress! (swap! progress progress/advance 1 "Reloading resources"))
+      (progress/progress-mapv
+       (fn [[resource resource-node] _]
+         (let [current-outputs (outputs resource-node)]
+           (if (loadable? resource)
+             (let [nodes (make-nodes! project [resource])]
+               (load-nodes! project nodes render-progress!)
+               (let [new-node        (first nodes)
+                     new-outputs     (set (outputs new-node))
+                     outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+                 (g/transact
                   (concat
-                    (g/transfer-overrides resource-node new-node)
-                    (g/delete-node resource-node)
-                    (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                      (g/connect new-node src-label tgt-node tgt-label))))))
-            (g/invalidate! (mapv #(do [resource-node (first %)]) current-outputs)))))
+                   (g/transfer-overrides resource-node new-node)
+                   (g/delete-node resource-node)
+                   (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+                     (g/connect new-node src-label tgt-node tgt-label))))))
+             (g/invalidate! (mapv #(do [resource-node (first %)]) current-outputs)))))
+       to-reload
+       (progress/nest-render-progress render-progress! @progress)
+       (fn [[resource _]] (str "Reloading " (resource/resource->proj-path resource))))
       (when reset-undo?
         (g/reset-undo! (graph project)))
       (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
                                                (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
-
-
 
 (g/defnode Project
   (inherits core/Scope)
@@ -439,8 +493,11 @@
     (run [project] (let [workspace (g/node-value project :workspace)
                          game-project (get-resource-node project "/game.project")
                          launch-path (workspace/project-path (g/node-value project :workspace))]
-                     (build-and-write project game-project)
-                     (launch-engine (io/file launch-path)))))
+                     (future
+                       (ui/with-disabled-ui
+                         (ui/with-progress [render-fn ui/default-render-progress!]
+                           (build-and-write project game-project render-fn)
+                           (launch-engine (io/file launch-path))))))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
@@ -522,8 +579,8 @@
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
-  (handle-changes [this changes]
-    (handle-resource-changes project-id changes)))
+  (handle-changes [this changes render-progress!]
+    (handle-resource-changes project-id changes render-progress!)))
 
 (deftype ProjectSelectionProvider [project-id]
   workspace/SelectionProvider
