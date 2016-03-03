@@ -103,7 +103,7 @@ def default_flags(self):
         # therefore libc++ as stdlib instead of libstdc++.
         self.env.append_value('CXXFLAGS', ['-std=c++11', '-stdlib=libc++', '-Wno-narrowing'])
         self.env.append_value('CCFLAGS', ['-stdlib=libstdc++'])
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-ObjC'])
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
