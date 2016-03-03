@@ -137,16 +137,17 @@
     (.toByteArray os)))
 
 (defn- load-zip [url]
-  (with-open [zip (ZipInputStream. (io/input-stream url))]
-    (loop [entries []]
-      (let [e (.getNextEntry zip)]
-        (if-not e
-          entries
-          (recur (if (.isDirectory e)
-                   entries
-                   (conj entries {:name (last (string/split (.getName e) #"/"))
-                                  :path (.getName e)
-                                  :buffer (read-zip-entry zip e)}))))))))
+  (when-let [stream (and url (io/input-stream url))]
+    (with-open [zip (ZipInputStream. stream)]
+      (loop [entries []]
+        (let [e (.getNextEntry zip)]
+          (if-not e
+            entries
+            (recur (if (.isDirectory e)
+                     entries
+                     (conj entries {:name (last (string/split (.getName e) #"/"))
+                                    :path (.getName e)
+                                    :buffer (read-zip-entry zip e)})))))))))
 
 (defn- ->zip-resources [workspace path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
