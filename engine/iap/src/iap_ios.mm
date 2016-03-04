@@ -331,7 +331,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  * @param callback result callback
  * @examples
  *
- * @note nested calls, that is calling iap.list from within callback is not supported.
+ * <b>Note:</b> Nested calls, that is calling iap.list from within callback is not supported.
  *  Doing so will result in call being ignored with the engine reporting "Unexpected callback set".
  *
  * <pre>
@@ -397,7 +397,7 @@ int IAP_List(lua_State* L)
  * @name iap.buy
  * @param id product to buy (identifier)
  *
- * @note calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
+ * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
  *
  * @examples
  *
@@ -447,7 +447,7 @@ int IAP_Buy(lua_State* L)
  * @name iap.finish
  * @param transaction transaction table parameter as supplied in listener callback
  *
- * @note calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings (otherwise ignored).
+ * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings (otherwise ignored).
  * The transaction.state field must equal iap.TRANS_STATE_PURCHASED.
  *
  */
