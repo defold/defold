@@ -15,9 +15,7 @@
 
 #import <GoogleSignIn/GoogleSignIn.h>
 
-extern dmGpgs::GooglePlayGameServices* g_gpgs = NULL;
-extern id g_viewController = NULL;
-
+dmGpgs::GooglePlayGameServices* g_gpgs = NULL;
 
 @interface GPGSAppDelegate : NSObject <UIApplicationDelegate, GIDSignInUIDelegate>
 
@@ -34,28 +32,29 @@ extern id g_viewController = NULL;
 @implementation GPGSAppDelegate
     - (void)viewDidLoad {
         [GIDSignIn sharedInstance].uiDelegate = self;
+        [GIDSignIn sharedInstance].allowsSignInWithWebView = NO;
     }
 
     - (void)signInWillDispatch:(GIDSignIn *)signIn error:(NSError *)error
     {
-
+        // signInWillDispatch
     }
 
     - (void)signIn:(GIDSignIn *)signIn presentViewController:(UIViewController *)viewController
     {
-
+        // presentViewController
     }
 
     - (void)signIn:(GIDSignIn *)signIn dismissViewController:(UIViewController *)viewController
     {
-
+        // dismissViewController
     }
 
     - (BOOL)application:(UIApplication *)application
         openURL:(NSURL *)url
         sourceApplication:(NSString *)sourceApplication
-        annotation:(id)annotation {
-            printf("\n");
+        annotation:(id)annotation
+        {
             return [[GIDSignIn sharedInstance] handleURL:url sourceApplication:sourceApplication annotation:annotation];
         }
 
@@ -80,7 +79,7 @@ namespace
 
     void OnAuthActionStarted(gpg::AuthOperation auth_operation)
     {
-
+        // OnAuthActionStarted
     }
 
     void PushStack(lua_State* src, lua_State* dst)
@@ -123,8 +122,7 @@ namespace
                                     (bool) lua_toboolean(src, -1));
                                 break;
                             default:
-                                dmLogError("Datatype %s is not supported.",
-                                    lua_typename(src, lua_type(src, -1)));
+                                dmLogError("Datatype %s is not supported.", lua_typename(src, lua_type(src, -1)));
                         }
 
                         lua_pop(src, 1);
@@ -134,8 +132,7 @@ namespace
                     lua_pushcfunction(dst, lua_tocfunction(src, -1));
                     break;
                 default:
-                    dmLogError("Datatype %s has not been implemented.",
-                        lua_typename(src, lua_type(src, -1)));
+                    dmLogError("Datatype %s has not been implemented.", lua_typename(src, lua_type(src, -1)));
                     break;
             }
         }
@@ -198,8 +195,6 @@ dmExtension::Result AppFinalizeGpgs(dmExtension::AppParams* params)
 dmExtension::Result InitializeGpgs(dmExtension::Params* params)
 {
     if (g_gpgs == NULL) {
-
-        printf("sven hej hej\n");
         g_gpgs = new dmGpgs::GooglePlayGameServices();
         const char* client_id = dmConfigFile::GetString(params->m_ConfigFile, "gpgs.client_id", "");
 
@@ -208,12 +203,10 @@ dmExtension::Result InitializeGpgs(dmExtension::Params* params)
 
         id delegate = [[GPGSAppDelegate alloc] init];
         [delegate viewDidLoad];
-        // platform_configuration.SetOptionalViewControllerForPopups(delegate);
         dmExtension::RegisterUIApplicationDelegate(delegate);
-        // platform_configuration.SetOptionalViewControllerForPopups(g_viewController);
 
         g_gpgs->m_GameServices = gpg::GameServices::Builder()
-            .SetOnLog(gpg::DEFAULT_ON_LOG, gpg::LogLevel::VERBOSE)
+            .SetOnLog(gpg::DEFAULT_ON_LOG, gpg::LogLevel::INFO)
             .SetOnAuthActionStarted(::OnAuthActionStarted)
             .SetOnAuthActionFinished(::OnAuthActionFinished)
             .EnableSnapshots()
@@ -224,7 +217,7 @@ dmExtension::Result InitializeGpgs(dmExtension::Params* params)
     int argc = lua_gettop(L);
 
     luaL_register(L, LIB_NAME, gpgs_methods);
-    //dmGpgs::RegisterConstants(L);
+    dmGpgs::RegisterConstants(L);
 
     lua_pop(L, 1);
     assert(argc == lua_gettop(L));
@@ -247,13 +240,8 @@ dmExtension::Result UpdateGpgs(dmExtension::Params* params)
             dmScript::SetInstance(cmd.m_Context);
             if (dmScript::IsInstanceValid(cmd.m_Context))
             {
-
-                dmLogWarning("cmd.m_ParameterStack: %X", cmd.m_ParameterStack);
-
                 int arguments = lua_gettop(cmd.m_ParameterStack);
                 ::PushStack(cmd.m_ParameterStack, cmd.m_Context);
-
-                dmLogWarning("arguments: %d", arguments);
 
                 int callback_ref = cmd.m_Callback;
                 lua_State* context_ref = cmd.m_Context;
@@ -270,8 +258,7 @@ dmExtension::Result UpdateGpgs(dmExtension::Params* params)
             }
             else
             {
-                dmLogError("Unable to run Google Play Game Services"
-                    " callback because the instance has been deleted.");
+                dmLogError("Unable to run Google Play Game Services callback because the instance has been deleted.");
                 lua_pop(cmd.m_Context, 2);
             }
 
@@ -291,5 +278,4 @@ dmExtension::Result FinalizeGpgs(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(GpgsExt, "Gpgs", AppInitializeGpgs, AppFinalizeGpgs,
-    InitializeGpgs, UpdateGpgs, 0, FinalizeGpgs)
+DM_DECLARE_EXTENSION(GpgsExt, "Gpgs", AppInitializeGpgs, AppFinalizeGpgs, InitializeGpgs, UpdateGpgs, 0, FinalizeGpgs)

@@ -34,17 +34,33 @@ namespace dmGpgs
         QUEST_SHOW                      = 12,
         QUEST_SHOWALL                   = 13,
 
-        SNAPSHOT_READ                   = 14,
-        SNAPSHOT_SHOW                   = 15,
+        SNAPSHOT_COMMIT                 = 14,
+        SNAPSHOT_READ                   = 15,
+        SNAPSHOT_SHOW                   = 16,
+        SNAPSHOT_DELETE                 = 17,
 
-        MAX_NUM_CALLBACKS               = 16
+        MAX_NUM_CALLBACKS               = 18
+    };
+
+    struct CommitInfo
+    {
+        CommitInfo() : description(NULL), time_played_ms(0), progress(0), buffer(0), buffer_len(0)
+        {
+
+        }
+
+        const char* description;
+        uint32_t time_played_ms;
+        int32_t progress;
+        char* buffer;
+        int32_t buffer_len;
     };
 
     struct Command
     {
         Command()
         : m_Callback(LUA_NOREF), m_Self(LUA_NOREF)
-        , m_Context(NULL), m_ParameterStack(NULL)
+        , m_Context(NULL), m_ParameterStack(NULL), m_info(NULL)
         {
 
         }
@@ -53,6 +69,7 @@ namespace dmGpgs
         int m_Self;
         lua_State* m_Context;
         lua_State* m_ParameterStack;
+        void* m_info;
     };
 
     struct GooglePlayGameServices
@@ -60,9 +77,8 @@ namespace dmGpgs
         GooglePlayGameServices()
         : m_Callbacks(), m_Commands(), m_Mutex(dmMutex::New())
         {
-            m_Callbacks.SetCapacity(
-                static_cast<int>(dmGpgs::Callback::MAX_NUM_CALLBACKS));
             int length = static_cast<int>(dmGpgs::Callback::MAX_NUM_CALLBACKS);
+            m_Callbacks.SetCapacity(length);
             for (int i = 0; i < length; ++i)
             {
                 m_Callbacks.Push(dmGpgs::Command());

@@ -27,7 +27,6 @@
 
 extern dmGpgs::GooglePlayGameServices* g_gpgs;
 
-
 void Achievement_Fetch_Callback(gpg::AchievementManager::FetchResponse const& response);
 void Achievement_ShowAll_Callback(gpg::UIStatus const& response);
 void Event_Fetch_Callback(const gpg::EventManager::FetchResponse& response);
@@ -43,6 +42,8 @@ void Quest_Fetch_Callback(gpg::QuestManager::FetchResponse const& response);
 void Quest_ShowFetch_Callback(gpg::QuestManager::FetchResponse const& response);
 void Quest_Show_Callback(gpg::QuestManager::QuestUIResponse const& response);
 void Quest_ShowAll_Callback(gpg::QuestManager::QuestUIResponse const& response);
+void Snapshot_Commit_Callback(gpg::SnapshotManager::OpenResponse const & response);
+void Snapshot_Delete_Callback(gpg::SnapshotManager::OpenResponse const & response);
 void Snapshot_Read_Callback(gpg::SnapshotManager::OpenResponse const & response);
 void Snapshot_Show_Callback(gpg::SnapshotManager::SnapshotSelectUIResponse const& response);
 
@@ -209,13 +210,13 @@ namespace
     {
         switch (policy)
         {
-            case 1:
+            case static_cast<int>(gpg::SnapshotConflictPolicy::LONGEST_PLAYTIME):
                 return gpg::SnapshotConflictPolicy::LONGEST_PLAYTIME;
-            case 2:
+            case static_cast<int>(gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD):
                 return gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD;
-            case 3:
+            case static_cast<int>(gpg::SnapshotConflictPolicy::MOST_RECENTLY_MODIFIED):
                 return gpg::SnapshotConflictPolicy::MOST_RECENTLY_MODIFIED;
-            case 4:
+            case static_cast<int>(gpg::SnapshotConflictPolicy::HIGHEST_PROGRESS):
                 return gpg::SnapshotConflictPolicy::HIGHEST_PROGRESS;
             default:
                 return gpg::SnapshotConflictPolicy::MOST_RECENTLY_MODIFIED;
@@ -346,6 +347,26 @@ bool dmGpgs::Authenticated()
 {
     return g_gpgs->m_GameServices->IsAuthorized();
 }
+
+void dmGpgs::RegisterConstants(lua_State* L)
+{
+    // Add constants to table LIB_NAME
+    lua_getglobal(L, LIB_NAME);
+
+    #define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); lua_setfield(L, -2, #name);
+
+    SETCONSTANT(POLICY_LONGEST_PLAYTIME,        static_cast<int>(gpg::SnapshotConflictPolicy::LONGEST_PLAYTIME));
+    SETCONSTANT(POLICY_LAST_KNOWN_GOOD,         static_cast<int>(gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD));
+    SETCONSTANT(POLICY_MOST_RECENTLY_MODIFIED,  static_cast<int>(gpg::SnapshotConflictPolicy::MOST_RECENTLY_MODIFIED));
+    SETCONSTANT(POLICY_HIGHEST_PROGRESS,        static_cast<int>(gpg::SnapshotConflictPolicy::HIGHEST_PROGRESS));
+
+    #undef SETCONSTANT
+
+    // Pop table LIB_NAME
+    lua_pop(L, 1);
+}
+
 
 
 
@@ -835,31 +856,65 @@ void Quest_ShowAll_Callback(gpg::QuestManager::QuestUIResponse const& response)
 // ----------------------------------------------------------------------------
 // Snapshot::Commit
 // ----------------------------------------------------------------------------
-void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename, uint32_t policy, const char* description, uint32_t time_played, int32_t progress, const std::vector<uint8_t>& buffer)
+void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename, uint32_t policy, const char* description, uint32_t time_played, int32_t progress, char* buffer, int buffer_len, int callback)
 {
     std::chrono::milliseconds time_played_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::seconds(time_played));
-
     gpg::SnapshotConflictPolicy conflict_policy = ::IntegerToConflictPolicy(policy);
 
-    lua_newtable(L); // Metadata
+    dmGpgs::CommitInfo* commit_info = (dmGpgs::CommitInfo*) malloc(sizeof(dmGpgs::CommitInfo));
+    commit_info->description = strdup(description);
+    commit_info->time_played_ms = time_played_ms.count();
+    commit_info->progress = progress;
+    commit_info->buffer = buffer;
+    commit_info->buffer_len = buffer_len;
 
-    const gpg::SnapshotManager::OpenResponse& response = g_gpgs->m_GameServices->Snapshots().OpenBlocking(filename, conflict_policy);
+    ::RegisterCallback(L, dmGpgs::Callback::SNAPSHOT_COMMIT, callback);
+    int ct_index = static_cast<int>(dmGpgs::Callback::SNAPSHOT_COMMIT);
+    g_gpgs->m_Callbacks[ct_index].m_info = (void*) commit_info;
+
+    g_gpgs->m_GameServices->Snapshots().Open(filename, conflict_policy, Snapshot_Commit_Callback);
+}
+
+void Snapshot_Commit_Callback(gpg::SnapshotManager::OpenResponse const & response)
+{
+    lua_State* L = ::GetCallbackStack(dmGpgs::Callback::SNAPSHOT_COMMIT);
+
+    int ct_index = static_cast<int>(dmGpgs::Callback::SNAPSHOT_COMMIT);
+    dmGpgs::CommitInfo* commit_info = (dmGpgs::CommitInfo*) g_gpgs->m_Callbacks[ct_index].m_info;
+
+    std::vector<uint8_t> buffer(commit_info->buffer, commit_info->buffer + commit_info->buffer_len);
+
     if (gpg::IsSuccess(response.status))
     {
         const gpg::SnapshotMetadata& metadata = response.data;
         gpg::SnapshotMetadataChange metadata_change =
             gpg::SnapshotMetadataChange::Builder()
-                .SetDescription(description)
-                .SetPlayedTime(time_played_ms)
-                .SetProgressValue(progress)
+                .SetDescription(commit_info->description)
+                .SetPlayedTime(std::chrono::milliseconds(commit_info->time_played_ms))
+                .SetProgressValue(commit_info->progress)
                 .Create();
 
         const gpg::SnapshotManager::CommitResponse& commit_response = g_gpgs->m_GameServices->Snapshots().CommitBlocking(metadata, metadata_change, buffer);
+
+        lua_pushboolean(L, gpg::IsSuccess(commit_response.status));
+        lua_newtable(L); // Metadata
         if (gpg::IsSuccess(commit_response.status))
         {
             ::PushSnapshotMetadata(L, commit_response.data);
         }
     }
+    else
+    {
+        lua_pushboolean(L, false);
+        lua_newtable(L); // Metadata
+    }
+
+    free((void*) commit_info->description);
+    free((void*) commit_info->buffer);
+    free(commit_info);
+    if (!dmGpgs::Snapshot::Callback::Commit(L))
+        return ::CallbackError(dmGpgs::Callback::SNAPSHOT_COMMIT);
+    ::QueueCallback(dmGpgs::Callback::SNAPSHOT_COMMIT);
 }
 
 
@@ -867,9 +922,15 @@ void dmGpgs::Snapshot::Impl::Commit(lua_State* L, const char* filename, uint32_t
 // ----------------------------------------------------------------------------
 // Snapshot::Delete
 // ----------------------------------------------------------------------------
-void dmGpgs::Snapshot::Impl::Delete(lua_State* L, const char* filename)
+void dmGpgs::Snapshot::Impl::Delete(lua_State* L, const char* filename, int callback)
 {
-    const gpg::SnapshotManager::OpenResponse& response = g_gpgs->m_GameServices->Snapshots().OpenBlocking(filename, gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD);
+    ::RegisterCallback(L, dmGpgs::Callback::SNAPSHOT_DELETE, callback);
+    g_gpgs->m_GameServices->Snapshots().Open(filename, gpg::SnapshotConflictPolicy::LAST_KNOWN_GOOD, Snapshot_Delete_Callback);
+}
+
+void Snapshot_Delete_Callback(gpg::SnapshotManager::OpenResponse const & response)
+{
+    lua_State* L = ::GetCallbackStack(dmGpgs::Callback::SNAPSHOT_DELETE);
     if (gpg::IsSuccess(response.status))
     {
         g_gpgs->m_GameServices->Snapshots().Delete(response.data);
@@ -879,6 +940,10 @@ void dmGpgs::Snapshot::Impl::Delete(lua_State* L, const char* filename)
     {
         lua_pushboolean(L, false);
     }
+
+    if (!dmGpgs::Snapshot::Callback::Delete(L))
+        return ::CallbackError(dmGpgs::Callback::SNAPSHOT_DELETE);
+    ::QueueCallback(dmGpgs::Callback::SNAPSHOT_DELETE);
 }
 
 
@@ -886,8 +951,7 @@ void dmGpgs::Snapshot::Impl::Delete(lua_State* L, const char* filename)
 // ----------------------------------------------------------------------------
 // Snapshot::Read
 // ----------------------------------------------------------------------------
-void dmGpgs::Snapshot::Impl::Read(
-    lua_State* L, const char* filename, uint32_t policy, int callback)
+void dmGpgs::Snapshot::Impl::Read(lua_State* L, const char* filename, uint32_t policy, int callback)
 {
     gpg::SnapshotConflictPolicy conflict_policy = ::IntegerToConflictPolicy(policy);
 
@@ -895,8 +959,7 @@ void dmGpgs::Snapshot::Impl::Read(
     g_gpgs->m_GameServices->Snapshots().Open(filename, conflict_policy, Snapshot_Read_Callback);
 }
 
-void Snapshot_Read_Callback(
-    gpg::SnapshotManager::OpenResponse const & response)
+void Snapshot_Read_Callback(gpg::SnapshotManager::OpenResponse const & response)
 {
     lua_State* L = ::GetCallbackStack(dmGpgs::Callback::SNAPSHOT_READ);
 

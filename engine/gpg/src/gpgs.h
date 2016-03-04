@@ -34,6 +34,8 @@ namespace dmGpgs
 
     bool Authenticated();
 
+    void RegisterConstants(lua_State* L);
+
     namespace Authentication
     {
 
@@ -230,8 +232,7 @@ namespace dmGpgs
 
             void Accept(lua_State* L, const char* identifier, int callback);
 
-            void ClaimMilestone(
-                lua_State* L, const char* identifier, int callback);
+            void ClaimMilestone(lua_State* L, const char* identifier, int callback);
 
             void Fetch(lua_State* L, const char* identifier, int callback);
 
@@ -257,6 +258,10 @@ namespace dmGpgs
         namespace Callback
         {
 
+            bool Commit(lua_State* L);
+
+            bool Delete(lua_State* L);
+
             bool Read(lua_State* L);
 
             bool Show(lua_State* L);
@@ -266,14 +271,11 @@ namespace dmGpgs
         namespace Impl
         {
 
-            void Commit(lua_State* L, const char* filename, uint32_t policy,
-                const char* description, uint32_t time_played,
-                int32_t progress, const std::vector<uint8_t>& buffer);
+            void Commit(lua_State* L, const char* filename, uint32_t policy, const char* description, uint32_t time_played, int32_t progress, char* buffer, int buffer_len, int callback);
 
-            void Delete(lua_State* L, const char* filename);
+            void Delete(lua_State* L, const char* filename, int callback);
 
-            void Read(lua_State* L, const char* filename,
-                uint32_t policy, int callback);
+            void Read(lua_State* L, const char* filename, uint32_t policy, int callback);
 
             void Show(lua_State* L, const char* title, int callback);
 

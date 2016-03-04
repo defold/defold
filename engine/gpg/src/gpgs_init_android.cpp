@@ -13,8 +13,8 @@
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
 
-extern dmGpgs::GooglePlayGameServices* g_gpgs = NULL;
 extern struct android_app* g_AndroidApp;
+dmGpgs::GooglePlayGameServices* g_gpgs = NULL;
 
 namespace
 {
@@ -42,7 +42,7 @@ namespace
 
     void OnAuthActionStarted(gpg::AuthOperation auth_operation)
     {
-
+        // OnAuthActionStarted
     }
 
     void PushStack(lua_State* src, lua_State* dst)
@@ -85,8 +85,7 @@ namespace
                                     (bool) lua_toboolean(src, -1));
                                 break;
                             default:
-                                dmLogError("Datatype %s is not supported.",
-                                    lua_typename(src, lua_type(src, -1)));
+                                dmLogError("Datatype %s is not supported.", lua_typename(src, lua_type(src, -1)));
                         }
 
                         lua_pop(src, 1);
@@ -96,8 +95,7 @@ namespace
                     lua_pushcfunction(dst, lua_tocfunction(src, -1));
                     break;
                 default:
-                    dmLogError("Datatype %s has not been implemented.",
-                        lua_typename(src, lua_type(src, -1)));
+                    dmLogError("Datatype %s has not been implemented.", lua_typename(src, lua_type(src, -1)));
                     break;
             }
         }
@@ -152,7 +150,7 @@ dmExtension::Result AppInitializeGpgs(dmExtension::AppParams* params)
     platform_configuration.SetActivity(g_AndroidApp->activity->clazz);
 
     g_gpgs->m_GameServices = gpg::GameServices::Builder()
-        .SetOnLog(gpg::DEFAULT_ON_LOG, gpg::LogLevel::VERBOSE)
+        .SetOnLog(gpg::DEFAULT_ON_LOG, gpg::LogLevel::INFO)
         .SetOnAuthActionStarted(::OnAuthActionStarted)
         .SetOnAuthActionFinished(::OnAuthActionFinished)
         .EnableSnapshots()
@@ -180,7 +178,7 @@ dmExtension::Result InitializeGpgs(dmExtension::Params* params)
     int argc = lua_gettop(L);
 
     luaL_register(L, LIB_NAME, gpgs_methods);
-    //dmGpgs::RegisterConstants(L);
+    dmGpgs::RegisterConstants(L);
 
     lua_pop(L, 1);
     assert(argc == lua_gettop(L));
@@ -222,8 +220,7 @@ dmExtension::Result UpdateGpgs(dmExtension::Params* params)
             }
             else
             {
-                dmLogError("Unable to run Google Play Game Services"
-                    " callback because the instance has been deleted.");
+                dmLogError("Unable to run Google Play Game Services callback because the instance has been deleted.");
                 lua_pop(cmd.m_Context, 2);
             }
 
@@ -243,5 +240,4 @@ dmExtension::Result FinalizeGpgs(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(GpgsExt, "Gpgs", AppInitializeGpgs, AppFinalizeGpgs,
-    InitializeGpgs, UpdateGpgs, 0, FinalizeGpgs)
+DM_DECLARE_EXTENSION(GpgsExt, "Gpgs", AppInitializeGpgs, AppFinalizeGpgs, InitializeGpgs, UpdateGpgs, 0, FinalizeGpgs)

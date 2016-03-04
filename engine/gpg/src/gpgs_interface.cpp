@@ -44,13 +44,11 @@ namespace
     {
         int argc = lua_gettop(L);
         if (argc < argc_min) {
-            lua_pushstring(L, "Too few arguments");
-            lua_error(L);
+            luaL_error(L, "Too few arguments, got %d, expected %d", argc, argc_min);
         }
         else if (argc > argc_max)
         {
-            lua_pushstring(L, "Too many arguments");
-            lua_error(L);
+            luaL_error(L, "Too many arguments, got %d, expected %d", argc, argc_min);
         }
         else
         {
@@ -65,13 +63,11 @@ namespace
                 {
                     if (required)
                     {
-                        luaL_argerror(L, i,
-                            "Required argument has incorrect datatype");
+                        luaL_error(L, "Required argument %d has incorrect datatype, got %s, expected %s", i, luaL_typename(L, lua_type(L, i)));
                     }
                     else
                     {
-                        luaL_argerror(L, i,
-                            "Optional argument has incorrect datatype");
+                        luaL_error(L, "Optional argument %d has incorrect datatype, got %s, expected %s", i, luaL_typename(L, lua_type(L, i)));
                     }
                 }
             }
@@ -82,9 +78,7 @@ namespace
     {
         if (!dmGpgs::Authenticated())
         {
-            lua_pushstring(L,
-                "Must be authenticated to use Google Play Game Services");
-            lua_error(L);
+            luaL_error(L, "Must be authenticated to use Google Play Game Services");
         }
     }
 
@@ -541,8 +535,8 @@ bool dmGpgs::Quest::Callback::ShowAll(lua_State* L)
 int dmGpgs::Snapshot::Commit(lua_State* L)
 {
     int argc = lua_gettop(L);
-    ::VerifyParameterList(L, 6, 6, LUA_TSTRING, LUA_TNUMBER, LUA_TSTRING,
-        LUA_TNUMBER, LUA_TNUMBER, LUA_TTABLE);
+    ::VerifyParameterList(L, 7, 7, LUA_TSTRING, LUA_TNUMBER, LUA_TSTRING,
+        LUA_TNUMBER, LUA_TNUMBER, LUA_TTABLE, LUA_TFUNCTION);
     ::VerifyGoogleAuthentication(L);
 
     const char* filename = luaL_checkstring(L, 1);
@@ -550,14 +544,18 @@ int dmGpgs::Snapshot::Commit(lua_State* L)
     const char* description = luaL_checkstring(L, 3);
     uint32_t seconds_played = (uint32_t) luaL_checknumber(L, 4);
     int32_t progress = (int32_t) luaL_checknumber(L, 5);
-    char buffer[::MAX_BUFFER_SIZE];
-    uint32_t n_used = dmScript::CheckTable(L, buffer, sizeof(buffer), 6);
-    std::vector<uint8_t> data(buffer, buffer + n_used);
 
-    dmGpgs::Snapshot::Impl::Commit(L, filename, policy, description,
-        seconds_played, progress, data);
+    char* buffer = (char*) malloc(sizeof(char) * ::MAX_BUFFER_SIZE);
+    uint32_t n_used = dmScript::CheckTable(L, buffer, ::MAX_BUFFER_SIZE, 6);
 
-    safe_return(L, argc, 1);
+    dmGpgs::Snapshot::Impl::Commit(L, filename, policy, description, seconds_played, progress, buffer, n_used, 7);
+
+    safe_return(L, argc, 0);
+}
+
+bool dmGpgs::Snapshot::Callback::Commit(lua_State* L)
+{
+    return ::VerifyStack(L, 2, LUA_TBOOLEAN, LUA_TTABLE);
 }
 
 
@@ -568,14 +566,19 @@ int dmGpgs::Snapshot::Commit(lua_State* L)
 int dmGpgs::Snapshot::Delete(lua_State* L)
 {
     int argc = lua_gettop(L);
-    ::VerifyParameterList(L, 1, 1, LUA_TSTRING);
+    ::VerifyParameterList(L, 2, 2, LUA_TSTRING, LUA_TFUNCTION);
     ::VerifyGoogleAuthentication(L);
 
     const char* filename = luaL_checkstring(L, 1);
 
-    dmGpgs::Snapshot::Impl::Delete(L, filename);
+    dmGpgs::Snapshot::Impl::Delete(L, filename, 2);
 
-    safe_return(L, argc, 1);
+    safe_return(L, argc, 0);
+}
+
+bool dmGpgs::Snapshot::Callback::Delete(lua_State* L)
+{
+    return ::VerifyStack(L, 1, LUA_TBOOLEAN);
 }
 
 
