@@ -905,17 +905,15 @@ int Facebook_PostEvent(lua_State* L)
 
 /*# Enable event usage with Facebook Analytics
  *
- * @name enable_event_usage
- *
- * <p>
  * This function will enable event usage for Facebook Analytics which means
  * that Facebook will be able to use event data for ad-tracking.
- * </p>
- * <p>
+ *
  * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
- * </p>
+ *
+ * @name enable_event_usage
+ *
  */
 int Facebook_EnableEventUsage(lua_State* L)
 {
@@ -925,19 +923,17 @@ int Facebook_EnableEventUsage(lua_State* L)
 }
 
 /*# Disable event usage with Facebook Analytics
- *
- * @name disable_event_usage
- *
- * <p>
+ * 
  * This function will disable event usage for Facebook Analytics which means
  * that Facebook won't be able to use event data for ad-tracking. Events will
  * still be sent to Facebook for insights.
- * </p>
- * <p>
+ *
  * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
- * </p>
+ *
+ * @name disable_event_usage
+ *
  */
 int Facebook_DisableEventUsage(lua_State* L)
 {

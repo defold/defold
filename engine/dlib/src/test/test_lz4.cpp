@@ -3,6 +3,7 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "../dlib/lz4.h"
+#include "../dlib/time.h"
 
 /*
  * Test file foo.lz4 created with lz4 0.6.1 in python
@@ -34,6 +35,12 @@ TEST(dmLZ4, Decompress)
     dmLZ4::Result r;
     int decompressed_size;
     r = dmLZ4::DecompressBuffer(FOO_LZ4, FOO_LZ4_SIZE, &buf, 3, &decompressed_size);
+    ASSERT_EQ(dmLZ4::RESULT_OK, r);
+    ASSERT_EQ(memcmp("foo", buf, 3), 0);
+    ASSERT_EQ(3, decompressed_size);
+
+    memset(buf, 0, 3);
+    r = dmLZ4::DecompressBufferFast(FOO_LZ4, FOO_LZ4_SIZE, &buf, 3);
     ASSERT_EQ(dmLZ4::RESULT_OK, r);
     ASSERT_EQ(memcmp("foo", buf, 3), 0);
 }
@@ -74,9 +81,11 @@ char * RandomCharArray(int max, int *real)
 
 TEST(dmLZ4, Stress)
 {
+    int max_size = 373425;
+
     for (int i = 0; i < 100; ++i) {
         int ref_len;
-        char *ref = RandomCharArray(37342, &ref_len);
+        char *ref = RandomCharArray(max_size, &ref_len);
         int max_compressed_size, compressed_size, decompressed_size;
         dmLZ4::Result r = dmLZ4::MaxCompressedSize(ref_len, &max_compressed_size);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
@@ -89,7 +98,7 @@ TEST(dmLZ4, Stress)
         r = dmLZ4::CompressBuffer(ref, ref_len, compressed, &compressed_size);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
 
-        r = dmLZ4::DecompressBuffer(compressed, compressed_size, decompressed, 37342, &decompressed_size);
+        r = dmLZ4::DecompressBufferFast(compressed, compressed_size, decompressed, ref_len);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
         ASSERT_EQ(memcmp(ref, decompressed, ref_len), 0);
 
