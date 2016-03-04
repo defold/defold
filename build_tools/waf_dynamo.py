@@ -45,7 +45,7 @@ def new_copy_task(name, input_ext, output_ext):
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 ARM_TVOS_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer'
-IOS_SDK_VERSION="9.2"
+IOS_SDK_VERSION="9.1"
 TVOS_SDK_VERSION="9.1"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
