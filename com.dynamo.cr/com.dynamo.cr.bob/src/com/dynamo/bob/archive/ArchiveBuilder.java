@@ -32,7 +32,7 @@ public class ArchiveBuilder {
 
     public ArchiveBuilder(String root) {
         this.root = new File(root).getAbsolutePath();
-        this.lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
+        this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
     }
 
     public void add(String fileName, boolean doCompress) throws IOException {
