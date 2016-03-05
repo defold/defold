@@ -5,7 +5,7 @@
             [editor.gl :as gl]
             [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g])
-  (:import [java.awt.image BufferedImage]
+  (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
            [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GL3 GLContext GLProfile]
            [com.jogamp.common.nio Buffers]
@@ -103,7 +103,7 @@
                3 BufferedImage/TYPE_3BYTE_BGR
                1 BufferedImage/TYPE_BYTE_GRAY)
         img (image/image-convert-type img type)
-        data (ByteBuffer/wrap (.getData (.getDataBuffer (.getRaster img))))]
+        data (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster img))))]
     (->texture-data (.getWidth img) (.getHeight img) channels data mipmap)))
 
 (defn image-texture
