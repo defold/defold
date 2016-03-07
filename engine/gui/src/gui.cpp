@@ -41,7 +41,6 @@ namespace dmGui
     const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
-    inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity);
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -1821,53 +1820,6 @@ namespace dmGui
         scene->m_Animations.SetSize(0);
     }
 
-    static Vector4 CalcPivotDelta(uint32_t pivot, Vector4 size)
-    {
-        float width = size.getX();
-        float height = size.getY();
-
-        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
-
-        switch (pivot)
-        {
-            case dmGui::PIVOT_CENTER:
-            case dmGui::PIVOT_S:
-            case dmGui::PIVOT_N:
-                delta_pivot.setX(-width * 0.5f);
-                break;
-
-            case dmGui::PIVOT_NE:
-            case dmGui::PIVOT_E:
-            case dmGui::PIVOT_SE:
-                delta_pivot.setX(-width);
-                break;
-
-            case dmGui::PIVOT_SW:
-            case dmGui::PIVOT_W:
-            case dmGui::PIVOT_NW:
-                break;
-        }
-        switch (pivot) {
-            case dmGui::PIVOT_CENTER:
-            case dmGui::PIVOT_E:
-            case dmGui::PIVOT_W:
-                delta_pivot.setY(-height * 0.5f);
-                break;
-
-            case dmGui::PIVOT_N:
-            case dmGui::PIVOT_NE:
-            case dmGui::PIVOT_NW:
-                delta_pivot.setY(-height);
-                break;
-
-            case dmGui::PIVOT_S:
-            case dmGui::PIVOT_SW:
-            case dmGui::PIVOT_SE:
-                break;
-        }
-        return delta_pivot;
-    }
-
     static void AdjustPosScale(HScene scene, InternalNode* n, const Vector4& reference_scale, Vector4& position, Vector4& scale)
     {
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY && n->m_ParentIndex != INVALID_INDEX)
@@ -1943,7 +1895,7 @@ namespace dmGui
         scale = mulPerElem(adjust_scale, scale);
     }
 
-    static void UpdateLocalTransform(HScene scene, InternalNode* n)
+    void UpdateLocalTransform(HScene scene, InternalNode* n)
     {
         Node& node = n->m_Node;
 
@@ -2905,104 +2857,15 @@ namespace dmGui
         }
     }
 
-    inline void CalculateNodeExtents(const Node& node, const CalculateNodeTransformFlags flags, Matrix4& transform)
-    {
-        Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
-        if (flags & CALCULATE_NODE_INCLUDE_SIZE)
-        {
-            size = node.m_Properties[dmGui::PROPERTY_SIZE];
-        }
-        // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
-        if (flags & CALCULATE_NODE_RESET_PIVOT)
-        {
-            Vector4 pivot_delta = transform * CalcPivotDelta(node.m_Pivot, size);
-            transform.setCol3(pivot_delta);
-        }
-
-        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !(flags & CALCULATE_NODE_BOUNDARY);
-        if ((flags & CALCULATE_NODE_INCLUDE_SIZE) && !render_text)
-        {
-            transform.setUpper3x3(transform.getUpper3x3() * Matrix3::scale(Vector3(size.getX(), size.getY(), 1)));
-        }
-    }
-
-    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, Matrix4& out_transform, float& out_opacity, SceneTraversalCache& traversal_cache)
-    {
-        const Node& node = n->m_Node;
-        uint16_t cache_index;
-        bool cached;
-        uint16_t cache_version = n->m_SceneTraversalCacheVersion;
-        if(cache_version != traversal_cache.m_Version)
-        {
-            n->m_SceneTraversalCacheVersion = traversal_cache.m_Version;
-            cache_index = n->m_SceneTraversalCacheIndex = traversal_cache.m_NodeIndex++;
-            cached = false;
-        }
-        else
-        {
-            cache_index = n->m_SceneTraversalCacheIndex;
-            cached = true;
-        }
-        SceneTraversalCache::Data& cache_data = traversal_cache.m_Data[cache_index];
-
-        if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
-        {
-            UpdateLocalTransform(scene, n);
-        }
-        else if(cached)
-        {
-            out_transform = cache_data.m_Transform;
-            out_opacity = cache_data.m_Opacity;
-            return;
-        }
-        out_transform = node.m_LocalTransform;
-
-        out_opacity = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
-
-        if (n->m_ParentIndex != INVALID_INDEX)
-        {
-            Matrix4 parent_trans;
-            float parent_opacity;
-            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_opacity, traversal_cache);
-            out_transform = parent_trans * out_transform;
-            if (node.m_InheritAlpha)
-            {
-                out_opacity *= parent_opacity;
-            }
-        }
-
-        cache_data.m_Transform = out_transform;
-        cache_data.m_Opacity = out_opacity;
-    }
-
-    inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity)
-    {
-        const Node& node = n->m_Node;
-        if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
-        {
-            UpdateLocalTransform(scene, n);
-        }
-        out_transform = node.m_LocalTransform;
-        CalculateNodeExtents(node, flags, out_transform);
-
-        out_opacity = node.m_Properties[dmGui::PROPERTY_COLOR].getW();
-        if (n->m_ParentIndex != INVALID_INDEX)
-        {
-            Matrix4 parent_trans;
-            float parent_opacity;
-            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_opacity, scene->m_Context->m_SceneTraversalCache);
-            out_transform = parent_trans * out_transform;
-            if (node.m_InheritAlpha)
-            {
-                out_opacity *= parent_opacity;
-            }
-        }
-    }
-
     inline void CalculateParentNodeTransform(HScene scene, InternalNode* n, Matrix4& out_transform)
     {
+        Matrix4 parent_trans;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            CalculateParentNodeTransform(scene, parent, parent_trans);
+        }
+
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
         {
@@ -3012,15 +2875,19 @@ namespace dmGui
 
         if (n->m_ParentIndex != INVALID_INDEX)
         {
-            Matrix4 parent_trans;
-            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransform(scene, parent, parent_trans);
             out_transform = parent_trans * out_transform;
         }
     }
 
     void CalculateNodeTransform(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
     {
+        Matrix4 parent_trans;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            CalculateParentNodeTransform(scene, parent, parent_trans);
+        }
+
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || (scene->m_ResChanged && scene->m_AdjustReference != ADJUST_REFERENCE_DISABLED))
         {
@@ -3031,9 +2898,6 @@ namespace dmGui
 
         if (n->m_ParentIndex != INVALID_INDEX)
         {
-            Matrix4 parent_trans;
-            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransform(scene, parent, parent_trans);
             out_transform = parent_trans * out_transform;
         }
     }
