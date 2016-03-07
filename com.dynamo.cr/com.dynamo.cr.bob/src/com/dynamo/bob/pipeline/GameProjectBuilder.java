@@ -292,7 +292,7 @@ public class GameProjectBuilder extends Builder<Void> {
         } else {
 
             // Root nodes to follow
-            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"display", "display_profiles"}}) {
+            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"input", "gamepads"}, {"display", "display_profiles"}}) {
                 String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
                 if (path != null) {
                     findResources(project, project.getResource(path), resources);
