@@ -1,0 +1,16 @@
+1. The method ServerHandler#do_GET in facebook_server.py is responsible for GET
+requests. The function can be modified for specific development needs, but
+defaults to printing a dictionary of every GET variable that is received.
+
+2. Start the server by executing facebook_server.sh. The first parameter to the
+script has to be the port. Example /bin/bash facebook_server.sh 8080
+
+3. Visit http://fbdev.midasplayer.com/setup and setup a new route to your
+machine. The IP can be retrieved via `ifconfig` on OS X, `ipconfig` on Windows
+and `ip addr` or `ifconfig` on Linux. IP addresses on King's internal network
+starts with 172 (172.19.13.173 for example).
+    - Select HTTPS as protocol
+    - Enter <ipv4-addr>:<port> in the text field (172.19.13.173:8080)
+    - Submit and write down the external URL that is returned
+    - The local machine is now reachable through the external URL over HTTPS.
+    - fbdev.midasplayer.com is only reachable through the cable network!
