@@ -241,6 +241,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
+                <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>
             </fileset>
