@@ -165,7 +165,6 @@
     (-> s
         (assoc :last-graph gid)
         (update-in [:id-generators] assoc gid (integer-counter))
-        (assoc :override-id-generator (integer-counter))
         (update-in [:graphs] assoc gid gref))))
 
 (defn attach-graph
@@ -190,5 +189,6 @@
         cache          (make-cache configuration)]
     (-> {:graphs         {}
          :id-generators  {}
+         :override-id-generator (integer-counter)
          :cache          cache}
         (attach-graph initial-graph))))

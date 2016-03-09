@@ -193,7 +193,7 @@
                                                  new-keys (into {} (map #(do [% (conj k %)]) (keys (:properties properties))))]
                                                {:properties (into {} (map (fn [[o-k o-v]]
                                                                       (let [prop (-> o-v
-                                                                                   (set/rename-keys {:value :default-value})
+                                                                                   (set/rename-keys {:value :original-value})
                                                                                    (assoc :node-id (:node-id v)
                                                                                           :value (get (:value v) o-k)))]
                                                                         [(conj k o-k) prop]))
@@ -245,9 +245,10 @@
                                               :values (mapv :value v)
                                               :validation-problems (mapv :validation-problems v)
                                               :edit-type (property-edit-type (first v))
-                                              :label (:label (first v))}
-                                        default-vals (mapv :default-value (filter #(contains? % :default-value) v))
-                                        prop (if (empty? default-vals) prop (assoc prop :default-values default-vals))]
+                                              :label (:label (first v))
+                                              :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
+                                        default-vals (mapv :original-value (filter #(contains? % :original-value) v))
+                                        prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
                                     [k prop]))
                                 common-props))]
     {:properties coalesced
@@ -261,7 +262,7 @@
               value
               default-value)))
         (:values property)
-        (:default-values property (repeat nil))
+        (:original-values property (repeat nil))
         (:validation-problems property)))
 
 (defn- set-values [property values]
@@ -281,15 +282,19 @@
          camel/->Camel_Snake_Case_String
          (clojure.string/replace "_" " ")))))
 
+(defn read-only? [property]
+  (:read-only? property))
+
 (defn set-values!
   ([property values]
     (set-values! property values (gensym)))
   ([property values op-seq]
-    (g/transact
-      (concat
-        (g/operation-label (str "Set " (label property)))
-        (g/operation-sequence op-seq)
-        (set-values property values)))))
+    (when (not (read-only? property))
+      (g/transact
+        (concat
+          (g/operation-label (str "Set " (label property)))
+          (g/operation-sequence op-seq)
+          (set-values property values))))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -316,7 +321,7 @@
       v0)))
 
 (defn overridden? [property]
-  (and (contains? property :default-values) (not-every? nil? (:values property))))
+  (and (contains? property :original-values) (not-every? nil? (:values property))))
 
 (defn validation-message [property]
   (when-let [err (validation/error-aggregate (:validation-problems property))]
@@ -326,10 +331,10 @@
   (when (overridden? property)
     (g/transact
       (concat
-        (g/operation-label (str "Set " (label property)))
+        (g/operation-label (str "Clear " (label property)))
         (let [key (:key property)]
           (for [node-id (:node-ids property)]
-            (g/update-property node-id (first key) dissoc-in (rest key))))))))
+            (g/clear-property node-id key)))))))
 
 (defn ->choicebox [vals]
   {:type :choicebox

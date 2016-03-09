@@ -146,10 +146,11 @@
   (output ddf-message g/Any produce-animation-ddf))
 
 (defn- attach-animation-node [self animation-node]
-  (concat
-   (g/connect animation-node :_node-id self :nodes)
-   (g/connect animation-node :node-outline self :child-outlines)
-   (g/connect animation-node :ddf-message self :animation-ddfs)))
+  (for [[from to] [[:_node-id :nodes]
+                   [:node-outline :child-outlines]
+                   [:ddf-message :animation-ddfs]
+                   [:id :animation-ids]]]
+    (g/connect animation-node from self to)))
 
 (defn- attach-collision-group-node [self collision-group-node]
   (concat
@@ -285,6 +286,7 @@
 
   (input collision-groups g/Str :array)
   (input animation-ddfs g/Any :array)
+  (input animation-ids g/Str :array)
   (input image-resource (g/protocol resource/Resource))
   (input image-content BufferedImage)
   (input collision-resource (g/protocol resource/Resource))
@@ -299,7 +301,8 @@
   (output packed-image BufferedImage (g/fnk [texture-set-data] (:image texture-set-data)))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
-  (output anim-data g/Any :cached produce-anim-data))
+  (output anim-data g/Any :cached produce-anim-data)
+  (output anim-ids g/Any :cached (g/fnk [animation-ids] animation-ids)))
 
 (defn- int->boolean [i]
   (not= 0 i))

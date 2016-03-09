@@ -12,7 +12,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.layout Region]
-           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox ComboBoxBase Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -123,17 +123,22 @@
 (defn scene [^Node node]
   (.getScene node))
 
-(defn add-style! [^Styleable node ^String class]
-  (let [styles (.getStyleClass node)]
-    (when-not (.contains styles class)
-      (.add styles class))))
-
 (defn add-styles! [^Styleable node classes]
-  (doseq [class classes]
-    (add-style! node class)))
+  (let [styles (.getStyleClass node)
+        existing (into #{} styles)
+        new (filter (complement existing) classes)]
+    (when-not (empty? new)
+      (.addAll styles ^java.util.Collection new))))
+
+(defn add-style! [^Styleable node ^String class]
+  (add-styles! node [class]))
 
 (defn remove-styles! [^Styleable node ^java.util.Collection classes]
-  (.removeAll (.getStyleClass node) classes))
+  (let [styles (.getStyleClass node)
+        existing (into #{} styles)
+        old (filter existing classes)]
+    (when-not (empty? old)
+      (.removeAll styles ^java.util.Collection old))))
 
 (defn remove-style! [^Styleable node ^String class]
   (remove-styles! node [class]))
@@ -241,10 +246,17 @@
   (user-data [this key])
   (user-data! [this key val]))
 
+(defprotocol Editable
+  (editable [this])
+  (editable! [this val]))
+
 (extend-type Node
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
-  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val)))
+  Editable
+  (editable [this] (.isDisabled this))
+  (editable! [this val] (.setDisable this (not val))))
 
 (extend-type MenuItem
   HasUserData
@@ -277,7 +289,23 @@
 (extend-type TextInputControl
   HasValue
   (value [this] (text this))
-  (value! [this val] (text! this val)))
+  (value! [this val] (text! this val))
+  Text
+  (text [this] (.getText this))
+  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
+  (text! [this val] (when-not (= val (.getText this))
+                      (.setText this val)
+                      (when (.isFocused this)
+                        (.end this)
+                        (.selectAll this))))
+  Editable
+  (editable [this] (.isEditable this))
+  (editable! [this val] (.setEditable this val)))
+
+(extend-type ComboBoxBase
+  Editable
+  (editable [this] (.isEditable this))
+  (editable! [this val] (.setEditable this val)))
 
 (extend-type CheckBox
   HasValue
@@ -288,16 +316,6 @@
   HasValue
   (value [this] (.getValue this))
   (value! [this val] (.setValue this val)))
-
-(extend-type TextInputControl
-  Text
-  (text [this] (.getText this))
-  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
-  (text! [this val] (when-not (= val (.getText this))
-                      (.setText this val)
-                      (when (.isFocused this)
-                        (.end this)
-                        (.selectAll this)))))
 
 (extend-type TextField
   HasAction

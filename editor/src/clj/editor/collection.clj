@@ -36,23 +36,23 @@
 (def collection-icon "icons/32/Icons_09-Collection.png")
 (def path-sep "/")
 
-(defn- gen-embed-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+(defn- gen-embed-ddf [id child-ids position ^Quat4d rotation-q4 scale save-data]
   {:id id
    :children child-ids
    ; TODO properties
    :data (:content save-data)
-   :position (math/vecmath->clj position)
-   :rotation (math/vecmath->clj rotation)
-   :scale3 (math/vecmath->clj scale)})
+   :position position
+   :rotation (math/vecmath->clj rotation-q4)
+   :scale3 scale})
 
-(defn- gen-ref-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale path]
+(defn- gen-ref-ddf [id child-ids position ^Quat4d rotation-q4 scale path]
   {:id id
    :children child-ids
    ; TODO properties
    :prototype (resource/resource->proj-path path)
-   :position (math/vecmath->clj position)
-   :rotation (math/vecmath->clj rotation)
-   :scale3 (math/vecmath->clj scale)})
+   :position position
+   :rotation (math/vecmath->clj rotation-q4)
+   :scale3 scale})
 
 (defn- assoc-deep [scene keyword new-value]
   (let [new-scene (assoc scene keyword new-value)]
@@ -167,10 +167,10 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-go-outline)
-  (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+  (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource embedded position ^Quat4d rotation-q4 scale save-data]
                                            (if embedded
-                                             (gen-embed-ddf id child-ids position rotation scale save-data)
-                                             (gen-ref-ddf id child-ids position rotation scale source-resource))))
+                                             (gen-embed-ddf id child-ids position rotation-q4 scale save-data)
+                                             (gen-ref-ddf id child-ids position rotation-q4 scale source-resource))))
   (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
                                                                              [(assoc target :instance-data {:resource (:resource target)
                                                                                                             :instance-msg ddf-message
@@ -331,12 +331,12 @@
   (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
-  (output ddf-message g/Any :cached (g/fnk [id source-resource ^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (output ddf-message g/Any :cached (g/fnk [id source-resource position ^Quat4d rotation-q4 scale]
                                            {:id id
                                             :collection (resource/resource->proj-path source-resource)
-                                            :position (math/vecmath->clj position)
-                                            :rotation (math/vecmath->clj rotation)
-                                            :scale3 (math/vecmath->clj scale)}))
+                                            :position position
+                                            :rotation (math/vecmath->clj rotation-q4)
+                                            :scale3 scale}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc (assoc-deep scene :node-id _node-id)
                                            :transform transform

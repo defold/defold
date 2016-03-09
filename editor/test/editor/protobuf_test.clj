@@ -127,3 +127,6 @@
   (let [m {:value (ByteString/copyFromUtf8 "test-string")}
         new-m (round-trip TestDdf$BytesMsg m)]
     (is (= m new-m))))
+
+(deftest field-order
+  (is (= :uint-value ((protobuf/fields-by-indices TestDdf$Msg) 1))))
