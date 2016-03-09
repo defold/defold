@@ -1,7 +1,7 @@
 # Defold Server
 
 ## persistence.xml
-It's possible to override persistence.xml properties with Java system properties. See EntityManagerFactoryProvider
+It's possible to override persistence.xml properties with Java system properties. See EntityManagerFactoryProvider and Server
 
 
 ## Eclipse/Gradle
