@@ -15,4 +15,7 @@ public class CopyBuilders {
     public static class EmitterBuilder extends CopyBuilder {
     }
 
+    @BuilderParams(name = "Gamepads", inExts = ".gamepads", outExt = ".gamepadsc")
+    public static class GamepadsBuilder extends CopyBuilder {}
+
 }
