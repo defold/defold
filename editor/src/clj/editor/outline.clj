@@ -47,19 +47,24 @@
                   :icon g/Str
                   (g/optional-key :children) [(g/recursive #'OutlineData)]
                   (g/optional-key :child-reqs) [g/Any]
+                  (g/optional-key :outline-overridden?) g/Bool
                   g/Keyword g/Any})
 
 (g/defnode OutlineNode
   (input source-outline OutlineData)
   (input child-outlines OutlineData :array)
-  (output node-outline OutlineData :abstract))
+  (output node-outline OutlineData :abstract)
+  (output outline-overridden? g/Bool :cached (g/fnk [_properties child-outlines]
+                                                    (boolean
+                                                      (or (some :outline-overridden child-outlines)
+                                                          (some (fn [[k v]] (contains? v :original-value)) (:properties _properties)))))))
 
-(defn- default-copy-traverse [[src-node src-label tgt-node tgt-label]]
+(defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
   (and (g/node-instance? OutlineNode tgt-node)
     (or (= :child-outlines tgt-label)
       (= :source-outline tgt-label))
-    (not (and (g/node-instance? resource/ResourceNode src-node)
-           (some? (resource/path (g/node-value src-node :resource)))))))
+    (not (and (g/node-instance? basis resource/ResourceNode src-node)
+           (some? (resource/path (g/node-value src-node :resource :basis basis)))))))
 
 (defn copy
   ([src-item-iterators]
@@ -69,15 +74,34 @@
           fragment (g/copy root-ids {:traverse? traverse?})]
       (serialize fragment))))
 
+(defn- read-only? [item-it]
+  (:read-only (value item-it) false))
+
+(defn- root? [item-iterator]
+  (nil? (parent item-iterator)))
+
+(defn- override? [item-it]
+  (-> item-it
+    value
+    :node-id
+    g/override-original
+    some?))
+
+(defn delete? [item-iterators]
+  (and (not-any? read-only? item-iterators)
+       (not-any? root? item-iterators)
+       (not-any? override? item-iterators)))
+
 (defn cut? [src-item-iterators]
-  (loop [src-item-iterators src-item-iterators]
-    (if-let [item-it (first src-item-iterators)]
-      (let [root-nodes [(g/node-by-id (:node-id (value item-it)))]
-            parent (parent item-it)]
-        (if (find-target-item parent root-nodes)
-          (recur (rest src-item-iterators))
-          false))
-      true)))
+  (and (delete? src-item-iterators)
+    (loop [src-item-iterators src-item-iterators]
+     (if-let [item-it (first src-item-iterators)]
+       (let [root-nodes [(g/node-by-id (:node-id (value item-it)))]
+             parent (parent item-it)]
+         (if (find-target-item parent root-nodes)
+           (recur (rest src-item-iterators))
+           false))
+       true))))
 
 (defn cut! [src-item-iterators]
   (let [data     (copy src-item-iterators)
@@ -129,11 +153,8 @@
       ; TODO - ignore
       false)))
 
-(defn- root? [item-iterator]
-  (nil? (parent item-iterator)))
-
 (defn drag? [graph item-iterators]
-  (not-any? root? item-iterators))
+  (delete? item-iterators))
 
 (defn- descendant? [src-item item-iterator]
   (if item-iterator

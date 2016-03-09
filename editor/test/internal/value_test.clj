@@ -146,6 +146,7 @@
   (property int-prop g/Int)
   (property name g/Str)
   (input overridden g/Str)
+  (input an-input g/Str)
   (output output g/Str (g/fnk [overridden] overridden))
   (output foo    g/Str (g/fnk [an-input] an-input)))
 
@@ -180,7 +181,7 @@
   (property a-property g/Int (default 0))
 
   (output chained-output g/Int :cached
-          (g/fnk [self a-property]
+          (g/fnk [a-property]
                  (inc a-property))))
 
 (deftest output-caching-does-not-accidentally-cache-inputs

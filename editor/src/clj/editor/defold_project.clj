@@ -60,12 +60,16 @@
           (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
-(defn- load-nodes! [project node-ids]
-  (g/transact
+(defn load-resource-nodes [project node-ids]
+  (doall
     (for [node-id node-ids
           :when (g/has-output? (g/node-type* node-id) :resource)
           :let [resource (g/node-value node-id :resource)]]
       (load-node project node-id (g/node-type* node-id) resource))))
+
+(defn- load-nodes! [project node-ids]
+  (g/transact
+    (load-resource-nodes project node-ids)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -73,20 +77,30 @@
           :when (contains? outputs src-label)]
       (g/connect src src-label tgt tgt-label))))
 
-(defn make-resource-node [graph project resource load? connections]
-  (assert resource "resource required to make new node")
-  (let [resource-type (resource/resource-type resource)
-        found? (some? resource-type)
-        node-type (:node-type resource-type PlaceholderResourceNode)]
-    (g/make-nodes graph [node [node-type :resource resource]]
-      (if (some? resource-type)
-        (concat
-          (for [[consumer connection-labels] connections]
-            (connect-if-output node-type node consumer connection-labels))
-          (if load?
-            (load-node project node node-type resource)
-            []))
-        (g/connect node :_node-id project :nodes)))))
+(defn make-resource-node
+  ([graph project resource load? connections]
+    (make-resource-node graph project resource load? connections nil))
+  ([graph project resource load? connections attach-fn]
+    (assert resource "resource required to make new node")
+    (let [resource-type (resource/resource-type resource)
+          found? (some? resource-type)
+          node-type (:node-type resource-type PlaceholderResourceNode)]
+      (g/make-nodes graph [node [node-type :resource resource]]
+                    (if (some? resource-type)
+                      (concat
+                        (for [[consumer connection-labels] connections]
+                          (connect-if-output node-type node consumer connection-labels))
+                        (if load?
+                          (load-node project node node-type resource)
+                          [])
+                        (if attach-fn
+                          (attach-fn node)
+                          []))
+                      (concat
+                        (g/connect node :_node-id project :nodes)
+                        (if attach-fn
+                          (attach-fn node)
+                          [])))))))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)]
@@ -451,20 +465,27 @@
         node (get-resource-node project resource)]
     (disconnect-from-inputs node consumer-node connections)))
 
-(defn connect-resource-node [project path-or-resource consumer-node connections]
-  (if-let [resource (if (string? path-or-resource)
-                      (workspace/resolve-workspace-resource (workspace project) path-or-resource)
-                      path-or-resource)]
-    (if-let [node (get-resource-node project resource)]
-      (concat
-        (if *load-cache*
-          (load-node project node (g/node-type* node) resource)
-          [])
-        (connect-if-output (g/node-type* node) node consumer-node connections))
-      (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
-                                                                                        [:resource :node-resources]]
-                                                                               consumer-node connections}))
-    []))
+(defn connect-resource-node
+  ([project path-or-resource consumer-node connections]
+    (connect-resource-node project path-or-resource consumer-node connections nil))
+  ([project path-or-resource consumer-node connections attach-fn]
+    (if-let [resource (if (string? path-or-resource)
+                        (workspace/resolve-workspace-resource (workspace project) path-or-resource)
+                        path-or-resource)]
+      (if-let [node (get-resource-node project resource)]
+        (concat
+          (if *load-cache*
+            (load-node project node (g/node-type* node) resource)
+            [])
+          (connect-if-output (g/node-type* node) node consumer-node connections)
+          (if attach-fn
+            (attach-fn node)
+            []))
+        (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
+                                                                                          [:resource :node-resources]]
+                                                                                 consumer-node connections}
+                            attach-fn))
+    [])))
 
 (defn select
   [project-id node-ids]

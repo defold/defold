@@ -79,8 +79,8 @@
 (defn setter-for [property] (get property ::setter))
 
 (defn property-dependencies
-  [property]
-  (concat (or (util/fnk-arguments (getter-for property)) #{(keyword (:name property))})
+  [[key property]]
+  (concat (or (util/fnk-arguments (getter-for property)) #{key})
           (util/fnk-arguments (validation property))
           (mapcat util/fnk-arguments (vals (gt/dynamic-attributes property)))))
 
@@ -111,13 +111,9 @@
   (let [[[_ tail] & _] (filter #(= match (first %)) body-forms)]
     tail))
 
-(defn default-getter
-  [name-kw]
-  `(fnk [~'this ~(symbol (name name-kw))] (get ~'this ~name-kw)))
-
 (defn default-getter?
   [property-type]
-  (boolean (::default-getter property-type)))
+  (not (contains? property-type ::value)))
 
 (defn attach-evaluation
   [desc-sym name-kw name-str value-type body-forms & tail]
@@ -126,8 +122,7 @@
     (if value-fnk
       `(let [~desc-sym (assoc ~desc-sym ::value ~value-fnk)]
          ~@tail)
-      `(let [~desc-sym (assoc ~desc-sym ::default-getter true)]
-         ~@tail))))
+      `(do ~@tail))))
 
 (defn build-impl
   [desc-sym]
