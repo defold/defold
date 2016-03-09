@@ -1,10 +1,10 @@
 script: ""
 fonts {
-  name: "system_font"
+  name: "system_font_super"
   font: "/builtins/fonts/system_font.font"
 }
 textures {
-  name: "main"
+  name: "main_super"
   texture: "/gui/gui.atlas"
 }
 background_color {
@@ -44,10 +44,58 @@ nodes {
     z: 1.0
     w: 1.0
   }
+  type: TYPE_TEMPLATE
+  blend_mode: BLEND_MODE_ALPHA
+  id: "scene"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_FIT
+  layer: "layer"
+  inherit_alpha: true
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  template: "/gui/scene.gui"
+  template_node_child: false
+}
+nodes {
+  position {
+    x: 500.0
+    y: 320.0
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
   texture: ""
-  id: "box"
+  id: "scene/box"
+  parent: "scene"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_N
@@ -64,7 +112,7 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
-  template_node_child: false
+  template_node_child: true
 }
 nodes {
   position {
@@ -100,12 +148,12 @@ nodes {
   type: TYPE_PIE
   blend_mode: BLEND_MODE_ALPHA
   texture: ""
-  id: "pie"
+  id: "scene/pie"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
   adjust_mode: ADJUST_MODE_FIT
-  parent: "box"
+  parent: "scene/box"
   layer: ""
   inherit_alpha: true
   outerBounds: PIEBOUNDS_RECTANGLE
@@ -116,7 +164,7 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
-  template_node_child: false
+  template_node_child: true
 }
 nodes {
   position {
@@ -151,7 +199,8 @@ nodes {
   }
   type: TYPE_TEMPLATE
   blend_mode: BLEND_MODE_ALPHA
-  id: "sub_scene"
+  id: "scene/sub_scene"
+  parent: "scene"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
@@ -163,7 +212,7 @@ nodes {
   clipping_inverted: false
   alpha: 0.5
   template: "/gui/sub_scene.gui"
-  template_node_child: false
+  template_node_child: true
 }
 nodes {
   position {
@@ -199,8 +248,8 @@ nodes {
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
   texture: ""
-  id: "sub_scene/sub_box"
-  parent: "sub_scene"
+  id: "scene/sub_scene/sub_box"
+  parent: "scene/sub_scene"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
@@ -254,7 +303,8 @@ nodes {
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
   texture: ""
-  id: "box1"
+  id: "scene/box1"
+  parent: "scene"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
@@ -271,7 +321,7 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
-  template_node_child: false
+  template_node_child: true
 }
 nodes {
   position {
@@ -308,7 +358,8 @@ nodes {
   blend_mode: BLEND_MODE_ALPHA
   text: "Test"
   font: "system_font"
-  id: "text"
+  id: "scene/text"
+  parent: "scene"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
@@ -334,82 +385,9 @@ nodes {
   alpha: 1.0
   outline_alpha: 1.0
   shadow_alpha: 1.0
-  template_node_child: false
+  template_node_child: true
 }
 layers {
   name: "layer"
-}
-layers {
-  name: "layer1"
-}
-material: "/builtins/materials/gui.material"
-layouts {
-  name: "Landscape"
-  nodes {
-    position {
-      x: 500.0
-      y: 320.0
-      z: 0.0
-      w: 1.0
-    }
-    rotation {
-      x: 0.0
-      y: 0.0
-      z: 0.0
-      w: 1.0
-    }
-    scale {
-      x: 1.0
-      y: 1.0
-      z: 1.0
-      w: 1.0
-    }
-    size {
-      x: 200.0
-      y: 100.0
-      z: 0.0
-      w: 1.0
-    }
-    color {
-      x: 1.0
-      y: 1.0
-      z: 1.0
-      w: 1.0
-    }
-    type: TYPE_TEXT
-    blend_mode: BLEND_MODE_ALPHA
-    text: "Testing Text"
-    font: "system_font"
-    id: "text"
-    xanchor: XANCHOR_NONE
-    yanchor: YANCHOR_NONE
-    pivot: PIVOT_CENTER
-    outline {
-      x: 1.0
-      y: 1.0
-      z: 1.0
-      w: 1.0
-    }
-    shadow {
-      x: 1.0
-      y: 1.0
-      z: 1.0
-      w: 1.0
-    }
-    adjust_mode: ADJUST_MODE_FIT
-    line_break: false
-    layer: "layer1"
-    inherit_alpha: true
-    clipping_mode: CLIPPING_MODE_NONE
-    clipping_visible: true
-    clipping_inverted: false
-    alpha: 1.0
-    outline_alpha: 1.0
-    shadow_alpha: 1.0
-    overridden_fields: 8
-    overridden_fields: 10
-    overridden_fields: 20
-    template_node_child: false
-  }
 }
 adjust_reference: ADJUST_REFERENCE_PARENT

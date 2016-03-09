@@ -32,3 +32,14 @@
       (cache-invalidate cache [:b :c])
       (cache-invalidate cache [:a])
       (is (empty? (as-map @cache))))))
+
+(deftest limits
+  (with-clean-system {:cache-size 3}
+     (cache-encache cache [[[:a :a] 1] [[:b :b] 2] [[:c :c] 3]])
+     (cache-hit cache [[:a :a] [:c :c]])
+     (cache-encache cache [[[:d :d] 4]])
+     (let [snapshot (cache-snapshot cache)]
+       (are [k v] (= v (get snapshot k))
+            [:a :a] 1
+            [:c :c] 3
+            [:d :d] 4))))

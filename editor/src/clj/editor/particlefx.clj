@@ -113,15 +113,15 @@
 (def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
 (g/defnk produce-modifier-pb
-  [position rotation type magnitude max-distance]
+  [position ^Quat4d rotation-q4 type magnitude max-distance]
   (let [properties (mapv (fn [[key p]]
                            {:key key
                             :points (:points p)
                             :spread (:spread p)})
                          {:modifier-key-magnitude magnitude
                           :modifier-key-max-distance max-distance})]
-    {:position (math/vecmath->clj position)
-     :rotation (math/vecmath->clj rotation)
+    {:position position
+     :rotation (math/vecmath->clj rotation-q4)
      :type type
      :properties properties}))
 
@@ -387,10 +387,10 @@
       v)))
 
 (g/defnk produce-emitter-pb
-  [position rotation _declared-properties modifier-msgs]
+  [position ^Quat4d rotation-q4 _declared-properties modifier-msgs]
   (let [properties (:properties _declared-properties)]
-    (into {:position (math/vecmath->clj position)
-           :rotation (math/vecmath->clj rotation)
+    (into {:position position
+           :rotation (math/vecmath->clj rotation-q4)
            :modifiers modifier-msgs}
           (concat
             (map (fn [kw] [kw (get-property properties kw)])
@@ -525,7 +525,7 @@
 
 (def ^:private resource-fields [[:emitters :tile-source] [:emitters :material]])
 
-(g/defnk produce-build-targets [_node-id project-id resource rt-pb-data dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource rt-pb-data dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field]

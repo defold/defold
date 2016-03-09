@@ -139,7 +139,7 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
-(g/defnk produce-build-targets [_node-id project-id resource pb def dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource pb def dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) (:resource-fields def))

@@ -40,13 +40,13 @@
   (input-cardinality      [this input])
   (cascade-deletes        [this])
   (output-type            [this output])
-  (property-passthrough?  [this output])
+  (passthroughs           [this])
   (property-display-order [this]))
 
 (defn node-type? [x] (satisfies? NodeType x))
 
 (defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
-(defn output-labels       [node-type]          (-> node-type declared-outputs))
+(defn output-labels       [node-type]          (-> node-type transforms keys set))
 (defn property-labels     [node-type]          (-> node-type declared-properties keys set))
 (defn internal-properties [node-type]          (->> node-type declared-properties (util/filter-vals :internal?)))
 (defn public-properties   [node-type]          (->> node-type declared-properties (util/filter-vals (comp not :internal?))))
@@ -66,7 +66,7 @@
   (override-id         [this] "Return the ID of the override this node belongs to, if any")
   (original            [this] "Return the ID of the original of this node, if any"))
 
-(defn node? [v] (satisfies? Node v))
+(defn node-id? [v] (integer? v))
 
 (defprotocol IBasis
   (node-by-property [this label value])

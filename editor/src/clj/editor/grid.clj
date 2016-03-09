@@ -169,4 +169,4 @@
             (default 0)
             (validate (validation/validate-positive fixed-grid-size "Grid size must be positive")))
   (output grids      g/Any :cached update-grids)
-  (output renderable pass/RenderData  grid-renderable))
+  (output renderable pass/RenderData :cached grid-renderable))
