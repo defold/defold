@@ -331,8 +331,6 @@ static const luaL_reg IAP_methods[] =
 
 dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
-    // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
-    // Extend extension functionality with per system initalization?
     if (g_IAP.m_InitCount == 0) {
         g_IAP.m_autoFinishTransactions = dmConfigFile::GetInt(params->m_ConfigFile, "iap.auto_finish_transactions", 1) == 1;
     }

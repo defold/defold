@@ -497,7 +497,7 @@ int IAP_Finish(lua_State* L)
 /*# restore products (non-consumable)
  *
  * @name iap.restore
- * @return false if current store doesn't support handling restored transactions (bool)
+ * @return false if current store doesn't support handling restored transactions, otherwise true (bool)
  */
 int IAP_Restore(lua_State* L)
 {
