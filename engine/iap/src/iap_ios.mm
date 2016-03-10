@@ -2,6 +2,7 @@
 #include <dlib/log.h>
 #include <extension/extension.h>
 #include <script/script.h>
+#include "iap.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -48,12 +49,6 @@ struct IAP
 };
 
 IAP g_IAP;
-
-NS_ENUM(NSInteger, ErrorReason)
-{
-    REASON_UNSPECIFIED = 0,
-    REASON_USER_CANCELED = 1,
-};
 
 static void PushError(lua_State*L, NSError* error, NSInteger reason)
 {
@@ -408,7 +403,7 @@ int IAP_List(lua_State* L)
  *         print(transaction.state)
  *         print(transaction.date)
  *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_RESTORED
- *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED
+ *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_UNVERIFIED
  *         print(transaction.user_id)     -- only available for Amazon IAP transactions
  *
  *         -- required if auto finish transactions is disabled in project settings
@@ -502,6 +497,7 @@ int IAP_Finish(lua_State* L)
 /*# restore products (non-consumable)
  *
  * @name iap.restore
+ * @return false if current store doesn't support handling restored transactions (bool)
  */
 int IAP_Restore(lua_State* L)
 {
@@ -511,7 +507,8 @@ int IAP_Restore(lua_State* L)
     int top = lua_gettop(L);
     [[SKPaymentQueue defaultQueue] restoreCompletedTransactions];
     assert(top == lua_gettop(L));
-    return 0;
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 /*# set transaction listener
@@ -562,6 +559,24 @@ int IAP_SetListener(lua_State* L)
     return 0;
 }
 
+/*# get current store id
+ *
+ * @name iap.get_store_id
+ * @return store id (constant|text).
+ * <ul>
+ *     <li>iap.STORE_ID_GOOGLE</li>
+ *     <li>iap.STORE_ID_AMAZON</li>
+ *     <li>iap.STORE_ID_APPLE</li>
+ *     <li>iap.STORE_ID_FACEBOOK</li>
+ * </ul>
+ *
+ */
+int IAP_GetStoreId(lua_State* L)
+{
+    lua_pushinteger(L, STORE_ID_APPLE);
+    return 1;
+}
+
 static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
@@ -569,6 +584,7 @@ static const luaL_reg IAP_methods[] =
     {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
+    {"get_store_id", IAP_GetStoreId},
     {0, 0}
 };
 
@@ -581,6 +597,12 @@ static const luaL_reg IAP_methods[] =
 /*# transaction purchased state
  *
  * @name iap.TRANS_STATE_PURCHASED
+ * @variable
+ */
+
+/*# transaction unverified state
+ *
+ * @name iap.TRANS_STATE_UNVERIFIED
  * @variable
  */
 
@@ -623,19 +645,31 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, IAP_methods);
 
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
+    // ensure ios payment constants values corresponds to iap constants.
+    assert(TRANS_STATE_PURCHASING == SKPaymentTransactionStatePurchasing);
+    assert(TRANS_STATE_PURCHASED == SKPaymentTransactionStatePurchased);
+    assert(TRANS_STATE_FAILED == SKPaymentTransactionStateFailed);
+    assert(TRANS_STATE_RESTORED == SKPaymentTransactionStateRestored);
+
+#define SETCONSTANT(name) \
+        lua_pushnumber(L, (lua_Number) name); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(TRANS_STATE_PURCHASING, SKPaymentTransactionStatePurchasing);
-    SETCONSTANT(TRANS_STATE_PURCHASED, SKPaymentTransactionStatePurchased);
-    SETCONSTANT(TRANS_STATE_FAILED, SKPaymentTransactionStateFailed);
-    SETCONSTANT(TRANS_STATE_RESTORED, SKPaymentTransactionStateRestored);
+    SETCONSTANT(TRANS_STATE_PURCHASING);
+    SETCONSTANT(TRANS_STATE_PURCHASED);
+    SETCONSTANT(TRANS_STATE_FAILED);
+    SETCONSTANT(TRANS_STATE_RESTORED);
 
-    SETCONSTANT(REASON_UNSPECIFIED, REASON_UNSPECIFIED);
-    SETCONSTANT(REASON_USER_CANCELED, REASON_USER_CANCELED);
+    SETCONSTANT(REASON_UNSPECIFIED);
+    SETCONSTANT(REASON_USER_CANCELED);
+
+    SETCONSTANT(STORE_ID_GOOGLE)
+    SETCONSTANT(STORE_ID_AMAZON)
+    SETCONSTANT(STORE_ID_APPLE)
+    SETCONSTANT(STORE_ID_FACEBOOK)
 
 #undef SETCONSTANT
+
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

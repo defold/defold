@@ -8,39 +8,13 @@
 #include <script/script.h>
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
+#include "iap.h"
 
 #define LIB_NAME "iap"
 
 extern struct android_app* g_AndroidApp;
 
 struct IAP;
-
-// NOTE: Also defined in Iap.java
-enum TransactionState
-{
-    TRANS_STATE_PURCHASING,
-    TRANS_STATE_PURCHASED,
-    TRANS_STATE_FAILED,
-    TRANS_STATE_RESTORED,
-};
-
-enum ErrorReason
-{
-    REASON_UNSPECIFIED = 0,
-    REASON_USER_CANCELED = 1,
-};
-
-enum BillingResponse
-{
-    BILLING_RESPONSE_RESULT_OK = 0,
-    BILLING_RESPONSE_RESULT_USER_CANCELED = 1,
-    BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE = 3,
-    BILLING_RESPONSE_RESULT_ITEM_UNAVAILABLE = 4,
-    BILLING_RESPONSE_RESULT_DEVELOPER_ERROR = 5,
-    BILLING_RESPONSE_RESULT_ERROR = 6,
-    BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED = 7,
-    BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8,
-};
 
 #define CMD_PRODUCT_RESULT (0)
 #define CMD_PURCHASE_RESULT (1)
@@ -91,11 +65,13 @@ struct IAP
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
         m_autoFinishTransactions = true;
+        m_StoreId = STORE_ID_GOOGLE;
     }
     int                  m_InitCount;
     int                  m_Callback;
     int                  m_Self;
     bool                 m_autoFinishTransactions;
+    int                  m_StoreId;
     lua_State*           m_L;
     IAPListener          m_Listener;
 
@@ -238,7 +214,9 @@ int IAP_Restore(lua_State* L)
     Detach();
 
     assert(top == lua_gettop(L));
-    return 0;
+
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 int IAP_SetListener(lua_State* L)
@@ -270,6 +248,12 @@ int IAP_SetListener(lua_State* L)
     return 0;
 }
 
+int IAP_GetStoreId(lua_State* L)
+{
+    lua_pushinteger(L, g_IAP.m_StoreId);
+    return 1;
+}
+
 static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
@@ -277,6 +261,7 @@ static const luaL_reg IAP_methods[] =
     {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
+    {"get_store_id", IAP_GetStoreId},
     {0, 0}
 };
 
@@ -559,10 +544,14 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         const char* provider = dmConfigFile::GetString(params->m_ConfigFile, "android.iap_provider", "GooglePlay");
         const char* class_name = "com.defold.iap.IapGooglePlay";
 
-        if (!strcmp(provider, "Amazon"))
+        g_IAP.m_StoreId = STORE_ID_GOOGLE;
+        if (!strcmp(provider, "Amazon")) {
+            g_IAP.m_StoreId = STORE_ID_AMAZON;
             class_name = "com.defold.iap.IapAmazon";
-        else if (strcmp(provider, "GooglePlay"))
+        }
+        else if (strcmp(provider, "GooglePlay")) {
             dmLogWarning("Unknown IAP provider name [%s], defaulting to GooglePlay", provider);
+        }
 
         jstring str_class_name = env->NewStringUTF(class_name);
 
@@ -602,9 +591,15 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     SETCONSTANT(TRANS_STATE_PURCHASED)
     SETCONSTANT(TRANS_STATE_FAILED)
     SETCONSTANT(TRANS_STATE_RESTORED)
+    SETCONSTANT(TRANS_STATE_UNVERIFIED)
 
     SETCONSTANT(REASON_UNSPECIFIED)
     SETCONSTANT(REASON_USER_CANCELED)
+
+    SETCONSTANT(STORE_ID_GOOGLE)
+    SETCONSTANT(STORE_ID_AMAZON)
+    SETCONSTANT(STORE_ID_APPLE)
+    SETCONSTANT(STORE_ID_FACEBOOK)
 
 #undef SETCONSTANT
 
