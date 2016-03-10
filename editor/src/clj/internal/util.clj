@@ -25,6 +25,9 @@
 (defn removev [pred coll]
   (filterv (complement pred) coll))
 
+(defn conjv [coll x]
+  (conj (or coll []) x))
+
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
   (into {} (filter pred m)))

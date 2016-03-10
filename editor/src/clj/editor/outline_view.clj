@@ -158,15 +158,6 @@
                   :icon "icons/cross.png"
                   :command :delete}])
 
-(handler/defhandler :delete :global
-    (enabled? [selection] (< 0 (count selection)))
-    (run [selection]
-         (g/transact
-           (concat
-             (g/operation-label "Delete")
-             (for [node-id selection]
-               (g/delete-node node-id))))))
-
 (defn- item->path [^TreeItem item]
   (:path (.getValue item)))
 
@@ -175,6 +166,19 @@
 
 (defn- root-iterators [^TreeView tree-view]
   (mapv ->iterator (ui/selection-roots tree-view item->path item->id)))
+
+(handler/defhandler :delete :global
+  (enabled? [selection outline-view]
+            (and (< 0 (count selection))
+                 (let [tree-view (g/node-value outline-view :tree-view)
+                       item-iterators (root-iterators tree-view)]
+                   (outline/delete? item-iterators))))
+  (run [selection]
+       (g/transact
+         (concat
+           (g/operation-label "Delete")
+           (for [node-id selection]
+             (g/delete-node node-id))))))
 
 (defn- project [^TreeView tree-view]
   (project/get-project (:node-id (.getValue (.getRoot tree-view)))))
@@ -347,9 +351,12 @@
                                                                       (proxy-super setText nil)
                                                                       (proxy-super setGraphic nil)
                                                                       (proxy-super setContextMenu nil))
-                                                                    (let [{:keys [label icon]} item]
+                                                                    (let [{:keys [label icon outline-overridden?]} item]
                                                                       (proxy-super setText label)
-                                                                      (proxy-super setGraphic (jfx/get-image-view icon 16)))))))]
+                                                                      (proxy-super setGraphic (jfx/get-image-view icon 16))
+                                                                      (if outline-overridden?
+                                                                        (ui/add-style! this "overridden")
+                                                                        (ui/remove-style! this "overridden")))))))]
                                                    (doto cell
                                                      (.setOnDragEntered drag-entered-handler)
                                                      (.setOnDragExited drag-exited-handler))))))))

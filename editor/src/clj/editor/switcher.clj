@@ -236,15 +236,15 @@
         action))
     action))
 
-(g/defnode SwitcherController
- (property active-brush g/Str (default "red_candy"))
+#_(g/defnode SwitcherController
+  (property active-brush g/Str (default "red_candy"))
 
- (input source   g/Any)
- (input camera   g/Any)
- (input viewport Region)
+  (input source   g/Any)
+  (input camera   g/Any)
+  (input viewport Region)
 
- (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
- (output renderable    pass/RenderData produce-controller-renderable))
+  (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
+  (output renderable    pass/RenderData produce-controller-renderable))
 
 (g/defnk produce-save-data [resource level]
   {:resource resource

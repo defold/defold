@@ -144,7 +144,7 @@
 
   It returns the transaction result, (tx-result),  which is a map containing keys about the transaction.
   Transaction result-keys:
-  `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label]`
+  `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
   "
   [txs]
   (when *tps-debug*
@@ -316,9 +316,12 @@
              basis#          (is/basis @*the-system*)
              all-graphs#     (util/map-vals deref (is/graphs @*the-system*))
              to-be-replaced# (when (and all-graphs# replacing#)
-                               (filterv #(= replacing# (node-type basis# %)) (mapcat ig/node-values (vals all-graphs#))))
-             ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
-         (def ~symb (in/make-node-type (assoc description# :dynamo.graph/ctor ctor#)))
+                               (filterv #(and (= replacing# (node-type basis# %)) (nil? (gt/original %))) (mapcat ig/node-values (vals all-graphs#))))
+             ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))
+             type# (in/make-node-type (assoc description# :dynamo.graph/ctor ctor#))]
+         (def ~symb type#)
+         (doseq [super-type# (gt/supertypes type#)]
+           (derive type# super-type#))
          (in/declare-node-value-function-names '~symb ~symb)
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-node-value-functions '~record-name '~symb ~symb)
@@ -363,7 +366,9 @@
            (fn [ctor id]
              (list `it/new-node
                    (if (sequential? ctor)
-                     `(construct ~@ctor :_node-id ~id)
+                     (if (= 2 (count ctor))
+                       `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
+                       `(construct ~@ctor :_node-id ~id))
                      `(construct  ~ctor :_node-id ~id))))
            ctors locals)
         ~@body-exprs))))
@@ -391,8 +396,13 @@
   Example:
 
   `(transact (make-node world SimpleTestNode))`"
-  [graph-id node-type & {:as args}]
-  (it/new-node (construct-node-with-id graph-id node-type args)))
+  [graph-id node-type & args]
+  (let [args (if (empty? args)
+               {}
+               (if (= 1 (count args))
+                 (first args)
+                 (apply assoc {} args)))]
+    (it/new-node (construct-node-with-id graph-id node-type args))))
 
 (defn make-node!
   "Creates the transaction step and runs it in a transaction, returning the resulting node.
@@ -718,6 +728,14 @@
   ([basis node-id label]
    (gt/sources basis node-id label)))
 
+(defn targets-of
+  "Find the [node-id label] pairs for all connections out of the given
+  node's output label. The result is a sequence of pairs."
+  ([node-id label]
+   (targets-of (now) node-id label))
+  ([basis node-id label]
+   (gt/targets basis node-id label)))
+
 (defn find-node
   "Looks up nodes with a property that matches the given value. Exact
   equality is used. At present, this does a linear scan of all
@@ -741,10 +759,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (let [node-ty    (node-type basis node)
-          supertypes (supertypes node-ty)
-          all-types  (into #{node-ty} supertypes)]
-      (all-types type))))
+    (isa? (node-type basis node) type)))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
@@ -847,22 +862,22 @@
           [(mapcat #(gt/arcs-by-tail basis %) nodes)
            (mapcat #(gt/arcs-by-head basis %) nodes)]))
 
-(defn- in-same-graph? [arc]
+(defn- in-same-graph? [_ arc]
   (apply = (map node-id->graph-id (take-nth 2 arc))))
 
-(defn- predecessors [pred basis node-id]
-  (let [preds (every-pred in-same-graph? pred)]
-    (mapv first (filter preds (inputs basis node-id)))))
+(defn- predecessors [preds basis node-id]
+  (let [preds (conj preds in-same-graph?)]
+    (mapv first (filter #(reduce (fn [v f] (and v (f basis %))) true preds) (inputs basis node-id)))))
 
 (defn- input-traverse
   [basis pred root-ids]
-  (ig/pre-traverse basis root-ids (partial predecessors pred)))
+  (ig/pre-traverse basis root-ids (partial predecessors [pred])))
 
 (defn default-node-serializer
   [basis node]
   (let [node-id (gt/node-id node)
-        property-labels (keys (gt/property-types node basis))
-        all-node-properties (reduce (fn [props label] (assoc props label (gt/get-property node basis label))) {} property-labels)
+        all-node-properties (into {} (map (fn [[key value]] [key (:value value)])
+                                          (:properties (node-value node-id :_declared-properties))))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:node-type  (node-type basis node)
      :properties properties-without-fns}))
@@ -882,7 +897,7 @@
   predicate returns true, then that node --- or a stand-in for it ---
   will be included in the fragment.
 
-  `:traverse?` will be called with the arc data.
+  `:traverse?` will be called with the basis and arc data.
 
    The `:serializer` function determines _how_ to represent the node
   in the fragment.  `dynamo.graph/default-node-serializer` adds a map
@@ -974,15 +989,16 @@
     (override (now) root-id opts))
   ([basis root-id {:keys [traverse?] :or {traverse? (constantly true)}}]
     (let [graph-id (node-id->graph-id root-id)
-          pred (every-pred (partial traverse-cascade-delete basis) traverse?)
-          node-ids (ig/pre-traverse basis [root-id] (partial predecessors pred))
+          preds [traverse-cascade-delete traverse?]
+          traverse-fn (partial predecessors preds)
+          node-ids (ig/pre-traverse basis [root-id] traverse-fn)
           override-id (is/next-override-id @*the-system* graph-id)
           overrides (mapv (partial make-override-node graph-id override-id) node-ids)
           new-node-ids (map gt/node-id overrides)
           orig->new (zipmap node-ids new-node-ids)
           new-tx-data (map it/new-node overrides)
           override-tx-data (concat
-                             (it/new-override override-id root-id traverse?)
+                             (it/new-override override-id root-id traverse-fn)
                              (map (fn [node-id new-id] (it/override-node node-id new-id)) node-ids new-node-ids))]
       {:id-mapping orig->new
        :tx-data (concat new-tx-data override-tx-data)})))
@@ -993,9 +1009,18 @@
   ([basis root-id]
     (ig/overrides basis root-id)))
 
-(defn override-original [basis node-id]
-  (when-let [n (node-by-id-at basis node-id)]
-    (gt/original n)))
+(defn override-original
+  ([node-id]
+    (override-original (now) node-id))
+  ([basis node-id]
+    (when-let [n (node-by-id basis node-id)]
+      (gt/original n))))
+
+(defn override?
+  ([node-id]
+    (override? (now) node-id))
+  ([basis node-id]
+    (not (nil? (override-original basis node-id)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade

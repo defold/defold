@@ -150,3 +150,12 @@
   (let [image (g/node-value view :frame)]
     (let [file (File. path)]
       (ImageIO/write image "png" file))))
+
+(defn outline [root path]
+  (get-in (g/node-value root :node-outline) (interleave (repeat :children) path)))
+
+(defn prop [node-id label]
+  (get-in (g/node-value node-id :_properties) [:properties label :value]))
+
+(defn prop! [node-id label val]
+  (g/transact (g/set-property node-id label val)))

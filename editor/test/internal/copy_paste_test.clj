@@ -184,7 +184,7 @@
   (input  discards-value g/Str)
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
-(defn- stop-at-stoppers [[src src-label tgt tgt-label]]
+(defn- stop-at-stoppers [basis [src src-label tgt tgt-label]]
   (not (g/node-instance? StopperNode tgt)))
 
 (defrecord Standin [original-id])
