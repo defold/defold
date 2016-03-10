@@ -3,6 +3,7 @@ package com.dynamo.cr.server.resources.test;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,10 +15,13 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.FileUtils;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.PersistenceProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
@@ -41,6 +45,8 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class AbstractResourceTest {
+
+    protected static Logger logger = LoggerFactory.getLogger(AbstractResourceTest.class);
 
     static Server server;
     static Module module;
@@ -74,6 +80,8 @@ public class AbstractResourceTest {
         injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
+
+        clearTemporaryFileArea();
     }
 
     @AfterClass
@@ -157,6 +165,26 @@ public class AbstractResourceTest {
 
         URI uri = UriBuilder.fromUri(String.format(baseURI)).port(port).build();
         return client.resource(uri);
+    }
+
+
+    protected static void clearTemporaryFileArea() {
+        String cacheDirName = server.getConfiguration().getArchiveCacheRoot();
+        File cacheDir = new File(cacheDirName);
+
+        if (!cacheDir.exists() || !cacheDir.isDirectory()) {
+            return;
+        }
+
+        for (File dirFile : cacheDir.listFiles()) {
+            if(!dirFile.getName().startsWith(".")) {
+                try {
+                    FileUtils.deleteDirectory(dirFile);
+                } catch(IOException e) {
+                    logger.warn("Could not remove temporary file directory: " + dirFile.getName());
+                }
+            }
+        }
     }
 
 }
