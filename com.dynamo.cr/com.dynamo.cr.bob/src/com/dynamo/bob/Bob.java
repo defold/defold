@@ -44,6 +44,15 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
+            
+            // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
+            // aapt will find it later when AndroidBundler is run.
+            String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
+            URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
+            if (libc_url != null) {
+                FileUtils.copyURLToFile(libc_url, new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename));
+            }
+            
             extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
 

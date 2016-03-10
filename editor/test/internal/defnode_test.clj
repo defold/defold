@@ -364,7 +364,7 @@
 
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
-(g/defnk integer-production-fnk [this project] 42)
+(g/defnk integer-production-fnk [this] 42)
 
 (g/defnode MultipleOutputNode
   (input integer-input g/Int)
@@ -428,14 +428,12 @@
 
   (testing "output dependencies include transforms and their inputs"
     (is (= {:_node-id             #{:_node-id}
-            :project              #{:integer-output}
             :string-input         #{:inline-string}
             :integer-input        #{:string-output :cached-output}
             :_declared-properties #{:_properties}
             :_output-jammers      #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
     (is (= {:_node-id             #{:_node-id}
-            :project              #{:integer-output}
             :string-input         #{:inline-string}
             :integer-input        #{:string-output :abstract-output :cached-output}
             :_declared-properties #{:_properties}

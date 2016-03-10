@@ -8,7 +8,8 @@
             [internal.graph.error-values :as ie]
             [internal.node :as in]
             [internal.property :as ip]
-            [internal.system :as is]))
+            [internal.system :as is]
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 
@@ -270,7 +271,8 @@
         all-outputs (-> original (gt/node-type basis) gt/output-labels)]
     (-> ctx
       (update :basis gt/override-node original-id override-id)
-      (update :successors-changed into (map vector (repeat original-id) all-outputs)))))
+      (update :successors-changed into (concat (map vector (repeat original-id) all-outputs)
+                                               (gt/sources basis original-id))))))
 
 (defmethod perform :override-node
   [ctx {:keys [original-node-id override-node-id]}]
@@ -283,14 +285,30 @@
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
-  (let [ctx (mark-activated ctx node-id property)]
-    (if-let [setter-fn (in/setter-for (:basis ctx) node property)]
+  (let [basis (:basis ctx)
+        value-type (some-> ((gt/property-types node basis) property)
+                     gt/property-value-type
+                     in/allow-nil)]
+   (if-let [validation-error (and value-type (s/check value-type new-value))]
+     (let [node-type (gt/node-type node basis)]
+       (in/warn-output-schema node-id node-type property new-value value-type validation-error)
+       (throw (ex-info "SCHEMA-VALIDATION"
+                   {:node-id          node-id
+                    :type             node-type
+                    :property         property
+                    :expected         value-type
+                    :actual           new-value
+                    :validation-error validation-error})))
+     (let [setter-fn (in/setter-for basis node property)]
       (-> ctx
         (update :basis ip/property-default-setter node-id property old-value new-value)
-        (apply-tx (setter-fn (:basis ctx) node-id old-value new-value)))
-      (-> ctx
-        (update :basis ip/property-default-setter node-id property old-value new-value)
-        (update-in [:properties-modified node-id] conj property)))))
+        (cond->
+          (not= old-value new-value)
+          (->
+            (mark-activated node-id property)
+            (cond->
+              (not (nil? setter-fn))
+              (apply-tx (setter-fn (:basis ctx) node-id old-value new-value))))))))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
@@ -323,17 +341,14 @@
 (defmethod perform :update-property [ctx {:keys [node-id property fn args]}]
   (let [basis (:basis ctx)]
     (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (do
-        (let [old-value (node-value basis node-id property)
-              new-value (apply fn old-value args)]
-          (if (not= old-value new-value)
-            (invoke-setter ctx node-id node property old-value new-value)
-            ctx)))
+      (let [old-value (gt/get-property node basis property)
+            new-value (apply fn old-value args)]
+        (invoke-setter ctx node-id node property old-value new-value))
       ctx)))
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
-        old-value (node-value basis node property)]
+        old-value (gt/get-property node basis property)]
     (if-let [setter-fn (in/setter-for basis node property)]
       (apply-tx ctx (setter-fn basis node-id old-value nil))
       ctx)))
@@ -345,7 +360,6 @@
         (-> ctx
           (mark-activated node-id property)
           (update :basis replace-node node-id (gt/clear-property node basis property))
-          (update-in [:properties-modified node-id] conj property)
           (ctx-set-property-to-nil node-id node property)))
       ctx)))
 
@@ -360,21 +374,23 @@
   (let [basis (:basis ctx)
         target-id (gt/node-id target)]
     (if ((gt/cascade-deletes (gt/node-type target basis)) target-label)
-      (loop [overrides (ig/overrides basis (gt/node-id target))
+      (loop [overrides (ig/overrides basis target-id)
              ctx ctx]
         (if-let [or (first overrides)]
           (let [basis (:basis ctx)
                 or-node (ig/node-by-id-at basis or)
                 override-id (gt/override-id or-node)
                 traverse-fn (ig/override-traverse-fn basis override-id)]
-            (if (traverse-fn source-id source-label target-id target-label)
-              (let [gid (gt/node-id->graph-id or)
-                   new-sub-id (next-node-id ctx gid)
-                   new-sub-node (in/make-override-node override-id new-sub-id source-id {})]
-               (recur (rest overrides)
-                      (-> ctx
-                        (ctx-add-node new-sub-node)
-                        (ctx-override-node source-id new-sub-id))))
+            (if (traverse-fn basis target-id)
+              (let [gid (gt/node-id->graph-id or)]
+                (recur (rest overrides)
+                       (reduce (fn [ctx node-id]
+                                 (let [new-sub-id (next-node-id ctx gid)
+                                       new-sub-node (in/make-override-node override-id new-sub-id node-id {})]
+                                   (-> ctx
+                                     (ctx-add-node new-sub-node)
+                                     (ctx-override-node node-id new-sub-id))))
+                               ctx (ig/pre-traverse basis [source-id] traverse-fn))))
               ctx))
           ctx))
       ctx)))
@@ -493,7 +509,7 @@
     label
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
 
-(def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
+(def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -512,7 +528,6 @@
    :nodes-deleted       {}
    :outputs-modified    []
    :graphs-modified     #{}
-   :properties-modified {}
    :successors-changed  #{}
    :node-id-generators node-id-generators
    :completed           []

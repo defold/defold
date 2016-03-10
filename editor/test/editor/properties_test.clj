@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [editor.types :as t]
             [editor.properties :as properties]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (g/defnode NumProp
   (property my-prop g/Num))
@@ -17,6 +17,10 @@
 (g/defnode StrProp
   (property my-prop g/Str))
 
+(g/defnode StrPropReadOnly
+  (property my-prop g/Str
+            (dynamic read-only? (g/always true))))
+
 (g/defnode LinkedProps
   (property multi-properties g/Any
             (default {})
@@ -25,8 +29,17 @@
   (input linked-properties g/Any)
   (input user-properties g/Any))
 
+(defn- augment-props [p _node-id]
+  (into {} (map (fn [[k v]]
+                  [k (assoc v
+                            :node-id _node-id
+                            :type (g/make-property-type k v))])
+                p)))
+
 (g/defnode UserProps
-  (property user-properties g/Any))
+  (property user-properties g/Any)
+  (output _properties g/Properties (g/fnk [_node-id user-properties]
+                                          (update user-properties :properties augment-props _node-id))))
 
 (g/defnode Vec3Prop
   (property my-prop t/Vec3))
@@ -97,9 +110,8 @@
                    (g/tx-nodes-added
                      (g/transact
                        (g/make-nodes world [user-node [UserProps :user-properties {:properties {:int {:edit-type {:type g/Int} :value 1}}
-                                                                                   :display-order [:int]}]
-                                            linked-node [LinkedProps]]
-                                     (g/connect user-node :user-properties linked-node :user-properties))))
+                                                                                   :display-order [:int]}]]
+                                     (:tx-data (g/override user-node)))))
                    property (fn [n] (-> [n] (coalesce-nodes) (first) (second)))]
                (is (not (properties/overridden? (property linked-node))))
                (is (every? #(= 1 %) (properties/values (property linked-node))))
@@ -182,3 +194,14 @@
                                                              (g/connect user-node :user-properties linked-node :user-properties-input)))))]
       (is (= [:a :b ["Linked" :my-prop] ["Overridden" [:overridden-properties-cat :int]] :my-prop [:overridden-properties :int]]
              (display-order [link-node]))))))
+
+(deftest read-only
+  (with-clean-system
+    (let [nodes (tx-nodes
+                  (g/make-nodes world [str-node [StrProp :my-prop "1.0"]
+                                       str-node-ro [StrPropReadOnly :my-prop "1.0"]]))
+          read-only-fn (fn [ns]
+                         (properties/read-only? (get (coalesce-nodes ns) :my-prop)))]
+      (is (false? (read-only-fn [(first nodes)])))
+      (is (true? (read-only-fn [(second nodes)])))
+      (is (true? (read-only-fn nodes))))))
