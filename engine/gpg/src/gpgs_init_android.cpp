@@ -211,7 +211,7 @@ dmExtension::Result UpdateGpgs(dmExtension::Params* params)
                 cmd.m_Callback = LUA_NOREF;
                 cmd.m_Self = LUA_NOREF;
                 cmd.m_Context = NULL;
-                free(cmd.m_ParameterStack);
+                lua_close(cmd.m_ParameterStack);
                 cmd.m_ParameterStack = NULL;
 
                 (void) dmScript::PCall(context_ref, arguments + 1,
