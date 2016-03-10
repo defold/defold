@@ -814,7 +814,7 @@ namespace dmScript
      *  The value is set for every component
      *
      * @name vmath.vector3
-     * @param v scalar value to splat (number)
+     * @param n scalar value to splat (number)
      * @return new vector (vector3)
      */
 
@@ -874,7 +874,7 @@ namespace dmScript
      *  The value is set for every component
      *
      * @name vmath.vector4
-     * @param v scalar value to splat (number)
+     * @param n scalar value to splat (number)
      * @return new vector (vector4)
      */
 
