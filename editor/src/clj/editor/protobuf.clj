@@ -320,3 +320,8 @@
 
 (defn hash64 [v]
   (MurmurHash/hash64 v))
+
+(defn fields-by-indices
+  [^java.lang.Class cls]
+  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
+    (into {} (map (fn [^Descriptors$FieldDescriptor field] [(.getNumber field) (field->key field)]) (.getFields desc)))))

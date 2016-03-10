@@ -116,6 +116,9 @@ public:
         context_params.m_DefaultProjectHeight = 1;
 
         m_Context = dmGui::NewContext(&context_params);
+        m_Context->m_SceneTraversalCache.m_Data.SetCapacity(MAX_NODES);
+        m_Context->m_SceneTraversalCache.m_Data.SetSize(MAX_NODES);
+
         // Bogus font for the metric callback to be run (not actually using the default font)
         dmGui::SetDefaultFont(m_Context, (void*)0x1);
         dmGui::NewSceneParams params;
@@ -2529,6 +2532,166 @@ TEST_F(dmGuiTest, ScriptPicking)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+::testing::AssertionResult IsEqual(const Vector4& v1, const Vector4& v2) {
+    bool equal = v1.getX() == v2.getX() &&
+                v1.getY() == v2.getY() &&
+                v1.getZ() == v2.getZ() &&
+                v1.getW() == v2.getW();
+  if(equal)
+    return ::testing::AssertionSuccess();
+  else
+    return ::testing::AssertionFailure() << "(" << v1.getX() << ", " << v1.getY() << ", " << v1.getZ() << ", " << v1.getW() << ") != (" << v2.getX() << ", " << v2.getY() << ", " << v2.getZ() << ", " << v2.getW() << ")";
+}
+
+TEST_F(dmGuiTest, CalculateNodeTransform)
+{
+    // Tests for a bug where the picking forces an update of the local transform
+    // Root cause was children were updated before parents, making the adjust scale wrong
+    uint32_t physical_width = 200;
+    uint32_t physical_height = 100;
+    float ref_scale_width = 0.25f;
+    float ref_scale_height = 0.5f;
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, (uint32_t) (physical_width * ref_scale_width), (uint32_t) (physical_height * ref_scale_height));
+    dmGui::SetSceneResolution(m_Scene, (uint32_t) (physical_width * ref_scale_width), (uint32_t) (physical_height * ref_scale_height));
+
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
+
+    Point3 pos(10, 10, 0);
+    Vector3 size(20, 20, 0);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n1, 0x1);
+
+    pos = Point3(20, 20, 0);
+    size = Vector3(15, 15, 0);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n2, 0x2);
+
+    pos = Point3(30, 30, 0);
+    size = Vector3(10, 10, 0);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n3, 0x3);
+
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+    dmGui::SetNodeParent(m_Scene, n3, n2);
+
+    dmGui::InternalNode* nn1 = dmGui::GetNode(m_Scene, n1);
+    dmGui::InternalNode* nn2 = dmGui::GetNode(m_Scene, n2);
+    dmGui::InternalNode* nn3 = dmGui::GetNode(m_Scene, n3);
+
+    Matrix4 transform;
+    (void)transform;
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+
+    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_FIT);
+
+    dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_ZOOM);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_ZOOM);
+
+    dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+}
+
+TEST_F(dmGuiTest, CalculateNodeTransformCached)
+{
+    // Tests for the same bug as CalculateNodeTransform does, just in the sibling function CalculateNodeTransformAndAlphaCached
+    uint32_t physical_width = 200;
+    uint32_t physical_height = 100;
+    float ref_scale_width = 0.25f;
+    float ref_scale_height = 0.5f;
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, (uint32_t) (physical_width * ref_scale_width), (uint32_t) (physical_height * ref_scale_height));
+    dmGui::SetSceneResolution(m_Scene, (uint32_t) (physical_width * ref_scale_width), (uint32_t) (physical_height * ref_scale_height));
+
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
+
+    Point3 pos(10, 10, 0);
+    Vector3 size(20, 20, 0);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n1, 0x1);
+
+    pos = Point3(20, 20, 0);
+    size = Vector3(15, 15, 0);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n2, 0x2);
+
+    pos = Point3(30, 30, 0);
+    size = Vector3(10, 10, 0);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n3, 0x3);
+
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+    dmGui::SetNodeParent(m_Scene, n3, n2);
+
+    dmGui::InternalNode* nn1 = dmGui::GetNode(m_Scene, n1);
+    dmGui::InternalNode* nn2 = dmGui::GetNode(m_Scene, n2);
+    dmGui::InternalNode* nn3 = dmGui::GetNode(m_Scene, n3);
+
+    Matrix4 transform;
+    float opacity;
+    (void)transform;
+    (void)opacity;
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
+
+    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_FIT);
+
+    dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
+
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_ZOOM);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_ZOOM);
+
+    dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
+
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+}
+
 // This render function simply flags a provided boolean when called
 static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
@@ -3025,6 +3188,7 @@ TEST_F(dmGuiTest, NodeTransform)
  * Verify that the rendered transforms are correct for a hierarchy:
  * - n1
  *   - n2
+ *     - n3
  *
  * In three cases, the nodes have different pivots and positions, so that their render transforms will be identical:
  * - n1 center, n2 center, n3 center

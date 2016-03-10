@@ -177,10 +177,6 @@
   (input string-value g/Str)
   (output string-value g/Str (g/fnk [string-value] (str/upper-case string-value))))
 
-(g/defnode PropertyShadowingInput
-  (input string-value g/Str)
-  (property string-value g/Str (default "Hey there!")))
-
 (deftest with-self-dependencies
   (testing "dependencies propagate through fnks"
     (ts/with-clean-system
