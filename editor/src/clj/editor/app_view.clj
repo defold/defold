@@ -123,14 +123,25 @@
   (enabled? [] true)
   (run [prefs] (prefs-dialog/open-prefs prefs)))
 
+(defn- remove-tab [^TabPane tab-pane ^Tab tab]
+  (.remove (.getTabs tab-pane) tab)
+  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
 (handler/defhandler :close :global
   (enabled? [] true)
-  (run [app-view] (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
-                    (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
-                      (.remove (.getTabs tab-pane) tab)
-                      ; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-                      ; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-                      (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))
+  (run [app-view]
+    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+      (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+        (remove-tab tab-pane tab)))))
+
+(handler/defhandler :close-all :global
+  (enabled? [] true)
+  (run [app-view]
+    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+      (doseq [tab (.getTabs tab-pane)]
+        (remove-tab tab-pane tab)))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -177,6 +188,9 @@
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
+                             {:label "Close All"
+                              :acc "Shift+Shortcut+W"
+                              :command :close-all}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
