@@ -134,7 +134,7 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
             }
         }
     }
-    
+
     return handled;
 }
 
@@ -630,6 +630,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     if (!glContext) {
         glContext = [self initialiseGlContext];
+
+        for(int i=0; i<GLFW_JOYSTICK_LAST; ++i) {
+            memset(&tvosJoystick[i], 0, sizeof(struct tvosJoystickData));
+        }
     }
 
     CGRect bounds = self.view.bounds;
@@ -639,10 +643,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
-
-    for(int i=0; i<GLFW_JOYSTICK_LAST; ++i) {
-        memset(&tvosJoystick[i], 0, sizeof(struct tvosJoystickData));
-    }
 
     [glView createFramebuffer];
 }
