@@ -5,7 +5,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [service.log :as log]
-            [editor.defold-project :as project])
+            [editor.defold-project :as project]
+            [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
@@ -107,15 +108,16 @@
       (assoc dialog :refresh refresh))))
 
 (defn make-resource-dialog [workspace options]
-  (let [root ^Parent (ui/load-fxml "resource-dialog.fxml")
-        stage (Stage.)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["resources" "ok" "search"])
-        return (atom nil)
-        exts (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+  (let [root         ^Parent (ui/load-fxml "resource-dialog.fxml")
+        stage        (Stage.)
+        scene        (Scene. root)
+        controls     (ui/collect-controls root ["resources" "ok" "search"])
+        return       (atom nil)
+        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
-        items (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %)))) (g/node-value workspace :resource-list))
-        close (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
+        items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
+                             (g/node-value workspace :resource-list))
+        close        (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
 
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (or (:title options) "Select Resource"))
@@ -126,28 +128,37 @@
           (.getSelectionModel)
           (.setSelectionMode SelectionMode/MULTIPLE)))
 
-    (ui/cell-factory! (:resources controls) (fn [r] {:text (resource/resource-name r)
-                                                    :icon (workspace/resource-icon r)
-                                                    :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
-                                                               (tooltip-gen r))}))
+    (ui/cell-factory! (:resources controls) (fn [r] {:text    (resource/proj-path r)
+                                                     :icon    (workspace/resource-icon r)
+                                                     :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
+                                                                (tooltip-gen r))}))
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
     (ui/on-double! (:resources controls) (fn [_] (close)))
 
     (ui/observe (.textProperty ^TextField (:search controls))
-                (fn [_ _ ^String new] (let [pattern-str (str "^" (.replaceAll new "\\*" ".\\*?"))
-                                    pattern (re-pattern pattern-str)
-                                    filtered-items (filter (fn [r] (re-find pattern (resource/resource-name r))) items)]
-                                (ui/items! (:resources controls) filtered-items))))
+                (fn [_ _ ^String new]
+                  (let [new            (str/lower-case new)
+                        parts          (str/split new #"\.")
+                        pattern-str    (str "^" (str/replace new #"\*" ".*")
+                                            (when (> (count parts) 1)
+                                              "." (last parts) ".*$"))
+                        pattern        (re-pattern pattern-str)
+                        filtered-items (filter (fn [r] (re-find pattern (resource/resource-name r))) items)
+                        list-view      ^ListView (:resources controls)]
+                    (ui/items! list-view filtered-items)
+                    (when-let [first-match (first filtered-items)]
+                      (.select (.getSelectionModel list-view) first-match)))))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event
                         (let [code (.getCode ^KeyEvent event)]
                           (when (cond
-                                  (= code KeyCode/DOWN) (ui/request-focus! (:resources controls))
+                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources controls))
                                   (= code KeyCode/ESCAPE) true
-                                  (= code KeyCode/ENTER) (do (reset! return (ui/selection (:resources controls))) true)
-                                  true false)
+                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources controls)))
+                                                              true)
+                                  true                    false)
                             (.close stage)))))
 
     (.initModality stage Modality/WINDOW_MODAL)
@@ -217,10 +228,10 @@
     (update-tree-view tree-view tree-with-hits)
     (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
       (.setExpanded item true))
-    (let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
-                           (filter (fn [^TreeItem item]
-                                     (instance? MatchContextResource (.getValue item))))
-                           first)]
+    (when-let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
+                                (filter (fn [^TreeItem item]
+                                          (instance? MatchContextResource (.getValue item))))
+                                first)]
       (.select (.getSelectionModel tree-view) first-match))))
 
 (defn make-search-in-files-dialog [workspace project]
