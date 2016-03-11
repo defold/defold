@@ -887,3 +887,6 @@ return value."
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
+
+(defn parent->stage ^Stage [^Parent parent]
+  (.. parent getScene getWindow))
