@@ -674,7 +674,6 @@
 
 (g/defnode FormView
   (property parent-view Parent)
-  (property repainter AnimationTimer)
   (property workspace g/Any)
   (property prev-form ScrollPane)
   (input form-data g/Any :substitute {})
@@ -686,13 +685,10 @@
         repainter (ui/->timer (fn [dt] (g/node-value view-id :form)))]
     (g/transact
       (concat
-        (g/set-property view-id :repainter repainter)
         (g/connect resource-node :form-data view-id :form-data)))
     (ui/timer-start! repainter)
-    (let [^Tab tab (:tab opts)]
-      (ui/on-close tab
-                   (fn [e]
-                     (ui/timer-stop! repainter))))
+    (ui/timer-stop-on-close! ^Tab (:tab opts) repainter)
+    (ui/timer-stop-on-close! (ui/parent->stage parent) repainter)
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]
