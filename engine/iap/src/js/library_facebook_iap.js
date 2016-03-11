@@ -114,9 +114,11 @@ var LibraryFacebookIAP = {
 
                     if (response.status == 'initiated') {
                         result.state = FBinner.TransactionState.TRANS_STATE_UNVERIFIED;
+                        result.trans_ident = response.payment_id.toString();
+                        result.receipt = response.signed_request;
                     } else if (response.status == 'completed') {
                         result.state = FBinner.TransactionState.TRANS_STATE_PURCHASED;
-                        result.trans_ident = response.payment_id;
+                        result.trans_ident = response.payment_id.toString();
                         result.receipt = response.signed_request;
                     } else {
                         // unknown and 'failed' state
