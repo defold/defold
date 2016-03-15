@@ -3,6 +3,8 @@ package com.dynamo.cr.editor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -11,6 +13,7 @@ import org.eclipse.equinox.internal.p2.core.helpers.LogHelper;
 import org.eclipse.equinox.internal.p2.core.helpers.ServiceHelper;
 import org.eclipse.equinox.p2.core.IProvisioningAgent;
 import org.eclipse.equinox.p2.operations.UpdateOperation;
+import org.eclipse.equinox.p2.repository.IRepositoryManager;
 import org.eclipse.equinox.p2.repository.artifact.IArtifactRepositoryManager;
 import org.eclipse.equinox.p2.repository.metadata.IMetadataRepositoryManager;
 import org.eclipse.jface.dialogs.ProgressMonitorDialog;
@@ -89,7 +92,21 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
         });
     }
 
+    // Returns a list of URIs that contains `match` in the supplied IRepositoryManager
+    private static List<URI> getReposContaining(IRepositoryManager<?> repoManager, String match) {
+        ArrayList<URI> repoURIList = new ArrayList<URI>();
+        for (URI repoURI : repoManager.getKnownRepositories(IRepositoryManager.REPOSITORIES_ALL)) {
+            if (repoURI.toString().contains(match)) {
+                repoURIList.add(repoURI);
+            }
+        }
+
+        return repoURIList;
+    }
+
+
     private void checkForUpdates() {
+
         if (System.getProperty("osgi.dev") != null) {
             // Do not run update when running from eclipse
             return;
@@ -118,6 +135,26 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
                 metadataManager.addRepository(newLocation);
                 artifactManager.addRepository(newLocation);
             }
+
+            // Check if we have both beta and stable repositories in
+            // either of artifactManager or metadataManager.
+            List<URI> betaURIs = getReposContaining(metadataManager, "beta/update/");
+            List<URI> stableURIs = getReposContaining(metadataManager, "stable/update/");
+            betaURIs.addAll(getReposContaining(artifactManager, "beta/update/"));
+            stableURIs.addAll(getReposContaining(artifactManager, "stable/update/"));
+
+            // Remove all beta URIs if we have both beta and stable entries
+            // from both artifactManager and metadataManager.
+            if (betaURIs.size() > 0 && stableURIs.size() > 0) {
+                System.out.println("Found both beta and stable update URIs; removing all beta entries.");
+
+                for (URI repoURI : betaURIs) {
+                    System.out.println(String.format("Removing URI: %s", repoURI.toString()));
+                    metadataManager.removeRepository(repoURI);
+                    artifactManager.removeRepository(repoURI);
+                }
+            }
+
         } catch (URISyntaxException e) {
             logger.error("Unexpected error", e);
         }
