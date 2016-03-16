@@ -91,7 +91,7 @@ public class GitArchiveProvider {
             // NOTE: We always delete temporary cloneTo directory
             try {
                 FileUtils.deleteDirectory(cloneTo);
-            } catch (IOException e) {
+            } catch (IOException | IllegalArgumentException e) {
                 logger.error("Failed to remove temporary clone directory", e);
             }
         }

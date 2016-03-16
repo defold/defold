@@ -172,7 +172,7 @@ public class AbstractResourceTest {
         String cacheDirName = server.getConfiguration().getArchiveCacheRoot();
         File cacheDir = new File(cacheDirName);
 
-        if (!cacheDir.exists() || !cacheDir.isDirectory()) {
+        if(!cacheDir.isDirectory()) {
             return;
         }
 
@@ -180,7 +180,7 @@ public class AbstractResourceTest {
             if(!dirFile.getName().startsWith(".")) {
                 try {
                     FileUtils.deleteDirectory(dirFile);
-                } catch(IOException e) {
+                } catch(IOException | IllegalArgumentException e) {
                     logger.warn("Could not remove temporary file directory: " + dirFile.getName());
                 }
             }

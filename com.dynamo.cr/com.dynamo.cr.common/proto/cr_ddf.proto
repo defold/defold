@@ -48,7 +48,7 @@ message Configuration
 
     // Local archive configuration
     required string archive_cache_root = 38;
-    required int32 archive_cache_max_size = 39 [default=1048576];
+    required int32 archive_cache_max_size = 39 [default=1024];
 }
 
 message EMailTemplate

@@ -690,6 +690,49 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
 
+    class ArchiveStressRunnable implements Runnable {
+        private long projectId;
+        public Throwable exception;
+
+        public ArchiveStressRunnable(long projectId) {
+            this.projectId = projectId;
+        }
+
+        @Override
+        public void run() {
+            try {
+                for(int i=0; i < 1000; ++i) {
+                    String path = String.format("/%d/%d/archive/", -1, projectId);
+                    WebResource resource = joeProjectsWebResource.path(path);
+
+                    ClientResponse response = resource.get(ClientResponse.class);
+                    assertEquals(200, response.getStatus());
+                    verifyArchive(response);
+                }
+            } catch (Throwable e) {
+                this.exception = e;
+            }
+        }
+    }
+
+    @Test
+    public void archiveStressTest() throws Exception {
+        final ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ArchiveStressRunnable runnable1 = new ArchiveStressRunnable(projectInfo.getId());
+        ArchiveStressRunnable runnable2 = new ArchiveStressRunnable(projectInfo.getId());
+
+        Thread t1 = new Thread(runnable1);
+        Thread t2 = new Thread(runnable2);
+        t1.start();
+        t2.start();
+        t1.join(100000);
+        t2.join(100000);
+
+        assertEquals(null, runnable1.exception);
+        assertEquals(null, runnable2.exception);
+    }
+
+
     ClientResponse getArchiveETag(String version) {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
         String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
