@@ -55,6 +55,9 @@ public class ArchiveCacheTest {
 
         ArchiveCache archiveCache = new ArchiveCache(configuration);
         archiveCache.setArchiveProvider(mockProvider);
+        Mockito.doThrow(new IOException("test exception"))
+            .when(mockProvider)
+            .createLocalArchive(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
 
         try {
             archiveCache.get(archiveKey, "", "");
@@ -104,6 +107,10 @@ public class ArchiveCacheTest {
         archiveCache.setArchiveProvider(mockArchiveProvider);
 
         FileUtils.deleteQuietly(new File(tmpFilename));
+
+        Mockito.doThrow(new IOException("test exception"))
+            .when(mockArchiveProvider)
+            .createLocalArchive(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
 
         archiveCache.get(archiveKey, "", "");
     }

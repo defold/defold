@@ -65,8 +65,10 @@ public class ArchiveCache {
             }
           };
 
+        long maximumCacheWeight = configuration.getArchiveCacheMaxSize() * 1024; // Mb to kb
+        logger.info(String.format("Initializing new archive cache with max size=%d kb", maximumCacheWeight));
         cachedArchives = CacheBuilder.newBuilder()
-                .maximumWeight(configuration.getArchiveCacheMaxSize())
+                .maximumWeight(maximumCacheWeight)
                 .weigher(weigher)
                 .removalListener(removalListener)
                 .build();
@@ -79,7 +81,7 @@ public class ArchiveCache {
 
        for (File dirFile : baseDirectory.listFiles()) {
            try {
-
+               logger.debug("Preloading local archives...");
                loadLocalArchives(dirFile);
            } catch(ExecutionException | UncheckedExecutionException | ExecutionError e) {
                logger.warn("Failed preloading a local archive", e);
@@ -97,17 +99,16 @@ public class ArchiveCache {
             throws SecurityException, ExecutionException, UncheckedExecutionException, ExecutionError  {
 
         if (!dirFile.isDirectory() || dirFile.getName().startsWith(".")) {
+            // Avoid searching through hidden directories
             return;
         }
 
         for(File file : dirFile.listFiles()) {
-            if(!verifyExistingArchive(file)) {
+            final String fileKey = dirFile.getName() + file.getName();
+            if(!verifyExistingArchive(file, fileKey)) {
                 continue;
             }
-
-            final String fileKey = dirFile.getName() + file.getName();
             logger.debug("Loading a locally cached archive with key: " + fileKey);
-
             // Init a cache value (synchronized on fileKey)
             getFromCache(fileKey, "", "");
         }
@@ -116,19 +117,17 @@ public class ArchiveCache {
     /**
      * Find an existing zip archive and verify its comment
      * @param directory Directory containing the archive
+     * @param expectedComment Expected zip archive comment
      * @return
      * @throws SecurityException
      */
-    private boolean verifyExistingArchive(File directory) throws SecurityException {
+    private boolean verifyExistingArchive(File directory, String expectedComment) throws SecurityException {
         if(!directory.isDirectory()) {
             return false;
         }
 
         for(File file : directory.listFiles()) {
             if(file.getName().endsWith(".zip")) {
-                String expectedComment =
-                        directory.getParentFile().getName() + directory.getName();
-
                 return verifyArchiveComment(file, expectedComment);
             }
         }
@@ -141,10 +140,10 @@ public class ArchiveCache {
             zipFile = new ZipFile(zipArchive);
             String comment = zipFile.getComment();
             // Valid archives should have a file key comment
-            return comment.equals(expectedComment);
+            return expectedComment.equalsIgnoreCase(comment);
 
         } catch (IOException e) {
-            logger.warn("Invalid local zip file", e);
+            logger.warn("Invalid local zip archive: " + zipArchive.getName(), e);
         } finally {
             IOUtils.closeQuietly(zipFile);
         }
@@ -167,12 +166,13 @@ public class ArchiveCache {
             String filePathname = getFromCache(key, repositoryName, version);
 
             // Re-download local archive file if it can't be accessed
-            if(!isExistingFile(filePathname)) {
-                // This should not normally happen - only if the file is manually removed
-                return refreshFileCache(filePathname, key, repositoryName, version);
+            if(new File(filePathname).isFile()) {
+                return filePathname;
+            } else {
+                // This should only happen if the file was manually removed
+                invalidateFileCache(filePathname, key);
+                return getFromCache(key, repositoryName, version);
             }
-            return filePathname;
-
         } catch (ExecutionException | UncheckedExecutionException | ExecutionError e) {
             // LoadingCache wraps all exceptions, but we throw server errors from the archive provider etc.
             if (e != null && e.getCause() != null) {
@@ -184,21 +184,14 @@ public class ArchiveCache {
         }
     }
 
-    private synchronized String refreshFileCache(String filePathname, String key, String repositoryName, String version)
-            throws ServerException, ExecutionException, UncheckedExecutionException {
-
-        if(isExistingFile(filePathname)) {
-            return filePathname;
+    private synchronized void invalidateFileCache(String filePathname, String key)
+            throws SecurityException {
+        // Check whether the archive already got recreated
+        if(new File(filePathname).isFile()) {
+            return;
         }
+        // Remove entry with no corresponding file from cache
         cachedArchives.invalidate(key);
-        filePathname = getFromCache(key, repositoryName, version);
-
-        if(!isExistingFile(filePathname)) {
-            throw new ServerException("Failed to open local archive file: " + filePathname,
-                    Status.INTERNAL_SERVER_ERROR);
-        } else {
-            return filePathname;
-        }
     }
 
     private String getFromCache(final String fileKey, final String repositoryName, final String version)
@@ -211,18 +204,6 @@ public class ArchiveCache {
             }
         });
         return filePathname;
-    }
-
-    private boolean isExistingFile(String filePathname) {
-        if(filePathname == null) {
-            return false;
-        }
-
-        File zipFile = new File(filePathname);
-        if(!zipFile.exists() || zipFile.isDirectory()) {
-            return false;
-        }
-        return true;
     }
 
     /**
