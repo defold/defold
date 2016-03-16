@@ -75,7 +75,7 @@
                                 <configuration>
                                     <!-- <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-linux-x64.zip</url> -->
                                     <!-- Only for development --> <url>http://127.0.0.1:8000/jre-8u5-linux-x64.zip</url>
-                                    <md5>e4da6cdfb3cd454681b2689c955441c8</md5>
+                                    <md5>fde412fc244357be5a667ef167f97102</md5>
                                     <unpack>false</unpack>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                 </configuration>
