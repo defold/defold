@@ -215,6 +215,7 @@ namespace dmGameSystem
         dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
         dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
         dmGui::SetNodeAdjustMode(scene, n, (dmGui::AdjustMode) node_desc->m_AdjustMode);
+        dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
         dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
 
         dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
@@ -323,7 +324,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_GuiTextureSets[i].m_Texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet);
+            dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetTextureWidth(texture), dmGraphics::GetTextureHeight(texture));
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -1276,8 +1278,8 @@ namespace dmGameSystem
             out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_Start = animation->m_Start;
             out_data->m_End = animation->m_End;
-            out_data->m_Width = animation->m_Width;
-            out_data->m_Height = animation->m_Height;
+            out_data->m_TextureWidth = dmGraphics::GetTextureWidth(texture_set_res->m_Texture);
+            out_data->m_TextureHeight = dmGraphics::GetTextureHeight(texture_set_res->m_Texture);
             out_data->m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
