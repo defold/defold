@@ -129,15 +129,28 @@
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
+(defn- get-tabs [app-view]
+  (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+    (.getTabs tab-pane)))
+
 (handler/defhandler :close :global
-  (enabled? [] true)
+  (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
         (remove-tab tab-pane tab)))))
 
+(handler/defhandler :close-other :global
+  (enabled? [app-view] (> (count (get-tabs app-view)) 1))
+  (run [app-view]
+    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+      (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+        (doseq [tab (.getTabs tab-pane)]
+          (when (not= tab selected-tab)
+            (remove-tab tab-pane tab)))))))
+
 (handler/defhandler :close-all :global
-  (enabled? [] true)
+  (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (doseq [tab (.getTabs tab-pane)]
@@ -191,6 +204,8 @@
                              {:label "Close All"
                               :acc "Shift+Shortcut+W"
                               :command :close-all}
+                             {:label "Close Others"
+                              :command :close-other}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
@@ -241,6 +256,16 @@
                              {:label "About"
                               :command :about}]}])
 
+(ui/extend-menu ::tabpane-menu nil
+                [{:label "Close"
+                  :acc "Shortcut+W"
+                  :command :close}
+                 {:label "Close Others"
+                  :command :close-other}
+                 {:label "Close All"
+                  :acc "Shift+Shortcut+W"
+                  :command :close-all}])
+
 (defrecord DummySelectionProvider []
   workspace/SelectionProvider
   (selection [this] []))
@@ -270,17 +295,19 @@
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
+    (ui/register-context-menu tab-pane ::tabpane-menu)
+
     (let [refresh-timers [(ui/->timer 2 (fn [dt]
                                           (ui/refresh (.getScene stage))
-                                          (let [settings (g/node-value project :settings)
-	                                               project-title (settings ["project" "title"])
-	                                               new-title (make-title project-title)]
-	                                           (when (not= (.getTitle stage) new-title)
-	                                             (.setTitle stage new-title)))))
+                                          (let [settings      (g/node-value project :settings)
+                                                project-title (settings ["project" "title"])
+                                                new-title     (make-title project-title)]
+                                            (when (not= (.getTitle stage) new-title)
+                                              (.setTitle stage new-title)))))
                           (ui/->timer 10 (fn [dt]
-	                                          (let [auto-pulls (g/node-value app-view :auto-pulls)]
-	                                            (doseq [[node label] auto-pulls]
-	                                              (g/node-value node label)))))]]
+                                           (let [auto-pulls (g/node-value app-view :auto-pulls)]
+                                             (doseq [[node label] auto-pulls]
+                                               (g/node-value node label)))))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-close! stage timer)
         (ui/timer-start! timer)))
