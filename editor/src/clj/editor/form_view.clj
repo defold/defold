@@ -697,4 +697,5 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :form-view
+                                :label "Form"
                                 :make-view-fn make-form-view))
