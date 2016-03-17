@@ -297,4 +297,4 @@
                                     :node-type SwitcherNode
                                     :load-fn load-level
                                     :icon switcher-icon
-                                    :view-types [:scene]))
+                                    :view-types [:scene :text]))

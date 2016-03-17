@@ -135,4 +135,4 @@
                                     :node-type CubemapNode
                                     :load-fn load-cubemap
                                     :icon cubemap-icon
-                                    :view-types [:scene]))
+                                    :view-types [:scene :text]))

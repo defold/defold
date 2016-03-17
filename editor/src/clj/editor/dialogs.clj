@@ -55,6 +55,19 @@
         (finally
           (ui/run-later (ui/disable! (:root this) false)))))))
 
+(defn make-alert-dialog [message]
+  (let [root     ^Parent (ui/load-fxml "alert.fxml")
+        stage    (Stage.)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["message" "ok"])]
+    (ui/title! stage "Alert")
+    (ui/text! (:message controls) message)
+    (ui/on-action! (:ok controls) (fn [_] (.close stage)))
+
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
         dialog-root ^Parent (ui/load-fxml dialog-fxml)

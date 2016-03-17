@@ -303,7 +303,8 @@
    (open-resource app-view workspace project resource {}))
   ([app-view workspace project resource opts]
    (let [resource-type (resource/resource-type resource)
-         view-type     (or (first (:view-types resource-type))
+         view-type     (or (:selected-view-type opts)
+                           (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
      (if-let [make-view-fn (:make-view-fn view-type)]
        (let [resource-node     (project/get-resource-node project resource)
@@ -316,7 +317,11 @@
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
          (project/select! project [resource-node]))
-       (.open (Desktop/getDesktop) (File. (resource/abs-path resource)))))))
+       (let [path (resource/abs-path resource)]
+         (try
+           (.open (Desktop/getDesktop) (File. path))
+           (catch Exception _
+             (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)

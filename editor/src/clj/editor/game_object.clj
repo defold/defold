@@ -369,5 +369,5 @@
                                     :node-type GameObjectNode
                                     :load-fn load-game-object
                                     :icon game-object-icon
-                                    :view-types [:scene]
+                                    :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
