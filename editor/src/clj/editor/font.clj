@@ -408,7 +408,7 @@
                                      :node-type FontNode
                                      :load-fn load-font
                                      :icon font-icon
-                                     :view-types [:scene])
+                                     :view-types [:scene :text])
     (workspace/register-resource-type workspace
                                       :ext ["ttf" "otf" "fnt"]
                                       :label "Font"

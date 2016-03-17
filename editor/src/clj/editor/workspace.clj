@@ -228,8 +228,9 @@ ordinary paths."
                 :view-types {:default {:id :default}}
                 :resource-listeners (atom [])))
 
-(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn focus-fn]}]
-  (let [view-type (merge {:id id}
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn]}]
+  (let [view-type (merge {:id    id
+                          :label label}
                          (when make-view-fn
                            {:make-view-fn make-view-fn})
                          (when make-preview-fn

@@ -28,7 +28,7 @@
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :tags #{:component}}
                   {:ext "render_script"
                    :label "Render Script"
