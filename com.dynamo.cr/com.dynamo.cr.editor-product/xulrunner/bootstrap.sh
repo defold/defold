@@ -30,9 +30,9 @@ if [ -f "${CONFIG_PATH}" ]; then
   # Configure absolute path for XULRunner
   # --------------------------------------------------------------------------
   if grep "XULRunnerPath" "${CONFIG_PATH}" > /dev/null 2>&1; then
-    _SEARCH='^(-Dorg.eclipse.swt.browser.XULRunnerPath=).*?$'
-    _REPLACE="\\1=${SCRIPT_PATH}/xulrunner"
-    sed -ir "s#${_SEARCH}#${_REPLACE}#g" "${CONFIG_PATH}"
+    _KEY='-Dorg.eclipse.swt.browser.XULRunnerPath'
+    _VAL="${SCRIPT_PATH}/xulrunner"
+    sed -ir "s#${_KEY}=.*#${_KEY}=${_VAL}#g" "${CONFIG_PATH}"
     if ! grep "XULRunnerPath" "${CONFIG_PATH}" > /dev/null 2>&1; then
       terminate 1 "[ERROR] Failed to configure XULRunnerPath!"
     fi
