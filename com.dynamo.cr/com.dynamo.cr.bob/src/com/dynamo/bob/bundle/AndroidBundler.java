@@ -76,7 +76,7 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(resDir, "drawable-hdpi"));
         FileUtils.forceMkdir(new File(resDir, "drawable-xhdpi"));
         FileUtils.forceMkdir(new File(resDir, "drawable-xxhdpi"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
+        // FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
@@ -95,8 +95,8 @@ public class AndroidBundler implements IBundler {
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
             iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
-            iconCount++;
+        // if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
+            // iconCount++;
 
         // Copy push notification icons
         if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_small", "drawable/push_icon_small.png"))
@@ -104,7 +104,7 @@ public class AndroidBundler implements IBundler {
         if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_large", "drawable/push_icon_large.png"))
             iconCount++;
 
-        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
+        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi"/*, "xxxhdpi"*/ };
         for (String dpi : dpis) {
             if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_small", "push_icon_small.png", dpi))
                 iconCount++;
