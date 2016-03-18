@@ -21,14 +21,14 @@ package () {
     [ -f "Defold" ] && [ "${_PLATFORM}" == "macosx" ] && rm -f "Defold"
     [ -d "jre" ] && rm -rf "jre"
     [ -d "xulrunner" ] && rm -rf "xulrunner"
-    [ -f "bootstrap.sh" ] && rm -f "bootstrap.sh"
+    [ -f "Defold-linux.sh" ] && rm -f "Defold-linux.sh"
     [ -f "${_PRODUCT_DIR}/${_PACKAGE}" ] && rm -f "${_PRODUCT_DIR}/${_PACKAGE}"
 
     # Construct package
     unzip -q "${SCRIPT_PATH}/../target/${_JRE}"
     if [ "${_PLATFORM}" == "linux" ]; then
-      # Include the bootstrap script in the package for Linux
-      cp "${SCRIPT_PATH}/../xulrunner/bootstrap.sh" .
+      # Include the Defold-linux.sh launch script in the package for Linux
+      cp "${SCRIPT_PATH}/Defold-linux.sh" .
 
       if [ "${_ARCH}" == "x86_64" ]; then
       	# Include XULRunner for 64 bit Linux
