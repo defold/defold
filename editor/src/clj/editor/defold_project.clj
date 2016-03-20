@@ -382,6 +382,7 @@
                     outputs-to-make (remove new-outputs current-outputs)]
                 (g/transact
                   (concat
+                    (g/transfer-overrides resource-node new-node)
                     (g/delete-node resource-node)
                     (for [[src-label [tgt-node tgt-label]] outputs-to-make]
                       (g/connect new-node src-label tgt-node tgt-label))))))

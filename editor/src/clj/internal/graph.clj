@@ -123,6 +123,10 @@
   [basis node-id]
   (node (node-id->graph (:graphs basis) node-id) node-id))
 
+(defn override-by-id
+  [basis override-id]
+  (get-in basis [:graphs (gt/override-id->graph-id override-id) :overrides override-id]))
+
 ;; ---------------------------------------------------------------------------
 ;; Type checking
 ;; ---------------------------------------------------------------------------
@@ -354,10 +358,19 @@
           graph    (assoc-in (get graphs gid) [:nodes node-id] new-node)]
       [(update this :graphs assoc gid graph) new-node]))
 
+  (replace-override
+    [this override-id new-override]
+    (let [gid      (gt/override-id->graph-id override-id)]
+      (update-in this [:graphs gid :overrides] assoc override-id new-override)))
+
   (override-node
     [this original-node-id override-node-id]
     (let [gid      (gt/node-id->graph-id override-node-id)]
       (update-in this [:graphs gid :node->overrides original-node-id] conjv override-node-id)))
+
+  (override-node-clear [this original-id]
+    (let [gid (gt/node-id->graph-id original-id)]
+      (update-in this [:graphs gid :node->overrides] dissoc original-id)))
 
   (add-override
     [this override-id override]
