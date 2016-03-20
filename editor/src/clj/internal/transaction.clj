@@ -63,6 +63,12 @@
     :original-node-id original-node-id
     :override-node-id override-node-id}])
 
+(defn transfer-overrides [from-node-id to-node-id id-fn]
+  [{:type         :transfer-overrides
+    :from-node-id from-node-id
+    :to-node-id   to-node-id
+    :id-fn        id-fn}])
+
 (defn update-property
   "*transaction step* - Expects a node, a property label, and a
   function f (with optional args) to be performed on the current value
@@ -245,14 +251,16 @@
 
 (defn- cascade-delete-sources
   [basis node-id]
-  (for [input         (gt/cascade-deletes (gt/node-type (ig/node-by-id-at basis node-id) basis))
+  (for [input (some-> (ig/node-by-id-at basis node-id)
+                (gt/node-type basis)
+                gt/cascade-deletes)
         [source-id _] (gt/sources basis node-id input)]
     source-id))
 
 (defn- ctx-delete-node [ctx node-id]
-  (let [basis-to-use (if (contains? (set (:nodes-added ctx)) node-id) (:basis ctx) (:original-basis ctx))
-        overrides-deep (comp reverse (partial tree-seq (constantly true) (partial ig/overrides basis-to-use)))
-        to-delete    (->> (ig/pre-traverse basis-to-use [node-id] cascade-delete-sources)
+  (let [basis (:basis ctx)
+        overrides-deep (comp reverse (partial tree-seq (constantly true) (partial ig/overrides basis)))
+        to-delete    (->> (ig/pre-traverse basis [node-id] cascade-delete-sources)
                        (mapcat overrides-deep))]
     (reduce delete-single ctx to-delete)))
 
@@ -278,10 +286,67 @@
   [ctx {:keys [original-node-id override-node-id]}]
   (ctx-override-node ctx original-node-id override-node-id))
 
+(declare apply-tx ctx-add-node)
+
+(defn- ctx-make-override-nodes [ctx override-id node-ids]
+  (reduce (fn [ctx node-id]
+            (let [gid (gt/node-id->graph-id node-id)
+                  new-sub-id (next-node-id ctx gid)
+                  new-sub-node (in/make-override-node override-id new-sub-id node-id {})]
+              (-> ctx
+                (ctx-add-node new-sub-node)
+                (ctx-override-node node-id new-sub-id))))
+          ctx node-ids))
+
+(defn- populate-overrides [ctx node-id]
+  (let [basis (:basis ctx)
+        override-nodes (ig/overrides basis node-id)
+        overrides (map #(->> %
+                          (ig/node-by-id-at basis)
+                          gt/override-id)
+                       override-nodes)]
+    (reduce (fn [ctx oid]
+              (let [o (ig/override-by-id basis oid)
+                    traverse-fn (:traverse-fn o)
+                    node-ids (filter #(not= node-id %) (ig/pre-traverse basis [node-id] traverse-fn))]
+                (reduce populate-overrides
+                        (ctx-make-override-nodes ctx oid node-ids)
+                        override-nodes)))
+      ctx overrides)))
+
+(defmethod perform :transfer-overrides
+  [ctx {:keys [from-node-id to-node-id id-fn]}]
+  (let [basis (:basis ctx)
+        override-nodes (ig/overrides basis from-node-id)
+        retained (set override-nodes)
+        override-ids (into {} (map #(let [n (ig/node-by-id-at basis %)] [% (gt/override-id n)]) override-nodes))
+        overrides (into {} (map (fn [[_ oid]] [oid (ig/override-by-id basis oid)]) override-ids))
+        nid->or (comp overrides override-ids)
+        overrides-to-fix (filter (fn [[oid o]] (= (:root-id o) from-node-id)) overrides)
+        nodes-to-delete (filter (complement retained) (mapcat #(let [o (nid->or %)
+                                                                    traverse-fn (:traverse-fn o)
+                                                                    nodes (ig/pre-traverse basis [%] traverse-fn)]
+                                                                nodes)
+                                                             override-nodes))]
+    (-> ctx
+      (update :basis (fn [basis] (gt/override-node-clear basis from-node-id)))
+      (update :basis (fn [basis]
+                       (reduce (fn [basis [oid o]] (gt/replace-override basis oid (assoc o :root-id to-node-id)))
+                               basis overrides-to-fix)))
+      ((partial reduce ctx-delete-node) nodes-to-delete)
+      ((partial reduce (fn [ctx node-id]
+                         (let [basis (:basis ctx)
+                               n (ig/node-by-id-at basis node-id)
+                               [new-basis new-node] (gt/replace-node basis node-id (gt/set-original n to-node-id))]
+                           (-> ctx
+                             (assoc :basis new-basis)
+                             (activate-all-outputs node-id n)
+                             (ctx-override-node to-node-id node-id)))))
+        override-nodes)
+      (populate-overrides to-node-id))))
+
 (defn- node-value [basis node-id property]
   (in/node-value node-id property {:basis basis :cache nil :skip-validation true}))
-
-(declare apply-tx)
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
@@ -382,15 +447,7 @@
                 override-id (gt/override-id or-node)
                 traverse-fn (ig/override-traverse-fn basis override-id)]
             (if (traverse-fn basis target-id)
-              (let [gid (gt/node-id->graph-id or)]
-                (recur (rest overrides)
-                       (reduce (fn [ctx node-id]
-                                 (let [new-sub-id (next-node-id ctx gid)
-                                       new-sub-node (in/make-override-node override-id new-sub-id node-id {})]
-                                   (-> ctx
-                                     (ctx-add-node new-sub-node)
-                                     (ctx-override-node node-id new-sub-id))))
-                               ctx (ig/pre-traverse basis [source-id] traverse-fn))))
+              (populate-overrides ctx target-id)
               ctx))
           ctx))
       ctx)))
@@ -521,7 +578,6 @@
 (defn new-transaction-context
   [basis node-id-generators]
   {:basis               basis
-   :original-basis      basis
    :nodes-affected      {}
    :nodes-added         []
    :nodes-modified      #{}

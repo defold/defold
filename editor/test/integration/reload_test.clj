@@ -276,3 +276,18 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "resources/broken_project"))]
       (is (g/error? (project/save-data project))))))
+
+(defn- gui-node [scene id]
+  (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])
+                            (tree-seq (constantly true) :children (g/node-value scene :node-outline))))]
+    (nodes id)))
+
+(deftest gui-templates
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          node-id (project/get-resource-node project "/gui/scene.gui")
+          sub-node-id (project/get-resource-node project "/gui/sub_scene.gui")
+          or-node (gui-node node-id "sub_scene/sub_box")]
+      (is (some? or-node))
+      (write-file workspace "/gui/sub_scene.gui" (read-file workspace "/gui/new_sub_scene.gui"))
+      (is (some? (gui-node node-id "sub_scene/sub_box2"))))))
