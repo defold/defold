@@ -1081,6 +1081,7 @@
            (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
                            {:label label# :node-type ~node-type-name}))))
        (original [this] nil)
+       (set-original [this original-id] (throw (ex-info "Originals can't be changed for original nodes")))
        (override-id [this] nil)
        ~@(gt/interfaces node-type)
        ~@(gt/protocols node-type)
@@ -1159,7 +1160,8 @@
                  (get properties output)
                  (node-value* original output evaluation-context))))))
   (override-id [this] override-id)
-  (original [this] original-id))
+  (original [this] original-id)
+  (set-original [this original-id] (assoc this :original-id original-id)))
 
 (defn make-override-node [override-id node-id original-id properties]
   (->OverrideNode override-id node-id original-id properties))
