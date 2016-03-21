@@ -108,8 +108,8 @@ var Combine = {
         xhr.open('GET', this._archiveLocation + '/' + item.name, true);
         xhr.responseType = 'arraybuffer';
         xhr.onprogress = function(evt) {
+	    target.progress[item.name] = {};
             if (evt.total && evt.lengthComputable) {
-                target.progress[item.name] = {};
                 target.progress[item.name].total = evt.total;
             }
             if (evt.loaded && evt.lengthComputable) {
