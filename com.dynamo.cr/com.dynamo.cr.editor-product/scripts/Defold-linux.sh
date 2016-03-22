@@ -6,7 +6,7 @@ set -eu
 # ----------------------------------------------------------------------------
 SCRIPT_NAME="$(basename "${0}")"
 SCRIPT_PATH="$(cd "$(dirname "${0}")"; pwd)"
-trap 'terminate 1 "An unexpected error occurred."' SIGINT SIGTERM EXIT
+trap 'terminate 1 "Launch error: An error occurred."' SIGINT SIGTERM EXIT
 
 
 # ----------------------------------------------------------------------------
@@ -18,12 +18,6 @@ function terminate() {
   exit ${1:-1}
 }
 
-  # --------------------------------------------------------------------------
-  # Setup XULRunner
-  #
-  # Defold requires a specific version of XULRunner for x86_64 and eclipse
-  # requires an absolute path when XULRunner are specified.
-  # --------------------------------------------------------------------------
   function setup_xulrunner() {
     _CONFIG_PATH="${SCRIPT_PATH}/Defold.ini"
     _KEY="-Dorg.eclipse.swt.browser.XULRunnerPath"
@@ -33,35 +27,25 @@ function terminate() {
     fi
   }
 
-  # --------------------------------------------------------------------------
-  # Setup Ubuntu Unity
-  #
-  # There's an issue with Ubuntu Unity where a menu cannot be empty. Since
-  # targets are populated during runtime (technically empty at some point)
-  # we default to a menu within the window instead of within Unity.
-  # --------------------------------------------------------------------------
   function setup_ubuntu_unity() {
     # This is unnecessary but harmless on unaffected distributions.
     export UBUNTU_MENUPROXY=0
   }
 
   function setup_library_path() {
-    if [ ! -z ${LD_LIBRARY_PATH+x} ]; then
+    if [ -z ${LD_LIBRARY_PATH+x} ]; then
       LD_LIBRARY_PATH=""
     fi
 
     _BOB_PATH="$(find "${SCRIPT_PATH}/plugins" -type d \
-        -name "com.dynamo.cr.bob_" | head -n1)"
+        -name "com.dynamo.cr.bob_*" | head -n1)"
     if [ ! -d "${_BOB_PATH}" ]; then
-      terminate 1 "Unable to locate library directory"
+      terminate 1 "Launch error: Unable to locate library directory"
     fi
 
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${SCRIPT_PATH}"
   }
 
-  # --------------------------------------------------------------------------
-  # Execute Defold
-  # --------------------------------------------------------------------------
   function execute_defold() {
     _EXECUTABLE_PATH="${SCRIPT_PATH}/Defold"
     if [ -f "${_EXECUTABLE_PATH}" ]; then
@@ -69,7 +53,6 @@ function terminate() {
       "${_EXECUTABLE_PATH}"
     fi
   }
-
 
 # ----------------------------------------------------------------------------
 # Script
