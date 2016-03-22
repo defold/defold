@@ -159,7 +159,8 @@
                                          (into uvs (:uv-data user-data))
                                          (into colors (repeat vcount (premul (:color user-data))))]))
                                     [[] [] []] renderables)]
-        (->uv-color-vtx-vb vs uvs colors (count vs)))
+        (when (not-empty vs)
+          (->uv-color-vtx-vb vs uvs colors (count vs))))
 
       (contains? user-data :text-data)
       (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
