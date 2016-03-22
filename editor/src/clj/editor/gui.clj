@@ -159,7 +159,8 @@
                                          (into uvs (:uv-data user-data))
                                          (into colors (repeat vcount (premul (:color user-data))))]))
                                     [[] [] []] renderables)]
-        (->uv-color-vtx-vb vs uvs colors (count vs)))
+        (when (not-empty vs)
+          (->uv-color-vtx-vb vs uvs colors (count vs))))
 
       (contains? user-data :text-data)
       (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
@@ -209,23 +210,25 @@
       (render-lines gl render-args renderables rcount)
       (render-tris gl render-args renderables rcount))))
 
-(defn- sort-by-angle [ps]
-  (-> (sort-by (fn [[x y _]] (let [a (Math/atan2 y x)]
+(defn- sort-by-angle [ps max-angle]
+  (-> (sort-by (fn [[x y _]] (let [a (* (Math/atan2 y x) (if (< max-angle 0) -1.0 1.0))]
                               (cond-> a
                                 (< a 0) (+ (* 2.0 Math/PI))))) ps)
     (vec)))
 
-(defn- cornify [ps max-angle]
-  (let [corner-count (int (/ (+ max-angle 45) 90))]
+(defn- cornify [ps ^double max-angle]
+  (let [corner-count (int (/ (+ (Math/abs max-angle) 45) 90))]
     (if (> corner-count 0)
-      (-> ps
-        (into (geom/chain (dec corner-count) (partial geom/rotate [0 0 90]) (geom/rotate [0 0 45] [[1 0 0]])))
-        (sort-by-angle))
+      (let [right (if (< max-angle 0) -90 90)
+            half-right (if (< max-angle 0) -45 45)]
+        (-> ps
+         (into (geom/chain (dec corner-count) (partial geom/rotate [0 0 right]) (geom/rotate [0 0 half-right] [[1 0 0]])))
+         (sort-by-angle max-angle)))
       ps)))
 
-(defn- pie-circling [segments max-angle corners? ps]
-  (let [cut-off? (< max-angle 360)
-        angle (/ 360 segments)
+(defn- pie-circling [segments ^double max-angle corners? ps]
+  (let [cut-off? (< (Math/abs max-angle) 360)
+        angle (* (/ 360 segments) (if (< max-angle 0) -1.0 1.0))
         segments (if cut-off?
                    (int (/ max-angle angle))
                    segments)]
@@ -549,9 +552,9 @@
           (g/fnk [pivot size color pie-data texture anim-data]
                  (let [[w h _] size
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])
-                       {:keys [outer-bounds inner-radius perimeter-vertices pie-fill-angle]} pie-data
+                       {:keys [outer-bounds inner-radius perimeter-vertices ^double pie-fill-angle]} pie-data
                        outer-rect? (= :piebounds-rectangle outer-bounds)
-                       cut-off? (< pie-fill-angle 360)
+                       cut-off? (< (Math/abs pie-fill-angle) 360)
                        hole? (> inner-radius 0)
                        vs (pie-circling perimeter-vertices pie-fill-angle outer-rect? [[1 0 0]])
                        vs-outer (if outer-rect?
