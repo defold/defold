@@ -63,7 +63,14 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration'])
+            self.env.append_value('LINKFLAGS',
+                ['-framework', 'UIKit',                 '-framework', 'AdSupport',
+                 '-framework', 'SystemConfiguration',   '-framework', 'AddressBook',
+                 '-framework', 'AssetsLibrary',         '-framework', 'CoreData',
+                 '-framework', 'CoreLocation',          '-framework', 'CoreMotion',
+                 '-framework', 'CoreTelephony',         '-framework', 'CoreText',
+                 '-framework', 'Foundation',            '-framework', 'MediaPlayer',
+                 '-framework', 'QuartzCore',            '-framework', 'Security'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -89,10 +96,14 @@ def default_flags(self):
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+
+        # To build with Google Play Game Services (GPGS) we need to use c++11 and
+        # therefore libc++ as stdlib instead of libstdc++.
+        self.env.append_value('CXXFLAGS', ['-std=c++11', '-stdlib=libc++', '-Wno-narrowing'])
+        self.env.append_value('CCFLAGS', ['-stdlib=libstdc++'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-ObjC'])
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -107,7 +118,7 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
-                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
+                                      '-Wno-psabi', '-std=c++11', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
@@ -495,6 +506,10 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
         </receiver>
 
+        <!-- For Google Play Game Sevices (gpg) -->
+        <meta-data android:name="com.google.android.gms.games.APP_ID"
+                   android:value="\ 123456789012" />
+
         <!-- For GCM (push) -->
         <meta-data
             android:name="com.google.android.gms.version"
@@ -598,6 +613,8 @@ def android_package(task):
         activities += '<activity android:name="%s" %s/>' % (activity, attr)
 
     package = 'com.defold.%s' % task.exe_name
+    # TODO: HACK!
+    package = 'com.defold.testa.gpgs'
     if task.android_package:
         package = task.android_package
 

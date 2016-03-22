@@ -12,6 +12,8 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -133,6 +135,17 @@ public class AndroidBundler implements IBundler {
         } else {
             properties.put("orientation-support", "sensor");
         }
+
+        // Extract application id from client id
+        // (ie number part of: 123456789012.apps.googleusercontent.com)
+        String gpgsAppId = "";
+        String gpgsClientId = projectProperties.getStringValue("gpgs", "client_id", "");
+        Pattern p = Pattern.compile("^([0-9]+).+$");
+        Matcher m = p.matcher(gpgsClientId);
+        if (m.find()) {
+            gpgsAppId = m.group(1);
+        }
+        properties.put("gpgs-app-id", gpgsAppId);
 
         helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
 

@@ -1,8 +1,10 @@
 
 package com.dynamo.android;
 
+import android.app.Activity;
 import android.app.NativeActivity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
@@ -416,4 +418,10 @@ public class DefoldActivity extends NativeActivity {
             }
         });
     }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        nativeOnActivityResult(this, requestCode,resultCode, data);
+    }
+    public static native void nativeOnActivityResult(Activity activity,
+            int requestCode, int resultCode, Intent data);
 }

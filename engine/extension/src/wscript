@@ -9,6 +9,9 @@ def build(bld):
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ['extension_ios.cpp']
 
+    if re.match('arm.*?android', bld.env.PLATFORM):
+        source += ['extension_android.cpp']
+
     extension = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                  includes = '.',
                                  source = source,
