@@ -134,11 +134,11 @@
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
-                                    (set path (resource/proj-path resource)))))
+                                    (set path resource))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
                                   (when-let [resource-path (and resource (resource/proj-path resource))]
-                                    (set path resource-path)
+                                    (set path resource)
                                     (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
                        (when (= key KeyCode/ESCAPE)

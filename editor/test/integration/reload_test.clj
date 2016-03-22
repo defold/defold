@@ -291,3 +291,16 @@
       (is (some? or-node))
       (write-file workspace "/gui/sub_scene.gui" (read-file workspace "/gui/new_sub_scene.gui"))
       (is (some? (gui-node node-id "sub_scene/sub_box2"))))))
+
+(deftest game-project
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          node-id (project/get-resource-node project "/game.project")
+          p ["display" "display_profiles"]
+          disp-profs (get (g/node-value node-id :settings-map) p)
+          path "/render/default.display_profiles"
+          new-path "/render/default2.display_profiles"]
+      (write-file workspace path "")
+      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
+      (move-file workspace path new-path)
+      (is (= new-path (get (g/node-value node-id :settings-map) p))))))
