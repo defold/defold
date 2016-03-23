@@ -143,13 +143,13 @@
   {:type :resource,
    :filter "collection",
    :help
-   "file reference of the collection to use for starting the application, /logic/main.collectionc by default",
+   "file reference of the collection to use for starting the application, /logic/main.collection by default",
    :default "/logic/main.collection",
    :path ["bootstrap" "main_collection"]}
   {:type :resource,
    :filter "render",
    :help
-   "which render file to use, which defines the render pipeline, /builtins/render/default.renderc by default",
+   "which render file to use, which defines the render pipeline, /builtins/render/default.render by default",
    :default "/builtins/render/default.render",
    :path ["bootstrap" "render"]}
   {:type :string,
@@ -234,13 +234,13 @@
   {:type :resource,
    :filter "gamepads",
    :help
-   "file reference of the gamepads config file, which maps gamepad signals to OS, /builtins/input/default.gamepadsc by default",
+   "file reference of the gamepads config file, which maps gamepad signals to OS, /builtins/input/default.gamepads by default",
    :default "/builtins/input/default.gamepads",
    :path ["input" "gamepads"]}
   {:type :resource,
    :filter "input_binding",
    :help
-   "file reference of the input config file, which maps HW inputs to actions, /input/game.input_bindingc by default",
+   "file reference of the input config file, which maps HW inputs to actions, /input/game.input_binding by default",
    :default "/input/game.input_binding",
    :path ["input" "game_binding"]}
   {:type :integer,
