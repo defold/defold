@@ -96,7 +96,7 @@
                                  (or (:caret-position opts) 0))]
     (ui/children! parent [text-area])
     (ui/fill-control text-area)
-    (let [refresh-timer (ui/->timer 10 (fn [_] (prn "check") (g/node-value view-id :new-content)))
+    (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
