@@ -112,7 +112,9 @@
           ^Tab assets          (.lookup root "#assets")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
+                                                                 (fn [resource & [opts]]
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))]
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
