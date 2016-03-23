@@ -28,6 +28,7 @@
                        editor.math-test
                        editor.pipeline.tex-gen-test
                        editor.prefs-test
+                       editor.progress-test
                        editor.defold-project-test
                        editor.properties-test
                        editor.protobuf-test

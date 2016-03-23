@@ -10,6 +10,7 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
             [editor.defold-project :as project]
+            [editor.progress :as progress]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
@@ -1355,26 +1356,37 @@
                                   [new-key (f node-desc)])) node-desc)))
 
 (defn load-gui-scene [project self input]
-  (let [def pb-def
-        scene (protobuf/read-text (:pb-class def) input)
-        resource (g/node-value self :resource)
-        resolve-fn (partial workspace/resolve-resource resource)
-        workspace (project/workspace project)
-        graph-id (g/node-id->graph-id self)
-        node-descs (map convert-node-desc (:nodes scene))
-        tmpl-node-descs (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}]) (filter :template-node-child node-descs)))
-        tmpl-node-descs (into {} (map (fn [[id data]] [id (update data :template (fn [parent] (if (contains? tmpl-node-descs parent)
-                                                                                                (recur (:template (get tmpl-node-descs parent)))
-                                                                                                parent)))])
-                                      tmpl-node-descs))
-        node-descs (filter (complement :template-node-child) node-descs)
-        tmpl-children (group-by (comp :template second) tmpl-node-descs)
-        tmpl-roots (filter (complement tmpl-node-descs) (map first tmpl-children))
-        template-data (into {} (map (fn [r] [r (into {} (map (fn [[id tmpl]] [(subs id (inc (count r))) (:data tmpl)]) (rest (tree-seq (constantly true) (comp tmpl-children first) [r nil]))))]) tmpl-roots))
+  (let [def                pb-def
+        scene              (protobuf/read-text (:pb-class def) input)
+        resource           (g/node-value self :resource)
+        resolve-fn         (partial workspace/resolve-resource resource)
+        workspace          (project/workspace project)
+        graph-id           (g/node-id->graph-id self)
+        node-descs         (map convert-node-desc (:nodes scene))
+        tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
+                                         (filter :template-node-child node-descs)))
+        tmpl-node-descs    (into {} (map (fn [[id data]]
+                                           [id (update data :template
+                                                       (fn [parent] (if (contains? tmpl-node-descs parent)
+                                                                      (recur (:template (get tmpl-node-descs parent)))
+                                                                      parent)))])
+                                         tmpl-node-descs))
+        node-descs         (filter (complement :template-node-child) node-descs)
+        tmpl-children      (group-by (comp :template second) tmpl-node-descs)
+        tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
+        template-data      (into {} (map (fn [r] [r (into {} (map (fn [[id tmpl]]
+                                                                    [(subs id (inc (count r))) (:data tmpl)])
+                                                                  (rest (tree-seq (constantly true)
+                                                                                  (comp tmpl-children first)
+                                                                                  [r nil]))))])
+                                         tmpl-roots))
         template-resources (map (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
-        texture-resources (map (comp resolve-fn :texture) (:textures scene))
-        scene-load-data (project/load-resource-nodes project (filter (complement nil?) (map #(project/get-resource-node project %) (concat template-resources
-                                                                                                                                          texture-resources))))]
+        texture-resources  (map (comp resolve-fn :texture) (:textures scene))
+        scene-load-data    (project/load-resource-nodes project
+                                                        (->> (concat template-resources texture-resources)
+                                                             (map #(project/get-resource-node project %))
+                                                             (remove nil?))
+                                                        progress/null-render-progress!)]
     (concat
       scene-load-data
       (g/set-property self :script (workspace/resolve-resource resource (:script scene)))
