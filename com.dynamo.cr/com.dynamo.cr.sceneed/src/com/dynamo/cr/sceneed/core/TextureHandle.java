@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 
 import javax.media.opengl.GL2;
 import javax.media.opengl.GLProfile;
+import javax.vecmath.Point2d;
 
 import com.jogamp.opengl.util.texture.Texture;
 import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
@@ -16,6 +17,23 @@ public class TextureHandle {
     public void setImage(BufferedImage image) {
         this.image = image;
         this.reloadTexture = true;
+    }
+
+    public Point2d getTextureSize() {
+        Point2d size = new Point2d();
+        if(this.image == null) {
+            if(this.texture == null) {
+                size.x = 0.0;
+                size.y = 0.0;
+            } else {
+                size.x = this.texture.getImageWidth();
+                size.y = this.texture.getImageHeight();
+            }
+        } else {
+            size.x = this.image.getWidth();
+            size.y = this.image.getHeight();
+        }
+        return size;
     }
 
     public Texture getTexture(GL2 gl) {
