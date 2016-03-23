@@ -32,20 +32,6 @@ function terminate() {
     export UBUNTU_MENUPROXY=0
   }
 
-  function setup_library_path() {
-    if [ -z ${LD_LIBRARY_PATH+x} ]; then
-      LD_LIBRARY_PATH=""
-    fi
-
-    _BOB_PATH="$(find "${SCRIPT_PATH}/plugins" -type d \
-        -name "com.dynamo.cr.bob_*" | head -n1)"
-    if [ ! -d "${_BOB_PATH}" ]; then
-      terminate 1 "Launch error: Unable to locate library directory"
-    fi
-
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${_BOB_PATH}/libexec/x86_64-linux"
-  }
-
   function execute_defold() {
     _EXECUTABLE_PATH="${SCRIPT_PATH}/Defold"
     if [ -f "${_EXECUTABLE_PATH}" ]; then
@@ -59,6 +45,5 @@ function terminate() {
 # ----------------------------------------------------------------------------
 setup_xulrunner
 setup_ubuntu_unity
-setup_library_path
 execute_defold
 terminate 0 "Done"
