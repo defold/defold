@@ -348,7 +348,7 @@
                                     :node-type TileSourceNode
                                     :load-fn load-tile-source
                                     :icon tile-source-icon
-                                    :view-types [:scene]))
+                                    :view-types [:scene :test]))
 
 (def ^:private default-animation
   {:id "New Animation"

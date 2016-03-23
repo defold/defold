@@ -284,6 +284,6 @@
                                     :node-type SpriteNode
                                     :load-fn load-sprite
                                     :icon sprite-icon
-                                    :view-types [:scene]
+                                    :view-types [:scene :text]
                                     :tags #{:component}
                                     :label "Sprite"))

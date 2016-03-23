@@ -713,7 +713,7 @@
                                      :node-type SpineSceneNode
                                      :load-fn load-spine-scene
                                      :icon spine-scene-icon
-                                     :view-types [:scene]
+                                     :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}})
     (workspace/register-resource-type workspace
                                      :ext "spinemodel"
@@ -721,6 +721,6 @@
                                      :node-type SpineModelNode
                                      :load-fn load-spine-model
                                      :icon spine-model-icon
-                                     :view-types [:scene]
+                                     :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}
                                      :tags #{:component})))

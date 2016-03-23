@@ -733,6 +733,7 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
+                                :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
 

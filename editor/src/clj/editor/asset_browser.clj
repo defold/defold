@@ -71,6 +71,8 @@
 (ui/extend-menu ::resource-menu nil
                 [{:label "Open"
                   :command :open}
+                 {:label "Open As"
+                  :command :open-as}
                  {:label "Copy"
                   :command :copy
                   :acc "Shortcut+C"}
@@ -106,6 +108,22 @@
   (run [selection open-fn]
        (doseq [resource selection]
          (open-fn resource))))
+
+(handler/defhandler :open-as :asset-browser
+  (enabled? [selection] (= 1 (count selection)))
+  (run [selection open-fn user-data]
+    (let [resource (first selection)]
+      (open-fn resource (when-let [view-type (:selected-view-type user-data)]
+                          {:selected-view-type view-type}))))
+  (options [workspace selection user-data]
+           (when-not user-data
+             (let [resource      (first selection)
+                   resource-type (resource/resource-type resource)]
+               (map (fn [vt]
+                      {:label     (or (:label vt) "External Editor")
+                       :command   :open-as
+                       :user-data {:selected-view-type vt}})
+                    (:view-types resource-type))))))
 
 (defn- roots [resources]
   (let [resources (into {} (map (fn [resource] [(->path (resource/proj-path resource)) resource]) resources))
