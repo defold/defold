@@ -88,8 +88,8 @@
         (reduce conj! vb vs)
         (persistent! vb)))))
 
-(defn- measure-line [glyphs line]
-  (let [w (reduce + 0 (map (fn [c] (get-in glyphs [(int c) :advance] 0)) line))]
+(defn- measure-line [glyphs text-tracking line]
+  (let [w (reduce + (- text-tracking) (map (fn [c] (+ text-tracking (get-in glyphs [(int c) :advance] 0))) line))]
     (if-let [last (get glyphs (and (last line) (int (last line))))]
       (- (+ w (:left-bearing last) (:width last)) (:advance last))
       w)))
@@ -97,14 +97,14 @@
 (defn- split [s i]
   (mapv s/trim [(subs s 0 i) (subs s i)]))
 
-(defn- break-line [^String line glyphs max-width]
+(defn- break-line [^String line glyphs max-width text-tracking]
   (loop [b (dec (count line))
          last-space nil]
     (if (> b 0)
       (let [c (.charAt line b)]
         (if (Character/isWhitespace c)
           (let [[l1 l2] (split line b)
-                w (measure-line glyphs l1)]
+                w (measure-line glyphs text-tracking l1)]
             (if (> w max-width)
               (recur (dec b) b)
               [l1 l2]))
@@ -113,35 +113,36 @@
         (split line last-space)
         [line nil]))))
 
-(defn- break-lines [lines glyphs max-width]
+(defn- break-lines [lines glyphs max-width text-tracking]
   (reduce (fn [result line]
-            (let [w (measure-line glyphs line)]
+            (let [w (measure-line glyphs text-tracking line)]
               (if (> w max-width)
-                (let [[l1 l2] (break-line line glyphs max-width)]
+                (let [[l1 l2] (break-line line glyphs max-width text-tracking)]
                   (if l2
                     (recur (conj result l1) l2)
                     (conj result line)))
                 (conj result line)))) [] lines))
 
-(defn- split-text [glyphs text line-break? max-width]
+(defn- split-text [glyphs text line-break? max-width text-tracking]
   (cond-> (map s/trim (s/split-lines text))
-    line-break? (break-lines glyphs max-width)))
+    line-break? (break-lines glyphs max-width text-tracking)))
 
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g]) (:glyphs font-map))))
 
 (defn measure
   ([font-map text]
-    (measure font-map text false 0))
-  ([font-map text line-break? max-width]
+    (measure font-map text false 0 0 1))
+  ([font-map text line-break? max-width text-tracking text-leading]
     (if (or (nil? font-map) (nil? text) (empty? text))
       [0 0]
       (let [glyphs (font-map->glyphs font-map)
-            lines (split-text glyphs text line-break? max-width)
             line-height (+ (:max-descent font-map) (:max-ascent font-map))
-            line-widths (map (partial measure-line glyphs) lines)
+            text-tracking (* line-height text-tracking)
+            lines (split-text glyphs text line-break? max-width text-tracking)
+            line-widths (map (partial measure-line glyphs text-tracking) lines)
             max-width (reduce max 0 line-widths)]
-        [max-width (* (count lines) line-height)]))))
+        [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
 (def FontData {:type g/Keyword
                :font-map g/Any
@@ -175,26 +176,35 @@
              (if-let [entry (first text-entries)]
                (let [colors (repeat (cond->> (into (:color entry) (concat (:outline entry) (:shadow entry)))
                                       (= type :distance-field) (into sdf-params)))
+                     text-tracking (* line-height (:text-tracking entry 0))
+                     text-leading (:text-leading entry 0)
                      offset (:offset entry)
                      xform (doto (Matrix4d.)
                              (.set (let [[x y] offset]
                                      (Vector3d. x y 0.0))))
                      _ (.mul xform ^Matrix4d (:world-transform entry) xform)
-                     lines (split-text glyphs (:text entry) (:line-break entry) (:max-width entry))
+                     lines (split-text glyphs (:text entry) (:line-break entry) (:max-width entry) text-tracking)
+                     line-widths (map (partial measure-line glyphs text-tracking) lines)
+                     max-width (reduce max 0 line-widths)
+                     lines (map vector lines line-widths)
+                     align (:align entry :center)
                      vs (loop [vs vs
                                lines lines
                                line-no 0]
-                          (if-let [line (first lines)]
-                            (let [y (* line-no (- line-height))
+                          (if-let [[line line-width] (first lines)]
+                            (let [y (* line-no (- (* line-height text-leading)))
                                   vs (loop [vs vs
                                             glyphs (map char->glyph line)
-                                            x 0.0]
+                                            x (case align
+                                                :left 0.0
+                                                :center (* 0.5 (- max-width line-width))
+                                                :right (- max-width line-width))]
                                        (if-let [glyph (first glyphs)]
                                          (let [glyph (place-glyph gl cache font-map texture glyph)
                                                cursor (doto (Matrix4d.) (.set (Vector3d. x y 0.0)))
                                                cursor (doto cursor (.mul xform cursor))
                                                vs (reduce conj! vs (map into (glyph-fn cursor glyph) colors))]
-                                           (recur vs (rest glyphs) (+ x (:advance glyph))))
+                                           (recur vs (rest glyphs) (+ x (:advance glyph) text-tracking)))
                                          vs))]
                               (recur vs (rest lines) (inc line-no)))
                             vs))]
@@ -362,7 +372,7 @@
   (output scene g/Any :cached produce-scene)
   (output aabb AABB (g/fnk [font-map preview-text]
                            (if font-map
-                             (let [[w h] (measure font-map preview-text true (:cache-width font-map))
+                             (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
                                    h-offset (:max-ascent font-map)]
                                (-> (geom/null-aabb)
                                  (geom/aabb-incorporate (Point3d. 0 h-offset 0))
