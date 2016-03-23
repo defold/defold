@@ -87,8 +87,14 @@
        (g/mark-defective self (g/error-severe {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 
-(g/defnk produce-save-data [resource raw-settings meta-info]
-  {:resource resource :content (gpcore/settings->str (gpcore/settings-with-value raw-settings))})
+(g/defnk produce-save-data [resource raw-settings meta-info _declared-properties]
+  (let [content (->> raw-settings
+                  gpcore/settings-with-value
+                  (map (fn [s] (if (contains? path->property (:path s))
+                                 (update s :value #(str % "c"))
+                                 s)))
+                  gpcore/settings->str)]
+    {:resource resource :content content}))
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [ref-deps (:ref-deps user-data)
