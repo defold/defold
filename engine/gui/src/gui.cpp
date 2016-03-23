@@ -367,13 +367,13 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset)
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
         uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset));
+        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset, width, height));
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
@@ -683,6 +683,35 @@ namespace dmGui
             scale_y = adjust_scale.getY();
         }
         return Vector4(scale_x, scale_y, 1.0f, 1.0f);
+    }
+
+    inline void CalculateNodeSize(InternalNode* in)
+    {
+        Node& n = in->m_Node;
+        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
+            return;
+        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
+        int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
+        int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
+        anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
+        const float* tc = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_Start + anim_frame)<<3);
+
+        float w,h;
+        if(tc[0] != tc[2] && tc[3] != tc[5])
+        {
+            // uv-rotated
+            w = tc[2]-tc[0];
+            h = tc[5]-tc[1];
+            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_TextureHeight;
+            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_TextureWidth;
+        }
+        else
+        {
+            w = tc[4]-tc[0];
+            h = tc[1]-tc[3];
+            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_TextureWidth;
+            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_TextureHeight;
+        }
     }
 
     struct UpdateDynamicTexturesParams
@@ -1068,6 +1097,7 @@ namespace dmGui
             uint16_t index = entry.m_Node & 0xffff;
             InternalNode* n = &scene->m_Nodes[index];
             float opacity = 1.0f;
+            CalculateNodeSize(n);
             CalculateNodeTransformAndAlphaCached(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, opacity);
             c->m_RenderTransforms.Push(transform);
             c->m_RenderOpacities.Push(opacity);
@@ -1624,6 +1654,7 @@ namespace dmGui
             node->m_Node.m_YAnchor = 0;
             node->m_Node.m_Pivot = 0;
             node->m_Node.m_AdjustMode = 0;
+            node->m_Node.m_SizeMode = SIZE_MODE_MANUAL;
             node->m_Node.m_LineBreak = 0;
             node->m_Node.m_Enabled = 1;
             node->m_Node.m_DirtyLocal = 1;
@@ -2106,11 +2137,21 @@ namespace dmGui
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture_info->m_Texture;
             n->m_Node.m_TextureSet = texture_info->m_TextureSet;
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (texture_info->m_Texture))
+            {
+                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
+                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
+            }
             return RESULT_OK;
         } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
             n->m_Node.m_TextureSet = 0x0;
+            if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
+            {
+                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
+                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
+            }
             return RESULT_OK;
         }
         n->m_Node.m_Texture = 0;
@@ -2343,6 +2384,34 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_AdjustMode = (uint32_t) adjust_mode;
+    }
+
+    void SetNodeSizeMode(HScene scene, HNode node, SizeMode size_mode)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_SizeMode = (uint32_t) size_mode;
+        if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
+        {
+            if (TextureInfo* texture_info = scene->m_Textures.Get(n->m_Node.m_TextureHash))
+            {
+                if(texture_info->m_Texture)
+                {
+                    n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
+                    n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
+                }
+            }
+            else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(n->m_Node.m_TextureHash))
+            {
+                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
+                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
+            }
+        }
+    }
+
+    SizeMode GetNodeSizeMode(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return (SizeMode) n->m_Node.m_SizeMode;
     }
 
     static void AnimateComponent(HScene scene,
@@ -2646,6 +2715,7 @@ namespace dmGui
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         else
             AnimateTextureSetAnim(scene, node, anim_complete_callback, callback_userdata1, callback_userdata2);
+        CalculateNodeSize(n);
         return RESULT_OK;
     }
 
