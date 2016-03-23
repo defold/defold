@@ -320,9 +320,17 @@
 
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
 
 (extend-type Labeled
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Label
   Text
   (text [this] (.getText this))
   (text! [this val] (.setText this val)))
