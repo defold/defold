@@ -43,7 +43,7 @@ function terminate() {
       terminate 1 "Launch error: Unable to locate library directory"
     fi
 
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${SCRIPT_PATH}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${_BOB_PATH}/libexec/x86_64-linux"
   }
 
   function execute_defold() {
