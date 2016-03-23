@@ -113,5 +113,6 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
+                                :label "Code"
                                 :focus-fn update-caret-pos
                                 :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))

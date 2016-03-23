@@ -1492,7 +1492,7 @@
                                      :icon (:icon def)
                                      :tags (:tags def)
                                      :template (:template def)
-                                     :view-types [:scene]
+                                     :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]

@@ -378,7 +378,7 @@
                                     :node-type AtlasNode
                                     :load-fn load-atlas
                                     :icon atlas-icon
-                                    :view-types [:scene]
+                                    :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 
 (defn- single-selection [selection]
