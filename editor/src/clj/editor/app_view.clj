@@ -7,6 +7,7 @@
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.prefs-dialog :as prefs-dialog]
+            [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource])
@@ -367,10 +368,13 @@
   (enabled? [] true)
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
-(defn fetch-libraries [workspace project]
+(defn- fetch-libraries [workspace project]
   (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-  (workspace/update-dependencies! workspace)
-  (workspace/resource-sync! workspace))
+  (future
+    (ui/with-disabled-ui
+      (ui/with-progress [render-fn ui/default-render-progress!]
+        (workspace/update-dependencies! workspace render-fn)
+        (workspace/resource-sync! workspace true [] render-fn)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] true)
