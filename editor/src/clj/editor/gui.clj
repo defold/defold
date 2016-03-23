@@ -193,15 +193,29 @@
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
+(defn- pivot->h-align [pivot]
+  (case pivot
+    (:pivot-e :pivot-ne :pivot-se) :right
+    (:pivot-center :pivot-n :pivot-s) :center
+    (:pivot-w :pivot-nw :pivot-sw) :left))
+
+(defn- pivot->v-align [pivot]
+  (case pivot
+    (:pivot-ne :pivot-n :pivot-nw) :top
+    (:pivot-e :pivot-center :pivot-w) :middle
+    (:pivot-se :pivot-s :pivot-sw) :bottom))
+
 (defn- pivot-offset [pivot size]
-  (let [xs (case pivot
-             (:pivot-e :pivot-ne :pivot-se) -1.0
-             (:pivot-center :pivot-n :pivot-s) -0.5
-             (:pivot-w :pivot-nw :pivot-sw) 0.0)
-        ys (case pivot
-             (:pivot-ne :pivot-n :pivot-nw) -1.0
-             (:pivot-e :pivot-center :pivot-w) -0.5
-             (:pivot-se :pivot-s :pivot-sw) 0.0)]
+  (let [h-align (pivot->h-align pivot)
+        v-align (pivot->v-align pivot)
+        xs (case h-align
+             :right -1.0
+             :center -0.5
+             :left 0.0)
+        ys (case v-align
+             :top -1.0
+             :middle -0.5
+             :bottom 0.0)]
     (mapv * size [xs ys 1])))
 
 (defn render-nodes [^GL2 gl render-args renderables rcount]
@@ -616,6 +630,8 @@
                    (for [[from to] font-connections]
                      (g/connect font-node from self to)))
                  []))))))
+  (property text-leading g/Num)
+  (property text-tracking g/Num)
   (property outline types/Color (default [1 1 1 1]))
   (property outline-alpha g/Num (default 1.0)
     (value (g/fnk [outline] (get outline 3)))
@@ -635,7 +651,7 @@
                                   :max 1.0
                                   :precision 0.01})))
 
-  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (input font-input g/Str)
   (input font-map g/Any)
@@ -657,11 +673,12 @@
                     :text-data (when-let [font-data (get text-data :font-data)]
                                  (assoc text-data :offset (let [[x y] offset]
                                                             [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))})))
-  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break]
-                                         (font/measure font-map text line-break (first size))))
-  (output text-data {g/Keyword g/Any} (g/fnk [text font-data line-break outline shadow size]
+  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
+                                         (font/measure font-map text line-break (first size) text-tracking text-leading)))
+  (output text-data {g/Keyword g/Any} (g/fnk [text font-data line-break outline shadow size pivot text-leading text-tracking]
                                         {:text text :font-data font-data
-                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)})))
+                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)
+                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)})))
 
 ;; Template nodes
 
