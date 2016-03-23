@@ -340,3 +340,10 @@
               expected-prefixes ["Collection" "nil-go" "nil-component"]]
           (is (= 3 (count labels))) ; collection + go + script
           (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
+
+(deftest outline-tile-source
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          node-id (test-util/resource-node project "/graphics/sprites.tileset")
+          ol (g/node-value node-id :node-outline)]
+      (is (some? ol)))))
