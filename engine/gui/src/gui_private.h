@@ -109,6 +109,7 @@ namespace dmGui
                 uint32_t    m_YAnchor : 2;
                 uint32_t    m_Pivot : 4;
                 uint32_t    m_AdjustMode : 2;
+                uint32_t    m_SizeMode : 1;
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
@@ -116,7 +117,7 @@ namespace dmGui
                 uint32_t    m_ClippingMode : 2;
                 uint32_t    m_ClippingVisible : 1;
                 uint32_t    m_ClippingInverted : 1;
-                uint32_t    m_Reserved : 6;
+                uint32_t    m_Reserved : 5;
             };
 
             uint32_t m_State;
@@ -194,9 +195,11 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(void* texture, void *textureset) : m_Texture(texture), m_TextureSet(textureset) {}
+        TextureInfo(void* texture, void *textureset, uint32_t width, uint32_t height) : m_Texture(texture), m_TextureSet(textureset), m_Width(width), m_Height(height) {}
         void*   m_Texture;
         void*   m_TextureSet;
+        uint32_t m_Width : 16;
+        uint32_t m_Height : 16;
     };
 
     struct DynamicTexture

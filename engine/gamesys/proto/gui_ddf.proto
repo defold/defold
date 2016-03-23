@@ -69,6 +69,13 @@ message NodeDesc
         ADJUST_MODE_STRETCH = 2 [(displayName) = "Stretch"];
     };
 
+    // NOTE: Enum values must correspond to the enum values in dmGui
+    enum SizeMode
+    {
+        SIZE_MODE_MANUAL    = 0 [(displayName) = "Manual"];
+        SIZE_MODE_AUTO      = 1 [(displayName) = "Auto"];
+    }
+
     enum PieBounds
     {
         PIEBOUNDS_RECTANGLE = 0 [(displayName) = "Rectangle"];
@@ -119,6 +126,8 @@ message NodeDesc
 
     optional float      text_leading   = 36 [default = 1.0];
     optional float      text_tracking  = 37 [default = 0.0];
+
+    optional SizeMode size_mode  = 38 [default = SIZE_MODE_MANUAL];
 }
 
 message SceneDesc
