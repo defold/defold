@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.progress :as progress]
@@ -12,7 +13,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [service.log :as log]
-            ; TODO - HACK
+            ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
   (:import [java.io File InputStream]
@@ -234,22 +235,42 @@
 (defn prune-build-cache! [cache build-targets]
   (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
 
+(defn- get-resource-name [node-id]
+  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
+    (and resource (resource/resource-name resource))))
+
+(defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
+  (let [labels (conj labels (get-resource-name _node-id))]
+    (if causes
+      (recur (first causes) labels)
+      [(remove nil? labels) user-data])))
+
 (defn build
   ([project node]
    (build project node progress/null-render-progress!))
   ([project node render-progress!]
+   (build project node progress/null-render-progress! nil))
+  ([project node render-progress! render-error!]
    (try
-     (let [basis         (g/now)
-           build-cache   (g/node-value project :build-cache)
-           build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
-                                                 (g/node-value node :build-targets)))]
-       (prune-build-cache! build-cache build-targets)
-       (progress/progress-mapv
-        (fn [target _]
-          (build-target basis (second target) build-targets build-cache))
-        build-targets
-        render-progress!
-        (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))
+     (let [basis                (g/now)
+           build-cache          (g/node-value project :build-cache)
+           build-targets        (g/node-value node :build-targets)
+           build-targets-by-key (and (not (g/error? build-targets))
+                                     (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
+                                                             (g/node-value node :build-targets))))]
+       (if (g/error? build-targets)
+         (let [[labels cause] (find-errors build-targets [])
+               message        (format "Build error [%s] '%s'" (last labels) cause)]
+           (when render-error! (render-error! message))
+           nil)
+         (do
+           (prune-build-cache! build-cache build-targets-by-key)
+           (progress/progress-mapv
+            (fn [target _]
+              (build-target basis (second target) build-targets-by-key build-cache))
+            build-targets-by-key
+            render-progress!
+            (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))))
      (catch Throwable e
        (println e)))))
 
@@ -296,10 +317,12 @@
   ([project node]
    (build-and-write project node progress/null-render-progress!))
   ([project node render-progress!]
+   (build-and-write project node render-progress! nil))
+  ([project node render-progress! render-error!]
    (clear-build-cache project)
    (clear-fs-build-cache project)
    (let [files-on-disk  (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
-         build-results  (build project node render-progress!)
+         build-results  (build project node render-progress! render-error!)
          fs-build-cache (g/node-value project :fs-build-cache)]
      (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
      (prune-fs-build-cache! fs-build-cache build-results)
@@ -489,15 +512,16 @@
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
 (handler/defhandler :build :global
-    (enabled? [] true)
-    (run [project] (let [workspace (g/node-value project :workspace)
-                         game-project (get-resource-node project "/game.project")
-                         launch-path (workspace/project-path (g/node-value project :workspace))]
+  (enabled? [] true)
+  (run [project] (let [workspace    (g/node-value project :workspace)
+                       game-project (get-resource-node project "/game.project")
+                       launch-path  (workspace/project-path (g/node-value project :workspace))]
                      (future
                        (ui/with-disabled-ui
                          (ui/with-progress [render-fn ui/default-render-progress!]
-                           (build-and-write project game-project render-fn)
-                           (launch-engine (io/file launch-path))))))))
+                           (when (not-empty (build-and-write project game-project render-fn
+                                                             #(ui/run-later (dialogs/make-alert-dialog %))))
+                             (launch-engine (io/file launch-path)))))))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
