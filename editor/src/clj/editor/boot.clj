@@ -17,6 +17,7 @@
            [java.io File]))
 
 (set! *warn-on-reflection* true)
+(declare main)
 
 (defmacro deferred
    "Loads and runs a function dynamically to defer loading the namespace.
@@ -47,9 +48,6 @@
     (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
     (.addAll (.getChildren vbox) controls)
     vbox))
-
-(def main)
-
 
 (defn open-welcome [prefs]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
