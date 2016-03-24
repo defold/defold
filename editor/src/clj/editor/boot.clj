@@ -116,12 +116,14 @@
         (ui/modal-progress "Loading project" 100
                            (fn [render-progress!]
                              (do
-                               ;; ensure the the namespaces have been loaded
-                               @namespaces-loaded
-                               (deferred editor.boot-open-project/initialize-project)
-                               (let [project-file (first args)]
-                                 (add-to-recent-projects prefs project-file)
-                                 (deferred editor.boot-open-project/open-project (io/file project-file) prefs render-progress!)))))
+                               (let [progress  (atom (progress/make "Loading project" 1))]
+                                 (render-progress! (swap! progress progress/message "Initializing project"))
+                                 ;; ensure the the namespaces havebeen loaded
+                                 @namespaces-loaded
+                                 (deferred editor.boot-open-project/initialize-project)
+                                 (let [project-file (first args)]
+                                   (add-to-recent-projects prefs project-file)
+                                   (deferred editor.boot-open-project/open-project (io/file project-file) prefs render-progress!))))))
         (catch Throwable t
           (log/error :exception t)
           (stack/print-stack-trace t)
