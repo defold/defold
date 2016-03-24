@@ -116,7 +116,7 @@
                              (do
                                (let [progress  (atom (progress/make "Loading project" 1))]
                                  (render-progress! (swap! progress progress/message "Initializing project"))
-                                 ;; ensure the the namespaces havebeen loaded
+                                 ;; ensure the the namespaces have been loaded
                                  @namespaces-loaded
                                  (deferred editor.boot-open-project/initialize-project)
                                  (let [project-file (first args)]
