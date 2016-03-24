@@ -7,29 +7,14 @@
             [editor.progress :as progress]
             [editor.ui :as ui]
             [service.log :as log])
-  (:import [com.defold.control ListCell TreeCell]
-           [com.defold.editor EditorApplication]
-           [com.defold.editor Start]
-           [com.jogamp.opengl.util.awt Screenshot]
-           [java.awt Desktop]
-           [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button Control ColorPicker Label ListView TextField
-            TitledPane TextArea TreeItem TreeView Menu MenuItem MenuBar Tab TabPane ProgressBar]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
+  (:import [com.defold.control ListCell]
+           [javafx.scene Scene Parent]
+           [javafx.scene.control Button Control Label ListView]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
-           [javafx.scene.paint Color]
-           [javafx.stage Stage FileChooser]
+           [javafx.scene.layout VBox]
+           [javafx.stage Stage]
            [javafx.util Callback]
-           [java.io File]
-           [java.nio.file Paths]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [java.io File]))
 
 (set! *warn-on-reflection* true)
 
@@ -120,11 +105,13 @@
   (let [prefs (prefs/make-prefs "defold")]
     (if (= (count args) 0)
       (do
-        (future ((fn [p] (deferred editor.boot-open-project/load-namespaces)
-                   (deliver p true)
-                   ) namespaces-loaded))
-        (ui/run-later (open-welcome prefs))
-        )
+        ;; load the namespaces of the project with all the defnode
+        ;; creation in the background while the open-welcome is coming
+        ;; up and the user is browsing for a project
+        (future ((fn [p]
+                   (deferred editor.boot-open-project/load-namespaces)
+                   (deliver p true)) namespaces-loaded))
+        (ui/run-later (open-welcome prefs)))
       (try
         (ui/modal-progress "Loading project" 100
                            (fn [render-progress!]
