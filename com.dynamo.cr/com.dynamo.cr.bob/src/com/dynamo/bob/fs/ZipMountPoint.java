@@ -23,6 +23,7 @@ public class ZipMountPoint implements IMountPoint {
     String archivePath;
     ZipFile file;
     Set<String> includeDirs = null;
+    String includeBaseDir = "";
 
     private class ZipResource extends AbstractResource<IFileSystem> {
         ZipEntry entry;
@@ -74,7 +75,7 @@ public class ZipMountPoint implements IMountPoint {
     @Override
     public IResource get(String path) {
         if (this.file != null && includes(path)) {
-            ZipEntry entry = this.file.getEntry(path);
+            ZipEntry entry = this.file.getEntry(this.includeBaseDir + path);
             if (entry != null) {
                 return new ZipResource(this.fileSystem, path, entry);
             }
@@ -86,7 +87,8 @@ public class ZipMountPoint implements IMountPoint {
     public void mount() throws IOException {
         this.file = new ZipFile(this.archivePath);
         try {
-            this.includeDirs = LibraryUtil.readIncludeDirsFromArchive(this.file);
+            this.includeBaseDir = LibraryUtil.findIncludeBaseDir(this.file);
+            this.includeDirs = LibraryUtil.readIncludeDirsFromArchive(this.includeBaseDir, this.file);
         } catch (ParseException e) {
             throw new IOException(e);
         }

@@ -131,11 +131,12 @@ public class BobUtil {
                     Set<String> roots = new HashSet<String>();
                     ZipFile zip = new ZipFile(lib.getLocation().toFile());
                     try {
-                        Set<String> includeRoots = LibraryUtil.readIncludeDirsFromArchive(zip);
+                        String includeBaseDir = LibraryUtil.findIncludeBaseDir(zip);
+                        Set<String> includeRoots = LibraryUtil.readIncludeDirsFromArchive(includeBaseDir, zip);
                         Enumeration<? extends ZipEntry> entries = zip.entries();
                         while (entries.hasMoreElements()) {
                             ZipEntry entry = entries.nextElement();
-                            Path path = new Path(entry.getName());
+                            Path path = new Path(entry.getName().substring(includeBaseDir.length()));
                             if ((entry.isDirectory() && path.segmentCount() == 1) || path.segmentCount() > 1) {
                                 String dir = path.segment(0);
                                 if (!dir.isEmpty() && includeRoots.contains(dir)) {
@@ -144,7 +145,7 @@ public class BobUtil {
                             }
                         }
                         for (String root : roots) {
-                            URI libUri = new URI("zip", null, "/" + root, lib.getLocationURI().toString(), null);
+                            URI libUri = new URI("zip", null, includeBaseDir + "/" + root, lib.getLocationURI().toString(), null);
                             IFolder rootFolder = contentRoot.getFolder(root);
                             rootFolder.createLink(libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
                         }
