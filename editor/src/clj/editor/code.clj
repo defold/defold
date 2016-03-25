@@ -22,8 +22,8 @@
           {:body (nthrest body length) :length length})))
     {:body body :length 0}))
 
-(defn match-until-eol [charseq]
-  (match-while charseq (fn [ch] (and ch (not (#{\newline \return} ch))))))
+(defn match-until-eol [body]
+  (match-while body (fn [ch] (and ch (not (#{\newline \return} ch))))))
 
 (defn match-string [body s]
   (if-let [s (seq s)]
