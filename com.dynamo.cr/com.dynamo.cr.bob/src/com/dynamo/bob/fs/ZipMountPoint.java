@@ -116,11 +116,12 @@ public class ZipMountPoint implements IMountPoint {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String entryPath = entry.getName();
+                entryPath = entryPath.substring(this.includeBaseDir.length());
                 if (includes(entryPath) && entryPath.startsWith(path)) {
                     if (entry.isDirectory()) {
-                        walker.handleDirectory(entry.getName(), results);
+                        walker.handleDirectory(entryPath, results);
                     } else {
-                        walker.handleFile(entry.getName(), results);
+                        walker.handleFile(entryPath, results);
                     }
                 }
             }

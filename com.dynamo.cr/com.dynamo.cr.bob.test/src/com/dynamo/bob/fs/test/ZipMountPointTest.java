@@ -59,5 +59,34 @@ public class ZipMountPointTest {
         assertEquals(1, results.size());
         assertTrue(results.contains("test_lib1/file1.in"));
     }
+
+    @Test
+    public void testWalkerWithSubdir() throws Exception {
+    	
+    	// Mount a library zip that "incorrectly" has a subdir before its game.project
+    	ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib3.zip");
+    	mp.mount();
+        FileSystemWalker walker = new FileSystemWalker();
+        Collection<String> results = new ArrayList<String>();
+        mp.walk(".", walker, results);
+        mp.unmount();
+        
+        // Should result in paths without subdir
+        assertEquals(1, results.size());
+        assertTrue(results.contains("test_lib3/file3.in"));
+        
+    }
+
+    @Test
+    public void testWalkerWithSubdir2() throws Exception {
+    	ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib4.zip");
+    	mp.mount();
+        FileSystemWalker walker = new FileSystemWalker();
+        Collection<String> results = new ArrayList<String>();
+        mp.walk(".", walker, results);
+        mp.unmount();
+        assertEquals(1, results.size());
+        assertTrue(results.contains("test_lib4/file4.in"));
+    }
 }
 
