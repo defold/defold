@@ -115,103 +115,7 @@
     (is (= #{:component} (g/cascade-deletes CascadingInputNode)))))
 
 
-(definterface MarkerInterface)
-(definterface SecondaryInterface)
-
-(g/defnode MarkerInterfaceNode
-  MarkerInterface)
-
-(g/defnode MarkerAndSecondaryInterfaceNode
-  MarkerInterface
-  SecondaryInterface)
-
-(g/defnode InheritedInterfaceNode
- (inherits MarkerInterfaceNode))
-
-(definterface OneMethodInterface
-  (oneMethod [^Long x]))
-
 (defn- private-function [x] [x :ok])
-
-(g/defnode OneMethodNode
-  (input an-input g/Str)
-
-  OneMethodInterface
-  (oneMethod [this ^Long x] (private-function x)))
-
-(g/defnode InheritedMethodNode
-  (inherits OneMethodNode))
-
-(g/defnode OverriddenMethodNode
-  (inherits OneMethodNode)
-
-  OneMethodInterface
-  (oneMethod [this x] [x :overridden]))
-
-(deftest nodes-can-implement-interfaces
-  (testing "implement a single interface"
-    (let [node (g/construct MarkerInterfaceNode)]
-      (is (= #{`MarkerInterface} (g/interfaces MarkerInterfaceNode)))
-      (is (instance? MarkerInterface node))
-      (is (not (instance? SecondaryInterface node)))))
-  (testing "implement two interfaces"
-    (let [node (g/construct MarkerAndSecondaryInterfaceNode)]
-      (is (= #{`MarkerInterface `SecondaryInterface} (g/interfaces MarkerAndSecondaryInterfaceNode)))
-      (is (instance? MarkerInterface node))
-      (is (instance? SecondaryInterface node))))
-  (testing "implement interface with methods"
-    (let [node (g/construct OneMethodNode)]
-      (is (instance? OneMethodInterface node))
-      (is (= [5 :ok] (.oneMethod node 5)))))
-  (testing "interface inheritance"
-    (let [node (g/construct InheritedInterfaceNode)]
-      (is (instance? MarkerInterface node)))
-    (let [node (g/construct InheritedMethodNode)]
-      (is (instance? OneMethodInterface node))
-      (is (= [5 :ok] (.oneMethod node 5))))
-    (let [node (g/construct OverriddenMethodNode)]
-      (is (instance? OneMethodInterface node))
-      (is (= [42 :overridden] (.oneMethod node 42)))))
-  (testing "preserves type hints"
-    (let [[arglist _] (get (g/method-impls OneMethodNode) 'oneMethod)]
-      (is (= 2 (count arglist)))
-      (is (= {:tag 'Long} (meta (second arglist)))))))
-
-(defprotocol LocalProtocol
-  (protocol-method [this x y]))
-
-(g/defnode LocalProtocolNode
-  LocalProtocol
-  (protocol-method [this x y] [:ok x y]))
-
-(g/defnode InheritedLocalProtocol
-  (inherits LocalProtocolNode))
-
-(g/defnode InheritedProtocolOverride
-  (inherits LocalProtocolNode)
-  (protocol-method [this x y] [:override-ok x y]))
-
-(g/defnode ProtocolWithDestructuring
-  LocalProtocol
-  (protocol-method
-   [this {:keys [a b c] :as x} [y1 & ys]]
-   a))
-
-(deftest nodes-can-support-protocols
-  (testing "support a single protocol"
-    (let [node (g/construct LocalProtocolNode)]
-      (is (= #{`LocalProtocol} (g/protocols LocalProtocolNode)))
-      (is (satisfies? LocalProtocol node))
-      (is (= [:ok 5 10] (protocol-method node 5 10))))
-    (let [node (g/construct InheritedLocalProtocol)]
-      (is (satisfies? LocalProtocol node))
-      (is (= [:ok 5 10] (protocol-method node 5 10))))
-    (let [node (g/construct InheritedProtocolOverride)]
-      (is (satisfies? LocalProtocol node))
-      (is (= [:override-ok 5 10] (protocol-method node 5 10)))))
-  (testing "call protocol methods with destructuring"
-    (let [node (g/construct ProtocolWithDestructuring)]
-      (is (= "yes!" (protocol-method node {:a "yes!" :b 'no :c "wrong answer"} (range 10)))))))
 
 (g/defnode SinglePropertyNode
   (property a-property g/Str))
@@ -467,49 +371,6 @@
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output dynamo.graph/Any (fn [x] "foo"))))))))
 
-(g/defnode NodeWithPropertyVariations
-  (property typed-internal g/Int)
-  (property default-internal g/Int
-            (default 0))
-  (property validated-internal g/Int
-            (validate (g/always true)))
-  (property literally-disabled g/Int
-            (dynamic enabled (g/always false))))
-
-(g/defnode InheritsPropertyVariations
-  (inherits NodeWithPropertyVariations))
-
-(def original-node-definition
-  '(dynamo.graph/defnode MutagenicNode
-     (property a-property schema.core/Str  (default "a-string"))
-     (property b-property schema.core/Bool (default true))))
-
-(def replacement-node-definition
-  '(dynamo.graph/defnode MutagenicNode
-     (property a-property schema.core/Str  (default "Genosha"))
-     (property b-property schema.core/Bool (default false))
-     (property c-property schema.core/Int  (default 42))
-     internal.defnode_test.MarkerInterface))
-
-(deftest redefining-nodes-updates-existing-world-instances
-  (with-clean-system
-    (binding [*ns* (find-ns 'internal.defnode-test)]
-      (eval original-node-definition))
-
-    (let [node-type-var          (resolve 'internal.defnode-test/MutagenicNode)
-          node-type              (var-get node-type-var)
-          [original-node-id] (tx-nodes (g/make-node world node-type))
-          node-before-mutation  (g/node-by-id original-node-id)]
-      (binding [*ns* (find-ns 'internal.defnode-test)]
-        (eval replacement-node-definition))
-
-      (let [node-after-mutation (g/node-by-id original-node-id)]
-        (is (not (instance? MarkerInterface node-before-mutation)))
-        (is (= "a-string" (:a-property node-after-mutation)))
-        (is (= true       (:b-property node-after-mutation)))
-        (is (= 42         (:c-property node-after-mutation)))
-        (is (instance? MarkerInterface node-after-mutation))))))
-
 (g/defnode PropertyDynamicsNode
   (input an-input       g/Num)
   (input third-input    g/Num)
@@ -607,4 +468,3 @@
       [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
-

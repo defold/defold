@@ -155,13 +155,10 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls outputs transforms transform-types declared-properties passthroughs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes  property-display-order]
+    [name supertypes outputs transforms transform-types declared-properties passthroughs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes  property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
-  (interfaces            [_] interfaces)
-  (protocols             [_] protocols)
-  (method-impls          [_] method-impls)
   (transforms            [_] transforms)
   (transform-types       [_] transform-types)
   (declared-properties   [_] declared-properties)
@@ -335,9 +332,6 @@
       (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
       (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
       (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
-      (update-in [:interfaces]            combine-with set/union #{} (from-supertypes description gt/interfaces))
-      (update-in [:protocols]             combine-with set/union #{} (from-supertypes description gt/protocols))
-      (update-in [:method-impls]          combine-with merge      {} (from-supertypes description gt/method-impls))
       (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
       (update-in [:cascade-deletes]       combine-with set/union #{} (from-supertypes description :cascade-deletes))
@@ -454,23 +448,6 @@
   [description label property-type]
   (attach-property description label (assoc property-type :unjammable? true)))
 
-(defn attach-interface
-  "Update the node type description with the given interface."
-  [description interface]
-  (update-in description [:interfaces] #(conj (or % #{}) interface)))
-
-(defn attach-protocol
-  "Update the node type description with the given protocol."
-  [description protocol]
-  (update-in description [:protocols] #(conj (or % #{}) protocol)))
-
-(defn attach-method-implementation
-  "Update the node type description with the given function, which
-  must be part of a protocol or interface attached to the description."
-  [description sym argv fn-def]
-  (let [arglist     (mapv #(with-meta (gensym) (meta %)) argv)]
-    (assoc-in description [:method-impls sym] [arglist fn-def])))
-
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
   (loop [flags   #{}
@@ -531,19 +508,7 @@
              `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (keyword label) tp options)))
 
          [(['display-order ordering] :seq)]
-         `(assoc :display-order-decl ~ordering)
-
-         ;; Interface or protocol function
-         [([nm [& argvec] & remainder] :seq)]
-         `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
-
-         [impl :guard symbol?]
-         `(cond->
-              (class? ~impl)
-            (attach-interface (symbol (classname ~impl)))
-
-            (not (class? ~impl))
-            (attach-protocol (fqsymbol '~impl)))))
+         `(assoc :display-order-decl ~ordering)))
 
 (defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
@@ -1082,10 +1047,7 @@
                            {:label label# :node-type ~node-type-name}))))
        (original [this] nil)
        (set-original [this original-id] (throw (ex-info "Originals can't be changed for original nodes")))
-       (override-id [this] nil)
-       ~@(gt/interfaces node-type)
-       ~@(gt/protocols node-type)
-       ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type)))
+       (override-id [this] nil))
      (alter-meta! (var ~(symbol (str "map->" record-name))) assoc :no-doc true)
      (alter-meta! (var ~(symbol (str "->" record-name))) assoc :no-doc true)))
 

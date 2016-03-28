@@ -22,7 +22,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id property-types produce-value NodeType supertypes  transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 

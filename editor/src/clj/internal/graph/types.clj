@@ -24,9 +24,6 @@
 
 (defprotocol NodeType
   (supertypes             [this])
-  (interfaces             [this])
-  (protocols              [this])
-  (method-impls           [this])
   (transforms             [this])
   (transform-types        [this])
   (declared-properties    [this])
