@@ -51,12 +51,6 @@
   (input bar g/Int)
   (property baz g/Str (dynamic enabled (g/fnk [bar] (pos? bar)))))
 
-(defprotocol AProtocol
-  (complainer [this]))
-
-(definterface IInterface
-  (allGood []))
-
 (g/defnk depends-on-self [this] this)
 (g/defnk depends-on-input [an-input] an-input)
 (g/defnk depends-on-property [a-property] a-property)

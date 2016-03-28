@@ -74,14 +74,12 @@
 
 ; Editors
 (g/defnode CurveEditor
-  (inherits core/Scope)
+  (inherits core/Scope))
 
-  core/ICreate
-  (post-create
-   [this basis event]
-   (let [btn (Button.)]
+(defn curve-editor-post-create [node basis event]
+  (let [btn (Button.)]
      (ui/text! btn "Curve Editor WIP!")
-     (.add (.getChildren ^VBox (:parent event)) btn))))
+     (.add (.getChildren ^VBox (:parent event)) btn)))
 
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
@@ -141,7 +139,7 @@
 
 (defn- create-view [game-project ^VBox root place node-type]
   (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
+    (curve-editor-post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
