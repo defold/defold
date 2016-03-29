@@ -520,8 +520,8 @@ int IAP_Restore(lua_State* L)
  * <ul>
  * <li> ident: product identifier
  * <li> state: transaction state
- * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED or state == TRANS_STATE_PURCHASED)
- * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED)
+ * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
+ * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  * <li> date: transaction date
  * <li> original_trans: original transaction (only set when state == TRANS_STATE_RESTORED)
  * </ul>
@@ -591,7 +591,7 @@ static const luaL_reg IAP_methods[] =
 
 /*# transaction purchasing state
  *
- * @name iap.TRANS_STATE_PURCHASING
+ * @name iap.TRANS_STATE_PURCHASING, intermediate mode followed by TRANS_STATE_PURCHASED. Store provider support dependent.
  * @variable
  */
 
@@ -601,7 +601,7 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction unverified state
+/*# transaction unverified state, requires verification of purchase
  *
  * @name iap.TRANS_STATE_UNVERIFIED
  * @variable
@@ -613,7 +613,7 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction restored state
+/*# transaction restored state. Only available on store providers supporting restoring purchases.
  *
  * @name iap.TRANS_STATE_RESTORED
  * @variable
