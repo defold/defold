@@ -25,10 +25,12 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.eclipse.jgit.api.errors.TransportException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -70,6 +72,8 @@ public class ProjectResourceTest extends AbstractResourceTest {
     private WebResource ownerProjectsResource;
     private WebResource ownerProjectResource;
 
+    private EntityManager em;
+
     private void execCommand(String command, String arg) throws IOException {
         TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
         if (r.exitValue != 0) {
@@ -98,7 +102,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
     public void setUp() throws Exception {
         setupUpTest();
 
-        EntityManager em = emf.createEntityManager();
+        em = emf.createEntityManager();
         em.getTransaction().begin();
         owner = new User();
         owner.setEmail(ownerEmail);
@@ -237,6 +241,60 @@ public class ProjectResourceTest extends AbstractResourceTest {
         projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         assertEquals("new name", projectInfo.getName());
         assertEquals("new desc", projectInfo.getDescription());
+    }
+
+    @Test
+    public void changeProjectOwner() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+
+        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
+                .mergeFrom(projectInfo)
+                .setNewOwnerId(memberInfo.getId())
+                .build();
+
+        put(ownerProjectResource, "/project_info", newProjectInfo);
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(memberInfo.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
+    public void changeProjectOwnerToNonMember() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        UserInfo projectOwner = projectInfo.getOwner();
+
+        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
+                .mergeFrom(projectInfo)
+                .setNewOwnerId(nonMemberInfo.getId())
+                .build();
+
+        ClientResponse response = ownerProjectResource.path("/project_info").put(ClientResponse.class, newProjectInfo);
+        assertEquals(403, response.getStatus());
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
+    public void changeProjectOwnerCapReached() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        UserInfo projectOwner = projectInfo.getOwner();
+
+        // Create maximum amount of projects
+        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
+        em.getTransaction().begin();
+        for (int i = 0; i < maxProjectCount; ++i) {
+            ModelUtil.newProject(em, member, "member_proj" + i, String.format("member_proj%d description", i));
+        }
+        em.getTransaction().commit();
+
+        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
+                .mergeFrom(projectInfo)
+                .setNewOwnerId(memberInfo.getId())
+                .build();
+
+        ClientResponse response = ownerProjectResource.path("/project_info").put(ClientResponse.class, newProjectInfo);
+        assertEquals(403, response.getStatus());
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
     }
 
     @Test

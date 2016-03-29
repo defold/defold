@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.resources;
 
+import java.io.IOException;
 import java.util.Set;
 
 import javax.annotation.security.RolesAllowed;
@@ -24,6 +25,7 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
 
@@ -46,7 +48,7 @@ public class UsersResource extends BaseResource {
     static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
         InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
         b.setOriginalCount(a.getOriginalCount())
-.setCurrentCount(a.getCurrentCount());
+            .setCurrentCount(a.getCurrentCount());
         return b.build();
     }
 
@@ -87,6 +89,49 @@ public class UsersResource extends BaseResource {
         }
 
         return b.build();
+    }
+
+    @GET
+    @Path("/{user}/remove")
+    @Transactional
+    public Response remove(@PathParam("user") String user) {
+        User u = getUser();
+        String userId = Long.toString(u.getId());
+        if(!userId.equals(user)) {
+            throw new ServerException("Deleting other users's accounts is not allowed.", Response.Status.FORBIDDEN);
+        }
+
+        validateProjectMemberCount(u);
+        for(Project p : u.getProjects()) {
+            deleteProject(p);
+        }
+
+        logger.info(String.format("Deleting user with ID %s", userId));
+        ModelUtil.removeUser(em, u);
+
+        return okResponse("User %s deleted", userId);
+    }
+
+    private void validateProjectMemberCount(User u) throws ServerException {
+        for(Project p : u.getProjects()) {
+            for(User member: p.getMembers()) {
+
+                if(member.getId() != u.getId()) {
+                    throw new ServerException(String.format("Existing project %s with other members must be deleted or transferred",
+                            p.getName()),
+                            Response.Status.FORBIDDEN);
+                }
+            }
+        }
+    }
+
+    private void deleteProject(Project project) {
+        try {
+            ModelUtil.removeProject(em, project);
+            ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
+        } catch (IOException e) {
+            throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @POST

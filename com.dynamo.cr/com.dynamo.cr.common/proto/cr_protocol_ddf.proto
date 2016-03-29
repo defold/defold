@@ -112,6 +112,7 @@ message ProjectInfo {
     required string repositoryUrl = 9;
     optional string iOSExecutableUrl = 10;
     optional string trackingId = 11 [default = ""];
+    optional int64 new_owner_id = 12;
 }
 
 message ProjectInfoList {

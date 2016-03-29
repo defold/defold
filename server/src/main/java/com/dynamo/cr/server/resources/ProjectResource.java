@@ -259,14 +259,42 @@ public class ProjectResource extends BaseResource {
     @Transactional
     @Path("/project_info")
     public void updateProjectInfo(@PathParam("project") String projectId,
-                                  ProjectInfo projectInfo) {
+                                  ProjectInfo projectInfo ) {
         /*
-         * Only name and description is updated
+         * Only owner ID or name and description is updated
          */
-
         Project project = server.getProject(em, projectId);
-        project.setName(projectInfo.getName());
-        project.setDescription(projectInfo.getDescription());
+        if(projectInfo.hasNewOwnerId()) {
+            if(!changeProjectOwner(project, projectInfo.getNewOwnerId())) {
+                throw new ServerException("Could not change ownership: new owner must be a project member.", Status.FORBIDDEN);
+            }
+        } else {
+            project.setName(projectInfo.getName());
+            project.setDescription(projectInfo.getDescription());
+        }
+    }
+
+    private boolean changeProjectOwner(Project project, long newOwnerId) {
+        User newOwner = server.getUser(em, Long.toString(newOwnerId));
+        for(User member: project.getMembers()) {
+            if(member.getId() == newOwner.getId()) {
+                validateMaxProjectCount(newOwner);
+                logger.debug(String.format("Changing project %d ownership to user %s", project.getId(), newOwnerId));
+                project.setOwner(newOwner);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void validateMaxProjectCount(User newOwner) throws ServerException {
+        long projectCount = ModelUtil.getProjectCount(em, newOwner);
+        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
+
+        if(projectCount >= maxProjectCount) {
+            throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount),
+                    Status.FORBIDDEN);
+        }
     }
 
     @GET
@@ -282,13 +310,9 @@ public class ProjectResource extends BaseResource {
     @Transactional
     public void deleteProject(@PathParam("project") String projectId)  {
         Project project = server.getProject(em, projectId);
-        // Delete git repo
-        Configuration configuration = server.getConfiguration();
-        String repositoryRoot = configuration.getRepositoryRoot();
-        File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
         try {
             ModelUtil.removeProject(em, project);
-            FileUtils.deleteDirectory(projectPath);
+            ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
         } catch (IOException e) {
             throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
         }
