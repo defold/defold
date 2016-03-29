@@ -24,7 +24,8 @@ var Combine = {
     _onDownloadProgress: [],    // signature: downloaded, total
 
     _totalDownloadBytes: 0,
-    _archiveLocation: "split",
+    _archiveLocationPrefix: "split",
+    _archiveLocationSuffix: "",
 
     addProgressListener: function(callback) {
         if (typeof callback !== 'function') {
@@ -105,7 +106,7 @@ var Combine = {
 
         var item = target.pieces[index];
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', this._archiveLocation + '/' + item.name, true);
+        xhr.open('GET', this._archiveLocationPrefix + '/' + item.name + this._archiveLocationSuffix, true);
         xhr.responseType = 'arraybuffer';
         xhr.onprogress = function(evt) {
 	    target.progress[item.name] = {};
@@ -285,10 +286,11 @@ var Module = {
 
     setStatus: function(text) { console.log(text); },
 
-    runApp: function(app_canvas_name, splash_image, archive_location) {
+    runApp: function(app_canvas_name, splash_image, archive_location_prefix, archive_location_suffix) {
         app_canvas_name = (typeof app_canvas_name === 'undefined') ?  'canvas' : app_canvas_name;
         splash_image = (typeof splash_image === 'undefined') ?  'splash_image.png' : splash_image;
-        archive_location = (typeof archive_location === 'undefined') ?  'split' : archive_location;
+        archive_location_prefix = (typeof archive_location_prefix === 'undefined') ?  'split' : archive_location_prefix;
+        archive_location_suffix = (typeof archive_location_suffix === 'undefined') ?  '' : archive_location_suffix;
 
         Module.canvas = document.getElementById(app_canvas_name);
         Module.canvas.style.background = 'no-repeat center url("' + splash_image + '")';
@@ -309,8 +311,9 @@ var Module = {
         Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
         Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
         Combine.addProgressListener(Module.onArchiveLoadProgress);
-        Combine._archiveLocation = archive_location;
-        Combine.process(archive_location + '/archive_files.json');
+        Combine._archiveLocationPrefix = archive_location_prefix;
+        Combine._archiveLocationSuffix = archive_location_suffix;
+        Combine.process(archive_location_prefix + '/archive_files.json' + archive_location_suffix);
     },
 
     onArchiveLoadProgress: function(downloaded, total) {
