@@ -29,6 +29,7 @@ import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.providers.JsonProviders;
@@ -38,6 +39,7 @@ import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientRequest;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.ClientResponse.Status;
+import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.ClientFilter;
@@ -102,18 +104,20 @@ public class UsersResourceTest extends AbstractResourceTest {
     User joeUser;
     User adminUser;
     User bobUser;
+    Project bobProject;
     WebResource adminUsersWebResource;
     WebResource joeUsersWebResource;
     WebResource bobUsersWebResource;
     WebResource joeDefoldAuthUsersWebResource;
     DefaultClientConfig clientConfig;
     WebResource anonymousResource;
+    EntityManager em;
 
     @Before
     public void setUp() throws Exception {
         setupUpTest();
 
-        EntityManager em = emf.createEntityManager();
+        em = emf.createEntityManager();
         em.getTransaction().begin();
         adminUser = new User();
         adminUser.setEmail(adminEmail);
@@ -143,6 +147,8 @@ public class UsersResourceTest extends AbstractResourceTest {
         bobUser.setPassword(bobPasswd);
         bobUser.setRole(Role.USER);
         em.persist(bobUser);
+
+        bobProject = ModelUtil.newProject(em, bobUser, "bobs_project", "bobs_project description");
 
         em.getTransaction().commit();
 
@@ -643,5 +649,75 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(1, is(invitations(em).size()));
     }
 
+    @Test
+    public void testRemoveUser() throws Exception {
+        ClientResponse deleteResponse = joeUsersWebResource
+                .path(String.format("/%d/remove", joeUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(200, deleteResponse.getStatus());
+
+        try {
+            // Should thrown an exception
+            UserInfo userInfo = joeUsersWebResource
+                    .path(joeEmail)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .get(UserInfo.class);
+
+            assertNull(userInfo);
+        } catch(UniformInterfaceException e) {
+            // User not found exception is expected
+        }
+    }
+
+    @Test
+    public void testRemoveProjectOwner() throws Exception {
+
+        ClientResponse deleteResponse = bobUsersWebResource
+                .path(String.format("/%d/remove", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(200, deleteResponse.getStatus());
+
+        try {
+            // Should thrown an exception
+            UserInfo userInfo = bobUsersWebResource
+                    .path(bobEmail)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .get(UserInfo.class);
+
+            assertNull(userInfo);
+        } catch(UniformInterfaceException e) {
+            // User not found exception is expected
+        }
+    }
+
+    @Test
+    public void testRemoveProjectOwnerWithMembers() throws Exception {
+        em.getTransaction().begin();
+        bobProject.getMembers().add(joeUser);
+        em.getTransaction().commit();
+
+        ClientResponse deleteResponse = bobUsersWebResource
+                .path(String.format("/%d/remove", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(403, deleteResponse.getStatus());
+    }
+
+    @Test
+    public void testRemoveOtherUser() throws Exception {
+        ClientResponse deleteResponse = joeUsersWebResource
+                .path(String.format("/%d/remove", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(403, deleteResponse.getStatus());
+    }
 }
 
