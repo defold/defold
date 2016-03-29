@@ -2,6 +2,7 @@
 #define DM_SYS_H
 
 #include <string.h>
+#include <stdlib.h> // free
 
 namespace dmSys
 {
@@ -61,6 +62,18 @@ namespace dmSys
      */
     struct SystemInfo
     {
+        SystemInfo()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        ~SystemInfo()
+        {
+            if(m_UserAgent)
+            {
+                free((void*)m_UserAgent); // Allocated in dmSysGetUserAgent
+            }
+        }
+
         /// Device model where applicable, e.g. iPhone3,1
         char m_DeviceModel[32];
         /// Device manufacturer if available
@@ -83,6 +96,8 @@ namespace dmSys
         char m_AdIdentifier[64];
         /// True if advertising is enabled, e.g. "advertisingTrackingEnabled" on iOS
         bool m_AdTrackingEnabled;
+        /// The string returned from the browser (allocated, has to be free'd)
+        const char* m_UserAgent;
     };
 
     /**
