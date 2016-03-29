@@ -36,8 +36,10 @@ package () {
         tar -xjf "${SCRIPT_PATH}/../xulrunner/${__XULRUNNER}"
 
         if ! grep "XULRunnerPath" "Defold.ini" > /dev/null 2>&1; then
+          _DEFAULT_BROWSER="-Dorg.eclipse.swt.browser.DefaultType=mozilla"
           _ARG_KEY="-Dorg.eclipse.swt.browser.XULRunnerPath"
           _ARG_VAL="xulrunner"
+          echo "${_DEFAULT_BROWSER}" >> "Defold.ini"
           echo "${_ARG_KEY}=${_ARG_VAL}" >> "Defold.ini"
         fi
       fi
