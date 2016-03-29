@@ -48,16 +48,9 @@ public class ProjectsResource extends BaseResource {
     public ProjectInfo newProject(NewProject newProject) {
         User user = getUser();
 
-        List<Project> projects = em.createQuery("select p from Project p where :user member of p.members", Project.class).setParameter("user", user).getResultList();
-        int n = 0;
-        for (Project project : projects) {
-            if (project.getOwner().getId() == user.getId()) {
-                // Count only projects the user own
-                ++n;
-            }
-        }
+        long projectCount = ModelUtil.getProjectCount(em, user);
         int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-        if (maxProjectCount <= n) {
+        if(projectCount >= maxProjectCount) {
             throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount));
         }
 
