@@ -595,19 +595,25 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
         ( _glfwWin.glMajor >= 2 ) || ( _glfwWin.glMinor >= 4 ) ||
         glfwExtensionSupported( "GL_SGIS_generate_mipmap" );
 
-    if( _glfwWin.glMajor > 2 )
-    {
-        _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress( "glGetStringi" );
-        if( !_glfwWin.GetStringi )
-        {
-            // This is a very common problem among people who compile GLFW
-            // on X11/GLX using custom build systems, as it needs explicit
-            // configuration in order to work
-            //
-            // See readme.html section 2.2 for details
-
-            glfwCloseWindow();
-            return GL_FALSE;
+    //
+    // The following check for glGetString(i) is a modification to improve compatibility
+    // with Linux. We have encountered cases where GL_VERSION is 3.0 or higher but where
+    // the function glGetStringi could not be found. In these cases we fallback to the
+    // deprecated function glGetString. This should not change the control-flow for any
+    // other platform.
+    //
+    // 2016-04-29
+    // Jakob Pogulis <jakob.pogulis@king.com>
+    // Ragnar Svensson <ragnar.svensson@king.com>
+    //
+    _glfwWin.GetStringi = NULL;
+    if (_glfwWin.glMajor > 2) {
+        _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress("glGetStringi");
+        if (!_glfwWin.GetStringi) {
+            if (glfwGetProcAddress("glGetString") == NULL) {
+                glfwCloseWindow();
+                return GL_FALSE;
+            }
         }
     }
 
