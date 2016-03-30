@@ -44,6 +44,15 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
+            
+            // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
+            // aapt will find it later when AndroidBundler is run.
+            String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
+            URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
+            if (libc_url != null) {
+                FileUtils.copyURLToFile(libc_url, new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename));
+            }
+            
             extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
 
@@ -189,6 +198,9 @@ public class Bob {
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles");
         options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
+
+        options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
+        options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;

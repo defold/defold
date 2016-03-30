@@ -5,7 +5,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [service.log :as log]
-            [editor.defold-project :as project])
+            [editor.defold-project :as project]
+            [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
@@ -54,6 +55,19 @@
           (ui/run-later (error! this (.getMessage e))))
         (finally
           (ui/run-later (ui/disable! (:root this) false)))))))
+
+(defn make-alert-dialog [message]
+  (let [root     ^Parent (ui/load-fxml "alert.fxml")
+        stage    (Stage.)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["message" "ok"])]
+    (ui/title! stage "Alert")
+    (ui/text! (:message controls) message)
+    (ui/on-action! (:ok controls) (fn [_] (.close stage)))
+
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
 
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
@@ -107,15 +121,16 @@
       (assoc dialog :refresh refresh))))
 
 (defn make-resource-dialog [workspace options]
-  (let [root ^Parent (ui/load-fxml "resource-dialog.fxml")
-        stage (Stage.)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["resources" "ok" "search"])
-        return (atom nil)
-        exts (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+  (let [root         ^Parent (ui/load-fxml "resource-dialog.fxml")
+        stage        (Stage.)
+        scene        (Scene. root)
+        controls     (ui/collect-controls root ["resources" "ok" "search"])
+        return       (atom nil)
+        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
-        items (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %)))) (g/node-value workspace :resource-list))
-        close (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
+        items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
+                             (g/node-value workspace :resource-list))
+        close        (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
 
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (or (:title options) "Select Resource"))
@@ -126,28 +141,41 @@
           (.getSelectionModel)
           (.setSelectionMode SelectionMode/MULTIPLE)))
 
-    (ui/cell-factory! (:resources controls) (fn [r] {:text (resource/resource-name r)
-                                                    :icon (workspace/resource-icon r)
-                                                    :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
-                                                               (tooltip-gen r))}))
+    (ui/cell-factory! (:resources controls) (fn [r] {:text    (resource/proj-path r)
+                                                     :icon    (workspace/resource-icon r)
+                                                     :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
+                                                                (tooltip-gen r))}))
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
     (ui/on-double! (:resources controls) (fn [_] (close)))
 
     (ui/observe (.textProperty ^TextField (:search controls))
-                (fn [_ _ ^String new] (let [pattern-str (str "^" (.replaceAll new "\\*" ".\\*?"))
-                                    pattern (re-pattern pattern-str)
-                                    filtered-items (filter (fn [r] (re-find pattern (resource/resource-name r))) items)]
-                                (ui/items! (:resources controls) filtered-items))))
+                (fn [_ _ ^String new]
+                  (let [search-str     (str/lower-case new)
+                        parts          (-> search-str
+                                           (str/replace #"\*" "")
+                                           (str/split #"\."))
+                        pattern-str    (if (> (count parts) 1)
+                                         (apply str (concat ["^.*"]
+                                                            (butlast parts)
+                                                            [".*\\." (last parts) ".*$"]))
+                                         (str "^" (str/replace search-str #"\*" ".*")))
+                        pattern        (re-pattern pattern-str)
+                        filtered-items (filter (fn [r] (re-find pattern (resource/resource-name r))) items)
+                        list-view      ^ListView (:resources controls)]
+                    (ui/items! list-view filtered-items)
+                    (when-let [first-match (first filtered-items)]
+                      (.select (.getSelectionModel list-view) first-match)))))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event
                         (let [code (.getCode ^KeyEvent event)]
                           (when (cond
-                                  (= code KeyCode/DOWN) (ui/request-focus! (:resources controls))
+                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources controls))
                                   (= code KeyCode/ESCAPE) true
-                                  (= code KeyCode/ENTER) (do (reset! return (ui/selection (:resources controls))) true)
-                                  true false)
+                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources controls)))
+                                                              true)
+                                  true                    false)
                             (.close stage)))))
 
     (.initModality stage Modality/WINDOW_MODAL)
@@ -217,10 +245,10 @@
     (update-tree-view tree-view tree-with-hits)
     (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
       (.setExpanded item true))
-    (let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
-                           (filter (fn [^TreeItem item]
-                                     (instance? MatchContextResource (.getValue item))))
-                           first)]
+    (when-let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
+                                (filter (fn [^TreeItem item]
+                                          (instance? MatchContextResource (.getValue item))))
+                                first)]
       (.select (.getSelectionModel tree-view) first-match))))
 
 (defn make-search-in-files-dialog [workspace project]
@@ -301,6 +329,53 @@
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
+
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    @return))
+
+(defn make-rename-dialog [title label placeholder typ]
+  (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
+        stage    (Stage.)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
+        return   (atom nil)
+        close    (fn [] (reset! return (ui/text (:name controls))) (.close stage))
+        full-name (fn [^String n]
+                    (-> n
+                        (str/replace #"/" "")
+                        (str/replace #"\\" "")
+                        (str (when typ (str "." typ)))))]
+    (.initOwner stage (ui/main-stage))
+
+    (ui/title! stage title)
+    (when label
+      (ui/text! (:name-label controls) label))
+    (when-not (empty? placeholder)
+      (ui/text! (:path controls) (full-name placeholder))
+      (ui/text! (:name controls) placeholder)
+      (.selectAll ^TextField (:name controls)))
+
+    (ui/on-action! (:ok controls) (fn [_] (close)))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (when (condp = code
+                                                 KeyCode/ENTER  (do (reset! return
+                                                                            (when-let [txt (not-empty (ui/text (:name controls)))]
+                                                                              (full-name txt)))
+                                                                    true)
+                                                 KeyCode/ESCAPE true
+                                                 false)
+                                           (.close stage)))))
+    (.addEventFilter scene KeyEvent/KEY_RELEASED
+                     (ui/event-handler event
+                                       (if-let [txt (not-empty (ui/text (:name controls)))]
+                                         (ui/text! (:path controls) (full-name txt))
+                                         (ui/text! (:path controls) ""))))
 
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)

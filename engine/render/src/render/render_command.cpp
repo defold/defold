@@ -125,6 +125,11 @@ namespace dmRender
                     dmGraphics::SetDepthMask(context, (bool) c->m_Operands[0]);
                     break;
                 }
+                case COMMAND_TYPE_SET_DEPTH_FUNC:
+                {
+                    dmGraphics::SetDepthFunc(context, (dmGraphics::CompareFunc)c->m_Operands[0]);
+                    break;
+                }
                 case COMMAND_TYPE_SET_STENCIL_MASK:
                 {
                     dmGraphics::SetStencilMask(context, c->m_Operands[0]);

@@ -110,6 +110,20 @@ Defold Orange       #fd6623             Guides etc
     -fx-font-weight: normal;
 }
 
+.text-field:readonly {
+	-fx-text-inner-color: -mid-grey-light;
+}
+
+.overridden {
+	-fx-text-inner-color: -defold-light-blue;
+	-fx-text-color-base: -defold-light-blue;
+	-fx-text-fill: -defold-light-blue;
+}
+
+.overridden .color-picker-label .text {
+	-fx-fill: -defold-light-blue;
+}
+
 .button,
 .toggle-button,
 /*.radio-button > .radio,*/

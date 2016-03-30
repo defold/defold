@@ -10,6 +10,7 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -120,6 +121,11 @@ public class Server {
                 protected void configureServlets() {
                     Properties props = new Properties();
                     props.put(PersistenceUnitProperties.CLASSLOADER, server.getClass().getClassLoader());
+                    // Get all system properties in order to support overriding persistence.xml properties with -Dx=..
+                    for (Entry<Object, Object> e : System.getProperties().entrySet()) {
+                        props.put(e.getKey(), e.getValue());
+                    }
+                    // TODO: Why this one AND EntityManagerFactoryProvider!?
                     install(new JpaPersistModule(server.getConfiguration().getPersistenceUnitName()).properties(props));
 
                     bind(Server.class).toInstance(server);

@@ -66,8 +66,9 @@ namespace dmGui
 
     enum AdjustReference
     {
-        ADJUST_REFERENCE_LEGACY  = 0,
-        ADJUST_REFERENCE_PARENT = 1
+        ADJUST_REFERENCE_LEGACY   = 0,
+        ADJUST_REFERENCE_PARENT   = 1,
+        ADJUST_REFERENCE_DISABLED = 2
     };
 
     /**
@@ -90,8 +91,8 @@ namespace dmGui
             {
                 uint64_t m_Start : 13;
                 uint64_t m_End : 13;
-                uint64_t m_Width : 13;
-                uint64_t m_Height : 13;
+                uint64_t m_TextureWidth : 13;
+                uint64_t m_TextureHeight : 13;
                 uint64_t m_FPS : 8;
                 uint64_t m_Playback : 4;
             };
@@ -167,6 +168,8 @@ namespace dmGui
 
         /// Total string width
         float m_Width;
+        /// Total string height
+        float m_Height;
         /// Max ascent of font
         float m_MaxAscent;
         /// Max descent of font, positive value
@@ -179,9 +182,10 @@ namespace dmGui
      * @param text text to measure
      * @param width max width. used only when line_break is true
      * @param line_break line break characters
+     * @param tracking letter spacing
      * @param out_metrics the metrics of the supplied text
      */
-    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, TextMetrics* out_metrics);
+    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* out_metrics);
 
     /**
      * Stencil clipping render state
@@ -246,8 +250,7 @@ namespace dmGui
         PROPERTY_SHADOW     = 6,
         PROPERTY_SLICE9     = 7,
         PROPERTY_PIE_PARAMS = 8,
-
-        PROPERTY_RESERVED   = 9,
+        PROPERTY_TEXT_PARAMS= 9,
 
         PROPERTY_COUNT      = 10,
     };
@@ -324,6 +327,14 @@ namespace dmGui
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
+    enum SizeMode
+    {
+        SIZE_MODE_MANUAL    = 0,
+        SIZE_MODE_AUTO      = 1,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum PieBounds
     {
         PIEBOUNDS_RECTANGLE = 0,
@@ -375,7 +386,7 @@ namespace dmGui
     };
 
     struct RenderEntry {
-        uint32_t m_RenderKey;
+        uint64_t m_RenderKey;
         HNode m_Node;
     };
 
@@ -480,9 +491,11 @@ namespace dmGui
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
      * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
+     * @param width With of the texture
+     * @param height Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -811,6 +824,10 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
     void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
     bool GetNodeLineBreak(HScene scene, HNode node);
+    void SetNodeTextLeading(HScene scene, HNode node, float leading);
+    float GetNodeTextLeading(HScene scene, HNode node);
+    void SetNodeTextTracking(HScene scene, HNode node, float tracking);
+    float GetNodeTextTracking(HScene scene, HNode node);
 
     void* GetNodeTexture(HScene scene, HNode node);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
@@ -883,8 +900,8 @@ namespace dmGui
      */
     bool GetNodeClippingInverted(HScene scene, HNode node);
 
-    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
-    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
@@ -897,6 +914,9 @@ namespace dmGui
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
+
+    void SetNodeSizeMode(HScene scene, HNode node, SizeMode size_mode);
+    SizeMode GetNodeSizeMode(HScene scene, HNode node);
 
     void SetNodeInnerRadius(HScene scene, HNode node, float radius);
     void SetNodeOuterBounds(HScene scene, HNode node, PieBounds bounds);

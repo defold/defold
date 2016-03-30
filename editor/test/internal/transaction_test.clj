@@ -75,7 +75,7 @@
 
   (testing "node transformation"
     (with-clean-system
-      (let [[id1] (tx-nodes (g/make-node world Resource :marker 99))
+      (let [[id1] (tx-nodes (g/make-node world Resource :marker (int 99)))
             tx-result   (g/transact (it/become id1 (g/construct Downstream)))]
         (is (= :ok (:status tx-result)))
         (is (= Downstream (g/node-type* (g/now) id1)))

@@ -38,6 +38,21 @@ var LibraryDmSys = {
 
         dmSysPumpMessageQueue: function() {
             DMSYS.PumpMessageQueue();
+        },
+
+        dmSysGetUserPreferredLanguage: function(defaultlang) {
+            var jsdefault = Pointer_stringify(defaultlang);
+            var preferred = navigator == undefined ? jsdefault : (navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
+            var buffer = _malloc(preferred.length + 1);
+            writeStringToMemory(preferred, buffer);
+            return buffer;
+        },
+
+        dmSysGetUserAgent: function() {
+            var useragent = navigator.userAgent;
+            var buffer = _malloc(useragent.length + 1);
+            writeStringToMemory(useragent, buffer);
+            return buffer;
         }
 }
 autoAddDeps(LibraryDmSys, '$DMSYS');

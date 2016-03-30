@@ -123,11 +123,11 @@
                (is (every? #(test-util/selected? project %) go-nodes))))))
 
 (defn- pos [node]
-  (g/node-value node :position))
+  (g/node-value node :position-v3))
 (defn- rot [node]
-  (g/node-value node :rotation))
+  (g/node-value node :rotation-q4))
 (defn- scale [node]
-  (g/node-value node :scale))
+  (g/node-value node :scale-v3))
 
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"

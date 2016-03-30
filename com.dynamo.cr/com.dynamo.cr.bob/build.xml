@@ -163,6 +163,14 @@
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="win32/*texc_shared*"/>
+                <include name="win32/OpenAL32.dll"/>
+                <include name="win32/wrap_oal.dll"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="win32/OpenAL32.dll"/>
+                <include name="win32/wrap_oal.dll"/>
             </fileset>
         </copy>
         <jar destfile="lib/luajit-share.zip">
@@ -233,9 +241,15 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
+                <include name="lib/**/*libc++*"/>
+                <include name="lib/*win32/OpenAL32.dll"/>
+                <include name="lib/*win32/wrap_oal.dll"/>
             </fileset>
             <fileset dir=".">
                 <include name="libexec/**/*"/>
+            </fileset>
+            <fileset dir=".">
+                <include name="lib/report_template.html"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">

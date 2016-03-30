@@ -46,11 +46,13 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         if (builder.getType() == Type.TYPE_BOX) {
             BoxNode boxNode = (BoxNode) node;
             boxNode.setTexture(builder.getTexture());
+            boxNode.setSizeMode(builder.getSizeMode());
             boxNode.setSlice9(LoaderUtil.toVector4(builder.getSlice9()));
             node = boxNode;
         } else if (builder.getType() == Type.TYPE_PIE) {
             PieNode pieNode = (PieNode) node;
             pieNode.setTexture(builder.getTexture());
+            pieNode.setSizeMode(builder.getSizeMode());
             pieNode.setPerimeterVertices(builder.getPerimeterVertices());
             pieNode.setOuterBounds(builder.getOuterBounds());
             pieNode.setInnerRadius(builder.getInnerRadius());
@@ -65,6 +67,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             textNode.setShadow(LoaderUtil.toRGB(builder.getShadow()));
             textNode.setShadowAlpha(builder.hasShadowAlpha() ? builder.getShadowAlpha() : builder.getShadow().getW());
             textNode.setLineBreak(builder.getLineBreak());
+            textNode.setLeading(builder.getTextLeading());
+            textNode.setTracking(builder.getTextTracking());
             node = textNode;
         } else if (builder.getType() == Type.TYPE_TEMPLATE) {
             TemplateNode templateNode = (TemplateNode) node;
@@ -95,11 +99,13 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setType(NodeDesc.Type.TYPE_BOX);
             BoxNode box = (BoxNode)node;
             builder.setTexture(box.getTexture());
+            builder.setSizeMode(box.getSizeMode());
             builder.setSlice9(LoaderUtil.toVector4(box.getSlice9()));
         } else if (node instanceof PieNode) {
             builder.setType(NodeDesc.Type.TYPE_PIE);
             PieNode box = (PieNode)node;
             builder.setTexture(box.getTexture());
+            builder.setSizeMode(box.getSizeMode());
             builder.setPerimeterVertices(box.getPerimeterVertices());
             builder.setInnerRadius(box.getInnerRadius());
             builder.setOuterBounds(box.getOuterBounds());
@@ -114,6 +120,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setShadow(LoaderUtil.toVector4(text.getShadow(), 1));
             builder.setShadowAlpha((float)text.getShadowAlpha());
             builder.setLineBreak(text.isLineBreak());
+            builder.setTextLeading((float)text.getLeading());
+            builder.setTextTracking((float)text.getTracking());
         } else if (node instanceof TemplateNode) {
             builder.setType(NodeDesc.Type.TYPE_TEMPLATE);
             TemplateNode templateNode = (TemplateNode) node;
@@ -174,6 +182,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setScript(sceneBuilder.getScript());
         node.setMaterial(sceneBuilder.getMaterial());
         node.setAdjustReference(sceneBuilder.getAdjustReference());
+        node.setMaxNodes(sceneBuilder.getMaxNodes());
         if (sceneBuilder.hasBackgroundColor()) {
             node.setBackgroundColor(LoaderUtil.toRGB(sceneBuilder.getBackgroundColor()));
         }
@@ -395,6 +404,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         b.setScript(node.getScript());
         b.setMaterial(node.getMaterial());
         b.setAdjustReference(node.getAdjustReference());
+        b.setMaxNodes(node.getMaxNodes());
         b.setBackgroundColor(LoaderUtil.toVector4(node.getBackgroundColor(), 1.0));
         for (Node n : node.getTexturesNode().getChildren()) {
             TextureNode texNode = (TextureNode) n;

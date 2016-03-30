@@ -1,7 +1,7 @@
 (ns integration.gui-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system tx-nodes]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
@@ -12,10 +12,10 @@
            [org.apache.commons.io FilenameUtils FileUtils]))
 
 (defn- prop [node-id label]
-  (get-in (g/node-value node-id :_properties) [:properties label :value]))
+  (test-util/prop node-id label))
 
 (defn- prop! [node-id label val]
-  (g/transact (g/set-property node-id label val)))
+  (test-util/prop! node-id label val))
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
@@ -24,6 +24,9 @@
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
     (id->node id)))
+
+(defn- gui-layer [scene id]
+  (get (g/node-value scene :layer-ids) id))
 
 (deftest load-gui
   (with-clean-system
@@ -67,12 +70,12 @@
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
-         atlas-gui-node (get-in outline [:children 0 :children 2 :node-id])
+         box (get-in outline [:children 0 :children 2 :node-id])
          atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
      (is (some? atlas-tex))
-     (is (= "atlas_texture/anim" (prop atlas-gui-node :texture)))
+     (is (= "atlas_texture/anim" (prop box :texture)))
      (prop! atlas-tex :name "new-name")
-     (is (= "new-name/anim" (prop atlas-gui-node :texture))))))
+     (is (= "new-name/anim" (prop box :texture))))))
 
 (deftest gui-shaders
   (with-clean-system
@@ -132,3 +135,165 @@
       (is (= ["pie" "box1" "box" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "")
       (is (= ["box" "pie" "box1" "text"] (render-order view))))))
+
+;; Templates
+
+(deftest gui-templates
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          original-template (test-util/resource-node project "/gui/sub_scene.gui")
+          tmpl-node (gui-node node-id "sub_scene")
+          path [:children 0 :children 0 :node-id]]
+      (is (not= (get-in (g/node-value tmpl-node :scene) path)
+                (get-in (g/node-value original-template :scene) path))))))
+
+(deftest gui-template-ids
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          original-template (test-util/resource-node project "/gui/sub_scene.gui")
+          tmpl-node (gui-node node-id "sub_scene")
+          old-name "sub_scene/sub_box"
+          new-name "sub_scene2/sub_box"]
+      (is (not (nil? (gui-node node-id old-name))))
+      (is (nil? (gui-node node-id new-name)))
+      (g/transact (g/set-property tmpl-node :id "sub_scene2"))
+      (is (not (nil? (gui-node node-id new-name))))
+      (is (nil? (gui-node node-id old-name)))
+      (is (false? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :id :read-only?])))
+      (let [sub-node (gui-node node-id new-name)
+            props (get (g/node-value sub-node :_declared-properties) :properties)]
+        (is (= new-name (prop sub-node :id)))
+        (is (= (g/node-value sub-node :id)
+               (get-in props [:id :value])))
+        (is (true? (get-in props [:id :read-only?])))))))
+
+(deftest gui-templates-complex-property
+ (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project (test-util/setup-project! workspace)
+         app-view (test-util/setup-app-view!)
+         node-id (test-util/resource-node project "/gui/scene.gui")
+         sub-node (gui-node node-id "sub_scene/sub_box")]
+     (let [color (prop sub-node :color)
+           alpha (prop sub-node :alpha)]
+       (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
+       (is (not= color (prop sub-node :color)))
+       (is (not= alpha (prop sub-node :alpha)))
+       (g/transact (g/clear-property sub-node :alpha))
+       (is (= color (prop sub-node :color)))
+       (is (= alpha (prop sub-node :alpha)))))))
+
+(deftest gui-template-hierarchy
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/super_scene.gui")
+          sub-node (gui-node node-id "scene/sub_scene/sub_box")]
+      (is (not= nil sub-node))
+      (let [template (gui-node node-id "scene/sub_scene")
+            resource (workspace/find-resource workspace "/gui/sub_scene.gui")]
+        (is (= resource (get-in (g/node-value template :_properties) [:properties :template :value :resource])))
+        (is (true? (get-in (g/node-value template :_properties) [:properties :template :read-only?]))))
+      (let [template (gui-node node-id "scene")
+            overrides (get-in (g/node-value template :_properties) [:properties :template :value :overrides])]
+        (is (contains? overrides "sub_scene/sub_box"))
+        (is (false? (get-in (g/node-value template :_properties) [:properties :template :read-only?])))))))
+
+(deftest gui-template-selection
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/super_scene.gui")
+          tmpl-node (gui-node node-id "scene/sub_scene")]
+      (project/select! project [tmpl-node])
+      (let [props (g/node-value project :selected-node-properties)]
+        (is (not (empty? (keys props))))))))
+
+(deftest gui-template-set-leak
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          sub-node (test-util/resource-node project "/gui/sub_scene.gui")
+          tmpl-node (gui-node node-id "sub_scene")]
+      (is (= 1 (count (g/overrides sub-node))))
+      (g/transact (g/set-property tmpl-node :template {:resource (workspace/find-resource workspace "/gui/layers.gui") :overrides {}}))
+      (is (= 0 (count (g/overrides sub-node)))))))
+
+(defn- options [node-id prop]
+  (vec (vals (get-in (g/node-value node-id :_properties) [:properties prop :edit-type :options]))))
+
+(deftest gui-template-dynamics
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/super_scene.gui")
+          box (gui-node node-id "scene/box")
+          text (gui-node node-id "scene/text")]
+      (is (= ["" "main_super/particle_blob"] (options box :texture)))
+      (is (= ["" "layer"] (options text :layer)))
+      (is (= ["" "system_font_super"] (options text :font)))
+      (g/transact (g/set-property text :layer "layer"))
+      (let [l (gui-layer node-id "layer")]
+        (g/transact (g/set-property l :name "new-name"))
+        (is (= "new-name" (prop text :layer)))))))
+
+(defn- strip-scene [scene]
+  (-> scene
+    (select-keys [:node-id :children :renderable])
+    (update :children (fn [c] (mapv #(strip-scene %) c)))
+    (update-in [:renderable :user-data] select-keys [:color])
+    (update :renderable select-keys [:user-data])))
+
+(defn- scene-by-nid [root-id node-id]
+  (let [scene (g/node-value root-id :scene)
+        scenes (into {} (map (fn [s] [(:node-id s) s]) (tree-seq (constantly true) :children (strip-scene scene))))]
+    (scenes node-id)))
+
+(deftest gui-template-alpha
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/gui/super_scene.gui")
+          scene-fn (comp (partial scene-by-nid node-id) (partial gui-node node-id))]
+      (is (= 1.0 (get-in (scene-fn "scene/box") [:renderable :user-data :color 3])))
+      (g/transact
+        (concat
+          (g/set-property (gui-node node-id "scene") :alpha 0.5)))
+      (is (= 0.5 (get-in (scene-fn "scene/box") [:renderable :user-data :color 3]))))))
+
+(deftest gui-template-reload
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/super_scene.gui")
+          template (gui-node node-id "scene")
+          box (gui-node node-id "scene/box")]
+      (g/transact (g/set-property box :position [-100.0 0.0 0.0]))
+      (is (= -100.0 (get-in (g/node-value template :_properties) [:properties :template :value :overrides "box" :position 0])))
+      (use 'editor.gui :reload)
+      (is (= -100.0 (get-in (g/node-value template :_properties) [:properties :template :value :overrides "box" :position 0]))))))
+
+(deftest gui-template-add
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          super (test-util/resource-node project "/gui/super_scene.gui")
+          parent (:node-id (test-util/outline node-id [0]))
+          [new-tmpl] (g/tx-nodes-added (gui/add-gui-node! project node-id parent :type-template))
+          super-template (gui-node super "scene")]
+      (is (= new-tmpl (gui-node node-id "template")))
+      (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
+      (prop! new-tmpl :template {:resource (workspace/resolve-workspace-resource workspace "/gui/sub_scene.gui") :overrides {}})
+      (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))

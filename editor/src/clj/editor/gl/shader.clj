@@ -494,7 +494,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (def shader-defs [{:ext "vp"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :view-opts glsl-opts
                    :prefix (string/join "\n" ["#ifndef GL_ES"
                                               "#define lowp"
@@ -505,7 +505,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                   {:ext "fp"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :view-opts glsl-opts
                    :prefix (string/join "\n" ["#ifdef GL_ES"
                                               "precision mediump float;"
