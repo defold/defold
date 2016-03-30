@@ -1,11 +1,11 @@
 (ns editor.gl.texture
   "Functions for creating and using textures"
-  (:require [editor.image :as img :refer [placeholder-image]]
+  (:require [editor.image :as image]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl :as gl]
             [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g])
-  (:import [java.awt.image BufferedImage]
+  (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
            [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GL3 GLContext GLProfile]
            [com.jogamp.common.nio Buffers]
@@ -72,10 +72,39 @@
 (def
   ^{:doc "If you do not supply parameters to `image-texture`, these will be used as defaults."}
   default-image-texture-params
-  {:min-filter gl/linear
+  {:min-filter gl/linear-mipmap-linear
    :mag-filter gl/linear
    :wrap-s     gl/clamp
    :wrap-t     gl/clamp})
+
+(defn- channels->format [^long channels]
+  (case channels
+    1 GL2/GL_LUMINANCE
+    3 GL2/GL_RGB
+    4 GL2/GL_RGBA))
+
+(defn- channels->type [^long channels]
+  (case channels
+    1 GL2/GL_UNSIGNED_BYTE
+    3 GL2/GL_UNSIGNED_BYTE
+    4 GL2/GL_UNSIGNED_INT_8_8_8_8))
+
+(defn- ->texture-data [width height channels data mipmap]
+  (let [internal-format (channels->format channels)
+        _ (assert internal-format (format "Invalid channel count %d" channels))
+        type (channels->type channels)
+        border 0]
+    (TextureData. (GLProfile/getGL2GL3) internal-format width height border internal-format type mipmap false false data nil)))
+
+(defn- image->texture-data ^TextureData [img mipmap]
+  (let [channels (image/image-color-components img)
+        type (case channels
+               4 BufferedImage/TYPE_4BYTE_ABGR_PRE
+               3 BufferedImage/TYPE_3BYTE_BGR
+               1 BufferedImage/TYPE_BYTE_GRAY)
+        img (image/image-convert-type img type)
+        data (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster img))))]
+    (->texture-data (.getWidth img) (.getHeight img) channels data mipmap)))
 
 (defn image-texture
   "Create an image texture from a BufferedImage. The returned value
@@ -95,34 +124,21 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
     (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
-    (let [texture-data (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) (or img (:contents placeholder-image)) true)
+    (let [texture-data (image->texture-data (or img (:contents image/placeholder-image)) true)
           unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
 
-(defn- channels->format [^long channels]
-  (case channels
-    1 GL2/GL_LUMINANCE
-    3 GL2/GL_RGB
-    4 GL2/GL_RGBA))
-
-(defn- ->texture-data [width height channels data]
-  (let [internal-format (channels->format channels)
-        _ (assert internal-format (format "Invalid channel count %d" channels))
-        type GL2/GL_UNSIGNED_BYTE
-        border 0]
-    (TextureData. (GLProfile/getGL2GL3) internal-format width height border internal-format type false false false data nil)))
-
 (defn empty-texture [request-id width height channels params unit-index]
   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
-    (->TextureLifecycle request-id ::texture unit params (->texture-data width height channels nil))))
+    (->TextureLifecycle request-id ::texture unit params (->texture-data width height channels nil false))))
 
-(def white-pixel (image-texture ::white (-> (img/blank-image 1 1) (img/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
+(def white-pixel (image-texture ::white (-> (image/blank-image 1 1) (image/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
                                                                                              :min-filter GL2/GL_NEAREST
                                                                                              :mag-filter GL2/GL_NEAREST)))
 
 (defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h channels]
   (let [tex (->texture texture gl)
-        data (->texture-data w h channels data)]
+        data (->texture-data w h channels data false)]
     (.updateSubImage tex gl data 0 x y)))
 
 (def default-cubemap-texture-params
@@ -135,13 +151,13 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 (def cubemap-placeholder
   (memoize
     (fn []
-      (img/flood (img/blank-image 512 512 BufferedImage/TYPE_3BYTE_BGR) 0.9568 0.0 0.6313))))
+      (image/flood (image/blank-image 512 512 BufferedImage/TYPE_3BYTE_BGR) 0.9568 0.0 0.6313))))
 
 (defn- safe-texture
   [x]
   (if (nil? x)
     (cubemap-placeholder)
-    (if (= (:contents img/placeholder-image) x)
+    (if (= (:contents image/placeholder-image) x)
       (cubemap-placeholder)
       x)))
 
@@ -187,7 +203,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 
 (defn- update-cubemap-texture [^GL2 gl ^Texture texture imgs]
   (doseq [[img target] (mapv vector imgs cubemap-targets)]
-    (.updateImage texture gl ^TextureData (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) img false) target))
+    (.updateImage texture gl (image->texture-data img false) target))
   texture)
 
 (defn- make-cubemap-texture [^GL2 gl imgs]

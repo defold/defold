@@ -32,7 +32,7 @@ public class ClippingNode extends GuiNode {
 
     private transient ClippingState clippingState;
     private transient ClippingState childClippingState;
-    private transient int clippingKey;
+    private transient long clippingKey;
 
     @Override()
     public void setClippingMode(ClippingMode mode) {
@@ -137,11 +137,11 @@ public class ClippingNode extends GuiNode {
         this.childClippingState = childClippingState;
     }
 
-    public int getClippingKey() {
+    public long getClippingKey() {
         return this.clippingKey;
     }
 
-    public void setClippingKey(int key) {
+    public void setClippingKey(long key) {
         this.clippingKey = key;
     }
 

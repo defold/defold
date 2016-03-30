@@ -40,13 +40,13 @@
   (input-cardinality      [this input])
   (cascade-deletes        [this])
   (output-type            [this output])
-  (property-passthrough?  [this output])
+  (passthroughs           [this])
   (property-display-order [this]))
 
 (defn node-type? [x] (satisfies? NodeType x))
 
 (defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
-(defn output-labels       [node-type]          (-> node-type declared-outputs))
+(defn output-labels       [node-type]          (-> node-type transforms keys set))
 (defn property-labels     [node-type]          (-> node-type declared-properties keys set))
 (defn internal-properties [node-type]          (->> node-type declared-properties (util/filter-vals :internal?)))
 (defn public-properties   [node-type]          (->> node-type declared-properties (util/filter-vals (comp not :internal?))))
@@ -64,9 +64,10 @@
   (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
   (produce-value       [this output evaluation-context] "Return the value of the named output")
   (override-id         [this] "Return the ID of the override this node belongs to, if any")
-  (original            [this] "Return the ID of the original of this node, if any"))
+  (original            [this] "Return the ID of the original of this node, if any")
+  (set-original        [this original-id] "Set the ID of the original of this node, if any"))
 
-(defn node? [v] (satisfies? Node v))
+(defn node-id? [v] (integer? v))
 
 (defprotocol IBasis
   (node-by-property [this label value])
@@ -78,8 +79,10 @@
   (delete-node      [this node-id]               "returns [basis node]")
   (replace-node     [this node-id value]         "returns [basis node]")
   (override-node    [this original-id override-id])
+  (override-node-clear [this original-id])
   (add-override     [this override-id override])
   (delete-override  [this override-id])
+  (replace-override [this override-id value])
   (connect          [this src-id src-label tgt-id tgt-label])
   (disconnect       [this src-id src-label tgt-id tgt-label])
   (connected?       [this src-id src-label tgt-id tgt-label])

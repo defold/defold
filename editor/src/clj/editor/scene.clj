@@ -111,14 +111,14 @@
   (let [[w h] (vp-dims viewport)]
     (and (> w 0) (> h 0))))
 
-(defn z-distance [camera viewport renderable ^Point3d tmp-p3d]
-  (let [^Matrix4d t (or (:world-transform renderable) geom/Identity4d)
+(defn z-distance [camera viewport ^Matrix4d world-transform ^Point3d tmp-p3d]
+  (let [^Matrix4d t (or world-transform geom/Identity4d)
         _ (.transform t tmp-p3d)
         p (c/camera-project camera viewport tmp-p3d)]
     (long (* Integer/MAX_VALUE (.z p)))))
 
-(defn render-key [camera viewport renderable tmp-p3d]
-  (:index renderable (- Long/MAX_VALUE (z-distance camera viewport renderable tmp-p3d))))
+(defn render-key [camera viewport ^Matrix4d world-transform tmp-p3d]
+  (- Long/MAX_VALUE (z-distance camera viewport world-transform tmp-p3d)))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -249,8 +249,8 @@
                                 :selected selected
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene) parent-world))
-                         (assoc :render-key (render-key camera viewport renderable tmp-p3d)))]
+                                :aabb (geom/aabb-transform ^AABB (:aabb scene) parent-world)
+                                :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected (types/selection? pass))
@@ -275,10 +275,10 @@
 (g/defnode SceneRenderer
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
-  (input viewport Region)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array)
 
+  (output viewport Region :abstract)
   (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:renderables render-data)))
   (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
@@ -733,6 +733,7 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
+                                :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
 
@@ -740,23 +741,25 @@
   (property position types/Vec3 (default [0.0 0.0 0.0]))
   (property rotation types/Vec3 (default [0.0 0.0 0.0]))
 
-  (output position Vector3d :cached (g/fnk [^types/Vec3 position] (Vector3d. (double-array position))))
-  (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
-  (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
+  (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
+  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
+  (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (Matrix4d. rotation-q4 position-v3 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/always (geom/null-aabb)))
+  (output aabb AABB :cached (g/always (geom/null-aabb))))
 
-  scene-tools/Movable
-  (scene-tools/move [self delta] (let [p (doto (Vector3d. (double-array (:position self))) (.add delta))]
-                                   (g/set-property (g/node-id self) :position [(.x p) (.y p) (.z p)])))
-  scene-tools/Rotatable
-  (scene-tools/rotate [self delta] (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (:rotation self))) (.mul delta))
-                                         new-euler (math/quat->euler new-rotation)]
-                                     (g/set-property (g/node-id self) :rotation new-euler))))
+(defmethod scene-tools/manip-move SceneNode [basis node-id delta]
+  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position :basis basis)))
+        p (doto (Vector3d. orig-p) (.add delta))]
+    (g/set-property node-id :position [(.x p) (.y p) (.z p)])))
 
-(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
-  (let [transform (Matrix4d. rotation position 1.0)
-        s [(.x scale) (.y scale) (.z scale)]
+(defmethod scene-tools/manip-rotate SceneNode [basis node-id delta]
+  (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (g/node-value node-id :rotation :basis basis))) (.mul delta))
+        new-euler (math/quat->euler new-rotation)]
+    (g/set-property node-id :rotation new-euler)))
+
+(g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
+  (let [transform (Matrix4d. rotation-q4 position-v3 1.0)
+        s [(.x scale-v3) (.y scale-v3) (.z scale-v3)]
         col (Vector4d.)]
     (doseq [^Integer i (range 3)
             :let [s (nth s i)]]
@@ -772,16 +775,16 @@
 
   (display-order [SceneNode :scale])
 
-  (output scale Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
-  (output transform Matrix4d :cached produce-transform)
+  (output scale-v3 Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4d :cached produce-transform))
 
-  scene-tools/Scalable
-  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
-                                        ^Vector3d d delta]
-                                    (.setX s (* (.x s) (.x d)))
-                                    (.setY s (* (.y s) (.y d)))
-                                    (.setZ s (* (.z s) (.z d)))
-                                    (g/set-property (g/node-id self) :scale [(.x s) (.y s) (.z s)]))))
+(defmethod scene-tools/manip-scale ScalableSceneNode [basis node-id delta]
+  (let [s (Vector3d. (double-array (g/node-value node-id :scale :basis basis)))
+        ^Vector3d d delta]
+    (.setX s (* (.x s) (.x d)))
+    (.setY s (* (.y s) (.y d)))
+    (.setZ s (* (.z s) (.z d)))
+    (g/set-property node-id :scale [(.x s) (.y s) (.z s)])))
 
 (defn- make-text-renderer [^GL2 gl data]
   (let [[font-family font-style font-size] data]

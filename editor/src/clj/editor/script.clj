@@ -31,25 +31,25 @@
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:component}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    }
                   {:ext "gui_script"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    }
                   {:ext "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    }])
 

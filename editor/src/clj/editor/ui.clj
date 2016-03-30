@@ -1,5 +1,6 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
+            [editor.progress :as progress]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
@@ -12,7 +13,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.layout Region]
-           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox ComboBoxBase Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -36,7 +37,7 @@
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
-(defn main-stage []
+(defn ^Stage main-stage []
   @*main-stage*)
 
 (defn choose-file [title ^String ext-descr exts]
@@ -123,17 +124,22 @@
 (defn scene [^Node node]
   (.getScene node))
 
-(defn add-style! [^Styleable node ^String class]
-  (let [styles (.getStyleClass node)]
-    (when-not (.contains styles class)
-      (.add styles class))))
-
 (defn add-styles! [^Styleable node classes]
-  (doseq [class classes]
-    (add-style! node class)))
+  (let [styles (.getStyleClass node)
+        existing (into #{} styles)
+        new (filter (complement existing) classes)]
+    (when-not (empty? new)
+      (.addAll styles ^java.util.Collection new))))
+
+(defn add-style! [^Styleable node ^String class]
+  (add-styles! node [class]))
 
 (defn remove-styles! [^Styleable node ^java.util.Collection classes]
-  (.removeAll (.getStyleClass node) classes))
+  (let [styles (.getStyleClass node)
+        existing (into #{} styles)
+        old (filter existing classes)]
+    (when-not (empty? old)
+      (.removeAll styles ^java.util.Collection old))))
 
 (defn remove-style! [^Styleable node ^String class]
   (remove-styles! node [class]))
@@ -241,10 +247,17 @@
   (user-data [this key])
   (user-data! [this key val]))
 
+(defprotocol Editable
+  (editable [this])
+  (editable! [this val]))
+
 (extend-type Node
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
-  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val)))
+  Editable
+  (editable [this] (.isDisabled this))
+  (editable! [this val] (.setDisable this (not val))))
 
 (extend-type MenuItem
   HasUserData
@@ -277,7 +290,23 @@
 (extend-type TextInputControl
   HasValue
   (value [this] (text this))
-  (value! [this val] (text! this val)))
+  (value! [this val] (text! this val))
+  Text
+  (text [this] (.getText this))
+  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
+  (text! [this val] (when-not (= val (.getText this))
+                      (.setText this val)
+                      (when (.isFocused this)
+                        (.end this)
+                        (.selectAll this))))
+  Editable
+  (editable [this] (.isEditable this))
+  (editable! [this val] (.setEditable this val)))
+
+(extend-type ComboBoxBase
+  Editable
+  (editable [this] (.isEditable this))
+  (editable! [this val] (.setEditable this val)))
 
 (extend-type CheckBox
   HasValue
@@ -289,21 +318,19 @@
   (value [this] (.getValue this))
   (value! [this val] (.setValue this val)))
 
-(extend-type TextInputControl
-  Text
-  (text [this] (.getText this))
-  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
-  (text! [this val] (when-not (= val (.getText this))
-                      (.setText this val)
-                      (when (.isFocused this)
-                        (.end this)
-                        (.selectAll this)))))
-
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
 
 (extend-type Labeled
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Label
   Text
   (text [this] (.getText this))
   (text! [this val] (.setText this val)))
@@ -632,24 +659,38 @@
        (refresh-toolbar td command-contexts)
        (refresh-toolbar-state (:control td) command-contexts)))))
 
+(defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
+  (let [pctg (progress/percentage progress)]
+    (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
+    (.setText label (progress/description progress))))
+
+(defn default-render-progress! [progress]
+  (run-later
+   (let [root  (.. (main-stage) (getScene) (getRoot))
+         tb    (.lookup root "#toolbar-status")
+         bar   (.lookup tb ".progress-bar")
+         label (.lookup tb ".label")]
+     (update-progress-controls! progress bar label))))
+
+(defmacro with-progress [bindings & body]
+  `(let ~bindings
+     (try
+       ~@body
+       (finally
+         ((second ~bindings) (progress/make "Done" 1 1))))))
+
 (defn modal-progress [title total-work worker-fn]
   (run-now
-    (let [root ^Parent (load-fxml "progress.fxml")
-          stage (Stage.)
-          scene (Scene. root)
-          title-control ^Label (.lookup root "#title")
-          progress-control ^ProgressBar (.lookup root "#progress")
-          message-control ^Label (.lookup root "#message")
-          worked (atom 0)
-          return (atom nil)
-          report-fn (fn [work msg]
-                      (when (> work 0)
-                        (swap! worked + work))
-                      (run-later
-                        (.setText message-control (str msg))
-                        (if (> work 0)
-                          (.setProgress progress-control (/ @worked (float total-work)))
-                          (.setProgress progress-control -1))))]
+   (let [root             ^Parent (load-fxml "progress.fxml")
+         stage            (Stage.)
+         scene            (Scene. root)
+         title-control    ^Label (.lookup root "#title")
+         progress-control ^ProgressBar (.lookup root "#progress")
+         message-control  ^Label (.lookup root "#message")
+         return           (atom nil)
+         render-progress! (fn [progress]
+                            (run-later
+                             (update-progress-controls! progress progress-control message-control)))]
       (.setText title-control title)
       (.setProgress progress-control 0)
       (.initOwner stage @*main-stage*)
@@ -657,7 +698,7 @@
       (.setScene stage scene)
       (future
         (try
-          (reset! return (worker-fn report-fn))
+          (reset! return (worker-fn render-progress!))
           (catch Throwable e
             (log/error :exception e)
             (reset! return e)))
@@ -667,6 +708,16 @@
           (throw @return)
           @return))))
 
+(defn disable-ui [disabled]
+  (let [root (.. (main-stage) (getScene) (getRoot))]
+    (.setDisable root disabled)))
+
+(defmacro with-disabled-ui [& body]
+  `(try
+     (run-now (disable-ui true))
+     ~@body
+     (finally
+       (run-now (disable-ui false)))))
 
 (defn mouse-type
   []
@@ -869,3 +920,6 @@ return value."
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
+
+(defn parent->stage ^Stage [^Parent parent]
+  (.. parent getScene getWindow))

@@ -39,12 +39,12 @@
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
                :label "Input Binding"
-               :view-types [:form-view]}
+               :view-types [:form-view :text]}
               {:ext "render"
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$RenderPrototypeDesc
                :resource-fields [:script [:materials :material]]
-               :view-types [:form-view]
+               :view-types [:form-view :text]
                :label "Render"}
               {:ext "factory"
                :label "Factory"
@@ -80,7 +80,7 @@
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
-               :view-types [:form-view]}
+               :view-types [:form-view :text]}
               {:ext "camera"
                :label "Camera"
                :icon "icons/32/Icons_20-Camera.png"
@@ -112,12 +112,12 @@
                :tags #{:component}}
               {:ext "texture_profiles"
                :label "Texture Profiles"
-               :view-types [:form-view]
+               :view-types [:form-view :text]
                :pb-class Graphics$TextureProfiles
                }
               {:ext "display_profiles"
                :label "Display Profiles"
-               :view-types [:form-view]
+               :view-types [:form-view :text]
                ; TODO - missing icon
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$DisplayProfiles}])
@@ -139,7 +139,7 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
-(g/defnk produce-build-targets [_node-id project-id resource pb def dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource pb def dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) (:resource-fields def))

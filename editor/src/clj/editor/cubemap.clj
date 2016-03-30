@@ -86,7 +86,7 @@
      :content (protobuf/map->str Graphics$Cubemap proto-msg)}))
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture vertex-binding]
+  [_node-id aabb gpu-texture]
   (let [vertex-binding (vtx/use-with _node-id unit-sphere cubemap-shader)]
     {:node-id    _node-id
      :aabb       aabb
@@ -135,4 +135,4 @@
                                     :node-type CubemapNode
                                     :load-fn load-cubemap
                                     :icon cubemap-icon
-                                    :view-types [:scene]))
+                                    :view-types [:scene :text]))

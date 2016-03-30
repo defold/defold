@@ -23,7 +23,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos Point2D]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField TextInputControl Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
@@ -54,51 +54,60 @@
    (catch Throwable _
      nil)))
 
-(def create-property-control! nil)
-
 (declare update-field-message)
+
+(defn- update-text-fn [^TextInputControl text values message read-only?]
+  (ui/text! text (str (properties/unify-values values)))
+  (update-field-message [text] message)
+  (ui/editable! text (not read-only?)))
 
 (defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
 
 (defmethod create-property-control! String [_ _ property-fn]
-  (let [text (TextField.)
-        update-ui-fn (fn [values message]
-                       (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_]
-                          (properties/set-values! (property-fn) (repeat (.getText text)))))
+  (let [text         (TextField.)
+        update-ui-fn (partial update-text-fn text)
+        update-fn    (fn [_]
+                       (properties/set-values! (property-fn) (repeat (.getText text))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
-  (let [text (TextField.)
-        update-ui-fn (fn [values message]
-                       (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_] (if-let [v (to-int (.getText text))]
-                                  (properties/set-values! (property-fn) (repeat v))
-                                  (update-ui-fn (properties/values (property-fn)) (properties/validation-message (property-fn))))))
+  (let [text         (TextField.)
+        update-ui-fn (partial update-text-fn text)
+        update-fn    (fn [_]
+                       (if-let [v (to-int (.getText text))]
+                         (let [property (property-fn)]
+                           (properties/set-values! property (repeat v))
+                           (update-ui-fn (properties/values property)
+                                         (properties/validation-message property)
+                                         (properties/read-only? property)))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
-  (let [text (TextField.)
-        update-ui-fn (fn [values message]
-                       (ui/text! text (str (properties/unify-values values)))
-                       (update-field-message [text] message))]
-    (ui/on-action! text (fn [_] (if-let [v (to-double (.getText text))]
-                                  (properties/set-values! (property-fn) (repeat v))
-                                  (update-ui-fn (properties/values (property-fn)) (properties/validation-message (property-fn))))))
+  (let [text         (TextField.)
+        update-ui-fn (partial update-text-fn text)
+        update-fn    (fn [_] (if-let [v (to-double (.getText text))]
+                               (properties/set-values! (property-fn) (repeat v))
+                               (update-ui-fn (properties/values (property-fn))
+                                             (properties/validation-message (property-fn)))))]
+    (ui/on-action! text update-fn)
+    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
   (let [check (CheckBox.)
-        update-ui-fn (fn [values message]
+        update-ui-fn (fn [values message read-only?]
                        (let [v (properties/unify-values values)]
                          (if (nil? v)
                            (.setIndeterminate check true)
                            (doto check
                              (.setIndeterminate false)
                              (.setSelected v))))
-                       (update-field-message [check] message))]
+                       (update-field-message [check] message)
+                       (ui/editable! check (not read-only?)))]
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
@@ -111,9 +120,10 @@
   (let [text-fields (mapv (fn [l] (TextField.)) labels)
         box (doto (HBox.)
               (.setAlignment (Pos/BASELINE_LEFT)))
-        update-ui-fn (fn [values message]
-                       (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) text-fields)]
-                         (ui/text! t v))
+        update-ui-fn (fn [values message read-only?]
+                       (doseq [[^TextInputControl t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) text-fields)]
+                         (ui/text! t v)
+                         (ui/editable! t (not read-only?)))
                        (update-field-message text-fields message))]
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_] (let [v (to-double (.getText ^TextField t))
@@ -140,9 +150,10 @@
   (let [text-fields (mapv (fn [_] (TextField.)) fields)
         box (doto (HBox.)
               (.setAlignment (Pos/BASELINE_LEFT)))
-        update-ui-fn (fn [values message]
-                       (doseq [[t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
-                         (ui/text! t v))
+        update-ui-fn (fn [values message read-only?]
+                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
+                         (ui/text! t v)
+                         (ui/editable! t (not read-only?)))
                        (update-field-message text-fields message))]
     (doseq [[t f] (map (fn [f t]
                          [t (fn [_] (let [v (to-double (.getText ^TextField t))
@@ -172,13 +183,14 @@
 
 (defmethod create-property-control! types/Color [_ _ property-fn]
  (let [color-picker (ColorPicker.)
-       update-ui-fn (fn [values message]
+       update-ui-fn (fn [values message read-only?]
                       (let [v (properties/unify-values values)]
                         (if (nil? v)
                           (.setValue color-picker nil)
                           (let [[r g b a] v]
                             (.setValue color-picker (Color. r g b a)))))
-                      (update-field-message [color-picker] message))]
+                      (update-field-message [color-picker] message)
+                      (ui/editable! color-picker (not read-only?)))]
    (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
                                              v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                          (properties/set-values! (property-fn) (repeat v)))))
@@ -198,34 +210,40 @@
              (-> (.getItems) (.addAll (object-array (map first options))))
              (.setConverter converter)
              (ui/cell-factory! (fn [val]  {:text (options val)})))
-        update-ui-fn (fn [values message]
+        update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
                            (if (contains? options value)
-                             (.setValue cb value)
+                             (.setValue cb (get options value))
                              (do
                                (.setValue cb nil)
                                (.. cb (getSelectionModel) (clearSelection)))))
-                         (update-field-message [cb] message)))]
+                         (update-field-message [cb] message)
+                         (ui/editable! cb (not read-only?))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
                                       (when-not *programmatic-setting*
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol resource/Resource) [_ workspace property-fn]
+(defmethod create-property-control! (g/protocol resource/Resource) [edit-type workspace property-fn]
   (let [box (HBox.)
         button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)
-        update-ui-fn (fn [values message]
-                       (let [val (properties/unify-values values)]
+        from-type (or (:from-type edit-type) identity)
+        to-type (or (:to-type edit-type) identity)
+        dialog-opts (if (:ext edit-type) {:ext (:ext edit-type)} {})
+        update-ui-fn (fn [values message read-only?]
+                       (let [val (properties/unify-values (map to-type values))]
                          (ui/text! text (when val (resource/proj-path val))))
-                       (update-field-message [text] message))]
+                       (update-field-message [text] message)
+                       (ui/editable! text (not read-only?))
+                       (ui/editable! button (not read-only?)))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
-                                     (properties/set-values! (property-fn) (repeat resource)))))
+    (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
+                                     (properties/set-values! (property-fn) (repeat (from-type resource))))))
     (ui/on-action! text (fn [_] (let [path (ui/text text)
                                       resource (workspace/resolve-workspace-resource workspace path)]
-                                  (properties/set-values! (property-fn) (repeat resource)))))
+                                  (properties/set-values! (property-fn) (repeat (from-type resource))))))
     (ui/children! box [text button])
     [box update-ui-fn]))
 
@@ -237,15 +255,16 @@
         val (:value edit-type max)
         precision (:precision edit-type)
         slider (Slider. min max val)
-        update-ui-fn (fn [values message]
-                       (tf-update-ui-fn values message)
+        update-ui-fn (fn [values message read-only?]
+                       (tf-update-ui-fn values message read-only?)
                        (binding [*programmatic-setting* true]
                          (if-let [v (properties/unify-values values)]
                            (doto slider
                              (.setDisable false)
                              (.setValue v))
                            (.setDisable slider true))
-                         (update-field-message [slider] message)))]
+                         (update-field-message [slider] message)
+                         (ui/editable! slider (not read-only?))))]
     (HBox/setHgrow slider Priority/ALWAYS)
     (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
     (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
@@ -262,9 +281,10 @@
 (defmethod create-property-control! :default [_ _ _]
   (let [text (TextField.)
         wrapper (HBox.)
-        update-ui-fn (fn [values message]
+        update-ui-fn (fn [values message read-only?]
                        (ui/text! text (properties/unify-values (map str values)))
-                       (update-field-message [wrapper] message))]
+                       (update-field-message [wrapper] message)
+                       (ui/editable! text (not read-only?)))]
     (HBox/setHgrow text Priority/ALWAYS)
     (ui/children! wrapper [text])
     (.setDisable text true)
@@ -346,8 +366,14 @@
                                      (properties/clear-override! (property-fn key))
                                      (.requestFocus control))))
         update-ui-fn (fn [property]
-                       (.setVisible reset-btn (properties/overridden? property))
-                       (update-ctrl-fn (properties/values property) (properties/validation-message property)))]
+                       (let [overridden? (properties/overridden? property)]
+                         (if overridden?
+                           (ui/add-style! control "overridden")
+                           (ui/remove-style! control "overridden"))
+                         (.setVisible reset-btn overridden?)
+                         (update-ctrl-fn (properties/values property)
+                                         (properties/validation-message property)
+                                         (properties/read-only? property))))]
 
     (update-ui-fn property)
 
@@ -438,7 +464,8 @@
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties] (update-pane parent-view _node-id workspace selected-node-properties))))
+  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties]
+                                   (update-pane parent-view _node-id workspace selected-node-properties))))
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
