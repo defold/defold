@@ -68,20 +68,13 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
 
     public static String getPlatform() {
         String os_name = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
 
-        if (os_name.indexOf("win") != -1) {
+        if (os_name.indexOf("win") != -1)
             return "win32";
-        } else if (os_name.indexOf("mac") != -1) {
+        else if (os_name.indexOf("mac") != -1)
             return "darwin";
-        } else if (os_name.indexOf("linux") != -1) {
-            if (arch.equals("x86_64") || arch.equals("amd64")) {
-                return "x86_64-linux";
-            } else {
-                return "linux";
-            }
-        }
-
+        else if (os_name.indexOf("linux") != -1)
+            return "linux";
         return null;
     }
 
