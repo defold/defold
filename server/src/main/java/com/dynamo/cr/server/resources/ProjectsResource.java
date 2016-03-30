@@ -13,6 +13,8 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
 import com.google.common.io.Files;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.FalseFileFilter;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.StoredConfig;
@@ -26,12 +28,13 @@ import javax.ws.rs.Path;
 import javax.ws.rs.core.Response.Status;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 //NOTE: {member} isn't currently used.
 //See README.md in this project for additional information
 @Path("/projects/{member}")
-@RolesAllowed(value = { "user" })
+@RolesAllowed(value = {"user"})
 public class ProjectsResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectsResource.class);
@@ -52,83 +55,106 @@ public class ProjectsResource extends BaseResource {
 
         long projectCount = ModelUtil.getProjectCount(em, user);
         int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-        if(projectCount >= maxProjectCount) {
+        if (projectCount >= maxProjectCount) {
             throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount));
         }
 
         Project project = ModelUtil.newProject(em, user, newProject.getName(), newProject.getDescription());
         em.flush();
 
+        File projectPath = null;
         try {
             Configuration configuration = server.getConfiguration();
             String repositoryRoot = configuration.getRepositoryRoot();
-            File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
+            projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
             projectPath.mkdir();
 
             Git git = null;
-            if (newProject.hasTemplateId()) {
-                ProjectTemplate projectTemplate = findProjectTemplate(newProject.getTemplateId());
+            String templatePath = getTemplatePath(newProject);
 
-                String path = projectTemplate.getPath();
-                path = path.replace("{cwd}", System.getProperty("user.dir"));
-
-                File templatePath = new File(path);
-                if (!templatePath.exists()) {
-                    throw new ServerException(String.format("Invalid project template path: %s", projectTemplate.getPath()));
-                }
-
-                git = cloneWithoutHistory(projectPath, path);
+            if (templatePath != null) {
+                git = cloneWithoutHistory(projectPath, templatePath);
             } else {
                 git = Git.init().setBare(true).setDirectory(projectPath.getAbsoluteFile()).call();
             }
-            StoredConfig config = git.getRepository().getConfig();
-            config.setBoolean("http", null, "receivepack", true);
-            config.setString("core", null, "sharedRepository", "group");
-            config.save();
+            updateGitConfig(git, templatePath);
+
         } catch (Throwable e) {
             logger.error(e.getMessage(), e);
             ModelUtil.removeProject(em, project);
+
+            if (projectPath != null) {
+                FileUtils.deleteQuietly(projectPath);
+            }
             throw new ServerException("Unable to create project. Internal error.", e, Status.INTERNAL_SERVER_ERROR);
         }
         return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
     }
 
-    private Git cloneWithoutHistory(File projectPath, String path)
+    private String getTemplatePath(NewProject newProject) {
+        if (newProject.hasTemplateId()) {
+            ProjectTemplate projectTemplate = findProjectTemplate(newProject.getTemplateId());
+            String path = projectTemplate.getPath();
+            String originPath = path.replace("{cwd}", System.getProperty("user.dir"));
+
+            File templatePath = new File(originPath);
+            if (!templatePath.exists()) {
+                throw new ServerException(String.format("Invalid project template path: %s", path));
+            }
+            return originPath;
+        } else {
+            return null;
+        }
+    }
+
+    private Git cloneWithoutHistory(File projectPath, String originPath)
             throws GitAPIException, IllegalStateException, IOException {
-        Git git = null;
+
         File tempDir = Files.createTempDir();
         try {
-            // Should really use shallow clone when JGit starts supporting it
-            git = Git.cloneRepository()
-                    .setURI(path)
+            Git.cloneRepository()
+                    .setURI(originPath)
                     .setDirectory(tempDir.getAbsoluteFile())
                     .call();
 
-            // Orphan branch to get rid of old git history and branches
-            git.checkout().setOrphan(true).setName("baselineBranch").call();
+            // Re-init the git repository, all history will be removed
+            removeGitData(tempDir);
+            Git git = Git.init().setDirectory(tempDir.getAbsoluteFile()).call();
+
             // Add all files to new baseline
             git.add().addFilepattern(".").call();
             git.commit().setMessage("Initial commit").call();
-            // Delete old master branch
-            git.branchDelete().setBranchNames("master").setForce(true).call();
-            // Rename new baseline to master
-            git.branchRename().setNewName("master").call();
 
             // Bare clone to final destination
-            git = Git.cloneRepository()
+            return Git.cloneRepository()
                     .setBare(true)
                     .setURI(tempDir.getAbsolutePath())
                     .setDirectory(projectPath.getAbsoluteFile())
                     .call();
-
-            // Restore origin ref that got lost in orphan step
-            StoredConfig config = git.getRepository().getConfig();
-            config.setString("remote", "origin", "url", path);
-            config.save();
         } finally {
             FileUtils.deleteQuietly(tempDir);
         }
-        return git;
+    }
+
+    private void removeGitData(File directory) throws IOException {
+        // List directories
+        Collection<File> directories = FileUtils.listFilesAndDirs(directory, FalseFileFilter.INSTANCE, DirectoryFileFilter.DIRECTORY);
+        // Remove .git directory
+        for (File dir : directories) {
+            if (dir.getName().equals(".git")) {
+                FileUtils.deleteDirectory(dir);
+            }
+        }
+    }
+
+    private void updateGitConfig(Git git, String templatePath) throws IOException {
+        StoredConfig config = git.getRepository().getConfig();
+        if (templatePath != null) {
+            config.setString("remote", "origin", "url", templatePath);
+        }
+        config.setBoolean("http", null, "receivepack", true);
+        config.setString("core", null, "sharedRepository", "group");
+        config.save();
     }
 
     @GET
