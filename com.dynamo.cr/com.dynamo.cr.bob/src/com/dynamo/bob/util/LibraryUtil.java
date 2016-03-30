@@ -9,6 +9,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,7 +24,7 @@ import com.dynamo.bob.LibraryException;
 public class LibraryUtil {
 
     /** Convert the supplied URL into the corresponding filename on disk.
-     * 
+     *
      * @param url Url of the library
      * @return the corresponding filename of the library on disk
      */
@@ -33,7 +34,7 @@ public class LibraryUtil {
     }
 
     /** Convert a list of library URLs into a list of corresponding files on disk.
-     * 
+     *
      * @param libPath base path of the library files
      * @param libUrls list of library URLs to convert
      * @return a list of corresponding files on disk
@@ -46,18 +47,40 @@ public class LibraryUtil {
         return files;
     }
 
+    /** Find base directory path inside a zip archive from where all include dirs should be based.
+    * Effectively searches for the first game.project since all include dirs are relative to this.
+    *
+    * @param archive archive in which to search for the game.project file
+    * @return the string path to the directory where the game.project file was found
+    */
+    public static String findIncludeBaseDir(ZipFile archive) {
+        String baseDir = "";
+        // Need to get the base path, find first instance of game.project
+        Enumeration<? extends ZipEntry> entries = archive.entries();
+        while(entries.hasMoreElements()) {
+            ZipEntry zipEntry = entries.nextElement();
+            String entryPath = zipEntry.getName();
+            if (entryPath.endsWith("/game.project")) {
+                baseDir = entryPath.substring(0, entryPath.length() - "/game.project".length() + 1);
+                break;
+            }
+        }
+        return baseDir;
+    }
+
     /**
      * Fetch the include dirs from the game.project file embedded in the specified archive.
      * The game.project is assumed to contain a comma separated list under the key library.include_dirs.
-     * 
+     *
      * @param archive archive in which to search for the game.project file
      * @return a set of include dir names
      * @throws IOException
      * @throws ParseException
      */
-    public static Set<String> readIncludeDirsFromArchive(ZipFile archive) throws IOException, ParseException {
+    public static Set<String> readIncludeDirsFromArchive(String includeBaseDir, ZipFile archive) throws IOException, ParseException {
         Set<String> includeDirs = new HashSet<String>();
-        ZipEntry projectEntry = archive.getEntry("game.project");
+        ZipEntry projectEntry = archive.getEntry(includeBaseDir + "game.project");
+
         if (projectEntry != null) {
             InputStream is = null;
             try {
