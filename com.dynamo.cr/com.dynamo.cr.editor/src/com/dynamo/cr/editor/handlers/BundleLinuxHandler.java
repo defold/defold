@@ -13,7 +13,13 @@ public class BundleLinuxHandler extends AbstractBundleHandler {
 
     @Override
     protected void setProjectOptions(Map<String, String> options) {
-        options.put("platform", "x86-linux");
+            if (System.getProperty("os.arch") == "x86") {
+                options.put("platform", "x86-linux");
+            }
+            else
+            {
+                options.put("platform", "x86_64-linux");
+            }
     }
 
 }
