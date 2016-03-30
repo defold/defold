@@ -84,7 +84,7 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("Device Language: '%s'", info.m_DeviceLanguage);
     dmLogInfo("Territory: '%s'", info.m_Territory);
     dmLogInfo("GMT offset: '%d'", info.m_GmtOffset);
-    dmLogInfo("Device identifier: '%d'", info.m_DeviceIdentifier);
+    dmLogInfo("Device identifier: '%s'", info.m_DeviceIdentifier);
 
     memset(&info, 0x0, sizeof(info));
 

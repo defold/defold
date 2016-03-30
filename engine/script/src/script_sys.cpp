@@ -298,7 +298,7 @@ namespace dmScript
     /*# get system information
      * <p>
      * Returns a table with the following members:
-     * device_model, manufacturer, system_name, system_version, language, device_language, territory, gmt_offset (minutes), device_ident, ad_ident and ad_tracking_enabled.
+     * device_model, manufacturer, system_name, system_version, language, device_language, territory, gmt_offset (minutes), device_ident, ad_ident, ad_tracking_enabled and user_agent.
      * </p>
      * <p><code>device_model</code> and <code>manufacturer</code> is currently only available on iOS and Android.</p>
      * <p><code>language</code> is in ISO-639 format (two characters) and <code>territory</code> in ISO-3166 format (two characters).</p>
@@ -349,6 +349,9 @@ namespace dmScript
         lua_rawset(L, -3);
         lua_pushliteral(L, "ad_tracking_enabled");
         lua_pushboolean(L, info.m_AdTrackingEnabled);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "user_agent");
+        lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");
         lua_rawset(L, -3);
 
         assert(top + 1 == lua_gettop(L));
