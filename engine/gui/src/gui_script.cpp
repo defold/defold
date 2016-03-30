@@ -3165,7 +3165,8 @@ namespace dmGui
     int LuaGetSize(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
-        dmScript::PushVector4(L, n->m_Node.m_Properties[PROPERTY_SIZE]);
+        Vector3 v(n->m_Node.m_Properties[PROPERTY_SIZE].getX(), n->m_Node.m_Properties[PROPERTY_SIZE].getY(), n->m_Node.m_Properties[PROPERTY_SIZE].getZ());
+        dmScript::PushVector3(L, v);
         return 1;
     }
 
