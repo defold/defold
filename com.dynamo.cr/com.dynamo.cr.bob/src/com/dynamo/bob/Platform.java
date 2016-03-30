@@ -22,7 +22,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_GENERIC, "^$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86-win32$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-darwin$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86-linux$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^arm((v7)|(64))-darwin$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^armv7-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^js-web$");
