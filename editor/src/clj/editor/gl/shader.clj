@@ -486,7 +486,9 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                           {:type :custom :scanner match-single-comment :class "comment"}
                           {:type :whitespace}
                           {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
-                          {:type :word :start? is-word-start :part? is-word-part :class "default"}]
+                          {:type :word :start? is-word-start :part? is-word-part :class "default"}
+                          {:type :number :class "number"}
+                          {:type :default :class "default"}]
                          }
                         ]
                        }})
