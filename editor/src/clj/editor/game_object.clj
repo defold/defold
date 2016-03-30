@@ -35,22 +35,22 @@
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
 
-(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties user-properties path]
+(defn- gen-ref-ddf [id position ^Quat4d rotation-q4 properties user-properties path]
   (let [props (map (fn [[k v]] {:id k :type (get-in v [:edit-type :go-prop-type])}) user-properties)
         props (mapv (fn [p] (assoc p :value (properties/go-prop->str (get properties (:id p)) (:type p))))
                     (filter #(contains? properties (:id %)) props))]
     {:id id
-     :position (math/vecmath->clj position)
-     :rotation (math/vecmath->clj rotation)
+     :position position
+     :rotation (math/vecmath->clj rotation-q4)
      :component (resource/resource->proj-path path)
      :properties props}))
 
-(defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation save-data]
+(defn- gen-embed-ddf [id position ^Quat4d rotation-q4 save-data]
   {:id id
    :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
              "unknown")
-   :position (math/vecmath->clj position)
-   :rotation (math/vecmath->clj rotation)
+   :position position
+   :rotation (math/vecmath->clj rotation-q4)
    :data (or (:content save-data) "")})
 
 (def sound-exts (into #{} (map :ext sound/sound-defs)))
@@ -126,10 +126,10 @@
     (g/fnk [_node-id embedded source-resource id source-outline]
       (let [source-outline (or source-outline {:icon unknown-icon})]
         (assoc source-outline :node-id _node-id :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path source-resource)))))))
-  (output ddf-message g/Any :cached (g/fnk [id embedded source-resource position rotation properties user-properties save-data]
+  (output ddf-message g/Any :cached (g/fnk [id embedded source-resource position ^Quat4d rotation-q4 properties user-properties save-data]
                                            (if embedded
-                                             (gen-embed-ddf id position rotation save-data)
-                                             (gen-ref-ddf id position rotation properties (:properties user-properties) source-resource))))
+                                             (gen-embed-ddf id position rotation-q4 save-data)
+                                             (gen-ref-ddf id position rotation-q4 properties (:properties user-properties) source-resource))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (-> scene
                                        (assoc :node-id _node-id
@@ -369,5 +369,5 @@
                                     :node-type GameObjectNode
                                     :load-fn load-game-object
                                     :icon game-object-icon
-                                    :view-types [:scene]
+                                    :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))

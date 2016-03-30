@@ -8,39 +8,13 @@
 #include <script/script.h>
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
+#include "iap.h"
 
 #define LIB_NAME "iap"
 
 extern struct android_app* g_AndroidApp;
 
 struct IAP;
-
-// NOTE: Also defined in Iap.java
-enum TransactionState
-{
-    TRANS_STATE_PURCHASING,
-    TRANS_STATE_PURCHASED,
-    TRANS_STATE_FAILED,
-    TRANS_STATE_RESTORED,
-};
-
-enum ErrorReason
-{
-    REASON_UNSPECIFIED = 0,
-    REASON_USER_CANCELED = 1,
-};
-
-enum BillingResponse
-{
-    BILLING_RESPONSE_RESULT_OK = 0,
-    BILLING_RESPONSE_RESULT_USER_CANCELED = 1,
-    BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE = 3,
-    BILLING_RESPONSE_RESULT_ITEM_UNAVAILABLE = 4,
-    BILLING_RESPONSE_RESULT_DEVELOPER_ERROR = 5,
-    BILLING_RESPONSE_RESULT_ERROR = 6,
-    BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED = 7,
-    BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8,
-};
 
 #define CMD_PRODUCT_RESULT (0)
 #define CMD_PURCHASE_RESULT (1)
@@ -90,10 +64,14 @@ struct IAP
         m_Self = LUA_NOREF;
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
+        m_autoFinishTransactions = true;
+        m_ProviderId = PROVIDER_ID_GOOGLE;
     }
     int                  m_InitCount;
     int                  m_Callback;
     int                  m_Self;
+    bool                 m_autoFinishTransactions;
+    int                  m_ProviderId;
     lua_State*           m_L;
     IAPListener          m_Listener;
 
@@ -104,6 +82,7 @@ struct IAP
     jmethodID            m_Buy;
     jmethodID            m_Restore;
     jmethodID            m_ProcessPendingConsumables;
+    jmethodID            m_FinishTransaction;
     int                  m_Pipefd[2];
 };
 
@@ -129,6 +108,7 @@ int IAP_List(lua_State* L)
     char buf[1024];
     buf[0] = '\0';
 
+    luaL_checktype(L, 1, LUA_TTABLE);
     int i = 0;
     lua_pushnil(L);
     while (lua_next(L, 1) != 0) {
@@ -177,6 +157,53 @@ int IAP_Buy(lua_State* L)
     return 0;
 }
 
+int IAP_Finish(lua_State* L)
+{
+    if(g_IAP.m_autoFinishTransactions)
+    {
+        dmLogWarning("Calling iap.finish when autofinish transactions is enabled. Ignored.");
+        return 0;
+    }
+
+
+    int top = lua_gettop(L);
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    lua_getfield(L, -1, "state");
+    if (lua_isnumber(L, -1))
+    {
+        if(lua_tointeger(L, -1) != TRANS_STATE_PURCHASED)
+        {
+            dmLogError("Invalid transaction state (must be iap.TRANS_STATE_PURCHASED).");
+            lua_pop(L, 1);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "receipt");
+    if (!lua_isstring(L, -1)) {
+        dmLogError("Transaction error. Invalid transaction data, does not contain 'receipt' key.");
+        lua_pop(L, 1);
+    }
+    else
+    {
+        const char * receipt = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        JNIEnv* env = Attach();
+        jstring receiptUTF = env->NewStringUTF(receipt);
+        env->CallVoidMethod(g_IAP.m_IAP, g_IAP.m_FinishTransaction, receiptUTF, g_IAP.m_IAPJNI);
+        env->DeleteLocalRef(receiptUTF);
+        Detach();
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 int IAP_Restore(lua_State* L)
 {
     // TODO: Missing callback here for completion/error
@@ -188,7 +215,9 @@ int IAP_Restore(lua_State* L)
     Detach();
 
     assert(top == lua_gettop(L));
-    return 0;
+
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 int IAP_SetListener(lua_State* L)
@@ -220,12 +249,20 @@ int IAP_SetListener(lua_State* L)
     return 0;
 }
 
+int IAP_GetProviderId(lua_State* L)
+{
+    lua_pushinteger(L, g_IAP.m_ProviderId);
+    return 1;
+}
+
 static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
     {"buy", IAP_Buy},
+    {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
+    {"get_provider_id", IAP_GetProviderId},
     {0, 0}
 };
 
@@ -495,6 +532,8 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
             dmLogFatal("Could not add file descriptor to looper: %d", result);
         }
 
+        g_IAP.m_autoFinishTransactions = dmConfigFile::GetInt(params->m_ConfigFile, "iap.auto_finish_transactions", 1) == 1;
+
         JNIEnv* env = Attach();
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
@@ -506,10 +545,14 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         const char* provider = dmConfigFile::GetString(params->m_ConfigFile, "android.iap_provider", "GooglePlay");
         const char* class_name = "com.defold.iap.IapGooglePlay";
 
-        if (!strcmp(provider, "Amazon"))
+        g_IAP.m_ProviderId = PROVIDER_ID_GOOGLE;
+        if (!strcmp(provider, "Amazon")) {
+            g_IAP.m_ProviderId = PROVIDER_ID_AMAZON;
             class_name = "com.defold.iap.IapAmazon";
-        else if (strcmp(provider, "GooglePlay"))
+        }
+        else if (strcmp(provider, "GooglePlay")) {
             dmLogWarning("Unknown IAP provider name [%s], defaulting to GooglePlay", provider);
+        }
 
         jstring str_class_name = env->NewStringUTF(class_name);
 
@@ -525,9 +568,10 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         g_IAP.m_Restore = env->GetMethodID(iap_class, "restore", "(Lcom/defold/iap/IPurchaseListener;)V");
         g_IAP.m_Stop = env->GetMethodID(iap_class, "stop", "()V");
         g_IAP.m_ProcessPendingConsumables = env->GetMethodID(iap_class, "processPendingConsumables", "(Lcom/defold/iap/IPurchaseListener;)V");
+        g_IAP.m_FinishTransaction = env->GetMethodID(iap_class, "finishTransaction", "(Ljava/lang/String;Lcom/defold/iap/IPurchaseListener;)V");
 
-        jmethodID jni_constructor = env->GetMethodID(iap_class, "<init>", "(Landroid/app/Activity;)V");
-        g_IAP.m_IAP = env->NewGlobalRef(env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz));
+        jmethodID jni_constructor = env->GetMethodID(iap_class, "<init>", "(Landroid/app/Activity;Z)V");
+        g_IAP.m_IAP = env->NewGlobalRef(env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz, g_IAP.m_autoFinishTransactions));
 
         jni_constructor = env->GetMethodID(iap_jni_class, "<init>", "()V");
         g_IAP.m_IAPJNI = env->NewGlobalRef(env->NewObject(iap_jni_class, jni_constructor));
@@ -548,9 +592,15 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     SETCONSTANT(TRANS_STATE_PURCHASED)
     SETCONSTANT(TRANS_STATE_FAILED)
     SETCONSTANT(TRANS_STATE_RESTORED)
+    SETCONSTANT(TRANS_STATE_UNVERIFIED)
 
     SETCONSTANT(REASON_UNSPECIFIED)
     SETCONSTANT(REASON_USER_CANCELED)
+
+    SETCONSTANT(PROVIDER_ID_GOOGLE)
+    SETCONSTANT(PROVIDER_ID_AMAZON)
+    SETCONSTANT(PROVIDER_ID_APPLE)
+    SETCONSTANT(PROVIDER_ID_FACEBOOK)
 
 #undef SETCONSTANT
 

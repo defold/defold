@@ -2,16 +2,19 @@ package com.dynamo.bob.bundle;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
-import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -136,7 +139,12 @@ public class AndroidBundler implements IBundler {
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
 
-        Result res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        Map<String, String> aaptEnv = new HashMap<String, String>();
+        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+            aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+        }
+
+        Result res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "package",
                 "--no-crunch",
                 "-f",
@@ -159,7 +167,7 @@ public class AndroidBundler implements IBundler {
         File tmpClassesDex = new File("classes.dex");
         FileUtils.copyFile(new File(Bob.getPath("lib/classes.dex")), tmpClassesDex);
 
-        res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "add",
                 ap1.getAbsolutePath(),
                 tmpClassesDex.getPath());
@@ -188,21 +196,6 @@ public class AndroidBundler implements IBundler {
             for (String name : Arrays.asList("game.projectc", "game.darc")) {
                 File source = new File(new File(projectRoot, contentRoot), name);
                 ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
-
-                // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
-                // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
-                ze.setMethod(ZipEntry.STORED);
-                ze.setCompressedSize(source.length());
-                ze.setSize(source.length());
-                int bytesRead;
-                byte[] buffer = new byte[128*1024];
-                CRC32 crc = new CRC32();
-                BufferedInputStream bis = new BufferedInputStream(new FileInputStream(source));
-                while ((bytesRead = bis.read(buffer)) != -1) {
-                    crc.update(buffer, 0, bytesRead);
-                }
-                bis.close();
-                ze.setCrc(crc.getValue());
                 zipOut.putNextEntry(ze);
                 FileUtils.copyFile(source, zipOut);
             }
@@ -255,10 +248,73 @@ public class AndroidBundler implements IBundler {
             }
         }
 
+        // Rezip with some files as STORED
+        File ap4 = File.createTempFile(title, ".ap4");
+        ap4.deleteOnExit();
+        ZipFile zipFileIn = null;
+        zipOut = null;
+        try {
+            zipFileIn = new ZipFile(ap3);
+            zipOut = new ZipOutputStream(new FileOutputStream(ap4));
+
+            Enumeration<? extends ZipEntry> entries = zipFileIn.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry inE = entries.nextElement();
+
+                ZipEntry ze = new ZipEntry(inE.getName());
+                ze.setSize(inE.getSize());
+                byte[] entryData = null;
+                CRC32 crc = null;
+
+                // Some files need to be STORED instead of DEFLATED to
+                // get "correct" memory mapping at runtime.
+                int zipMethod = ZipEntry.DEFLATED;
+                if (Arrays.asList("assets/game.projectc", "assets/game.darc").contains(inE.getName())) {
+                    // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
+                    // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
+                    crc = new CRC32();
+                    zipMethod = ZipEntry.STORED;
+                    ze.setCompressedSize(inE.getSize());
+                }
+
+                ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+                try {
+                    int count;
+                    entryData = new byte[(int) inE.getSize()];
+                    InputStream stream = zipFileIn.getInputStream(inE);
+                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
+                        byteOut.write(entryData, 0, count);
+                        if (zipMethod == ZipEntry.STORED) {
+                            crc.update(entryData, 0, count);
+                        }
+                    }
+
+                } finally {
+                    if(null != byteOut) {
+                        byteOut.close();
+                        entryData = byteOut.toByteArray();
+                    }
+                }
+
+                if (zipMethod == ZipEntry.STORED) {
+                    ze.setCrc(crc.getValue());
+                    ze.setMethod(zipMethod);
+                }
+
+                zipOut.putNextEntry(ze);
+                zipOut.write(entryData);
+                zipOut.closeEntry();
+            }
+
+        } finally {
+            IOUtils.closeQuietly(zipFileIn);
+            IOUtils.closeQuietly(zipOut);
+        }
+
         File apk = new File(appDir, title + ".apk");
         Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "zipalign"),
                 "-v", "4",
-                ap3.getAbsolutePath(),
+                ap4.getAbsolutePath(),
                 apk.getAbsolutePath());
 
         if (r.ret != 0) {
@@ -270,5 +326,6 @@ public class AndroidBundler implements IBundler {
         ap1.delete();
         ap2.delete();
         ap3.delete();
+        ap4.delete();
     }
 }

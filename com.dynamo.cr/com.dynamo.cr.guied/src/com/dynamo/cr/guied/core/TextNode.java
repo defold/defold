@@ -50,6 +50,14 @@ public class TextNode extends GuiNode {
     @Range(min = 0.0, max = 1.0)
     private double shadowAlpha = 1.0;
 
+    @Property
+    @Range(min = -10.0, max = 10.0)
+    private double leading = 1.0;
+
+    @Property
+    @Range(min = -10.0, max = 10.0)
+    private double tracking = 0;
+
     private transient String fontPath = "";
     private transient FontNode fontNode = null;
     private transient FontRendererHandle fontRendererHandle = null;
@@ -202,6 +210,42 @@ public class TextNode extends GuiNode {
     public boolean isShadowAlphaOverridden() {
         return GuiNodeStateBuilder.isFieldOverridden(this, "ShadowAlpha", (float)this.shadowAlpha);
     }
+
+    public double getLeading() {
+        return leading;
+    }
+
+    public void setLeading(double leading) {
+        this.leading = leading;
+        GuiNodeStateBuilder.setField(this, "TextLeading", (float) leading);
+    }
+
+    public void resetLeading() {
+        this.leading = (Float)GuiNodeStateBuilder.resetField(this, "TextLeading");
+    }
+
+    public boolean isLeadingOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "TextLeading", (float)this.leading);
+    }
+
+
+    public double getTracking() {
+        return tracking;
+    }
+
+    public void setTracking(double tracking) {
+        this.tracking = tracking;
+        GuiNodeStateBuilder.setField(this, "TextTracking", (float) tracking);
+    }
+
+    public void resetTracking() {
+        this.tracking = (Float)GuiNodeStateBuilder.resetField(this, "TextTracking");
+    }
+
+    public boolean isTrackingOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "TextTracking", (float)this.tracking);
+    }
+
 
     private FontNode findFontByName(List<Node> fontNodes) {
         for (Node n : fontNodes) {

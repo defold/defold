@@ -20,6 +20,7 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.lua.proto Lua$LuaModule]
+           [com.dynamo.gui.proto Gui$SceneDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -367,3 +368,43 @@
         (is (< 0 (.getFloatValuesCount decl)))
         (is (< 0 (.getHashValuesCount decl)))
         (is (< 0 (.getStringValuesCount decl)))))))
+
+(deftest build-gui-templates
+  (with-clean-system
+    ;; Reads from test_project rather than build_project
+    (let [workspace     (test-util/setup-workspace! world)
+          project       (test-util/setup-project! workspace)
+          path          "/gui/scene.gui"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)
+            desc (protobuf/pb->map (Gui$SceneDesc/parseFrom content))]
+        (is (= ["box" "pie" "sub_scene/sub_box" "box1" "text"] (mapv :id (:nodes desc))))
+        (let [sub (get-in desc [:nodes 2])]
+          (is (= "layer" (:layer sub)))
+          (is (= 0.5 (:alpha sub)))
+          (is (= [1.0 1.0 1.0 1.0] (:scale sub)))
+          (is (= [0.0 0.0 0.0 1.0] (:rotation sub)))
+          (is (= [1100.0 640.0 0.0 1.0] (:position sub))))
+        (is (contains? content-by-source "/graphics/atlas.atlas"))
+        (is (contains? content-by-source "/fonts/big_score.font"))
+        (let [textures (zipmap (map :name (:textures desc)) (map :texture (:textures desc)))]
+          (is (= "/gui/gui.texturesetc" (get textures "main")))
+          (is (= "/graphics/atlas.texturesetc" (get textures "sub_main"))))
+        (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
+          (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
+          (is (= "/fonts/big_score.fontc" (get fonts "sub_font"))))))))
+
+(deftest build-game-project
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/game.project"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)]
+        (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8"))))))))

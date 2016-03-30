@@ -33,9 +33,6 @@
   (testing "ignore non-urls"
     (is (= urls (library/parse-library-urls "this file:/scriptlib sure file:/imagelib1 aint file:/imagelib2 no file:/bogus url")))))
 
-
-
-
 (deftest initial-state
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
@@ -72,18 +69,18 @@
 (defn dummy-lib-resolver [url tag]
   (let [file-name (str "lib_resource_project/.internal/lib/file__" (subs (.getPath url) 1) "-.zip")]
     {:status :stale
-     :stream (io/input-stream (io/resource file-name))
-     :tag "tag"
-     }))
+     :stream (some-> file-name io/resource io/input-stream)
+     :tag    "tag"
+     :size   100}))
 
 (deftest library-update
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
       (let [project-directory (workspace/project-path workspace)]
-        (let [update-states (library/update-libraries! project-directory dummy-lib-resolver urls)
+        (let [update-states   (library/update-libraries! project-directory urls dummy-lib-resolver)
               update-statuses (group-by :status update-states)
-              files (library/library-files project-directory)
-              states (library/current-library-state project-directory urls)]
+              files           (library/library-files project-directory)
+              states          (library/current-library-state project-directory urls)]
           (is (= 3 (count (update-statuses :up-to-date))))
           (is (= 1 (count (update-statuses :error))))
           (is (= (str (:url (first (update-statuses :error)))) "file:/bogus"))

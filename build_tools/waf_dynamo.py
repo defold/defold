@@ -8,7 +8,7 @@ from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
-ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
+ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14'
 ANDROID_TARGET_API_LEVEL='23'
@@ -829,7 +829,8 @@ def embed_build(task):
 
     cpp_str = """
 #include <stdint.h>
-unsigned char %s[] =
+#include "dlib/align.h"
+unsigned char DM_ALIGNED(16) %s[] =
 """
     cpp_out_file.write(cpp_str % (symbol))
     cpp_out_file.write('{\n    ')
@@ -993,7 +994,7 @@ def js_web_web_link_flags(self):
             lib_dirs = self.env['JS_LIB_PATHS']
         else:
             lib_dirs = {}
-        libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js", "library_sound.js"])
+        libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js", "library_facebook_iap.js", "library_sound.js"])
         jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js')
         for lib in libs:
             js = ''

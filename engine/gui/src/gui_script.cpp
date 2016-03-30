@@ -1,4 +1,5 @@
 #include "gui_script.h"
+#include <float.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -1063,7 +1064,7 @@ namespace dmGui
         if (font != 0x0)
         {
             dmGui::TextMetrics metrics;
-            scene->m_Context->m_GetTextMetricsCallback(font, text, 0.0f, false, &metrics);
+            scene->m_Context->m_GetTextMetricsCallback(font, text, 0.0f, false, 1, 0, &metrics);
             size.setX(metrics.m_Width);
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
@@ -1803,10 +1804,10 @@ namespace dmGui
         return 0;
     }
 
-    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break)
+    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break, float leading, float tracking)
     {
         dmGui::TextMetrics metrics;
-        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, &metrics);
+        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
         if (r != RESULT_OK) {
             const char* id_string = (const char*)dmHashReverse64(font_id_hash, 0x0);
             if (id_string != 0x0) {
@@ -1821,6 +1822,9 @@ namespace dmGui
         lua_pushliteral(L, "width");
         lua_pushnumber(L, metrics.m_Width);
         lua_rawset(L, -3);
+        lua_pushliteral(L, "height");
+        lua_pushnumber(L, metrics.m_Height);
+        lua_rawset(L, -3);
         lua_pushliteral(L, "max_ascent");
         lua_pushnumber(L, metrics.m_MaxAscent);
         lua_rawset(L, -3);
@@ -1834,7 +1838,7 @@ namespace dmGui
      *
      * @name gui.get_text_metrics_from_node
      * @param node text node to measure text from
-     * @return a table with the following fields: width, max_ascent, max_descent
+     * @return a table with the following fields: width, height, max_ascent, max_descent
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
     {
@@ -1851,10 +1855,30 @@ namespace dmGui
         const char* text = dmGui::GetNodeText(scene, hnode);
         float width = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE).getX();
         bool line_break = dmGui::GetNodeLineBreak(scene, hnode);
-        PushTextMetrics(L, scene, font_id_hash, text, width, line_break);
+        float leading = dmGui::GetNodeTextLeading(scene, hnode);
+        float tracking = dmGui::GetNodeTextTracking(scene, hnode);
+        PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
+    {
+        if( lua_isnoneornil(L, index) )
+        {
+            return defaultvalue;
+        }
+        return (float) luaL_checknumber(L, index);
+    }
+
+    static inline bool LuaUtilGetDefaultBool(lua_State* L, int index, bool defaultvalue)
+    {
+        if( lua_isnoneornil(L, index) )
+        {
+            return defaultvalue;
+        }
+        return lua_toboolean(L, index);
     }
 
     /*# get text metrics
@@ -1863,9 +1887,11 @@ namespace dmGui
      * @name gui.get_text_metrics
      * @param font font id. (hash|string)
      * @param text text to measure
-     * @param width max-width. use for line-breaks
-     * @param line_breaks true to break lines accordingly to width
-     * @return a table with the following fields: width, max_ascent, max_descent
+     * @param width max-width. use for line-breaks (default=FLT_MAX)
+     * @param line_breaks true to break lines accordingly to width (default=false)
+     * @param leading scale value for line spacing (default=1)
+     * @param tracking scale value for letter spacing (default=0)
+     * @return a table with the following fields: width, height, max_ascent, max_descent
      */
     static int LuaGetTextMetrics(lua_State* L)
     {
@@ -1883,9 +1909,12 @@ namespace dmGui
         }
 
         const char* text = luaL_checkstring(L, 2);
-        float width = luaL_checknumber(L, 3);
-        bool line_break = lua_toboolean(L, 4);
-        PushTextMetrics(L, scene, font_id_hash, text, width, line_break);
+
+        float width     = LuaUtilGetDefaultFloat(L, 3, FLT_MAX);
+        bool line_break = LuaUtilGetDefaultBool(L, 4, false);
+        float leading   = LuaUtilGetDefaultFloat(L, 5, 1.0f);
+        float tracking  = LuaUtilGetDefaultFloat(L, 6, 0.0f);
+        PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -2362,6 +2391,98 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets the leading of the text node
+     *
+     * @name gui.set_leading
+     * @param node node for which to set the leading (node)
+     * @param leading a scaling number for the line spacing (default=1) (number)
+     */
+    static int LuaSetLeading(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_Number leading = luaL_checknumber(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeTextLeading(scene, hnode, leading);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the leading of the text node
+     *
+     * @name gui.get_leading
+     * @param node node from where to get the leading (node)
+     * @return scaling number (default=1) (number)
+     */
+    static int LuaGetLeading(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, (lua_Number) dmGui::GetNodeTextLeading(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the tracking of the text node
+     *
+     * @name gui.set_tracking
+     * @param node node for which to set the tracking (node)
+     * @param tracking a scaling number for the letter spacing (default=0) (number)
+     */
+    static int LuaSetTracking(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_Number tracking = luaL_checknumber(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeTextTracking(scene, hnode, tracking);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the tracking of the text node
+     *
+     * @name gui.get_tracking
+     * @param node node from where to get the tracking (node)
+     * @return scaling number (default=0) (number)
+     */
+    static int LuaGetTracking(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, (lua_Number) dmGui::GetNodeTextTracking(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# determines if the node is pickable by the supplied coordinates
      *
      * @name gui.pick_node
@@ -2466,6 +2587,44 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         int adjust_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
+        return 0;
+    }
+
+    /*# gets the node size mode
+     * Size mode defines how the node will adjust itself in size according to mode.
+     *
+     * @name gui.get_size_mode
+     * @param node node from which to get the size mode (node)
+     * @return node size mode (constant)
+     * <ul>
+     *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
+     *   <li><code>gui.SIZE_MODE_AUTOMATIC</code></li>
+     * </ul>
+     */
+    static int LuaGetSizeMode(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushnumber(L, (lua_Number) n->m_Node.m_SizeMode);
+        return 1;
+    }
+
+    /*# sets node size mode
+     * Size mode defines how the node will adjust itself in size according to mode.
+     *
+     * @name gui.set_size_mode
+     * @param node node to set size mode for (node)
+     * @param size_mode size mode to set (constant)
+     * <ul>
+     *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
+     *   <li><code>gui.SIZE_MODE_AUTOMATIC</code></li>
+     * </ul>
+     */
+    static int LuaSetSizeMode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int size_mode = (int) luaL_checknumber(L, 2);
+        n->m_Node.m_SizeMode = (AdjustMode) size_mode;
         return 0;
     }
 
@@ -2911,20 +3070,6 @@ namespace dmGui
      * @param color new shadow color (vector3|vector4)
      */
 
-    /*# gets the node size
-     *
-     * @name gui.get_size
-     * @param node node to get the size from (node)
-     * @return node size (vector3)
-     */
-
-    /*# sets the node size
-     *
-     * @name gui.set_size
-     * @param node node to set the size for (node)
-     * @param size new size (vector3|vector4)
-     */
-
 #define LUASET(name, property) \
         int LuaSet##name(lua_State* L)\
         {\
@@ -2969,7 +3114,6 @@ namespace dmGui
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
-    LUAGETSETV3(Size, PROPERTY_SIZE)
 
 #undef LUAGETSET
 
@@ -2979,6 +3123,50 @@ namespace dmGui
         params->m_PhysicalWidth = 640;
         params->m_PhysicalHeight = 960;
         params->m_Dpi = 360;
+    }
+
+    /*# sets the node size
+     *
+     * <b>NOTE!</b> You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
+     *
+     * @name gui.set_size
+     * @param node node to set the size for (node)
+     * @param size new size (vector3|vector4)
+     */
+    int LuaSetSize(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
+        {
+            dmLogWarning("Can not set size on auto-sized nodes.");
+            return 0;
+        }
+        Vector4 v;
+        if (dmScript::IsVector3(L, 2))
+        {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE);
+            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+        }
+        else
+            v = *dmScript::CheckVector4(L, 2);
+        n->m_Node.m_Properties[PROPERTY_SIZE] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
+
+    /*# gets the node size
+     *
+     * @name gui.get_size
+     * @param node node to get the size from (node)
+     * @return node size (vector3)
+     */
+    int LuaGetSize(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        dmScript::PushVector4(L, n->m_Node.m_Properties[PROPERTY_SIZE]);
+        return 1;
     }
 
     /*# gets the node screen position
@@ -3057,6 +3245,8 @@ namespace dmGui
         {"set_enabled",     LuaSetEnabled},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
+        {"get_size_mode",   LuaGetSizeMode},
+        {"set_size_mode",   LuaSetSizeMode},
         {"move_above",      LuaMoveAbove},
         {"move_below",      LuaMoveBelow},
         {"get_parent",      LuaGetParent},
@@ -3077,6 +3267,12 @@ namespace dmGui
         {"get_inner_radius", LuaGetInnerRadius},
         {"set_outer_bounds", LuaSetOuterBounds},
         {"get_outer_bounds", LuaGetOuterBounds},
+        {"set_leading",     LuaSetLeading},
+        {"get_leading",     LuaGetLeading},
+        {"set_tracking",    LuaSetTracking},
+        {"get_tracking",    LuaGetTracking},
+        {"set_size",        LuaSetSize},
+        {"get_size",        LuaGetSize},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
@@ -3084,7 +3280,6 @@ namespace dmGui
         REGGETSET(Color, color)
         REGGETSET(Outline, outline)
         REGGETSET(Shadow, shadow)
-        REGGETSET(Size, size)
         {0, 0}
     };
 

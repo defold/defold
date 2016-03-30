@@ -134,11 +134,11 @@
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
-                                    (set path (resource/proj-path resource)))))
+                                    (set path resource))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
                                   (when-let [resource-path (and resource (resource/proj-path resource))]
-                                    (set path resource-path)
+                                    (set path resource)
                                     (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
                        (when (= key KeyCode/ESCAPE)
@@ -674,7 +674,6 @@
 
 (g/defnode FormView
   (property parent-view Parent)
-  (property repainter AnimationTimer)
   (property workspace g/Any)
   (property prev-form ScrollPane)
   (input form-data g/Any :substitute {})
@@ -686,13 +685,10 @@
         repainter (ui/->timer (fn [dt] (g/node-value view-id :form)))]
     (g/transact
       (concat
-        (g/set-property view-id :repainter repainter)
         (g/connect resource-node :form-data view-id :form-data)))
     (ui/timer-start! repainter)
-    (let [^Tab tab (:tab opts)]
-      (ui/on-close tab
-                   (fn [e]
-                     (ui/timer-stop! repainter))))
+    (ui/timer-stop-on-close! ^Tab (:tab opts) repainter)
+    (ui/timer-stop-on-close! (ui/parent->stage parent) repainter)
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]
@@ -701,4 +697,5 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :form-view
+                                :label "Form"
                                 :make-view-fn make-form-view))

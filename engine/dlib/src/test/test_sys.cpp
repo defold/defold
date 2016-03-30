@@ -80,11 +80,12 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("DeviceModel: '%s'", info.m_DeviceModel);
     dmLogInfo("SystemName: '%s'", info.m_SystemName);
     dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
+    dmLogInfo("SystemApiVersion: '%s'", info.m_ApiVersion);
     dmLogInfo("Language: '%s'", info.m_Language);
     dmLogInfo("Device Language: '%s'", info.m_DeviceLanguage);
     dmLogInfo("Territory: '%s'", info.m_Territory);
     dmLogInfo("GMT offset: '%d'", info.m_GmtOffset);
-    dmLogInfo("Device identifier: '%d'", info.m_DeviceIdentifier);
+    dmLogInfo("Device identifier: '%s'", info.m_DeviceIdentifier);
 
     memset(&info, 0x0, sizeof(info));
 

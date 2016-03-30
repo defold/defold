@@ -276,3 +276,31 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "resources/broken_project"))]
       (is (g/error? (project/save-data project))))))
+
+(defn- gui-node [scene id]
+  (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])
+                            (tree-seq (constantly true) :children (g/node-value scene :node-outline))))]
+    (nodes id)))
+
+(deftest gui-templates
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          node-id (project/get-resource-node project "/gui/scene.gui")
+          sub-node-id (project/get-resource-node project "/gui/sub_scene.gui")
+          or-node (gui-node node-id "sub_scene/sub_box")]
+      (is (some? or-node))
+      (write-file workspace "/gui/sub_scene.gui" (read-file workspace "/gui/new_sub_scene.gui"))
+      (is (some? (gui-node node-id "sub_scene/sub_box2"))))))
+
+(deftest game-project
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          node-id (project/get-resource-node project "/game.project")
+          p ["display" "display_profiles"]
+          disp-profs (get (g/node-value node-id :settings-map) p)
+          path "/render/default.display_profiles"
+          new-path "/render/default2.display_profiles"]
+      (write-file workspace path "")
+      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
+      (move-file workspace path new-path)
+      (is (= new-path (get (g/node-value node-id :settings-map) p))))))

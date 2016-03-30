@@ -151,7 +151,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
 
     private void launchBrowser() throws IOException, URISyntaxException, UnsupportedOperationException {
 
-        String launchPath = String.format("http://localhost:%3$d/build/default/%1$s/%2$s/%2$s.html", HTML_DIR, getEscapedTitle(), Activator.SERVER_PORT);
+        String launchPath = String.format("http://localhost:%3$d/build/default/%1$s/%2$s/index.html", HTML_DIR, getEscapedTitle(), Activator.SERVER_PORT);
         if (Desktop.isDesktopSupported()) {
             Desktop desktop = Desktop.getDesktop();
             if (desktop.isSupported(Desktop.Action.BROWSE)) {
@@ -175,6 +175,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
 
         bobArgs.put("platform", Platform.JsWeb.getPair());
         bobArgs.put("bundle-output", outputDir);
+        bobArgs.put("local-launch", "true");
 
         Map<String, String> args = new HashMap<String, String>();
         args.put("location", "local");
@@ -184,7 +185,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
         commands.add("bundle");
         BobUtil.putBobCommands(commands, args);
 
-        project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
+        project.build(kind, "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
     }
 
 }

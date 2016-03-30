@@ -61,7 +61,7 @@
         (doto (Point3d. line-dir) (.scaleAdd (- (Math/sqrt (- radius-sq dist-sq))) closest))
         (Point3d. (doto (Vector3d. closest) (.sub circle-pos) (.normalize) (.scaleAdd (Math/sqrt radius-sq) circle-pos)))))))
 
-(defn euler->quat [euler]
+(defn euler->quat ^Quat4d [euler]
   ; Implementation based on:
   ; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ; Rotation sequence: 231 (YZX)

@@ -40,6 +40,7 @@
             [editor.code-view :as code-view]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [editor.progress :as progress]
             [service.log :as log])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
@@ -92,9 +93,12 @@
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage (Stage.)
         scene (Scene. root)]
-    (ui/observe (.focusedProperty stage) (fn [property old-val new-val]
-                                           (when (true? new-val)
-                                             (workspace/resource-sync! workspace))))
+    (ui/observe (.focusedProperty stage)
+                (fn [property old-val new-val]
+                  (when (true? new-val)
+                    (ui/with-disabled-ui
+                      (ui/with-progress [render-fn ui/default-render-progress!]
+                        (workspace/resource-sync! workspace true [] render-fn))))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -112,7 +116,9 @@
           ^Tab assets          (.lookup root "#assets")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
+                                                                 (fn [resource & [opts]]
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))]
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
@@ -129,7 +135,7 @@
           (for [view [outline-view asset-browser]]
             (g/update-property app-view :auto-pulls conj [view :tree-view]))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
-    (graph-view/setup-graph-view root *project-graph*)
+    (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
 
@@ -171,20 +177,29 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn open-project
-  [^File game-project-file prefs]
-  (let [progress-bar nil
+(defn- open-project
+  [^File game-project-file prefs render-progress!]
+  (let [progress     (atom (progress/make "Loading project" 3))
+        _            (render-progress! @progress)
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
-        project      (project/load-project project)
+        project      (project/load-project project
+                                           (g/node-value project :resources)
+                                           (progress/nest-render-progress render-progress! @progress))
+        _            (render-progress! (swap! progress progress/advance 1 "Updating dependencies"))
         _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-        _            (workspace/update-dependencies! workspace)
-        _            (workspace/resource-sync! workspace)
+        _            (workspace/update-dependencies! workspace
+                                                     (progress/nest-render-progress render-progress! @progress))
+        _            (render-progress! (swap! progress progress/advance 1 "Reloading dependencies"))
+        _            (workspace/resource-sync! workspace true []
+                                               (progress/nest-render-progress render-progress! @progress))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
-        changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties")))]
+        changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace
+                                                                 (.lookup root "#changes-container")))
+        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph*
+                                                                       (.lookup root "#properties")))]
     (g/reset-undo! *project-graph*)))
 
 (defn- add-to-recent-projects [prefs project-file]
@@ -263,8 +278,7 @@
       (ui/run-later (open-welcome prefs))
       (try
         (ui/modal-progress "Loading project" 100
-                           (fn [report-fn]
-                             (report-fn -1 "loading assets")
+                           (fn [render-progress!]
                              (when (nil? @the-root)
                                (g/initialize! {})
                                (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
@@ -272,7 +286,7 @@
                                (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
                              (let [project-file (first args)]
                                (add-to-recent-projects prefs project-file)
-                               (open-project (io/file project-file) prefs))))
+                               (open-project (io/file project-file) prefs render-progress!))))
         (catch Throwable t
           (log/error :exception t)
           (stack/print-stack-trace t)
