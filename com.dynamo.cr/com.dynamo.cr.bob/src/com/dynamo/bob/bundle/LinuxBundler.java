@@ -19,8 +19,7 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String binaryX86 = Bob.getDmengineExe(Platform.X86Linux, project.hasOption("debug"));
-        String binaryX64 = Bob.getDmengineExe(Platform.X86_64Linux, project.hasOption("debug"));
+        String exe = Bob.getDmengineExe(Platform.X86Linux, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -35,13 +34,8 @@ public class LinuxBundler implements IBundler {
         }
 
         // Copy Executable
-        File x86Out = new File(appDir, title + ".x86");
-        File x64Out = new File(appDir, title + ".x86_64");
-
-        FileUtils.copyFile(new File(binaryX86), x86Out);
-        FileUtils.copyFile(new File(binaryX64), x64Out);
-
-        x86Out.setExecutable(true);
-        x64Out.setExecutable(true);
+        File exeOut = new File(appDir, title);
+        FileUtils.copyFile(new File(exe), exeOut);
+        exeOut.setExecutable(true);
     }
 }

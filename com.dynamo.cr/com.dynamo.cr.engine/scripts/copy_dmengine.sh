@@ -1,6 +1,5 @@
 set -e
 mkdir -p engine/linux
-mkdir -p engine/x86_64-linux
 mkdir -p engine/darwin
 mkdir -p engine/win32
 mkdir -p engine/ios
@@ -18,10 +17,6 @@ copy () {
 
 copy linux/dmengine engine/linux/dmengine
 copy linux/dmengine_release engine/linux/dmengine_release
-
-copy x86_64-linux/dmengine engine/x86_64-linux/dmengine
-copy x86_64-linux/dmengine_release engine/x86_64-linux/dmengine_release
-
 copy darwin/dmengine engine/darwin/dmengine
 copy darwin/dmengine_release engine/darwin/dmengine_release
 copy win32/dmengine.exe engine/win32/dmengine.exe

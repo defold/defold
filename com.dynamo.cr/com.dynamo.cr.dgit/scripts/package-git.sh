@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # NOTE: On Linux at least libcurl4-openssl-dev and gettext packages are required apart from gcc etc
 # Probably some other dev packages as well
@@ -11,32 +11,28 @@
 set -e
 VERSION=1.7.9.5
 
-[ -z "${1}" ] && echo "usage: package-git PLATFORM" && exit 1
-PLATFORM="${1}"
+[ -z $1 ] && echo "usage: package-git PLATFORM" && exit 1
+PLATFORM=$1
 
 ROOT=`pwd`
-if [ "$PLATFORM" == "darwin" ]; then
+if [ $PLATFORM == "darwin" ]; then
     SDK='/Developer/SDKs/MacOSX10.6.sdk'
-    [ ! -e "$SDK" ] && echo "SDK $SDK not found!" && exit 1
+    [ ! -e $SDK ] && echo "SDK $SDK not found!" && exit 1
 	export CFLAGS="-isysroot $SDK"
 	export LDFLAGS="-isysroot $SDK"
 fi
 GIT_DIR=${ROOT}/tmp/build
 rm -rf tmp
 
-(
-	mkdir -p tmp
-	cd tmp
-
-	curl -O http://git-core.googlecode.com/files/git-${VERSION}.tar.gz
-	tar xfz git-${VERSION}.tar.gz
-	(
-		cd git-${VERSION}
-		./configure --prefix=${GIT_DIR}
-		make -j4
-		make install
-	)
-)
+mkdir -p tmp
+pushd tmp
+curl -O http://git-core.googlecode.com/files/git-${VERSION}.tar.gz
+tar xfz git-${VERSION}.tar.gz
+pushd git-${VERSION}
+./configure --prefix=${GIT_DIR}
+make -j4 && make install
+popd
+popd
 
 rm -rvf git/$PLATFORM
 mkdir -p git/$PLATFORM/bin/
