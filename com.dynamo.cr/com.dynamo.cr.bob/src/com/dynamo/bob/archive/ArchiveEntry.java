@@ -3,6 +3,8 @@ package com.dynamo.bob.archive;
 import java.io.IOException;
 import java.io.File;
 
+import org.apache.commons.io.FilenameUtils;
+
 public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_ENCRYPTED = 1 << 0;
     public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
@@ -41,7 +43,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
             this.compressedSize = FLAG_UNCOMPRESSED;
         }
 
-        this.relName = fileName.substring(root.length());
+        this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
     }
 
