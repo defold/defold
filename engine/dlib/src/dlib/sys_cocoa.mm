@@ -158,6 +158,7 @@ namespace dmSys
         dmStrlCpy(info->m_SystemName, [d.systemName UTF8String], sizeof(info->m_SystemName));
         PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));
+        dmStrlCpy(info->m_ApiVersion, [d.systemVersion UTF8String], sizeof(info->m_ApiVersion));
 
         NSLocale* locale = [NSLocale currentLocale];
         const char* lang = [locale.localeIdentifier UTF8String];
@@ -197,7 +198,7 @@ namespace dmSys
         return g_NetworkConnectivity;
     }
 
-#else
+#else // osx
 
     void GetSystemInfo(SystemInfo* info)
     {
