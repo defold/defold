@@ -80,6 +80,7 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("DeviceModel: '%s'", info.m_DeviceModel);
     dmLogInfo("SystemName: '%s'", info.m_SystemName);
     dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
+    dmLogInfo("SystemApiVersion: '%s'", info.m_ApiVersion);
     dmLogInfo("Language: '%s'", info.m_Language);
     dmLogInfo("Device Language: '%s'", info.m_DeviceLanguage);
     dmLogInfo("Territory: '%s'", info.m_Territory);
