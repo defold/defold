@@ -50,7 +50,7 @@ typedef void (*OnIAPFBListenerCallback)(void *L, const char* json, int error_cod
 extern "C" {
     // Implementation in library_facebook_iap.js
     void dmIAPFBList(const char* item_ids, OnIAPFBList callback, lua_State* L);
-    void dmIAPFBBuy(const char* item_id, OnIAPFBListenerCallback callback, lua_State* L);
+    void dmIAPFBBuy(const char* item_id, const char* request_id, OnIAPFBListenerCallback callback, lua_State* L);
 }
 
 // NOTE: Copy-paste from script_json
@@ -278,7 +278,17 @@ int IAP_Buy(lua_State* L)
     }
     int top = lua_gettop(L);
     const char* id = luaL_checkstring(L, 1);
-    dmIAPFBBuy(id, (OnIAPFBListenerCallback)IAPListener_Callback, L);
+    const char* request_id = 0x0;
+
+    if (top >= 2 && lua_istable(L, 2)) {
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushvalue(L, 2);
+        lua_getfield(L, -1, "request_id");
+        request_id = lua_isnil(L, -1) ? 0x0 : luaL_checkstring(L, -1);
+        lua_pop(L, 2);
+    }
+
+    dmIAPFBBuy(id, request_id, (OnIAPFBListenerCallback)IAPListener_Callback, L);
     assert(top == lua_gettop(L));
     return 0;
 }

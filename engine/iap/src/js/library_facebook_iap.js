@@ -104,56 +104,63 @@ var LibraryFacebookIAP = {
         },
 
         // https://developers.facebook.com/docs/javascript/reference/FB.ui
-        dmIAPFBBuy: function(params, callback, lua_state) {
-            var product_id = Pointer_stringify(params);
+        dmIAPFBBuy: function(param_product_id, param_request_id, callback, lua_state) {
+            var product_id = Pointer_stringify(param_product_id);
 
-            FB.ui({
-                method: 'pay',
-                action: 'purchaseitem',
-                product: product_id,
-            }, function(response) {
+            var buy_params = {
+                    method: 'pay',
+                    action: 'purchaseitem',
+                    product: product_id,
+            };
+            if(param_request_id != 0) {
+                buy_params.request_id = Pointer_stringify(param_request_id);
+            }
 
-                if(response && response.status) {
-                    var result = {};
-                    result.ident = product_id;
-                    var currentDate = new Date();
-                    result.date = currentDate.toISOString();
+            FB.ui(buy_params,
+            	function(response) {
+	                if(response && response.status) {
+	                    var result = {};
+	                    result.ident = product_id;
+	                    var currentDate = new Date();
+	                    result.date = currentDate.toISOString();
 
-                    if (response.status == 'initiated') {
-                        result.state = FBinner.TransactionState.TRANS_STATE_UNVERIFIED;
-                        result.trans_ident = response.payment_id.toString();
-                        result.receipt = response.signed_request;
-                    } else if (response.status == 'completed') {
-                        result.state = FBinner.TransactionState.TRANS_STATE_PURCHASED;
-                        result.trans_ident = response.payment_id.toString();
-                        result.receipt = response.signed_request;
-                    } else {
-                        // unknown and 'failed' state
-                        if (response.status != 'failed') {
-                            console.log("Unknown response status (default to 'failed'): ", response.status);
-                        }
-                        result.state = FBinner.TransactionState.TRANS_STATE_FAILED;
-                    }
+	                    if (response.status == 'initiated') {
+	                        result.state = FBinner.TransactionState.TRANS_STATE_UNVERIFIED;
+	                        result.trans_ident = response.payment_id.toString();
+	                        result.receipt = response.signed_request;
+	                        result.request_id = response.request_id;
+	                    } else if (response.status == 'completed') {
+	                        result.state = FBinner.TransactionState.TRANS_STATE_PURCHASED;
+	                        result.trans_ident = response.payment_id.toString();
+	                        result.receipt = response.signed_request;
+	                        result.request_id = response.request_id;
+	                    } else {
+	                        // unknown and 'failed' state
+	                        if (response.status != 'failed') {
+	                            console.log("Unknown response status (default to 'failed'): ", response.status);
+	                        }
+	                        result.state = FBinner.TransactionState.TRANS_STATE_FAILED;
+	                    }
 
-                    var productsJSON = JSON.stringify(result)
-                    var res_buf = allocate(intArrayFromString(productsJSON), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('viii', callback, [lua_state, res_buf, 0]);
+	                    var productsJSON = JSON.stringify(result)
+	                    var res_buf = allocate(intArrayFromString(productsJSON), 'i8', ALLOC_STACK);
+	                    Runtime.dynCall('viii', callback, [lua_state, res_buf, 0]);
 
-                } else {
+	                } else {
 
-                    var reason;
-                    if(!response || response.error_code == FBinner.FBPaymentResponse.FB_PAYMENT_RESPONSE_USERCANCELED) {
-                        reason = FBinner.BillingResponse.BILLING_RESPONSE_RESULT_USER_CANCELED;
-                    } else if (response.error_code == FBinner.FBPaymentResponse.FB_PAYMENT_RESPONSE_APPINVALIDITEMPARAM) {
-                        reason = FBinner.BillingResponse.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED;
-                    } else {
-                        reason = FBinner.BillingResponse.BILLING_RESPONSE_RESULT_ERROR;
-                        console.log("Unknown response: ", response);
-                    }
-                    Runtime.dynCall('viii', callback, [lua_state, 0, reason]);
-                }
-
-            } );
+	                    var reason;
+	                    if(!response || response.error_code == FBinner.FBPaymentResponse.FB_PAYMENT_RESPONSE_USERCANCELED) {
+	                        reason = FBinner.BillingResponse.BILLING_RESPONSE_RESULT_USER_CANCELED;
+	                    } else if (response.error_code == FBinner.FBPaymentResponse.FB_PAYMENT_RESPONSE_APPINVALIDITEMPARAM) {
+	                        reason = FBinner.BillingResponse.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED;
+	                    } else {
+	                        reason = FBinner.BillingResponse.BILLING_RESPONSE_RESULT_ERROR;
+	                        console.log("Unknown response: ", response);
+	                    }
+	                    Runtime.dynCall('viii', callback, [lua_state, 0, reason]);
+	                }
+            	}
+            );
         },
 
 }
