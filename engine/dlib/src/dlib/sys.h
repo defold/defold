@@ -82,6 +82,8 @@ namespace dmSys
         char m_SystemName[32];
         /// System version, e.g. 12.0.1
         char m_SystemVersion[32];
+        /// Api version, e.g. 23 for android, 9.1 for iOS, empty for platforms with no concept of an api or sdk
+        char m_ApiVersion[32];
         /// ISO 639 language code
         char m_Language[8];
         /// ISO 639 device language code and optional dash (–) followed by an ISO 15924 script code. Reflects UI language and typically same as m_Language.
