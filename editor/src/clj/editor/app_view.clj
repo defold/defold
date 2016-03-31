@@ -401,7 +401,10 @@
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog workspace project)]
+  (let [[resource opts] (dialogs/make-search-in-files-dialog
+                         workspace
+                         (fn [exts term]
+                           (project/search-in-files project exts term)))]
     (when resource
       (open-resource app-view workspace project resource opts))))
 
