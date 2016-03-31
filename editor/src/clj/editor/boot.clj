@@ -17,6 +17,7 @@
            [java.io File]))
 
 (set! *warn-on-reflection* true)
+
 (declare main)
 
 (defmacro deferred
@@ -26,9 +27,12 @@
    [fully-qualified-func & args]
    (let [func (symbol (name fully-qualified-func))
          space (symbol (namespace fully-qualified-func))]
-     `(do (require '~space)
-          (let [v# (ns-resolve '~space '~func)]
-            (v# ~@args)))))
+     `(do
+        (try (require '~space)
+          (catch Throwable t#
+                  (prn "Error requiring ns" t#)))
+        (let [v# (ns-resolve '~space '~func)]
+          (v# ~@args)))))
 
 (defn- add-to-recent-projects [prefs project-file]
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
