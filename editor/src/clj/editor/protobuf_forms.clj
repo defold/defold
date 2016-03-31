@@ -255,60 +255,6 @@
      :values (make-values (gamepad-pb->form-pb pb) [:driver])
      }))
 
-(defmethod protobuf-form-data Render$DisplayProfiles [node-id pb def]
-  {
-   :sections
-   [
-    {
-     :title "Display Profiles"
-     :fields
-     [
-      {
-       :path [:profiles]
-       :label "Profile"
-       :type :2panel
-       :panel-key {:path [:name] :type :string}
-       :panel-form
-       {
-        :sections
-        [
-         {
-          :fields
-          [
-           {
-            :path [:name]
-            :label "Name"
-            :type :string
-            :default "New Display Profile"
-            }
-           {
-            :path [:qualifiers]
-            :label "Qualifiers"
-            :type :table
-            :columns
-            [
-             {
-              :path [:width]
-              :label "Width"
-              :type :integer
-              }
-             {
-              :path [:height]
-              :label "Height"
-              :type :integer
-              }
-             ]
-            }
-           ]
-          }
-         ]
-        }
-       }
-      ]
-     }
-    ]
-   })
-
 (defmethod protobuf-form-data Graphics$TextureProfiles [node-id pb def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)

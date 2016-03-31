@@ -37,7 +37,8 @@
             [editor.asset-browser :as asset-browser]
             [editor.graph-view :as graph-view]
             [editor.core :as core]
-            [dynamo.graph :as g])
+            [dynamo.graph :as g]
+            [editor.display-profiles :as display-profiles])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
@@ -104,7 +105,8 @@
       (mesh/register-resource-types workspace)
       (material/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
-      (gui/register-resource-types workspace)))
+      (gui/register-resource-types workspace)
+      (display-profiles/register-resource-types workspace)))
     (workspace/resource-sync! workspace)
     workspace))
 
