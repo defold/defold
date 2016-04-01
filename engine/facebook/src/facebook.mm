@@ -557,7 +557,7 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
  * </ul>
  * The actual permission that the user grants can be retrieved with <code>facebook.permissions()</code>.
  *
- * @name login
+ * @name facebook.login
  * @param callback callback function with parameters (self, status, error), when the login attempt is done. (function)
  * @examples
  * <pre>
@@ -608,7 +608,7 @@ int Facebook_Login(lua_State* L)
  *
  * Logout from Facebook.
  *
- * @name logout
+ * @name facebook.logout
  *
  */
 int Facebook_Logout(lua_State* L)
@@ -628,7 +628,7 @@ int Facebook_Logout(lua_State* L)
  * Log in the user on Facebook with the specified read permissions. Check the permissions the user
  * actually granted with <code>facebook.permissions()</code>.
  *
- * @name request_read_permissions
+ * @name facebook.request_read_permissions
  * @param permissions a table with the requested permission strings (table)
  * The following strings are valid permission identifiers and are requested by default on login:
  * <ul>
@@ -682,7 +682,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
  *  Log in the user on Facebook with the specified publish permissions. Check the permissions the user
  *  actually granted with <code>facebook.permissions()</code>.
  *
- * @name request_publish_permissions
+ * @name facebook.request_publish_permissions
  * @param permissions a table with the requested permissions (table)
  * @param audience (constant|number)
  * <ul>
@@ -736,7 +736,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
 /*# get the current Facebook access token
  *
- * @name access_token
+ * @name facebook.access_token
  * @return the access token (string)
  */
 
@@ -755,7 +755,7 @@ int Facebook_AccessToken(lua_State* L)
  *
  * This function returns a table with all the currently granted permission strings.
  *
- * @name permissions
+ * @name facebook.permissions
  * @return the permissions (table)
  * @examples
  * <pre>
@@ -808,7 +808,7 @@ int Facebook_Permissions(lua_State* L)
  *   <li><code>"updated_time"</code></li>
  * </ul>
  *
- * @name me
+ * @name facebook.me
  * @return table with user data fields (table)
  */
 int Facebook_Me(lua_State* L)
@@ -842,7 +842,7 @@ int Facebook_Me(lua_State* L)
  * This function will post an event to Facebook Analytics where it can be used
  * in the Facebook Insights system.
  *
- * @name post_event
+ * @name facebook.post_event
  *
  * @param event (constant|text) An event can either be one of the predefined
  * constants below or a text which can be used to define a custom event that is
@@ -937,7 +937,7 @@ int Facebook_PostEvent(lua_State* L)
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
  *
- * @name enable_event_usage
+ * @name facebook.enable_event_usage
  *
  */
 int Facebook_EnableEventUsage(lua_State* L)
@@ -957,7 +957,7 @@ int Facebook_EnableEventUsage(lua_State* L)
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
  *
- * @name disable_event_usage
+ * @name facebook.disable_event_usage
  *
  */
 int Facebook_DisableEventUsage(lua_State* L)
@@ -974,7 +974,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  * type. Note that some parameters are mandatory. Below is the list of available dialogs and
  * where to find Facebook's developer documentation on parameters and response data.
  *
- * <code>apprequest</code>
+ * <code>apprequests</code>
  *
  * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a
  * game. Available parameters:
@@ -1032,8 +1032,8 @@ int Facebook_DisableEventUsage(lua_State* L)
  *
  * Details for each parameter: https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/
  *
- * @name show_dialog
- * @param dialog dialog to show. "apprequest", "feed" or "appinvite" (string)
+ * @name facebook.show_dialog
+ * @param dialog dialog to show. "apprequests", "feed" or "appinvite" (string)
  * @param param table with dialog parameters (table)
  * @param callback callback function with parameters (self, result, error) that is called when the dialog is closed. Result is table with an url-field set. (function)
  */
@@ -1144,43 +1144,43 @@ static const luaL_reg Facebook_methods[] =
  * @variable
  */
 
-/*# Game Request action type "none" for "apprequest" dialog
+/*# Game Request action type "none" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_NONE
  * @variable
  */
 
-/*# Game Request action type "send" for "apprequest" dialog
+/*# Game Request action type "send" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_SEND
  * @variable
  */
 
-/*# Game Request action type "askfor" for "apprequest" dialog
+/*# Game Request action type "askfor" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_ASKFOR
  * @variable
  */
 
-/*# Game Request action type "turn" for "apprequest" dialog
+/*# Game Request action type "turn" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_TURN
  * @variable
  */
 
-/*# Gamerequest filter type "none" for "apprequest" dialog
+/*# Gamerequest filter type "none" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_FILTER_NONE
  * @variable
  */
 
-/*# Gamerequest filter type "app_users" for "apprequest" dialog
+/*# Gamerequest filter type "app_users" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_FILTER_APPUSERS
  * @variable
  */
 
-/*# Gamerequest filter type "app_non_users" for "apprequest" dialog
+/*# Gamerequest filter type "app_non_users" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_FILTER_APPNONUSERS
  * @variable
