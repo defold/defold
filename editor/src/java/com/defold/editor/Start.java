@@ -17,6 +17,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.ButtonBase;
+import javafx.stage.Modality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +81,32 @@ public class Start extends Application {
         updateTimer.schedule(newUpdateTask(), firstUpdateDelay);
     }
 
+    private Boolean showRestartDialog() throws IOException {
+        Parent root = FXMLLoader.load(Thread.currentThread().getContextClassLoader().getResource("update-alert.fxml"));
+        Stage stage = new Stage();
+        Scene scene = new Scene(root);
+        ButtonBase ok = (ButtonBase) root.lookup("#ok");
+        ButtonBase cancel = (ButtonBase) root.lookup("#cancel");
+        final Boolean[] result = {false};
+
+        ok.setOnAction(event -> {
+            result[0] = true;
+            stage.close();
+        });
+
+        cancel.setOnAction(event -> {
+            result[0] = false;
+            stage.close();
+        });
+
+        stage.setTitle("Update applied");
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setScene(scene);
+        stage.showAndWait();
+
+        return result[0];
+    }
+
     private TimerTask newUpdateTask() {
         return new TimerTask() {
             @Override
@@ -83,7 +114,7 @@ public class Start extends Application {
                 try {
                     logger.debug("checking for updates");
                     UpdateInfo updateInfo = updater.check();
-                    if (updateInfo != null) {
+                    if ((updateInfo != null) && showRestartDialog()) {
                         System.exit(17);
                     }
                     updateTimer.schedule(newUpdateTask(), updateDelay);
