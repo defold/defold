@@ -32,7 +32,7 @@
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-tags property-type? Properties])
+(namespaces/import-vars [internal.graph.types always property-value-type property-default-value property-tags Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids pre-traverse])
 

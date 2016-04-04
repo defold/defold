@@ -10,7 +10,18 @@
   [basis node property _ new-value]
   (first (gt/replace-node basis node (gt/set-property (ig/node-by-id-at basis node) basis property new-value))))
 
-(def property-value-type :value-type)
+(defn property-value-type
+  [this]
+  (if (symbol? this)
+    (property-value-type (util/vgr this))
+    (if (var? this)
+      (property-value-type (var-get this))
+      (if (class? this)
+        {:value-type this}
+        (if (util/schema? this)
+          this
+          nil)))))
+
 (def property-tags       :tags)
 (defn property-default-value [this] (some-> this :default util/var-get-recursive util/apply-if-fn))
 (defn dynamic-attributes     [this] (util/map-vals util/var-get-recursive (:dynamic this)))
@@ -55,22 +66,22 @@
   [label value-type body-forms]
   (println "parse-forms " body-forms)
   (util/assert-schema "property" label value-type)
-  (let [base (if (inheriting? value-type) (util/vgr value-type) {:value-type value-type})
+  (let [base (if (inheriting? value-type) (property-value-type value-type) {:value-type value-type})
         base (assoc base :name label)]
     (reduce property-form base body-forms)))
 
 (defn- check-for-protocol-type
   [name-str value-type]
-  (let [resolved-value-type (util/vgr value-type)]
+  (let [resolved-value-type (property-value-type value-type)]
     (assert (not (gt/protocol? resolved-value-type))
             (str "Property " name-str " type " value-type " looks like a protocol; try (dynamo.graph/protocol " value-type ") instead."))))
 
 (defn- check-for-invalid-type
   [name-str value-type]
-  (let [value-type (util/vgr value-type)]
+  (println "check-for-invalid-type " value-type "(" (type value-type) ") resolved to " (property-value-type value-type))
+  (let [value-type (property-value-type value-type)]
     (assert (or (util/property? value-type) (util/schema? value-type))
             (str "Property " name-str " is declared with type " value-type " but that doesn't seem like a real value type"))))
-
 
 (defn property-type-descriptor
   [label value-type body-forms]

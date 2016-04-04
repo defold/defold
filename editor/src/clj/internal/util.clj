@@ -150,6 +150,7 @@
 
 (defn assert-schema
   [place label form]
-  (let [resolved-schema   (vgr form)
-        underlying-schema (if (satisfies? gt/PropertyType resolved-schema) (gt/property-value-type resolved-schema) form)]
-    (assert-form-kind place label schema? "schema" (vgr underlying-schema))))
+  (if-not (schema? form)
+    (let [resolved-schema   (vgr form)
+          underlying-schema (if (satisfies? gt/PropertyType resolved-schema) (gt/property-value-type resolved-schema) form)]
+      (assert-form-kind place label schema? "schema" (vgr underlying-schema)))))

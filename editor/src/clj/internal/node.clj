@@ -1,6 +1,5 @@
 (ns internal.node
-  (:require [clojure.core.match :refer [match]]
-            [clojure.pprint :as pp]
+  (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
             [internal.util :as util]
@@ -248,7 +247,7 @@
 (defn verify-inputs-for-dynamics
   [node-type-description]
   (doseq [property (:declared-properties node-type-description)
-          dynamic  (gt/dynamic-attributes (second property))
+          dynamic  (ip/dynamic-attributes (second property))
           :let     [missing-args (missing-inputs-for-dynamic node-type-description dynamic)]]
     (assert-no-missing-args node-type-description property dynamic missing-args))
   node-type-description)
@@ -373,9 +372,9 @@
 
 (defn inputs-needed [x]
   (cond
-    (gt/pfnk? x)                   (util/fnk-arguments x)
+    (gt/pfnk? x)       (util/fnk-arguments x)
     (util/property? x) (ip/property-dependencies x)
-    (list? x)                      (into #{} (map keyword (second x)))))
+    (list? x)          (into #{} (map keyword (second x)))))
 
 (def assert-symbol (partial util/assert-form-kind "defnode" "symbol" symbol?))
 
@@ -391,6 +390,7 @@
 (defn attach-supertype
   "Update the node type description with the given supertype."
   [description supertype]
+  (assert-symbol "inherits" supertype)
   (assoc description :supertypes (conj (:supertypes description []) supertype)))
 
 (defn attach-input
@@ -467,8 +467,6 @@
   (let [sym-label     label
         label         (keyword label)
         property-type (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
-        _ (println "getter-for " label " returns " (ip/getter-for property-type))
-        _ (println "property-type is " property-type)
         getter        (or (ip/getter-for property-type)
                           `(pc/fnk [~'this ~'basis ~sym-label] (gt/get-property ~'this ~'basis ~label)))]
     (-> description
@@ -487,6 +485,7 @@
   "Update the node type description with the given extern. It will be
   a property as well as an extern."
   [description label property-type]
+  (assert-symbol "extern" label)
   (attach-property description label (assoc property-type :unjammable? true)))
 
 (defn- parse-flags-and-options
@@ -562,29 +561,32 @@
   build the node type description (map). These are emitted where you
   invoked `defnode` so that symbols and vars resolve correctly."
   [description form]
-  (match [form]
-         [(['inherits supertype] :seq)]
-         (do (assert-symbol "inherits" supertype)
-             `(attach-supertype ~supertype))
+  (case (first form)
+    inherits
+    (let [[_ supertype] form]
+      (attach-supertype description supertype))
 
-         [(['input label schema & remainder] :seq)]
-         (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
-           (attach-input description label schema properties options args))
+    input
+    (let [[_ label schema & remainder] form
+          [properties options args]    (parse-flags-and-options input-flags input-options remainder)]
+      (attach-input description label schema properties options args))
 
-         [(['output label schema & remainder] :seq)]
-         (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
-           (attach-output description label schema properties options args))
+    output
+    (let [[_ label schema & remainder] form
+          [properties options args]    (parse-flags-and-options output-flags output-options remainder)]
+      (attach-output description label schema properties options args))
 
-         [(['property label tp & options] :seq)]
-         (attach-property description label (ip/property-type-descriptor (keyword label) tp options))
+    property
+    (let [[_ label tp & options] form]
+      (attach-property description label (ip/property-type-descriptor (keyword label) tp options)))
 
-         [(['extern label tp & options] :seq)]
-         description
-         #_(do (assert-symbol "extern" label)
-             `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (keyword label) tp options)))
+    extern
+    (let [[_ label tp & options] form]
+      (println form)
+      (attach-extern description label (ip/property-type-descriptor (keyword label) tp options)))
 
-         [(['display-order ordering] :seq)]
-         (assoc :display-order-decl ordering)))
+    display-order
+    (assoc description :display-order-decl (second form))))
 
 (defn- requote-map [m] m)
 
@@ -595,7 +597,7 @@
    (reduce
     (fn [description form]
       (node-type-form6 description form))
-    {} forms)))
+    {:name (str symb)} forms)))
 
 
 
