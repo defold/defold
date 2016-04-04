@@ -392,6 +392,12 @@ int IAP_List(lua_State* L)
  *
  * @name iap.buy
  * @param id product to buy (identifier)
+ * @param options table of optional parameters as properties.
+ *
+ * The options table has the following members:
+ * <ul>
+ * <li> request_id: custom unique request id -- optional argument only available for Facebook IAP transactions
+ * </ul>
  *
  * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
  *
@@ -405,6 +411,7 @@ int IAP_List(lua_State* L)
  *         print(transaction.date)
  *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED, TRANS_STATE_UNVERIFIED or TRANS_STATE_RESTORED
  *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED
+ *         print(transaction.request_id)  -- only available for Facebook IAP transactions (and if used in the iap.buy call parameters)
  *         print(transaction.user_id)     -- only available for Amazon IAP transactions
  *
  *         -- required if auto finish transactions is disabled in project settings
@@ -520,10 +527,11 @@ int IAP_Restore(lua_State* L)
  * <ul>
  * <li> ident: product identifier
  * <li> state: transaction state
- * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED or state == TRANS_STATE_PURCHASED)
- * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED)
  * <li> date: transaction date
  * <li> original_trans: original transaction (only set when state == TRANS_STATE_RESTORED)
+ * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
+ * <li> request_id: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
+ * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  * </ul>
  * @name iap.set_listener
  * @param listener listener function
@@ -589,7 +597,7 @@ static const luaL_reg IAP_methods[] =
     {0, 0}
 };
 
-/*# transaction purchasing state
+/*# transaction purchasing state, intermediate mode followed by TRANS_STATE_PURCHASED. Store provider support dependent.
  *
  * @name iap.TRANS_STATE_PURCHASING
  * @variable
@@ -601,7 +609,7 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction unverified state
+/*# transaction unverified state, requires verification of purchase
  *
  * @name iap.TRANS_STATE_UNVERIFIED
  * @variable
@@ -613,7 +621,7 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction restored state
+/*# transaction restored state. Only available on store providers supporting restoring purchases.
  *
  * @name iap.TRANS_STATE_RESTORED
  * @variable

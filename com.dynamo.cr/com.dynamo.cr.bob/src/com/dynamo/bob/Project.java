@@ -357,6 +357,7 @@ public class Project {
         bundlers = new HashMap<Platform, Class<? extends IBundler>>();
         bundlers.put(Platform.X86Darwin, OSXBundler.class);
         bundlers.put(Platform.X86Linux, LinuxBundler.class);
+        bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
