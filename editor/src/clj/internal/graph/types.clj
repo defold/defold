@@ -94,22 +94,12 @@
 
 (defn protocol? [x] (and (map? x) (contains? x :on-interface)))
 
-(defprotocol PropertyType
-  (property-value-type         [this]   "Prismatic schema for property value type")
-  (property-default-value      [this])
-  (property-tags               [this]))
-
-(defn property-type? [x] (satisfies? PropertyType x))
-
 (def Properties {:properties {s/Keyword {:node-id                              NodeID
                                          (s/optional-key :validation-problems) s/Any
                                          :value                                (s/either s/Any ErrorValue)
-                                         :type                                 (s/protocol PropertyType)
+                                         :type                                 s/Any
                                          s/Keyword                             s/Any}}
                  (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
-
-(defprotocol Dynamics
-  (dynamic-attributes          [this] "Return a map from label to fnk"))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
