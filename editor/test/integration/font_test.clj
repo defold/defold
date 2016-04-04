@@ -37,9 +37,12 @@
         (let [[w' h'] (font/measure font-map "test\ntest")]
           (is (= w' w))
           (is (> h' h))
-          (let [[w'' h''] (font/measure font-map "test test test" true w)]
-          (is (= w'' w'))
-          (is (> h'' h'))))))))
+          (let [[w'' h''] (font/measure font-map "test test test" true w 0 1)]
+            (is (= w'' w'))
+            (is (> h'' h')))
+          (let [[w'' h''] (font/measure font-map "test test test" true w 0.1 1.1)]
+            (is (> w'' w'))
+            (is (> h'' h'))))))))
 
 (deftest preview-text
   (with-clean-system
@@ -49,8 +52,8 @@
           font-map (g/node-value node-id :font-map)
           pre-text (g/node-value node-id :preview-text)
           no-break (s/replace pre-text " " "")
-          [w h] (font/measure font-map pre-text true (:cache-width font-map))
-          [ew eh] (font/measure font-map no-break true (:cache-width font-map))]
+          [w h] (font/measure font-map pre-text true (:cache-width font-map) 0 1)
+          [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)]
       (is (.contains pre-text " "))
       (is (not (.contains no-break " ")))
       (is (< w ew))

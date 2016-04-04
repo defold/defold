@@ -1003,6 +1003,9 @@
       {:id-mapping orig->new
        :tx-data (concat new-tx-data override-tx-data)})))
 
+(defn transfer-overrides [from-node-id to-node-id]
+  (it/transfer-overrides from-node-id to-node-id (partial is/next-node-id @*the-system* (node-id->graph-id to-node-id))))
+
 (defn overrides
   ([root-id]
     (overrides (now) root-id))

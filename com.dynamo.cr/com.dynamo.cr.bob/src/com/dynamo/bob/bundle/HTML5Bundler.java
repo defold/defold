@@ -182,6 +182,15 @@ public class HTML5Bundler implements IBundler {
 
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 
+        // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
+        if (project.option("local-launch", "false").equals("true")) {
+            infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
+            infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
+        } else {
+            infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
+            infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
+        }
+
         String devInit = "";
         String devHead = "";
         String inlineHtml = "";
@@ -191,7 +200,7 @@ public class HTML5Bundler implements IBundler {
             devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
             inlineHtml = IOUtils.toString(getResource("development.inl"));
         }
-      	infoData.put("DEFOLD_DEV_INIT", devInit);
+        infoData.put("DEFOLD_DEV_INIT", devInit);
         infoData.put("DEFOLD_DEV_HEAD", devHead);
         infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
 

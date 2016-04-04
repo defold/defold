@@ -2590,6 +2590,44 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node size mode
+     * Size mode defines how the node will adjust itself in size according to mode.
+     *
+     * @name gui.get_size_mode
+     * @param node node from which to get the size mode (node)
+     * @return node size mode (constant)
+     * <ul>
+     *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
+     *   <li><code>gui.SIZE_MODE_AUTOMATIC</code></li>
+     * </ul>
+     */
+    static int LuaGetSizeMode(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushnumber(L, (lua_Number) n->m_Node.m_SizeMode);
+        return 1;
+    }
+
+    /*# sets node size mode
+     * Size mode defines how the node will adjust itself in size according to mode.
+     *
+     * @name gui.set_size_mode
+     * @param node node to set size mode for (node)
+     * @param size_mode size mode to set (constant)
+     * <ul>
+     *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
+     *   <li><code>gui.SIZE_MODE_AUTOMATIC</code></li>
+     * </ul>
+     */
+    static int LuaSetSizeMode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int size_mode = (int) luaL_checknumber(L, 2);
+        n->m_Node.m_SizeMode = (AdjustMode) size_mode;
+        return 0;
+    }
+
     /*# moves the first node above the second
      * Supply nil as the second argument to move the first node to the top.
      *
@@ -3032,20 +3070,6 @@ namespace dmGui
      * @param color new shadow color (vector3|vector4)
      */
 
-    /*# gets the node size
-     *
-     * @name gui.get_size
-     * @param node node to get the size from (node)
-     * @return node size (vector3)
-     */
-
-    /*# sets the node size
-     *
-     * @name gui.set_size
-     * @param node node to set the size for (node)
-     * @param size new size (vector3|vector4)
-     */
-
 #define LUASET(name, property) \
         int LuaSet##name(lua_State* L)\
         {\
@@ -3090,7 +3114,6 @@ namespace dmGui
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
-    LUAGETSETV3(Size, PROPERTY_SIZE)
 
 #undef LUAGETSET
 
@@ -3100,6 +3123,51 @@ namespace dmGui
         params->m_PhysicalWidth = 640;
         params->m_PhysicalHeight = 960;
         params->m_Dpi = 360;
+    }
+
+    /*# sets the node size
+     *
+     * <b>NOTE!</b> You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
+     *
+     * @name gui.set_size
+     * @param node node to set the size for (node)
+     * @param size new size (vector3|vector4)
+     */
+    int LuaSetSize(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
+        {
+            dmLogWarning("Can not set size on auto-sized nodes.");
+            return 0;
+        }
+        Vector4 v;
+        if (dmScript::IsVector3(L, 2))
+        {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE);
+            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+        }
+        else
+            v = *dmScript::CheckVector4(L, 2);
+        n->m_Node.m_Properties[PROPERTY_SIZE] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
+
+    /*# gets the node size
+     *
+     * @name gui.get_size
+     * @param node node to get the size from (node)
+     * @return node size (vector3)
+     */
+    int LuaGetSize(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        Vector3 v(n->m_Node.m_Properties[PROPERTY_SIZE].getX(), n->m_Node.m_Properties[PROPERTY_SIZE].getY(), n->m_Node.m_Properties[PROPERTY_SIZE].getZ());
+        dmScript::PushVector3(L, v);
+        return 1;
     }
 
     /*# gets the node screen position
@@ -3178,6 +3246,8 @@ namespace dmGui
         {"set_enabled",     LuaSetEnabled},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
+        {"get_size_mode",   LuaGetSizeMode},
+        {"set_size_mode",   LuaSetSizeMode},
         {"move_above",      LuaMoveAbove},
         {"move_below",      LuaMoveBelow},
         {"get_parent",      LuaGetParent},
@@ -3202,6 +3272,8 @@ namespace dmGui
         {"get_leading",     LuaGetLeading},
         {"set_tracking",    LuaSetTracking},
         {"get_tracking",    LuaGetTracking},
+        {"set_size",        LuaSetSize},
+        {"get_size",        LuaGetSize},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
@@ -3209,7 +3281,6 @@ namespace dmGui
         REGGETSET(Color, color)
         REGGETSET(Outline, outline)
         REGGETSET(Shadow, shadow)
-        REGGETSET(Size, size)
         {0, 0}
     };
 
