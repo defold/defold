@@ -65,15 +65,13 @@
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
 (g/defnode CurveEditor
-    (inherits editor.core/Scope)
+    (inherits editor.core/Scope))
 
-    editor.core/ICreate
-    (post-create
-     [this basis event]
-     (let [btn (Button.)]
-       (ui/text! btn "Curve Editor WIP!")
-       (.add (.getChildren ^VBox (:parent event)) btn))))
-
+(defn curve-editor-post-create
+  [this basis event]
+  (let [btn (Button.)]
+    (ui/text! btn "Curve Editor WIP!")
+    (.add (.getChildren ^VBox (:parent event)) btn)))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
@@ -168,8 +166,7 @@
 
 (defn- create-view [game-project ^VBox root place node-type]
   (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
-
+    (curve-editor-post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
 (defn open-project
   [^File game-project-file prefs render-progress!]
