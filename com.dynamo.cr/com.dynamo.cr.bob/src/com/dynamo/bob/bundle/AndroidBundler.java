@@ -139,7 +139,12 @@ public class AndroidBundler implements IBundler {
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
 
-        Result res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        Map<String, String> aaptEnv = new HashMap<String, String>();
+        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+            aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+        }
+
+        Result res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "package",
                 "--no-crunch",
                 "-f",
@@ -162,7 +167,7 @@ public class AndroidBundler implements IBundler {
         File tmpClassesDex = new File("classes.dex");
         FileUtils.copyFile(new File(Bob.getPath("lib/classes.dex")), tmpClassesDex);
 
-        res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "add",
                 ap1.getAbsolutePath(),
                 tmpClassesDex.getPath());

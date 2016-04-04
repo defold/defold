@@ -25,7 +25,8 @@
             [editor.gui :as gui]
             [editor.json :as json]
             [editor.mesh :as mesh]
-            [editor.material :as material])
+            [editor.material :as material]
+            [editor.display-profiles :as display-profiles])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
@@ -63,7 +64,8 @@
         (mesh/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (gui/register-resource-types workspace)
-        (material/register-resource-types workspace)))
+        (material/register-resource-types workspace)
+        (display-profiles/register-resource-types workspace)))
       (workspace/resource-sync! workspace)
       workspace)))
 

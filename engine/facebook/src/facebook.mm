@@ -25,6 +25,8 @@ struct Facebook
     int m_Self;
     int m_DisableFaceBookEvents;
     lua_State* m_MainThread;
+    bool m_AccessTokenAvailable;
+    bool m_AccessTokenRequested;
     id<UIApplicationDelegate,
        FBSDKSharingDelegate,
        FBSDKAppInviteDialogDelegate,
@@ -32,6 +34,10 @@ struct Facebook
 };
 
 Facebook g_Facebook;
+
+static void UpdateUserData();
+static void DoLogin();
+
 
 static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error);
 
@@ -73,6 +79,18 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
         if(!g_Facebook.m_DisableFaceBookEvents)
         {
             [FBSDKAppEvents activateApp];
+        }
+
+        // At the point of app activation, the currentAccessToken will be available if present.
+        // If a token has been requested (through a login call), do the login at this point, or just update the userdata if logged in.
+        g_Facebook.m_AccessTokenAvailable = true;
+        if(g_Facebook.m_AccessTokenRequested) {
+            g_Facebook.m_AccessTokenRequested = false;
+            if ([FBSDKAccessToken currentAccessToken]) {
+                UpdateUserData();
+            } else {
+                DoLogin();
+            }
         }
     }
 
@@ -434,7 +452,7 @@ static void AppendArray(lua_State*L, NSMutableArray* array, int table)
     }
 }
 
-static void UpdateUserData(lua_State* L)
+static void UpdateUserData()
 {
     // Login successfull, now grab user info
     // In SDK 4+ we explicitly have to set which fields we want,
@@ -447,11 +465,40 @@ static void UpdateUserData(lua_State* L)
         [g_Facebook.m_Me release];
         if (!error) {
             g_Facebook.m_Me = [[NSDictionary alloc] initWithDictionary: graphresult];
-            RunStateCallback(L, dmFacebook::STATE_OPEN, error);
+            RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_OPEN, error);
         } else {
             g_Facebook.m_Me = nil;
             dmLogWarning("Failed to fetch user-info: %s", [[error localizedDescription] UTF8String]);
-            RunStateCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
+            RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
+        }
+
+    }];
+}
+
+static void DoLogin()
+{
+    NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
+    [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+        if (error) {
+            RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
+        } else if (result.isCancelled) {
+            NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+            [errorDetail setValue:@"Login was cancelled" forKey:NSLocalizedDescriptionKey];
+            RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        } else {
+            if ([result.grantedPermissions containsObject:@"public_profile"] &&
+                [result.grantedPermissions containsObject:@"email"] &&
+                [result.grantedPermissions containsObject:@"user_friends"]) {
+
+                UpdateUserData();
+
+            } else {
+                // FIXME: Skip this check and ignore if we didn't get all permissions.
+                //        This will show in the facebook.permissions() call anyway.
+                NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+                [errorDetail setValue:@"Not granted all requested permissions." forKey:NSLocalizedDescriptionKey];
+                RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+            }
         }
 
     }];
@@ -534,45 +581,23 @@ int Facebook_Login(lua_State* L)
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_State* main_thread = dmScript::GetMainThread(L);
 
     if ([FBSDKAccessToken currentAccessToken]) {
-
-        UpdateUserData(main_thread);
-
+        UpdateUserData();
     } else {
-
-        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
-
-        [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-
-            if (error) {
-                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
-            } else if (result.isCancelled) {
-                NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-                [errorDetail setValue:@"Login was cancelled" forKey:NSLocalizedDescriptionKey];
-                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
-            } else {
-
-                if ([result.grantedPermissions containsObject:@"public_profile"] &&
-                    [result.grantedPermissions containsObject:@"email"] &&
-                    [result.grantedPermissions containsObject:@"user_friends"]) {
-
-                    UpdateUserData(main_thread);
-
-                } else {
-                    // FIXME: Skip this check and ignore if we didn't get all permissions.
-                    //        This will show in the facebook.permissions() call anyway.
-                    NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-                    [errorDetail setValue:@"Not granted all requested permissions." forKey:NSLocalizedDescriptionKey];
-                    RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
-                }
-            }
-
-        }];
+        // The accesstoken is not aviablale until app activation (this is where m_AccessTokenAvaliable is set), but this function can be called before then.
+        if(g_Facebook.m_AccessTokenAvailable) {
+            // there is no accesstoken, call login
+            g_Facebook.m_AccessTokenRequested = false;
+            DoLogin();
+        } else {
+            // there is no accesstoken avaialble yet, set the request flag so the login (or user data update) can be done in app activation instead
+            g_Facebook.m_AccessTokenRequested = true;
+        }
     }
 
     assert(top == lua_gettop(L));
@@ -923,7 +948,7 @@ int Facebook_EnableEventUsage(lua_State* L)
 }
 
 /*# Disable event usage with Facebook Analytics
- * 
+ *
  * This function will disable event usage for Facebook Analytics which means
  * that Facebook won't be able to use event data for ad-tracking. Events will
  * still be sent to Facebook for insights.

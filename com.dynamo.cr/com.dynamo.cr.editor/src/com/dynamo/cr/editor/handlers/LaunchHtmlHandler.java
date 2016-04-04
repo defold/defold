@@ -175,6 +175,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
 
         bobArgs.put("platform", Platform.JsWeb.getPair());
         bobArgs.put("bundle-output", outputDir);
+        bobArgs.put("local-launch", "true");
 
         Map<String, String> args = new HashMap<String, String>();
         args.put("location", "local");
@@ -184,7 +185,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
         commands.add("bundle");
         BobUtil.putBobCommands(commands, args);
 
-        project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
+        project.build(kind, "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
     }
 
 }

@@ -148,7 +148,8 @@
           (dynamic visible (g/always false))
           (value (gu/passthrough display-profiles-resource))
           (set (project/gen-resource-setter [[:resource :display-profiles-resource]
-                                             [:build-targets :dep-build-targets]])))
+                                             [:build-targets :dep-build-targets]
+                                             [:profile-data :display-profiles-data]])))
   (property main-collection (g/protocol resource/Resource)
             (dynamic visible (g/always false))
             (value (gu/passthrough main-collection-resource))
@@ -175,12 +176,15 @@
             (set (project/gen-resource-setter [[:resource :input-binding-resource]
                                                [:build-targets :dep-build-targets]])))
 
+  (input display-profiles-data g/Any)
   (input display-profiles-resource (g/protocol resource/Resource))
   (input main-collection-resource (g/protocol resource/Resource))
   (input render-resource (g/protocol resource/Resource))
   (input texture-profiles-resource (g/protocol resource/Resource))
   (input gamepads-resource (g/protocol resource/Resource))
   (input input-binding-resource (g/protocol resource/Resource))
+
+  (output display-profiles-data g/Any (g/fnk [display-profiles-data] display-profiles-data))
 
   (output ref-settings g/Any (g/fnk [_declared-properties]
                                     (let [p (-> (:properties _declared-properties)
