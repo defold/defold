@@ -475,10 +475,13 @@
 (defmethod create-field-control :2panel [field-info field-ops ctxt]
   (let [list-view (create-fixed-cell-size-list-view)
         hbox (HBox.)
+        content (atom nil)
         nested-field-ops {:set (fn [path val]
                                  (let [selected-index (get-selected-index list-view)]
                                    (when selected-index
-                                     ((:set field-ops) (concat (:path field-info) [selected-index] path) val))))
+                                     (if (contains? field-info :set)
+                                       ((:set field-info) (get @content selected-index) path val)
+                                       ((:set field-ops) (concat (:path field-info) [selected-index] path) val)))))
                           :clear (when-let [clear (:clear field-ops)]
                                    (fn [path]
                                      (let [selected-index (get-selected-index list-view)]
@@ -488,7 +491,6 @@
         updaters (into {} (keep :update-ui-fn grid-rows))
         grid (doto (GridPane.)
                (add-grid-rows grid-rows))
-        content (atom nil)
         panel-key-info (:panel-key field-info)
         internal-select-change (atom false)
         update-list-and-form (fn []
@@ -520,14 +522,16 @@
                                (cons row (:path panel-key-info))
                                val)
                         ((:set field-ops) (:path field-info) @content))
-        on-add-row (fn []
-                     (swap! content conj default-row)
-                     ((:set field-ops) (:path field-info) @content))
+        on-add-row (:on-add field-info (fn []
+                                         (swap! content conj default-row)
+                                         ((:set field-ops) (:path field-info) @content)))
         on-remove-row (fn []
-                        (swap! content remove-table-row (get-selected-index list-view))
-                        ((:set field-ops) (:path field-info) @content))
-        ]
-
+                        (let [idx (get-selected-index list-view)
+                              v (get @content idx)]
+                          (swap! content remove-table-row idx)
+                          (if (contains? field-info :on-remove)
+                            ((:on-remove field-info) v)
+                            ((:set field-ops) (:path field-info) @content))))]
     (ui/user-data! grid ::ui-update-fns updaters)
     (.setHgap grid 4)
     (.setVgap grid 6)
@@ -607,8 +611,7 @@
 
 (defn- update-fields [updaters field-values]
   (doseq [[path val] field-values]
-    (let [updater (updaters path)]
-      (assert updater (format "missing updater for %s" path))
+    (when-let [updater (updaters path)]
       (updater {:value val :source :explicit})))
   (let [defaulted-paths (clojure.set/difference (set (keys updaters)) (set (keys field-values)))]
     (doseq [path defaulted-paths]
