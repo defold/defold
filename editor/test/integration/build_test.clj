@@ -396,3 +396,15 @@
         (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
           (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
           (is (= "/fonts/big_score.fontc" (get fonts "sub_font"))))))))
+
+(deftest build-game-project
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/game.project"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)]
+        (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8"))))))))

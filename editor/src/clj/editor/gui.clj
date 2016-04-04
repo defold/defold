@@ -10,6 +10,7 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
             [editor.defold-project :as project]
+            [editor.progress :as progress]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
@@ -159,7 +160,8 @@
                                          (into uvs (:uv-data user-data))
                                          (into colors (repeat vcount (premul (:color user-data))))]))
                                     [[] [] []] renderables)]
-        (->uv-color-vtx-vb vs uvs colors (count vs)))
+        (when (not-empty vs)
+          (->uv-color-vtx-vb vs uvs colors (count vs))))
 
       (contains? user-data :text-data)
       (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
@@ -192,15 +194,29 @@
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
+(defn- pivot->h-align [pivot]
+  (case pivot
+    (:pivot-e :pivot-ne :pivot-se) :right
+    (:pivot-center :pivot-n :pivot-s) :center
+    (:pivot-w :pivot-nw :pivot-sw) :left))
+
+(defn- pivot->v-align [pivot]
+  (case pivot
+    (:pivot-ne :pivot-n :pivot-nw) :top
+    (:pivot-e :pivot-center :pivot-w) :middle
+    (:pivot-se :pivot-s :pivot-sw) :bottom))
+
 (defn- pivot-offset [pivot size]
-  (let [xs (case pivot
-             (:pivot-e :pivot-ne :pivot-se) -1.0
-             (:pivot-center :pivot-n :pivot-s) -0.5
-             (:pivot-w :pivot-nw :pivot-sw) 0.0)
-        ys (case pivot
-             (:pivot-ne :pivot-n :pivot-nw) -1.0
-             (:pivot-e :pivot-center :pivot-w) -0.5
-             (:pivot-se :pivot-s :pivot-sw) 0.0)]
+  (let [h-align (pivot->h-align pivot)
+        v-align (pivot->v-align pivot)
+        xs (case h-align
+             :right -1.0
+             :center -0.5
+             :left 0.0)
+        ys (case v-align
+             :top -1.0
+             :middle -0.5
+             :bottom 0.0)]
     (mapv * size [xs ys 1])))
 
 (defn render-nodes [^GL2 gl render-args renderables rcount]
@@ -209,23 +225,25 @@
       (render-lines gl render-args renderables rcount)
       (render-tris gl render-args renderables rcount))))
 
-(defn- sort-by-angle [ps]
-  (-> (sort-by (fn [[x y _]] (let [a (Math/atan2 y x)]
+(defn- sort-by-angle [ps max-angle]
+  (-> (sort-by (fn [[x y _]] (let [a (* (Math/atan2 y x) (if (< max-angle 0) -1.0 1.0))]
                               (cond-> a
                                 (< a 0) (+ (* 2.0 Math/PI))))) ps)
     (vec)))
 
-(defn- cornify [ps max-angle]
-  (let [corner-count (int (/ (+ max-angle 45) 90))]
+(defn- cornify [ps ^double max-angle]
+  (let [corner-count (int (/ (+ (Math/abs max-angle) 45) 90))]
     (if (> corner-count 0)
-      (-> ps
-        (into (geom/chain (dec corner-count) (partial geom/rotate [0 0 90]) (geom/rotate [0 0 45] [[1 0 0]])))
-        (sort-by-angle))
+      (let [right (if (< max-angle 0) -90 90)
+            half-right (if (< max-angle 0) -45 45)]
+        (-> ps
+         (into (geom/chain (dec corner-count) (partial geom/rotate [0 0 right]) (geom/rotate [0 0 half-right] [[1 0 0]])))
+         (sort-by-angle max-angle)))
       ps)))
 
-(defn- pie-circling [segments max-angle corners? ps]
-  (let [cut-off? (< max-angle 360)
-        angle (/ 360 segments)
+(defn- pie-circling [segments ^double max-angle corners? ps]
+  (let [cut-off? (< (Math/abs max-angle) 360)
+        angle (* (/ 360 segments) (if (< max-angle 0) -1.0 1.0))
         segments (if cut-off?
                    (int (/ max-angle angle))
                    segments)]
@@ -549,9 +567,9 @@
           (g/fnk [pivot size color pie-data texture anim-data]
                  (let [[w h _] size
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])
-                       {:keys [outer-bounds inner-radius perimeter-vertices pie-fill-angle]} pie-data
+                       {:keys [outer-bounds inner-radius perimeter-vertices ^double pie-fill-angle]} pie-data
                        outer-rect? (= :piebounds-rectangle outer-bounds)
-                       cut-off? (< pie-fill-angle 360)
+                       cut-off? (< (Math/abs pie-fill-angle) 360)
                        hole? (> inner-radius 0)
                        vs (pie-circling perimeter-vertices pie-fill-angle outer-rect? [[1 0 0]])
                        vs-outer (if outer-rect?
@@ -613,6 +631,8 @@
                    (for [[from to] font-connections]
                      (g/connect font-node from self to)))
                  []))))))
+  (property text-leading g/Num)
+  (property text-tracking g/Num)
   (property outline types/Color (default [1 1 1 1]))
   (property outline-alpha g/Num (default 1.0)
     (value (g/fnk [outline] (get outline 3)))
@@ -632,7 +652,7 @@
                                   :max 1.0
                                   :precision 0.01})))
 
-  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (input font-input g/Str)
   (input font-map g/Any)
@@ -654,11 +674,12 @@
                     :text-data (when-let [font-data (get text-data :font-data)]
                                  (assoc text-data :offset (let [[x y] offset]
                                                             [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))})))
-  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break]
-                                         (font/measure font-map text line-break (first size))))
-  (output text-data {g/Keyword g/Any} (g/fnk [text font-data line-break outline shadow size]
+  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
+                                         (font/measure font-map text line-break (first size) text-tracking text-leading)))
+  (output text-data {g/Keyword g/Any} (g/fnk [text font-data line-break outline shadow size pivot text-leading text-tracking]
                                         {:text text :font-data font-data
-                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)})))
+                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)
+                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)})))
 
 ;; Template nodes
 
@@ -1335,26 +1356,37 @@
                                   [new-key (f node-desc)])) node-desc)))
 
 (defn load-gui-scene [project self input]
-  (let [def pb-def
-        scene (protobuf/read-text (:pb-class def) input)
-        resource (g/node-value self :resource)
-        resolve-fn (partial workspace/resolve-resource resource)
-        workspace (project/workspace project)
-        graph-id (g/node-id->graph-id self)
-        node-descs (map convert-node-desc (:nodes scene))
-        tmpl-node-descs (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}]) (filter :template-node-child node-descs)))
-        tmpl-node-descs (into {} (map (fn [[id data]] [id (update data :template (fn [parent] (if (contains? tmpl-node-descs parent)
-                                                                                                (recur (:template (get tmpl-node-descs parent)))
-                                                                                                parent)))])
-                                      tmpl-node-descs))
-        node-descs (filter (complement :template-node-child) node-descs)
-        tmpl-children (group-by (comp :template second) tmpl-node-descs)
-        tmpl-roots (filter (complement tmpl-node-descs) (map first tmpl-children))
-        template-data (into {} (map (fn [r] [r (into {} (map (fn [[id tmpl]] [(subs id (inc (count r))) (:data tmpl)]) (rest (tree-seq (constantly true) (comp tmpl-children first) [r nil]))))]) tmpl-roots))
+  (let [def                pb-def
+        scene              (protobuf/read-text (:pb-class def) input)
+        resource           (g/node-value self :resource)
+        resolve-fn         (partial workspace/resolve-resource resource)
+        workspace          (project/workspace project)
+        graph-id           (g/node-id->graph-id self)
+        node-descs         (map convert-node-desc (:nodes scene))
+        tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
+                                         (filter :template-node-child node-descs)))
+        tmpl-node-descs    (into {} (map (fn [[id data]]
+                                           [id (update data :template
+                                                       (fn [parent] (if (contains? tmpl-node-descs parent)
+                                                                      (recur (:template (get tmpl-node-descs parent)))
+                                                                      parent)))])
+                                         tmpl-node-descs))
+        node-descs         (filter (complement :template-node-child) node-descs)
+        tmpl-children      (group-by (comp :template second) tmpl-node-descs)
+        tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
+        template-data      (into {} (map (fn [r] [r (into {} (map (fn [[id tmpl]]
+                                                                    [(subs id (inc (count r))) (:data tmpl)])
+                                                                  (rest (tree-seq (constantly true)
+                                                                                  (comp tmpl-children first)
+                                                                                  [r nil]))))])
+                                         tmpl-roots))
         template-resources (map (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
-        texture-resources (map (comp resolve-fn :texture) (:textures scene))
-        scene-load-data (project/load-resource-nodes project (filter (complement nil?) (map #(project/get-resource-node project %) (concat template-resources
-                                                                                                                                          texture-resources))))]
+        texture-resources  (map (comp resolve-fn :texture) (:textures scene))
+        scene-load-data    (project/load-resource-nodes project
+                                                        (->> (concat template-resources texture-resources)
+                                                             (map #(project/get-resource-node project %))
+                                                             (remove nil?))
+                                                        progress/null-render-progress!)]
     (concat
       scene-load-data
       (g/set-property self :script (workspace/resolve-resource resource (:script scene)))
@@ -1472,7 +1504,7 @@
                                      :icon (:icon def)
                                      :tags (:tags def)
                                      :template (:template def)
-                                     :view-types [:scene]
+                                     :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]

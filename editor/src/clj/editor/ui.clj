@@ -1,5 +1,6 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
+            [editor.progress :as progress]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
@@ -36,7 +37,7 @@
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
-(defn main-stage []
+(defn ^Stage main-stage []
   @*main-stage*)
 
 (defn choose-file [title ^String ext-descr exts]
@@ -319,9 +320,17 @@
 
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
 
 (extend-type Labeled
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Label
   Text
   (text [this] (.getText this))
   (text! [this val] (.setText this val)))
@@ -650,24 +659,38 @@
        (refresh-toolbar td command-contexts)
        (refresh-toolbar-state (:control td) command-contexts)))))
 
+(defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
+  (let [pctg (progress/percentage progress)]
+    (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
+    (.setText label (progress/description progress))))
+
+(defn default-render-progress! [progress]
+  (run-later
+   (let [root  (.. (main-stage) (getScene) (getRoot))
+         tb    (.lookup root "#toolbar-status")
+         bar   (.lookup tb ".progress-bar")
+         label (.lookup tb ".label")]
+     (update-progress-controls! progress bar label))))
+
+(defmacro with-progress [bindings & body]
+  `(let ~bindings
+     (try
+       ~@body
+       (finally
+         ((second ~bindings) (progress/make "Done" 1 1))))))
+
 (defn modal-progress [title total-work worker-fn]
   (run-now
-    (let [root ^Parent (load-fxml "progress.fxml")
-          stage (Stage.)
-          scene (Scene. root)
-          title-control ^Label (.lookup root "#title")
-          progress-control ^ProgressBar (.lookup root "#progress")
-          message-control ^Label (.lookup root "#message")
-          worked (atom 0)
-          return (atom nil)
-          report-fn (fn [work msg]
-                      (when (> work 0)
-                        (swap! worked + work))
-                      (run-later
-                        (.setText message-control (str msg))
-                        (if (> work 0)
-                          (.setProgress progress-control (/ @worked (float total-work)))
-                          (.setProgress progress-control -1))))]
+   (let [root             ^Parent (load-fxml "progress.fxml")
+         stage            (Stage.)
+         scene            (Scene. root)
+         title-control    ^Label (.lookup root "#title")
+         progress-control ^ProgressBar (.lookup root "#progress")
+         message-control  ^Label (.lookup root "#message")
+         return           (atom nil)
+         render-progress! (fn [progress]
+                            (run-later
+                             (update-progress-controls! progress progress-control message-control)))]
       (.setText title-control title)
       (.setProgress progress-control 0)
       (.initOwner stage @*main-stage*)
@@ -675,7 +698,7 @@
       (.setScene stage scene)
       (future
         (try
-          (reset! return (worker-fn report-fn))
+          (reset! return (worker-fn render-progress!))
           (catch Throwable e
             (log/error :exception e)
             (reset! return e)))
@@ -685,6 +708,16 @@
           (throw @return)
           @return))))
 
+(defn disable-ui [disabled]
+  (let [root (.. (main-stage) (getScene) (getRoot))]
+    (.setDisable root disabled)))
+
+(defmacro with-disabled-ui [& body]
+  `(try
+     (run-now (disable-ui true))
+     ~@body
+     (finally
+       (run-now (disable-ui false)))))
 
 (defn mouse-type
   []
@@ -887,3 +920,6 @@ return value."
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
+
+(defn parent->stage ^Stage [^Parent parent]
+  (.. parent getScene getWindow))

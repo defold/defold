@@ -1,5 +1,6 @@
 (ns editor.library
   (:require [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
@@ -86,7 +87,7 @@
     (when (some #{host} ["www.defold.com"])
       (make-auth-headers (prefs/make-prefs "defold")))))
 
-(defn- default-http-resolver [^URL url ^String tag]
+(defn default-http-resolver [^URL url ^String tag]
   (let [http-headers (headers-for-url url)
         connection (.openConnection url)
         http-connection (when (instance? HttpURLConnection connection) connection)]
@@ -114,8 +115,11 @@
        :reason :fetch-failed
        :exception e})))
 
-(defn- fetch-library-update! [resolver {:keys [tag url] :as lib-state}]
-  (merge lib-state (fetch-library! resolver url tag))) ; tag may not be available ...
+(defn- fetch-library-update! [{:keys [tag url] :as lib-state} resolver render-progress!]
+  (let [progress (progress/make (str url))]
+    (render-progress! progress)
+    ;; tag may not be available ...
+    (merge lib-state (fetch-library! resolver url tag))))
 
 (defn- validate-updated-library [lib-state]
   (merge lib-state
@@ -142,7 +146,7 @@
     (Files/copy (.toPath source) (.toPath target) copy-options)
     target))
 
-(defn- install-updated-library! [project-directory lib-state]
+(defn- install-updated-library! [lib-state project-directory]
   (merge lib-state
          (try
            (purge-all-library-versions! project-directory (:url lib-state))
@@ -156,12 +160,23 @@
 
 (defn update-libraries!
   ([project-directory lib-urls]
-   (update-libraries! project-directory default-http-resolver lib-urls))
-  ([project-directory resolver lib-urls]
-   (doall (map (fn [lib-state]
-                 (-> lib-state
-                     (#(if (= (:status %) :unknown) (fetch-library-update! resolver %) %))
-                     (#(if (= (:status %) :stale) (validate-updated-library %) %))
-                     (#(if (= (:status %) :stale) (install-updated-library! project-directory %) %))
-                     (dissoc :new-file)))
-               (current-library-state project-directory lib-urls)))))
+   (update-libraries! project-directory lib-urls default-http-resolver))
+  ([project-directory lib-urls resolver]
+   (update-libraries! project-directory lib-urls resolver progress/null-render-progress!))
+  ([project-directory lib-urls resolver render-progress!]
+   (let [lib-states (current-library-state project-directory lib-urls)]
+     (progress/progress-mapv
+      (fn [lib-state progress]
+          (let [lib-state (if (= (:status lib-state) :unknown)
+                            (fetch-library-update! lib-state resolver
+                                                   (progress/nest-render-progress render-progress! progress))
+                            lib-state)
+                lib-state (if (= (:status lib-state) :stale)
+                            (validate-updated-library lib-state)
+                            lib-state)
+                lib-state (if (= (:status lib-state) :stale)
+                            (install-updated-library! lib-state project-directory)
+                            lib-state)]
+            (dissoc lib-state :new-file)))
+      lib-states
+      render-progress!))))

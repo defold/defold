@@ -31,5 +31,6 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :text
+                                :label "Text"
                                 :focus-fn update-caret-pos
                                 :make-view-fn make-view))

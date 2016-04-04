@@ -28,17 +28,20 @@
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code]
+                   :view-types [:code :default]
                    :tags #{:component}}
                   {:ext "render_script"
                    :label "Render Script"
-                   :icon "icons/32/Icons_12-Script-type.png"}
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :view-types [:code :default]}
                   {:ext "gui_script"
                    :label "Gui Script"
-                   :icon "icons/32/Icons_12-Script-type.png"}
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :view-types [:code :default]}
                   {:ext "lua"
                    :label "Lua Module"
-                   :icon "icons/32/Icons_11-Script-general.png"}])
+                   :icon "icons/32/Icons_11-Script-general.png"
+                   :view-types [:code :default]}])
 
 (def ^:private status-errors
   {:ok nil
