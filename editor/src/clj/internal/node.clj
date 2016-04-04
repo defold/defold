@@ -199,12 +199,14 @@
 (defn attach-properties-output
   [node-type-description]
   (let [properties      (util/filterm (comp not #{:_node-id :_output-jammers} key) (:declared-properties node-type-description))
-        argument-names  (into (util/key-set properties) (mapcat (comp ip/property-dependencies) properties))
+        argument-names  (into (util/key-set properties) (mapcat inputs-needed properties))
         argument-schema (zipmap argument-names (repeat s/Any))]
     (attach-output
      node-type-description
-      :_declared-properties gt/Properties #{} #{}
-      (s/schematize-fn dummy-produce-declared-properties (s/=> gt/Properties argument-schema)))))
+     '_declared-properties 'internal.graph.types/Properties #{} #{}
+     [`(s/schematize-fn
+        (fn [] (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))
+        (s/=> gt/Properties ~argument-schema))])))
 
 (defn inputs-for
   [pfn]
@@ -343,13 +345,40 @@
       verify-inputs-for-outputs
       map->NodeTypeImpl))
 
+(defn make-node-type-map
+  "Create a node type object from a maplike description of the node.
+  This is really meant to be used during macro expansion of `defnode`,
+  not called directly."
+  [description]
+  (-> description
+      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
+      (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
+      (update-in [:declared-properties]   combine-with merge      {} (from-supertypes description gt/declared-properties))
+      (update-in [:passthroughs]          combine-with set/union #{} (from-supertypes description gt/passthroughs))
+      (update-in [:outputs]               combine-with merge      {} (from-supertypes description gt/declared-outputs))
+      (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
+      (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
+      (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
+      (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
+      (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
+      (update-in [:cascade-deletes]       combine-with set/union #{} (from-supertypes description :cascade-deletes))
+      resolve-display-order
+      attach-properties-output
+      attach-input-dependencies
+      verify-labels
+      verify-inputs-for-dynamics
+      verify-inputs-for-outputs))
+
 (def ^:private inputs-properties (juxt :inputs :declared-properties))
 
-(defn- assert-form-kind [kind-label required-kind label form]
-  (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
+(defn inputs-needed [x]
+  (cond
+    (gt/pfnk? x)                   (util/fnk-arguments x)
+    (util/property? x) (ip/property-dependencies x)
+    (list? x)                      (into #{} (map keyword (second x)))))
 
-(def assert-symbol (partial assert-form-kind "symbol" symbol?))
-(def assert-schema (partial assert-form-kind "schema" util/schema?))
+(def assert-symbol (partial util/assert-form-kind "defnode" "symbol" symbol?))
+
 (defn assert-pfnk [label production-fn]
   (assert
    (gt/pfnk? production-fn)
@@ -367,29 +396,31 @@
 (defn attach-input
   "Update the node type description with the given input."
   [description label schema flags options & [args]]
-  (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
-  (assert (not (gt/protocol? schema))
-          (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
-  (assert-schema "input" schema)
+  (assert-symbol "input" label)
+  (util/assert-schema "defnode" "input" schema)
+  (let [label           (keyword label)
+        resolved-schema (util/vgr schema)]
+    (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
+    (assert (not (gt/protocol? resolved-schema))
+            (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
+    (let [schema (if (util/property? resolved-schema) (gt/property-value-type resolved-schema) schema)]
+      (cond->
+          (assoc-in description [:inputs label] schema)
 
-  (let [property-schema (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)]
-    (cond->
-        (assoc-in description [:inputs label] property-schema)
+        (some #{:cascade-delete} flags)
+        (update :cascade-deletes #(conj (or % #{}) label))
 
-      (some #{:cascade-delete} flags)
-      (update :cascade-deletes #(conj (or % #{}) label))
+        (some #{:inject} flags)
+        (update :injectable-inputs #(conj (or % #{}) label))
 
-      (some #{:inject} flags)
-      (update :injectable-inputs #(conj (or % #{}) label))
+        (:substitute options)
+        (update :substitutes assoc label (:substitute options))
 
-      (:substitute options)
-      (update :substitutes assoc label (:substitute options))
+        (not (some #{:array} flags))
+        (update :cardinalities assoc label :one)
 
-      (not (some #{:array} flags))
-      (update :cardinalities assoc label :one)
-
-      (some #{:array} flags)
-      (update :cardinalities assoc label :many))))
+        (some #{:array} flags)
+        (update :cardinalities assoc label :many)))))
 
 (defn- abstract-function
   [label type]
@@ -401,13 +432,18 @@
 
 (defn attach-output
   "Update the node type description with the given output."
-  [description label schema properties options & remainder]
-  (assert-schema "output" schema)
-  (let [production-fn (if (:abstract properties)
-                        (abstract-function label schema)
-                        (first remainder))
-        property-schema (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)]
-    (when-not (:abstract properties)
+  [description label schema properties options remainder]
+  (assert-symbol "output" label)
+  (util/assert-schema "defnode" "output" schema)
+  (assert (or (:abstract properties) (not (empty? remainder)))
+          (format "The output %s is missing a production function. Either define the production function or mark it as :abstract." label))
+  (let [label           (keyword label)
+        production-fn   (if (:abstract properties)
+                          (abstract-function label schema)
+                          (first remainder))
+        resolved-schema (util/vgr schema)
+        schema          (if (util/property? resolved-schema) (gt/property-value-type resolved-schema) schema)]
+    #_(when-not (:abstract properties)
       (assert-pfnk label production-fn))
     (assert
       (empty? (rest remainder))
@@ -416,7 +452,7 @@
       (update-in [:transform-types] assoc label schema)
       (update-in [:passthroughs] #(disj (or % #{}) label))
       (update-in [:transforms] assoc-in [label] production-fn)
-      (update-in [:outputs] assoc-in [label] property-schema)
+      (update-in [:outputs] assoc-in [label] schema)
       (cond->
 
         (:cached properties)
@@ -427,9 +463,14 @@
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type]
-  (let [property-type   (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
-        getter          (or (ip/getter-for property-type)
-                            (eval `(pc/fnk [~'this ~'basis ~(symbol (name label))] (gt/get-property ~'this ~'basis ~label))))]
+  (assert-symbol "property" label)
+  (let [sym-label     label
+        label         (keyword label)
+        property-type (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
+        _ (println "getter-for " label " returns " (ip/getter-for property-type))
+        _ (println "property-type is " property-type)
+        getter        (or (ip/getter-for property-type)
+                          `(pc/fnk [~'this ~'basis ~sym-label] (gt/get-property ~'this ~'basis ~label)))]
     (-> description
         (update    :declared-properties     assoc     label  property-type)
         (update-in [:transforms]            assoc-in [label] getter)
@@ -516,6 +557,48 @@
   (concat [`-> {:name (str (symbol (str *ns*) (str symb)))}]
           (map node-type-form forms)))
 
+(defn- node-type-form6
+  "Translate the sugared `defnode` forms into function calls that
+  build the node type description (map). These are emitted where you
+  invoked `defnode` so that symbols and vars resolve correctly."
+  [description form]
+  (match [form]
+         [(['inherits supertype] :seq)]
+         (do (assert-symbol "inherits" supertype)
+             `(attach-supertype ~supertype))
+
+         [(['input label schema & remainder] :seq)]
+         (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
+           (attach-input description label schema properties options args))
+
+         [(['output label schema & remainder] :seq)]
+         (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
+           (attach-output description label schema properties options args))
+
+         [(['property label tp & options] :seq)]
+         (attach-property description label (ip/property-type-descriptor (keyword label) tp options))
+
+         [(['extern label tp & options] :seq)]
+         description
+         #_(do (assert-symbol "extern" label)
+             `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (keyword label) tp options)))
+
+         [(['display-order ordering] :seq)]
+         (assoc :display-order-decl ordering)))
+
+(defn- requote-map [m] m)
+
+(defn node-type-forms6
+  "Given all the forms in a defnode macro, emit the forms that will build the node type description."
+  [symb forms]
+  (requote-map
+   (reduce
+    (fn [description form]
+      (node-type-form6 description form))
+    {} forms)))
+
+
+
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
@@ -535,7 +618,7 @@
 (defn property-schema
   [node-type property]
   (let [schema (gt/property-type node-type property)]
-    (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)))
+    (if (util/property? schema) (gt/property-value-type schema) schema)))
 
 (defn- dollar-name
   [node-type-name label]

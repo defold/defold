@@ -334,6 +334,76 @@
                     (mapv node-id to-be-replaced#))))
          (var ~symb)))))
 
+(defmacro defnode6
+  "Given a name and a specification of behaviors, creates a node,
+   and attendant functions.
+
+  Allowed clauses are:
+
+  (inherits _symbol_)
+
+  Compose the behavior from the named node type
+
+  (input _symbol_ _schema_ [:array]? [:inject]?)
+
+  Define an input with the name, whose values must match the schema.
+
+  If the :inject flag is present, then this input is available for
+  dependency injection.
+
+  If the :array flag is present, then this input can have multiple
+  outputs connected to it. Without the :array flag, this input can
+  only have one incoming connection from an output.
+
+  (property _symbol_ _property-type_ & _options_)
+
+  Define a property with schema and, possibly, default value and
+  constraints.  Property type and options have the same syntax as for
+  `dynamo.graph/defproperty`.
+
+  (output _symbol_ _type_ (:cached)? _producer_)
+
+  Define an output to produce values of type. The ':cached' flag is
+  optional. _producer_ may be a var that names an fn, or fnk.  It may
+  also be a function tail as [arglist] + forms.
+
+  Values produced on an output with the :cached flag will be cached in
+  memory until the node is affected by some change in inputs or
+  properties. At that time, the cached value will be sent for
+  disposal.
+
+  Example (from [[editors.atlas]]):
+
+    (defnode TextureCompiler
+      (input    textureset TextureSet)
+      (property texture-filename Str (default \"\"))
+      (output   texturec Any compile-texturec)))
+
+    (defnode TextureSetCompiler
+      (input    textureset TextureSet)
+      (property textureset-filename Str (default \"\"))
+      (output   texturesetc Any compile-texturesetc)))
+
+    (defnode AtlasCompiler
+      (inherit TextureCompiler)
+      (inherit TextureSetCompiler))
+
+  This will produce a record `AtlasCompiler`. `defnode` merges the
+  behaviors appropriately.
+
+    A node may also implement protocols or interfaces, using a syntax
+  identical to `deftype` or `defrecord`. A node may implement any
+  number of such protocols.
+
+  Every node always implements dynamo.graph/Node."
+  [symb & body]
+  (let [[symb forms] (ctm/name-with-attributes symb body)
+        record-name  (in/classname-for symb)
+        ctor-name    (symbol (str 'map-> record-name))]
+    `(def ~symb (in/map->NodeTypeImpl
+                 ~(in/make-node-type-map
+                   (in/node-type-forms6 symb (concat node-intrinsics forms)))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Transactions
 ;; ---------------------------------------------------------------------------
