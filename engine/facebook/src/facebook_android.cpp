@@ -406,22 +406,6 @@ int Facebook_Logout(lua_State* L)
     return 0;
 }
 
-static void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
-{
-    lua_pushnil(L);
-    *buffer = 0;
-    while (lua_next(L, idx) != 0)
-    {
-        if (!lua_isstring(L, -1))
-            luaL_error(L, "array arguments can only be strings (not %s)", lua_typename(L, lua_type(L, -1)));
-        if (*buffer != 0)
-            dmStrlCat(buffer, ",", buffer_size);
-        const char* entry_str = lua_tostring(L, -1);
-        dmStrlCat(buffer, entry_str, buffer_size);
-        lua_pop(L, 1);
-    }
-}
-
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
@@ -440,7 +424,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
-    AppendArray(L, permissions, 512, top-1);
+    dmFacebook::LuaStringCommaArray(L, permissions, 512, top-1);
 
     JNIEnv* env = Attach();
 
@@ -476,7 +460,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
-    AppendArray(L, permissions, 512, top-2);
+    dmFacebook::LuaStringCommaArray(L, permissions, 512, top-2);
 
     JNIEnv* env = Attach();
 
@@ -637,59 +621,6 @@ int Facebook_DisableEventUsage(lua_State* L)
     return 0;
 }
 
-
-static void escape_json_str(const char* unescaped, char* escaped, char* end_ptr) {
-
-    // keep going through the unescaped until null terminating
-    // always need at least 3 chars left in escaped buffer,
-    // 2 for char expanding + 1 for null term
-    while (*unescaped && escaped < end_ptr - 3) {
-
-        switch (*unescaped) {
-
-            case '\x22':
-                *escaped++ = '\\';
-                *escaped++ = '"';
-                break;
-            case '\x5C':
-                *escaped++ = '\\';
-                *escaped++ = '\\';
-                break;
-            case '\x08':
-                *escaped++ = '\\';
-                *escaped++ = '\b';
-                break;
-            case '\x0C':
-                *escaped++ = '\\';
-                *escaped++ = '\f';
-                break;
-            case '\x0A':
-                *escaped++ = '\\';
-                *escaped++ = '\n';
-                break;
-            case '\x0D':
-                *escaped++ = '\\';
-                *escaped++ = '\r';
-                break;
-            case '\x09':
-                *escaped++ = '\\';
-                *escaped++ = '\t';
-                break;
-
-            default:
-                *escaped++ = *unescaped;
-                break;
-
-        }
-
-        unescaped++;
-
-    }
-
-    *escaped = 0;
-
-}
-
 int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
@@ -709,40 +640,12 @@ int Facebook_ShowDialog(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    char params_json[1024];
-    params_json[0] = '{';
-    params_json[1] = '\0';
-    char tmp[256];
-
-    lua_pushnil(L);
-    int i = 0;
-    while (lua_next(L, 2) != 0) {
-        const char* vp;
-        char v[1024];
-        const char* k = luaL_checkstring(L, -2);
-
-        if (lua_istable(L, -1)) {
-            AppendArray(L, v, 1024, lua_gettop(L));
-            vp = v;
-        } else {
-            vp = luaL_checkstring(L, -1);
-        }
-
-        // escape string characters such as "
-        char k_escaped[128];
-        char v_escaped[1024];
-        escape_json_str(k, k_escaped, k_escaped+sizeof(k_escaped));
-        escape_json_str(vp, v_escaped, v_escaped+sizeof(v_escaped));
-
-        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k_escaped, v_escaped);
-        if (i > 0) {
-            dmStrlCat(params_json, ",", sizeof(params_json));
-        }
-        dmStrlCat(params_json, tmp, sizeof(params_json));
-        lua_pop(L, 1);
-        ++i;
+    int json_max_length = 2048;
+    char params_json[json_max_length];
+    if (0 == dmFacebook::LuaDialogParamsToJson(L, 2, params_json, json_max_length)) {
+        luaL_error(L, "Dialog params table too large.");
+        return 0;
     }
-    dmStrlCat(params_json, "}", sizeof(params_json));
 
     jstring str_dialog = env->NewStringUTF(dialog);
     jstring str_params = env->NewStringUTF(params_json);

@@ -194,6 +194,7 @@ static void RunDialogResultCallback(lua_State* L, const char *result_json, const
         int top = lua_gettop(L);
 
         int callback = g_Facebook.m_Callback;
+        g_Facebook.m_Callback = LUA_NOREF;
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
 
         // Setup self
@@ -509,24 +510,12 @@ int Facebook_ShowDialog(lua_State* L)
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    char params_json[1024];
-    params_json[0] = '{';
-    params_json[1] = '\0';
-    char tmp[128];
-    lua_pushnil(L);
-    int i = 0;
-    while (lua_next(L, 2) != 0) {
-        const char* v = luaL_checkstring(L, -1);
-        const char* k = luaL_checkstring(L, -2);
-        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k, v);
-        if (i > 0) {
-            dmStrlCat(params_json, ",", sizeof(params_json));
-        }
-        dmStrlCat(params_json, tmp, sizeof(params_json));
-        lua_pop(L, 1);
-        ++i;
+    int json_max_length = 2048;
+    char params_json[json_max_length];
+    if (0 == dmFacebook::LuaDialogParamsToJson(L, 2, params_json, json_max_length)) {
+        luaL_error(L, "Dialog params table too large.");
+        return 0;
     }
-    dmStrlCat(params_json, "}", sizeof(params_json));
 
     dmFacebookShowDialog(params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, dmScript::GetMainThread(L));
 
