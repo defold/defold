@@ -6,11 +6,13 @@
             [clojure.string :as str]
             [plumbing.fnk.pfnk :as pf]
             [potemkin.namespaces :as namespaces]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
 (defn schema? [x] (satisfies? s/Schema x))
+(defn property? [x] (and (associative? x) (contains? x :value-type)))
 
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
@@ -139,3 +141,15 @@
   [f]
   (when f
     (key-set (dissoc (fnk-schema f) s/Keyword))))
+
+(defn vgr [s] (var-get (resolve s)))
+
+(defn assert-form-kind [place kind-label required-kind label form]
+  (assert (required-kind form)
+          (str place " " label " requires a " kind-label " not a " (class form) " of " form)))
+
+(defn assert-schema
+  [place label form]
+  (let [resolved-schema   (vgr form)
+        underlying-schema (if (satisfies? gt/PropertyType resolved-schema) (gt/property-value-type resolved-schema) form)]
+    (assert-form-kind place label schema? "schema" (vgr underlying-schema))))
