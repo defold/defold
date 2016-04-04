@@ -97,13 +97,10 @@
     (ui/children! parent [text-area])
     (ui/fill-control text-area)
     (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
-          stage (.. parent getScene getWindow)]
+          stage (ui/parent->stage parent)]
+      (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
       (ui/timer-start! refresh-timer)
-      (let [^Tab tab (:tab opts)]
-        (ui/on-close tab
-                     (fn [e]
-                       (ui/timer-stop! refresh-timer))))
       view-id)))
 
 (defn update-caret-pos [view-id {:keys [caret-position]}]
@@ -116,5 +113,6 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
+                                :label "Code"
                                 :focus-fn update-caret-pos
-                                :make-view-fn make-view))
+                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))

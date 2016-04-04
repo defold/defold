@@ -545,5 +545,5 @@
                                     :node-type CollectionNode
                                     :load-fn load-collection
                                     :icon collection-icon
-                                    :view-types [:scene]
+                                    :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))

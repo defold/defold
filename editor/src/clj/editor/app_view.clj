@@ -7,6 +7,7 @@
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.prefs-dialog :as prefs-dialog]
+            [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource])
@@ -123,14 +124,38 @@
   (enabled? [] true)
   (run [prefs] (prefs-dialog/open-prefs prefs)))
 
+(defn- remove-tab [^TabPane tab-pane ^Tab tab]
+  (.remove (.getTabs tab-pane) tab)
+  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
+(defn- get-tabs [app-view]
+  (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+    (.getTabs tab-pane)))
+
 (handler/defhandler :close :global
-  (enabled? [] true)
-  (run [app-view] (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
-                    (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
-                      (.remove (.getTabs tab-pane) tab)
-                      ; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-                      ; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-                      (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))
+  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (run [app-view]
+    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+      (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+        (remove-tab tab-pane tab)))))
+
+(handler/defhandler :close-other :global
+  (enabled? [app-view] (> (count (get-tabs app-view)) 1))
+  (run [app-view]
+    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+      (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+        (doseq [tab (.getTabs tab-pane)]
+          (when (not= tab selected-tab)
+            (remove-tab tab-pane tab)))))))
+
+(handler/defhandler :close-all :global
+  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (run [app-view]
+    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+      (doseq [tab (.getTabs tab-pane)]
+        (remove-tab tab-pane tab)))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -177,6 +202,11 @@
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
+                             {:label "Close All"
+                              :acc "Shift+Shortcut+W"
+                              :command :close-all}
+                             {:label "Close Others"
+                              :command :close-other}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
@@ -227,6 +257,16 @@
                              {:label "About"
                               :command :about}]}])
 
+(ui/extend-menu ::tabpane-menu nil
+                [{:label "Close"
+                  :acc "Shortcut+W"
+                  :command :close}
+                 {:label "Close Others"
+                  :command :close-other}
+                 {:label "Close All"
+                  :acc "Shift+Shortcut+W"
+                  :command :close-all}])
+
 (defrecord DummySelectionProvider []
   workspace/SelectionProvider
   (selection [this] []))
@@ -256,22 +296,22 @@
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
-    (let [ui-refresh-timer (ui/->timer 2 (fn [dt]
-                                           (ui/refresh (.getScene stage))
-                                           (let [settings (g/node-value project :settings)
-                                                 project-title (settings ["project" "title"])
-                                                 new-title (make-title project-title)]
-                                             (when (not= (.getTitle stage) new-title)
-                                               (.setTitle stage new-title)))))
-          auto-refresh-timer (ui/->timer 10 (fn [dt]
-                                              (let [auto-pulls (g/node-value app-view :auto-pulls)]
-                                                (doseq [[node label] auto-pulls]
-                                                  (g/node-value node label)))))]
-      (ui/on-close-request! stage (fn [_]
-                                    (ui/timer-stop! ui-refresh-timer)
-                                    (ui/timer-stop! auto-refresh-timer)))
-      (ui/timer-start! ui-refresh-timer)
-      (ui/timer-start! auto-refresh-timer))
+    (ui/register-context-menu tab-pane ::tabpane-menu)
+
+    (let [refresh-timers [(ui/->timer 2 (fn [dt]
+                                          (ui/refresh (.getScene stage))
+                                          (let [settings      (g/node-value project :settings)
+                                                project-title (settings ["project" "title"])
+                                                new-title     (make-title project-title)]
+                                            (when (not= (.getTitle stage) new-title)
+                                              (.setTitle stage new-title)))))
+                          (ui/->timer 10 (fn [dt]
+                                           (let [auto-pulls (g/node-value app-view :auto-pulls)]
+                                             (doseq [[node label] auto-pulls]
+                                               (g/node-value node label)))))]]
+      (doseq [timer refresh-timers]
+        (ui/timer-stop-on-close! stage timer)
+        (ui/timer-start! timer)))
     app-view))
 
 (defn- create-new-tab [app-view workspace project resource resource-node
@@ -305,7 +345,8 @@
    (open-resource app-view workspace project resource {}))
   ([app-view workspace project resource opts]
    (let [resource-type (resource/resource-type resource)
-         view-type     (or (first (:view-types resource-type))
+         view-type     (or (:selected-view-type opts)
+                           (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
      (if-let [make-view-fn (:make-view-fn view-type)]
        (let [resource-node     (project/get-resource-node project resource)
@@ -318,7 +359,11 @@
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
          (project/select! project [resource-node]))
-       (.open (Desktop/getDesktop) (File. (resource/abs-path resource)))))))
+       (let [path (resource/abs-path resource)]
+         (try
+           (.open (Desktop/getDesktop) (File. path))
+           (catch Exception _
+             (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
@@ -364,10 +409,13 @@
   (enabled? [] true)
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
-(defn fetch-libraries [workspace project]
+(defn- fetch-libraries [workspace project]
   (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-  (workspace/update-dependencies! workspace)
-  (workspace/resource-sync! workspace))
+  (future
+    (ui/with-disabled-ui
+      (ui/with-progress [render-fn ui/default-render-progress!]
+        (workspace/update-dependencies! workspace render-fn)
+        (workspace/resource-sync! workspace true [] render-fn)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] true)

@@ -91,8 +91,8 @@ namespace dmGui
             {
                 uint64_t m_Start : 13;
                 uint64_t m_End : 13;
-                uint64_t m_Width : 13;
-                uint64_t m_Height : 13;
+                uint64_t m_TextureWidth : 13;
+                uint64_t m_TextureHeight : 13;
                 uint64_t m_FPS : 8;
                 uint64_t m_Playback : 4;
             };
@@ -327,6 +327,14 @@ namespace dmGui
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
+    enum SizeMode
+    {
+        SIZE_MODE_MANUAL    = 0,
+        SIZE_MODE_AUTO      = 1,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum PieBounds
     {
         PIEBOUNDS_RECTANGLE = 0,
@@ -483,9 +491,11 @@ namespace dmGui
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
      * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
+     * @param width With of the texture
+     * @param height Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -904,6 +914,9 @@ namespace dmGui
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
+
+    void SetNodeSizeMode(HScene scene, HNode node, SizeMode size_mode);
+    SizeMode GetNodeSizeMode(HScene scene, HNode node);
 
     void SetNodeInnerRadius(HScene scene, HNode node, float radius);
     void SetNodeOuterBounds(HScene scene, HNode node, PieBounds bounds);

@@ -64,7 +64,8 @@
   (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
   (produce-value       [this output evaluation-context] "Return the value of the named output")
   (override-id         [this] "Return the ID of the override this node belongs to, if any")
-  (original            [this] "Return the ID of the original of this node, if any"))
+  (original            [this] "Return the ID of the original of this node, if any")
+  (set-original        [this original-id] "Set the ID of the original of this node, if any"))
 
 (defn node-id? [v] (integer? v))
 
@@ -78,8 +79,10 @@
   (delete-node      [this node-id]               "returns [basis node]")
   (replace-node     [this node-id value]         "returns [basis node]")
   (override-node    [this original-id override-id])
+  (override-node-clear [this original-id])
   (add-override     [this override-id override])
   (delete-override  [this override-id])
+  (replace-override [this override-id value])
   (connect          [this src-id src-label tgt-id tgt-label])
   (disconnect       [this src-id src-label tgt-id tgt-label])
   (connected?       [this src-id src-label tgt-id tgt-label])

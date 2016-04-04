@@ -30,7 +30,7 @@
              :icon "icons/32/Icons_31-Material.png"
              :pb-class Material$MaterialDesc
              :resource-fields [:vertex-program :fragment-program]
-             :view-types [:form-view]
+             :view-types [:form-view :text]
              :label "Material"})
 
 (g/defnk produce-save-data [resource def pb]
