@@ -105,7 +105,11 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [] (Platform/exit)))
+  (run [project]
+    (when (or (not (workspace/version-on-disk-outdated? (project/workspace project)))
+              (and (workspace/version-on-disk-outdated? (project/workspace project))
+                   (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?")))
+      (Platform/exit))))
 
 (handler/defhandler :new :global
   (enabled? [] true)
