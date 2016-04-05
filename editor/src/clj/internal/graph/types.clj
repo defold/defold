@@ -38,9 +38,9 @@
   (cascade-deletes        [this])
   (output-type            [this output])
   (passthroughs           [this])
-  (property-display-order [this]))
+  (property-display-order [this])
+  (produce-value          [this node output evaluation-context] "Return the value of the named output on node"))
 
-(ns-unmap *ns* 'PropertyType)
 (defn node-type? [x] (satisfies? NodeType x))
 
 (defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
@@ -63,7 +63,7 @@
   (get-property        [this basis property] "Return the value of the named property")
   (set-property        [this basis property value] "Set the named property")
   (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
-  (produce-value       [this output evaluation-context] "Return the value of the named output")
+
   (override-id         [this] "Return the ID of the override this node belongs to, if any")
   (original            [this] "Return the ID of the original of this node, if any")
   (set-original        [this original-id] "Set the ID of the original of this node, if any"))
@@ -77,7 +77,10 @@
 (def node-id        :_node-id)
 (def node-type      ::type)
 (def property-types (comp public-properties node-type))
-(def get-property   get)
+
+(defn get-property
+  [this basis property]
+  (get this property))
 
 (defn set-property
   [this basis property value]
