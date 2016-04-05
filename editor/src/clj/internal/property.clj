@@ -1,6 +1,5 @@
 (ns internal.property
-  (:require [clojure.tools.macro :as ctm]
-            [internal.util :as util]
+  (:require [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]))
 
@@ -18,9 +17,11 @@
       (property-value-type (var-get this))
       (if (class? this)
         {:value-type this}
-        (if (util/schema? this)
+        (if (and (map? this) (contains? this :value-type))
           this
-          nil)))))
+          (if (map? this)
+            {:value-type this}
+            nil))))))
 
 (def property-tags       :tags)
 (defn property-default-value [this] (some-> this :default util/var-get-recursive util/apply-if-fn))
@@ -28,6 +29,13 @@
 (defn default-getter?        [this] (not (contains? this ::value)))
 
 (def assert-symbol (partial util/assert-form-kind "property" "symbol" symbol?))
+
+(defn assert-schema
+  [place label form]
+  (if-not (util/schema? form)
+    (let [resolved-schema   (util/vgr form)
+          underlying-schema (if (util/property? resolved-schema) (property-value-type resolved-schema) form)]
+      (util/assert-form-kind place label util/schema? "schema" (util/vgr underlying-schema)))))
 
 (defn- property-form [description form]
   (case (first form)
@@ -58,16 +66,15 @@
   [property]
   (reduce into #{} [(util/fnk-arguments (getter-for property))
                     (util/fnk-arguments (validation property))
-                    (mapcat util/fnk-arguments (vals (gt/dynamic-attributes property)))]))
+                    (mapcat util/fnk-arguments (vals (dynamic-attributes property)))]))
 
 (defn inheriting? [from] (util/property? (util/vgr from)))
 
 (defn parse-forms
-  [label value-type body-forms]
-  (println "parse-forms " body-forms)
-  (util/assert-schema "property" label value-type)
-  (let [base (if (inheriting? value-type) (property-value-type value-type) {:value-type value-type})
-        base (assoc base :name label)]
+  [label value-or-parent-type body-forms]
+  (let [base (-> (property-value-type value-or-parent-type)
+                 (assoc :name label))]
+    (assert-schema "property" label (:value-type base))
     (reduce property-form base body-forms)))
 
 (defn- check-for-protocol-type
@@ -78,7 +85,6 @@
 
 (defn- check-for-invalid-type
   [name-str value-type]
-  (println "check-for-invalid-type " value-type "(" (type value-type) ") resolved to " (property-value-type value-type))
   (let [value-type (property-value-type value-type)]
     (assert (or (util/property? value-type) (util/schema? value-type))
             (str "Property " name-str " is declared with type " value-type " but that doesn't seem like a real value type"))))
@@ -92,6 +98,5 @@
     description))
 
 (defn def-property-type-descriptor
-  [name-sym & remainder]
-  (let [[name-sym [value-type & body-forms]] (ctm/name-with-attributes name-sym remainder)]
-    `(def ~name-sym ~(property-type-descriptor name-sym value-type body-forms))))
+  [name-sym value-type & body-forms]
+  `(def ~name-sym ~(property-type-descriptor name-sym value-type body-forms)))
