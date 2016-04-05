@@ -13,6 +13,7 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.console :as console]
             [editor.cubemap :as cubemap]
             [editor.image :as image]
             [editor.workspace :as workspace]
@@ -109,11 +110,6 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-
-(defn- setup-console [^VBox root]
-  (let [^TextArea node (.lookup root "#console")]
-   (.appendText node "Hello Console")))
-
 (defn load-stage [workspace project prefs]
 
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -134,17 +130,18 @@
                                           (g/transact
                                            (g/delete-node project)))]
       (.setOnCloseRequest stage close-handler))
-    (setup-console root)
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^Tab assets          (.lookup root "#assets")
+          ^TextArea console    (.lookup root "#console")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {}))))]
+      (console/setup-console! console)
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
