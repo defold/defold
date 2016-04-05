@@ -28,11 +28,9 @@
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
-(namespaces/import-vars [internal.property make-property-type])
-
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types always property-value-type property-default-value property-tags Properties])
+(namespaces/import-vars [internal.graph.types always Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids pre-traverse])
 
@@ -237,10 +235,11 @@
 
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
-  (assert (::ctor node-type))
   (let [args-without-properties (set/difference (util/key-set args) (util/key-set (declared-properties node-type)))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
-  ((::ctor node-type) args))
+  (-> (in/defaults node-type)
+      (merge args)
+      (assoc ::gt/type node-type)))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -397,9 +396,7 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms] (ctm/name-with-attributes symb body)
-        record-name  (in/classname-for symb)
-        ctor-name    (symbol (str 'map-> record-name))]
+  (let [[symb forms] (ctm/name-with-attributes symb body)]
     `(def ~symb (in/map->NodeTypeImpl
                  ~(in/make-node-type-map
                    (in/node-type-forms6 symb (concat node-intrinsics forms)))))))

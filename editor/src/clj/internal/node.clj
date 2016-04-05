@@ -181,20 +181,27 @@
   [^NodeTypeImpl v ^java.io.Writer w]
   (.write w (str "<NodeTypeImpl{:name " (:name v) ", :supertypes " (mapv :name (:supertypes v)) "}>")))
 
-(defn- from-supertypes [local op]                (map op (:supertypes local)))
+(defn- from-supertypes [local op]                (map (comp op util/vgr) (:supertypes local)))
 (defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
 
 (defn resolve-display-order
-  [{:keys [display-order-decl property-order-decl supertypes] :as description}]
+  [{:keys [display-order-decl property-order-decl supertypes] :as description} supertype-display-orders]
   (-> description
-      (assoc :property-display-order (apply merge-display-order display-order-decl property-order-decl (map gt/property-display-order supertypes)))
+      (assoc :property-display-order (apply merge-display-order display-order-decl property-order-decl supertype-display-orders))
       (dissoc :display-order-decl :property-order-decl)))
+
+(defn inputs-needed [x]
+  (cond
+    (gt/pfnk? x)       (util/fnk-arguments x)
+    (util/property? x) (ip/property-dependencies x)
+    (list? x)          (into #{} (map keyword (second x)))))
 
 (declare attach-output)
 
 (defn- dummy-produce-declared-properties []
   (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))
 
+;; TODO - fix this gross bit
 (defn attach-properties-output
   [node-type-description]
   (let [properties      (util/filterm (comp not #{:_node-id :_output-jammers} key) (:declared-properties node-type-description))
@@ -267,7 +274,7 @@
 
 (defn verify-labels
   [node-type-description]
-  (let [inputs (set (keys (:inputs node-type-description)))
+  (let [inputs     (set (keys (:inputs node-type-description)))
         properties (set (keys (:declared-properties node-type-description)))
         collisions (filter inputs properties)]
     (assert (empty? collisions) (str "inputs and properties can not be overloaded (problematic fields: " (str/join "," (map #(str "'" (name %) "'") collisions)) ")")))
@@ -349,32 +356,27 @@
   This is really meant to be used during macro expansion of `defnode`,
   not called directly."
   [description]
-  (-> description
-      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
-      (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
-      (update-in [:declared-properties]   combine-with merge      {} (from-supertypes description gt/declared-properties))
-      (update-in [:passthroughs]          combine-with set/union #{} (from-supertypes description gt/passthroughs))
-      (update-in [:outputs]               combine-with merge      {} (from-supertypes description gt/declared-outputs))
-      (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
-      (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
-      (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
-      (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
-      (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
-      (update-in [:cascade-deletes]       combine-with set/union #{} (from-supertypes description :cascade-deletes))
-      resolve-display-order
-      attach-properties-output
-      attach-input-dependencies
-      verify-labels
-      verify-inputs-for-dynamics
-      verify-inputs-for-outputs))
+  (let [supertype-values (map util/vgr (:supertypes description))]
+    (-> description
+        (update-in [:inputs]                combine-with merge      {} (map gt/declared-inputs     supertype-values))
+        (update-in [:injectable-inputs]     combine-with set/union #{} (map gt/injectable-inputs   supertype-values))
+        (update-in [:declared-properties]   combine-with merge      {} (map gt/declared-properties supertype-values))
+        (update-in [:passthroughs]          combine-with set/union #{} (map gt/passthroughs        supertype-values))
+        (update-in [:outputs]               combine-with merge      {} (map gt/declared-outputs    supertype-values))
+        (update-in [:transforms]            combine-with merge      {} (map gt/transforms          supertype-values))
+        (update-in [:transform-types]       combine-with merge      {} (map gt/transform-types     supertype-values))
+        (update-in [:cached-outputs]        combine-with set/union #{} (map gt/cached-outputs      supertype-values))
+        (update-in [:substitutes]           combine-with merge      {} (map :substitutes           supertype-values))
+        (update-in [:cardinalities]         combine-with merge      {} (map :cardinalities         supertype-values))
+        (update-in [:cascade-deletes]       combine-with set/union #{} (map :cascade-deletes       supertype-values))
+        (resolve-display-order (map gt/property-display-order supertype-values))
+        attach-properties-output
+        attach-input-dependencies
+        verify-labels
+        verify-inputs-for-dynamics
+        verify-inputs-for-outputs)))
 
 (def ^:private inputs-properties (juxt :inputs :declared-properties))
-
-(defn inputs-needed [x]
-  (cond
-    (gt/pfnk? x)       (util/fnk-arguments x)
-    (util/property? x) (ip/property-dependencies x)
-    (list? x)          (into #{} (map keyword (second x)))))
 
 (def assert-symbol (partial util/assert-form-kind "defnode" "symbol" symbol?))
 
@@ -397,13 +399,13 @@
   "Update the node type description with the given input."
   [description label schema flags options & [args]]
   (assert-symbol "input" label)
-  (util/assert-schema "defnode" "input" schema)
+  (ip/assert-schema "defnode" "input" schema)
   (let [label           (keyword label)
         resolved-schema (util/vgr schema)]
     (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
     (assert (not (gt/protocol? resolved-schema))
             (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
-    (let [schema (if (util/property? resolved-schema) (gt/property-value-type resolved-schema) schema)]
+    (let [schema (if (util/property? resolved-schema) (ip/property-value-type resolved-schema) schema)]
       (cond->
           (assoc-in description [:inputs label] schema)
 
@@ -434,7 +436,7 @@
   "Update the node type description with the given output."
   [description label schema properties options remainder]
   (assert-symbol "output" label)
-  (util/assert-schema "defnode" "output" schema)
+  (ip/assert-schema "defnode" "output" schema)
   (assert (or (:abstract properties) (not (empty? remainder)))
           (format "The output %s is missing a production function. Either define the production function or mark it as :abstract." label))
   (let [label           (keyword label)
@@ -442,7 +444,7 @@
                           (abstract-function label schema)
                           (first remainder))
         resolved-schema (util/vgr schema)
-        schema          (if (util/property? resolved-schema) (gt/property-value-type resolved-schema) schema)]
+        schema          (if (util/property? resolved-schema) (ip/property-value-type resolved-schema) schema)]
     #_(when-not (:abstract properties)
       (assert-pfnk label production-fn))
     (assert
@@ -522,7 +524,7 @@
   build the node type description (map). These are emitted where you
   invoked `defnode` so that symbols and vars resolve correctly."
   [form]
-  (match [form]
+  #_(match [form]
          [(['inherits supertype] :seq)]
          (do (assert-symbol "inherits" supertype)
              `(attach-supertype ~supertype))
@@ -604,7 +606,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (util/map-vals gt/property-default-value (gt/declared-properties node-type)))
+  (util/map-vals ip/property-default-value (gt/declared-properties node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
@@ -620,7 +622,7 @@
 (defn property-schema
   [node-type property]
   (let [schema (gt/property-type node-type property)]
-    (if (util/property? schema) (gt/property-value-type schema) schema)))
+    (if (util/property? schema) (ip/property-value-type schema) schema)))
 
 (defn- dollar-name
   [node-type-name label]
@@ -936,7 +938,7 @@
   (for [transform (ordinary-output-labels node-type)]
     (node-output-value-function self-name ctx-name record-name node-type-name node-type transform)))
 
-(defn- has-dynamics? [ptype] (not (nil? (gt/dynamic-attributes ptype))))
+(defn- has-dynamics? [ptype] (not (nil? (ip/dynamic-attributes ptype))))
 
 (defn attach-property-dynamics
   [self-name ctx-name node-type-name node-type propmap-sym property-name property-type value-form]
@@ -947,7 +949,7 @@
                                                                      dfnk
                                                                      `(get ~dynsym ~d))))
                 value-form
-                (gt/dynamic-attributes property-type)))))
+                (ip/dynamic-attributes property-type)))))
 
 (defn collect-property-values
   [self-name ctx-name propmap-sym record-name node-type-name node-type nodeid-sym value-sym forms]
