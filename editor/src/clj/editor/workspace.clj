@@ -16,6 +16,14 @@ ordinary paths."
 
 (set! *warn-on-reflection* true)
 
+(def version-on-disk (atom nil))
+
+(defn update-version-on-disk! [workspace]
+  (reset! version-on-disk (g/graph-version workspace)))
+
+(defn version-on-disk-outdated? [workspace]
+  (not= @version-on-disk (g/graph-version workspace)))
+
 (defprotocol SelectionProvider
   (selection [this]))
 
