@@ -3,6 +3,7 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
@@ -303,9 +304,9 @@
     (loop []
       (let [n (.read stdout buf)]
         (when (> n -1)
-          (print (String. buf 0 n))
-          (flush)
-          (recur))))))
+          (let [msg (String. buf 0 n)]
+            (console/append-console-message! msg)
+            (recur)))))))
 
 (defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
