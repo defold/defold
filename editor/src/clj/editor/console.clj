@@ -1,16 +1,15 @@
 (ns editor.console
-  (:import javafx.scene.control.TextArea))
+  (:import javafx.scene.control.TextArea)
+  (:require [editor.ui :as ui]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private console-agent (agent nil))
+(def ^:private console-node (atom nil))
 
 (defn append-console-message! [message]
-  (send console-agent (fn [^TextArea node]
-                        (when node
-                          (.appendText node message)
-                          node))))
+  (when-let [^TextArea node @console-node]
+    (ui/run-later (.appendText node message))))
 
 (defn setup-console! [^TextArea node]
-  (send console-agent (constantly node))
+  (reset! console-node node)
   (append-console-message! "Welcome to Defold!\n"))
