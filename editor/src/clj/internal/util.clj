@@ -6,8 +6,7 @@
             [clojure.string :as str]
             [plumbing.fnk.pfnk :as pf]
             [potemkin.namespaces :as namespaces]
-            [schema.core :as s]
-            [internal.graph.types :as gt]))
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 
@@ -147,10 +146,3 @@
 (defn assert-form-kind [place kind-label required-kind label form]
   (assert (required-kind form)
           (str place " " label " requires a " kind-label " not a " (class form) " of " form)))
-
-(defn assert-schema
-  [place label form]
-  (if-not (schema? form)
-    (let [resolved-schema   (vgr form)
-          underlying-schema (if (satisfies? gt/PropertyType resolved-schema) (gt/property-value-type resolved-schema) form)]
-      (assert-form-kind place label schema? "schema" (vgr underlying-schema)))))

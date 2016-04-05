@@ -352,7 +352,7 @@
   [ctx node-id node property old-value new-value]
   (let [basis (:basis ctx)
         value-type (some-> ((gt/property-types node basis) property)
-                     gt/property-value-type
+                     ip/property-value-type
                      in/allow-nil)]
    (if-let [validation-error (and value-type (s/check value-type new-value))]
      (let [node-type (gt/node-type node basis)]

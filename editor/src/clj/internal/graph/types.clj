@@ -40,6 +40,7 @@
   (passthroughs           [this])
   (property-display-order [this]))
 
+(ns-unmap *ns* 'PropertyType)
 (defn node-type? [x] (satisfies? NodeType x))
 
 (defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
@@ -50,7 +51,10 @@
 (defn externs             [node-type]          (->> node-type declared-properties (util/filter-vals :unjammable?)))
 (defn property-type       [node-type property] (-> node-type declared-properties (get property)))
 
+(defn has-property?       [node-type property] (contains? (property-labels node-type) property))
+
 (def NodeID s/Int)
+(defn node-id? [v] (integer? v))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
@@ -64,7 +68,22 @@
   (original            [this] "Return the ID of the original of this node, if any")
   (set-original        [this original-id] "Set the ID of the original of this node, if any"))
 
-(defn node-id? [v] (integer? v))
+(defprotocol OverrideNode
+  (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
+  (override-id         [this] "Return the ID of the override this node belongs to, if any")
+  (original            [this] "Return the ID of the original of this node, if any")
+  (set-original        [this original-id] "Set the ID of the original of this node, if any"))
+
+(def node-id        :_node-id)
+(def node-type      ::type)
+(def property-types (comp public-properties node-type))
+(def get-property   get)
+
+(defn set-property
+  [this basis property value]
+  (assert (has-property? (node-type this) property)
+          (format "Attempting to use property %s from %s, but it does not exist" property (node-type this)))
+  (assoc this property value))
 
 (defprotocol IBasis
   (node-by-property [this label value])
