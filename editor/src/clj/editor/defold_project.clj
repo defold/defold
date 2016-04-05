@@ -203,12 +203,16 @@
                               (take 10)))))
            (filter #(seq (:matches %)))))))
 
+(defn workspace [project]
+  (g/node-value project :workspace))
+
 (handler/defhandler :save-all :global
   (enabled? [] true)
   (run [project] (future
                    (ui/with-disabled-ui
                      (ui/with-progress [render-fn ui/default-render-progress!]
-                       (save-all project render-fn))))))
+                       (save-all project render-fn)
+                       (workspace/update-version-on-disk! (workspace project)))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -522,9 +526,6 @@
                            (when (not-empty (build-and-write project game-project render-fn
                                                              #(ui/run-later (dialogs/make-alert-dialog %))))
                              (launch-engine (io/file launch-path)))))))))
-
-(defn workspace [project]
-  (g/node-value project :workspace))
 
 (defn settings [project]
   (g/node-value project :settings))
