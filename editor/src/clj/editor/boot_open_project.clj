@@ -47,7 +47,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
 (def ^:dynamic *view-graph*)
 
@@ -60,9 +59,9 @@
 (defn initialize-project []
   (when (nil? @the-root)
     (g/initialize! {})
-    (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-    (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-    (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
+    (alter-var-root #'workspace/*workspace-graph* (fn [_] (g/last-graph-added)))
+    (alter-var-root #'*project-graph*             (fn [_] (g/make-graph! :history true  :volatility 1)))
+    (alter-var-root #'*view-graph*                (fn [_] (g/make-graph! :history false :volatility 2)))))
 
 (g/defnode CurveEditor
     (inherits editor.core/Scope)
@@ -74,9 +73,8 @@
        (ui/text! btn "Curve Editor WIP!")
        (.add (.getChildren ^VBox (:parent event)) btn))))
 
-
 (defn setup-workspace [project-path]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
+  (let [workspace (workspace/make-workspace workspace/*workspace-graph* project-path)]
     (g/transact
       (concat
         (text/register-view-types workspace)
@@ -170,7 +168,6 @@
   (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
     (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
-
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [progress     (atom (progress/make "Loading project" 3))
@@ -194,4 +191,5 @@
                                                                  (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph*
                                                                        (.lookup root "#properties")))]
+    (workspace/update-version-on-disk!)
     (g/reset-undo! *project-graph*)))

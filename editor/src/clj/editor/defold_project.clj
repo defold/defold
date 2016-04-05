@@ -208,7 +208,8 @@
   (run [project] (future
                    (ui/with-disabled-ui
                      (ui/with-progress [render-fn ui/default-render-progress!]
-                       (save-all project render-fn))))))
+                       (save-all project render-fn)
+                       (workspace/update-version-on-disk!))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
