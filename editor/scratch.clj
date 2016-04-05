@@ -1,40 +1,39 @@
-;; This is what defnode should output.
-;;
- ;; (defnode Foo
- ;;   (input x g/Str)
- ;;   (output bar g/Str (g/fnk [x] (.toUpperCase x))))
+;; TODO
 
-(require '[dynamo.graph :as g])
+; 1) Change the way that we are doing attach-output in node.clj to
+; handle inheritance.  we are going to modify the transforms so that
+; each of the labels has its own map with information about the
+; inputs, fn, and output-types
+;; 2) Do the same thing with attach-property
+;;; 3) Continue on our way to finish transform-plumbing-map and finish
+; adding attach-behaviors
+;; 3.a.) Same thing for input labels (you can call node-value to get
+;        an input value too)
+;; 3.b.) Similar work for _properties magic output. Also touches property validation.
+;; 4) Then produce-value is going to lookup up the behavior in the
+; :behaviors key and call it
 
-(clojure.pprint/pprint (macroexpand '(g/defnode6 Foo
-                                       (input x g/Str)
-                                       (property y g/Str)
-                                       (output bar g/Str (g/fnk [x] (.toUpperCase x))))))
+;;; weird cases
 
+(defnode Foo
+  (property a g/Str)
+  (output a g/Str (fnk [a] (.toUpperCase a))))
 
+;;; output a depends on property a. production function is called with
+;;; a map {:a (value of property a)} assembled by gather-inputs
 
-(g/defproperty prop1 g/Str)
-(def schema1 {:firstname g/Str})
+(defnode Foo
+  (property b g/Str)
+  (output b g/Str (fnk [b] (.toUpperCase a)))
+  (output c g/Str (fnk [b] (.toLowerCase b))))
 
-(clojure.pprint/pprint (macroexpand '(g/defnode6 Foo
-                                       (output bar g/Str (g/fnk [this] (.toUpperCase "carin"))))))
+;;; output c depends on output b. output b depends on property b
 
-(pst 30)
+(defnode Foo
+  (input a g/Str :array)
+  (output a g/Str (fnk [a] (str/join ", " a))))
 
-dynamo.graph/Properties
-
-internal.graph.types/PropertyType
-
-(do
-  (def Foo
-    (map->NodeTypeImpl {:inputs              {:x g/Str}
-                        :injectable-inputs   #{}
-                        :declared-properties {:y g/Str}
-                        :passthroughs        #{:x}
-                        :outputs             { ,,,}
-                        :transforms          {}
-                        :transform-types     {:bar }}
-  )))
+;;; output a depends on input a
 
 
 ;;; parking lot
@@ -49,18 +48,6 @@ internal.graph.types/PropertyType
 
 ;; PROBLEM
 ;;
-;; Inheritance.
-;; By the time we get to inherit from a node def, it's already fully
-;;evaluated. That means its functions have been turned into values and
-;;protocol names have been replaced by protocol maps. We can't take a
-;;value out of an already-defined node and re-emit it as code.
-
-(inputs-needed x)
-
-;; x is fnk -> input schema names
-;; x is (fnk [this basis x y z]) -> #{:x :y :z}
-;; x is property -> (union getter inputs, validation inputs, dynamics
-;; inputs)
 
 (require '[dynamo.graph :as g])
 (require '[internal.node :as in])
@@ -111,9 +98,30 @@ BazNode
   (property in g/Str
             (default default-in-val)))
 
+;;; #1) this is what we want to get to so that we don't
+;; lose information by the time we get to gather inputs
+{:transforms {:foo {:fn (g/fnk [this basis prop1 in-a])
+                    :type g/Str
+                    :inputs #{this basis prop1 in-a}}}}
+
 (g/defnode6 Narf
   (inherits Simple)
   (property child g/Str))
+
+;;; #1) it means we will have to adjust the tranforms for the
+;; inherits as well
+{:transforms {:foo {:fn (get-in Simple [:transforms :foo :fn])
+                    :type g/Str
+                    :inputs #{this basis prop1 in-a}}}}
+
+
+;;; #4) From produce-value to behavior to production function (transform)
+;;;
+;;; (get-in Simple [:behaviors :in]) ; --> function compiled from #(node-output-value-function)
+;;; which calls (get-in Simple [:transforms :in :fn])
+;;; and supplies it a map of input names to input values (:in is a
+;;; #property so it only gets the node map and the property itself.)
+;;;
 
 (clojure.pprint/pprint (select-keys Narf (keys Narf)))
 
@@ -141,9 +149,8 @@ BazNode
 ((-> Simple :transforms :in) {:this (g/construct Simple) :in "pull"})
 
 (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
-     in/make-node-type-map
-     :transforms
-     :in)
+    in/make-node-type-map
+    in/transform-plumbing-map)
 
 (-> (in/node-type-forms6 'Narf '[(property in g/Str (default default-in-val))])
      in/make-node-type-map
@@ -156,39 +163,5 @@ BazNode
 {:out (get-in Simple [:transforms :out])}
 
 
-(def Narf (map->NodeTypeImpl
-           {
-            :transforms {:in (pc/fnk [this basis in] (gt/get-property this basis in))}
-            :behaviors {:in ,,,xxx,,,
-
-                        }
-
-            }
-           ))
-
-{:this  ~(node-input-forms ,,,,)
- :basis ~(node-input-forms ,,,)
- :in    ~(node-input-forms ,,,)}
 
 (in/lookup-from 'Simple Simple :transforms)
-
-
-
-
-
-(ns first-ns
-  (:require [dynamo.graph :as g]))
-(in-ns 'first-ns)
-(def default-in-val "first-ns/in")
-(g/defnode6 Simple
-  (property in g/Str
-            (default default-in-val)))
-
-(in-ns 'user)
-(require '[first-ns :refer [Simple]])
-(g/defnode6 Narf
-  (inherits Simple)
-
-)
-
-Narf
