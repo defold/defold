@@ -5,7 +5,6 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [service.log :as log]
-            [editor.defold-project :as project]
             [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file Path Paths]
@@ -68,6 +67,25 @@
     (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
+
+(defn make-confirm-dialog [message]
+  (let [root     ^Parent (ui/load-fxml "confirm.fxml")
+        stage    (Stage.)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["message" "ok" "cancel"])
+        result   (atom false)]
+    (ui/title! stage "Please confirm")
+    (ui/text! (:message controls) message)
+    (ui/on-action! (:ok controls) (fn [_]
+                                    (reset! result true)
+                                    (.close stage)))
+    (ui/on-action! (:cancel controls) (fn [_]
+                                        (.close stage)))
+
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result))
 
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
@@ -237,11 +255,10 @@
       (update tree :children (fn [children]
                                (map #(append-match-snippet-nodes % matching-resources) children))))))
 
-(defn- update-search-dialog [^TreeView tree-view workspace project exts term]
-  (let [matching-resources (project/search-in-files project exts term)
-        resource-tree      (g/node-value workspace :resource-tree)
-        [_ new-tree]       (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
-        tree-with-hits     (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
+(defn- update-search-dialog [^TreeView tree-view workspace matching-resources]
+  (let [resource-tree  (g/node-value workspace :resource-tree)
+        [_ new-tree]   (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
+        tree-with-hits (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
     (update-tree-view tree-view tree-with-hits)
     (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
       (.setExpanded item true))
@@ -251,7 +268,7 @@
                                 first)]
       (.select (.getSelectionModel tree-view) first-match))))
 
-(defn make-search-in-files-dialog [workspace project]
+(defn make-search-in-files-dialog [workspace search-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         stage     (Stage.)
         scene     (Scene. root)
@@ -274,12 +291,12 @@
     (ui/observe (.textProperty ^TextField (:search controls))
                 (fn observe [_ _ ^String new]
                   (reset! term new)
-                  (update-search-dialog tree-view workspace project @exts @term)))
+                  (update-search-dialog tree-view workspace (search-fn @exts @term))))
 
     (ui/observe (.textProperty ^TextField (:types controls))
                 (fn observe [_ _ ^String new]
                   (reset! exts new)
-                  (update-search-dialog tree-view workspace project @exts @term)))
+                  (update-search-dialog tree-view workspace (search-fn @exts @term))))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event

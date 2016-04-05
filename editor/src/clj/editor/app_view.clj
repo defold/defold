@@ -105,7 +105,10 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [] (Platform/exit)))
+  (run []
+    (when (and (workspace/version-on-disk-outdated?)
+               (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))
+      (Platform/exit))))
 
 (handler/defhandler :new :global
   (enabled? [] true)
@@ -320,7 +323,8 @@
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
                      (ui/user-data! ::resource resource)
-                     (ui/user-data! ::resource-node resource-node))
+                     (ui/user-data! ::resource-node resource-node)
+                     (ui/user-data! ::view-type view-type))
         _          (.add tabs tab)
         view-graph (g/make-graph! :history false :volatility 2)
         opts       (merge opts
@@ -352,7 +356,9 @@
        (let [resource-node     (project/get-resource-node project resource)
              ^TabPane tab-pane (g/node-value app-view :tab-pane)
              tabs              (.getTabs tab-pane)
-             tab               (or (first (filter #(= resource (ui/user-data % ::resource)) tabs))
+             tab               (or (first (filter #(and (= resource (ui/user-data % ::resource))
+                                                        (= view-type (ui/user-data % ::view-type)))
+                                                  tabs))
                                    (create-new-tab app-view workspace project resource resource-node
                                                    resource-type view-type make-view-fn tabs opts))]
          (.select (.getSelectionModel tab-pane) tab)
@@ -401,7 +407,10 @@
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog workspace project)]
+  (let [[resource opts] (dialogs/make-search-in-files-dialog
+                         workspace
+                         (fn [exts term]
+                           (project/search-in-files project exts term)))]
     (when resource
       (open-resource app-view workspace project resource opts))))
 

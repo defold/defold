@@ -2,205 +2,37 @@
   (:require [clojure.java.io :as io]
             [clojure.stacktrace :as stack]
             [dynamo.graph :as g]
-            [editor.app-view :as app-view]
-            [editor.asset-browser :as asset-browser]
-            [editor.atlas :as atlas]
-            [editor.changes-view :as changes-view]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.game-project :as game-project]
-            [editor.graph-view :as graph-view]
-            [editor.image :as image]
             [editor.import :as import]
-            [editor.outline-view :as outline-view]
-            [editor.platformer :as platformer]
             [editor.prefs :as prefs]
-            [editor.defold-project :as project]
-            [editor.properties-view :as properties-view]
-            [editor.scene-selection :as scene-selection]
-            [editor.scene :as scene]
-            [editor.form-view :as form-view]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
-            [editor.font :as font]
-            [editor.protobuf-types :as protobuf-types]
-            [editor.script :as script]
-            [editor.gl.shader :as shader]
-            [editor.tile-source :as tile-source]
-            [editor.sound :as sound]
-            [editor.spine :as spine]
-            [editor.json :as json]
-            [editor.mesh :as mesh]
-            [editor.material :as material]
-            [editor.particlefx :as particlefx]
-            [editor.gui :as gui]
-            [editor.text :as text]
-            [editor.code-view :as code-view]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
             [editor.progress :as progress]
+            [editor.ui :as ui]
             [service.log :as log])
-  (:import [com.defold.editor EditorApplication]
-           [com.defold.editor Start]
-           [com.jogamp.opengl.util.awt Screenshot]
-           [java.awt Desktop]
-           [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button Control ColorPicker Label ListView TextField
-            TitledPane TextArea TreeItem TreeView Menu MenuItem MenuBar Tab TabPane ProgressBar]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
+  (:import [com.defold.control ListCell]
+           [javafx.scene Scene Parent]
+           [javafx.scene.control Button Control Label ListView]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
-           [javafx.scene.paint Color]
-           [javafx.stage Stage FileChooser]
+           [javafx.scene.layout VBox]
+           [javafx.stage Stage]
            [javafx.util Callback]
-           [java.io File]
-           [java.nio.file Paths]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [com.defold.control ListCell TreeCell]))
+           [java.io File]))
 
 (set! *warn-on-reflection* true)
 
-(defn- setup-console [^VBox root]
-  (let [^TextArea node (.lookup root "#console")]
-   (.appendText node "Hello Console")))
+(declare main)
 
-; Editors
-(g/defnode CurveEditor
-  (inherits core/Scope)
-
-  core/ICreate
-  (post-create
-   [this basis event]
-   (let [btn (Button.)]
-     (ui/text! btn "Curve Editor WIP!")
-     (.add (.getChildren ^VBox (:parent event)) btn))))
-
-(def ^:dynamic *workspace-graph*)
-(def ^:dynamic *project-graph*)
-(def ^:dynamic *view-graph*)
-
-(def the-root (atom nil))
-
-(defn load-stage [workspace project prefs]
-  (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage (Stage.)
-        scene (Scene. root)]
-    (ui/observe (.focusedProperty stage)
-                (fn [property old-val new-val]
-                  (when (true? new-val)
-                    (ui/with-disabled-ui
-                      (ui/with-progress [render-fn ui/default-render-progress!]
-                        (workspace/resource-sync! workspace true [] render-fn))))))
-
-    (ui/set-main-stage stage)
-    (.setScene stage scene)
-    (ui/show! stage)
-
-    (let [close-handler (ui/event-handler event
-                          (g/transact
-                            (g/delete-node project)))]
-      (.setOnCloseRequest stage close-handler))
-    (setup-console root)
-    (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
-          ^TabPane editor-tabs (.lookup root "#editor-tabs")
-          ^TabPane tool-tabs   (.lookup root "#tool-tabs")
-          ^TreeView outline    (.lookup root "#outline")
-          ^Tab assets          (.lookup root "#assets")
-          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
-                                                                 (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))]
-      (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view      app-view
-                         :project       project
-                         :project-graph (project/graph project)
-                         :prefs         prefs
-                         :workspace     (g/node-value project :workspace)
-                         :outline-view  outline-view}]
-        (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project)))
-      (g/transact
-        (concat
-          (g/connect project :selected-node-ids outline-view :selection)
-          (for [label [:active-resource :active-outline :open-resources]]
-            (g/connect app-view label outline-view label))
-          (for [view [outline-view asset-browser]]
-            (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
-    (graph-view/setup-graph-view root)
-    (reset! the-root root)
-    root))
-
-(defn- create-view [game-project ^VBox root place node-type]
-  (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
-
-(defn setup-workspace [project-path]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
-    (g/transact
-      (concat
-        (text/register-view-types workspace)
-        (code-view/register-view-types workspace)
-        (scene/register-view-types workspace)
-        (form-view/register-view-types workspace)))
-    (g/transact
-     (concat
-      (collection/register-resource-types workspace)
-      (font/register-resource-types workspace)
-      (game-object/register-resource-types workspace)
-      (game-project/register-resource-types workspace)
-      (cubemap/register-resource-types workspace)
-      (image/register-resource-types workspace)
-      (atlas/register-resource-types workspace)
-      (platformer/register-resource-types workspace)
-      (protobuf-types/register-resource-types workspace)
-      (script/register-resource-types workspace)
-      (switcher/register-resource-types workspace)
-      (sprite/register-resource-types workspace)
-      (shader/register-resource-types workspace)
-      (tile-source/register-resource-types workspace)
-      (sound/register-resource-types workspace)
-      (spine/register-resource-types workspace)
-      (json/register-resource-types workspace)
-      (mesh/register-resource-types workspace)
-      (material/register-resource-types workspace)
-      (particlefx/register-resource-types workspace)
-      (gui/register-resource-types workspace)))
-    (workspace/resource-sync! workspace)
-    workspace))
-
-(defn- open-project
-  [^File game-project-file prefs render-progress!]
-  (let [progress     (atom (progress/make "Loading project" 3))
-        _            (render-progress! @progress)
-        project-path (.getPath (.getParentFile game-project-file))
-        workspace    (setup-workspace project-path)
-        project      (project/make-project *project-graph* workspace)
-        project      (project/load-project project
-                                           (g/node-value project :resources)
-                                           (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Updating dependencies"))
-        _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-        _            (workspace/update-dependencies! workspace
-                                                     (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Reloading dependencies"))
-        _            (workspace/resource-sync! workspace true []
-                                               (progress/nest-render-progress render-progress! @progress))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))
-        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
-        changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace
-                                                                 (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph*
-                                                                       (.lookup root "#properties")))]
-    (g/reset-undo! *project-graph*)))
+(defmacro deferred
+   "Loads and runs a function dynamically to defer loading the namespace.
+    Usage: \"(deferred clojure.core/+ 1 2 3)\" returns 6.  There's no issue
+    calling require multiple times on an ns."
+   [fully-qualified-func & args]
+   (let [func (symbol (name fully-qualified-func))
+         space (symbol (namespace fully-qualified-func))]
+     `(do
+        (try (require '~space)
+          (catch Throwable t#
+                  (prn "Error requiring ns" t#)))
+        (let [v# (ns-resolve '~space '~func)]
+          (v# ~@args)))))
 
 (defn- add-to-recent-projects [prefs project-file]
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
@@ -220,9 +52,6 @@
     (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
     (.addAll (.getChildren vbox) controls)
     vbox))
-
-(def main)
-
 
 (defn open-welcome [prefs]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
@@ -268,6 +97,8 @@
     (.setResizable stage false)
     (ui/show! stage)))
 
+(def namespaces-loaded (promise))
+
 (defn main [args]
   (Thread/setDefaultUncaughtExceptionHandler
    (reify Thread$UncaughtExceptionHandler
@@ -275,18 +106,26 @@
        (log/error :exception exception :msg "uncaught exception"))))
   (let [prefs (prefs/make-prefs "defold")]
     (if (= (count args) 0)
-      (ui/run-later (open-welcome prefs))
+      (do
+        ;; load the namespaces of the project with all the defnode
+        ;; creation in the background while the open-welcome is coming
+        ;; up and the user is browsing for a project
+        (future ((fn [p]
+                   (deferred editor.boot-open-project/load-namespaces)
+                   (deliver p true)) namespaces-loaded))
+        (ui/run-later (open-welcome prefs)))
       (try
         (ui/modal-progress "Loading project" 100
                            (fn [render-progress!]
-                             (when (nil? @the-root)
-                               (g/initialize! {})
-                               (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-                               (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-                               (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
-                             (let [project-file (first args)]
-                               (add-to-recent-projects prefs project-file)
-                               (open-project (io/file project-file) prefs render-progress!))))
+                             (do
+                               (let [progress  (atom (progress/make "Loading project" 1))]
+                                 (render-progress! (swap! progress progress/message "Initializing project"))
+                                 ;; ensure the the namespaces have been loaded
+                                 @namespaces-loaded
+                                 (deferred editor.boot-open-project/initialize-project)
+                                 (let [project-file (first args)]
+                                   (add-to-recent-projects prefs project-file)
+                                   (deferred editor.boot-open-project/open-project (io/file project-file) prefs render-progress!))))))
         (catch Throwable t
           (log/error :exception t)
           (stack/print-stack-trace t)

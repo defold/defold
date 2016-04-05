@@ -24,7 +24,6 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.render.proto Render$DisplayProfiles]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -114,13 +113,7 @@
                :label "Texture Profiles"
                :view-types [:form-view :text]
                :pb-class Graphics$TextureProfiles
-               }
-              {:ext "display_profiles"
-               :label "Display Profiles"
-               :view-types [:form-view :text]
-               ; TODO - missing icon
-               :icon "icons/32/Icons_30-Render.png"
-               :pb-class Render$DisplayProfiles}])
+               }])
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource

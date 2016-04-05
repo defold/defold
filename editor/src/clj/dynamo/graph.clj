@@ -1055,6 +1055,11 @@
   []
   (is/last-graph @*the-system*))
 
+(defn graph-version
+  "Returns the latest version of a graph id"
+  [graph-id]
+  (is/graph-time @*the-system* graph-id))
+
 (defn delete-graph!
   "Given a `graph-id`, deletes it from the system
 

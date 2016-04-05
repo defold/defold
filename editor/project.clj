@@ -9,7 +9,7 @@
 
   :pedantic?        :abort
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
-                     [org.clojure/core.cache                      "0.6.4"]
+                     [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
@@ -18,6 +18,7 @@
                      [prismatic/schema                            "1.0.4"]
                      [prismatic/plumbing                          "0.5.2"]
                      [inflections/inflections                     "0.10.0"]
+                     [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
                      [org.slf4j/slf4j-api                         "1.7.14"]
                      [ch.qos.logback/logback-classic              "1.1.3"]
