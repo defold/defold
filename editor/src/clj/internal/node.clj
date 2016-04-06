@@ -479,7 +479,7 @@
     (-> description
       (update-in [:transform-types] assoc label schema)
       (update-in [:passthroughs] #(disj (or % #{}) label))
-      (update-in [:transforms label] assoc-in [:fn] production-fn)
+      (update-in [:transforms :outputs label] assoc-in [:fn] production-fn)
       (update-in [:transforms label] assoc-in [:output-type] schema)
       (update-in [:transforms label] assoc-in [:inputs] production-fn-inputs)
       (update-in [:outputs] assoc-in [label] schema)
@@ -496,14 +496,16 @@
   (assert-symbol "property" label)
   (let [sym-label     label
         label         (keyword label)
+        prop-label    (keyword (str "_prop_" sym-label))
         property-type (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
         getter        (or (ip/getter-for property-type)
                           `(pc/fnk [~'this ~sym-label] (get ~'this ~label)))]
     (-> description
         (update    :declared-properties     assoc     label  property-type)
-        (update-in [:transforms label] assoc-in [:fn] getter)
-        (update-in [:transforms label] assoc-in [:output-type] property-type)
-        (update-in [:transforms label] assoc-in [:inputs] [:this label])
+        (update    :declared-properties-transforms assoc label prop-label)
+        (update-in [:transforms prop-label] assoc-in [:fn] getter)
+        (update-in [:transforms prop-label] assoc-in [:output-type] property-type)
+        (update-in [:transforms prop-label] assoc-in [:inputs] [:this label])
         (update-in [:transform-types]       assoc     label  (:value-type property-type))
         (cond->
             (not (internal-keys label))
