@@ -501,7 +501,9 @@
                           `(pc/fnk [~'this ~sym-label] (get ~'this ~label)))]
     (-> description
         (update    :declared-properties     assoc     label  property-type)
-        (update-in [:transforms]            assoc-in [label] getter)
+        (update-in [:transforms label] assoc-in [:fn] getter)
+        (update-in [:transforms label] assoc-in [:output-type] property-type)
+        (update-in [:transforms label] assoc-in [:inputs] [:this label])
         (update-in [:transform-types]       assoc     label  (:value-type property-type))
         (cond->
             (not (internal-keys label))
