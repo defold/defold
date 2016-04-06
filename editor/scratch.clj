@@ -16,24 +16,37 @@
 ;;; weird cases
 
 (comment
-  (g/defnode Foo
+  (g/defnode6 Foo
    (property a g/Str)
-   (output a g/Str (fnk [a] (.toUpperCase a))))
+   (output a g/Str (g/fnk [a] (.toUpperCase a))))
+
+(get-in Foo [:transforms :a])
+(:declared-properties Foo)
+
+
+{:transforms {:_prop_a {:fn (g/fnk [this] (get this :_prop_a))
+                           :output-type g/Str
+                           :inputs [this]
+              :a {:fn (g/fnk [a] (.toUpperCase a))
+                           :output-type g/Str
+                           :inputs [a]}}}}
 
 
 ;;; output a depends on property a. production function is called with
 ;;; a map {:a (value of property a)} assembled by gather-inputs
 
-  (g/defnode Foo
+  (g/defnode6 Foo
     (property b g/Str)
-    (output b g/Str (fnk [b] (.toUpperCase a)))
-    (output c g/Str (fnk [b] (.toLowerCase b))))
+    (output b g/Str (g/fnk [b] (.toUpperCase b)))
+    (output c g/Str (g/fnk [b] (.toLowerCase b))))
+
+(get-in Foo [:transforms :c])
 
 ;;; output c depends on output b. output b depends on property b
 
-  (g/defnode Foo
+  (g/defnode6 Foo
     (input a g/Str :array)
-    (output a g/Str (fnk [a] (str/join ", " a))))
+    (output a g/Str (g/fnk [a] (str/join ", " a))))
 
 ;;; output a depends on input a
 
@@ -102,8 +115,9 @@
 
   (g/defnode6 Beta
     (property prop1 g/Str)
-    (output foo g/Str (g/fnk [prop1 in-a] "cake")))
+    (output foo g/Str (g/fnk [this prop1 in-a] "cake")))
 
+  (:declared-properties Beta)
   (:transforms Beta)
   (:transform-types Beta)
 
