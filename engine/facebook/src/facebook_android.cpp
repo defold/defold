@@ -248,7 +248,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
     Command cmd;
     cmd.m_Type = CMD_LOGIN;
     cmd.m_State = (int)state;
-    cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
+    cmd.m_L = (lua_State*)userData;
     cmd.m_Error = StrDup(env, error);
     QueueCommand(&cmd);
 }
@@ -258,7 +258,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRea
 {
     Command cmd;
     cmd.m_Type = CMD_REQUEST_READ;
-    cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
+    cmd.m_L = (lua_State*)userData;
     cmd.m_Error = StrDup(env, error);
     QueueCommand(&cmd);
 }
@@ -268,7 +268,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPub
 {
     Command cmd;
     cmd.m_Type = CMD_REQUEST_PUBLISH;
-    cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
+    cmd.m_L = (lua_State*)userData;
     cmd.m_Error = StrDup(env, error);
     QueueCommand(&cmd);
 }
@@ -278,7 +278,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComp
 {
     Command cmd;
     cmd.m_Type = CMD_DIALOG_COMPLETE;
-    cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
+    cmd.m_L = (lua_State*)userData;
     cmd.m_Results = StrDup(env, results);
     cmd.m_Error = StrDup(env, error);
     QueueCommand(&cmd);
@@ -373,7 +373,7 @@ int Facebook_Login(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_Login, (jlong)L);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_Login, (jlong)dmScript::GetMainThread(L));
 
     if (!Detach(env))
     {
@@ -445,7 +445,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     JNIEnv* env = Attach();
 
     jstring str_permissions = env->NewStringUTF(permissions);
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestReadPermissions, (jlong)L, str_permissions);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestReadPermissions, (jlong)dmScript::GetMainThread(L), str_permissions);
     env->DeleteLocalRef(str_permissions);
 
     if (!Detach(env))
@@ -481,7 +481,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     JNIEnv* env = Attach();
 
     jstring str_permissions = env->NewStringUTF(permissions);
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestPublishPermissions , (jlong)L, (jint)audience, str_permissions);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestPublishPermissions , (jlong)dmScript::GetMainThread(L), (jint)audience, str_permissions);
     env->DeleteLocalRef(str_permissions);
 
     if (!Detach(env))
@@ -534,7 +534,7 @@ int Facebook_Permissions(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IteratePermissions, (jlong)L);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IteratePermissions, (jlong)dmScript::GetMainThread(L));
 
     if (!Detach(env))
     {
@@ -557,7 +557,7 @@ int Facebook_Me(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IterateMe, (jlong)L);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IterateMe, (jlong)dmScript::GetMainThread(L));
 
     if (!Detach(env))
     {
@@ -746,7 +746,7 @@ int Facebook_ShowDialog(lua_State* L)
 
     jstring str_dialog = env->NewStringUTF(dialog);
     jstring str_params = env->NewStringUTF(params_json);
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_ShowDialog, (jlong)L, str_dialog, str_params);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_ShowDialog, (jlong)dmScript::GetMainThread(L), str_dialog, str_params);
     env->DeleteLocalRef(str_dialog);
     env->DeleteLocalRef(str_params);
 
