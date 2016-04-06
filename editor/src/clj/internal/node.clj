@@ -226,9 +226,7 @@
     (attach-output
      node-type-description
      '_declared-properties 'internal.graph.types/Properties #{} #{}
-     [`(s/schematize-fn
-        (fn [] (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))
-        (s/=> gt/Properties ~argument-schema))])))
+     [`(g/fnk [] (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))])))
 
 (defn inputs-for
   [pfn]
@@ -349,6 +347,8 @@
   [description]
 )
 
+(declare node-output-value-function)
+
 (defn transform-plumbing-map [description]
   (let [labels (keys (:transforms description))]
     (zipmap labels
@@ -366,7 +366,7 @@
   (let [supertype-values (map util/vgr (:supertypes description))]
     (-> description
         (resolve-display-order (map gt/property-display-order supertype-values))
-        attach-behaviors
+       ; attach-behaviors
         attach-properties-output
         attach-input-dependencies
         verify-labels
@@ -468,6 +468,7 @@
         production-fn   (if (:abstract properties)
                           (abstract-function label schema)
                           (first remainder))
+        production-fn-inputs (into #{} (map keyword (second production-fn)))
         resolved-schema (util/vgr schema)
         schema          (if (util/property? resolved-schema) (ip/property-value-type resolved-schema) schema)]
     #_(when-not (:abstract properties)
@@ -478,7 +479,9 @@
     (-> description
       (update-in [:transform-types] assoc label schema)
       (update-in [:passthroughs] #(disj (or % #{}) label))
-      (update-in [:transforms] assoc-in [label] production-fn)
+      (update-in [:transforms label] assoc-in [:fn] production-fn)
+      (update-in [:transforms label] assoc-in [:output-type] schema)
+      (update-in [:transforms label] assoc-in [:inputs] production-fn-inputs)
       (update-in [:outputs] assoc-in [label] schema)
       (cond->
 
@@ -618,9 +621,6 @@
   (let [schema (property-type node-type property)]
     (if (util/property? schema) (ip/property-value-type schema) schema)))
 
-#_(defn- dollar-name
-  [node-type-name label]
-  (symbol (str node-type-name "$" (name label))))
 
 (defn allow-nil [s]
   (s/maybe s))
@@ -1135,6 +1135,12 @@
   "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
   [record-name node-type-name node-type]
   (eval (print-method-forms record-name node-type-name node-type)))
+
+
+;; todo delete
+(defn- dollar-name
+  [node-type-name label]
+  (symbol (str node-type-name "$" (name label))))
 
 (defn- output-fn [type output]
   (eval (dollar-name (:name type) output)))
