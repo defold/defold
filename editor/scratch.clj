@@ -15,23 +15,25 @@
 
 ;;; weird cases
 
-(defnode Foo
-  (property a g/Str)
-  (output a g/Str (fnk [a] (.toUpperCase a))))
+(comment
+  (g/defnode Foo
+   (property a g/Str)
+   (output a g/Str (fnk [a] (.toUpperCase a))))
+
 
 ;;; output a depends on property a. production function is called with
 ;;; a map {:a (value of property a)} assembled by gather-inputs
 
-(defnode Foo
-  (property b g/Str)
-  (output b g/Str (fnk [b] (.toUpperCase a)))
-  (output c g/Str (fnk [b] (.toLowerCase b))))
+  (g/defnode Foo
+    (property b g/Str)
+    (output b g/Str (fnk [b] (.toUpperCase a)))
+    (output c g/Str (fnk [b] (.toLowerCase b))))
 
 ;;; output c depends on output b. output b depends on property b
 
-(defnode Foo
-  (input a g/Str :array)
-  (output a g/Str (fnk [a] (str/join ", " a))))
+  (g/defnode Foo
+    (input a g/Str :array)
+    (output a g/Str (fnk [a] (str/join ", " a))))
 
 ;;; output a depends on input a
 
@@ -46,73 +48,80 @@
 ;;;     instead of rediscovering it during function generation.
 ;;; - revisit ip/property-value-type & its recursion
 
-;; PROBLEM
-;;
+  ;; PROBLEM
+  ;;
 
-(require '[dynamo.graph :as g])
-(require '[internal.node :as in])
-(require '[internal.property :as ip])
-(require '[internal.graph.types :as gt])
+  (require '[dynamo.graph :as g])
+  (require '[internal.node :as in])
+  (require '[internal.property :as ip])
+  (require '[internal.graph.types :as gt])
 
-(in/inputs-needed '(fn [this basis x y z]))
+  (in/inputs-needed '(fn [this basis x y z]))
 
-(g/defproperty FooProp g/Str
-  (dynamic hidden (g/fnk [this toggle-set]))
-  (value (g/fnk [this old-value secret-input]))
-  )
+  (g/defproperty FooProp g/Str
+    (dynamic hidden (g/fnk [this toggle-set]))
+    (value (g/fnk [this old-value secret-input]))
+    )
 
-(mapcat internal.util/fnk-arguments (vals (ip/dynamic-attributes FooProp)))
-(in/inputs-needed FooProp)
+  (mapcat internal.util/fnk-arguments (vals (ip/dynamic-attributes FooProp)))
+  (in/inputs-needed FooProp)
 
-(ip/getter-for FooProp)
+  (ip/getter-for FooProp)
 
-(g/defproperty BarProp g/Str
+  (g/defproperty BarProp g/Str
     (dynamic hidden (g/fnk [secret])))
 
-BarProp
-(g/defproperty BazProp BarProp
-  (value (g/fnk [this secret-input] secret-input)))
+  BarProp
+  (g/defproperty BazProp BarProp
+    (value (g/fnk [this secret-input] secret-input)))
 
-BazProp
-(ip/getter-for BarProp)
+  BazProp
+  (ip/getter-for BarProp)
 
-(ip/inheriting? 'BazProp)
+  (ip/inheriting? 'BazProp)
 
-(pst)
+  (pst)
 
-(g/defnode6 BazNode
-  (input secret-input g/Str)
-  (property zot g/Int)
-  (property foo g/Str
-            (value (g/fnk [this secret-input] secret-input)))
-  (output happy-output g/Str (g/fnk [secret-input] (.toUpperCase secret-input))))
+  (g/defnode6 BazNode
+    (input secret-input g/Str)
+    (property zot g/Int)
+    (property foo g/Str
+              (value (g/fnk [this secret-input] secret-input)))
+    (output happy-output g/Str (g/fnk [secret-input] (.toUpperCase secret-input))))
 
-(require '[internal.util :as util])
+  (require '[internal.util :as util])
 
-BazNode
-((-> BazNode :transforms :happy-output) {:secret-input "baa"})
-(clojure.pprint/pprint (select-keys BazNode (keys BazNode)))
+  BazNode
+  ((-> BazNode :transforms :happy-output) {:secret-input "baa"})
+  (clojure.pprint/pprint (select-keys BazNode (keys BazNode)))
 
-(def default-in-val "push")
-(g/defnode6 Simple
-  (property in g/Str
-            (default default-in-val)))
+  (def default-in-val "push")
+  (g/defnode6 Simple
+    (property in g/Str
+              (default default-in-val)))
+
+  (g/defnode6 Beta
+    (property prop1 g/Str)
+    (output foo g/Str (g/fnk [prop1 in-a] "cake")))
+
+  (:transforms Beta)
+  (:transform-types Beta)
 
 ;;; #1) this is what we want to get to so that we don't
-;; lose information by the time we get to gather inputs
-{:transforms {:foo {:fn (g/fnk [this basis prop1 in-a])
-                    :type g/Str
-                    :inputs #{this basis prop1 in-a}}}}
+  ;; lose information by the time we get to gather inputs
+  {:transforms {:foo {:fn (g/fnk [this basis prop1 in-a])
+                      :output-type g/Str
+                      :inputs #{this basis prop1 in-a}}}}
 
-(g/defnode6 Narf
-  (inherits Simple)
-  (property child g/Str))
+  (g/defnode6 Narf
+    (inherits Simple)
+    (property child g/Str))
 
 ;;; #1) it means we will have to adjust the tranforms for the
-;; inherits as well
-{:transforms {:foo {:fn (get-in Simple [:transforms :foo :fn])
-                    :type g/Str
-                    :inputs #{this basis prop1 in-a}}}}
+  ;; inherits as well
+  {:transforms {:foo {:fn (get-in Simple [:transforms :foo :fn])
+                      :output-type g/Str
+                      :inputs #{this basis prop1 in-a}}}}
 
 
 ;;; #4) From produce-value to behavior to production function (transform)
@@ -123,45 +132,46 @@ BazNode
 ;;; #property so it only gets the node map and the property itself.)
 ;;;
 
-(clojure.pprint/pprint (select-keys Narf (keys Narf)))
+  (clojure.pprint/pprint (select-keys Narf (keys Narf)))
 
-(= (-> Narf :transforms :in) (-> Simple :transforms :in))
+  (= (-> Narf :transforms :in) (-> Simple :transforms :in))
 
-(g/defproperty Wla {schema.core/Keyword schema.core/Any
-                    :first-name g/Str})
+  (g/defproperty Wla {schema.core/Keyword schema.core/Any
+                      :first-name g/Str})
 
-(gt/declared-properties Narf)
-(in/defaults Narf)
+  (gt/declared-properties Narf)
+  (in/defaults Narf)
 
-(gt/node-id   (g/construct Narf :in "pull"))
-(gt/node-type (g/construct Narf))
+  (gt/node-id   (g/construct Narf :in "pull"))
+  (gt/node-type (g/construct Narf))
 
-(use 'clojure.repl)
-(pst 40)
+  (use 'clojure.repl)
+  (pst 40)
 
-(gt/property-display-order Simple)
-(gt/property-display-order Narf)
+  (gt/property-display-order Simple)
+  (gt/property-display-order Narf)
 
-(ip/property-value-type g/Str)
+  (ip/property-value-type g/Str)
 
-(def empty-ctx (in/make-evaluation-context nil (g/now) false false false))
+  (def empty-ctx (in/make-evaluation-context nil (g/now) false false false))
 
-((-> Simple :transforms :in) {:this (g/construct Simple) :in "pull"})
+  ((-> Simple :transforms :in) {:this (g/construct Simple) :in "pull"})
 
-(-> (in/node-type-forms6 'Narf '[(inherits Simple)])
-    in/make-node-type-map
-    in/transform-plumbing-map)
+  (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
+      in/make-node-type-map
+      in/transform-plumbing-map)
 
-(-> (in/node-type-forms6 'Narf '[(property in g/Str (default default-in-val))])
-     in/make-node-type-map
-     :transforms
-     :in)
-
-
-{:out (g/fnk [this] default)}
-
-{:out (get-in Simple [:transforms :out])}
+  (-> (in/node-type-forms6 'Narf '[(property in g/Str (default default-in-val))])
+      in/make-node-type-map
+      :transforms
+      :in)
 
 
+  {:out (g/fnk [this] default)}
 
-(in/lookup-from 'Simple Simple :transforms)
+  {:out (get-in Simple [:transforms :out])}
+
+
+
+  (in/lookup-from 'Simple Simple :transforms)
+  )
