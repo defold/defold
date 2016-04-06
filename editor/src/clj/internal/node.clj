@@ -376,7 +376,9 @@
 (defn lookup-from
   [node-sym node-type field]
   (reduce-kv
-   (fn [m label v] (assoc m label `(get-in ~node-sym [~field ~label])))
+   (fn [m label v] (assoc m label {:fn `(get-in ~node-sym [~field ~label :fn])
+                                  :output-type `(get-in ~node-sym [~field ~label :output-type])
+                                  :inputs `(get-in ~node-sym [~field ~label :output-type])}))
    {}
    (get node-type field)))
 
