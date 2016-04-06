@@ -51,24 +51,6 @@
   (input bar g/Int)
   (property baz g/Str (dynamic enabled (g/fnk [bar] (pos? bar)))))
 
-(defprotocol AProtocol
-  (complainer [this]))
-
-(definterface IInterface
-  (allGood []))
-
-(g/defnode MyNode
-  AProtocol
-  (complainer [this] :owie)
-  IInterface
-  (allGood [this] :ok))
-
-(deftest node-respects-namespaces
-  (testing "node can implement protocols not known/visible to internal.node"
-           (is (= :owie (complainer (g/construct MyNode)))))
-  (testing "node can implement interface not known/visible to internal.node"
-           (is (= :ok (.allGood (g/construct MyNode))))))
-
 (g/defnk depends-on-self [this] this)
 (g/defnk depends-on-input [an-input] an-input)
 (g/defnk depends-on-property [a-property] a-property)
