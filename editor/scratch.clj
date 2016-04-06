@@ -20,8 +20,8 @@
    (property a g/Str)
    (output a g/Str (g/fnk [a] (.toUpperCase a))))
 
-(get-in Foo [:transforms :a])
-(:declared-properties Foo)
+(get-in Foo [:transforms])
+(:declared-properties-transforms Foo)
 
 
 {:transforms {:_prop_a {:fn (g/fnk [this] (get this :_prop_a))
@@ -40,7 +40,8 @@
     (output b g/Str (g/fnk [b] (.toUpperCase b)))
     (output c g/Str (g/fnk [b] (.toLowerCase b))))
 
-(get-in Foo [:transforms :c])
+(get-in Foo [:transforms])
+(:declared-properties Foo)
 
 ;;; output c depends on output b. output b depends on property b
 
@@ -173,12 +174,13 @@
 
   (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
       in/make-node-type-map
-      in/transform-plumbing-map)
+      ;in/transform-plumbing-map
+      )
 
   (-> (in/node-type-forms6 'Narf '[(property in g/Str (default default-in-val))])
       in/make-node-type-map
-      :transforms
-      :in)
+      ;in/transform-plumbing-map
+      )
 
 
   {:out (g/fnk [this] default)}
