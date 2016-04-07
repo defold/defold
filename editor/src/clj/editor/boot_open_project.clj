@@ -189,5 +189,5 @@
                                                                  (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph*
                                                                        (.lookup root "#properties")))]
-    (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+    (g/reset-undo! *project-graph*)
+    (ui/update-version-on-disk! *project-graph*)))

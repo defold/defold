@@ -213,7 +213,7 @@
                    (ui/with-disabled-ui
                      (ui/with-progress [render-fn ui/default-render-progress!]
                        (save-all project render-fn)
-                       (workspace/update-version-on-disk! (workspace project)))))))
+                       (ui/update-version-on-disk! (graph project)))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -472,7 +472,8 @@
        (progress/nest-render-progress render-progress! @progress)
        (fn [[resource _]] (str "Reloading " (resource/resource->proj-path resource))))
       (when reset-undo?
-        (g/reset-undo! (graph project)))
+        (g/reset-undo! (graph project))
+        (ui/update-version-on-disk! (graph project)))
       (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
                                                (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
 

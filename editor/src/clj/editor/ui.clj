@@ -1,5 +1,6 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.progress :as progress]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
@@ -32,6 +33,7 @@
 
 (defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
+(defonce ^:private version-on-disk (atom nil))
 
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
@@ -39,6 +41,12 @@
 
 (defn ^Stage main-stage []
   @*main-stage*)
+
+(defn update-version-on-disk! [project-graph-id]
+  (reset! version-on-disk (g/number-of-undo-steps project-graph-id)))
+
+(defn version-on-disk-outdated? [project-graph-id]
+  (< @version-on-disk (g/number-of-undo-steps project-graph-id)))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)

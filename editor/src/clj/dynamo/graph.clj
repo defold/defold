@@ -1055,11 +1055,6 @@
   []
   (is/last-graph @*the-system*))
 
-(defn graph-version
-  "Returns the latest version of a graph id"
-  [graph-id]
-  (is/graph-time @*the-system* graph-id))
-
 (defn delete-graph!
   "Given a `graph-id`, deletes it from the system
 
@@ -1082,11 +1077,15 @@
     (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
+(defn number-of-undo-steps
+  "Returns the number of undo steps for a given graph-id"
+  [graph-id]
+  (count (is/undo-stack (is/graph-history @*the-system* graph-id))))
+
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
   [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
-    (not (empty? undo-stack))))
+  (not (zero? (number-of-undo-steps graph-id))))
 
 (defn redo!
   "Given a `graph-id` reverts an undo of the graph
