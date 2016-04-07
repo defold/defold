@@ -185,6 +185,45 @@ TEST_P(ComponentFailTest, Test)
     ASSERT_EQ((void*)0, go);
 }
 
+// Test that go.delete() does not influence other sprite animations in progress
+TEST_F(SpriteAnimTest, GoDeletion)
+{
+    // Spawn 3 dumy game objects with one sprite in each
+    dmGameObject::HInstance go1 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go2 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go1);
+    ASSERT_NE((void*)0, go2);
+    ASSERT_NE((void*)0, go3);
+
+    // Spawn one go with a script that will initiate animations on the above sprites
+    dmGameObject::HInstance go_animater = dmGameObject::Spawn(m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_animater);
+
+    // 1st iteration:
+    //  - go1 animation start
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 2nd iteration:
+    //  - go1 animation is over and removed
+    //  - go2+go3 animations start
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 3rd iteration:
+    //  - go2 animation is over and removed
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 4th iteration:
+    //  - go3 should still be animating (not be influenced by the deletion of go1/go2)
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 /* Camera */
 
 const char* valid_camera_resources[] = {"/camera/valid.camerac"};
