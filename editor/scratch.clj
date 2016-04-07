@@ -204,15 +204,18 @@
   (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
   (g/node-value n1 :foo)
 
-
+  ;; start here in the morning
   (g/defnode6 Simple
     (property in g/Str
-              (default default-in-val)))
+              (default default-in-val))
+    )
 
   (def n2 (g/construct Simple))
   (gt/produce-value (gt/node-type n2) n2 :in empty-ctx)
-  (g/node-value n2 :in)
-  (:declared-properties Simple)
+  (g/node-value n2 :_declared-properties)
+  (keys Simple)
+  (:substitutes Simple)
+  (in/ordinary-input-labels Simple)
 
 (:transforms Beta)
 ((get-in Beta [:behaviors :foo]) (g/construct Beta) empty-ctx )
@@ -227,12 +230,13 @@
    (get-in Narf [:transforms])
 
   (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1] "cake"))])
-      in/make-node-type-map
-      in/transform-plumbing-map
-      :input-dependencies)
-
-  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1 in-a] "cake"))])
       in/make-node-type-map)
+
+  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (input an-input g/Str) (output foo g/Str (g/fnk [this prop1 in-a] "cake"))])
+      in/make-node-type-map
+      in/attach-input-behaviors
+      :behaviors
+      :an-input)
 
 
 

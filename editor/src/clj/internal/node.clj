@@ -57,17 +57,17 @@
 
 (defn- all-labels
   [node-type]
-  (set/union (util/key-set (gt/transforms node-type)) (util/key-set (gt/declared-inputs node-type))))
+  (set/union (util/key-set (:transforms node-type)) (util/key-set (:inputs node-type))))
 
 (def ^:private special-labels #{:_declared-properties})
 
-(defn- ordinary-output-labels
-  [node-type]
-  (without (util/key-set (gt/transforms node-type)) special-labels))
+(defn ordinary-output-labels
+  [description]
+  (without (util/key-set (:transforms description)) special-labels))
 
-(defn- ordinary-input-labels
-  [node-type]
-  (without (util/key-set (gt/declared-inputs node-type)) (util/key-set (gt/transforms node-type))))
+(defn ordinary-input-labels
+  [description]
+  (without (util/key-set (:inputs description)) (util/key-set (:transforms description))))
 
 (defn- ordinary-property-labels
   [node-type]
@@ -349,21 +349,32 @@
 )
 
 (declare node-output-value-function)
+(declare declared-properties-function)
+(declare node-input-value-function)
 
-(defn transform-plumbing-map [description]
-  (let [labels (keys (:transforms description))]
+(defn transform-outputs-plumbing-map [description]
+  (let [labels  (ordinary-output-labels description)]
     (zipmap labels
      (map (fn [label] (node-output-value-function description label)) labels))))
 
-(defn attach-behaviors
+(defn attach-output-behaviors
   [description]
-  (update description :behaviors merge (transform-plumbing-map description)))
+  (update description :behaviors merge (transform-outputs-plumbing-map description)))
 
 (defn attach-declared-properties-behavior
   [description]
   (update description :behaviors merge
           {:_declared-properties
            (declared-properties-function description)}))
+
+(defn transform-inputs-plumbing-map [description]
+  (let [labels  (ordinary-input-labels description)]
+    (zipmap labels
+     (map (fn [label] (node-input-value-function description)) labels))))
+
+(defn attach-input-behaviors
+  [description]
+  (update description :behaviors merge (transform-inputs-plumbing-map description)))
 
 (defn make-node-type-map
   "Create a node type object from a maplike description of the node.
@@ -375,6 +386,7 @@
         (resolve-display-order (map gt/property-display-order supertype-values))
         attach-behaviors
         attach-declared-properties-behavior
+        attach-input-behaviors
         attach-properties-output
         attach-input-dependencies
         verify-labels
@@ -397,7 +409,7 @@
     (-> base
         (update :supertypes           util/conjv supertype)
         (update :transforms           merge      (lookup-from supertype superval :transforms))
-        (update :inputs               merge      (:declared-inputs     superval))
+        (update :inputs               merge      (:inputs     superval))
         (update :injectable-inputs    set/union  (:injectable-inputs   superval))
         (update :declared-properties  merge      (:declared-properties superval))
         (update :passthroughs         set/union  (:passthroughs        superval))
@@ -617,8 +629,8 @@
   [node-type]
   (util/map-vals ip/property-default-value (gt/declared-properties node-type)))
 
-(defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
-(defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
+(defn- has-multivalued-input?  [node-type input-label] (= :many (get-in node-type [:cardinalities input-label])))
+(defn- has-singlevalued-input? [node-type input-label] (= :one (get-in node-type [:cardinalities input-label])))
 
 (defn has-input?     [node-type argument] (contains? (:inputs node-type) argument))
 (defn has-property?  [node-type argument] (contains? (:properties node-type) argument))
@@ -687,23 +699,27 @@
 
 (defn- first-input-value-form
   [self-name ctx-name input]
+  `(true)
   `(let [[node-id# output-label#] (first (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input))]
      (when-let [node# (and node-id# (ig/node-by-id-at (:basis ~ctx-name) node-id#))]
-       (gt/produce-value node# output-label# ~ctx-name))))
+       (gt/produce-value (gt/node-type node# (:basis ~ctx-name)) node# output-label# ~ctx-name))))
 
 (defn- input-value-forms
   [self-name ctx-name input]
   `(mapv (fn [[node-id# output-label#]]
            (let [node# (ig/node-by-id-at (:basis ~ctx-name) node-id#)]
-             (gt/produce-value node# output-label# ~ctx-name)))
+             (gt/produce-value (gt/node-type node# (:basis ~ctx-name)) node# output-label# ~ctx-name)))
          (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input)))
 
 (defn maybe-use-substitute [node-type input forms]
-  (if (gt/substitute-for node-type input)
+  (println :node-type (:substitutes node-type) :input input)
+  (if (and (:substitutes node-type) (get-in node-type [:substitutes input]))
+   (do
+     (println "got here!")
     `(let [input# ~forms]
        (if (ie/error? input#)
-         (util/apply-if-fn ~(gt/substitute-for node-type input) input#)
-         input#))
+         (util/apply-if-fn ~(get-in node-type [:substitues input]) input#)
+         input#)))
     forms))
 
 (defn call-with-error-checked-fnky-arguments
@@ -763,7 +779,7 @@
     (collect-property-value self-name ctx-name node-type propmap-sym argument)
 
     (unoverloaded-output? node-type argument output)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)
+    `(gt/produce-value (gt/node-type ~self-name (:basis ~ctx-name)) ~self-name ~argument ~ctx-name)
 
     (has-property? node-type argument)
     (if (= output argument)
@@ -781,7 +797,7 @@
       (first-input-value-form self-name ctx-name argument))
 
     (has-declared-output? node-type argument)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)))
+    `(gt/produce-value (gt/node-type ~self-name (:basis ~ctx-name)) ~self-name ~argument ~ctx-name)))
 
 (defn check-local-cache [ctx-name nodeid-sym transform]
   `(get-in @(:local ~ctx-name) [~nodeid-sym ~transform]))
@@ -1061,18 +1077,20 @@
                  (collect-display-order self-name ctx-name node-type display-order
                    (assemble-properties-map value-map display-order)))))))))
 
-(defn node-input-value-function-forms
-  [self-name ctx-name node-type]
-  (for [[input input-schema] (gt/declared-inputs node-type)]
-    `(fn [~self-name ~ctx-name]
-       ~(maybe-use-substitute
-         node-type input
-         (cond
-           (has-multivalued-input? node-type input)
-           (input-value-forms self-name ctx-name input)
+(defn node-input-value-function
+  [node-type]
+  (println "here")
+  (gensyms [self-name ctx-name]
+   (for [[input input-schema] (:inputs node-type)]
+     `(fn [~self-name ~ctx-name]
+        ~(maybe-use-substitute
+          node-type input
+          (cond
+            (has-multivalued-input? node-type input)
+            (input-value-forms self-name ctx-name input)
 
-           (has-singlevalued-input? node-type input)
-           (first-input-value-form self-name ctx-name input))))))
+            (has-singlevalued-input? node-type input)
+            (first-input-value-form self-name ctx-name input)))))))
 
 #_(defn define-node-value-functions
   [node-type]
