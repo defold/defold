@@ -366,19 +366,20 @@
   (let [supertype-values (map util/vgr (:supertypes description))]
     (-> description
         (resolve-display-order (map gt/property-display-order supertype-values))
-       ; attach-behaviors
-        attach-properties-output
-        attach-input-dependencies
-        verify-labels
-        verify-inputs-for-dynamics
-        verify-inputs-for-outputs)))
+        attach-behaviors
+        ;attach-properties-output
+        ;attach-input-dependencies
+        ;verify-labels
+        ;verify-inputs-for-dynamics
+        ;verify-inputs-for-outputs
+        )))
 
 (defn lookup-from
   [node-sym node-type field]
   (reduce-kv
    (fn [m label v] (assoc m label {:fn `(get-in ~node-sym [~field ~label :fn])
                                   :output-type `(get-in ~node-sym [~field ~label :output-type])
-                                  :inputs `(get-in ~node-sym [~field ~label :output-type])}))
+                                  :input-schema `(get-in ~node-sym [~field ~label :input-schema])}))
    {}
    (get node-type field)))
 
@@ -470,7 +471,7 @@
         production-fn   (if (:abstract properties)
                           (abstract-function label schema)
                           (first remainder))
-        production-fn-inputs (into #{} (map keyword (second production-fn)))
+        input-schema `(util/fnk-schema ~production-fn)
         resolved-schema (util/vgr schema)
         schema          (if (util/property? resolved-schema) (ip/property-value-type resolved-schema) schema)]
     #_(when-not (:abstract properties)
@@ -481,9 +482,9 @@
     (-> description
       (update-in [:transform-types] assoc label schema)
       (update-in [:passthroughs] #(disj (or % #{}) label))
-      (update-in [:transforms :outputs label] assoc-in [:fn] production-fn)
+      (update-in [:transforms label] assoc-in [:fn] production-fn)
       (update-in [:transforms label] assoc-in [:output-type] schema)
-      (update-in [:transforms label] assoc-in [:inputs] production-fn-inputs)
+      (update-in [:transforms label] assoc-in [:input-schema] input-schema)
       (update-in [:outputs] assoc-in [label] schema)
       (cond->
 
@@ -501,13 +502,14 @@
         prop-label    (keyword (str "_prop_" sym-label))
         property-type (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
         getter        (or (ip/getter-for property-type)
-                          `(pc/fnk [~'this ~sym-label] (get ~'this ~label)))]
+                          `(pc/fnk [~'this ~sym-label] (get ~'this ~label)))
+        input-schema `(util/fnk-schema ~getter)]
     (-> description
         (update    :declared-properties     assoc     label  property-type)
         (update    :declared-properties-transforms assoc label prop-label)
         (update-in [:transforms prop-label] assoc-in [:fn] getter)
         (update-in [:transforms prop-label] assoc-in [:output-type] property-type)
-        (update-in [:transforms prop-label] assoc-in [:inputs] [:this label])
+        (update-in [:transforms prop-label] assoc-in [:input-schema] input-schema)
         (update-in [:transform-types]       assoc     label  (:value-type property-type))
         (cond->
             (not (internal-keys label))
@@ -640,7 +642,7 @@
 (defn deduce-argument-type
   "Return the type of the node's input label (or property). Take care
   with :array inputs."
-  [record-name node-type argument output]
+  [node-type argument output]
   (cond
     (= :this argument)
     s/Any
@@ -665,13 +667,13 @@
 
 (defn collect-argument-schema
   "Return a schema with the production function's input names mapped to the node's corresponding input type."
-  [transform argument-schema record-name node-type]
+  [transform argument-schema node-type]
   (persistent!
    (reduce-kv
     (fn [arguments desired-argument-name _]
       (if (= s/Keyword desired-argument-name)
         arguments
-        (let [argument-type (deduce-argument-type record-name node-type desired-argument-name transform)]
+        (let [argument-type (deduce-argument-type node-type desired-argument-name transform)]
           (assoc! arguments desired-argument-name (or argument-type s/Any)))))
     (transient {})
     argument-schema)))
@@ -826,7 +828,7 @@
      ~forms))
 
 (defn check-caches [ctx-name nodeid-sym node-type transform forms]
-  (if ((gt/cached-outputs node-type) transform)
+  (if (get (:cached-outputs node-type) transform)
     (list `or
           (check-local-cache ctx-name nodeid-sym transform)
           (check-global-cache ctx-name nodeid-sym transform)
@@ -834,10 +836,12 @@
     forms))
 
 (defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym node-type transform production-function forms]
-  (let [arg-names       (util/fnk-schema production-function)
-        argument-schema (collect-argument-schema transform arg-names node-type)
-        argument-forms  (zipmap (keys argument-schema)
-                                (map (partial node-input-forms self-name ctx-name propmap-sym transform node-type) argument-schema))]
+  (let [
+        arg-names       (get-in node-type [:transforms transform :input-schema])
+        _ (println :arg-names arg-names)
+        argument-schema `(collect-argument-schema ~transform ~arg-names ~node-type)
+        argument-forms  `(zipmap (keys ~argument-schema)
+                            (map (partial node-input-forms ~self-name ~ctx-name ~propmap-sym ~transform ~node-type) argument-schema))]
     (list `let
           [input-sym argument-forms schema-sym argument-schema]
           forms)))
@@ -907,7 +911,7 @@
 
 (defn node-output-value-function
   [node-type transform]
-  (let [production-function (get (:transforms node-type) transform)]
+  (let [production-function (get-in node-type [:transforms transform :fn])]
     (gensyms [self-name ctx-name nodeid-sym input-sym schema-sym propmap-sym output-sym]
       `(fn [~self-name ~ctx-name]
          (let [~nodeid-sym (gt/node-id ~self-name)
