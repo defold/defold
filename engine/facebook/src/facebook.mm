@@ -636,7 +636,7 @@ int Facebook_Logout(lua_State* L)
  *   <li><code>"email"</code></li>
  *   <li><code>"user_friends"</code></li>
  * </ul>
- * A comprehensive list of permissions can be found at https://developers.facebook.com/docs/facebook-login/permissions/v2.4
+ * A comprehensive list of permissions can be found at <a href='https://developers.facebook.com/docs/facebook-login/permissions/v2.4'>https://developers.facebook.com/docs/facebook-login/permissions/v2.4</a>
  * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
  * @examples
  * <pre>
@@ -997,7 +997,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *   <li><code>to</code> (table)</li>
  * </ul>
  *
- * Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
+ * Details for each parameter: <a href='https://developers.facebook.com/docs/games/requests/v2.4#params'>https://developers.facebook.com/docs/games/requests/v2.4#params</a>
  *
  * <code>feed</code>
  *
@@ -1018,7 +1018,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *   <li><code>post_id</code> (string)</li>
  * </ul>
  *
- * Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params
+ * Details for each parameter: <a href='https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params'>https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params</a>
  *
  * <code>appinvite</code>
  *
@@ -1030,7 +1030,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *   <li><code>preview_image</code> (string)</li>
  * </ul>
  *
- * Details for each parameter: https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/
+ * Details for each parameter: <a href='https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/'>https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/</a>
  *
  * @name facebook.show_dialog
  * @param dialog dialog to show. "apprequests", "feed" or "appinvite" (string)
