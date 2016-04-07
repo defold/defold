@@ -675,6 +675,9 @@ var LibraryGLFW = {
     }
   },
 
+  glfwResetKeyboard: function() {
+  },
+
   glfwGetJoystickDeviceId: function(joy, device_id) {
       return 0;
   },

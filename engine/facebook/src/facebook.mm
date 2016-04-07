@@ -493,8 +493,8 @@ static void DoLogin()
                 UpdateUserData();
 
             } else {
-                // FIXME: Skip this check and ignore if we didn't get all permissions.
-                //        This will show in the facebook.permissions() call anyway.
+                // Note that the user can still be logged in at this point, but with reduced set of permissions.
+                // In order to be consistent with other platforms, we consider this to be a failed login.
                 NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
                 [errorDetail setValue:@"Not granted all requested permissions." forKey:NSLocalizedDescriptionKey];
                 RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
