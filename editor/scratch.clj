@@ -118,6 +118,16 @@
     (property prop1 g/Str)
     (output foo g/Str (g/fnk [this prop1 in-a] "cake")))
 
+  (g/defnode6 BetaSimple
+    (inherits Simple)
+    (output tea g/Str (g/fnk [this] "tea")))
+
+(get-in Beta [:transforms :foo])
+
+(get-in BetaSimple [:transforms :tea])
+
+(in/collect-argument-schema :foo  (get-in Beta [:transforms :foo :input-schema]) Beta)
+
   (:declared-properties Beta)
   (:transforms Beta)
   (:transform-types Beta)
@@ -126,7 +136,7 @@
   ;; lose information by the time we get to gather inputs
   {:transforms {:foo {:fn (g/fnk [this basis prop1 in-a])
                       :output-type g/Str
-                      :inputs #{this basis prop1 in-a}}}}
+                      :input-schema #{this basis prop1 in-a}}}}
 
   (g/defnode6 Narf
     (inherits Simple)
@@ -136,7 +146,7 @@
   ;; inherits as well
   {:transforms {:foo {:fn (get-in Simple [:transforms :foo :fn])
                       :output-type g/Str
-                      :inputs #{this basis prop1 in-a}}}}
+                      :input-schema #{this basis prop1 in-a}}}}
 
 
 ;;; #4) From produce-value to behavior to production function (transform)
@@ -170,17 +180,29 @@
 
   (def empty-ctx (in/make-evaluation-context nil (g/now) false false false))
 
-  ((-> Simple :transforms :in) {:this (g/construct Simple) :in "pull"})
+  ((-> Simple :transforms :_prop_in :fn) {:this (g/construct Simple) :in "pull"})
+  ((-> Simple :transforms :_prop_in :input-schema))
 
   (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
       in/make-node-type-map
-      ;in/transform-plumbing-map
+      :cached-outputs
       )
 
-  (-> (in/node-type-forms6 'Narf '[(property in g/Str (default default-in-val))])
+  (g/defnode6 Beta
+    (property prop1 g/Str)
+    (output foo g/Str (g/fnk [this prop1 in-a] "cake")))
+
+  ((get-in Beta [:behaviors :foo]) Beta empty-ctx "Beta" 1 1 1)
+
+   (g/defnode6 Narf
+    (inherits Beta))
+
+   (get-in Narf [:transforms])
+
+  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1 in-a] "cake"))])
       in/make-node-type-map
-      ;in/transform-plumbing-map
-      )
+      in/transform-plumbing-map)
+
 
 
   {:out (g/fnk [this] default)}
@@ -190,4 +212,7 @@
 
 
   (in/lookup-from 'Simple Simple :transforms)
+  (util/fnk-schema (g/fnk [a b c] (str a b c)))
+  ()
+
   )
