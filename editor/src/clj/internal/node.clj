@@ -318,9 +318,10 @@
     inputs)))
 
 (defn description->input-dependencies
-  [{:keys [transforms properties] :as description}]
-  (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))]
-    (invert-map transforms)))
+  [{:keys [transforms] :as description}]
+   `(let [transforms# (zipmap (keys ~transforms)
+                              (map #(dependency-seq ~description (inputs-for (:fn %))) (vals ~transforms)))]
+      (invert-map transforms#)))
 
 (defn attach-input-dependencies
   [description]
@@ -367,11 +368,11 @@
     (-> description
         (resolve-display-order (map gt/property-display-order supertype-values))
         attach-behaviors
-        ;attach-properties-output
-        ;attach-input-dependencies
-        ;verify-labels
-        ;verify-inputs-for-dynamics
-        ;verify-inputs-for-outputs
+        attach-properties-output
+        attach-input-dependencies
+        verify-labels
+        verify-inputs-for-dynamics
+        verify-inputs-for-outputs
         )))
 
 (defn lookup-from
@@ -507,6 +508,7 @@
     (-> description
         (update    :declared-properties     assoc     label  property-type)
         (update    :declared-properties-transforms assoc label prop-label)
+        (update    :transforms-declared-properties assoc prop-label label)
         (update-in [:transforms prop-label] assoc-in [:fn] getter)
         (update-in [:transforms prop-label] assoc-in [:output-type] property-type)
         (update-in [:transforms prop-label] assoc-in [:input-schema] input-schema)
@@ -743,7 +745,7 @@
                (if (nil? ~'valid-v) ~'v ~'valid-v)))))
       get-expr)))
 
-(defn- node-input-forms
+(defn node-input-forms
   [self-name ctx-name propmap-sym output node-type [argument _]]
   (cond
     (= :this argument)
@@ -787,7 +789,7 @@
 
 (defn original-root [basis node-id]
   (let [node (ig/node-by-id-at basis node-id)
-        orig-id (gt/original node)]
+        orig-id (:original node)]
     (if orig-id
       (recur basis orig-id)
       node-id)))
@@ -795,7 +797,7 @@
 (defn jam [self-name ctx-name nodeid-sym transform forms]
   (if (jammable? transform)
     `(let [basis# (:basis ~ctx-name)
-           original# (if (gt/original ~self-name)
+           original# (if (:original ~self-name)
                        (ig/node-by-id-at basis# (original-root basis# ~nodeid-sym))
                        ~self-name)]
        (if-let [jammer# (get (:_output-jammers original#) ~transform)]
@@ -811,11 +813,13 @@
 (defn- has-validation? [node-type prop] (ip/validation (get (:declared-properties node-type) prop)))
 
 (defn apply-default-property-shortcut [self-name ctx-name transform node-type forms]
-  (if (and (property-has-default-getter? node-type transform)
-           (property-has-no-overriding-output? node-type transform)
-           (not (has-validation? node-type transform)))
-    `(gt/get-property ~self-name (:basis ~ctx-name) ~transform)
-    forms))
+  (let [property-name (get-in node-type [:transforms-declared-properties transform])]
+   (if (and property-name
+            (property-has-default-getter? node-type property-name)
+            (property-has-no-overriding-output? node-type property-name)
+            (not (has-validation? node-type property-name)))
+     `(gt/get-property ~self-name (:basis ~ctx-name) ~transform)
+     forms)))
 
 (defn detect-cycles [ctx-name nodeid-sym transform node-type forms]
   `(do
@@ -838,17 +842,15 @@
 (defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym node-type transform production-function forms]
   (let [
         arg-names       (get-in node-type [:transforms transform :input-schema])
-        _ (println :arg-names arg-names)
         argument-schema `(collect-argument-schema ~transform ~arg-names ~node-type)
         argument-forms  `(zipmap (keys ~argument-schema)
-                            (map (partial node-input-forms ~self-name ~ctx-name ~propmap-sym ~transform ~node-type) argument-schema))]
+                            (map (partial node-input-forms ~self-name ~ctx-name ~propmap-sym ~transform ~node-type) ~argument-schema))]
     (list `let
           [input-sym argument-forms schema-sym argument-schema]
           forms)))
 
 (defn input-error-check [self-name ctx-name node-type label input-sym tail]
-  (let [internal?    (internal-keys label)
-        multivalued? (seq? (get-in node-type [:transform-types label]))]
+  (let [internal?    (internal-keys label)]
     (if internal?
       tail
       `(let [bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals ~input-sym)))]
@@ -858,7 +860,7 @@
            (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label))))))
 
 (defn call-production-function [self-name ctx-name node-type transform input-sym nodeid-sym output-sym forms]
-  `(let [production-function# ~(get (:transforms node-type) transform)
+  `(let [production-function# ~(get-in node-type [:transforms transform :fn])
          ~output-sym (production-function# (assoc ~input-sym :_node-id ~nodeid-sym :basis (:basis ~ctx-name)))]
      ~forms))
 
@@ -872,11 +874,11 @@
   [node-type output]
   (cond
     (property-has-no-overriding-output? node-type output)
-    (relax-schema (property-schema node-type output))
+    (relax-schema (get-in node-type [:transforms output :output-type]))
 
     :else
     (do (assert (has-output? node-type output) "Unknown output type")
-        (relax-schema (gt/output-type node-type output)))))
+        (relax-schema (get-in node-type [:transforms output :output-type])))))
 
 (defn schema-check-output [self-name ctx-name node-type transform nodeid-sym output-sym forms]
   (let [output-schema (deduce-output-type node-type transform)]
@@ -930,6 +932,7 @@
                                 (validate-output self-name ctx-name node-type transform nodeid-sym propmap-sym output-sym
                                   (cache-output ctx-name node-type transform nodeid-sym output-sym
                                     output-sym)))))))))))))))))
+
 
 (defn node-output-value-function-forms
   [self-name ctx-name  node-type]
