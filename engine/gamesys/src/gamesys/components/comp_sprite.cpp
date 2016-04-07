@@ -833,10 +833,10 @@ namespace dmGameSystem
         dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
 
         // We deliberately do not provide a value pointer, two reasons:
-        // 1. The value pointers will not correctly be updated in the animation system
-        //    if a gameobject is deleted. This is due to the actual gameobject
-        //    instance can be swapped in the gameobject pool but the actual
-        //    animation value pointer will not update and point to an old location.
+        // 1. Deleting a gameobject (that included sprite(s)) will rearrange the
+        //    object pool for components (due to EraseSwap in the Free for the object pool);
+        //    this result in the original animation value pointer will still point
+        //    to the original memory location in the component object pool.
         // 2. If it's a read only variable, we can't do it in order to ensure that it
         //    is not used in any write optimisation (see animation system).
         out_value.m_ReadOnly = property.m_ReadOnly;
