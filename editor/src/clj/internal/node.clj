@@ -359,6 +359,12 @@
   [description]
   (update description :behaviors merge (transform-plumbing-map description)))
 
+(defn attach-declared-properties-behavior
+  [description]
+  (update description :behaviors merge
+          {:_declared-properties
+           (declared-properties-function description)}))
+
 (defn make-node-type-map
   "Create a node type object from a maplike description of the node.
   This is really meant to be used during macro expansion of `defnode`,
@@ -368,6 +374,7 @@
     (-> description
         (resolve-display-order (map gt/property-display-order supertype-values))
         attach-behaviors
+        attach-declared-properties-behavior
         attach-properties-output
         attach-input-dependencies
         verify-labels
@@ -933,7 +940,7 @@
                                     output-sym)))))))))))))))))
 
 
-(defn node-output-value-function-forms
+#_(defn node-output-value-function-forms
   [self-name ctx-name  node-type]
   (for [transform (ordinary-output-labels node-type)]
     (node-output-value-function self-name ctx-name  node-type transform)))
@@ -953,7 +960,7 @@
 
 (defn collect-property-values
   [self-name ctx-name propmap-sym  node-type nodeid-sym value-sym forms]
-  (let [props        (gt/declared-properties node-type)
+  (let [props        (:declared-properties node-type)
         fetch-exprs  (partial collect-base-property-value self-name ctx-name node-type propmap-sym)
         add-dynamics (partial attach-property-dynamics self-name ctx-name node-type propmap-sym)]
     `(let [~value-sym ~(apply hash-map
@@ -1008,8 +1015,8 @@
            (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~prop)))))) ; TODO: decorate with :production :validate?
 
 (defn collect-validation-problems
-  [self-name ctx-name propmap-sym record-name node-type value-map validation-map forms]
-  (let [props-with-validation (util/map-vals ip/validation (gt/declared-properties node-type))
+  [self-name ctx-name propmap-sym  node-type value-map validation-map forms]
+  (let [props-with-validation (util/map-vals ip/validation (:declared-properties node-type))
         validation-exprs      (partial property-validation-exprs self-name ctx-name node-type propmap-sym)]
     `(let [~validation-map ~(apply hash-map
                                    (mapcat identity
@@ -1033,7 +1040,7 @@
      ~forms))
 
 (defn collect-display-order
-  [self-name ctx-name record-name node-type display-order-sym forms]
+  [self-name ctx-name node-type display-order-sym forms]
   `(let [~display-order-sym ~(:property-display-order node-type)]
      ~forms))
 
@@ -1042,9 +1049,9 @@
   `(hash-map :properties    ~value-sym
              :display-order ~display-sym))
 
-(defn declared-properties-function-forms
-  [self-name ctx-name node-type]
-  (gensyms [kwarg-sym value-map validation-map nodeid-sym display-order propmap-sym]
+(defn declared-properties-function
+  [node-type]
+  (gensyms [self-name ctx-name kwarg-sym value-map validation-map nodeid-sym display-order propmap-sym]
      `(fn [~self-name ~ctx-name]
         (let [~nodeid-sym (gt/node-id ~self-name)
               ~propmap-sym ~(:declared-properties node-type)]

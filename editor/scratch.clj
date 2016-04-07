@@ -202,6 +202,7 @@
 
   (def n1 (g/construct Beta))
   (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
+  (g/node-value n1 :foo)
 
 
   (g/defnode6 Simple
@@ -210,6 +211,7 @@
 
   (def n2 (g/construct Simple))
   (gt/produce-value (gt/node-type n2) n2 :in empty-ctx)
+  (g/node-value n2 :in)
   (:declared-properties Simple)
 
 (:transforms Beta)
