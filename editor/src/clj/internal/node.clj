@@ -507,11 +507,9 @@
         input-schema `(util/fnk-schema ~getter)]
     (-> description
         (update    :declared-properties     assoc     label  property-type)
-        (update    :declared-properties-transforms assoc label prop-label)
-        (update    :transforms-declared-properties assoc prop-label label)
-        (update-in [:transforms prop-label] assoc-in [:fn] getter)
-        (update-in [:transforms prop-label] assoc-in [:output-type] property-type)
-        (update-in [:transforms prop-label] assoc-in [:input-schema] input-schema)
+        (update-in [:transforms label] assoc-in [:fn] getter)
+        (update-in [:transforms label] assoc-in [:output-type] property-type)
+        (update-in [:transforms label] assoc-in [:input-schema] input-schema)
         (update-in [:transform-types]       assoc     label  (:value-type property-type))
         (cond->
             (not (internal-keys label))
@@ -813,7 +811,7 @@
 (defn- has-validation? [node-type prop] (ip/validation (get (:declared-properties node-type) prop)))
 
 (defn apply-default-property-shortcut [self-name ctx-name transform node-type forms]
-  (let [property-name (get-in node-type [:transforms-declared-properties transform])]
+  (let [property-name (get-in node-type [:declared-properties transform])]
    (if (and property-name
             (property-has-default-getter? node-type property-name)
             (property-has-no-overriding-output? node-type property-name)
