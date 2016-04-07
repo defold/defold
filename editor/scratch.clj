@@ -13,6 +13,13 @@
 ;; 4) Then produce-value is going to lookup up the behavior in the
 ; :behaviors key and call it
 
+
+;;; questions
+;; transform-types and and transforms :output-type are the same - do
+;; we need both?
+;;; between :declared-properties and :declared-outputs - we most
+;; likely do not need them to be named differently
+
 ;;; weird cases
 
 (comment
@@ -94,7 +101,7 @@
 
   (ip/inheriting? 'BazProp)
 
-  (pst)
+  (pst 50)
 
   (g/defnode6 BazNode
     (input secret-input g/Str)
@@ -110,6 +117,7 @@
   (clojure.pprint/pprint (select-keys BazNode (keys BazNode)))
 
   (def default-in-val "push")
+
   (g/defnode6 Simple
     (property in g/Str
               (default default-in-val)))
@@ -185,23 +193,35 @@
 
   (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
       in/make-node-type-map
-      :cached-outputs
+
       )
 
   (g/defnode6 Beta
     (property prop1 g/Str)
-    (output foo g/Str (g/fnk [this prop1 in-a] "cake")))
+    (output foo g/Str (g/fnk [] "cake")))
+
+  (def n1 (g/construct Beta))
+  (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
+
+(:transforms Beta)
+((get-in Beta [:behaviors :foo]) (g/construct Beta) empty-ctx )
 
   ((get-in Beta [:behaviors :foo]) Beta empty-ctx "Beta" 1 1 1)
 
    (g/defnode6 Narf
     (inherits Beta))
 
+   (:input-dependencies Narf)
+
    (get-in Narf [:transforms])
 
-  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1 in-a] "cake"))])
+  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1] "cake"))])
       in/make-node-type-map
-      in/transform-plumbing-map)
+      in/transform-plumbing-map
+      :input-dependencies)
+
+  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1 in-a] "cake"))])
+      in/make-node-type-map)
 
 
 
@@ -213,6 +233,6 @@
 
   (in/lookup-from 'Simple Simple :transforms)
   (util/fnk-schema (g/fnk [a b c] (str a b c)))
-  ()
+  (in/relax-schema nil)
 
   )
