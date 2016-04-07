@@ -134,6 +134,13 @@
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
+(defn remove-resource-tab [^TabPane tab-pane resource]
+  (let [tabs (.getTabs tab-pane)]
+    (when-let [tab (->> tabs
+                        (filter #(= resource (ui/user-data % ::resource)))
+                        first)]
+      (remove-tab tab-pane tab))))
+
 (defn- get-tabs [app-view]
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
