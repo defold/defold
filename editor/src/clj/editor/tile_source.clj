@@ -158,16 +158,18 @@
    (g/connect collision-group-node :node-outline self :child-outlines)
    (g/connect collision-group-node :id self :collision-groups)))
 
+(defn- outline-sort-by-fn [v]
+  [(:name (g/node-type* (:node-id v))) (when-let [label (:label v)] (str/lower-case label))])
+
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Tile Source"
    :icon tile-source-icon
-   :children (sort-by (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)]) child-outlines)
+   :children (vec (sort-by outline-sort-by-fn child-outlines))
    :child-reqs [{:node-type TileAnimationNode
                  :tx-attach-fn attach-animation-node}
                 {:node-type CollisionGroupNode
-                 :tx-attach-fn attach-collision-group-node}]
-   })
+                 :tx-attach-fn attach-collision-group-node}]})
 
 (g/defnk produce-aabb [texture-set-data]
   (let [^BufferedImage img (:image texture-set-data)]
