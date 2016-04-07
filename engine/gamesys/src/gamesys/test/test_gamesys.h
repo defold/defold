@@ -75,6 +75,12 @@ public:
     virtual ~ComponentFailTest() {}
 };
 
+class SpriteAnimTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~SpriteAnimTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 

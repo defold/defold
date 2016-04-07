@@ -75,6 +75,16 @@ function make_new_meta()
     return m
 end
 
+function convert_platform_name(system_name)
+    if system_name == "iPhone OS" then
+        return "ios"
+    end
+    if system_name == "HTML5" then
+        return "web"
+    end
+    return system_name
+end
+
 function start(save_directory, engine_version)
 
     tracking_enable = true
@@ -406,9 +416,17 @@ function send_events_file(idx)
         end
     end
 
+
+
     local post_data = "{";
     for k,v in pairs(sys_field_mapping) do
         local sv = sys_info[v]
+
+        -- A temporary compensation for the fact that we have another "fixup" in the defold/gather lib (https://github.com/defold/gather/blob/a05fa408b27abd52b69085654603b32bd4ac381a/src/main/java/com/king/gather/api/MessageConverter.java)
+        if v == "system_name" then
+            sv = convert_platform_name(sv)
+        end
+
         if sv and sv ~= "" then
             post_data = post_data .. json_str_field(k, sv) .. ","
         end
