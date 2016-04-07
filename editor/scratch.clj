@@ -234,5 +234,7 @@
   (in/lookup-from 'Simple Simple :transforms)
   (util/fnk-schema (g/fnk [a b c] (str a b c)))
   (in/relax-schema nil)
+  (:a (assoc (->Cake 1 3 3) :a 4))
+  (new Cake 1 2 3)
 
   )

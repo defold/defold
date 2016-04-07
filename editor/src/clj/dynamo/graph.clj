@@ -237,7 +237,8 @@
   [node-type & {:as args}]
   (let [args-without-properties (set/difference (util/key-set args) (util/key-set (declared-properties node-type)))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
-  (-> (in/defaults node-type)
+  (-> (new internal.node.NodeImpl node-type)
+      (merge (in/defaults node-type))
       (merge args)
       (assoc ::gt/type node-type)))
 
@@ -304,7 +305,7 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms] (ctm/name-with-attributes symb body)
+  #_(let [[symb forms] (ctm/name-with-attributes symb body)
         record-name  (in/classname-for symb)
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
