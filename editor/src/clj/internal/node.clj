@@ -881,17 +881,18 @@
         (relax-schema (get-in node-type [:transforms output :output-type])))))
 
 (defn schema-check-output [self-name ctx-name node-type transform nodeid-sym output-sym forms]
-  (let [output-schema (deduce-output-type node-type transform)]
-    `(if-let [validation-error# (s/check ~output-schema ~output-sym)]
+  `(let [output-schema# (deduce-output-type ~node-type ~transform)]
+    (if-let [validation-error# (s/check output-schema# ~output-sym)]
        (do
-         (warn-output-schema ~nodeid-sym ~transform ~output-sym ~output-schema validation-error#)
+         (println :output-schema validation-error#)
+         (warn-output-schema ~nodeid-sym ~transform ~output-sym output-schema# validation-error#)
          (throw (ex-info "SCHEMA-VALIDATION"
-                  {:node-id          ~nodeid-sym
-                   :type             ~(:name node-type)
-                   :output           ~transform
-                   :expected         ~output-schema
-                   :actual           ~output-sym
-                   :validation-error validation-error#})))
+                         {:node-id          ~nodeid-sym
+                          :type             ~(:name node-type)
+                          :output           ~transform
+                          :expected         output-schema#
+                          :actual           ~output-sym
+                          :validation-error validation-error#})))
       ~forms)))
 
 (defn validate-output [self-name ctx-name node-type transform nodeid-sym propmap-sym output-sym forms]
@@ -1151,12 +1152,30 @@
 
 
 ;; todo delete
+
 (defn- dollar-name
   [node-type-name label]
   (symbol (str node-type-name "$" (name label))))
 
 (defn- output-fn [type output]
   (eval (dollar-name (:name type) output)))
+
+(defrecord NodeImpl [node-type]
+       gt/Node
+       (node-id        [this]    (:_node-id this))
+       (node-type      [_ _]  node-type)
+       (property-types [_ _]     (gt/public-properties node-type))
+       (get-property   [this basis property] (get this property))
+       (set-property   [this basis property value]
+         (assert (contains? (gt/property-labels node-type) property)
+                 (format "Attempting to use property %s from %s, but it does not exist" property (:name node-type)))
+         (assoc this property value))
+       (clear-property [this basis property]
+         (throw (ex-info (str "Not possible to clear property " property " of node type " (:name node-type) " since the node is not an override")
+                         {:label property :node-type node-type})))
+       (original [this] nil)
+       (set-original [this original-id] (throw (ex-info "Originals can't be changed for original nodes")))
+       (override-id [this] nil))
 
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
