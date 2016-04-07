@@ -203,6 +203,15 @@
   (def n1 (g/construct Beta))
   (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
 
+
+  (g/defnode6 Simple
+    (property in g/Str
+              (default default-in-val)))
+
+  (def n2 (g/construct Simple))
+  (gt/produce-value (gt/node-type n2) n2 :in empty-ctx)
+  (:declared-properties Simple)
+
 (:transforms Beta)
 ((get-in Beta [:behaviors :foo]) (g/construct Beta) empty-ctx )
 
