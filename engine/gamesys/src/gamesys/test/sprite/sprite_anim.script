@@ -1,0 +1,15 @@
+function init(self)
+    go.animate("go1#sprite", "scale.x", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_LINEAR, 2/60.0, 0, function() go.delete("go1") end)
+    go.animate("go2#sprite", "scale.x", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_LINEAR, 2/60.0, 1/60.0, function() go.delete("go2") end)
+    go.animate("go3#sprite", "scale.x", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_LINEAR, 4/60.0, 1/60.0)
+
+    self.last_scale_x = 1.0
+end
+
+function update(self, dt)
+    local s = go.get("go3#sprite", "scale")
+    if (s.x < 1.0 and s.x > 0.0) then
+        assert(s.x < self.last_scale_x)
+        self.last_scale_x = s.x
+    end
+end

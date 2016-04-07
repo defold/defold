@@ -832,15 +832,17 @@ namespace dmGameSystem
     {
         dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
 
-        // We deliberately do not provide a value pointer in the case of read only variables,
-        // in order to ensure that it is not used in any write optimisation (see animation system).
+        // We deliberately do not provide a value pointer, two reasons:
+        // 1. Deleting a gameobject (that included sprite(s)) will rearrange the
+        //    object pool for components (due to EraseSwap in the Free for the object pool);
+        //    this result in the original animation value pointer will still point
+        //    to the original memory location in the component object pool.
+        // 2. If it's a read only variable, we can't do it in order to ensure that it
+        //    is not used in any write optimisation (see animation system).
         out_value.m_ReadOnly = property.m_ReadOnly;
+        out_value.m_ValuePtr = 0x0;
         if (get_property == property.m_Vector)
         {
-            if (!property.m_ReadOnly)
-            {
-                out_value.m_ValuePtr = (float*)&ref_value;
-            }
             out_value.m_ElementIds[0] = property.m_X;
             out_value.m_ElementIds[1] = property.m_Y;
             out_value.m_ElementIds[2] = property.m_Z;
@@ -848,26 +850,14 @@ namespace dmGameSystem
         }
         else if (get_property == property.m_X)
         {
-            if (!property.m_ReadOnly)
-            {
-                out_value.m_ValuePtr = (float*)&ref_value;
-            }
             out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getX());
         }
         else if (get_property == property.m_Y)
         {
-            if (!property.m_ReadOnly)
-            {
-                out_value.m_ValuePtr = (float*)&ref_value + 1;
-            }
             out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getY());
         }
         else if (get_property == property.m_Z)
         {
-            if (!property.m_ReadOnly)
-            {
-                out_value.m_ValuePtr = (float*)&ref_value + 2;
-            }
             out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getZ());
         }
         else
