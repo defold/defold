@@ -140,7 +140,8 @@
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))]
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {})))
+                                                                 (partial app-view/remove-resource-tab editor-tabs))]
       (console/setup-console! console)
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
