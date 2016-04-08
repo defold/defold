@@ -20,7 +20,8 @@
                           ["**/atlas.sprite" nil]
                           ["**/props.go" nil]
                           ["game.project" nil]
-                          ["**/super_scene.gui" Gui$SceneDesc]]]
+                          ["**/super_scene.gui" Gui$SceneDesc]
+                          ["**/scene.gui" Gui$SceneDesc]]]
              (with-clean-system
                (let [workspace (test-util/setup-workspace! world)
                      project   (test-util/setup-project! workspace)

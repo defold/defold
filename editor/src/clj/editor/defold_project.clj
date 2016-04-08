@@ -492,13 +492,15 @@
   (input save-data g/Any :array)
   (input node-resources g/Any :array)
   (input settings g/Any)
+  (input display-profiles g/Any)
 
   (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
   (output selected-nodes g/Any :cached (g/fnk [selected-nodes] selected-nodes))
   (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
-  (output settings g/Any :cached (g/fnk [settings] settings)))
+  (output settings g/Any :cached (g/fnk [settings] settings))
+  (output display-profiles g/Any :cached (g/fnk [display-profiles] display-profiles)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
