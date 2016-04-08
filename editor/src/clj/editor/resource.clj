@@ -104,7 +104,9 @@
 (defrecord ZipResource [workspace name path data children]
   Resource
   (children [this] children)
-  (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name)))
+  (resource-type [this] (if-let [rtype (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name))]
+                          rtype
+                          {:icon "icons/32/Icons_03-Builtins.png"}))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (read-only? [this] true)
   (path [this] path)
