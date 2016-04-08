@@ -390,4 +390,7 @@ nodes {
 layers {
   name: "layer"
 }
+layouts {
+  name: "Landscape"
+}
 adjust_reference: ADJUST_REFERENCE_PARENT

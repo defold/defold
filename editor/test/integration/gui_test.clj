@@ -6,9 +6,12 @@
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.gui :as gui]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.handler :as handler]
+            [editor.types :as types])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
+           [javax.vecmath Point3d Matrix4d Vector3d]
            [org.apache.commons.io FilenameUtils FileUtils]))
 
 (defn- prop [node-id label]
@@ -297,3 +300,85 @@
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
       (prop! new-tmpl :template {:resource (workspace/resolve-workspace-resource workspace "/gui/sub_scene.gui") :overrides {}})
       (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))
+
+(deftest gui-layout
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/scene.gui")]
+      (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
+
+(defn- max-x [scene]
+  (.getX ^Point3d (:max (:aabb scene))))
+
+(defn- add-layout! [project scene name]
+  (let [parent (g/node-value scene :layouts-node)
+        user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
+    (handler/run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+
+(defn- set-visible-layout! [scene layout]
+  (g/transact (g/set-property scene :visible-layout layout)))
+
+(deftest gui-layout-active
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/layouts.gui")
+          box (gui-node node-id "box")
+          dims (g/node-value node-id :scene-dims)
+          scene (g/node-value node-id :scene)]
+      (set-visible-layout! node-id "Landscape")
+      (let [new-box (gui-node node-id "box")]
+        (is (and new-box (not= box new-box))))
+      (let [new-dims (g/node-value node-id :scene-dims)]
+        (is (and new-dims (not= dims new-dims))))
+      (let [new-scene (g/node-value node-id :scene)]
+        (is (not= (max-x scene) (max-x new-scene)))))))
+
+(deftest gui-layout-add
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/layouts.gui")
+          box (gui-node node-id "box")]
+      (add-layout! project node-id "Portrait")
+      (set-visible-layout! node-id "Portrait")
+      (is (not= box (gui-node node-id "box"))))))
+
+(defn- gui-text [scene id]
+  (-> (gui-node scene id)
+    (g/node-value :text)))
+
+(defn- trans-x [root-id target-id]
+  (let [s (tree-seq (constantly true) :children (g/node-value root-id :scene))]
+    (when-let [^Matrix4d m (some #(and (= (:node-id %) target-id) (:transform %)) s)]
+      (let [t (Vector3d.)]
+        (.get m t)
+        (.getX t)))))
+
+(deftest gui-layout-template
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/super_scene.gui")]
+      #_(testing "regular layout override, through templates"
+         (is (= "Test" (gui-text node-id "scene/text")))
+         (set-visible-layout! node-id "Landscape")
+         (is (= "Testing Text" (gui-text node-id "scene/text"))))
+      #_(testing "scene generation"
+         (is (= 1280.0 (max-x (g/node-value node-id :scene))))
+         (set-visible-layout! node-id "Portrait")
+         (is (= 720.0 (max-x (g/node-value node-id :scene)))))
+      (testing "nested templates, with missing layout in between"
+        (let [sub (test-util/resource-node project "/gui/sub_scene.gui")]
+          #_(add-layout! project node-id "Portrait")
+          #_(set-visible-layout! node-id "Portrait")
+          (prn "box" (gui-node sub "sub_box"))
+          (add-layout! project sub "Portrait")
+          (set-visible-layout! sub "Portrait")
+          (let [orig-sub (gui-node sub "sub_box")]
+            (g/set-property! orig-sub :position [1000.0 0.0 0.0])
+            (prn (trans-x orig-sub orig-sub))
+            (prn (trans-x node-id (gui-node node-id "scene/sub_scene/sub_box")))))))))
+
+(gui-layout-template)
