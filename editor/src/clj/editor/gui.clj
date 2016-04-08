@@ -27,7 +27,7 @@
             [editor.material :as material]
             [editor.validation :as validation])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
-            Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]
+            Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [editor.types AABB]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
@@ -366,7 +366,8 @@
   (property id g/Str (default "")
             (value (g/fnk [id id-prefix] (str id-prefix id)))
             (dynamic read-only? override?))
-  (property size types/Vec3 (dynamic visible (g/fnk [type] (not= type :type-template))) (default [0 0 0]))
+  (property size types/Vec3 (default [0 0 0])
+            (dynamic visible (g/fnk [type] (not= type :type-template))))
   (property color types/Color (dynamic visible (g/fnk [type] (not= type :type-template))) (default [1 1 1 1]))
   (property alpha g/Num (default 1.0)
             (value (g/fnk [color] (get color 3)))
@@ -488,6 +489,16 @@
 (g/defnode ShapeNode
   (inherits VisualNode)
 
+  (property size types/Vec3 (default [0 0 0])
+            (value (g/fnk [size size-mode texture-size]
+                          (if (= :size-mode-auto size-mode)
+                            (or texture-size size)
+                            size)))
+            (dynamic read-only? (g/fnk [size-mode type] (and (or (= type :type-box) (= type :type-pie))
+                                                             (= :size-mode-auto size-mode)))))
+  (property size-mode g/Keyword (default :size-mode-auto)
+            (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (keys texture-ids)))))
             (value (g/fnk [texture-input animation]
@@ -516,7 +527,10 @@
   (input texture-input g/Str)
   (input anim-data g/Any)
   (input textures IDMap)
-  (input texture-ids IDMap))
+  (input texture-ids IDMap)
+  (output texture-size g/Any :cached (g/fnk [anim-data texture]
+                                            (when-let [anim (get anim-data texture)]
+                                              [(double (:width anim)) (double (:height anim)) 0.0]))))
 
 ;; Box nodes
 
@@ -526,7 +540,7 @@
   (property slice9 types/Vec4 (default [0 0 0 0]))
 
   (display-order (into base-display-order
-                       [:texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -569,7 +583,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:size-mode :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
