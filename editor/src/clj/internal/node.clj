@@ -370,7 +370,7 @@
 (defn transform-inputs-plumbing-map [description]
   (let [labels  (ordinary-input-labels description)]
     (zipmap labels
-     (map (fn [label] (node-input-value-function description)) labels))))
+            (map (fn [input] (node-input-value-function description input)) labels))))
 
 (defn attach-input-behaviors
   [description]
@@ -629,8 +629,8 @@
   [node-type]
   (util/map-vals ip/property-default-value (gt/declared-properties node-type)))
 
-(defn- has-multivalued-input?  [node-type input-label] (= :many (get-in node-type [:cardinalities input-label])))
-(defn- has-singlevalued-input? [node-type input-label] (= :one (get-in node-type [:cardinalities input-label])))
+(defn has-multivalued-input?  [node-type input-label] (= :many (get-in node-type [:cardinalities input-label])))
+(defn has-singlevalued-input? [node-type input-label] (= :one (get-in node-type [:cardinalities input-label])))
 
 (defn has-input?     [node-type argument] (contains? (:inputs node-type) argument))
 (defn has-property?  [node-type argument] (contains? (:declared-properties node-type) argument))
@@ -697,14 +697,13 @@
     (transient {})
     argument-schema)))
 
-(defn- first-input-value-form
+(defn first-input-value-form
   [self-name ctx-name input]
-  (true)
-  (let [[node-id# output-label#] (first (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input))]
-     (when-let [node# (and node-id# (ig/node-by-id-at (:basis ~ctx-name) node-id#))]
-       (gt/produce-value (gt/node-type node# (:basis ~ctx-name)) node# output-label# ~ctx-name))))
+  (let [[node-id# output-label#] (first (gt/sources (:basis ctx-name) (gt/node-id self-name) input))]
+     (when-let [node# (and node-id# (ig/node-by-id-at (:basis ctx-name) node-id#))]
+       (gt/produce-value (gt/node-type node# (:basis ctx-name)) node# output-label# ctx-name))))
 
-(defn- input-value-forms
+(defn input-value-forms
   [self-name ctx-name input]
   (mapv (fn [[node-id# output-label#]]
            (let [node# (ig/node-by-id-at (:basis ctx-name) node-id#)]
@@ -712,10 +711,8 @@
          (gt/sources (:basis ctx-name) (gt/node-id self-name) input)))
 
 (defn maybe-use-substitute [node-type input forms]
-  (println :node-type (:substitutes node-type) :input input)
   (if (and (:substitutes node-type) (get-in node-type [:substitutes input]))
    (do
-     (println "got here!")
     `(let [input# ~forms]
        (if (ie/error? input#)
          (util/apply-if-fn ~(get-in node-type [:substitues input]) input#)
@@ -1079,19 +1076,17 @@
                    (assemble-properties-map value-map display-order)))))))))
 
 (defn node-input-value-function
-  [node-type]
-  (println "here")
+  [node-type input]
   (gensyms [self-name ctx-name]
-   (for [[input input-schema] (:inputs node-type)]
-     `(fn [~self-name ~ctx-name]
-        ~(maybe-use-substitute
-          node-type input
-          (cond
-            (has-multivalued-input? node-type input)
-            (input-value-forms self-name ctx-name input)
+   `(fn [~self-name ~ctx-name]
+      ~(maybe-use-substitute
+        node-type input
+        (cond
+           (has-multivalued-input? node-type input)
+           `(input-value-forms ~self-name ~ctx-name ~input)
 
-            (has-singlevalued-input? node-type input)
-            (first-input-value-form self-name ctx-name input)))))))
+           (has-singlevalued-input? node-type input)
+           `(first-input-value-form ~self-name ~ctx-name ~input))))))
 
 #_(defn define-node-value-functions
   [node-type]
