@@ -361,24 +361,11 @@
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/gui/super_scene.gui")]
-      #_(testing "regular layout override, through templates"
-         (is (= "Test" (gui-text node-id "scene/text")))
-         (set-visible-layout! node-id "Landscape")
-         (is (= "Testing Text" (gui-text node-id "scene/text"))))
-      #_(testing "scene generation"
-         (is (= 1280.0 (max-x (g/node-value node-id :scene))))
-         (set-visible-layout! node-id "Portrait")
-         (is (= 720.0 (max-x (g/node-value node-id :scene)))))
-      (testing "nested templates, with missing layout in between"
-        (let [sub (test-util/resource-node project "/gui/sub_scene.gui")]
-          #_(add-layout! project node-id "Portrait")
-          #_(set-visible-layout! node-id "Portrait")
-          (prn "box" (gui-node sub "sub_box"))
-          (add-layout! project sub "Portrait")
-          (set-visible-layout! sub "Portrait")
-          (let [orig-sub (gui-node sub "sub_box")]
-            (g/set-property! orig-sub :position [1000.0 0.0 0.0])
-            (prn (trans-x orig-sub orig-sub))
-            (prn (trans-x node-id (gui-node node-id "scene/sub_scene/sub_box")))))))))
-
-(gui-layout-template)
+      (testing "regular layout override, through templates"
+               (is (= "Test" (gui-text node-id "scene/text")))
+               (set-visible-layout! node-id "Landscape")
+               (is (= "Testing Text" (gui-text node-id "scene/text"))))
+      (testing "scene generation"
+               (is (= 1280.0 (max-x (g/node-value node-id :scene))))
+               (set-visible-layout! node-id "Portrait")
+               (is (= 720.0 (max-x (g/node-value node-id :scene))))))))
