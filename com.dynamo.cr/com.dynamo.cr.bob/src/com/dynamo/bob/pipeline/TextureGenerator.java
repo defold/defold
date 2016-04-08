@@ -183,8 +183,8 @@ public class TextureGenerator {
             // Shrink sides until width & height fit max texture size specified in tex profile
             if (maxTextureSize > 0) {
                 while (newWidth > maxTextureSize || newHeight > maxTextureSize) {
-                    newWidth = newWidth / 2;
-                    newHeight = newHeight / 2;
+                    newWidth = Math.max(newWidth / 2, 1);
+                    newHeight = Math.max(newHeight / 2, 1);
                 }
 
                 assert(newWidth <= maxTextureSize && newHeight <= maxTextureSize);
