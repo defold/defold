@@ -670,19 +670,19 @@
     (relax-schema (property-schema node-type argument))
 
     (unoverloaded-output? node-type argument output)
-    (relax-schema (gt/output-type node-type argument))
+    (relax-schema (get (:transform-types node-type) argument))
 
     (has-property? node-type argument)
     (relax-schema (property-schema node-type argument))
 
     (has-multivalued-input? node-type argument)
-    [(relax-schema (gt/input-type node-type argument))]
+    [(relax-schema (get (:inputs node-type) argument))]
 
     (has-singlevalued-input? node-type argument)
-    (relax-schema (gt/input-type node-type argument))
+    (relax-schema (get (:inputs node-type) argument))
 
     (has-declared-output? node-type argument)
-    (relax-schema (gt/output-type node-type argument))))
+    (relax-schema (get (:transform-types node-type) argument))))
 
 (defn collect-argument-schema
   "Return a schema with the production function's input names mapped to the node's corresponding input type."
