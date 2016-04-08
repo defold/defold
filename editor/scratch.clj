@@ -76,6 +76,7 @@
   (require '[internal.node :as in])
   (require '[internal.property :as ip])
   (require '[internal.graph.types :as gt])
+  (require '[internal.util :as util])
 
   (in/inputs-needed '(fn [this basis x y z]))
 
@@ -165,44 +166,41 @@
 ;;; #property so it only gets the node map and the property itself.)
 ;;;
 
-  (clojure.pprint/pprint (select-keys Narf (keys Narf)))
 
-  (= (-> Narf :transforms :in) (-> Simple :transforms :in))
-
-  (g/defproperty Wla {schema.core/Keyword schema.core/Any
-                      :first-name g/Str})
-
-  (gt/declared-properties Narf)
-  (in/defaults Narf)
-
-  (gt/node-id   (g/construct Narf :in "pull"))
-  (gt/node-type (g/construct Narf))
-
-  (use 'clojure.repl)
-  (pst 40)
-
-  (gt/property-display-order Simple)
-  (gt/property-display-order Narf)
-
-  (ip/property-value-type g/Str)
-
-  (def empty-ctx (in/make-evaluation-context nil (g/now) false false false))
-
-  ((-> Simple :transforms :_prop_in :fn) {:this (g/construct Simple) :in "pull"})
-  ((-> Simple :transforms :_prop_in :input-schema))
 
   (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
       in/make-node-type-map
 
       )
 
+(-> (in/node-type-forms6 'Beta '[(input an-input g/Str)])
+      in/make-node-type-map
+      :behaviors
+      )
+
+   (:declared-properties Beta)
+
   (g/defnode6 Beta
-    (property prop1 g/Str)
-    (output foo g/Str (g/fnk [] "cake")))
+    (property foo g/Str (default "cookies"))
+    (property a-property g/Str (default "a"))
+    (output foo g/Str (g/fnk [foo] (str  foo " and cake")))
+    (output bar g/Str (g/fnk [a-property] (str "bar-" a-property)))
+    (output baz g/Str (g/fnk [bar] (str "really " bar))))
+
+  (g/defnode6 Beta
+    (input an-input g/Str)
+    (output an-output g/Str (g/fnk [an-input] (str "hey" an-input))))
+
+
+
+  (g/defnode Alpha
+    (output an-ouput g/Str (g/fnk [])))
+
+  (:inputs Beta)
 
   (def n1 (g/construct Beta))
   (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
-  (g/node-value n1 :foo)
+  (in/property-has-no-overriding-output? Beta :foo)
 
   ;; start here in the morning
   (g/defnode6 Simple
@@ -212,44 +210,14 @@
 
   (def n2 (g/construct Simple))
   (gt/produce-value (gt/node-type n2) n2 :in empty-ctx)
-  (g/node-value n2 :_declared-properties)
+  (g/node-value n2 :in)
   (keys Simple)
   (:substitutes Simple)
   (in/ordinary-input-labels Simple)
 
-(:transforms Beta)
-((get-in Beta [:behaviors :foo]) (g/construct Beta) empty-ctx )
+  (not (contains? {:foo g/Str} :foo)))
 
-  ((get-in Beta [:behaviors :foo]) Beta empty-ctx "Beta" 1 1 1)
+  (keyword (name (symbol ":foo")))
 
-   (g/defnode6 Narf
-    (inherits Beta))
-
-   (:input-dependencies Narf)
-
-   (get-in Narf [:transforms])
-
-  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (output foo g/Str (g/fnk [this prop1] "cake"))])
-      in/make-node-type-map)
-
-  (-> (in/node-type-forms6 'Beta '[(property prop1 g/Str) (input an-input g/Str) (output foo g/Str (g/fnk [this prop1 in-a] "cake"))])
-      in/make-node-type-map
-      in/attach-input-behaviors
-      :behaviors
-      :an-input)
-
-
-
-  {:out (g/fnk [this] default)}
-
-  {:out (get-in Simple [:transforms :out])}
-
-
-
-  (in/lookup-from 'Simple Simple :transforms)
-  (util/fnk-schema (g/fnk [a b c] (str a b c)))
-  (in/relax-schema nil)
-  (:a (assoc (->Cake 1 3 3) :a 4))
-  (new Cake 1 2 3)
 
   )
