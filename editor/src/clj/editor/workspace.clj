@@ -64,10 +64,20 @@ ordinary paths."
   ([resource]
     (make-build-resource resource nil))
   ([resource prefix]
-    (BuildResource. resource prefix)))
+   (BuildResource. resource prefix)))
+
+(defn sort-resource-tree [{:keys [children] :as tree}]
+  (let [sorted-children (sort-by (fn [r]
+                                   [(not (resource/read-only? r))
+                                    ({:folder 0 :file 1} (resource/source-type r))
+                                    (when-let [node-name (resource/resource-name r)]
+                                      (string/lower-case node-name))])
+                                 (map sort-resource-tree children))]
+    (assoc tree :children (vec sorted-children))))
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
-  (FileResource. _node-id (io/as-file root) (:resources resource-snapshot)))
+  (sort-resource-tree
+   (FileResource. _node-id (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
   (resource/resource-seq resource-tree))
