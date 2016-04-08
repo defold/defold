@@ -15,7 +15,7 @@
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
+           [javafx.event ActionEvent Event EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene.input Clipboard ClipboardContent]
@@ -181,14 +181,15 @@
           (FileUtils/moveFile srcf dstf))
         (workspace/resource-sync! workspace [[srcf dstf]])))))
 
-(defn- delete [resources]
+(defn- delete [resources on-delete-resource-fn]
   (when (not (empty? resources))
     (let [workspace (resource/workspace (first resources))]
       (doseq [resource resources]
         (let [f (File. (resource/abs-path resource))]
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
-            (.delete (File. (resource/abs-path resource))))))
+            (.delete (File. (resource/abs-path resource))))
+          (on-delete-resource-fn resource)))
       (workspace/resource-sync! workspace))))
 
 (defn- copy [files]
@@ -204,12 +205,12 @@
 
 (handler/defhandler :cut :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
-  (run [selection]
+  (run [selection on-delete-resource-fn]
        (let [tmp (doto (-> (Files/createTempDirectory "asset-cut" (into-array FileAttribute []))
                          (.toFile))
                    (.deleteOnExit))]
          (copy (mapv #(tmp-file tmp %) (roots selection))))
-       (delete selection)))
+    (delete selection on-delete-resource-fn)))
 
 (defn- unique [^File f]
   (if (.exists f)
@@ -260,8 +261,10 @@
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
-  (run [selection]
-       (delete selection)))
+  (run [selection on-delete-resource-fn]
+    (let [names (apply str (interpose ", " (map resource/resource-name selection)))]
+      (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+           (delete selection on-delete-resource-fn)))))
 
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (resource/abs-path (first selection)))) )
@@ -474,13 +477,14 @@
 
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view open-resource-fn]
+(defn make-asset-browser [graph workspace tree-view open-resource-fn on-delete-resource-fn]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :tree-view tree-view]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn} tree-view)
+    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn
+                                           :on-delete-resource-fn on-delete-resource-fn} tree-view)
     (setup-asset-browser workspace tree-view open-resource-fn)
     asset-browser))
