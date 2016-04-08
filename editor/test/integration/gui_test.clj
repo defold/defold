@@ -46,6 +46,25 @@
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
 
+(deftest gui-box-auto-size
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/logic/main.gui")
+          box (gui-node node-id "left")
+          size [150.0 50.0 0.0]
+          sizes {:ball [64.0 32.0 0.0]
+                 :left-hud [200.0 640.0 0.0]}]
+      (is (= size (g/node-value box :size)))
+      (g/set-property! box :texture "atlas_texture/left_hud")
+      (is (= size (g/node-value box :size)))
+      (g/set-property! box :texture "atlas_texture/ball")
+      (is (= size (g/node-value box :size)))
+      (g/set-property! box :size-mode :size-mode-auto)
+      (is (= (:ball sizes) (g/node-value box :size)))
+      (g/set-property! box :texture "atlas_texture/left_hud")
+      (is (= (:left-hud sizes) (g/node-value box :size))))))
+
 (deftest gui-scene-pie
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
