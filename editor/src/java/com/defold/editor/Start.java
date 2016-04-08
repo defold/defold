@@ -114,8 +114,16 @@ public class Start extends Application {
                 try {
                     logger.debug("checking for updates");
                     UpdateInfo updateInfo = updater.check();
-                    if ((updateInfo != null) && showRestartDialog()) {
-                        System.exit(17);
+                    if (updateInfo != null) {
+                        javafx.application.Platform.runLater(() -> {
+                            try {
+                                if (showRestartDialog()) {
+                                    System.exit(17);
+                                }
+                            } catch (IOException e) {
+                                logger.error("Unable to open update alert dialog");
+                            }
+                        });
                     }
                     updateTimer.schedule(newUpdateTask(), updateDelay);
                 } catch (IOException e) {
