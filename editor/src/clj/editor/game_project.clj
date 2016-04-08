@@ -65,6 +65,7 @@
   (g/make-nodes
    (g/node-id->graph-id self)
    [proxy [GameProjectSettingsProxy]]
+   (g/connect self :display-profiles-data project :display-profiles)
    (g/connect proxy :settings-map project :settings)
    (g/connect proxy :_node-id self :nodes)
    (try

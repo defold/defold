@@ -360,9 +360,9 @@
     (updateItem [object empty]
       (let [^ListCell this this
             render-data (and object (render-fn object))]
-        (proxy-super updateItem (and object (:text render-data)) empty)
+        (proxy-super updateItem object empty)
         (update-list-cell-style! this)
-        (if empty
+        (if (or (nil? object) empty)
           (do
             (proxy-super setText nil)
             (proxy-super setGraphic nil))

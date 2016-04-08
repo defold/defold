@@ -214,14 +214,16 @@
                     (fromString [s]
                       (inv-options s)))
         cb (doto (ComboBox.)
-             (-> (.getItems) (.addAll (object-array (map first options))))
              (.setConverter converter)
-             (ui/cell-factory! (fn [val]  {:text (options val)})))
+             (ui/cell-factory! (fn [val]  {:text (options val)}))
+             (-> (.getItems) (.addAll (object-array (map first options)))))
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
                            (if (contains? options value)
-                             (.setValue cb (get options value))
+                             (do
+                               (.setValue cb value)
+                               (.setText (.getEditor cb) (options value)))
                              (do
                                (.setValue cb nil)
                                (.. cb (getSelectionModel) (clearSelection)))))
@@ -374,15 +376,13 @@
                                      (.requestFocus control))))
         update-ui-fn (fn [property]
                        (let [overridden? (properties/overridden? property)]
-                         (if overridden?
-                           (ui/add-style! control "overridden")
-                           (ui/remove-style! control "overridden"))
+                         (let [f (if overridden? ui/add-style! ui/remove-style!)]
+                           (doseq [c [label control]]
+                             (f c "overridden")))
                          (.setVisible reset-btn overridden?)
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
-
-    (update-ui-fn property)
 
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
@@ -391,6 +391,8 @@
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
     (.add (.getChildren grid) reset-btn)
+
+    #_(update-ui-fn property)
 
     [key update-ui-fn]))
 
@@ -454,15 +456,13 @@
   (let [properties (properties/coalesce properties)
         template (properties->template properties)
         prev-template (ui/user-data parent ::template)]
-    (if (not= template prev-template)
+    (when (not= template prev-template)
       (let [pane (make-pane parent workspace properties)]
         (ui/user-data! parent ::template template)
-        (g/set-property! id :prev-pane pane)
-        pane)
-      (do
-        (let [pane (g/node-value id :prev-pane)]
-          (refresh-pane parent pane workspace properties)
-          pane)))))
+        (g/set-property! id :prev-pane pane)))
+    (let [pane (g/node-value id :prev-pane)]
+      (refresh-pane parent pane workspace properties)
+      pane)))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
