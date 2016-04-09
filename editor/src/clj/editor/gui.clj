@@ -660,8 +660,8 @@
                    (for [[from to] font-connections]
                      (g/connect font-node from self to)))
                  []))))))
-  (property text-leading g/Num)
-  (property text-tracking g/Num)
+  (property text-leading g/Num (default 1.0))
+  (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1]))
   (property outline-alpha g/Num (default 1.0)
     (value (g/fnk [outline] (get outline 3)))
