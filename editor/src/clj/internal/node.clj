@@ -769,11 +769,11 @@
     (collect-property-value self-name ctx-name nodeid-sym node-type propmap-sym argument)
 
     (unoverloaded-output? node-type argument output)
-    (gt/produce-value (gt/node-type self-name (:basis ctx-name)) self-name argument ctx-name)
+    `(gt/produce-value (gt/node-type ~self-name (:basis ~ctx-name)) ~self-name ~argument ~ctx-name)
 
     (has-property? node-type argument)
     (if (= output argument)
-      (gt/get-property ~self-name (:basis ctx-name) argument)
+      `(gt/get-property ~self-name (:basis ~ctx-name) ~argument)
       (collect-property-value self-name ctx-name nodeid-sym node-type propmap-sym argument))
 
     (has-multivalued-input? node-type argument)
@@ -787,7 +787,7 @@
       (first-input-value-form self-name ctx-name nodeid-sym argument))
 
     (has-declared-output? node-type argument)
-    (gt/produce-value (gt/node-type self-name (:basis ctx-name)) self-name argument ctx-name)))
+    `(gt/produce-value (gt/node-type ~self-name (:basis ~ctx-name)) ~self-name ~argument ~ctx-name)))
 
 (defn check-local-cache [ctx-name nodeid-sym transform]
   `(get-in @(:local ~ctx-name) [~nodeid-sym ~transform]))
@@ -950,7 +950,7 @@
 (defn attach-property-dynamics
   [self-name ctx-name nodeid-sym node-type propmap-sym property-name property-type value-form]
   (gensyms [dynsym]
-    `(let [~dynsym (gt/dynamic-attributes (get ~propmap-sym ~property-name))]
+    `(let [~dynsym (ip/dynamic-attributes (get ~propmap-sym ~property-name))]
        ~(reduce (fn [m [d dfnk]]
                   (assoc m d (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym propmap-sym d node-type
                                                                      dfnk
@@ -985,7 +985,7 @@
     (collect-base-property-value self-name ctx-name nodeid-sym node-type propmap-sym argument)
 
     (has-declared-output? node-type argument)
-    '(gt/produce-value node-type (:basis ctx-name) self-name argument ctx-name)
+    `(gt/produce-value ~node-type (:basis ~ctx-name) ~self-name ~argument ~ctx-name)
 
     (has-multivalued-input? node-type argument)
     (maybe-use-substitute
@@ -995,10 +995,10 @@
     (has-singlevalued-input? node-type argument)
     (maybe-use-substitute
      node-type argument
-     (first-input-value-form self-name ctx-name argument))
+     (first-input-value-form self-name ctx-name nodeid-sym argument))
 
     (= :this argument)
-    'this
+    `~'this
 
     :else (assert false (str "unknown argument " argument " in call to validate function"))))
 
@@ -1006,7 +1006,7 @@
   [self-name ctx-name node-type nodeid-sym propmap-sym prop & [supplied-arguments]]
   (when (has-validation? node-type prop)
     (let [compile-time-validation-fnk (ip/validation (property-type node-type prop))
-          arglist (without (util/fnk-arguments compile-time-validation-fnk) (keys supplied-arguments))
+          arglist (without (inputs-needed compile-time-validation-fnk) (keys supplied-arguments))
           argument-forms (zipmap arglist (map #(create-validate-argument-form self-name ctx-name nodeid-sym propmap-sym node-type % ) arglist))
           argument-forms (merge argument-forms supplied-arguments)]
       `(let [arg-forms# ~argument-forms
@@ -1018,14 +1018,13 @@
 (defn collect-validation-problems
   [self-name ctx-name nodeid-sym propmap-sym node-type value-map validation-map forms]
   (let [props-with-validation (util/map-vals ip/validation (:declared-properties node-type))
-        validation-exprs (partial property-validation-exprs self-name ctx-name nodeid-sym node-type propmap-sym)]
+        validation-exprs (partial property-validation-exprs self-name ctx-name node-type nodeid-sym propmap-sym)]
     `(let [~validation-map ~(apply hash-map
                                    (mapcat identity
                                            (for [[p validator] props-with-validation
                                                  :when validator]
                                              [p (validation-exprs p)])))]
-       ~forms)
-    forms))
+       ~forms)))
 
 (defn merge-problems
   [value-map validation-map]
@@ -1074,16 +1073,17 @@
 
 (defn node-input-value-function
   [node-type input]
-  (gensyms [self-name ctx-name]
-   `(fn [~self-name ~ctx-name]
-      ~(maybe-use-substitute
-        node-type input
-        (cond
-           (has-multivalued-input? node-type input)
-           `(input-value-forms ~self-name ~ctx-name ~input)
+  (gensyms [self-name ctx-name nodeid-sym]
+     `(fn [~self-name ~ctx-name]
+        (let [~nodeid-sym (gt/node-id ~self-name)]
+          ~(maybe-use-substitute
+            node-type input
+            (cond
+              (has-multivalued-input? node-type input)
+              `(input-value-forms ~self-name ~ctx-name ~input)
 
-           (has-singlevalued-input? node-type input)
-           `(first-input-value-form ~self-name ~ctx-name ~input))))))
+              (has-singlevalued-input? node-type input)
+              `(first-input-value-form ~self-name ~ctx-name ~nodeid-sym ~input)))))))
 
 
 ;; todo delete
