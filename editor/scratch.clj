@@ -27,7 +27,9 @@
             [internal.node :as in]
             [internal.property :as ip]
             [internal.graph.types :as gt]
-            [internal.util :as util]))
+            [internal.util :as util]
+            [clojure.string :as str])
+  (:use clojure.repl))
 
 (comment
   (g/defnode Foo
