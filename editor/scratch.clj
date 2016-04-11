@@ -105,9 +105,18 @@
               (value (g/fnk [this secret-input] secret-input)))
     (output happy-output g/Str (g/fnk [secret-input] (.toUpperCase secret-input))))
 
+  (clojure.pprint/pprint
+   (in/make-node-type-map
+    (in/node-type-forms 'BazNode
+                        '[(input secret-input g/Str)
+                          (property zot g/Int)
+                          (property foo g/Str
+                                    (value (g/fnk [this secret-input] secret-input)))
+                          (output happy-output g/Str (g/fnk [secret-input] (.toUpperCase secret-input)))]
+                        )))
 
   BazNode
-  ((-> BazNode :transforms :happy-output) {:secret-input "baa"})
+  ((-> BazNode :transforms :happy-output :fn) {:secret-input "baa"})
   (clojure.pprint/pprint (select-keys BazNode (keys BazNode)))
 
   (def default-in-val "push")
