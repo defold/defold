@@ -11,17 +11,9 @@
 
 (defn property-value-type
   [this]
-  (if (symbol? this)
-    (property-value-type (util/vgr this))
-    (if (var? this)
-      (property-value-type (var-get this))
-      (if (class? this)
-        {:value-type this}
-        (if (and (map? this) (contains? this :value-type))
-          this
-          (if (map? this)
-            {:value-type this}
-            nil))))))
+  (if (and (map? this) (contains? this :value-type))
+    this
+    {:value-type (util/resolve-schema this)}))
 
 (def property-tags       :tags)
 (defn property-default-value [this] (some-> this :default util/var-get-recursive util/apply-if-fn))
