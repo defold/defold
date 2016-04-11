@@ -52,6 +52,8 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 // Implemented in library_sys.js
 extern "C" const char* dmSysGetUserPersistentDataRoot();
 extern "C" void dmSysPumpMessageQueue();
+extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
+extern "C" const char* dmSysGetUserAgent();
 
 #endif
 
@@ -539,15 +541,23 @@ namespace dmSys
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
 
-        const char* lang = getenv("LANG");
         const char* default_lang = "en_US";
-
+#if defined(__EMSCRIPTEN__)
+        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
+        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
+#else
+        const char* lang = getenv("LANG");
         if (!lang) {
             dmLogWarning("Variable LANG not set");
             lang = default_lang;
         }
+#endif
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+
+#if defined(__EMSCRIPTEN__)
+        free((void*)lang);
+#endif
     }
 
 #elif defined(__ANDROID__)
@@ -590,6 +600,9 @@ namespace dmSys
 
         jclass build_version_class = env->FindClass("android/os/Build$VERSION");
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
+        jint sdkint = (jint) env->GetStaticIntField(build_version_class, env->GetStaticFieldID(build_version_class, "SDK_INT", "I")); // supported from api level 4
+
+        DM_SNPRINTF(info->m_ApiVersion, sizeof(info->m_ApiVersion), "%d", sdkint);
 
         if (manufacturerObj) {
             const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);

@@ -15,7 +15,7 @@
 			  max-width: 100%;
 			  max-height: 100%;
 			}
-			
+
 			.canvas-app-container {
 			  width: {{DEFOLD_DISPLAY_WIDTH}}px;
 			  height: {{DEFOLD_DISPLAY_HEIGHT}}px;
@@ -26,13 +26,13 @@
 			  text-align: center;
 			  vertical-align: middle;
 			}
-			
+
 			.canvas-app-container:-webkit-full-screen {
 			  /* Auto width and height in Safari/Chrome fullscreen. */
 			  width: auto;
 			  height: auto;
 			}
-			
+
 			.canvas-app-progress {
 			  position: absolute;
 			  background-color: rgb(245, 245, 245);
@@ -41,7 +41,7 @@
 			  width: 100%;
 			  bottom: 0px;
 			}
-			
+
 			.canvas-app-progress-bar {
 			  font-size: 12px;
 			  height: 20px;
@@ -50,7 +50,7 @@
 			  text-align: center;
 			  line-height: 20px;
 			}
-			
+
 			.button {
 			  color: #fff;
 			  background-color: #1e64ea;
@@ -61,24 +61,28 @@
 
 		{{{DEFOLD_DEV_HEAD}}}
 	</head>
-	
+
 	<body>
     <div id="fb-root"></div>
 
 	<div id="app-container" class="canvas-app-container">
 	    <canvas id="canvas" class="canvas-app-canvas" tabindex="1"></canvas>
 	</div>
-	
+
 	<button id="fullscreen" class="button">Fullscreen</button>
-	
+
 	<!-- -->
 	  {{{DEFOLD_DEV_INLINE}}}
 	  <script type='text/javascript' src="dmloader.js"></script>
 	  <script type='text/javascript' src="{{DEFOLD_ENGINE}}" async onload="{{DEFOLD_DEV_INIT}}"></script>
 	<!-- -->
-	
+
 	<script type='text/javascript'>
-        Module.runApp("canvas", "{{DEFOLD_SPLASH_IMAGE}}", "archive");
+		var archive_location_filter = function( path ) {
+			return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+		}
+
+        Module.runApp("canvas", "{{DEFOLD_SPLASH_IMAGE}}", archive_location_filter);
 
 	    /* Fullscreen button */
 	    document.getElementById("fullscreen").onclick = function (e) {

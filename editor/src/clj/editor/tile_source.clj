@@ -30,7 +30,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def atlas-icon "icons/32/Icons_47-Tilesource.png")
+(def tile-source-icon "icons/32/Icons_47-Tilesource.png")
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
 
@@ -161,6 +161,7 @@
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Tile Source"
+   :icon tile-source-icon
    :children (sort-by (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)]) child-outlines)
    :child-reqs [{:node-type TileAnimationNode
                  :tx-attach-fn attach-animation-node}
@@ -346,8 +347,8 @@
                                     :build-ext "texturesetc"
                                     :node-type TileSourceNode
                                     :load-fn load-tile-source
-                                    :icon atlas-icon
-                                    :view-types [:scene]))
+                                    :icon tile-source-icon
+                                    :view-types [:scene :test]))
 
 (def ^:private default-animation
   {:id "New Animation"

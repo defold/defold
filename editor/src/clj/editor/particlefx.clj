@@ -785,7 +785,7 @@
                                      :load-fn load-particle-fx
                                      :icon particle-fx-icon
                                      :tags #{:component}
-                                     :view-types [:scene]
+                                     :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}))
 
 (defn- make-pfx-sim [_ data]

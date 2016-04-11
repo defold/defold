@@ -11,7 +11,7 @@
 (set! *warn-on-reflection* true)
 
 (defprotocol ResourceListener
-  (handle-changes [this changes]))
+  (handle-changes [this changes render-progress!]))
 
 (defprotocol Resource
   (children [this])

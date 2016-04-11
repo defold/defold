@@ -5,6 +5,7 @@ ordinary paths."
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.resource :as resource]
+            [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.library :as library])
 
@@ -14,6 +15,14 @@ ordinary paths."
            [editor.resource FileResource]))
 
 (set! *warn-on-reflection* true)
+
+(def version-on-disk (atom nil))
+
+(defn update-version-on-disk! [workspace]
+  (reset! version-on-disk (g/graph-version workspace)))
+
+(defn version-on-disk-outdated? [workspace]
+  (not= @version-on-disk (g/graph-version workspace)))
 
 (defprotocol SelectionProvider
   (selection [this]))
@@ -159,9 +168,11 @@ ordinary paths."
     (g/set-property! workspace :dependencies library-urls)
     library-urls))
 
-(defn update-dependencies! [workspace]
+(defn update-dependencies! [workspace render-progress!]
   (library/update-libraries! (project-path workspace)
-                             (g/node-value workspace :dependencies)))
+                             (g/node-value workspace :dependencies)
+                             library/default-http-resolver
+                             render-progress!))
 
 (defn resource-sync!
   ([workspace]
@@ -169,39 +180,42 @@ ordinary paths."
   ([workspace notify-listeners?]
    (resource-sync! workspace notify-listeners? []))
   ([workspace notify-listeners? moved-files]
+   (resource-sync! workspace notify-listeners? moved-files progress/null-render-progress!))
+  ([workspace notify-listeners? moved-files render-progress!]
    (let [project-path (project-path workspace)
-         moved-paths (mapv (fn [[src trg]] [(resource/file->proj-path project-path src)
-                                            (resource/file->proj-path project-path trg)]) moved-files)
+         moved-paths  (mapv (fn [[src trg]] [(resource/file->proj-path project-path src)
+                                             (resource/file->proj-path project-path trg)]) moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
-         old-map (resource-watch/make-resource-map old-snapshot)
+         old-map      (resource-watch/make-resource-map old-snapshot)
+         _            (render-progress! (progress/make "Finding resources"))
          new-snapshot (resource-watch/make-snapshot workspace
                                                     project-path
                                                     (g/node-value workspace :dependencies))
-         new-map (resource-watch/make-resource-map new-snapshot)
-         changes (resource-watch/diff old-snapshot new-snapshot)]
+         new-map      (resource-watch/make-resource-map new-snapshot)
+         changes      (resource-watch/diff old-snapshot new-snapshot)]
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
        (when notify-listeners?
-         (let [changes (into {} (map (fn [[type resources]] [type (filter (comp some? resource/resource-type) resources)]) changes)) ; skip unknown resources
-               move-srcs (set (map first moved-paths))
-               move-trgs (set (map second moved-paths))
+         (let [changes                      (into {} (map (fn [[type resources]] [type (filter (comp some? resource/resource-type) resources)]) changes)) ; skip unknown resources
+               move-srcs                    (set (map first moved-paths))
+               move-trgs                    (set (map second moved-paths))
                ;; the new snapshot will show the source of the move as
                ;; * :removed, if no previously unloadable lib provides a resource with that path
                ;; * :changed, if a previously unloadable lib provides a resource with that path
                ;; We don't want to treat the path as removed:
-               non-moved-removed (remove (comp move-srcs resource/proj-path) (:removed changes))
+               non-moved-removed            (remove (comp move-srcs resource/proj-path) (:removed changes))
                ;; Neither do we want to treat it as changed...
-               non-moved-changed (remove (comp move-srcs resource/proj-path) (:changed changes))
+               non-moved-changed            (remove (comp move-srcs resource/proj-path) (:changed changes))
                ;; ... instead we want to add a new node in its place (since the old node for the path will be re-pointed to the move target resource)
                added-with-changed-move-srcs (concat (filter (comp move-srcs resource/proj-path) (:changed changes))
                                                     ;; Also, since we reuse the source node for the target resource, we remove the target from the added list
                                                     (remove (comp move-trgs resource/proj-path) (:added changes)))
-               move-adjusted-changes {:removed non-moved-removed
-                                      :added added-with-changed-move-srcs
-                                      :changed non-moved-changed
-                                      :moved (mapv (fn [[src trg]] [(old-map src) (new-map trg)]) moved-paths)}]
+               move-adjusted-changes        {:removed non-moved-removed
+                                             :added   added-with-changed-move-srcs
+                                             :changed non-moved-changed
+                                             :moved   (mapv (fn [[src trg]] [(old-map src) (new-map trg)]) moved-paths)}]
            (doseq [listener @(g/node-value workspace :resource-listeners)]
-             (resource/handle-changes listener move-adjusted-changes)))))
+             (resource/handle-changes listener move-adjusted-changes render-progress!)))))
      changes)))
 
 (defn add-resource-listener! [workspace listener]
@@ -228,8 +242,9 @@ ordinary paths."
                 :view-types {:default {:id :default}}
                 :resource-listeners (atom [])))
 
-(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn focus-fn]}]
-  (let [view-type (merge {:id id}
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn]}]
+  (let [view-type (merge {:id    id
+                          :label label}
                          (when make-view-fn
                            {:make-view-fn make-view-fn})
                          (when make-preview-fn

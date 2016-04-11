@@ -1003,6 +1003,9 @@
       {:id-mapping orig->new
        :tx-data (concat new-tx-data override-tx-data)})))
 
+(defn transfer-overrides [from-node-id to-node-id]
+  (it/transfer-overrides from-node-id to-node-id (partial is/next-node-id @*the-system* (node-id->graph-id to-node-id))))
+
 (defn overrides
   ([root-id]
     (overrides (now) root-id))
@@ -1051,6 +1054,11 @@
   "Retuns the last graph added to the system"
   []
   (is/last-graph @*the-system*))
+
+(defn graph-version
+  "Returns the latest version of a graph id"
+  [graph-id]
+  (is/graph-time @*the-system* graph-id))
 
 (defn delete-graph!
   "Given a `graph-id`, deletes it from the system

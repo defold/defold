@@ -86,6 +86,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [clojure.walk :as walk]
           [dynamo.graph :as g]
           [editor.buffers :refer [bbuf->string]]
+          [editor.code :as code]
           [editor.geom :as geom]
           [editor.gl :as gl]
           [editor.gl.protocols :refer [GlBind]]
@@ -414,9 +415,89 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
     (slurp (types/replace-extension sdef "vp"))
     (slurp (types/replace-extension sdef "fp"))))
 
+(defn- is-word-start [^Character c] (or (Character/isLetter c) (#{\_} c)))
+(defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c)))
+
+(defn- match-multi-comment [charseq]
+  (when-let [match-open (code/match-string charseq "/*")]
+    (when-let [match-body (code/match-until-string (:body match-open) "*/")]
+      (code/combine-matches match-open match-body))))
+
+(defn- match-single-comment [charseq]
+  (when-let [match-open (code/match-string charseq "//")]
+    (when-let [match-body (code/match-until-eol (:body match-open))]
+      (code/combine-matches match-open match-body))))
+
+
+(def ^:private basic-types ["void" "bool" "int" "float"])
+
+(def ^:private vec-types (for [tp ["" "i" "b"]
+                               n (range 2 4)]
+                           (str tp "vec" n)))
+
+(def ^:private mat-types (for [n (range 2 4)]
+                            (str "mat" n)))
+
+(def ^:private literals ["true" "false"])
+
+(def ^:private extension-behaviors ["require" "enable" "warn" "disable"])
+
+(def ^:private pp-directives (map (partial str "#") (string/split "define undef if ifdef ifndef else elif endif error pragma extension version line" #" ")))
+
+(def ^:private storage-qualifiers ["const" "attribute" "uniform" "varying"])
+
+(def ^:private parameter-qualifiers ["in" "out" "inout"])
+
+(def ^:private precision-qualifiers ["lowp" "mediump" "highp"])
+
+(def ^:private other-keywords (string/split "break continue do for while if else precision invariant discard return sampler2D samplerCube struct" #" "))
+
+(def ^:private reserved (string/split "asm class union enum typedef template this packed goto switch default inline noinline volatile public static extern external interface flat long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 dvec4 fvec2 fvec3 fvec4 sampler1D sampler3D sampler1DShadow sampler2dShadow sampler2DRect sampler3DRect sampler2DRectShadow sizeof cast namespace using" #" "))
+
+(def ^:private keywords (concat basic-types
+                                vec-types
+                                mat-types
+                                literals
+                                extension-behaviors
+                                storage-qualifiers
+                                parameter-qualifiers
+                                precision-qualifiers
+                                other-keywords
+                                reserved))
+
+(def ^:private operators (string/split "( ) [ ] . ++ -- + - ~ ! * / % << >> < > <= >= == != & ^ | && ^^ || ? : = += -= *= /= %= <<= >>= &= ^= |= ," #" "))
+
+
+(def glsl-opts {:code {:language "glsl"
+                       :syntax
+                       ;; see note in lua.clj on why we put multiline comments in the default partition
+                       [#_{:partition "__multicomment"
+                         :type :multiline
+                         :start "/*" :end "*/"
+                         :eof true
+                         :rules
+                         [{:type :default :class "comment"}]
+                         }
+                        {:partition :default
+                         :type :default
+                         :rules
+                         [{:type :multiline :start "\"" :end "\"" :eof false :class "string"}
+                          {:type :custom :scanner match-multi-comment :class "comment"}
+                          {:type :custom :scanner match-single-comment :class "comment"}
+                          {:type :whitespace}
+                          {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+                          {:type :word :start? is-word-start :part? is-word-part :class "default"}
+                          {:type :number :class "number"}
+                          {:type :default :class "default"}]
+                         }
+                        ]
+                       }})
+
 (def shader-defs [{:ext "vp"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
+                   :view-types [:code :default]
+                   :view-opts glsl-opts
                    :prefix (string/join "\n" ["#ifndef GL_ES"
                                               "#define lowp"
                                               "#define mediump"
@@ -426,6 +507,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                   {:ext "fp"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
+                   :view-types [:code :default]
+                   :view-opts glsl-opts
                    :prefix (string/join "\n" ["#ifdef GL_ES"
                                               "precision mediump float;"
                                               "#endif"
@@ -469,7 +552,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                    :node-type ShaderNode
                                    :load-fn (fn [project self resource] (load-shader project self resource def))
                                    :icon (:icon def)
-                                   :view-types [:code]))
+                                   :view-types (:view-types def)
+                                   :view-opts (:view-opts def)))
 
 (defn register-resource-types [workspace]
   (for [def shader-defs]

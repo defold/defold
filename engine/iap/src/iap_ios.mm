@@ -221,7 +221,13 @@ static void PushTransaction(lua_State* L, SKPaymentTransaction* transaction)
 
     if (transaction.transactionState == SKPaymentTransactionStatePurchased) {
         lua_pushstring(L, "receipt");
-        lua_pushlstring(L, (const char*) transaction.transactionReceipt.bytes, transaction.transactionReceipt.length);
+        if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1) {
+            lua_pushlstring(L, (const char*) transaction.transactionReceipt.bytes, transaction.transactionReceipt.length);
+        } else {
+            NSURL *receiptURL = [[NSBundle mainBundle] appStoreReceiptURL];
+            NSData *receiptData = [NSData dataWithContentsOfURL:receiptURL];
+            lua_pushlstring(L, (const char*) receiptData.bytes, receiptData.length);
+        }
         lua_rawset(L, -3);
     }
 
@@ -284,8 +290,9 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
         for (SKPaymentTransaction * transaction in transactions) {
 
             if ((!g_IAP.m_AutoFinishTransactions) && (transaction.transactionState == SKPaymentTransactionStatePurchased)) {
-                uint64_t receipt_hash = dmHashBuffer64(transaction.transactionReceipt.bytes, transaction.transactionReceipt.length);
-                [g_IAP.m_PendingTransactions setObject:transaction forKey:[NSNumber numberWithInteger:receipt_hash] ];
+                NSData *data = [transaction.transactionIdentifier dataUsingEncoding:NSUTF8StringEncoding];
+                uint64_t trans_id_hash = dmHashBuffer64((const char*) [data bytes], [data length]);
+                [g_IAP.m_PendingTransactions setObject:transaction forKey:[NSNumber numberWithInteger:trans_id_hash] ];
             }
 
             bool has_listener = false;
@@ -392,6 +399,12 @@ int IAP_List(lua_State* L)
  *
  * @name iap.buy
  * @param id product to buy (identifier)
+ * @param options table of optional parameters as properties.
+ *
+ * The options table has the following members:
+ * <ul>
+ * <li> request_id: custom unique request id -- optional argument only available for Facebook IAP transactions
+ * </ul>
  *
  * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
  *
@@ -405,6 +418,7 @@ int IAP_List(lua_State* L)
  *         print(transaction.date)
  *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED, TRANS_STATE_UNVERIFIED or TRANS_STATE_RESTORED
  *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED
+ *         print(transaction.request_id)  -- only available for Facebook IAP transactions (and if used in the iap.buy call parameters)
  *         print(transaction.user_id)     -- only available for Amazon IAP transactions
  *
  *         -- required if auto finish transactions is disabled in project settings
@@ -472,22 +486,22 @@ int IAP_Finish(lua_State* L)
     }
     lua_pop(L, 1);
 
-    lua_getfield(L, -1, "receipt");
+    lua_getfield(L, -1, "trans_ident");
     if (!lua_isstring(L, -1)) {
-        dmLogError("Transaction error. Invalid transaction data for transaction finish, does not contain 'receipt' key.");
+        dmLogError("Transaction error. Invalid transaction data for transaction finish, does not contain 'trans_ident' key.");
         lua_pop(L, 1);
     }
     else
     {
           const char *str = lua_tostring(L, -1);
-          uint64_t receipt_hash = dmHashBuffer64(str, strlen(str));
+          uint64_t trans_ident_hash = dmHashBuffer64(str, strlen(str));
           lua_pop(L, 1);
-          SKPaymentTransaction * transaction = [g_IAP.m_PendingTransactions objectForKey:[NSNumber numberWithInteger:receipt_hash]];
+          SKPaymentTransaction * transaction = [g_IAP.m_PendingTransactions objectForKey:[NSNumber numberWithInteger:trans_ident_hash]];
           if(transaction == 0x0) {
-              dmLogError("Transaction error. Invalid receipt for transaction finish.");
+              dmLogError("Transaction error. Invalid trans_ident value for transaction finish.");
           } else {
               [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
-              [g_IAP.m_PendingTransactions removeObjectForKey:[NSNumber numberWithInteger:receipt_hash]];
+              [g_IAP.m_PendingTransactions removeObjectForKey:[NSNumber numberWithInteger:trans_ident_hash]];
           }
     }
 
@@ -520,10 +534,11 @@ int IAP_Restore(lua_State* L)
  * <ul>
  * <li> ident: product identifier
  * <li> state: transaction state
- * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED or state == TRANS_STATE_PURCHASED)
- * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED)
  * <li> date: transaction date
  * <li> original_trans: original transaction (only set when state == TRANS_STATE_RESTORED)
+ * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
+ * <li> request_id: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
+ * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  * </ul>
  * @name iap.set_listener
  * @param listener listener function
@@ -589,7 +604,7 @@ static const luaL_reg IAP_methods[] =
     {0, 0}
 };
 
-/*# transaction purchasing state
+/*# transaction purchasing state, intermediate mode followed by TRANS_STATE_PURCHASED. Store provider support dependent.
  *
  * @name iap.TRANS_STATE_PURCHASING
  * @variable
@@ -601,7 +616,7 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction unverified state
+/*# transaction unverified state, requires verification of purchase
  *
  * @name iap.TRANS_STATE_UNVERIFIED
  * @variable
@@ -613,7 +628,7 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction restored state
+/*# transaction restored state. Only available on store providers supporting restoring purchases.
  *
  * @name iap.TRANS_STATE_RESTORED
  * @variable

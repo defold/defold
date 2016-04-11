@@ -206,7 +206,7 @@ GLFWAPI int GLFWAPIENTRY glfwExtensionSupported( const char *extension )
         return GL_FALSE;
     }
 
-    if( _glfwWin.glMajor < 3 )
+    if( _glfwWin.glMajor < 3 || _glfwWin.GetStringi == NULL)
     {
         // Check if extension is in the old style OpenGL extensions string
 

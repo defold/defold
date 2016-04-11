@@ -24,7 +24,6 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.render.proto Render$DisplayProfiles]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -39,12 +38,12 @@
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
                :label "Input Binding"
-               :view-types [:form-view]}
+               :view-types [:form-view :text]}
               {:ext "render"
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$RenderPrototypeDesc
                :resource-fields [:script [:materials :material]]
-               :view-types [:form-view]
+               :view-types [:form-view :text]
                :label "Render"}
               {:ext "factory"
                :label "Factory"
@@ -80,7 +79,7 @@
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
-               :view-types [:form-view]}
+               :view-types [:form-view :text]}
               {:ext "camera"
                :label "Camera"
                :icon "icons/32/Icons_20-Camera.png"
@@ -112,15 +111,9 @@
                :tags #{:component}}
               {:ext "texture_profiles"
                :label "Texture Profiles"
-               :view-types [:form-view]
+               :view-types [:form-view :text]
                :pb-class Graphics$TextureProfiles
-               }
-              {:ext "display_profiles"
-               :label "Display Profiles"
-               :view-types [:form-view]
-               ; TODO - missing icon
-               :icon "icons/32/Icons_30-Render.png"
-               :pb-class Render$DisplayProfiles}])
+               }])
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource

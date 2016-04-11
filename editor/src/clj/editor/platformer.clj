@@ -190,5 +190,5 @@
                                     :node-type PlatformerNode
                                     :load-fn load-level
                                     :icon platformer-icon
-                                    :view-types [:scene]
+                                    :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))

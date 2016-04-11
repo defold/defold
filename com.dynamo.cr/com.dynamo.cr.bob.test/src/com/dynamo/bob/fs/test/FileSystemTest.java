@@ -42,7 +42,10 @@ public class FileSystemTest {
         List<String> results = new ArrayList<String>();
         this.fileSystem.walk(".", walker, results);
         assertFalse(results.isEmpty());
-        assertTrue(results.get(0).equals("test_lib1.zip"));
+        assertTrue(results.contains("test_lib1.zip"));
+        assertTrue(results.contains("test_lib2.zip"));
+        assertTrue(results.contains("test_lib3.zip"));
+        assertTrue(results.contains("test_lib4.zip"));
     }
 
     private static class ZipWalker extends FileSystemWalker {
