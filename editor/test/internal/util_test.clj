@@ -4,7 +4,8 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [internal.util :refer :all]))
+            [internal.util :refer :all]
+            [dynamo.graph :as g]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -81,3 +82,37 @@
     "2 Words"             :2-words
     "More Than Two Words" :more-than-two-words
     "More Than 2words"    :more-than2words))
+
+(def non-schema-var "this is not a schema")
+
+(deftest resolving-schemas
+  (are [x] (= java.lang.String (resolve-schema x))
+    #'dynamo.graph/Str
+    'dynamo.graph/Str
+    dynamo.graph/Str
+    'g/Str
+    g/Str
+    'String)
+
+  (are [x] (= [java.lang.String] (resolve-schema x))
+    [#'dynamo.graph/Str]
+    '[dynamo.graph/Str]
+    [dynamo.graph/Str]
+    '[g/Str]
+    [g/Str]
+    '[String])
+
+   (are [x] (= {:foo java.lang.String} (resolve-schema x))
+    {:foo #'dynamo.graph/Str}
+    {:foo 'dynamo.graph/Str}
+    {:foo #'g/Str}
+    {:foo 'g/Str}
+    {:foo g/Str})
+
+  (are [x] (nil? (resolve-schema x))
+    #'non-schema-var
+    'non-schema-var
+    non-schema-var
+    'j.random/symbol
+    :keyword
+    nil))

@@ -143,6 +143,15 @@
 
 (defn vgr [s] (var-get (resolve s)))
 
+(defn resolve-schema [x]
+  (cond
+    (symbol? x) (resolve-schema (resolve x))
+    (var? x)    (resolve-schema (var-get x))
+    (vector? x) (mapv resolve-schema x)
+    (class? x)  x
+    (map? x)    (map-vals resolve-schema x)
+    :else       nil))
+
 (defn assert-form-kind [place kind-label required-kind label form]
   (assert (required-kind form)
           (str place " " label " requires a " kind-label " not a " (class form) " of " form)))
