@@ -25,9 +25,9 @@
 (defn assert-schema
   [place label form]
   (if-not (util/schema? form)
-    (let [resolved-schema   (util/vgr form)
-          underlying-schema (if (util/property? resolved-schema) (property-value-type resolved-schema) form)]
-      (util/assert-form-kind place label util/schema? "schema" (util/vgr underlying-schema)))))
+    (let [resolved-schema   (util/resolve-schema form)
+          underlying-schema (if (util/property? resolved-schema) (:value-type resolved-schema) resolved-schema)]
+      (util/assert-form-kind place label util/schema? "schema" (util/resolve-schema underlying-schema)))))
 
 (defn- property-form [description form]
   (case (first form)

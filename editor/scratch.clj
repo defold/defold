@@ -115,11 +115,28 @@
                           (output happy-output g/Str (g/fnk [secret-input] (.toUpperCase secret-input)))]
                         )))
 
+
   BazNode
   ((-> BazNode :transforms :happy-output :fn) {:secret-input "baa"})
   (clojure.pprint/pprint (select-keys BazNode (keys BazNode)))
 
+  (clojure.pprint/pprint
+   (in/make-node-type-map
+    (in/node-type-forms 'Quux
+                        '[(input secret-input String)
+                          (property a-property g/Str
+                                    (dynamic visible (g/fnk [foo] true)))
+                          (property foo String)])))
+
   (def default-in-val "push")
+
+  (clojure.pprint/pprint
+   (in/make-node-type-map
+    (in/node-type-forms 'TwoLayerDependencyNode
+                        '[(property a-property g/Str)
+                          (property internal-property g/Num
+                                    (dynamic internal-dynamic (g/fnk [third-input] false))
+                                    (validate (g/fnk [a-property] (when (nil? a-property) (g/error-info "Select a resource")))))])))
 
   (g/defnode Simple
     (property in g/Str
@@ -179,6 +196,10 @@
       in/make-node-type-map
       :behaviors
       )
+
+  (-> (in/node-type-forms 'OneInputNode '[(input an-input g/Str)])
+      in/make-node-type-map
+      clojure.pprint/pprint)
 
   (:declared-properties Beta)
 
