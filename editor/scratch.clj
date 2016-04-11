@@ -22,27 +22,25 @@
 
 ;;; weird cases
 
+(ns scratch
+  (:require [dynamo.graph :as g]
+            [internal.node :as in]
+            [internal.property :as ip]
+            [internal.graph.types :as gt]
+            [internal.util :as util]))
+
 (comment
-  (g/defnode6 Foo
-   (property a g/Str)
-   (output a g/Str (g/fnk [a] (.toUpperCase a))))
+  (g/defnode Foo
+    (property a g/Str)
+    (output a g/Str (g/fnk [a] (.toUpperCase a))))
 
-(get-in Foo [:transforms])
-(:declared-properties-transforms Foo)
-
-
-{:transforms {:_prop_a {:fn (g/fnk [this] (get this :_prop_a))
-                           :output-type g/Str
-                           :inputs [this]
-              :a {:fn (g/fnk [a] (.toUpperCase a))
-                           :output-type g/Str
-                           :inputs [a]}}}}
+  (get-in Foo [:transforms])
 
 
 ;;; output a depends on property a. production function is called with
 ;;; a map {:a (value of property a)} assembled by gather-inputs
 
-  (g/defnode6 Foo
+  (g/defnode Foo
     (property b g/Str)
     (output b g/Str (g/fnk [b] (.toUpperCase b)))
     (output c g/Str (g/fnk [b] (.toLowerCase b))))
@@ -52,7 +50,7 @@
 
 ;;; output c depends on output b. output b depends on property b
 
-  (g/defnode6 Foo
+  (g/defnode Foo
     (input a g/Str :array)
     (output a g/Str (g/fnk [a] (str/join ", " a))))
 
@@ -71,12 +69,6 @@
 
   ;; PROBLEM
   ;;
-
-  (require '[dynamo.graph :as g])
-  (require '[internal.node :as in])
-  (require '[internal.property :as ip])
-  (require '[internal.graph.types :as gt])
-  (require '[internal.util :as util])
 
   (in/inputs-needed '(fn [this basis x y z]))
 
@@ -104,14 +96,13 @@
 
   (pst 50)
 
-  (g/defnode6 BazNode
+  (g/defnode BazNode
     (input secret-input g/Str)
     (property zot g/Int)
     (property foo g/Str
               (value (g/fnk [this secret-input] secret-input)))
     (output happy-output g/Str (g/fnk [secret-input] (.toUpperCase secret-input))))
 
-  (require '[internal.util :as util])
 
   BazNode
   ((-> BazNode :transforms :happy-output) {:secret-input "baa"})
@@ -119,15 +110,15 @@
 
   (def default-in-val "push")
 
-  (g/defnode6 Simple
+  (g/defnode Simple
     (property in g/Str
               (default default-in-val)))
 
-  (g/defnode6 Beta
+  (g/defnode Beta
     (property prop1 g/Str)
     (output foo g/Str (g/fnk [this prop1 in-a] "cake")))
 
-  (g/defnode6 BetaSimple
+  (g/defnode BetaSimple
     (inherits Simple)
     (output tea g/Str (g/fnk [this] "tea")))
 
@@ -147,7 +138,7 @@
                       :output-type g/Str
                       :input-schema #{this basis prop1 in-a}}}}
 
-  (g/defnode6 Narf
+  (g/defnode Narf
     (inherits Simple)
     (property child g/Str))
 
@@ -168,26 +159,26 @@
 
 
 
-  (-> (in/node-type-forms6 'Narf '[(inherits Simple)])
+  (-> (in/node-type-forms 'Narf '[(inherits Simple)])
       in/make-node-type-map
 
       )
 
-  (-> (in/node-type-forms6 'Beta '[(input an-input g/Str)])
+  (-> (in/node-type-forms 'Beta '[(input an-input g/Str)])
       in/make-node-type-map
       :behaviors
       )
 
-   (:declared-properties Beta)
+  (:declared-properties Beta)
 
-  (g/defnode6 Beta
+  (g/defnode Beta
     (property foo g/Str (default "cookies"))
     (property a-property g/Str (default "a"))
     (output foo g/Str (g/fnk [foo] (str  foo " and cake")))
     (output bar g/Str (g/fnk [a-property] (str "bar-" a-property)))
     (output baz g/Str (g/fnk [bar] (str "really " bar))))
 
-  (g/defnode6 Beta
+  (g/defnode Beta
     (input an-input g/Str)
     (output an-output g/Str (g/fnk [an-input] (str "hey" an-input))))
 
@@ -198,12 +189,13 @@
 
   (:inputs Beta)
 
+  (def empty-ctx (in/make-evaluation-context nil (g/now) false false false))
   (def n1 (g/construct Beta))
   (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
   (in/property-has-no-overriding-output? Beta :foo)
 
   ;; start here in the morning
-  (g/defnode6 Simple
+  (g/defnode Simple
     (property in g/Str
               (default default-in-val))
     )
