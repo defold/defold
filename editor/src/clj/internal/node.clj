@@ -578,17 +578,6 @@
   "Translate the sugared `defnode` forms into function calls that
   build the node type description (map). These are emitted where you
   invoked `defnode` so that symbols and vars resolve correctly."
-  [form])
-
-(defn node-type-forms
-  "Given all the forms in a defnode macro, emit the forms that will build the node type description."
-  [symb forms]
-  `(do))
-
-(defn- node-type-form6
-  "Translate the sugared `defnode` forms into function calls that
-  build the node type description (map). These are emitted where you
-  invoked `defnode` so that symbols and vars resolve correctly."
   [description form]
   (case (first form)
     inherits
@@ -616,13 +605,13 @@
     display-order
     (assoc description :display-order-decl (second form))))
 
-(defn node-type-forms6
+(defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
   [symb forms]
   (let [inherits-clauses (filter #(=    'inherits (first %)) forms)
         other-clauses    (filter #(not= 'inherits (first %)) forms)
         base             (assoc (flatten-supertypes (map second inherits-clauses)) :name (str symb))]
-    (reduce node-type-form6 base other-clauses)))
+    (reduce node-type-form base other-clauses)))
 
 (defn defaults
   "Return a map of default values for the node type."
