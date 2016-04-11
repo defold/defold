@@ -47,8 +47,8 @@
     (output b g/Str (g/fnk [b] (.toUpperCase b)))
     (output c g/Str (g/fnk [b] (.toLowerCase b))))
 
-(get-in Foo [:transforms])
-(:declared-properties Foo)
+  (get-in Foo [:transforms])
+  (:declared-properties Foo)
 
 ;;; output c depends on output b. output b depends on property b
 
@@ -131,11 +131,11 @@
     (inherits Simple)
     (output tea g/Str (g/fnk [this] "tea")))
 
-(get-in Beta [:transforms :foo])
+  (get-in Beta [:transforms :foo])
 
-(get-in BetaSimple [:transforms :tea])
+  (get-in BetaSimple [:transforms :tea])
 
-(in/collect-argument-schema :foo  (get-in Beta [:transforms :foo :input-schema]) Beta)
+  (in/collect-argument-schema :foo  (get-in Beta [:transforms :foo :input-schema]) Beta)
 
   (:declared-properties Beta)
   (:transforms Beta)
@@ -173,7 +173,7 @@
 
       )
 
-(-> (in/node-type-forms6 'Beta '[(input an-input g/Str)])
+  (-> (in/node-type-forms6 'Beta '[(input an-input g/Str)])
       in/make-node-type-map
       :behaviors
       )
@@ -215,9 +215,8 @@
   (:substitutes Simple)
   (in/ordinary-input-labels Simple)
 
-  (not (contains? {:foo g/Str} :foo)))
+  (not (contains? {:foo g/Str} :foo))
 
   (keyword (name (symbol ":foo")))
-
 
   )
