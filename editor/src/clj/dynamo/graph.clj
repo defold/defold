@@ -334,7 +334,7 @@
                     (mapv node-id to-be-replaced#))))
          (var ~symb)))))
 
-(defmacro defnode6
+(defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
    and attendant functions.
 
@@ -400,7 +400,7 @@
   (let [[symb forms] (ctm/name-with-attributes symb body)]
     `(def ~symb (in/map->NodeTypeImpl
                  ~(in/make-node-type-map
-                   (in/node-type-forms6 symb (concat node-intrinsics forms)))))))
+                   (in/node-type-forms symb (concat node-intrinsics forms)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
