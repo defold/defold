@@ -18,7 +18,8 @@
            [org.eclipse.fx.text.ui.contentassist ICompletionProposal]
            [org.eclipse.fx.ui.controls.styledtext TextSelection]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
-           [org.eclipse.jface.text Document DocumentEvent IDocument IDocumentListener IDocumentPartitioner] ))
+           [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
+           [com.defold.editor.eclipse Document]))
 
 (set! *warn-on-reflection* true)
 
