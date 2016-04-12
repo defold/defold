@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.resources.test;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
@@ -165,6 +166,15 @@ public class AbstractResourceTest {
 
         URI uri = UriBuilder.fromUri(String.format(baseURI)).port(port).build();
         return client.resource(uri);
+    }
+
+    void execCommand(String command, String arg) throws IOException {
+        TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
+        if (r.exitValue != 0) {
+            System.err.println(r.stdOut);
+            System.err.println(r.stdErr);
+        }
+        assertEquals(0, r.exitValue);
     }
 
 
