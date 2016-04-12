@@ -458,6 +458,32 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void newProjectFromMissingTemplate() throws Exception {
+
+        ObjectMapper m = new ObjectMapper();
+        ObjectNode project = m.createObjectNode();
+        project.put("name", "test project");
+        project.put("description", "New test project");
+        project.put("templateId", "projX");
+
+        ClientResponse clientResponse = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .post(ClientResponse.class, project.toString());
+
+        assertEquals(500, clientResponse.getStatus());
+
+        ProjectInfoList list = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ProjectInfoList.class);
+
+        assertEquals(0, list.getProjectsList().size());
+    }
+
+    @Test
     public void newProjectCap() throws Exception {
         /*
          * Bob creates one project

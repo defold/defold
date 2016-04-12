@@ -197,5 +197,10 @@ public class AbstractResourceTest {
         }
     }
 
+    File getRepositoryDir(long projectId) {
+        String repositoryRoot = server.getConfiguration().getRepositoryRoot();
+        File repositoryDir = new File(String.format("%s/%d", repositoryRoot, projectId));
+        return repositoryDir;
+    }
 }
 
