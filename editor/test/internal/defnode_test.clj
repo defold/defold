@@ -246,7 +246,7 @@
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
-    (is (thrown? Compiler$CompilerException
+    (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadProperty
                           (property :not-a-symbol dynamo.graph/Keyword))))))
 

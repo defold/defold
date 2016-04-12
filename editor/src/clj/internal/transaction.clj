@@ -350,10 +350,11 @@
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
-  (let [basis (:basis ctx)
+  (let [basis      (:basis ctx)
         value-type (some-> ((gt/property-types node basis) property)
-                     ip/property-value-type
-                     in/allow-nil)]
+                           ip/property-value-type
+                           :value-type
+                           s/maybe)]
    (if-let [validation-error (and value-type (s/check value-type new-value))]
      (let [node-type (gt/node-type node basis)]
        (in/warn-output-schema node-id node-type property new-value value-type validation-error)
