@@ -24,6 +24,7 @@
 
 (ns scratch
   (:require [dynamo.graph :as g]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.node :as in]
             [internal.property :as ip]
             [internal.graph.types :as gt]
@@ -232,11 +233,17 @@
   (gt/produce-value (gt/node-type n1) n1 :foo empty-ctx)
   (in/property-has-no-overriding-output? Beta :foo)
 
-  ;; start here in the morning
   (g/defnode Simple
+    (property under g/Str (default "push"))
     (property in g/Str
-              (default default-in-val))
-    )
+              (value (g/fnk [under] (.toUpperCase under)))))
+
+  (-> (in/node-type-forms 'Simple
+                          '[(property under g/Str (default "push"))
+                            (property in g/Str
+                                      (value (g/fnk [under] (.toUpperCase under))))])
+      in/make-node-type-map
+      clojure.pprint/pprint)
 
   (def n2 (g/construct Simple))
   (gt/produce-value (gt/node-type n2) n2 :in empty-ctx)
@@ -249,4 +256,34 @@
 
   (keyword (name (symbol ":foo")))
 
+  (g/defnode SetterFnPropertyNode
+    (property underneath g/Int)
+    (property self-incrementing g/Int
+              (value (g/fnk [underneath] underneath))
+              (set (fn [basis self old-value new-value]
+                     (g/set-property self :underneath (or (and new-value (inc new-value)) 0))))))
+
+  (with-clean-system
+    (let [ingraph-id (first
+                      (g/tx-nodes-added
+                       (g/transact
+                        (g/make-node world SetterFnPropertyNode :self-incrementing 0))))]
+      (println (g/node-value ingraph-id :self-incrementing))
+
+      (g/transact
+       (g/set-property ingraph-id :self-incrementing 10))
+
+      (println (g/node-value ingraph-id :self-incrementing))))
+
+  (with-clean-system
+    (let [ingraph-id (first
+                      (g/tx-nodes-added
+                       (g/transact
+                        (g/make-node world Simple))))]
+      (println (g/node-value ingraph-id :in))
+
+      (g/transact
+       (g/set-property ingraph-id :under "pull"))
+
+      (println (g/node-value ingraph-id :in))))
   )
