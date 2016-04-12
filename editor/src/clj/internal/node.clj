@@ -123,10 +123,22 @@
   [[label & _ :as elem] order2]
   (into elem (rest (display-group order2 label))))
 
+(defn- node-type-or-symbol?
+  [x]
+  (when-let [x (if (symbol? x) (util/vgr x) x)]
+    (gt/node-type? x)))
+
 (defn- expand-node-types
   [coll]
   (flatten
-   (map #(if (gt/node-type? %) (gt/property-display-order %) %) coll)))
+   (map #(cond
+           (gt/node-type? %) (gt/property-display-order %)
+           (symbol? %)       (let [x (util/vgr %)]
+                               (if (gt/node-type? x)
+                                 (gt/property-display-order x)
+                                 %))
+           :else              %)
+        coll)))
 
 (defn merge-display-order
   ([order] order)
@@ -135,21 +147,22 @@
           left   order1
           right  order2]
      (if-let [elem (first left)]
-       (cond
-         (gt/node-type? elem)
-         (recur result (concat (expand-node-types [elem]) (next left)) right)
+       (let [elem (if (symbol? elem) (util/vgr elem) elem)]
+         (cond
+           (node-type-or-symbol? elem)
+           (recur result (concat (expand-node-types [elem]) (next left)) right)
 
-         (keyword? elem)
-         (recur (conj result elem) (next left) (remove #{elem} right))
+           (keyword? elem)
+           (recur (conj result elem) (next left) (remove #{elem} right))
 
-         (sequential? elem)
-         (if (some gt/node-type? elem)
-           (recur result (cons (expand-node-types elem) (next left)) right)
-           (let [group-label   (first elem)
-                 group-member? (set (next elem))]
-             (recur (conj result (join-display-groups elem right))
-                    (next left)
-                    (remove #(or (group-member? %) (display-group? group-label %)) right)))))
+           (sequential? elem)
+           (if (some node-type-or-symbol? elem)
+             (recur result (cons (expand-node-types elem) (next left)) right)
+             (let [group-label   (first elem)
+                   group-member? (set (next elem))]
+               (recur (conj result (join-display-groups elem right))
+                      (next left)
+                      (remove #(or (group-member? %) (display-group? group-label %)) right))))))
        (into result right))))
   ([order1 order2 & more]
    (if more
@@ -203,7 +216,7 @@
 (defn resolve-display-order
   [{:keys [display-order-decl property-order-decl] :as description} supertype-display-orders]
   (-> description
-      (assoc :property-display-order (apply merge-display-order display-order-decl property-order-decl supertype-display-orders))
+      (assoc :property-display-order (list `quote (apply merge-display-order display-order-decl property-order-decl supertype-display-orders)))
       (dissoc :display-order-decl :property-order-decl)))
 
 (defn inputs-needed [x]
@@ -223,7 +236,6 @@
   (let [properties      (util/filterm (comp not #{:_node-id :_output-jammers} key) (:declared-properties node-type-description))
         argument-names  (into (util/key-set properties) (mapcat inputs-needed properties))
         argument-schema (zipmap argument-names (repeat s/Any))]
-    (println "attach-properties-output argument-schema " argument-schema)
     (attach-output
      node-type-description
      '_declared-properties 'internal.graph.types/Properties #{} #{}
@@ -669,9 +681,7 @@
     [(relax-schema (get (:inputs node-type) argument))]
 
     (has-singlevalued-input? node-type argument)
-    (do
-      (println "deduce-argument-type " argument " has " (get (:inputs node-type) argument))
-      (relax-schema (get (:inputs node-type) argument)))
+    (relax-schema (get (:inputs node-type) argument))
 
     (has-declared-output? node-type argument)
     (relax-schema (get (:transform-types node-type) argument))))
@@ -728,7 +738,6 @@
 
 (defn collect-base-property-value
   [self-name ctx-name nodeid-sym node-type propmap-sym prop]
-  (println "collect-base-property-value " prop " getter " (ip/getter-for (property-type node-type prop)))
   (if (ip/default-getter? (property-type node-type prop))
     `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
     (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym propmap-sym prop node-type
@@ -1053,7 +1062,6 @@
 (defn declared-properties-function
   [node-type]
   (let [validations? (not (empty? (keep ip/validation (vals (:declared-properties node-type)))))]
-    (println "validations? " validations? (keep ip/validation (vals (:declared-properties node-type))))
     (gensyms [self-name ctx-name kwarg-sym value-map validation-map nodeid-sym display-order propmap-sym]
        (if validations?
            `(fn [~self-name ~ctx-name]
