@@ -296,6 +296,20 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(0, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
     }
 
+    @Test
+    public void deleteMissingProjectFiles() throws Exception {
+        assertEquals(1, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
+
+        // Manually delete git repository
+        File repositoryDir = getRepositoryDir(proj1.getId());
+        FileUtils.deleteDirectory(repositoryDir);
+
+        // Delete project
+        ClientResponse response = ownerProjectResource.path("").delete(ClientResponse.class);
+        assertEquals(204, response.getStatus());
+        assertEquals(0, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
+    }
+
     private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
         try (ZipFile file = new ZipFile(path)) {
             final Enumeration<? extends ZipEntry> entries = file.entries();
@@ -362,12 +376,28 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(403, response.getStatus());
 
         response = ownerProjectResource
+                .path("/engine")
+                .path("win32")
+                .path(key+".ipa")
+                .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                .get(ClientResponse.class);
+        assertEquals(404, response.getStatus());
+
+        response = ownerProjectResource
                 .path("/engine_manifest")
                 .path("ios")
                 .path("dummy_key.ipa")
                 .accept("text/xml")
                 .get(ClientResponse.class);
         assertEquals(403, response.getStatus());
+
+        response = ownerProjectResource
+                .path("/engine_manifest")
+                .path("win32")
+                .path(key)
+                .accept("text/xml")
+                .get(ClientResponse.class);
+        assertEquals(404, response.getStatus());
 
         String manifestString = ownerProjectResource
                 .path("/engine_manifest")
