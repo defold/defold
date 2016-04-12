@@ -2,6 +2,7 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -126,6 +127,31 @@ public class NewsListResourceTest extends AbstractResourceTest {
 
         lst = adminResource.get(NewsSubscriberList.class);
         assertThat(lst.getSubscribersList().size(), is(2));
+    }
+
+    @Test
+    public void testAlreadyUnsubscribed() throws Exception {
+        NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").delete();
+        lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+    }
+
+    @Test
+    public void checkSubscriptionStatus() throws Exception {
+        String isSubscribed = joeResource
+                .path(joeUser.getId().toString()).path("subscribe")
+                .get(String.class);
+        assertTrue("false".equalsIgnoreCase(isSubscribed));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").put();
+
+        isSubscribed = joeResource
+                .path(joeUser.getId().toString()).path("subscribe")
+                .get(String.class);
+        assertTrue("true".equalsIgnoreCase(isSubscribed));
     }
 
 }

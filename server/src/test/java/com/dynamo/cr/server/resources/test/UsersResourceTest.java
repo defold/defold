@@ -2,6 +2,7 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
@@ -25,6 +26,7 @@ import org.junit.Test;
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
+import com.dynamo.cr.server.auth.Base64;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
@@ -34,6 +36,7 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.providers.JsonProviders;
 import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.google.api.client.auth.oauth2.AuthorizationCodeRequestUrl;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientRequest;
@@ -508,6 +511,62 @@ public class UsersResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void testOath() throws Exception {
+        String redirectUrl = "/redirect";
+
+        ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1")
+                .queryParam("redirect_to", redirectUrl)
+                .get(ClientResponse.class);
+
+        String locationUrl = serverResponse.getHeaders().get("Location").get(0);
+        AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
+        String authState = Base64.base64Decode(codeRequestUrl.getState());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(authState);
+
+        assertEquals(307, serverResponse.getClientResponseStatus().getStatusCode());
+        assertNotNull(node.get("login_token").getTextValue());
+        assertEquals(redirectUrl, node.get("redirect_to").getTextValue());
+    }
+
+    @Test
+    public void testOathDefaultRedirect() throws Exception {
+
+        ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1")
+                .get(ClientResponse.class);
+
+        String locationUrl = serverResponse.getHeaders().get("Location").get(0);
+        AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
+        String authState = Base64.base64Decode(codeRequestUrl.getState());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(authState);
+
+        assertEquals(307, serverResponse.getClientResponseStatus().getStatusCode());
+        assertNotNull(node.get("login_token").getTextValue());
+        assertEquals("/", node.get("redirect_to").getTextValue());
+    }
+
+    @Test
+    public void testOathAccessDenied() throws Exception {
+        String redirectUrl = "/redirect";
+
+        ClientResponse oathResponse = anonymousResource.path("/login/oauth/-1")
+                .queryParam("redirect_to", redirectUrl)
+                .get(ClientResponse.class);
+
+        String locationUrl = oathResponse.getHeaders().get("Location").get(0);
+        AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
+
+        ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1/response")
+                .queryParam("error", "access_denied")
+//                .queryParam("code", "SplxlOBeZQQYbYS6WxSbIa")  // Invalid grant
+                .queryParam("state", codeRequestUrl.getState())
+                .get(ClientResponse.class);
+
+        assertEquals(404, serverResponse.getStatus());
+    }
+
+    @Test
     public void testInviteRegistrationDeletedInviter() throws Exception {
         EntityManager em = emf.createEntityManager();
 
@@ -647,6 +706,15 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertNull(ModelUtil.findUserByEmail(em, email));
         assertThat(1, is(newUsers(em).size()));
         assertThat(1, is(invitations(em).size()));
+    }
+
+    @Test
+    public void testServerOkStatus() throws Exception {
+        WebResource statusResource = createAnonymousResource("http://localhost/status");
+
+        String statusResponse = statusResource.get(String.class);
+
+        assertEquals("OK", statusResponse);
     }
 
     @Test
