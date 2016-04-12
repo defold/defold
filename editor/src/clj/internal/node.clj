@@ -222,7 +222,7 @@
   (cond
     (gt/pfnk? x)       (util/fnk-arguments x)
     (util/property? x) (ip/property-dependencies x)
-    (list? x)          (into #{} (map keyword (second x)))))
+    (seq? x)           (into #{} (map keyword (second x)))))
 
 (declare attach-output)
 
@@ -534,7 +534,7 @@
         prop-label    (keyword (str "_prop_" sym-label))
         property-type (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
         getter        (or (ip/getter-for property-type)
-                          `(pc/fnk [~'this ~sym-label] (get ~'this ~label)))
+                          `(pc/fnk [~sym-label] ~sym-label))
         input-schema  (inputs-needed getter)]
     (-> description
         (update    :declared-properties   assoc label property-type)
@@ -647,7 +647,7 @@
 (defn property-schema
   [node-type property]
   (let [schema (property-type node-type property)]
-    (if (util/property? schema) (ip/property-value-type schema) schema)))
+    (if (util/property? schema) (:value-type (ip/property-value-type schema)) schema)))
 
 
 (defn allow-nil [s]
@@ -749,7 +749,7 @@
         default?            (ip/default-getter? property-definition)
         validation          (ip/validation property-definition)
         get-expr            (if default?
-                              (gt/get-property self-name (:basis ctx-name) prop)
+                              `(get ~self-name ~prop)
                               (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym propmap-sym prop node-type
                                                                       (ip/getter-for (property-type node-type prop))
                                                                       (get-in propmap-sym [prop :internal.property/value])))
@@ -837,7 +837,7 @@
             (property-has-default-getter? node-type property-name)
             (property-has-no-overriding-output? node-type property-name)
             (not (has-validation? node-type property-name)))
-     `(gt/get-property ~self-name (:basis ~ctx-name) ~transform)
+      `(get ~self-name ~transform)
      forms)))
 
 (defn detect-cycles [ctx-name nodeid-sym transform node-type forms]
