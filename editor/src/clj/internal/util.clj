@@ -10,8 +10,9 @@
 
 (set! *warn-on-reflection* true)
 
-(defn schema? [x] (satisfies? s/Schema x))
-(defn property? [x] (and (associative? x) (contains? x :value-type)))
+(defn predicate? [x] (instance? schema.core.Predicate x))
+(defn schema?    [x] (satisfies? s/Schema x))
+(defn property?  [x] (and (associative? x) (contains? x :value-type)))
 
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
@@ -145,12 +146,13 @@
 
 (defn resolve-schema [x]
   (cond
-    (symbol? x) (resolve-schema (resolve x))
-    (var? x)    (resolve-schema (var-get x))
-    (vector? x) (mapv resolve-schema x)
-    (class? x)  x
-    (map? x)    (map-vals resolve-schema x)
-    :else       nil))
+    (symbol? x)    (resolve-schema (resolve x))
+    (var? x)       (resolve-schema (var-get x))
+    (predicate? x) x
+    (vector? x)    (mapv resolve-schema x)
+    (class? x)     x
+    (map? x)       (map-vals resolve-schema x)
+    :else          nil))
 
 (defn assert-form-kind [place kind-label required-kind label form]
   (assert (required-kind form)

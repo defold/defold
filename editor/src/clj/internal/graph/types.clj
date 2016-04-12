@@ -61,12 +61,7 @@
   (node-type           [this basis]        "Return the node type that created this node.")
   (property-types      [this basis]        "Return the combined map of compile-time and runtime properties")
   (get-property        [this basis property] "Return the value of the named property")
-  (set-property        [this basis property value] "Set the named property")
-  (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
-
-  (override-id         [this] "Return the ID of the override this node belongs to, if any")
-  (original            [this] "Return the ID of the original of this node, if any")
-  (set-original        [this original-id] "Set the ID of the original of this node, if any"))
+  (set-property        [this basis property value] "Set the named property"))
 
 (defprotocol OverrideNode
   (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")

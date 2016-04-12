@@ -44,10 +44,9 @@
 (defn warn-output-schema [node-id node-type label value output-schema error]
   (when-not *suppress-schema-warnings*
     (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
-    (println "Output:")
-    (println value)
-    (println "Should match:")
-    (println (s/explain output-schema))))
+    (println "Output:" value)
+    (println "Should match:" (s/explain output-schema))
+    (println "But:" error)))
 
 (defn without [s exclusions] (reduce disj s exclusions))
 
@@ -538,7 +537,7 @@
                           `(pc/fnk [~'this ~sym-label] (get ~'this ~label)))
         input-schema  (inputs-needed getter)]
     (-> description
-        (update    :declared-properties     assoc     label  property-type)
+        (update    :declared-properties   assoc label property-type)
         (update-in [:transforms label] assoc-in [:fn] getter)
         (update-in [:transforms label] assoc-in [:output-type] property-type)
         (update-in [:transforms label] assoc-in [:input-schema] input-schema)
@@ -892,20 +891,14 @@
      ~forms))
 
 (defn deduce-output-type
-  [node-type output]
-  (cond
-    (property-has-no-overriding-output? node-type output)
-    (relax-schema (get-in node-type [:transforms output :output-type]))
-
-    :else
-    (do (assert (has-output? node-type output) "Unknown output type")
-        (relax-schema (get-in node-type [:transforms output :output-type])))))
+  [self-name output]
+  (relax-schema `(get-in ~self-name [:node-type :transforms ~output :output-type :value-type])))
 
 (defn schema-check-output [self-name ctx-name node-type transform nodeid-sym output-sym forms]
-  `(let [output-schema# (get-in ~self-name [:node-type :transforms ~output-sym :output-type])]
+  `(let [output-schema# ~(deduce-output-type self-name transform)]
      (if-let [validation-error# (s/check output-schema# ~output-sym)]
        (do
-         (warn-output-schema ~nodeid-sym ~transform ~output-sym output-schema# validation-error#)
+         (warn-output-schema ~nodeid-sym ~(:name node-type) ~transform ~output-sym output-schema# validation-error#)
          (throw (ex-info "SCHEMA-VALIDATION"
                          {:node-id          ~nodeid-sym
                           :type             ~(:name node-type)
@@ -932,6 +925,8 @@
                ~forms)))))
     forms))
 
+;; TODO - replace uses of propmap-sym with direct access to the
+;; desired property from the node-type. Do at compile time whenever possible.
 (defn node-output-value-function
   [node-type transform]
   (let [production-function (get-in node-type [:transforms transform :fn])]
@@ -1104,24 +1099,26 @@
   (eval (dollar-name (:name type) output)))
 
 (defrecord NodeImpl [node-type]
-       gt/Node
-       (node-id        [this]    (:_node-id this))
-       (node-type      [_ _]  node-type)
-       (property-types [_ _]     (gt/public-properties node-type))
-       (get-property   [this basis property] (get this property))
-       (set-property   [this basis property value]
-         (assert (contains? (gt/property-labels node-type) property)
-                 (format "Attempting to use property %s from %s, but it does not exist" property (:name node-type)))
-         (assoc this property value))
-       (clear-property [this basis property]
-         (throw (ex-info (str "Not possible to clear property " property " of node type " (:name node-type) " since the node is not an override")
-                         {:label property :node-type node-type})))
-       (original [this] nil)
-       (set-original [this original-id] (throw (ex-info "Originals can't be changed for original nodes")))
-       (override-id [this] nil))
+  gt/Node
+  gt/OverrideNode ;; TODO - this should not be necessary, eventually
+  (node-id        [this]    (:_node-id this))
+  (node-type      [_ _]  node-type)
+  (property-types [_ _]     (gt/public-properties node-type))
+  (get-property   [this basis property] (get this property))
+  (set-property   [this basis property value]
+    (assert (contains? (gt/property-labels node-type) property)
+            (format "Attempting to use property %s from %s, but it does not exist" property (:name node-type)))
+    (assoc this property value))
+  (clear-property [this basis property]
+    (throw (ex-info (str "Not possible to clear property " property " of node type " (:name node-type) " since the node is not an override")
+                    {:label property :node-type node-type})))
+  (original [this] nil)
+  (set-original [this original-id] (throw (ex-info "Originals can't be changed for original nodes")))
+  (override-id [this] nil))
 
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
+  gt/OverrideNode
   (node-id             [this] node-id)
   (node-type           [this basis] (gt/node-type (ig/node-by-id-at basis original-id) basis))
   (property-types      [this basis] (gt/public-properties (gt/node-type this basis)))

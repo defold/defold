@@ -197,7 +197,13 @@
       :behaviors
       )
 
-  (-> (in/node-type-forms 'OneInputNode '[(input an-input g/Str)])
+  (-> (in/node-type-forms
+       'SetterFnPropertyNode
+       '[(property underneath g/Int)
+         (property self-incrementing g/Int
+                   (value (g/fnk [underneath] underneath))
+                   (set (fn [basis self old-value new-value]
+                          (g/set-property self :underneath (or (and new-value (inc new-value)) 0)))))])
       in/make-node-type-map
       clojure.pprint/pprint)
 
