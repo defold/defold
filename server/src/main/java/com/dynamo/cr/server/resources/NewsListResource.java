@@ -1,23 +1,18 @@
 package com.dynamo.cr.server.resources;
 
-import java.util.List;
-
-import javax.annotation.security.RolesAllowed;
-import javax.persistence.TypedQuery;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.NewsSubscriberList;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewsSubscriber;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
+
+import javax.annotation.security.RolesAllowed;
+import javax.persistence.TypedQuery;
+import javax.ws.rs.*;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import java.util.List;
 
 @Path("/news_list")
 public class NewsListResource extends BaseResource {
@@ -72,7 +67,7 @@ public class NewsListResource extends BaseResource {
 
         TypedQuery<NewsSubscriber> q = em.createQuery("select s from NewsSubscriber s where s.email = :email", NewsSubscriber.class);
         List<NewsSubscriber> lst = q.setParameter("email", u.getEmail()).getResultList();
-        if (lst.size() >= 0) {
+        if (lst.size() > 0) {
             NewsSubscriber ns = lst.get(0);
             if (ns.isSubscribed()) {
                 return "true";

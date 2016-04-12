@@ -2,7 +2,6 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 
@@ -39,15 +38,6 @@ public class ProspectsResourceTest extends AbstractResourceTest {
         // Bug ID: 6427251 HttpURLConnection automatically retries non-idempotent method POST
         // http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6427251
         System.setProperty("http.keepAlive", "false");
-    }
-
-    void execCommand(String command, String arg) throws IOException {
-        TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
-        if (r.exitValue != 0) {
-            System.err.println(r.stdOut);
-            System.err.println(r.stdErr);
-        }
-        assertEquals(0, r.exitValue);
     }
 
     @Before

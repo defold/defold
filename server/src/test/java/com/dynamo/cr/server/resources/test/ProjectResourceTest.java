@@ -72,15 +72,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
     private EntityManager em;
 
-    private void execCommand(String command, String arg) throws IOException {
-        TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
-        if (r.exitValue != 0) {
-            System.err.println(r.stdOut);
-            System.err.println(r.stdErr);
-        }
-        assertEquals(0, r.exitValue);
-    }
-
     private <T> T get(WebResource resource, String path, Class<T> klass)  {
         ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
         if (!(resp.getStatus() == 200 || resp.getStatus() == 204 || resp.getStatus() == 400)) {
@@ -361,6 +352,22 @@ public class ProjectResourceTest extends AbstractResourceTest {
                 .get(byte[].class);
 
         assertArrayEquals(originalbundle, downloaded);
+
+        ClientResponse response = ownerProjectResource
+                .path("/engine")
+                .path("ios")
+                .path("dummy_key.ipa")
+                .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                .get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        response = ownerProjectResource
+                .path("/engine_manifest")
+                .path("ios")
+                .path("dummy_key.ipa")
+                .accept("text/xml")
+                .get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
 
         String manifestString = ownerProjectResource
                 .path("/engine_manifest")
