@@ -41,7 +41,7 @@ TEST_F(FBTest, DialogParams)
     lua_setfield(L, 1, "another_key");
 
     int json_max_length = 1024;
-    char json[json_max_length];
+    char* json = (char*)malloc(json_max_length*sizeof(char));
     int ret = dmFacebook::LuaDialogParamsToJson(L, 1, json, json_max_length);
     ASSERT_EQ(1, ret);
 
@@ -62,6 +62,7 @@ TEST_F(FBTest, DialogParams)
     ASSERT_EQ(dmJson::TYPE_STRING, doc.m_Nodes[4].m_Type); // "1337"
 
     dmJson::Free(&doc);
+    free(json);
 }
 
 TEST_F(FBTest, DialogParamsWithArray)
@@ -81,7 +82,7 @@ TEST_F(FBTest, DialogParamsWithArray)
     lua_setfield(L, 1, "suggestions");
 
     int json_max_length = 1024;
-    char json[json_max_length];
+    char* json = (char*)malloc(json_max_length*sizeof(char));
     int ret = dmFacebook::LuaDialogParamsToJson(L, 1, json, json_max_length);
     ASSERT_EQ(1, ret);
 
@@ -96,6 +97,7 @@ TEST_F(FBTest, DialogParamsWithArray)
         ASSERT_EQ(dmJson::TYPE_STRING, doc.m_Nodes[i].m_Type);
     }
     dmJson::Free(&doc);
+    free(json);
 }
 
 int main(int argc, char **argv)
