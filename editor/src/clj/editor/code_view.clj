@@ -171,10 +171,11 @@
     (evaluate [this scanner]
       (.evaluate this scanner false))
     (evaluate [this scanner resume]
-      (let [result (scanner-fn (.toString scanner))]
+      (let [result (scanner-fn (.toString ^DefoldRuleBasedScanner scanner))]
+        (println "Carin result " result "readString " (.readString ^DefoldRuleBasedScanner scanner))
         (if result
           (let [len (:length result)]
-            (when (pos? len) (.moveForward scanner len))
+            (when (pos? len) (.moveForward ^DefoldRuleBasedScanner scanner len))
             token)
           Token/UNDEFINED)))
     (getSuccessToken ^IToken [this] token)))
@@ -259,7 +260,7 @@
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
 
-(defn- setup-source-viewer [opts]
+(defn setup-source-viewer [opts]
   (let [source-viewer (SourceViewer.)
         source-viewer-config (create-viewer-config opts)
         document (Document. "")
@@ -308,7 +309,7 @@
   (input caret-position g/Int)
   (output new-content g/Any :cached update-source-viewer))
 
-(defn- setup-code-view [view-id code-node initial-caret-position]
+(defn setup-code-view [view-id code-node initial-caret-position]
   (g/transact
    (concat
     (g/connect code-node :_node-id view-id :code-node)
