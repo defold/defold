@@ -10,11 +10,14 @@
 
 
 (with-clean-system
-  (let [opts lua/lua
+  (let [code (str "x=1 \n"
+                  "break\n"
+                  "--comment\n")
+        opts lua/lua
         source-viewer (cv/setup-source-viewer opts)
         [code-node viewer-node] (tx-nodes (g/make-node world script/ScriptNode)
                                           (g/make-node world cv/CodeView :source-viewer source-viewer))]
-    (g/transact (g/set-property code-node :code "-- hi break \n"))
+    (g/transact (g/set-property code-node :code code))
     (cv/setup-code-view viewer-node code-node 0)
     (g/node-value viewer-node :new-content)
     (g/node-value viewer-node :code)
@@ -28,5 +31,3 @@
       (map #(.toString %) style-ranges))
 
 ))
-
-(pst )

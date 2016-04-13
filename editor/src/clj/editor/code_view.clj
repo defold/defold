@@ -171,11 +171,11 @@
     (evaluate [this scanner]
       (.evaluate this scanner false))
     (evaluate [this scanner resume]
-      (let [result (scanner-fn (.toString ^DefoldRuleBasedScanner scanner))]
-        (println "Carin result " result "readString " (.readString ^DefoldRuleBasedScanner scanner))
+      (let [^DefoldRuleBasedScanner sc scanner
+            result (scanner-fn (.readString sc))]
         (if result
           (let [len (:length result)]
-            (when (pos? len) (.moveForward ^DefoldRuleBasedScanner scanner len))
+            (when (pos? len) (.moveForward sc len))
             token)
           Token/UNDEFINED)))
     (getSuccessToken ^IToken [this] token)))
