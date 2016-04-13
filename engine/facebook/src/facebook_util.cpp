@@ -10,7 +10,7 @@ static int AppendToString(char* dst, char* src, size_t cursor, size_t dst_size, 
         return 0;
     }
 
-    for (int i = 0; i < src_size; ++i) {
+    for (int i = 0; i < (int)src_size; ++i) {
         dst[cursor+i] = src[i];
     }
 
@@ -19,6 +19,9 @@ static int AppendToString(char* dst, char* src, size_t cursor, size_t dst_size, 
 
 int dmFacebook::EscapeJsonString(const char* unescaped, char* escaped, char* end_ptr)
 {
+    if (escaped == NULL) {
+        return 0;
+    }
     // keep going through the unescaped until null terminating
     // always need at least 3 chars left in escaped buffer,
     // 2 for char expanding + 1 for null term
@@ -94,6 +97,45 @@ size_t dmFacebook::LuaStringCommaArray(lua_State* L, int index, char* buffer, si
     return out_buffer_size;
 }
 
+static int AppendJsonKeyValue(char* json, size_t json_size, int &cursor, char* key, size_t key_len, char* value, size_t value_len)
+{
+    // allocate buffers to hold the escaped key and value strings
+    char *key_escaped   = (char*)malloc(1+key_len*2*sizeof(char));
+    char *value_escaped = (char*)malloc(1+value_len*2*sizeof(char));
+
+    // escape string characters such as "
+    key_len   = dmFacebook::EscapeJsonString(key, key_escaped, key_escaped+(1+key_len*2*sizeof(char)));
+    value_len = dmFacebook::EscapeJsonString(value, value_escaped, value_escaped+(1+value_len*2*sizeof(char)));
+
+    // concat table entry into json format
+    // allocate enough to include; "key": "value"\0
+    size_t concat_entry_len = key_len+value_len+7; //
+    char* concat_entry = (char*)malloc(concat_entry_len*sizeof(char));
+    DM_SNPRINTF(concat_entry, concat_entry_len, "\"%s\": \"%s\"", key_escaped, value_escaped);
+
+    if (key_escaped) {
+        free(key_escaped);
+    }
+    if (value_escaped) {
+        free(value_escaped);
+    }
+
+    // append string to our output buffer
+    if (0 == AppendToString(json, concat_entry, cursor, json_size, concat_entry_len)) {
+        if (concat_entry) {
+            free(concat_entry);
+        }
+        return 0;
+    }
+    if (concat_entry) {
+        free(concat_entry);
+    }
+
+    cursor += concat_entry_len-1; // Don't include null term in cursor pos
+
+    return 1;
+}
+
 int dmFacebook::LuaDialogParamsToJson(lua_State* L, int index, char* json, size_t json_max_length)
 {
 
@@ -108,52 +150,52 @@ int dmFacebook::LuaDialogParamsToJson(lua_State* L, int index, char* json, size_
     int i = 0;
     while (lua_next(L, index) != 0) {
 
-        // key, must be convertable to string
-        size_t kp_len;
-        const char* kp = lua_tolstring(L, -2, &kp_len);
+        size_t key_len = 0;
+        size_t value_len = 0;
+        char* key = (char*)lua_tolstring(L, -2, &key_len);
+        char* value = NULL;
 
         // value, must be table (converts to comma separated string array) or convertable to string
-        const char* vp;
-        size_t vp_len;
+        char* tmp = NULL;
         if (lua_istable(L, -1)) {
-            char tmp[json_max_length];
-            vp_len = LuaStringCommaArray(L, lua_gettop(L), tmp, json_max_length);
-            vp = tmp;
+            tmp = (char*)malloc(json_max_length*sizeof(char));
+            if (tmp != NULL) {
+                value_len = LuaStringCommaArray(L, lua_gettop(L), tmp, json_max_length);
+                value = tmp;
+            }
         } else {
-            vp = lua_tolstring(L, -1, &vp_len);
-        }
-
-        // escape string characters such as "
-        char *kp_escaped = (char*)malloc(1+kp_len*2*sizeof(char));
-        char *vp_escaped = (char*)malloc(1+vp_len*2*sizeof(char));
-        kp_len = EscapeJsonString(kp, kp_escaped, kp_escaped+(1+kp_len*2*sizeof(char)));
-        vp_len = EscapeJsonString(vp, vp_escaped, vp_escaped+(1+vp_len*2*sizeof(char)));
-
-        // concat table entry into json format
-        size_t tmp_len = kp_len+vp_len+7; // 8 chars: "": ""\0
-        char *tmp;
-        if (i > 0) {
-            tmp_len += 2;
-            tmp = (char*)malloc(tmp_len*sizeof(char));
-            DM_SNPRINTF(tmp, tmp_len, ", \"%s\": \"%s\"", kp_escaped, vp_escaped);
-        } else {
-            tmp = (char*)malloc(tmp_len*sizeof(char));
-            DM_SNPRINTF(tmp, tmp_len, "\"%s\": \"%s\"", kp_escaped, vp_escaped);
+            value = (char*)lua_tolstring(L, -1, &value_len);
         }
         lua_pop(L, 1);
 
-        // append json string to our output buffer
-        if (0 == AppendToString(json, tmp, cursor, json_max_length, tmp_len)) {
-            free(tmp);
+        // append a entry separator
+        if (i > 0) {
+            if (0 == AppendToString(json, (char*)", ", cursor, json_max_length, 2)) {
+                if (tmp) {
+                    free(tmp);
+                }
+                return 0;
+            }
+            cursor += 2;
+        }
+
+        // Create key-value-string pair and append to JSON string
+        if (0 == AppendJsonKeyValue(json, json_max_length, cursor, key, key_len, value, value_len)) {
+            if (tmp) {
+                free(tmp);
+            }
             return 0;
         }
-        free(tmp);
 
-        cursor += tmp_len-1; // Don't include null term in cursor pos
+        // free 'tmp' if it was allocated above
+        if (tmp) {
+            free(tmp);
+        }
+
         ++i;
     }
 
-    if (0 == AppendToString(json, "}\0", cursor, json_max_length, 2)) {
+    if (0 == AppendToString(json, (char*)"}\0", cursor, json_max_length, 2)) {
         return 0;
     }
 
