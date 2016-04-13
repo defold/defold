@@ -46,13 +46,11 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         if (builder.getType() == Type.TYPE_BOX) {
             BoxNode boxNode = (BoxNode) node;
             boxNode.setTexture(builder.getTexture());
-            boxNode.setSizeMode(builder.getSizeMode());
             boxNode.setSlice9(LoaderUtil.toVector4(builder.getSlice9()));
             node = boxNode;
         } else if (builder.getType() == Type.TYPE_PIE) {
             PieNode pieNode = (PieNode) node;
             pieNode.setTexture(builder.getTexture());
-            pieNode.setSizeMode(builder.getSizeMode());
             pieNode.setPerimeterVertices(builder.getPerimeterVertices());
             pieNode.setOuterBounds(builder.getOuterBounds());
             pieNode.setInnerRadius(builder.getInnerRadius());
@@ -74,6 +72,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             TemplateNode templateNode = (TemplateNode) node;
             templateNode.setTemplatePath(builder.getTemplate());
         }
+        node.setSizeMode(builder.getSizeMode());
         node.setId(builder.getId());
         node.setTranslation(LoaderUtil.toPoint3d(builder.getPosition()));
         node.setEuler(LoaderUtil.toVector3(builder.getRotation()));
@@ -99,13 +98,11 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setType(NodeDesc.Type.TYPE_BOX);
             BoxNode box = (BoxNode)node;
             builder.setTexture(box.getTexture());
-            builder.setSizeMode(box.getSizeMode());
             builder.setSlice9(LoaderUtil.toVector4(box.getSlice9()));
         } else if (node instanceof PieNode) {
             builder.setType(NodeDesc.Type.TYPE_PIE);
             PieNode box = (PieNode)node;
             builder.setTexture(box.getTexture());
-            builder.setSizeMode(box.getSizeMode());
             builder.setPerimeterVertices(box.getPerimeterVertices());
             builder.setInnerRadius(box.getInnerRadius());
             builder.setOuterBounds(box.getOuterBounds());
@@ -127,6 +124,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             TemplateNode templateNode = (TemplateNode) node;
             builder.setTemplate(templateNode.getTemplatePath());
         }
+        builder.setSizeMode(node.getSizeMode());
         builder.setId(node.getId());
         builder.setPosition(LoaderUtil.toVector4(node.getTranslation()));
         builder.setRotation(LoaderUtil.toVector4(node.getEuler()));
