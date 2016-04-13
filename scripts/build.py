@@ -884,7 +884,8 @@ instructions.configure=\
 
         model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
+                                       dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel),
+                                       dict(name='Linux (32-bit)', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -901,7 +902,7 @@ instructions.configure=\
                                                  'sha1' : release_sha1}))
 
         # Create redirection keys for editor
-        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
+        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
             key_name = '%s/%s' % (self.channel, name)
             redirect = '/archive/%s/editor/%s' % (release_sha1, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
