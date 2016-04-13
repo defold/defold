@@ -4,7 +4,8 @@
             [editor.core :as core]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [java.util.function Function]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner]
+           [java.util.function Function]
            [javafx.scene Parent]
            [javafx.scene.control Control]
            [javafx.scene.image Image ImageView]
@@ -165,31 +166,17 @@
 (defmethod make-rule :multiline [{:keys [start end esc eof]} token]
   (MultiLineRule. start end token (if esc esc char0) (boolean eof)))
 
-(defn- to-lazy-seq [^ICharacterScanner charscanner read-counter]
-  (lazy-seq
-   (let [next-char (.read charscanner)]
-     (swap! read-counter inc)
-     (if (= next-char ICharacterScanner/EOF)
-       nil
-       (cons (char next-char) (to-lazy-seq charscanner read-counter))))))
-
-(defn- rewind [^ICharacterScanner scanner count]
-  (dotimes [n count] (.unread scanner)))
-
 (defn- make-predicate-rule [scanner-fn ^IToken token]
   (reify IPredicateRule
     (evaluate [this scanner]
       (.evaluate this scanner false))
-    (evaluate [this  scanner resume]
-      (let [read-counter (atom 0)
-            result (scanner-fn (to-lazy-seq scanner read-counter))]
+    (evaluate [this scanner resume]
+      (let [result (scanner-fn (.toString scanner))]
         (if result
-          (do
-            (rewind scanner (- @read-counter (:length result)))
+          (let [len (:length result)]
+            (when (pos? len) (.moveForward scanner len))
             token)
-          (do
-            (rewind scanner @read-counter)
-            Token/UNDEFINED))))
+          Token/UNDEFINED)))
     (getSuccessToken ^IToken [this] token)))
 
 (defmethod make-rule :custom [{:keys [scanner]} token]
@@ -210,6 +197,7 @@
          (.unread scanner)
          Token/UNDEFINED)))))
 
+
 (defmethod make-rule :number [_ token]
   (NumberRule. token))
 
@@ -217,7 +205,7 @@
   (make-rule rule (when class (get-attr-token class))))
 
 (defn- make-scanner [rules]
-  (let [scanner (RuleBasedScanner.)
+  (let [scanner (DefoldRuleBasedScanner.)
         default-rule (first (filter default-rule? rules))
         rules (remove default-rule? rules)]
     (when default-rule
