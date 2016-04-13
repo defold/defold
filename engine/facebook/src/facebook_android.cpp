@@ -15,6 +15,7 @@
 #include <android_native_app_glue.h>
 
 #include "facebook.h"
+#include "facebook_util.h"
 #include "facebook_analytics.h"
 
 extern struct android_app* g_AndroidApp;
@@ -424,7 +425,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
-    dmFacebook::LuaStringCommaArray(L, permissions, 512, top-1);
+    dmFacebook::LuaStringCommaArray(L, top-1, permissions, 512);
 
     JNIEnv* env = Attach();
 
@@ -460,7 +461,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
-    dmFacebook::LuaStringCommaArray(L, permissions, 512, top-2);
+    dmFacebook::LuaStringCommaArray(L, top-2, permissions, 512);
 
     JNIEnv* env = Attach();
 

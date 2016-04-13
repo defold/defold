@@ -1,11 +1,35 @@
 #include <gtest/gtest.h>
 
 #include "../facebook.h"
+#include "../facebook_util.h"
 #include <dlib/json.h>
 
 class FBTest : public ::testing::Test
 {
 };
+
+TEST_F(FBTest, EscapeJsonString)
+{
+    char unescaped_1[] = "\"";
+    char unescaped_2[] = "\\";
+    char unescaped_3[] = "\b";
+    char unescaped_4[] = "\n";
+    char unescaped_5[] = "\t";
+    char unescaped_all[] = "\"\\\b\n\t";
+    char unescaped_none[] = "abcdefghij";
+    char escaped[32];
+
+    ASSERT_EQ(2, dmFacebook::EscapeJsonString(unescaped_1, escaped, escaped+sizeof(escaped)));
+    ASSERT_EQ(2, dmFacebook::EscapeJsonString(unescaped_2, escaped, escaped+sizeof(escaped)));
+    ASSERT_EQ(2, dmFacebook::EscapeJsonString(unescaped_3, escaped, escaped+sizeof(escaped)));
+    ASSERT_EQ(2, dmFacebook::EscapeJsonString(unescaped_4, escaped, escaped+sizeof(escaped)));
+    ASSERT_EQ(2, dmFacebook::EscapeJsonString(unescaped_5, escaped, escaped+sizeof(escaped)));
+
+    ASSERT_EQ(10, dmFacebook::EscapeJsonString(unescaped_all, escaped, escaped+sizeof(escaped)));
+    ASSERT_STREQ("\\\"\\\\\\\b\\\n\\\t", escaped);
+
+    ASSERT_EQ(10, dmFacebook::EscapeJsonString(unescaped_none, escaped, escaped+sizeof(escaped)));
+}
 
 TEST_F(FBTest, DialogParams)
 {

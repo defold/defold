@@ -1,11 +1,24 @@
-#include "facebook.h"
+#include "facebook_util.h"
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <script/script.h>
 
-static int EscapeString(const char* unescaped, char* escaped, char* end_ptr) {
+static int AppendToString(char* dst, char* src, size_t cursor, size_t dst_size, size_t src_size)
+{
+    if (dst_size - cursor < src_size) {
+        return 0;
+    }
 
+    for (int i = 0; i < src_size; ++i) {
+        dst[cursor+i] = src[i];
+    }
+
+    return 1;
+}
+
+int dmFacebook::EscapeJsonString(const char* unescaped, char* escaped, char* end_ptr)
+{
     // keep going through the unescaped until null terminating
     // always need at least 3 chars left in escaped buffer,
     // 2 for char expanding + 1 for null term
@@ -58,19 +71,6 @@ static int EscapeString(const char* unescaped, char* escaped, char* end_ptr) {
     return (escaped - esc_start);
 }
 
-static int AppendToString(char* dst, char* src, size_t cursor, size_t dst_size, size_t src_size) {
-    if (dst_size - cursor < src_size) {
-        return 0;
-    }
-
-    for (int i = 0; i < src_size; ++i) {
-        dst[cursor+i] = src[i];
-    }
-
-    return 1;
-}
-
-
 size_t dmFacebook::LuaStringCommaArray(lua_State* L, int index, char* buffer, size_t buffer_size)
 {
     lua_pushnil(L);
@@ -94,7 +94,8 @@ size_t dmFacebook::LuaStringCommaArray(lua_State* L, int index, char* buffer, si
     return out_buffer_size;
 }
 
-int dmFacebook::LuaDialogParamsToJson(lua_State* L, int index, char* json, size_t json_max_length) {
+int dmFacebook::LuaDialogParamsToJson(lua_State* L, int index, char* json, size_t json_max_length)
+{
 
     int cursor = 0;
     if (json_max_length < 1) {
@@ -125,8 +126,8 @@ int dmFacebook::LuaDialogParamsToJson(lua_State* L, int index, char* json, size_
         // escape string characters such as "
         char *kp_escaped = (char*)malloc(1+kp_len*2*sizeof(char));
         char *vp_escaped = (char*)malloc(1+vp_len*2*sizeof(char));
-        kp_len = EscapeString(kp, kp_escaped, kp_escaped+(1+kp_len*2*sizeof(char)));
-        vp_len = EscapeString(vp, vp_escaped, vp_escaped+(1+vp_len*2*sizeof(char)));
+        kp_len = EscapeJsonString(kp, kp_escaped, kp_escaped+(1+kp_len*2*sizeof(char)));
+        vp_len = EscapeJsonString(vp, vp_escaped, vp_escaped+(1+vp_len*2*sizeof(char)));
 
         // concat table entry into json format
         size_t tmp_len = kp_len+vp_len+7; // 8 chars: "": ""\0

@@ -37,9 +37,6 @@ namespace dmFacebook {
         AUDIENCE_EVERYONE = 4,
     };
 
-    size_t LuaStringCommaArray(lua_State* L, int index, char* buffer, size_t buffer_size);
-    int LuaDialogParamsToJson(lua_State* L, int index, char* json, size_t json_max_length);
-
 /*
     Notes on facebook.show_dialog in regards to FB SDK 4.
 

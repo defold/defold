@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 #include "facebook.h"
+#include "facebook_util.h"
 #include "facebook_analytics.h"
 
 // Must match iOS for now
