@@ -3,6 +3,8 @@
 
 #define LIB_NAME "facebook"
 
+#include <script/script.h>
+
 namespace dmFacebook {
 
     enum State {
@@ -34,7 +36,6 @@ namespace dmFacebook {
         AUDIENCE_FRIENDS  = 3,
         AUDIENCE_EVERYONE = 4,
     };
-
 
 /*
     Notes on facebook.show_dialog in regards to FB SDK 4.
