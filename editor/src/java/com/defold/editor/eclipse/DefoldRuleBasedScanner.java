@@ -6,7 +6,7 @@ import org.eclipse.jface.text.BadLocationException;
 public class DefoldRuleBasedScanner extends RuleBasedScanner {
 
     //Reads from offset all at once to the end of the doc as a peek
-    public String toString() {
+    public String readString() {
         try {
             if (fOffset < fDocument.getLength()){
                  int len = fDocument.getLength() - fOffset;
