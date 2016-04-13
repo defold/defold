@@ -25,9 +25,6 @@ public class PieNode extends ClippingNode {
     @Property(editorType = EditorType.DROP_DOWN)
     private String texture = "";
 
-    @Property
-    private SizeMode sizeMode = SizeMode.SIZE_MODE_AUTO;
-
     private transient GuiTextureNode guiTextureNode = new GuiTextureNode();
 
     @Property
@@ -228,23 +225,10 @@ public class PieNode extends ClippingNode {
         return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_IMAGE_ID);
     }
 
-    public SizeMode getSizeMode() {
-        return this.sizeMode;
-    }
-
+    @Override
     public void setSizeMode(SizeMode sizeMode) {
-        this.sizeMode = sizeMode;
-        GuiNodeStateBuilder.setField(this, "SizeMode", sizeMode);
+        super.setSizeMode(sizeMode);
         updateSize();
-    }
-
-    public void resetSizeMode() {
-        this.sizeMode = SizeMode.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "SizeMode"));
-        updateSize();
-    }
-
-    public boolean isSizeModeOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "SizeMode", this.sizeMode);
     }
 
     public boolean isSizeEditable() {
