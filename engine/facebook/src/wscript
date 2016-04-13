@@ -19,7 +19,7 @@ def configure(conf):
 
 def build(bld):
     embed_source = ''
-    source = 'dummy.cpp'
+    source = 'dummy.cpp facebook_util.cpp'
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ' facebook.mm'
@@ -66,6 +66,8 @@ def build(bld):
     bld.new_task_gen(source = 'facebook.mm',
                      target = 'facebook_doc.json',
                      rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+    bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/share/doc', 'facebook_doc.sdoc')
     bld.install_files('${PREFIX}/share/doc', 'facebook_doc.json')
