@@ -48,6 +48,8 @@ public class SplashHandler extends AbstractSplashHandler implements PaintListene
         progressBg = loadImage("progress_bg.png");
         if (EditorCorePlugin.getDefault().getChannel().equals("beta")) {
             ribbon = loadImage("/icons/launching/beta.png");
+        } else if (EditorCorePlugin.getDefault().getChannel().equals("alpha")) {
+            ribbon = loadImage("/icons/launching/alpha.png");
         }
     }
 

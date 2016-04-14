@@ -29,6 +29,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
+import com.dynamo.gui.proto.Gui.NodeDesc.SizeMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
 import com.dynamo.proto.DdfMath.Vector4;
@@ -69,6 +70,9 @@ public class GuiNode extends Node implements Identifiable {
 
     @Property
     private Vector3d size = new Vector3d(0.0, 0.0, 0.0);
+
+    @Property
+    protected SizeMode sizeMode = SizeMode.SIZE_MODE_AUTO;
 
     @Property
     @NotEmpty(severity = IStatus.ERROR)
@@ -205,6 +209,23 @@ public class GuiNode extends Node implements Identifiable {
 
     public boolean isSizeOverridden() {
         return GuiNodeStateBuilder.isFieldOverridden(this, "Size", LoaderUtil.toVector4(this.size));
+    }
+
+    public SizeMode getSizeMode() {
+        return this.sizeMode;
+    }
+
+    public void resetSizeMode() {
+        this.sizeMode = SizeMode.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "SizeMode"));
+    }
+
+    public boolean isSizeModeOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "SizeMode", this.sizeMode);
+    }
+
+    public void setSizeMode(SizeMode sizeMode) {
+        this.sizeMode = sizeMode;
+        GuiNodeStateBuilder.setField(this, "SizeMode", sizeMode);
     }
 
     public RGB getColor() {
