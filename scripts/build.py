@@ -579,7 +579,7 @@ instructions.configure=\
 
         self._build_cr('editor')
 
-    def _archive_cr(self, product, channel, build_dir):
+    def _archive_cr(self, product, build_dir):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, self.channel, product).replace('\\', '/') + '/'
         host, path = full_archive_path.split(':', 1)
