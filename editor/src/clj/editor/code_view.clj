@@ -199,7 +199,6 @@
          (.unread scanner)
          Token/UNDEFINED)))))
 
-
 (defmethod make-rule :number [_ token]
   (NumberRule. token))
 
