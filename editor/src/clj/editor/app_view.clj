@@ -153,7 +153,7 @@
         (remove-tab tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (> (count (get-tabs app-view)) 1))
+  (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
@@ -268,7 +268,7 @@
                              {:label "About"
                               :command :about}]}])
 
-(ui/extend-menu ::tabpane-menu nil
+(ui/extend-menu ::tab-menu nil
                 [{:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
@@ -307,7 +307,6 @@
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
-    (ui/register-context-menu tab-pane ::tabpane-menu)
 
     (let [refresh-timers [(ui/->timer 2 (fn [dt]
                                           (ui/refresh (.getScene stage))
@@ -344,6 +343,7 @@
         view       (make-view-fn view-graph parent resource-node opts)]
     (ui/user-data! tab ::view view)
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
+    (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
                          event
