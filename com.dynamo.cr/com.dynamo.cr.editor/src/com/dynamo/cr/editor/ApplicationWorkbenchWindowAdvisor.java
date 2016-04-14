@@ -155,6 +155,15 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
                 }
             }
 
+            // Remove AWS URIs since our move to d.defold.com
+            List<URI> awsURIs = getReposContaining(metadataManager, "d.defold.com.s3-website-eu-west-1.amazonaws.com");
+            awsURIs.addAll(getReposContaining(artifactManager, "d.defold.com.s3-website-eu-west-1.amazonaws.com"));
+            for (URI repoURI : awsURIs) {
+                System.out.println(String.format("Removing URI: %s", repoURI.toString()));
+                metadataManager.removeRepository(repoURI);
+                artifactManager.removeRepository(repoURI);
+            }
+
         } catch (URISyntaxException e) {
             logger.error("Unexpected error", e);
         }
