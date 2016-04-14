@@ -5,18 +5,19 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner]
-           [java.util.function Function]
+           [com.defold.editor.eclipse Document]
            [javafx.scene Parent]
-           [javafx.scene.control Control]
            [javafx.scene.image Image ImageView]
-           [org.eclipse.jface.text.rules IRule SingleLineRule ICharacterScanner IPartitionTokenScanner IPredicateRule MultiLineRule WhitespaceRule IWhitespaceDetector WordRule IWordDetector RuleBasedScanner RuleBasedPartitionScanner IToken Token FastPartitioner]
-           [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
+           [java.util.function Function]
            [org.eclipse.fx.text.ui TextAttribute]
+           [org.eclipse.fx.text.ui.contentassist ContentAssistant ContentAssistContextData ICompletionProposal]
+           [org.eclipse.fx.text.ui.presentation PresentationReconciler]
+           [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
-           [org.eclipse.fx.text.ui.contentassist ICompletionProposal ContentAssistant ContentAssistContextData]
            [org.eclipse.fx.ui.controls.styledtext TextSelection]
-           [org.eclipse.fx.text.ui.presentation IPresentationReconciler PresentationReconciler]
-           [org.eclipse.jface.text IDocument IDocumentPartitioner Document IDocumentListener DocumentEvent]))
+           [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
+           [org.eclipse.jface.text.rules FastPartitioner ICharacterScanner IPredicateRule IRule IToken IWhitespaceDetector
+            IWordDetector MultiLineRule RuleBasedScanner RuleBasedPartitionScanner SingleLineRule Token WhitespaceRule WordRule]))
 
 (set! *warn-on-reflection* true)
 
