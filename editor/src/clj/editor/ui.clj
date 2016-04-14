@@ -565,16 +565,20 @@
     context-menu))
 
 (defn register-context-menu [^Control control menu-id]
-  (let [desc (make-desc control menu-id)]
-    (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
-      (event-handler event
-                     (when-not (.isConsumed event)
-                       (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
-                         ; Required for autohide to work when the event originates from the anchor/source control
-                         ; See RT-15160 and Control.java
-                         (.setImpl_showRelativeToWindow cm true)
-                         (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
-                         (.consume event)))))))
+  (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
+    (event-handler event
+                   (when-not (.isConsumed event)
+                     (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+                       ;; Required for autohide to work when the event originates from the anchor/source control
+                       ;; See RT-15160 and Control.java
+                       (.setImpl_showRelativeToWindow cm true)
+                       (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
+                       (.consume event))))))
+
+(defn register-tab-context-menu [^Tab tab menu-id]
+  (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+    (.setImpl_showRelativeToWindow cm true)
+    (.setContextMenu tab cm)))
 
 (defn register-menubar [^Scene scene  menubar-id menu-id ]
   ; TODO: See comment below about top-level items. Should be enforced here
