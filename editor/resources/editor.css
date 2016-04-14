@@ -752,7 +752,9 @@ GridPane.prefs {
 }*/
 
 .lua.styled-text-area .comment,
-.glsl.styled-text-area .comment {
+.lua.styled-text-area .comment2,
+.glsl.styled-text-area .comment,
+.glsl.styled-text-area .comment2 {
     -styled-text-color: #ff00FF;
 }
 
