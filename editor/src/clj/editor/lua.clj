@@ -267,7 +267,7 @@
              {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
              {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
              {:type :custom :scanner match-single-comment :class "comment"}
-             {:type :custom :scanner match-multi-comment :class "comment"}
+             {:type :custom :scanner match-multi-comment :class "comment2"}
              {:type :number :class "number"}
              {:type :default :class "default"}
              ]}
