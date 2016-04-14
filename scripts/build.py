@@ -833,7 +833,7 @@ instructions.configure=\
     type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
     version='1.0.0'>
   <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
   </children>
 </repository>"""
 
@@ -843,7 +843,7 @@ instructions.configure=\
     type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
     version='1.0.0'>
   <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
   </children>
 </repository>
 """
@@ -914,7 +914,8 @@ instructions.configure=\
             key = bucket.new_key(full_name)
             key.content_type = 'text/xml'
             key.set_contents_from_string(template % {'host': host,
-                                                     'sha1': release_sha1})
+                                                     'sha1': release_sha1,
+                                                     'channel': self.channel})
 
     def _get_s3_archive_prefix(self):
         u = urlparse.urlparse(self.archive_path)
