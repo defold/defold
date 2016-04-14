@@ -570,8 +570,8 @@ class Configuration(object):
 
         p2 = """
 instructions.configure=\
-  addRepository(type:0,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
-  addRepository(type:1,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
+  addRepository(type:0,location:http${#58}//d.defold.com/%(channel)s/update/);\
+  addRepository(type:1,location:http${#58}//d.defold.com/%(channel)s/update/);
 """
 
         with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
@@ -581,7 +581,7 @@ instructions.configure=\
 
     def _archive_cr(self, product, build_dir):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/') + '/'
+        full_archive_path = join(self.archive_path, sha1, self.channel, product).replace('\\', '/') + '/'
         host, path = full_archive_path.split(':', 1)
         for p in glob(join(build_dir, 'target/products/*.zip')):
             self.upload_file(p, full_archive_path)
@@ -833,7 +833,7 @@ instructions.configure=\
     type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
     version='1.0.0'>
   <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
   </children>
 </repository>"""
 
@@ -843,7 +843,7 @@ instructions.configure=\
     type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
     version='1.0.0'>
   <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
   </children>
 </repository>
 """
@@ -903,7 +903,7 @@ instructions.configure=\
         # Create redirection keys for editor
         for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
             key_name = '%s/%s' % (self.channel, name)
-            redirect = '/archive/%s/editor/%s' % (release_sha1, name)
+            redirect = '/archive/%s/%s/editor/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
@@ -914,7 +914,8 @@ instructions.configure=\
             key = bucket.new_key(full_name)
             key.content_type = 'text/xml'
             key.set_contents_from_string(template % {'host': host,
-                                                     'sha1': release_sha1})
+                                                     'sha1': release_sha1,
+                                                     'channel': self.channel})
 
     def _get_s3_archive_prefix(self):
         u = urlparse.urlparse(self.archive_path)
