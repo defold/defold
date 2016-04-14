@@ -857,7 +857,7 @@ instructions.configure=\
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-        host = bucket.get_website_endpoint()
+        host = 'd.defold.com'
 
         model = {'releases': [],
                  'has_releases': False}
