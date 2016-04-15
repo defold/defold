@@ -134,11 +134,15 @@
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
+(defn- collect-resources [{:keys [children] :as resource}]
+  (if (empty? children)
+    #{resource}
+    (set (concat [resource] (mapcat collect-resources children)))))
+
 (defn remove-resource-tab [^TabPane tab-pane resource]
-  (let [tabs (.getTabs tab-pane)]
-    (when-let [tab (->> tabs
-                        (filter #(= resource (ui/user-data % ::resource)))
-                        first)]
+  (let [tabs      (.getTabs tab-pane)
+        resources (collect-resources resource)]
+    (doseq [tab (filter #(contains? resources (ui/user-data % ::resource)) tabs)]
       (remove-tab tab-pane tab))))
 
 (defn- get-tabs [app-view]
