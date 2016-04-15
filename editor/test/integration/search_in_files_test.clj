@@ -17,6 +17,14 @@
         (testing "search is case insensitive"
           (is (= 11 (count (project/search-in-files project "go" "seSSiOn")))))
 
+        (testing "file extensions"
+          (is (= 12 (count (project/search-in-files project "g" "session"))))
+          (is (= 11 (count (project/search-in-files project "go" "session"))))
+          (is (= 11 (count (project/search-in-files project ".go" "session"))))
+          (is (= 11 (count (project/search-in-files project "*.go" "session"))))
+          (is (= 15 (count (project/search-in-files project "go,sCR" "session"))))
+          (is (= 4 (count (project/search-in-files project "script" "session")))))
+
         (testing "empty search string gives no results"
           (is (zero? (count (project/search-in-files project "" "")))))
 
