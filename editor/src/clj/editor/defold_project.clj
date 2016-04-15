@@ -178,13 +178,13 @@
           file-exts      (some-> file-extensions-str
                                  (str/replace #" " "")
                                  (str/split #","))
-          file-exts      (->> file-exts
+          file-ext-pats  (->> file-exts
                               (remove empty?)
-                              (map str/lower-case)
-                              set)
-          matching-files (filter #(or (empty? file-exts)
-                                      (contains? file-exts
-                                                 (-> % :resource resource/resource-type :ext)))
+                              (map compile-find-in-files-regex))
+          matching-files (filter (fn [data]
+                                   (let [rext (-> data :resource resource/resource-type :ext)]
+                                     (or (empty? file-ext-pats)
+                                         (some #(re-matches % rext) file-ext-pats))))
                                  save-data)
           pattern        (compile-find-in-files-regex search-str)]
       (->> matching-files
