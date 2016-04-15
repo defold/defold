@@ -154,7 +154,7 @@
           view (test-util/open-scene-view! project app-view node-id 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
-      (is (= ["pie" "box1" "box" "text"] (render-order view)))
+      (is (= ["box1" "box" "pie" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "")
       (is (= ["box" "pie" "box1" "text"] (render-order view))))))
 
@@ -313,7 +313,7 @@
           node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          [new-tmpl] (g/tx-nodes-added (gui/add-gui-node! project node-id parent :type-template))
+          new-tmpl (gui/add-gui-node! project node-id parent :type-template)
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
