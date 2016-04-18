@@ -62,7 +62,7 @@
                              :property-type-vector3 t/Vec3
                              :property-type-vector4 t/Vec4
                              :property-type-quat t/Vec3
-                             :property-type-bool g/Bool})
+                             :property-type-boolean g/Bool})
 
 (defn- q-round [v]
   (let [f 10e6]

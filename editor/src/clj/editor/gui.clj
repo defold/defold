@@ -9,6 +9,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
+            [editor.gui-clipping :as clipping]
             [editor.defold-project :as project]
             [editor.progress :as progress]
             [editor.scene :as scene]
@@ -176,6 +177,7 @@
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
+        clipping-state (:clipping-state user-data)
         gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
@@ -187,12 +189,14 @@
                      (or material-shader shader))
             vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+          (clipping/setup-gl gl clipping-state)
           (case blend-mode
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
             :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+          (clipping/restore-gl gl clipping-state))))))
 
 (defn- pivot->h-align [pivot]
   (case pivot
@@ -430,7 +434,7 @@
   (output pb-msgs g/Any :cached (g/fnk [pb-msg] [pb-msg]))
   (output rt-pb-msgs g/Any (g/fnk [pb-msgs] pb-msgs))
   (output aabb g/Any :abstract)
-  (output scene-children g/Any (g/fnk [child-scenes] child-scenes))
+  (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
   (output scene-renderable g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id aabb transform scene-children scene-renderable]
                                      {:node-id _node-id
@@ -481,10 +485,10 @@
                                     :inherit-alpha inherit-alpha
                                     :material-shader material-shader
                                     :blend-mode blend-mode)
-                  :batch-key [gpu-texture blend-mode]
+                  :batch-key {:texture gpu-texture :blend-mode blend-mode}
                   :select-batch-key _node-id
                   :index index
-                  :layer-index (if layer-index (inc layer-index) 0)})))
+                  :layer-index layer-index})))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -545,7 +549,7 @@
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color slice9 texture anim-data]
+          (g/fnk [pivot size color slice9 texture anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
                        offset (pivot-offset pivot size)
                        order [0 1 3 3 1 2]
@@ -565,11 +569,14 @@
                                  [v0 v1] v-vals]
                              (geom/uv-trans uv-trans [[u0 v0] [u0 v1] [u1 v1] [u1 v0]]))
                        uvs (vec (mapcat #(map (partial nth %) order) uvs))
-                       lines (vec (mapcat #(interleave % (drop 1 (cycle %))) corners))]
-                   {:geom-data vs
-                    :line-data lines
-                    :uv-data uvs
-                    :color color}))))
+                       lines (vec (mapcat #(interleave % (drop 1 (cycle %))) corners))
+                       user-data {:geom-data vs
+                                  :line-data lines
+                                  :uv-data uvs
+                                  :color color}]
+                   (cond-> user-data
+                     (not= :clipping-mode-none clipping-mode)
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Pie nodes
 
@@ -593,7 +600,7 @@
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color pie-data texture anim-data]
+          (g/fnk [pivot size color pie-data texture anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])
                        {:keys [outer-bounds inner-radius perimeter-vertices ^double pie-fill-angle]} pie-data
@@ -633,11 +640,14 @@
                              (geom/uv-trans (get-in anim-data [texture :uv-transforms 0])))
                        vs (->> vs
                             (geom/scale [(* 0.5 w) (* 0.5 h) 1])
-                            (geom/transl offset))]
-                   {:geom-data vs
-                    :line-data lines
-                    :uv-data uvs
-                    :color color}))))
+                            (geom/transl offset))
+                       user-data {:geom-data vs
+                                  :line-data lines
+                                  :uv-data uvs
+                                  :color color}]
+                   (cond-> user-data
+                     (not= :clipping-mode-none clipping-mode)
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Text nodes
 
@@ -1018,6 +1028,7 @@
 
   (input nodes g/Any :array :cascade-delete)
   (input child-scenes g/Any :array)
+  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
   (input child-indices g/Int :array)
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" 0 true
@@ -1079,24 +1090,23 @@
           (update :children #(mapv (partial apply-alpha alpha) %))))
       (update scene :children #(mapv (partial apply-alpha scene-alpha) %)))))
 
-(defn- sorted-children [scene]
-  (sort-by (comp :index :renderable) (:children scene)))
-
 (defn- sort-children [node-order scene]
-  (-> scene
-    (assoc-in [:renderable :index] (node-order (:node-id scene)))
-    (update :children (partial mapv (partial sort-children node-order)))))
+  (let [key (clipping/scene-key scene)
+        index (node-order key)]
+    (cond-> scene
+      index (assoc-in [:renderable :index] index)
+      true (update :children (partial mapv (partial sort-children node-order))))))
 
 (defn- sort-scene [scene]
-  (let [node-order (->> scene
-                     (tree-seq (constantly true) sorted-children)
-                     (group-by (fn [n] (get-in n [:renderable :layer-index] 0)))
-                     (sort-by first) ; sort by layer-index
-                     (map second)
-                     (reduce into) ; unify the vectors
-                     (map-indexed (fn [index s] [(:node-id s) index]))
-                     (into {}))]
-    (sort-children node-order scene)))
+  (if (g/error? scene)
+    scene
+    (let [node-order (->> scene
+                       clipping/scene->render-keys
+                       (sort-by second) ; sort by render-key
+                       (map first) ; keep scene keys
+                       (map-indexed (fn [index scene-key] [scene-key index]))
+                       (into {}))]
+      (sort-children node-order scene))))
 
 (g/defnk produce-scene [_node-id scene-dims aabb child-scenes]
   (let [w (:width scene-dims)
@@ -1109,7 +1119,9 @@
                             :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
                                         :line-color colors/defold-white}}
                :children (mapv (partial apply-alpha 1.0) child-scenes)}]
-    (sort-scene scene)))
+    (-> scene
+      clipping/setup-states
+      sort-scene)))
 
 (defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
   {:script (proj-path script-resource)
@@ -1362,15 +1374,17 @@
                         :type-text TextNode
                         :type-template TemplateNode
                         GuiNode)]
-    (g/transact
-      (concat
-        (g/operation-label "Add Gui Node")
-        (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :index index :type node-type :size [200.0 100.0 0.0]]]
-          (attach-gui-node scene node-tree parent gui-node node-type)
-          (if (= node-type :type-text)
-            (g/set-property gui-node :text "<text>" :font "")
-            [])
-          (project/select project [gui-node]))))))
+    (-> (concat
+          (g/operation-label "Add Gui Node")
+          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :index index :type node-type :size [200.0 100.0 0.0]]]
+                        (attach-gui-node scene node-tree parent gui-node node-type)
+                        (if (= node-type :type-text)
+                          (g/set-property gui-node :text "<text>" :font "")
+                          [])
+                        (project/select project [gui-node])))
+      g/transact
+      g/tx-nodes-added
+      first)))
 
 (defn- add-gui-node-handler [project {:keys [scene parent node-type]}]
   (add-gui-node! project scene parent node-type))
@@ -1395,15 +1409,18 @@
             (attach-font scene parent node)
             (project/select project [node])))))))
 
-(defn- add-layer-handler [project {:keys [scene parent node-type]}]
-  (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))
-        name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
+(defn add-layer! [project scene parent name]
+  (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))]
     (g/transact
       (concat
         (g/operation-label "Add Layer")
         (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name :index index]]
-          (attach-layer scene parent node)
-          (project/select project [node]))))))
+                      (attach-layer scene parent node)
+                      (project/select project [node]))))))
+
+(defn- add-layer-handler [project {:keys [scene parent node-type]}]
+  (let [name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
+    (add-layer! project scene parent name)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]}]
   (g/transact
