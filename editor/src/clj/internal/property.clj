@@ -10,12 +10,15 @@
   (first (gt/replace-node basis node (gt/set-property (ig/node-by-id-at basis node) basis property new-value))))
 
 (defn property-value-type
-  [this]
-  (if (and (map? this) (contains? this :value-type))
-    this
-    {:value-type (util/resolve-schema this)}))
+  [x]
+  (cond
+    (and (map? x)
+         (contains? x :value-type)) x
+    (symbol? x)                     (property-value-type (resolve x))
+    (var? x)                        (property-value-type (var-get x))
+    :else                           {:value-type x}))
 
-(def property-tags       :tags)
+(def  property-tags          :tags)
 (defn property-default-value [this] (some-> this :default util/var-get-recursive util/apply-if-fn))
 (defn dynamic-attributes     [this] (util/map-vals util/var-get-recursive (:dynamic this)))
 (defn default-getter?        [this] (not (contains? this ::value)))
@@ -56,38 +59,30 @@
 
 (defn property-dependencies
   [property]
-  (reduce into #{} [(util/fnk-arguments (getter-for property))
-                    (util/fnk-arguments (validation property))
-                    (mapcat util/fnk-arguments (vals (dynamic-attributes property)))]))
-
-(defn inheriting? [from] (util/property? (util/vgr from)))
-
-(defn parse-forms
-  [label value-or-parent-type body-forms]
-  (let [base (-> (property-value-type value-or-parent-type)
-                 (assoc :name label))]
-    (assert-schema "property" label (:value-type base))
-    (reduce property-form base body-forms)))
+  (reduce into #{} [(util/inputs-needed (getter-for property))
+                    (util/inputs-needed (validation property))
+                    (mapcat util/inputs-needed (vals (dynamic-attributes property)))]))
 
 (defn- check-for-protocol-type
-  [name-str value-type]
-  (let [resolved-value-type (property-value-type value-type)]
-    (assert (not (gt/protocol? resolved-value-type))
-            (str "Property " name-str " type " value-type " looks like a protocol; try (dynamo.graph/protocol " value-type ") instead."))))
+  [label prop]
+  (let [value-type (:value-type prop)]
+    (assert (not (gt/protocol? value-type))
+            (str "Property " label " type " value-type " looks like a protocol; try (dynamo.graph/protocol " value-type ") instead."))))
 
 (defn- check-for-invalid-type
-  [name-str value-type]
-  (let [value-type (property-value-type value-type)]
-    (assert (or (util/property? value-type) (util/schema? value-type))
-            (str "Property " name-str " is declared with type " value-type " but that doesn't seem like a real value type"))))
+  [label value-type]
+  (assert (or (util/property? value-type)
+              (util/schema?   value-type))
+          (str "Property " label " is declared with type " value-type " but that doesn't seem like a real value type")))
 
 (defn property-type-descriptor
   [label value-type body-forms]
-  (let [label-str   (str label)
-        description (parse-forms label-str value-type body-forms)]
-    (check-for-protocol-type label-str value-type)
-    (check-for-invalid-type  label-str value-type)
-    description))
+  (let [prop (-> (property-value-type value-type)
+                 (assoc :name (str label)))]
+    (assert-schema "property" label value-type)
+    (check-for-protocol-type label prop)
+    (check-for-invalid-type label prop)
+    (reduce property-form prop body-forms)))
 
 (defn def-property-type-descriptor
   [name-sym value-type & body-forms]

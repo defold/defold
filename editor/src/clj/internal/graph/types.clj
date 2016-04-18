@@ -6,11 +6,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn pfnk?
-  "True if the function has a schema. (I.e., it is a valid production function"
-  [f]
-  (contains? (meta f) :schema))
-
 (defn always
   "Takes a value and produces a constanly function that has a schema and
    is a considered a valid pfnk"
