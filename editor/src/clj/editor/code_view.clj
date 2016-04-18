@@ -4,7 +4,8 @@
             [editor.core :as core]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse Document]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner]
+           [com.defold.editor.eclipse Document]
            [javafx.scene Parent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
@@ -166,31 +167,18 @@
 (defmethod make-rule :multiline [{:keys [start end esc eof]} token]
   (MultiLineRule. start end token (if esc esc char0) (boolean eof)))
 
-(defn- to-lazy-seq [^ICharacterScanner charscanner read-counter]
-  (lazy-seq
-   (let [next-char (.read charscanner)]
-     (swap! read-counter inc)
-     (if (= next-char ICharacterScanner/EOF)
-       nil
-       (cons (char next-char) (to-lazy-seq charscanner read-counter))))))
-
-(defn- rewind [^ICharacterScanner scanner count]
-  (dotimes [n count] (.unread scanner)))
-
 (defn- make-predicate-rule [scanner-fn ^IToken token]
   (reify IPredicateRule
     (evaluate [this scanner]
       (.evaluate this scanner false))
-    (evaluate [this  scanner resume]
-      (let [read-counter (atom 0)
-            result (scanner-fn (to-lazy-seq scanner read-counter))]
+    (evaluate [this scanner resume]
+      (let [^DefoldRuleBasedScanner sc scanner
+            result (scanner-fn (.readString sc))]
         (if result
-          (do
-            (rewind scanner (- @read-counter (:length result)))
+          (let [len (:length result)]
+            (when (pos? len) (.moveForward sc len))
             token)
-          (do
-            (rewind scanner @read-counter)
-            Token/UNDEFINED))))
+          Token/UNDEFINED)))
     (getSuccessToken ^IToken [this] token)))
 
 (defmethod make-rule :custom [{:keys [scanner]} token]
@@ -218,7 +206,7 @@
   (make-rule rule (when class (get-attr-token class))))
 
 (defn- make-scanner [rules]
-  (let [scanner (RuleBasedScanner.)
+  (let [scanner (DefoldRuleBasedScanner.)
         default-rule (first (filter default-rule? rules))
         rules (remove default-rule? rules)]
     (when default-rule
@@ -272,7 +260,7 @@
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
 
-(defn- setup-source-viewer [opts]
+(defn setup-source-viewer [opts]
   (let [source-viewer (SourceViewer.)
         source-viewer-config (create-viewer-config opts)
         document (Document. "")
@@ -321,7 +309,7 @@
   (input caret-position g/Int)
   (output new-content g/Any :cached update-source-viewer))
 
-(defn- setup-code-view [view-id code-node initial-caret-position]
+(defn setup-code-view [view-id code-node initial-caret-position]
   (g/transact
    (concat
     (g/connect code-node :_node-id view-id :code-node)
