@@ -252,12 +252,12 @@
             :type :singleline
             :start "--"
             :rules
-              [{:type :default :class "comment2"}]}
+              [{:type :default :class "comment-multi"}]}
            #_{:partition "__singlecomment"
             :type :custom
             :scanner match-single-comment
             :rules
-            [{:type :default :class "comment2"}]}
+            [{:type :default :class "comment-multi"}]}
            {:partition :default
             :type :default
             :rules
@@ -267,7 +267,7 @@
              {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
              {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
              {:type :custom :scanner match-single-comment :class "comment"}
-             {:type :custom :scanner match-multi-comment :class "comment2"}
+             {:type :custom :scanner match-multi-comment :class "comment-multi"}
              {:type :number :class "number"}
              {:type :default :class "default"}
              ]}
