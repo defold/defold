@@ -482,7 +482,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                          :type :default
                          :rules
                          [{:type :multiline :start "\"" :end "\"" :eof false :class "string"}
-                          {:type :custom :scanner match-multi-comment :class "comment2"}
+                          {:type :custom :scanner match-multi-comment :class "comment-multi"}
                           {:type :custom :scanner match-single-comment :class "comment"}
                           {:type :whitespace}
                           {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
