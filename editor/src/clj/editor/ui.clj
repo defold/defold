@@ -838,22 +838,26 @@ return value."
   ([tick-fn]
     (->timer nil tick-fn))
   ([fps tick-fn]
-    (let [last (atom (System/nanoTime))
-          interval (when fps
-                     (long (* 1e9 (/ 1 (double fps)))))]
-      {:last last
-       :timer (proxy [AnimationTimer] []
-                (handle [now]
-                  (let [delta (- now @last)]
-                    (when (or (nil? interval) (> delta interval))
-                      (try
-                        (tick-fn (* delta 1e-9))
-                        (reset! last (- now (if interval
-                                              (- delta interval)
-                                              0)))
-                        (catch Exception e
-                          (.stop ^AnimationTimer this)
-                          (throw e)))))))})))
+   (let [last       (atom (System/nanoTime))
+         interval   (when fps
+                      (long (* 1e9 (/ 1 (double fps)))))
+         last-error (atom nil)]
+     {:last  last
+      :timer (proxy [AnimationTimer] []
+               (handle [now]
+                 (let [delta (- now @last)]
+                   (when (or (nil? interval) (> delta interval))
+                     (try
+                       (tick-fn (* delta 1e-9))
+                       (reset! last-error nil)
+                       (reset! last (- now (if interval
+                                             (- delta interval)
+                                             0)))
+                       (catch Exception e
+                         (let [clj-ex (Throwable->map e)]
+                           (when (not= @last-error clj-ex)
+                             (println clj-ex)
+                             (reset! last-error clj-ex)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -861,24 +865,27 @@ return value."
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
-(defn anim!
-  ([duration anim-fn end-fn]
-    (let [duration (long (* 1e9 duration))
-          start (System/nanoTime)
-          end (+ start (long duration))]
-      (doto (proxy [AnimationTimer] []
-             (handle [now]
-               (if (< now end)
-                 (let [t (/ (double (- now start)) duration)]
-                   (try
-                     (anim-fn t)
-                     (catch Exception e
-                       (.stop ^AnimationTimer this)
-                       (throw e))))
-                 (do
-                   (end-fn)
-                   (.stop ^AnimationTimer this)))))
-        (.start)))))
+(defn anim! [duration anim-fn end-fn]
+  (let [duration   (long (* 1e9 duration))
+        start      (System/nanoTime)
+        end        (+ start (long duration))
+        last-error (atom nil)]
+    (doto (proxy [AnimationTimer] []
+            (handle [now]
+              (if (< now end)
+                (let [t (/ (double (- now start)) duration)]
+                  (try
+                    (anim-fn t)
+                    (reset! last-error nil)
+                    (catch Exception e
+                      (let [clj-ex (Throwable->map e)]
+                        (when (not= @last-error clj-ex)
+                          (println clj-ex)
+                          (reset! last-error clj-ex))))))
+                (do
+                  (end-fn)
+                  (.stop ^AnimationTimer this)))))
+      (.start))))
 
 (defn anim-stop! [^AnimationTimer anim]
   (.stop anim))
