@@ -68,14 +68,14 @@
        (let [new-code "--[[\nmultilinecomment\n]]"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= [{:start 0 :length 24 :stylename "comment2"}] (viewer-node-style-maps viewer-node)))))
+         (is (= [{:start 0 :length 24 :stylename "comment-multi"}] (viewer-node-style-maps viewer-node)))))
      (testing "multi line comment style terminates"
        (let [new-code "--[[\nmultilinecomment\n]] morecode"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= {:start 0 :length 24 :stylename "comment2"} (first (viewer-node-style-maps viewer-node)))))))))
+         (is (= {:start 0 :length 24 :stylename "comment-multi"} (first (viewer-node-style-maps viewer-node)))))))))
 
-(deftest shader-glsl-vertex-program
+(deftest glsl-syntax
   (with-clean-system
    (let [code "nothings"
          opts (:code shader/glsl-opts)
@@ -119,9 +119,9 @@
        (let [new-code "/**multilinecomment\n**/"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= [{:start 0 :length 23 :stylename "comment2"}] (viewer-node-style-maps viewer-node)))))
+         (is (= [{:start 0 :length 23 :stylename "comment-multi"}] (viewer-node-style-maps viewer-node)))))
      (testing "multi line comment style terminates"
        (let [new-code "/**multilinecomment\n**/ more stuff"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= {:start 0 :length 23 :stylename "comment2"} (first (viewer-node-style-maps viewer-node)))))))))
+         (is (= {:start 0 :length 23 :stylename "comment-multi"} (first (viewer-node-style-maps viewer-node)))))))))
