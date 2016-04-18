@@ -2,11 +2,12 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner]
-           [com.defold.editor.eclipse Document]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextBehavior]
            [javafx.scene Parent]
+           [javafx.scene.input Clipboard ClipboardContent KeyEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
            [org.eclipse.fx.text.ui TextAttribute]
@@ -14,7 +15,9 @@
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
-           [org.eclipse.fx.ui.controls.styledtext TextSelection]
+           [org.eclipse.fx.ui.controls.styledtext StyledTextArea TextSelection]
+           [org.eclipse.fx.ui.controls.styledtext.behavior StyledTextBehavior]
+           [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin]
            [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
            [org.eclipse.jface.text.rules FastPartitioner ICharacterScanner IPredicateRule IRule IToken IWhitespaceDetector
             IWordDetector MultiLineRule RuleBasedScanner RuleBasedPartitionScanner SingleLineRule Token WhitespaceRule WordRule]))
@@ -273,7 +276,10 @@
     (.configure source-viewer source-viewer-config)
     (.setDocument source-viewer document)
 
-    (let [text-area (.getTextWidget source-viewer)]
+    (let [text-area (.getTextWidget source-viewer)
+          styled-text-behavior (new DefoldStyledTextBehavior text-area)
+          skin (new StyledTextSkin text-area styled-text-behavior)]
+      (.setSkin text-area skin)
       (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
       (ui/user-data! text-area ::programmatic-change (atom nil))
 
@@ -318,11 +324,16 @@
     (g/set-property code-node :caret-position initial-caret-position)))
   view-id)
 
+(extend-type SourceViewer
+  workspace/SelectionProvider
+  (selection [this] this))
+
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
+    (ui/context! source-viewer :code-view {:code-node code-node} source-viewer)
     (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
@@ -336,6 +347,40 @@
       (g/transact
        (concat
         (g/set-property code-node :caret-position caret-position))))))
+
+(handler/defhandler :copy :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer selection)
+          text-selection ^TextSelection (.getSelection text-widget)
+          offset  (.-offset text-selection)
+          length  (.-length text-selection)
+          doc ^IDocument (.getDocument ^SourceViewer selection)
+          copy-text  (.get doc offset length)
+          cb ^Clipboard (Clipboard/getSystemClipboard)
+          content (ClipboardContent.)]
+      (.putString content copy-text)
+      (.setContent cb content))))
+
+(handler/defhandler :paste :code-view
+  (enabled? [selection] selection)
+  (run [selection code-node]
+    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer selection)
+          text-selection ^TextSelection (.getSelection text-widget)
+          doc ^IDocument (.getDocument ^SourceViewer selection)
+          cb ^Clipboard (Clipboard/getSystemClipboard)]
+      (when (.hasString cb)
+        (let [to-paste (.getString cb)
+              code (g/node-value code-node :code)
+              caret (g/node-value code-node :caret-position)
+              new-code (str (.substring ^String code 0 caret)
+                            to-paste
+                            (.substring ^String code caret (count code)))
+              new-caret (+ caret (count to-paste))]
+          (g/transact
+           (concat
+            (g/set-property code-node :code new-code)
+            (g/set-property code-node :caret-position new-caret))))))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
