@@ -142,7 +142,7 @@
   (when f
     (key-set (dissoc (fnk-schema f) s/Keyword))))
 
-(defn vgr [s] (var-get (resolve s)))
+(defn vgr [s] (some-> s resolve var-get))
 
 (defn resolve-schema [x]
   (cond
@@ -157,3 +157,9 @@
 (defn assert-form-kind [place kind-label required-kind label form]
   (assert (required-kind form)
           (str place " " label " requires a " kind-label " not a " (class form) " of " form)))
+
+(defn inputs-needed [x]
+  (cond
+    (pfnk? x)   (fnk-arguments x)
+    (symbol? x) (inputs-needed (some-> x resolve var-get))
+    (seq? x)    (into #{} (map keyword (second x)))))
