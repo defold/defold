@@ -156,7 +156,8 @@
         caps    (doto (GLCapabilities. profile)
                   (.setOnscreen false)
                   (.setPBuffer true)
-                  (.setDoubleBuffered false))]
+                  (.setDoubleBuffered false)
+                  (.setStencilBits 8))]
     ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
 
 (defn- make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
