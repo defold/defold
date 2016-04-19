@@ -237,7 +237,7 @@ var Progress = {
     },
 
     removeProgress: function () {
-        Progress.progress.remove();
+        Progress.progress.parentElement.removeChild(Progress.progress);
     }
 };
 
@@ -253,7 +253,7 @@ var CanvasInput = {
             default: break; // do not block other keys
         }
     },
-    
+
     onFocusIn : function(e) {
         window.addEventListener("keydown", CanvasInput.arrowKeysHandler, false);
     },
