@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
+            [editor.scene-selection :as selection]
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.geom :as geom]
@@ -55,18 +56,6 @@
 (defn overlay-text [^GL2 gl ^String text x y]
   (let [^TextRenderer text-renderer (scene-cache/request-object! ::text-renderer ::overlay-text gl [Font/SANS_SERIF Font/BOLD 12])]
     (gl/overlay gl text-renderer text x y 1.0 1.0)))
-
-(defonce ^:dynamic *controllers* (atom {}))
-
-; TODO: Validate arguments for all functions and log appropriate message
-
-(defmacro defcontroller [controller & body]
-  (let [qname (keyword (str *ns*) (name controller))
-        fns (->> body
-              (mapcat (fn [[fname fargs & fbody]]
-                        [(keyword fname) `(g/fnk ~fargs ~@fbody)]))
-              (apply hash-map))]
-    `(swap! *controllers* assoc ~qname {:fns ~fns})))
 
 (defn substitute-scene [_]
   {:aabb (geom/null-aabb)
@@ -435,19 +424,6 @@
       (.destroy drawable)
       (g/set-property! node-id :drawable nil)))))
 
-(def ^Integer min-pick-size 10)
-
-(defn- imin [^Integer v1 ^Integer v2] (Math/min v1 v2))
-(defn- imax [^Integer v1 ^Integer v2] (Math/max v1 v2))
-
-(defn calc-picking-rect [start current]
-  (let [ps [start current]
-        min-p (Point2i. (reduce imin (map first ps)) (reduce imin (map second ps)))
-        max-p (Point2i. (reduce imax (map first ps)) (reduce imax (map second ps)))
-        dims (doto (Point2i. max-p) (.sub min-p))
-        center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
-    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
-
 (defn- ^Vector3d screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
@@ -569,7 +545,7 @@
                                 x (:x action)
                                 y (:y action)
                                 pos [x y 0.0]
-                                picking-rect (calc-picking-rect pos pos)]
+                                picking-rect (selection/calc-picking-rect pos pos)]
                             ; Only look for tool selection when the mouse is moving with no button pressed
                             (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
                               (let [s (g/node-value view-id :selected-tool-renderables)]
@@ -675,18 +651,13 @@
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height :drawable (make-drawable width height) :select-buffer (make-select-buffer)))
 
-(defn- make-controllers [args]
-  (for [[_ controller] @*controllers*
-        :let [make-fn (get-in controller [:fns :make])]
-        :when make-fn]
-    (make-fn args)))
-
 (defn setup-view [view-id resource-node opts]
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
         project     (:project opts)]
     (g/make-nodes view-graph
                   [background background/Gradient
+                   selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
                    camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
                    grid       grid/Grid
                    tool-controller scene-tools/ToolController]
@@ -711,12 +682,17 @@
                   (g/connect view-id              :active-tool               tool-controller  :active-tool)
                   (g/connect view-id              :viewport                  tool-controller  :viewport)
                   (g/connect camera               :camera                    tool-controller  :camera)
-                  (g/connect view-id             :selected-renderables      tool-controller  :selected-renderables)
+                  (g/connect view-id              :selected-renderables      tool-controller  :selected-renderables)
 
                   (when (not (:grid opts))
                     (g/delete-node grid))
 
-                  (make-controllers {:project project :resource-node resource-node :view view-id}))))
+                  (g/connect resource-node        :_node-id                  selection        :root-id)
+                  (g/connect selection            :renderable                view-id          :tool-renderables)
+                  (g/connect selection            :input-handler             view-id          :input-handlers)
+                  (g/connect selection            :picking-rect              view-id          :picking-rect)
+                  (g/connect view-id              :picking-selection         selection        :picking-selection)
+                  (g/connect view-id              :selection                 selection        :selection))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
