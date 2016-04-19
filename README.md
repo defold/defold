@@ -198,6 +198,9 @@ Note: When running the editor and building a Defold project you must first go to
         $ sudo apt-get install -f
 
 ### Troubleshooting
+#### Risk of stable and beta editor builds overwriting on release
+We use git SHA1 hashes as filenames/paths when we upload editor builds on S3, this means if a merge from beta into stable channel/branch result in the same SHA1, they might overwrite each other. To avoid this, make sure you have an unique git commit before pushing any of the channel branches (currently `master`, `beta` and `dev`). As a last resort, to differentiate, you can add/remove an empty row in a file triggering a new git commit.
+
 #### If you run the editor and get the following error while launching:
 ```
 1) Error injecting constructor, java.net.SocketException: Can't assign requested address
