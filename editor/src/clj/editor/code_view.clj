@@ -324,16 +324,53 @@
     (g/set-property code-node :caret-position initial-caret-position)))
   view-id)
 
+(defprotocol Copyable
+  (put-copy [this s]))
+
+(defprotocol Pastable
+  (has-paste? [this])
+  (get-paste [this]))
+
+(extend-type Clipboard
+  Copyable
+  (put-copy [this s]
+    (let [content (ClipboardContent.)]
+      (.putString content s)
+      (.setContent this content)))
+  Pastable
+  (has-paste? [this]
+    (.hasString this))
+  (get-paste [this]
+    (when (has-paste? this)
+      (.getString this))))
+
+(defprotocol Selectable
+  (selection [this])
+  (selected-offset [this])
+  (selected-length [this])
+  (selected-text [this]))
+
+
 (extend-type SourceViewer
   workspace/SelectionProvider
-  (selection [this] this))
+  (selection [this] this)
+  Selectable
+  (selection [this]
+    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer this)]
+      (.getSelection text-widget)))
+  (selected-offset [this]
+    (.-offset ^TextSelection (selection this)))
+  (selected-length [this]
+    (.-length ^TextSelection(selection this)))
+  (selected-text [this]
+    (.get (.getDocument this) (selected-offset this) (selected-length this))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node} source-viewer)
+    (ui/context! source-viewer :code-view {:code-node code-node :clipboard (Clipboard/getSystemClipboard)} source-viewer)
     (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
@@ -350,37 +387,24 @@
 
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
-  (run [selection]
-    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer selection)
-          text-selection ^TextSelection (.getSelection text-widget)
-          offset  (.-offset text-selection)
-          length  (.-length text-selection)
-          doc ^IDocument (.getDocument ^SourceViewer selection)
-          copy-text  (.get doc offset length)
-          cb ^Clipboard (Clipboard/getSystemClipboard)
-          content (ClipboardContent.)]
-      (.putString content copy-text)
-      (.setContent cb content))))
+  (run [selection clipboard]
+    (put-copy clipboard (selected-text selection))))
 
 (handler/defhandler :paste :code-view
   (enabled? [selection] selection)
-  (run [selection code-node]
-    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer selection)
-          text-selection ^TextSelection (.getSelection text-widget)
-          doc ^IDocument (.getDocument ^SourceViewer selection)
-          cb ^Clipboard (Clipboard/getSystemClipboard)]
-      (when (.hasString cb)
-        (let [to-paste (.getString cb)
-              code (g/node-value code-node :code)
-              caret (g/node-value code-node :caret-position)
-              new-code (str (.substring ^String code 0 caret)
-                            to-paste
-                            (.substring ^String code caret (count code)))
-              new-caret (+ caret (count to-paste))]
-          (g/transact
-           (concat
-            (g/set-property code-node :code new-code)
-            (g/set-property code-node :caret-position new-caret))))))))
+  (run [selection code-node clipboard]
+    (when (has-paste? clipboard)
+      (let [to-paste (get-paste clipboard)
+            code (g/node-value code-node :code)
+            caret (g/node-value code-node :caret-position)
+            new-code (str (.substring ^String code 0 caret)
+                          to-paste
+                          (.substring ^String code caret (count code)))
+            new-caret (+ caret (count to-paste))]
+        (g/transact
+         (concat
+          (g/set-property code-node :code new-code)
+          (g/set-property code-node :caret-position new-caret)))))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
