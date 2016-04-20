@@ -7,6 +7,7 @@
             [editor.protobuf :as protobuf]
             [integration.test-util :as test-util])
   (:import [java.io StringReader]
+           [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]))
 
 (deftest save-all
@@ -16,9 +17,9 @@
                           ["**/env.cubemap" nil]
                           ["**/switcher.atlas" nil]
                           ["**/atlas_sprite.collection" nil]
-                          ["**/atlas_sprite.go" nil]
+                          ["**/atlas_sprite.go" GameObject$PrototypeDesc]
                           ["**/atlas.sprite" nil]
-                          ["**/props.go" nil]
+                          ["**/props.go" GameObject$PrototypeDesc]
                           ["game.project" nil]
                           ["**/super_scene.gui" Gui$SceneDesc]
                           ["**/scene.gui" Gui$SceneDesc]]]

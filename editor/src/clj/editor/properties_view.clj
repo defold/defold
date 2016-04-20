@@ -368,7 +368,7 @@
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
   (let [label (create-property-label (properties/label property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
-        reset-btn (doto (Button. "x")
+        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (.setVisible (properties/overridden? property))
                     (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_]
@@ -385,8 +385,8 @@
                                          (properties/read-only? property))))]
 
     (GridPane/setConstraints label 1 row)
-    (GridPane/setConstraints control 2 row)
-    (GridPane/setConstraints reset-btn 3 row)
+    (GridPane/setConstraints reset-btn 2 row)
+    (GridPane/setConstraints control 3 row)
 
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)

@@ -89,7 +89,32 @@ Defold Orange       #fd6623             Guides etc
   /*-fx-font: 14px 'Avenir Medium' bold;*/
   -fx-font-family: "Avenir Heavy";
   -fx-font-size: 12px;
-  -fx-font-weight: normal; }
+  -fx-font-weight: normal;
+  
+  /* color definitions */
+  -defold-light-blue:        #60a8ff;
+  -defold-blue:              #2268e6;
+  -defold-selected-blue:     #264a8b;
+  -defold-bright-black:      #292c30;
+  -defold-bright-black-over: #2e3236;
+  -defold-mid-black:         #25282b;
+  -defold-mid-black-over:    #292d31;
+  -defold-dark-black:        #222426;
+  -defold-dark-black-over:   #26282a;
+  -defold-dark-grey:         #3b3e43;
+  -defold-dark-grey-over:    #3b3e43;
+  -defold-mid-grey:          #494b4e;
+  -defold-mid-grey-over:     #54565a;
+  -defold-bright-grey:       #8f9296;
+  -defold-bright-grey-over:  #a8abaf;
+  -defold-white:             #f0f2f6;
+  -defold-white-over:        #f8f8fb;
+  -defold-red:               #ff4646;
+  -defold-yellow:            #fbce2f;
+  -defold-turquoise:         #00e6e1;
+  -defold-green:             #00df64;
+  -defold-orange:            #fd6623;
+  }
 
 .toggle-button,
 .color-picker.split-button > .color-picker-label {
@@ -927,3 +952,16 @@ Line numbers:
 .glsl.styled-text-area .list-cell:selected {
     -fx-background-color: #34373b;
 }
+
+/* Overrides */
+
+.overridden {
+  -fx-text-inner-color: -defold-light-blue;
+  -fx-text-color-base: -defold-light-blue;
+  -fx-text-fill: -defold-light-blue; }
+
+.overridden .text-field {
+  -fx-text-fill: -defold-light-blue; }
+
+.overridden .color-picker-label .text {
+  -fx-fill: -defold-light-blue; }
