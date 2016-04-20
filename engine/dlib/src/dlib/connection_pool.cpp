@@ -254,7 +254,7 @@ namespace dmConnectionPool
         return false;
     }
 
-    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, Connection* c, dmSocket::Result* sr)
+    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, uint64_t timeout, Connection* c, dmSocket::Result* sr)
     {
         bool use_socks = getenv("DMSOCKS_PROXY") != 0;
         if (use_socks) {
@@ -268,27 +268,80 @@ namespace dmConnectionPool
                 return RESULT_SOCKET_ERROR;
             }
 
-            *sr = dmSocket::Connect(c->m_Socket, address, port);
-            if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(c->m_Socket);
-                return RESULT_SOCKET_ERROR;
+            if( timeout > 0 )
+            {
+                *sr = dmSocket::SetBlocking(c->m_Socket, false);
+                if (*sr != dmSocket::RESULT_OK) {
+                    dmSocket::Delete(c->m_Socket);
+                    return RESULT_SOCKET_ERROR;
+                }
+
+                *sr = dmSocket::Connect(c->m_Socket, address, port);
+                if (*sr != dmSocket::RESULT_OK) {
+                    dmSocket::Delete(c->m_Socket);
+                    return RESULT_SOCKET_ERROR;
+                }
+
+                dmSocket::Selector selector;
+                dmSocket::SelectorZero(&selector);
+                dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, c->m_Socket);
+
+                *sr = dmSocket::Select(&selector, timeout);
+                if( *sr == dmSocket::RESULT_WOULDBLOCK )
+                {
+                    dmSocket::Delete(c->m_Socket);
+                    return RESULT_SOCKET_ERROR;
+                }
+
+                *sr = dmSocket::SetBlocking(c->m_Socket, true);
+                if (*sr != dmSocket::RESULT_OK) {
+                    dmSocket::Delete(c->m_Socket);
+                    return RESULT_SOCKET_ERROR;
+                }
+            }
+            else
+            {
+                *sr = dmSocket::Connect(c->m_Socket, address, port);
+                if (*sr != dmSocket::RESULT_OK) {
+                    dmSocket::Delete(c->m_Socket);
+                    return RESULT_SOCKET_ERROR;
+                }
             }
         }
 
         return RESULT_OK;
     }
 
-    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, int ssl_handshake_timeout, Connection* c, dmSocket::Result* sr)
+    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, uint64_t timeout, Connection* c, dmSocket::Result* sr)
     {
-        Result r = ConnectSocket(pool, address, port, ssl, c, sr);
+        uint64_t connectstart = dmTime::GetTime();
+
+        Result r = ConnectSocket(pool, address, port, timeout, c, sr);
+        if( r != RESULT_OK )
+        {
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            return r;
+        }
+
+        uint64_t handshakestart = dmTime::GetTime();
+        if( timeout > 0 && (handshakestart - connectstart) > timeout )
+        {
+            r = RESULT_SOCKET_ERROR;
+            dmSocket::Delete(c->m_Socket);
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            return RESULT_SOCKET_ERROR;
+        }
+
         if (r == RESULT_OK) {
 
             if (ssl) {
-                uint64_t handshakestart = dmTime::GetTime();
+
+                // Consume the amount of time spent in the connect code
+                uint64_t ssl_handshake_timeout = timeout == 0 ? 0 : timeout - (handshakestart - connectstart);
 
                 // In order to not have it block (unless timeout == 0)
-                dmSocket::SetSendTimeout(c->m_Socket, ssl_handshake_timeout);
-                dmSocket::SetReceiveTimeout(c->m_Socket, ssl_handshake_timeout);
+                dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
+                dmSocket::SetReceiveTimeout(c->m_Socket, (int)ssl_handshake_timeout);
 
                 // NOTE: No session resume support. We would require a pool of session-id's or similar.
                 SSL* ssl = ssl_client_new(pool->m_SSLContext,
@@ -333,46 +386,56 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int ssl_handshake_timeout, HConnection* connection, dmSocket::Result* sock_res)
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
     {
-        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
-
-        PurgeExpired(pool);
-
         if (!pool->m_AllowNewConnections) {
             return RESULT_SHUT_DOWN;
         }
 
+        // TODO: Make this async, making it able to timeout (it can take up to 30 seconds). Look into getaddrinfo_a
         dmSocket::Address address;
         dmSocket::Result sr = dmSocket::GetHostByName(host, &address);
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
+
+        Connection* c = 0;
+        uint32_t index;
+
         if (sr == dmSocket::RESULT_OK) {
+            DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
+            PurgeExpired(pool);
+
             if (FindConnection(pool, conn_id, address, port, ssl, connection)) {
                 return RESULT_OK;
             }
+
+            if (!FindSlot(pool, &index, &c)) {
+                return RESULT_OUT_OF_RESOURCES;
+            }
+            c->m_State = STATE_INUSE;
+
         } else {
             *sock_res = sr;
             return RESULT_SOCKET_ERROR;
         }
 
-        Connection* c = 0;
-        uint32_t index;
-        if (!FindSlot(pool, &index, &c)) {
-            return RESULT_OUT_OF_RESOURCES;
-        }
+        Result r = Connect(pool, address, port, ssl, timeout, c, sock_res);
 
-        Result r = Connect(pool, address, port, ssl, ssl_handshake_timeout, c, sock_res);
-        if (r == RESULT_OK) {
-            *connection = MakeHandle(pool, index, c);
-            c->m_ID = conn_id;
-            c->m_ReuseCount = 0;
-            c->m_State = STATE_INUSE;
-            c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetTime();
-            c->m_Address = address;
-            c->m_Port = port;
-            c->m_WasShutdown = 0;
-        } else {
-            c->Clear();
+        {
+            DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
+            if (r == RESULT_OK) {
+                *connection = MakeHandle(pool, index, c);
+                c->m_ID = conn_id;
+                c->m_ReuseCount = 0;
+                c->m_State = STATE_INUSE;
+                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetTime();
+                c->m_Address = address;
+                c->m_Port = port;
+                c->m_WasShutdown = 0;
+            } else {
+                c->Clear();
+            }
         }
 
         return r;
@@ -398,6 +461,8 @@ namespace dmConnectionPool
 
     dmSocket::Socket GetSocket(HPool pool, HConnection connection)
     {
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
         Connection* c = GetConnection(pool, connection);
         assert(c->m_State == STATE_INUSE);
         return c->m_Socket;
@@ -407,6 +472,8 @@ namespace dmConnectionPool
     // dmConnectionPool is regarded as private but used from tests
     void* GetSSLConnection(HPool pool, HConnection connection)
     {
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
         Connection* c = GetConnection(pool, connection);
         assert(c->m_State == STATE_INUSE);
         return c->m_SSLConnection;
@@ -414,6 +481,8 @@ namespace dmConnectionPool
 
     uint32_t GetReuseCount(HPool pool, HConnection connection)
     {
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
         Connection* c = GetConnection(pool, connection);
         assert(c->m_State == STATE_INUSE);
         return c->m_ReuseCount;
