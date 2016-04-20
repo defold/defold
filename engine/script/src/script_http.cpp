@@ -66,6 +66,13 @@ namespace dmScript
 
             const char* url = luaL_checkstring(L, 1);
             uint32_t url_len = strlen(url);
+
+            // NOTE: This magic number has to be the same as the URI buffer length for the HTTP Cache struct FileEntry.
+            if (url_len > 2048)
+            {
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "http.request does not support URI longer than 2048 characters.");
+            }
             const char* method = luaL_checkstring(L, 2);
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
