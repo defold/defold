@@ -46,6 +46,11 @@ var LibraryGLFW = {
     windowY: 0,
     windowWidth: 0,
     windowHeight: 0,
+    prevWidth: 0,
+    prevHeight: 0,
+    prevNonFSWidth: 0,
+    prevNonFSHeight: 0,
+    isFullscreen: false,
 
 /*******************************************************************************
  * DOM EVENT CALLBACKS
@@ -283,34 +288,37 @@ var LibraryGLFW = {
       }
     },
 
-    // TODO add fullscreen API ala:
-    // http://johndyer.name/native-fullscreen-javascript-api-plus-jquery-plugin/
     onFullScreenEventChange: function(event) {
       var width;
       var height;
-      if (document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"]) {
-        width = screen["width"];
-        height = screen["height"];
+      GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
+      if (GLFW.isFullscreen) {
+        GLFW.prevNonFSWidth = GLFW.prevWidth;
+        GLFW.prevNonFSHeight = GLFW.prevHeight;
+        width = window.innerWidth;
+        height = window.innerHeight;
       } else {
-        width = GLFW.windowWidth;
-        height = GLFW.windowHeight;
-        // TODO set position
+        width = GLFW.prevNonFSWidth;
+        height = GLFW.prevNonFSHeight;
         document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+        document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
       }
-      Browser.setCanvasSize(width, height);
-
-      if (GLFW.resizeFunc) {
-        Runtime.dynCall('vii', GLFW.resizeFunc, [width, height]);
-      }
+      Module["canvas"].width = width;
+      Module["canvas"].height = height;
     },
 
     requestFullScreen: function() {
+      document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
       var RFS = Module["canvas"]['requestFullscreen'] ||
                 Module["canvas"]['requestFullScreen'] ||
                 Module["canvas"]['mozRequestFullScreen'] ||
                 Module["canvas"]['webkitRequestFullScreen'] ||
+                Module["canvas"]['msRequestFullScreen'] ||
                 (function() {});
       RFS.apply(Module["canvas"], []);
     },
@@ -320,6 +328,7 @@ var LibraryGLFW = {
                 document['cancelFullScreen'] ||
                 document['mozCancelFullScreen'] ||
                 document['webkitCancelFullScreen'] ||
+                document['msExitFullscreen'] ||
           (function() {});
       CFS.apply(document, []);
     }
@@ -427,8 +436,8 @@ var LibraryGLFW = {
     GLFW.params[0x0002000A] = stencilbits; // GLFW_STENCIL_BITS
 
     if (mode == 0x00010001) {// GLFW_WINDOW
-      Browser.setCanvasSize(GLFW.initWindowWidth = width,
-                            GLFW.initWindowHeight = height);
+      GLFW.initWindowWidth = width;
+      GLFW.initWindowHeight = height;
       GLFW.params[0x00030003] = true; // GLFW_STICKY_MOUSE_BUTTONS
     } else if (mode == 0x00010002) {// GLFW_FULLSCREEN
       GLFW.requestFullScreen();
@@ -469,7 +478,6 @@ var LibraryGLFW = {
   },
 
   glfwSetWindowSize: function(width, height) {
-    GLFW.cancelFullScreen();
       Browser.setCanvasSize(width, height);
       if (GLFW.resizeFunc) {
         Runtime.dynCall('vii', GLFW.resizeFunc, [width, height]);
@@ -482,7 +490,25 @@ var LibraryGLFW = {
 
   glfwRestoreWindow: function() {},
 
-  glfwSwapBuffers: function() {},
+  glfwSwapBuffers__deps: ['glfwSetWindowSize'],
+  glfwSwapBuffers: function() {
+
+    var width = Module['canvas'].width;
+    var height = Module['canvas'].height;
+
+    if (GLFW.isFullscreen) {
+      width = window.innerWidth;
+      height = window.innerHeight;
+    }
+
+    if (GLFW.prevWidth != width ||
+        GLFW.prevHeight != height) {
+
+      GLFW.prevWidth = width;
+      GLFW.prevHeight = height;
+      _glfwSetWindowSize(width, height);
+    }
+  },
 
   glfwSwapInterval: function(interval) {},
 
@@ -700,5 +726,4 @@ var LibraryGLFW = {
 
 autoAddDeps(LibraryGLFW, '$GLFW');
 mergeInto(LibraryManager.library, LibraryGLFW);
-
 

@@ -336,6 +336,14 @@ var Module = {
         }
     },
 
+    toggleFullscreen: function() {
+        if (GLFW.isFullscreen) {
+            GLFW.cancelFullScreen();
+        } else {
+            GLFW.requestFullScreen();
+        }
+    },
+
     preloadAll: function() {
         for (var i = 0; i < Module._filesToPreload.length; ++i) {
             var item = Module._filesToPreload[i];
