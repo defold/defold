@@ -122,14 +122,14 @@
       action)))
 
 (g/defnode PlatformerController
-  (property active-cp g/Any (dynamic visible (g/always false)))
-  (property inactive-cps g/Any (dynamic visible (g/always false)))
+  (property active-cp g/Any (dynamic visible (g/fnk [] false)))
+  (property inactive-cps g/Any (dynamic visible (g/fnk [] false)))
 
   (input source g/Any)
   (input camera g/Any)
   (input viewport Region)
 
-  (output input-handler Runnable (g/always handle-input)))
+  (output input-handler Runnable (g/fnk [] handle-input)))
 
 (g/defnk produce-save-data [resource control-points base-texture]
   {:resource resource
@@ -158,7 +158,7 @@
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
 
-  (property control-points  [g/Any] (dynamic visible (g/always false)))
+  (property control-points  [g/Any] (dynamic visible (g/fnk [] false)))
   (property base-texture g/Str)
 
   (input base-texture-img BufferedImage)

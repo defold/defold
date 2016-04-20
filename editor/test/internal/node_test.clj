@@ -1,13 +1,16 @@
 (ns internal.node-test
-  (:require [clojure.string :as str]
-            [clojure.test :refer :all]
+  (:require [clojure
+             [string :as str]
+             [test :refer :all]]
             [dynamo.graph :as g]
-            [internal.util :as util]
+            [internal
+             [node :as in]
+             [property :as ip]
+             [system :as is]
+             [util :as util]]
             [internal.graph.types :as gt]
-            [internal.node :as in]
-            [internal.system :as is]
-            [support.test-support :refer [with-clean-system tx-nodes]])
-  (:import [clojure.lang ExceptionInfo]))
+            [support.test-support :refer [tx-nodes with-clean-system]])
+  (:import clojure.lang.ExceptionInfo))
 
 (def ^:dynamic *calls*)
 
@@ -17,22 +20,17 @@
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_node-id node) fn-symbol] 0))
 
-(g/defproperty StringWithDefault g/Str
-  (default "o rly?"))
-
 (defn string-value [] "uff-da")
 
 (g/defnode WithDefaults
-  (property default-value                 StringWithDefault)
-  (property overridden-literal-value      StringWithDefault (default "ya rly."))
-  (property overridden-indirect           StringWithDefault (default string-value))
-  (property overridden-indirect-by-var    StringWithDefault (default #'string-value))
-  (property overridden-indirect-by-symbol StringWithDefault (default 'string-value)))
+  (property default-value                 g/Str (default "o rly?"))
+  (property overridden-indirect           g/Str (default string-value))
+  (property overridden-indirect-by-var    g/Str (default #'string-value))
+  (property overridden-indirect-by-symbol g/Str (default 'string-value)))
 
 (deftest node-property-defaults
   (are [expected property] (= expected (get (g/construct WithDefaults) property))
        "o rly?"      :default-value
-       "ya rly."     :overridden-literal-value
        "uff-da"      :overridden-indirect
        "uff-da"      :overridden-indirect-by-var
        'string-value :overridden-indirect-by-symbol))
@@ -99,7 +97,7 @@
                (is (= "bar"  foo-override))
                (let [properties (g/node-value n1 :_properties)]
                  (is (not (empty? (:properties properties))))
-                 (is (every? gt/property-type? (map :type (vals (:properties properties)))))
+                 (is (every? util/schema? (map :type (vals (:properties properties)))))
                  (is (empty? (filter (fn [k] (some k #{:_output-jammers :_node-id})) (keys (:properties properties)))))
                  (is (not (empty? (:display-order properties))))))))
 
@@ -208,12 +206,12 @@
 (g/defnode PropertyDynamicsTestNode
   (property one-dynamic  g/Str
             (default "FOO!")
-            (dynamic emphatic? (g/fnk [one-dynamic] (.endsWith one-dynamic "!"))))
+            (dynamic emphatic? (g/fnk [one-dynamic] (.endsWith ^String one-dynamic "!"))))
 
   (property three-dynamics g/Str
-            (dynamic emphatic?  (g/fnk [three-dynamics] (.endsWith three-dynamics "!")))
-            (dynamic querulous? (g/fnk [three-dynamics] (.endsWith three-dynamics "?")))
-            (dynamic mistake?  (g/fnk [three-dynamics] (.startsWith three-dynamics "I've made a huge mistake")))))
+            (dynamic emphatic?  (g/fnk [three-dynamics] (.endsWith ^String three-dynamics "!")))
+            (dynamic querulous? (g/fnk [three-dynamics] (.endsWith ^String three-dynamics "?")))
+            (dynamic mistake?  (g/fnk [three-dynamics] (.startsWith ^String three-dynamics "I've made a huge mistake")))))
 
 (deftest node-property-dynamics-evaluation
   (with-clean-system
@@ -243,10 +241,10 @@
   (input in       g/Keyword)
   (input in-multi g/Keyword :array)
   (property prop g/Keyword)
-  (output defnk-this       g/Any       (g/fnk production-fnk-this [this] this))
-  (output defnk-prop       g/Keyword   (g/fnk production-fnk-prop [prop] prop))
-  (output defnk-in         g/Keyword   (g/fnk production-fnk-in [in] in))
-  (output defnk-in-multi   [g/Keyword] (g/fnk production-fnk-in-multi [in-multi] in-multi)))
+  (output defnk-this       g/Any       (g/fnk [this] this))
+  (output defnk-prop       g/Keyword   (g/fnk [prop] prop))
+  (output defnk-in         g/Keyword   (g/fnk [in] in))
+  (output defnk-in-multi   [g/Keyword] (g/fnk [in-multi] in-multi)))
 
 (deftest production-function-inputs
   (with-clean-system
@@ -336,9 +334,6 @@
   (property multi-valued-property [g/Keyword] (default [:basic]))
   (output basic-output g/Keyword :cached (g/fnk [] "hello")))
 
-(g/defproperty predefined-property-type g/Str
-  (default "a-default"))
-
 (g/defnode MultipleInheritance
   (property property-from-multiple g/Str (default "multiple")))
 
@@ -347,10 +342,9 @@
   (inherits MultipleInheritance)
   (input another-input g/Int :array)
   (property property-to-override g/Str (default "override"))
-  (property property-from-type predefined-property-type)
   (property multi-valued-property [g/Str] (default ["extra" "things"]))
-  (output another-output g/Keyword (g/fnk [this & _] :keyword))
-  (output another-cached-output g/Keyword :cached (g/fnk [this & _] :keyword)))
+  (output another-output g/Keyword (g/fnk [this] :keyword))
+  (output another-cached-output g/Keyword :cached (g/fnk [this] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"
@@ -358,16 +352,15 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
-      (is (= "a-default"         (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-type     gt/property-default-value)))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple gt/property-default-value)))))
+      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   ip/property-default-value)))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   ip/property-default-value)))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple ip/property-default-value)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
                 #{:string-property :property-to-override :multi-valued-property :basic-output}))
     (is (every? (-> (g/construct InheritsBasicNode) g/node-type g/output-labels)
-                #{:string-property :property-to-override :multi-valued-property :basic-output :property-from-type :another-cached-output})))
+                #{:string-property :property-to-override :multi-valued-property :basic-output :another-cached-output})))
 
   (testing "transform-types"
     (with-clean-system
@@ -425,10 +418,10 @@
         (is (thrown? AssertionError (g/set-property! node :no-such-property 4711)))))))
 
 (g/defnode AlwaysNode
-  (output always-99 g/Int (g/always 99))
-  (property foo g/Str (dynamic visible (g/always true))))
+  (output always-99 g/Int (g/fnk [] 99))
+  (property foo g/Str (dynamic visible true)))
 
-(deftest always-fnk-test
+(deftest dynamics-allow-constant-values
   (testing "Always works as a shortcut for fnk constant values"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world AlwaysNode))]
@@ -497,3 +490,44 @@
                (is (= "n-foo/foo" (g/node-value nid :foo)))
                (g/transact (g/set-property nid :foo "foo2"))
                (is (= "n-foo/foo2" (g/node-value nid :foo)))))))
+
+(deftest property-display-order-merging
+  (are [expected _ sources] (= expected (apply g/merge-display-order sources))
+    [:id :path]                                                     -> [[:id :path]]
+    [:id :path :rotation :position]                                 -> [[:id :path] [:rotation :position]]
+    [:rotation :position :id :path]                                 -> [[:rotation :position] [:id :path]]
+    [:rotation :position :scale :id :path]                          -> [[:rotation :position] [:scale] [:id :path]]
+    [["Transform" :rotation :position :scale]]                      -> [[["Transform" :rotation :position]] [["Transform" :scale]]]
+    [["Transform" :rotation :position :scale] :path]                -> [[["Transform" :rotation :position]] [["Transform" :scale] :path]]
+    [:id ["Transform" :rotation :scale] :path ["Foo" :scale] :cake] -> [[:id ["Transform" :rotation]] [["Transform" :scale] :path] [["Foo" :scale] :cake]]
+    [:id :path ["Transform" :rotation :position :scale]]            -> [[:id :path ["Transform"]] [["Transform" :rotation :position :scale]]]
+    [["Material" :specular :ambient] :position :rotation]           -> [[["Material" :specular :ambient]] [:specular :ambient] [:position :rotation]]))
+
+(g/defnode DonorNode
+  (property a-property g/Int (default 0)))
+
+(g/defnode AdoptorNode
+  (property own-property g/Int (default -1))
+
+  (input submitted-properties g/Properties)
+
+  (output _properties g/Properties
+          (g/fnk [_node-id _declared-properties submitted-properties]
+                 (->> submitted-properties
+                     (g/adopt-properties _node-id)
+                     (g/aggregate-properties _declared-properties)))))
+
+(deftest property-adoption
+  (with-clean-system
+    (let [[donor adoptor] (g/tx-nodes-added
+                           (g/transact
+                            (g/make-nodes world [donor DonorNode adoptor AdoptorNode]
+                                          (g/connect donor :_properties adoptor :submitted-properties))))
+          final-props     (g/node-value adoptor :_properties)]
+      (is (contains? (:properties final-props) :own-property))
+      (is (= adoptor (get-in final-props [:properties :own-property :node-id])))
+
+      (is (contains? (:properties final-props) :a-property))
+      (is (= adoptor (get-in final-props [:properties :a-property :node-id]))))))
+
+(run-tests)

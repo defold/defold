@@ -145,33 +145,33 @@
 
 (g/defnode GameProjectRefs
   (property display-profiles (g/protocol resource/Resource)
-          (dynamic visible (g/always false))
+          (dynamic visible (g/fnk [] false))
           (value (gu/passthrough display-profiles-resource))
           (set (project/gen-resource-setter [[:resource :display-profiles-resource]
                                              [:build-targets :dep-build-targets]
                                              [:profile-data :display-profiles-data]])))
   (property main-collection (g/protocol resource/Resource)
-            (dynamic visible (g/always false))
+            (dynamic visible (g/fnk [] false))
             (value (gu/passthrough main-collection-resource))
             (set (project/gen-resource-setter [[:resource :main-collection-resource]
                                                [:build-targets :dep-build-targets]])))
   (property render (g/protocol resource/Resource)
-            (dynamic visible (g/always false))
+            (dynamic visible (g/fnk [] false))
             (value (gu/passthrough render-resource))
             (set (project/gen-resource-setter [[:resource :render-resource]
                                                [:build-targets :dep-build-targets]])))
   (property texture-profiles (g/protocol resource/Resource)
-            (dynamic visible (g/always false))
+            (dynamic visible (g/fnk [] false))
             (value (gu/passthrough texture-profiles-resource))
             (set (project/gen-resource-setter [[:resource :texture-profiles-resource]
                                                [:build-targets :dep-build-targets]])))
   (property gamepads (g/protocol resource/Resource)
-            (dynamic visible (g/always false))
+            (dynamic visible (g/fnk [] false))
             (value (gu/passthrough gamepads-resource))
             (set (project/gen-resource-setter [[:resource :gamepads-resource]
                                                [:build-targets :dep-build-targets]])))
   (property input-binding (g/protocol resource/Resource)
-            (dynamic visible (g/always false))
+            (dynamic visible (g/fnk [] false))
             (value (gu/passthrough input-binding-resource))
             (set (project/gen-resource-setter [[:resource :input-binding-resource]
                                                [:build-targets :dep-build-targets]])))
@@ -195,8 +195,8 @@
   (inherits project/ResourceNode)
   (inherits GameProjectRefs)
 
-  (property raw-settings g/Any (dynamic visible (g/always false)))
-  (property meta-info g/Any (dynamic visible (g/always false)))
+  (property raw-settings g/Any (dynamic visible (g/fnk [] false)))
+  (property meta-info g/Any (dynamic visible (g/fnk [] false)))
 
   (output raw-settings g/Any
           (g/fnk [raw-settings meta-info ref-settings]

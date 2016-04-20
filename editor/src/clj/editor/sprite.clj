@@ -243,7 +243,7 @@
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
-            (dynamic edit-type (g/always
+            (dynamic edit-type (g/fnk []
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                   {:type :choicebox
                                    :options (zipmap (map first options)

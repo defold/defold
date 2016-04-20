@@ -13,6 +13,7 @@
 (defn predicate? [x] (instance? schema.core.Predicate x))
 (defn schema?    [x] (satisfies? s/Schema x))
 (defn property?  [x] (and (associative? x) (contains? x :value-type)))
+(defn protocol?  [x] (and (map? x) (contains? x :on-interface)))
 
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
@@ -142,7 +143,9 @@
   (when f
     (key-set (dissoc (fnk-schema f) s/Keyword))))
 
-(defn vgr [s] (some-> s resolve var-get))
+(defn var?! [v] (when (var? v) v))
+
+(defn vgr [s] (some-> s resolve var?! var-get))
 
 (defn resolve-schema [x]
   (cond
@@ -151,6 +154,7 @@
     (predicate? x) x
     (vector? x)    (mapv resolve-schema x)
     (class? x)     x
+    (protocol? x)  x
     (map? x)       (map-vals resolve-schema x)
     :else          nil))
 
@@ -158,8 +162,16 @@
   (assert (required-kind form)
           (str place " " label " requires a " kind-label " not a " (class form) " of " form)))
 
+(defn pfnk?
+  "True if the function has a schema. (I.e., it is a valid production function"
+  [f]
+  (and (fn? f) (contains? (meta f) :schema)))
+
 (defn inputs-needed [x]
   (cond
-    (pfnk? x)   (fnk-arguments x)
-    (symbol? x) (inputs-needed (some-> x resolve var-get))
-    (seq? x)    (into #{} (map keyword (second x)))))
+    (pfnk? x)                         (fnk-arguments x)
+    (symbol? x)                       (inputs-needed (resolve x))
+    (var? x)                          (inputs-needed (var-get x))
+    (and (seq? x) (= 'var (first x))) (inputs-needed (var-get (resolve (second x))))
+    (seq? x)                          (into #{} (map keyword (second x)))
+    :else                             #{}))

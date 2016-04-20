@@ -5,8 +5,8 @@
             [dynamo.integration.node-become-support :refer :all]))
 
 (g/defnode InputOutputNode
-  (output output-a g/Str (g/always "Cake is tasty"))
-  (output output-b g/Str (g/always "Bread is tasty"))
+  (output output-a g/Str (g/fnk [] "Cake is tasty"))
+  (output output-b g/Str (g/fnk [] "Bread is tasty"))
   (input input-a g/Str)
   (output passthrough-a g/Str (g/fnk [input-a] (str "passthrough: " input-a))))
 
