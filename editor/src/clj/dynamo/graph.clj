@@ -357,13 +357,17 @@
 
   Define a property with schema and, possibly, default value and
   constraints. Property options include the following:
-    (default a-value)
+    (default _value_)
+    Set a default value for the property. If no default is set, then the property will be nil.
 
-    Defines a default value.
+    (value _getter_)
+    Define a custom getter. It must be an fnk. The fnk's arguments are magically wired the same as an output producer.
 
-    (value (fnk [,,,] ,,,))
+    (dynamic _label_ _evaluator_)
+    Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
 
-    Defines a \"custom getter\". The fnk will be called with inputs from the node. Whatever the arguments
+    (set (fn [this basis oldvalue newvalue]))
+    Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
 
   (output _symbol_ _type_ (:cached)? _producer_)
 
