@@ -2,11 +2,13 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code-view :as cv]
+            [editor.handler :as handler]
             [editor.lua :as lua]
             [editor.script :as script]
             [editor.gl.shader :as shader]
             [support.test-support :refer [with-clean-system tx-nodes]])
-  (:import [org.eclipse.jface.text IDocument DocumentEvent TextUtilities]
+  (:import [javafx.scene.input Clipboard]
+           [org.eclipse.jface.text IDocument DocumentEvent TextUtilities]
            [org.eclipse.fx.text.ui TextPresentation]))
 
 
@@ -125,3 +127,21 @@
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
          (is (= {:start 0 :length 23 :stylename "comment-multi"} (first (viewer-node-style-maps viewer-node)))))))))
+
+
+(deftest copy-paste-test
+  (with-clean-system
+    (let [code "the quick brown fox"
+          opts lua/lua
+          source-viewer (cv/setup-source-viewer opts)
+          [code-node viewer-node] (tx-nodes (g/make-node world script/ScriptNode)
+                                            (g/make-node world cv/CodeView :source-viewer source-viewer))]
+      (g/transact (g/set-property code-node :code code))
+      (cv/setup-code-view viewer-node code-node 0)
+      (g/node-value viewer-node :new-content)
+     (.setSelectionRange (.getTextWidget source-viewer) 5 5)
+     ; (g/transact (g/set-property code-node :caret-position 15))
+      (handler/run :copy [{:name :code-view :env {:selection source-viewer}  :code-node code-node}] {})
+     ; (is (= "quick" (.getString (Clipboard/getSystemClipboard))))
+      ))
+)
