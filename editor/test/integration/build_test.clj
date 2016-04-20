@@ -286,37 +286,23 @@
         #_(prn desc)
         #_(is (contains? content-by-target (.getTextureSet desc)))))))
 
-(deftest build-script
-  (with-build-results "/script/props.script"
-    (let [content (get content-by-source "/script/props.script")
-          lua     (Lua$LuaModule/parseFrom content)
-          decl    (-> lua (.getProperties))]
-      (is (< 0 (.getNumberEntriesCount decl)))
-      (is (< 0 (.getHashEntriesCount decl)))
-      (is (< 0 (.getUrlEntriesCount decl)))
-      (is (< 0 (.getVector3EntriesCount decl)))
-      (is (< 0 (.getVector4EntriesCount decl)))
-      (is (< 0 (.getQuatEntriesCount decl)))
-      (is (< 0 (.getBoolEntriesCount decl)))
-      (is (< 0 (.getFloatValuesCount decl)))
-      (is (< 0 (.getHashValuesCount decl)))
-      (is (< 0 (.getStringValuesCount decl))))))
-
 (deftest build-script-properties
   (with-build-results "/script/props.go"
-    (let [content (get content-by-source "/script/props.go")
-          desc    (GameObject$PrototypeDesc/parseFrom content)
-          decl    (-> desc (.getComponents 0) (.getPropertyDecls))]
-      (is (< 0 (.getNumberEntriesCount decl)))
-      (is (< 0 (.getHashEntriesCount decl)))
-      (is (< 0 (.getUrlEntriesCount decl)))
-      (is (< 0 (.getVector3EntriesCount decl)))
-      (is (< 0 (.getVector4EntriesCount decl)))
-      (is (< 0 (.getQuatEntriesCount decl)))
-      (is (< 0 (.getBoolEntriesCount decl)))
-      (is (< 0 (.getFloatValuesCount decl)))
-      (is (< 0 (.getHashValuesCount decl)))
-      (is (< 0 (.getStringValuesCount decl))))))
+    (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
+                                     ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]]]
+      (let [content (get content-by-source res-path)
+            desc (protobuf/bytes->map pb content)
+            decl (get-in desc decl-path)]
+        (is (not-empty (:number-entries decl)))
+        (is (not-empty (:hash-entries decl)))
+        (is (not-empty (:url-entries decl)))
+        (is (not-empty (:vector3-entries decl)))
+        (is (not-empty (:vector4-entries decl)))
+        (is (not-empty (:quat-entries decl)))
+        (is (not-empty (:bool-entries decl)))
+        (is (not-empty (:float-values decl)))
+        (is (not-empty (:hash-values decl)))
+        (is (not-empty (:string-values decl)))))))
 
 (deftest build-gui-templates
   (with-clean-system

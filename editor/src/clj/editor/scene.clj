@@ -231,20 +231,22 @@
         ^Matrix4d trans (or (:transform scene) geom/Identity4d)
         parent-world world-transform
         world-transform (doto (Matrix4d. world-transform) (.mul trans))
-        selected (contains? selection-set (:node-id scene))
+        selected-id (or
+                      (selection-set (:node-id scene))
+                      (some selection-set (:node-path scene)))
         new-renderable (-> scene
                          (dissoc :renderable)
                          (assoc :render-fn (:render-fn renderable)
                                 :world-transform world-transform
-                                :selected selected
+                                :selected (some? selected-id)
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene) world-transform)
                                 :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
-      (when (and selected (types/selection? pass))
-        (conj! out-selected-renderables new-renderable)))
+      (when (and selected-id (types/selection? pass))
+        (conj! out-selected-renderables (assoc new-renderable :node-id selected-id))))
     (doseq [child-scene (:children scene)]
       (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d))))
 
