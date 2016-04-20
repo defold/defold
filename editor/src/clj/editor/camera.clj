@@ -374,7 +374,7 @@
   (output viewport Region (g/fnk [viewport] viewport))
   (output camera Camera :cached produce-camera)
 
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/fnk [] handle-input)))
 
 (defn- lerp [a b t]
   (let [d (- b a)]

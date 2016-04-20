@@ -334,7 +334,7 @@
 
   (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                       (or (= type :defold) (= type :distance-field))))))
-  (property antialias g/Int (dynamic visible (g/always false)))
+  (property antialias g/Int (dynamic visible (g/fnk [] false)))
   (property alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                        (= type :defold)))))
   (property outline-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
@@ -352,7 +352,7 @@
   (property extra-characters g/Str (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                                   (or (= type :defold) (= type :distance-field))))))
   (property output-format g/Keyword
-    (dynamic edit-type (g/always (properties/->pb-choicebox Font$FontTextureFormat))))
+    (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Font$FontTextureFormat))))
 
   (property all-chars g/Bool)
   (property cache-width g/Int)

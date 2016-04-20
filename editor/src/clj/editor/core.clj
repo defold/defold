@@ -109,7 +109,7 @@ Inheritors are required to supply a production function for the :save output."
 
 (g/defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (g/protocol types/PathManipulation) (dynamic visible (g/always false)))
+  (property filename (g/protocol types/PathManipulation) (dynamic visible (g/fnk [] false)))
 
   (output content g/Any :abstract))
 
@@ -121,9 +121,9 @@ Inputs:
 
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (output outline-children [types/OutlineItem] (g/always []))
+  (output outline-children [types/OutlineItem] (g/fnk [] []))
   (output outline-label    g/Str :abstract)
-  (output outline-commands [types/OutlineCommand] (g/always []))
+  (output outline-commands [types/OutlineCommand] (g/fnk [] []))
   (output outline-tree     types/OutlineItem
           (g/fnk [this outline-label outline-commands outline-children :- [types/OutlineItem]]
                {:label outline-label

@@ -5,7 +5,7 @@
 
 (g/defnode SourceNode
   (property a-property g/Str)
-  (output an-output g/Str (g/always "An output")))
+  (output an-output g/Str (g/fnk [] "An output")))
 
 (g/defnode SinkNode
   (input an-input g/Str)
@@ -14,7 +14,7 @@
   (output an-array-output [g/Str] (g/fnk [an-array-input] an-array-input)))
 
 (g/defnode OutputOnlyNode
-  (output an-ouput g/Str (g/always "empty")))
+  (output an-ouput g/Str (g/fnk [] "empty")))
 
 (g/defnode ChainedOutputNode
   (property foo g/Str (default "c"))

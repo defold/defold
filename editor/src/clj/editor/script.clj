@@ -107,8 +107,8 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property code g/Str (dynamic visible (g/always false)))
-  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
+  (property code g/Str (dynamic visible (g/fnk [] false)))
+  (property caret-position g/Int (dynamic visible (g/fnk [] false)) (default 0))
 
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
   (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))

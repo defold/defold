@@ -88,11 +88,11 @@
 
   (property id g/Str)
 
-  (property embedded g/Bool (dynamic visible (g/always false)))
+  (property embedded g/Bool (dynamic visible (g/fnk [] false)))
 
   (property path (g/protocol resource/Resource)
     (dynamic visible (g/fnk [embedded] (not embedded)))
-    (dynamic enabled (g/always false))
+    (dynamic enabled (g/fnk [] false))
     (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id :source-id]
                                        [:resource :source-resource]
