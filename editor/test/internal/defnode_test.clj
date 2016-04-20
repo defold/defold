@@ -181,15 +181,13 @@
         :_node-id             #{:_node-id}
         :_declared-properties #{:_properties}
         :_output-jammers      #{:_output-jammers}
-        :reports-higher       #{:_declared-properties :_properties :reports-higher}
-        :this                 #{:_declared-properties :_properties :reports-higher}))
+        :reports-higher       #{:_declared-properties :_properties :reports-higher}))
 
     (let [deps (g/input-dependencies ComplexGetterFnPropertyNode)]
       (are [x y] (= y (get deps x))
         :_node-id             #{:_node-id}
         :_declared-properties #{:_properties}
         :_output-jammers      #{:_output-jammers}
-        :this                 #{:weirdo :_declared-properties :_properties}
         :weirdo               #{:weirdo :_declared-properties :_properties}
         :a                    #{:weirdo :_declared-properties :_properties}
         :b                    #{:weirdo :_declared-properties :_properties}
@@ -319,13 +317,11 @@
             :string-input         #{:inline-string}
             :integer-input        #{:string-output :cached-output}
             :_declared-properties #{:_properties}
-            :_output-jammers      #{:_output-jammers}
-            :this                 #{:string-output :cached-output :integer-output}}
+            :_output-jammers      #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
     (is (= {:_node-id             #{:_node-id}
             :string-input         #{:inline-string}
             :integer-input        #{:string-output :abstract-output :cached-output}
-            :this                 #{:string-output :abstract-output :cached-output :integer-output}
             :_declared-properties #{:_properties}
             :_output-jammers      #{:_output-jammers}}
            (g/input-dependencies InheritedOutputNode))))
@@ -442,3 +438,5 @@
       [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
+
+(run-tests)

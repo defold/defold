@@ -107,7 +107,8 @@
                                     (g/make-node world SinkNode))]
         (g/transact
          (g/connect source :_node-id sink :a-node-id))
-        (is (= source (g/node-value source :_node-id) (g/node-value sink :a-node-id))))))
+        (is (= source (g/node-value source :_node-id)))
+        (is (= source (g/node-value sink   :a-node-id))))))
 
   (testing "the _output-jammers property overrides ordinary output values"
     (with-clean-system
@@ -146,7 +147,7 @@
                  (is (= "foo" (g/node-value n :foo))))))))
 
 (deftest invalid-property-type
-  (testing "supplying a map to make-nodes"
+  (testing "supplying a map to make-nodes but property type is invalid"
            (with-clean-system
              (binding [in/*suppress-schema-warnings* true]
                (is (thrown? ExceptionInfo (tx-nodes (g/make-node world SimpleTestNode :foo 1))))))))
@@ -173,7 +174,7 @@
       (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
             vnode-results (filter #(= (first %) vnode) (:outputs-modified tx-result))
             modified      (into #{} (map second vnode-results))]
-        (is (= #{:_declared-properties :_properties} modified))))))
+        (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest visibility-properties
   (with-clean-system
@@ -192,7 +193,7 @@
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
             modified      (into #{} (map second enode-results))]
-        (is (= #{:_declared-properties :_properties} modified))))))
+        (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
   (with-clean-system
@@ -284,7 +285,7 @@
   (testing "the output has the same type as the property"
     (is (= g/Keyword
           (-> ProductionFunctionInputsNode g/transform-types :prop)
-          (-> ProductionFunctionInputsNode g/declared-properties :prop :value-type)))))
+          (-> ProductionFunctionInputsNode g/declared-properties :prop ip/value-type)))))
 
 (g/defnode AKeywordNode
   (property prop g/Keyword))
@@ -529,5 +530,3 @@
 
       (is (contains? (:properties final-props) :a-property))
       (is (= adoptor (get-in final-props [:properties :a-property :node-id]))))))
-
-(run-tests)

@@ -12,7 +12,6 @@
 
 (defn predicate? [x] (instance? schema.core.Predicate x))
 (defn schema?    [x] (satisfies? s/Schema x))
-(defn property?  [x] (and (associative? x) (contains? x :value-type)))
 (defn protocol?  [x] (and (map? x) (contains? x :on-interface)))
 
 (defn var-get-recursive [var-or-value]
