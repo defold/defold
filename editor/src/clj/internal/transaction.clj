@@ -439,7 +439,7 @@
 (defn- ctx-add-overrides [ctx source-id source source-label target target-label]
   (let [basis (:basis ctx)
         target-id (gt/node-id target)]
-    (if ((gt/cascade-deletes (gt/node-type target basis)) target-label)
+    (if (contains? (gt/cascade-deletes (gt/node-type target basis)) target-label)
       (loop [overrides (ig/overrides basis target-id)
              ctx ctx]
         (if-let [or (first overrides)]

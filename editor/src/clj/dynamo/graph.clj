@@ -30,7 +30,7 @@
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types always Properties])
+(namespaces/import-vars [internal.graph.types Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids pre-traverse])
 
@@ -205,18 +205,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
-(defmacro defproperty [name value-type & body-forms]
-  "Defines a property that can later be referred to in a `defnode`
-
-   Example:
-
-      (defproperty StringWithDefault g/Str (default \"foo\"))
-
-      (defnode TestNode
-        (property a-prop StringWithDefault))"
-
-  (apply ip/def-property-type-descriptor name value-type body-forms))
-
 (declare become)
 
 (defn construct
@@ -266,8 +254,18 @@
   (property _symbol_ _property-type_ & _options_)
 
   Define a property with schema and, possibly, default value and
-  constraints.  Property type and options have the same syntax as for
-  `dynamo.graph/defproperty`.
+  constraints. The property type must be a Java class or Prismatic schema. The allowed property options are:
+    (default _value_)
+    Set a default value for the property. If no default is set, then the property will be nil.
+
+    (value _getter_)
+    Define a custom getter. It must be an fnk. The fnk's arguments are magically wired the same as an output producer.
+
+    (dynamic _label_ _evaluator_)
+    Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
+
+    (set (fn [this basis oldvalue newvalue]))
+    Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
 
   (output _symbol_ _type_ (:cached)? _producer_)
 
@@ -358,8 +356,14 @@
   (property _symbol_ _property-type_ & _options_)
 
   Define a property with schema and, possibly, default value and
-  constraints.  Property type and options have the same syntax as for
-  `dynamo.graph/defproperty`.
+  constraints. Property options include the following:
+    (default a-value)
+
+    Defines a default value.
+
+    (value (fnk [,,,] ,,,))
+
+    Defines a \"custom getter\". The fnk will be called with inputs from the node. Whatever the arguments
 
   (output _symbol_ _type_ (:cached)? _producer_)
 
@@ -687,7 +691,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)
-                            (repeat (always defective-value))))
+                            (repeat (fnk [] defective-value))))
       (invalidate node-id)))))
 
 (defn mark-defective!

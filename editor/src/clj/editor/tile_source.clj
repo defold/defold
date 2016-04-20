@@ -132,7 +132,7 @@
   (property end-tile g/Int)
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
-            (dynamic edit-type (g/always
+            (dynamic edit-type (g/fnk []
                                 (let [options (protobuf/enum-values Tile$Playback)]
                                   {:type :choicebox
                                    :options (zipmap (map first options)
@@ -140,7 +140,7 @@
   (property fps g/Int (default 30))
   (property flip-horizontal g/Bool (default false))
   (property flip-vertical g/Bool (default false))
-  (property cues g/Any (dynamic visible (g/always false)))
+  (property cues g/Any (dynamic visible (g/fnk [] false)))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
   (output ddf-message g/Any produce-animation-ddf))
@@ -280,8 +280,8 @@
                      )))
 
   (property material-tag g/Str (default "tile"))
-  (property convex-hulls g/Any (dynamic visible (g/always false)))
-  (property convex-hull-points g/Any (dynamic visible (g/always false)))
+  (property convex-hulls g/Any (dynamic visible (g/fnk [] false)))
+  (property convex-hull-points g/Any (dynamic visible (g/fnk [] false)))
   (property extrude-borders g/Int (default 0))
   (property inner-padding g/Int (default 0))
 

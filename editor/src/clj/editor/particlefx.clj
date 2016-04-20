@@ -273,7 +273,7 @@
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
-  (property type g/Keyword (dynamic visible (g/always false)))
+  (property type g/Keyword (dynamic visible (g/fnk [] false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
@@ -359,26 +359,26 @@
      :children child-scenes}))
 
 (g/defnode EmitterProperties
-  (property emitter-key-spawn-rate CurveSpread (dynamic label (g/always "Spawn Rate")))
-  (property emitter-key-size-x CurveSpread (dynamic label (g/always "Emitter Size X")))
-  (property emitter-key-size-y CurveSpread (dynamic label (g/always "Emitter Size Y")))
-  (property emitter-key-size-z CurveSpread (dynamic label (g/always "Emitter Size Z")))
-  (property emitter-key-particle-life-time CurveSpread (dynamic label (g/always "Particle Life Time")))
-  (property emitter-key-particle-speed CurveSpread (dynamic label (g/always "Initial Speed")))
-  (property emitter-key-particle-size CurveSpread (dynamic label (g/always "Initial Size")))
-  (property emitter-key-particle-red CurveSpread (dynamic label (g/always "Initial Red")))
-  (property emitter-key-particle-green CurveSpread (dynamic label (g/always "Initial Green")))
-  (property emitter-key-particle-blue CurveSpread (dynamic label (g/always "Initial Blue")))
-  (property emitter-key-particle-alpha CurveSpread (dynamic label (g/always "Initial Alpha")))
-  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/always "Initial Rotation"))))
+  (property emitter-key-spawn-rate CurveSpread (dynamic label (g/fnk [] "Spawn Rate")))
+  (property emitter-key-size-x CurveSpread (dynamic label (g/fnk [] "Emitter Size X")))
+  (property emitter-key-size-y CurveSpread (dynamic label (g/fnk [] "Emitter Size Y")))
+  (property emitter-key-size-z CurveSpread (dynamic label (g/fnk [] "Emitter Size Z")))
+  (property emitter-key-particle-life-time CurveSpread (dynamic label (g/fnk [] "Particle Life Time")))
+  (property emitter-key-particle-speed CurveSpread (dynamic label (g/fnk [] "Initial Speed")))
+  (property emitter-key-particle-size CurveSpread (dynamic label (g/fnk [] "Initial Size")))
+  (property emitter-key-particle-red CurveSpread (dynamic label (g/fnk [] "Initial Red")))
+  (property emitter-key-particle-green CurveSpread (dynamic label (g/fnk [] "Initial Green")))
+  (property emitter-key-particle-blue CurveSpread (dynamic label (g/fnk [] "Initial Blue")))
+  (property emitter-key-particle-alpha CurveSpread (dynamic label (g/fnk [] "Initial Alpha")))
+  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/fnk [] "Initial Rotation"))))
 
 (g/defnode ParticleProperties
-  (property particle-key-scale Curve (dynamic label (g/always "Life Scale")))
-  (property particle-key-red Curve (dynamic label (g/always "Life Red")))
-  (property particle-key-green Curve (dynamic label (g/always "Life Green")))
-  (property particle-key-blue Curve (dynamic label (g/always "Life Blue")))
-  (property particle-key-alpha Curve (dynamic label (g/always "Life Alpha")))
-  (property particle-key-rotation Curve (dynamic label (g/always "Life Rotation"))))
+  (property particle-key-scale Curve (dynamic label (g/fnk [] "Life Scale")))
+  (property particle-key-red Curve (dynamic label (g/fnk [] "Life Red")))
+  (property particle-key-green Curve (dynamic label (g/fnk [] "Life Green")))
+  (property particle-key-blue Curve (dynamic label (g/fnk [] "Life Blue")))
+  (property particle-key-alpha Curve (dynamic label (g/fnk [] "Life Alpha")))
+  (property particle-key-rotation Curve (dynamic label (g/fnk [] "Life Rotation"))))
 
 (defn- get-property [properties kw]
   (let [v (get-in properties [kw :value])]
@@ -424,15 +424,15 @@
 
   (property id g/Str)
   (property mode g/Keyword
-            (dynamic edit-type (g/always (->choicebox Particle$PlayMode)))
-            (dynamic label (g/always "Play Mode")))
+            (dynamic edit-type (g/fnk [] (->choicebox Particle$PlayMode)))
+            (dynamic label (g/fnk [] "Play Mode")))
   (property duration g/Num)
   (property space g/Keyword
-            (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
-            (dynamic label (g/always "Emission Space")))
+            (dynamic edit-type (g/fnk [] (->choicebox Particle$EmissionSpace)))
+            (dynamic label (g/fnk [] "Emission Space")))
 
   (property tile-source (g/protocol resource/Resource)
-            (dynamic label (g/always "Image"))
+            (dynamic label (g/fnk [] "Image"))
             (value (gu/passthrough tile-source-resource))
             (set (project/gen-resource-setter [[:resource :tile-source-resource]
                                                [:texture-set-data :texture-set-data]
@@ -454,14 +454,14 @@
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
-            (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+            (dynamic edit-type (g/fnk [] (->choicebox Particle$BlendMode))))
 
-  (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
+  (property particle-orientation g/Keyword (dynamic edit-type (g/fnk [] (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
   (property type g/Keyword
-            (dynamic edit-type (g/always (->choicebox Particle$EmitterType)))
-            (dynamic label (g/always "Emitter Type")))
+            (dynamic edit-type (g/fnk [] (->choicebox Particle$EmitterType)))
+            (dynamic label (g/fnk [] "Emitter Type")))
   (property start-delay g/Num)
 
   (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode

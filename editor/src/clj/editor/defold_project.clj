@@ -34,7 +34,7 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/always []))
+  (output build-targets g/Any (g/fnk [] []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
                                 {:node-id _node-id

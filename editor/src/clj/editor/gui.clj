@@ -344,9 +344,9 @@
   (inherits scene/ScalableSceneNode)
   (inherits outline/OutlineNode)
 
-  (property index g/Int (dynamic visible (g/always false)) (default 0))
-  (property type g/Keyword (dynamic visible (g/always false)))
-  (property animation g/Str (dynamic visible (g/always false)) (default ""))
+  (property index g/Int (dynamic visible (g/fnk [] false)) (default 0))
+  (property type g/Keyword (dynamic visible (g/fnk [] false)))
+  (property animation g/Str (dynamic visible (g/fnk [] false)) (default ""))
 
   (input id-prefix g/Str)
   (property id g/Str (default "")
@@ -360,7 +360,7 @@
                    (if (nil? new-value)
                      (g/clear-property self :color)
                      (g/update-property self :color (fn [v] (assoc v 3 new-value))))))
-            (dynamic edit-type (g/always {:type :slider
+            (dynamic edit-type (g/fnk [] {:type :slider
                                           :min 0.0
                                           :max 1.0
                                           :precision 0.01})))
@@ -434,15 +434,15 @@
   (inherits GuiNode)
 
   (property blend-mode g/Keyword (default :blend-mode-alpha)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
   (property pivot g/Keyword (default :pivot-center)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
   (property x-anchor g/Keyword (default :xanchor-none)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$XAnchor))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$XAnchor))))
   (property y-anchor g/Keyword (default :yanchor-none)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
   (input material-shader ShaderLifecycle)
   (input gpu-texture g/Any)
@@ -494,7 +494,7 @@
                          []))))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
 
@@ -548,7 +548,7 @@
   (inherits ShapeNode)
 
   (property outer-bounds g/Keyword (default :piebounds-ellipse)
-            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
+            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
   (property inner-radius g/Num (default 0.0))
   (property perimeter-vertices g/Num (default 10.0))
   (property pie-fill-angle g/Num (default 360.0))
@@ -638,7 +638,7 @@
     (value (g/fnk [outline] (get outline 3)))
     (set (fn [basis self _ new-value]
           (g/update-property self :outline (fn [v] (assoc v 3 new-value)))))
-    (dynamic edit-type (g/always {:type :slider
+    (dynamic edit-type (g/fnk [] {:type :slider
                                   :min 0.0
                                   :max 1.0
                                   :precision 0.01})))
@@ -647,7 +647,7 @@
     (value (g/fnk [shadow] (get shadow 3)))
     (set (fn [basis self _ new-value]
           (g/update-property self :shadow (fn [v] (assoc v 3 new-value)))))
-    (dynamic edit-type (g/always {:type :slider
+    (dynamic edit-type (g/fnk [] {:type :slider
                                   :min 0.0
                                   :max 1.0
                                   :precision 0.01})))
@@ -703,7 +703,7 @@
 
   (property template TemplateData
             (dynamic read-only? override?)
-            (dynamic edit-type (g/always {:type (g/protocol resource/Resource)
+            (dynamic edit-type (g/fnk [] {:type (g/protocol resource/Resource)
                                           :ext "gui"
                                           :to-type (fn [v] (:resource v))
                                           :from-type (fn [r] {:resource r :overrides {}})}))
@@ -776,7 +776,7 @@
   (output outline-overridden? g/Bool :cached (g/fnk [template-outline]
                                                     (let [children (get-in template-outline [:children 0 :children])]
                                                       (boolean (some :outline-overridden? children)))))
-  (output node-outline-reqs g/Any :cached (g/always []))
+  (output node-outline-reqs g/Any :cached (g/fnk [] []))
   (output pb-msgs g/Any :cached (g/fnk [id pb-msg scene-pb-msg]
                                        (into [pb-msg] (map #(cond-> % (empty? (:parent %)) (assoc :parent id)) (:nodes scene-pb-msg)))))
   (output rt-pb-msgs g/Any :cached (g/fnk [scene-rt-pb-msg pb-msg]
@@ -894,7 +894,7 @@
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (property index g/Int (dynamic visible (g/always false)) (default 0))
+  (property index g/Int (dynamic visible (g/fnk [] false)) (default 0))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name index]
                                                           {:node-id _node-id
                                                            :label name
@@ -933,7 +933,7 @@
 (g/defnode NodesNode
   (inherits outline/OutlineNode)
 
-  (property id g/Str (default (g/always "")))
+  (property id g/Str (default (g/fnk [] "")))
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
   (output node-outline outline/OutlineData :cached
@@ -1101,10 +1101,10 @@
                                        [:build-targets :dep-build-targets]]))
     (validate (validation/validate-resource material)))
 
-  (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
-  (property pb g/Any (dynamic visible (g/always false)))
-  (property def g/Any (dynamic visible (g/always false)))
-  (property background-color types/Color (dynamic visible (g/always false)) (default [1 1 1 1]))
+  (property adjust-reference g/Keyword (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
+  (property pb g/Any (dynamic visible (g/fnk [] false)))
+  (property def g/Any (dynamic visible (g/fnk [] false)))
+  (property background-color types/Color (dynamic visible (g/fnk [] false)) (default [1 1 1 1]))
 
   (input script-resource (g/protocol resource/Resource))
 

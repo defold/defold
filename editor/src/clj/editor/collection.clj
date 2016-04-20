@@ -152,7 +152,7 @@
                 (when (and (not embedded) (nil? path))
                   (g/error-warning "Missing prototype")))))
 
-  (property embedded g/Bool (dynamic visible (g/always false)))
+  (property embedded g/Bool (dynamic visible (g/fnk [] false)))
 
   (input source g/Any)
   (input source-resource (g/protocol resource/Resource))

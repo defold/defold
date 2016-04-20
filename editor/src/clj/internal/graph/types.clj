@@ -6,13 +6,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn always
-  "Takes a value and produces a constanly function that has a schema and
-   is a considered a valid pfnk"
-  [v]
-  (let [always-fn (constantly v)]
-   (vary-meta always-fn assoc :schema (s/=> (class v) {}))))
-
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
@@ -103,8 +96,6 @@
 
      Returns a collection of [node-id output-label] pairs.")
   (original-node    [this node-id]))
-
-(defn protocol? [x] (and (map? x) (contains? x :on-interface)))
 
 (def Properties {:properties {s/Keyword {:node-id                              NodeID
                                          (s/optional-key :validation-problems) s/Any

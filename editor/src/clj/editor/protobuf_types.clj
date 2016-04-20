@@ -152,8 +152,8 @@
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (dynamic visible (g/always false)))
-  (property def g/Any (dynamic visible (g/always false)))
+  (property pb g/Any (dynamic visible (g/fnk [] false)))
+  (property def g/Any (dynamic visible (g/fnk [] false)))
 
   (output form-data g/Any :cached produce-form-data)
 
@@ -161,7 +161,7 @@
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/always {})))
+  (output scene g/Any (g/fnk [] {})))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]

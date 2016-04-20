@@ -368,13 +368,11 @@
     (are [x] (affects-properties-output x)
       :an-input :third-input :fourth-input :fifth-input)))
 
-(g/defproperty NeedsADifferentInput g/Num
-  (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false)))
-
 (deftest compile-error-using-property-with-missing-argument-for-dynamic
   (is (thrown? AssertionError
                (eval '(dynamo.graph/defnode BadDynamicArgument
-                        (property foo internal.defnode-test/NeedsADifferentInput))))))
+                        (property foo
+                                  (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false))))))))
 
 ;;; example taken from editor/collection.clj
 (def Vec3    [(g/one g/Num "x")
