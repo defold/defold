@@ -141,22 +141,24 @@ namespace dmGameSystem
     }
 
     /*# set a tile in a tile map
-     * Replace a tile in a tile map with a new tile. The coordinates of the tile is 1-indexed so a 4 by 4
-     * tile map centered around origo has the following x,y coordinates:
+     * Replace a tile in a tile map with a new tile.
+     * The coordinates of the tiles are indexed so that the "first" tile just 
+     * above and to the right of origo has coordinates 1,1.
+     * Tiles to the left of and below origo are indexed 0, -1, -2 and so forth.
+     * 
      * <pre>
      * +-------+-------+------+------+
-     * | -2,1  | -1,1  | 0,1  | 1,1  |
+     * |  0,3  |  1,3  | 1,2  | 3,3  |
      * +-------+-------+------+------+
-     * | -2,0  | -1,0  | 0,0  | 1,0  |
-     * +-------+-------O------+------+
-     * | -2,-1 | -1,-1 | 0,-1 | 1,-1 |
+     * |  0,2  |  1,2  | 2,2  | 3,2  |
      * +-------+-------+------+------+
-     * | -2,-2 | -1,-2 | 0,-2 | 1,-2 |
+     * |  0,1  |  1,1  | 2,1  | 3,1  |
+     * +-------O-------+------+------+
+     * |  0,0  |  1,0  | 2,0  | 3,0  |
      * +-------+-------+------+------+
      * </pre>
      * The coordinates must be within the bounds of the tile map as it were created. That is, it is not
      * possible to extend the size of a tile map by setting tiles outside the edges.
-     * The tile to set is identified by its index starting with 1 in the top left corner of the tile set.
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by
      * the URL and the layer name parameters.
      *
@@ -270,10 +272,11 @@ namespace dmGameSystem
     }
 
     /*# get a tile from a tile map
-     * Get the tile set at the specified position in the tilemap. The returned tile to set is identified
-     * by its index starting with 1 in the top left corner of the tile set, or 0 if the tile is blank.
-     * The coordinates of the tile is 1-indexed (see <code>tilemap.set_tile()</code>)
-     * Which tile map and layer to query is identified by the URL and the layer name parameters.
+     * Get the tile set at the specified position in the tilemap.
+     * The position is identified by the tile index starting at origo
+     * with index 1, 1. (see <code>tilemap.set_tile()</code>)
+     * Which tile map and layer to query is identified by the URL and the 
+     * layer name parameters.
      *
      * @name tilemap.get_tile
      * @param url the tile map (url)
