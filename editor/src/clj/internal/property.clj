@@ -27,21 +27,21 @@
 (defn property-default-value [this] (some-> this ::default util/var-get-recursive util/apply-if-fn))
 (defn default-getter?        [this] (not (contains? this ::value)))
 
-(def  value-type ::value-type)
-(def  dynamics   ::dynamic)
-(def  default    ::default)
-(def  validation ::validate)
-(def  getter-for ::value)
-(def  setter-for ::setter)
+(def  value-type   ::value-type)
+(def  dynamics     ::dynamic)
+(def  default      ::default)
+(def  validation   ::validate)
+(def  getter-for   ::value)
+(def  setter-for   ::setter)
+(def  dependencies ::dependencies)
 
 (defn has-dynamics?       [x]   (not (empty? (dynamics x))))
 (defn dynamic             [x d] (-> x dynamics (get d)))
 (defn dynamic-arguments   [x d] (-> x (dynamic d) :arguments))
 (defn dynamic-evaluator   [x d] (-> x (dynamic d) :fn))
 
-(defn validation-evaluator [x]   (-> x validation :fn))
-
-
+(defn validation-evaluator [x]  (-> x validation :fn))
+(defn validation-arguments [x]  (-> x validation :arguments))
 
 ;; ----------------------------------------
 ;; Compiling
@@ -61,9 +61,7 @@
 (defn assert-schema
   [form]
   (if-not (util/schema? form)
-    (let [resolved-schema   (util/resolve-schema form)
-          underlying-schema (if (util/property? resolved-schema) (:value-type resolved-schema) resolved-schema)
-          value-type        (util/resolve-schema underlying-schema)]
+    (let [value-type (util/resolve-schema form)]
       (assert (util/schema? value-type)
               (str "property requires a schema, not a " (type value-type))))))
 
@@ -107,8 +105,7 @@
 
 (defn- check-for-invalid-type
   [{:keys [::value-type ::value-type-name]}]
-  (assert (or (util/property? value-type)
-              (util/schema?   value-type))
+  (assert (util/schema?   value-type)
           (str value-type-name " doesn't seem like a real value type")))
 
 (defn resolve-value-type

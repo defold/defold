@@ -352,8 +352,7 @@
   [ctx node-id node property old-value new-value]
   (let [basis      (:basis ctx)
         value-type (some-> ((gt/property-types node basis) property)
-                           ip/property-value-type
-                           :value-type
+                           ip/value-type
                            s/maybe)]
    (if-let [validation-error (and value-type (s/check value-type new-value))]
      (let [node-type (gt/node-type node basis)]
@@ -472,7 +471,7 @@
 
 (defn- ctx-remove-overrides [ctx source source-label target target-label]
   (let [basis (:basis ctx)]
-    (if ((gt/cascade-deletes (gt/node-type target basis)) target-label)
+    (if (contains? (gt/cascade-deletes (gt/node-type target basis)) target-label)
       (let [source-id (gt/node-id source)
             target-id (gt/node-id target)
             src-or-nodes (map (partial ig/node-by-id-at basis) (ig/overrides basis source-id))]
