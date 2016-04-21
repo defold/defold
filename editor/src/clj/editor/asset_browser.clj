@@ -381,10 +381,12 @@
 (defn- drag-done [^DragEvent e selection])
 
 (defn- drag-entered [^DragEvent e]
-  (ui/add-style! (target (.getTarget e)) "drop-target"))
+  (when-let [cell (target (.getTarget e))]
+    (ui/add-style! cell "drop-target")))
 
 (defn- drag-exited [^DragEvent e]
-  (ui/remove-style! (target (.getTarget e)) "drop-target"))
+  (when-let [cell (target (.getTarget e))]
+    (ui/remove-style! cell "drop-target")))
 
 (defn- drag-over [^DragEvent e]
   (let [db (.getDragboard e)]
