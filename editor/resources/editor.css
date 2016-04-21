@@ -90,7 +90,7 @@ Defold Orange       #fd6623             Guides etc
   -fx-font-family: "Avenir Heavy";
   -fx-font-size: 12px;
   -fx-font-weight: normal;
-  
+
   /* color definitions */
   -defold-light-blue:        #60a8ff;
   -defold-blue:              #2268e6;
@@ -951,6 +951,12 @@ Line numbers:
 .lua.styled-text-area .list-cell:selected,
 .glsl.styled-text-area .list-cell:selected {
     -fx-background-color: #34373b;
+}
+
+/* Drag and drop targets */
+
+.drop-target {
+  -fx-background-color: -defold-blue;
 }
 
 /* Overrides */
