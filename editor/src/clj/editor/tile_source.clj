@@ -250,7 +250,7 @@
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol resource/Resource)
+  (property image resource/Resource
     (value (gu/passthrough image-resource))
     (set (project/gen-resource-setter [[:resource :image-resource]
                                        [:content :image-content]]))
@@ -271,7 +271,7 @@
 
   (property tile-spacing g/Int (default 0))
 
-  (property collision (g/protocol resource/Resource) ; optional
+  (property collision resource/Resource ; optional
     (value (gu/passthrough collision-resource))
     (set (project/gen-resource-setter [[:resource :collision-resource]
                                        [:content :collision-content]]))
@@ -288,9 +288,9 @@
   (input collision-groups g/Str :array)
   (input animation-ddfs g/Any :array)
   (input animation-ids g/Str :array)
-  (input image-resource (g/protocol resource/Resource))
+  (input image-resource resource/Resource)
   (input image-content BufferedImage)
-  (input collision-resource (g/protocol resource/Resource))
+  (input collision-resource resource/Resource)
   (input collision-content BufferedImage)
 
   (output aabb AABB :cached produce-aabb)

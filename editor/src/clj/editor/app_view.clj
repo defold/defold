@@ -48,7 +48,7 @@
 
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any :cached (g/fnk [outline] outline))
-  (output active-resource (g/protocol resource/Resource) (g/fnk [^Tab active-tab]
+  (output active-resource resource/Resource (g/fnk [^Tab active-tab]
                                                                  (when active-tab
                                                                    (ui/user-data active-tab ::resource))))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]

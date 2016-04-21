@@ -102,11 +102,7 @@
     [g/Str]
     '[String])
 
-   (are [x] (= {:foo java.lang.String} (resolve-schema x))
-    {:foo #'dynamo.graph/Str}
-    {:foo 'dynamo.graph/Str}
-    {:foo #'g/Str}
-    {:foo 'g/Str}
+   (are [x] (= {:foo g/Str} (resolve-schema x))
     {:foo g/Str})
 
   (are [x] (nil? (resolve-schema x))
@@ -116,3 +112,16 @@
     'j.random/symbol
     :keyword
     nil))
+
+(g/defnk external-fnk [a b c d])
+
+(deftest determining-inputs-required
+  (testing "fnks"
+    (are [f i] (= i (inputs-needed f))
+      external-fnk                                                            #{:a :b :c :d}
+      'external-fnk                                                           #{:a :b :c :d}
+      #'external-fnk                                                          #{:a :b :c :d}
+      (g/fnk [one two three])                                                 #{:one :two :three}
+      '(g/fnk [one two three])                                                #{:one :two :three}
+      (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])  #{:commands :roles :blah}
+      '(g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}]) #{:commands :roles :blah})))

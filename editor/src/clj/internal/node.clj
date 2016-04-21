@@ -240,7 +240,7 @@
     (attach-output
      node-type-description
      '_declared-properties 'internal.graph.types/Properties #{} #{}
-     [`(g/fnk [~@argument-names] (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))])))
+     [`(dynamo.graph/fnk [~@argument-names] (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))])))
 
 (defn- warn-missing-arguments
   [node-type-description property-name dynamic-name missing-args]
@@ -426,11 +426,12 @@
               (assoc ::ip/dependencies (::ip/dependencies v))
 
               (contains? v ::ip/dynamic)
-              (reduce-kv (fn [dynamics kind m]
-                           (assoc dynamics kind {:fn       `(get-in ~node-sym [:declared-properties ~label ::ip/dynamic kind#])
-                                                 :arguments (:arguments m)}))
-                         {}
-                         (ip/dynamics node-type)))))
+              (assoc ::ip/dynamic
+                     (reduce-kv (fn [dynamics kind m]
+                                  (assoc dynamics kind {:fn       `(get-in ~node-sym [:declared-properties ~label ::ip/dynamic kind#])
+                                                        :arguments (:arguments m)}))
+                                {}
+                                (ip/dynamics node-type))))))
    {}
    (get node-type :declared-properties)))
 
@@ -438,7 +439,7 @@
   [base supertype]
   (assert-symbol "inherits" supertype)
   (let [superval (util/vgr supertype)]
-    (assert superval (str "Cannot inherit from " supertype " it cannot be resolved in this context."))
+    (assert superval (str "Cannot inherit from " supertype " it cannot be resolved in this context (from namespace " *ns* ".)"))
     (-> base
         (update :supertypes           util/conjv supertype)
         (update :transforms           merge      (lookup-transforms supertype superval))
@@ -446,7 +447,7 @@
         (update :inputs               merge      (:inputs              superval))
         (update :injectable-inputs    set/union  (:injectable-inputs   superval))
         (update :passthroughs         set/union  (:passthroughs        superval))
-        (update :outputs              merge      (:declared-outputs    superval))
+        (update :outputs              merge      (:outputs             superval))
         (update :transform-types      merge      (:transform-types     superval))
         (update :cached-outputs       set/union  (:cached-outputs      superval))
         (update :substitutes          merge      (:substitutes         superval))
@@ -475,9 +476,6 @@
   (assert-schema "defnode" "input" schema)
   (let [label           (keyword label)
         resolved-schema (util/resolve-schema schema)]
-    (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
-    (assert (not (util/protocol? resolved-schema))
-            (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
     (cond->
         (assoc-in description [:inputs label] schema)
 
@@ -799,7 +797,9 @@
     `(gt/produce-value (gt/node-type ~self-name (:basis ~ctx-name)) ~self-name ~argument ~ctx-name)
 
     :else
-    (throw (ex-info "No matching clause found" {:output output :argument argument} ))))
+    (throw (ex-info
+            (str "A function needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument))
+            {:output output :argument argument}))))
 
 (defn check-local-cache [ctx-name nodeid-sym transform]
   `(get-in @(:local ~ctx-name) [~nodeid-sym ~transform]))
@@ -833,7 +833,7 @@
 
 (defn property-has-default-getter? [node-type transform] (ip/default-getter? (property-type node-type transform)))
 (defn property-has-no-overriding-output? [node-type transform] (not (contains? (:outputs node-type) transform)))
-(defn has-validation? [node-type prop] (ip/validation (get (:declared-properties node-type) prop)))
+(defn has-validation? [node-type prop] (ip/validation (get-in node-type [:declared-properties prop])))
 
 (defn apply-default-property-shortcut [self-name ctx-name transform node-type forms]
   (let [property-name transform]
@@ -985,7 +985,7 @@
     (collect-base-property-value self-name ctx-name nodeid-sym node-type argument)
 
     (has-declared-output? node-type argument)
-    `(gt/produce-value ~node-type (:basis ~ctx-name) ~self-name ~argument ~ctx-name)
+    `(gt/produce-value (gt/node-type ~self-name (:basis ~ctx-name)) ~self-name ~argument ~ctx-name)
 
     (has-multivalued-input? node-type argument)
     (maybe-use-substitute

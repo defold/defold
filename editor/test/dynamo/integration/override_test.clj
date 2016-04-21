@@ -329,7 +329,7 @@
   (property value g/Str))
 
 (g/defnode SceneResourceNode
-  (extern resource (g/protocol Resource)))
+  (extern resource Resource))
 
 (g/defnode Scene
   (inherits SceneResourceNode)
@@ -381,7 +381,7 @@
                                 (g/connect or-scene from self to))
                               (g/connect self :template-path or-scene :id-prefix)))
                           [])))))))
-  (input template-resource (g/protocol Resource) :cascade-delete)
+  (input template-resource Resource :cascade-delete)
   (input node-ids IDMap)
   (input instance g/NodeID)
   (input node-overrides g/Any)

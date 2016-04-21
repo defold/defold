@@ -319,12 +319,12 @@
 (g/defnode FontNode
   (inherits project/ResourceNode)
 
-  (property font (g/protocol resource/Resource)
+  (property font resource/Resource
     (value (gu/passthrough font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]]))
     (validate (validation/validate-resource font)))
 
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
     (value (gu/passthrough material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:build-targets :dep-build-targets]
@@ -359,8 +359,8 @@
   (property cache-height g/Int)
 
   (input dep-build-targets g/Any :array)
-  (input font-resource (g/protocol resource/Resource))
-  (input material-resource (g/protocol resource/Resource))
+  (input font-resource resource/Resource)
+  (input material-resource resource/Resource)
   (input material-samplers [{g/Keyword g/Any}])
   (input material-shader ShaderLifecycle)
 

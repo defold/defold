@@ -140,7 +140,7 @@
   (inherits scene/ScalableSceneNode)
   (inherits InstanceNode)
 
-  (property path (g/protocol resource/Resource)
+  (property path resource/Resource
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
@@ -155,7 +155,7 @@
   (property embedded g/Bool (dynamic visible (g/fnk [] false)))
 
   (input source g/Any)
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (input properties g/Any)
   (input save-data g/Any)
   (input build-targets g/Any)
@@ -313,7 +313,7 @@
   (inherits scene/ScalableSceneNode)
   (inherits InstanceNode)
 
-  (property path (g/protocol resource/Resource)
+  (property path resource/Resource
     (value (gu/passthrough source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
@@ -323,7 +323,7 @@
     (validate (validation/validate-resource path "Missing prototype" [scene])))
 
   (input source g/Any)
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (input scene g/Any)
   (input build-targets g/Any)
 

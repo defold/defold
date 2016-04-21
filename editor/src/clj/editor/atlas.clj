@@ -92,7 +92,7 @@
   (inherits outline/OutlineNode)
 
   (property order g/Int (dynamic visible (g/fnk [] false)) (default 0))
-  (input src-resource (g/protocol resource/Resource))
+  (input src-resource resource/Resource)
   (input src-image BufferedImage)
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
   (output path g/Str (g/fnk [src-resource] (resource/proj-path src-resource)))

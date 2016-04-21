@@ -329,7 +329,7 @@
                                   [:index :layer-index]])
 
 (def ^:private IDMap {g/Str g/NodeID})
-(def ^:private TemplateData {:resource (g/maybe (g/protocol resource/Resource)) :overrides {g/Str g/Any}})
+(def ^:private TemplateData {:resource (g/maybe resource/Resource) :overrides {g/Str g/Any}})
 
 (def GuiNode)
 (def NodesNode)
@@ -703,7 +703,7 @@
 
   (property template TemplateData
             (dynamic read-only? override?)
-            (dynamic edit-type (g/fnk [] {:type (g/protocol resource/Resource)
+            (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui"
                                           :to-type (fn [v] (:resource v))
                                           :from-type (fn [r] {:resource r :overrides {}})}))
@@ -759,7 +759,7 @@
   (input scene-build-targets g/Any)
   (output scene-build-targets g/Any (g/fnk [scene-build-targets] scene-build-targets))
 
-  (input template-resource (g/protocol resource/Resource) :cascade-delete)
+  (input template-resource resource/Resource :cascade-delete)
   (input template-outline outline/OutlineData)
   (input template-scene g/Any)
   (input template-overrides g/Any)
@@ -819,7 +819,7 @@
   (inherits outline/OutlineNode)
 
   (property name g/Str)
-  (property texture (g/protocol resource/Resource)
+  (property texture resource/Resource
             (value (gu/passthrough texture-resource))
             (set (project/gen-resource-setter [[:resource :texture-resource]
                                                [:packed-image :image]
@@ -828,7 +828,7 @@
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource texture)))
 
-  (input texture-resource (g/protocol resource/Resource))
+  (input texture-resource resource/Resource)
   (input image BufferedImage)
   (input anim-data g/Any)
   (input anim-ids g/Any)
@@ -859,7 +859,7 @@
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (property font (g/protocol resource/Resource)
+  (property font resource/Resource
             (value (gu/passthrough font-resource))
             (set (project/gen-resource-setter [[:resource :font-resource]
                                                [:font-map :font-map]
@@ -869,7 +869,7 @@
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource font)))
 
-  (input font-resource (g/protocol resource/Resource))
+  (input font-resource resource/Resource)
   (input font-map g/Any)
   (input font-data font/FontData)
   (input font-shader ShaderLifecycle)
@@ -1086,14 +1086,14 @@
 (g/defnode GuiSceneNode
   (inherits project/ResourceNode)
 
-  (property script (g/protocol resource/Resource)
+  (property script resource/Resource
             (value (gu/passthrough script-resource))
             (set (project/gen-resource-setter [[:resource :script-resource]
                                                [:build-targets :dep-build-targets]]))
             (validate (validation/validate-resource script)))
 
 
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
     (value (gu/passthrough material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:shader :material-shader]
@@ -1106,7 +1106,7 @@
   (property def g/Any (dynamic visible (g/fnk [] false)))
   (property background-color types/Color (dynamic visible (g/fnk [] false)) (default [1 1 1 1]))
 
-  (input script-resource (g/protocol resource/Resource))
+  (input script-resource resource/Resource)
 
   (input nodes-node g/NodeID)
   (input fonts-node g/NodeID)
@@ -1134,7 +1134,7 @@
   (input font-ids {g/Str g/NodeID} :array)
   (input layer-ids {g/Str g/NodeID} :array)
 
-  (input material-resource (g/protocol resource/Resource))
+  (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (input samplers [{g/Keyword g/Any}])
