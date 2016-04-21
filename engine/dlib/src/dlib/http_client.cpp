@@ -752,15 +752,31 @@ bail:
         cache_etag[0] = '\0';
         cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, cache_etag, sizeof(cache_etag));
 
-        if (strcmp(cache_etag, response->m_ETag) != 0)
+        if (cache_result != dmHttpCache::RESULT_OK)
         {
-            dmLogFatal("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
+            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no ETag present. Server error?");
             return RESULT_IO_ERROR;
+        }
+
+        if (response->m_ETag[0] != '\0')
+        {
+            // The Entity Tag (ETag) is optional in HTTP 1.1.
+            // It is the servers responsibility to verify the ETag in case it is included. The
+            // ETag is a mechanism to reduce the bandwidth required by the server, not
+            // by the client. There is no guarantee that an ETag will be included in a
+            // 403 response even though it's been sent with a previous 200 response.
+            // Even though it might be possible at times, the client has no formal responsibility
+            // to perform this verification.
+            if (strcmp(cache_etag, response->m_ETag) != 0)
+            {
+                dmLogFatal("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
+                return RESULT_IO_ERROR;
+            }
         }
 
         FILE* file = 0;
         uint64_t checksum;
-        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, response->m_ETag, &file, &checksum);
+        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, cache_etag, &file, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
@@ -772,7 +788,7 @@ bail:
                 client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread);
             }
             while (nread > 0);
-            dmHttpCache::Release(client->m_HttpCache, client->m_URI, response->m_ETag, file);
+            dmHttpCache::Release(client->m_HttpCache, client->m_URI, cache_etag, file);
         }
         else
         {
