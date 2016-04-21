@@ -74,20 +74,6 @@
   (when (re-find #"^-?\d+\.?0*$" s)
     (read-string (str/replace s #"^(-?)0*(\d+)\.?0*$" "$1$2"))))
 
-(defn push-with-size-limit
-  "Given bounds, a vector, and a value, returns a new vector with value at the tail.
-  The vector will contain no more than max-size elements. If the result would exceed
-  this limit, elements are dropped from the front of the vector to reduce to min-size.
-
-  Intended for use along with `clojure.core/peek` and `clojure.core/pop` to treat a
-  vector as a stack with limited size."
-  [min-size max-size stack value]
-  (let [stack (conj stack value)
-        size (count stack)]
-    (if (< max-size size)
-      (vec (drop (- size min-size) stack))
-      stack)))
-
 (defn replace-top
   [stack value]
   (conj (pop stack) value))
