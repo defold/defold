@@ -62,7 +62,7 @@ namespace dmHttpCache
         // ETag string
         char     m_ETag[MAX_TAG_LEN];
         // Path string
-        char     m_URI[2048];
+        char     m_URI[MAX_URI_LEN];
         // The content hash is the hash of URI and ETag.
         uint64_t m_IdentifierHash;
         // Last accessed time
