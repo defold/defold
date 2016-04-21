@@ -285,7 +285,23 @@ var Module = {
 
     setStatus: function(text) { console.log(text); },
 
-    runApp: function(app_canvas_name, splash_image, archive_location_filter) {
+    hasWebGLSupport: function() {
+        var webgl_support = false;
+        try {
+            var canvas = document.createElement("canvas");
+            var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            if (gl && gl instanceof WebGLRenderingContext) {
+                webgl_support = true;
+            }
+        } catch (error) {
+            console.log("An error occurred while detecting WebGL support: " + error);
+            webgl_support = false;
+        }
+
+        return webgl_support;
+    },
+
+    runApp: function(app_canvas_name, splash_image, archive_location_filter, unsupported_webgl_callback) {
         app_canvas_name = (typeof app_canvas_name === 'undefined') ?  'canvas' : app_canvas_name;
         splash_image = (typeof splash_image === 'undefined') ?  'splash_image.png' : splash_image;
         archive_location_filter = (typeof archive_location_filter === 'undefined') ?  function(path) { return 'split' + path; } : archive_location_filter;
@@ -293,24 +309,36 @@ var Module = {
         Module.canvas = document.getElementById(app_canvas_name);
         Module.canvas.style.background = 'no-repeat center url("' + splash_image + '")';
 
-        // Override game keys
-        CanvasInput.addToCanvas(Module.canvas);
+        if (Module.hasWebGLSupport()) {
+            // Override game keys
+            CanvasInput.addToCanvas(Module.canvas);
 
-        // Load Facebook API
-        var fb = document.createElement('script');
-        fb.type = 'text/javascript';
-        fb.src = '//connect.facebook.net/en_US/sdk.js';
-        document.head.appendChild(fb);
+            // Load Facebook API
+            var fb = document.createElement('script');
+            fb.type = 'text/javascript';
+            fb.src = '//connect.facebook.net/en_US/sdk.js';
+            document.head.appendChild(fb);
 
-        // Add progress visuals
-        Progress.addProgress(Module.canvas);
+            // Add progress visuals
+            Progress.addProgress(Module.canvas);
 
-        // Load and assemble archive
-        Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
-        Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
-        Combine.addProgressListener(Module.onArchiveLoadProgress);
-        Combine._archiveLocationFilter = archive_location_filter;
-        Combine.process(archive_location_filter('/archive_files.json'));
+            // Load and assemble archive
+            Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
+            Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
+            Combine.addProgressListener(Module.onArchiveLoadProgress);
+            Combine._archiveLocationFilter = archive_location_filter;
+            Combine.process(archive_location_filter('/archive_files.json'));
+        } else {
+            Progress.addProgress(Module.canvas);
+            Progress.updateProgress(100, "Unable to start game, WebGL not supported");
+            Module.setStatus = function(text) {
+                if (text) Module.printErr('[missing WebGL] ' + text);
+            };
+
+            if (typeof unsupported_webgl_callback === "function") {
+                unsupported_webgl_callback();
+            }
+        }
     },
 
     onArchiveLoadProgress: function(downloaded, total) {
@@ -352,7 +380,7 @@ var Module = {
             FS.mount(IDBFS, {}, dir);
             FS.syncfs(true, function(err) {
                 if(err) {
-                     throw "FS syncfs error: " + err;
+                    throw "FS syncfs error: " + err;
                 }
             });
         }
