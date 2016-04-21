@@ -15,7 +15,7 @@
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
-           [org.eclipse.fx.ui.controls.styledtext StyledTextArea TextSelection]
+           [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection]
            [org.eclipse.fx.ui.controls.styledtext.behavior StyledTextBehavior]
            [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin]
            [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
@@ -324,46 +324,52 @@
     (g/set-property code-node :caret-position initial-caret-position)))
   view-id)
 
-(defprotocol Copyable
-  (put-copy [this s]))
-
-(defprotocol Pastable
-  (has-paste? [this])
-  (get-paste [this]))
+(defprotocol TextContainer
+  (put! [this s])
+  (has? [this])
+  (get! [this]))
 
 (extend-type Clipboard
-  Copyable
-  (put-copy [this s]
+  TextContainer
+  (put! [this s]
     (let [content (ClipboardContent.)]
       (.putString content s)
       (.setContent this content)))
-  Pastable
-  (has-paste? [this]
+  (has? [this]
     (.hasString this))
-  (get-paste [this]
-    (when (has-paste? this)
+  (get! [this]
+    (when (has? this)
       (.getString this))))
 
-(defprotocol Selectable
-  (selection [this])
-  (selected-offset [this])
-  (selected-length [this])
-  (selected-text [this]))
+(defprotocol TextView
+  (text-selection [this])
+  (text-selection! [this offset length]))
 
+(defprotocol TextStyles
+  (styles [this]))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
   (selection [this] this)
-  Selectable
-  (selection [this]
-    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer this)]
-      (.getSelection text-widget)))
-  (selected-offset [this]
-    (.-offset ^TextSelection (selection this)))
-  (selected-length [this]
-    (.-length ^TextSelection(selection this)))
-  (selected-text [this]
-    (.get (.getDocument this) (selected-offset this) (selected-length this))))
+  TextView
+  (text-selection [this]
+    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer this)
+          selection (.getSelection text-widget)
+          offset (.-offset ^TextSelection selection)
+          length (.-length ^TextSelection selection)]
+     (.get (.getDocument this) offset length)))
+  (text-selection! [this offset length]
+    (.setSelectionRange (.getTextWidget this) offset length))
+  TextStyles
+  (styles [this] (let [document (-> this (.getDocument))
+                       document-len (.getLength document)
+                       text-widget (.getTextWidget this)
+                       len (dec (.getCharCount text-widget))
+                       style-ranges (.getStyleRanges text-widget (int 0) len false)
+                       style-fn (fn [sr] {:start (.-start ^StyleRange sr)
+                                         :length (.-length ^StyleRange sr)
+                                         :stylename (.-stylename ^StyleRange sr)})]
+                   (mapv style-fn style-ranges))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
@@ -388,13 +394,13 @@
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
   (run [selection clipboard]
-    (put-copy clipboard (selected-text selection))))
+    (put! clipboard (text-selection selection))))
 
 (handler/defhandler :paste :code-view
   (enabled? [selection] selection)
   (run [selection code-node clipboard]
-    (when (has-paste? clipboard)
-      (let [to-paste (get-paste clipboard)
+    (when (has? clipboard)
+      (let [to-paste (get! clipboard)
             code (g/node-value code-node :code)
             caret (g/node-value code-node :caret-position)
             new-code (str (.substring ^String code 0 caret)
