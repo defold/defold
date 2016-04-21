@@ -366,6 +366,8 @@
                TransferMode/COPY)
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
+    (when (= 1 (count resources))
+      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)))))
     (.putFiles content files)
     (.setContent db content)
     (.consume e)))
@@ -377,6 +379,12 @@
       (target (.getParent node)))))
 
 (defn- drag-done [^DragEvent e selection])
+
+(defn- drag-entered [^DragEvent e]
+  (ui/add-style! (target (.getTarget e)) "drop-target"))
+
+(defn- drag-exited [^DragEvent e]
+  (ui/remove-style! (target (.getTarget e)) "drop-target"))
 
 (defn- drag-over [^DragEvent e]
   (let [db (.getDragboard e)]
@@ -451,7 +459,9 @@
         over-handler (ui/event-handler e (drag-over e))
         done-handler (ui/event-handler e (drag-done e (workspace/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))
-        detected-handler (ui/event-handler e (drag-detected e (workspace/selection tree-view)))]
+        detected-handler (ui/event-handler e (drag-detected e (workspace/selection tree-view)))
+        entered-handler (ui/event-handler e (drag-entered e))
+        exited-handler (ui/event-handler e (drag-exited e))]
     (.setOnDragDetected tree-view detected-handler)
     (.setOnDragDone tree-view done-handler)
     (.setOnMouseClicked tree-view handler)
@@ -466,7 +476,9 @@
                                                                    (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource) 16)))))]
                                                    (doto cell
                                                      (.setOnDragOver over-handler)
-                                                     (.setOnDragDropped dropped-handler))))))
+                                                     (.setOnDragDropped dropped-handler)
+                                                     (.setOnDragEntered entered-handler)
+                                                     (.setOnDragExited exited-handler))))))
 
     (ui/register-context-menu tree-view ::resource-menu)))
 
