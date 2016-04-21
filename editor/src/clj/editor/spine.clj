@@ -582,14 +582,14 @@
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json (g/protocol resource/Resource)
+  (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
             (set (project/gen-resource-setter [[:resource :spine-json-resource]
                                                [:content :spine-scene]]))
             (validate (validation/validate-resource spine-json "Missing spine json"
                                                     [spine-scene])))
 
-  (property atlas (g/protocol resource/Resource)
+  (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
             (set (project/gen-resource-setter [[:resource :atlas-resource]
                                                [:anim-data :anim-data]
@@ -600,8 +600,8 @@
 
   (property sample-rate g/Num)
 
-  (input spine-json-resource (g/protocol resource/Resource))
-  (input atlas-resource (g/protocol resource/Resource))
+  (input spine-json-resource resource/Resource)
+  (input atlas-resource resource/Resource)
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -654,7 +654,7 @@
 (g/defnode SpineModelNode
   (inherits project/ResourceNode)
 
-  (property spine-scene (g/protocol resource/Resource)
+  (property spine-scene resource/Resource
             (value (g/fnk [spine-scene-resource] spine-scene-resource))
             (set (project/gen-resource-setter [[:resource :spine-scene-resource]
                                                [:scene :spine-scene-scene]
@@ -667,7 +667,7 @@
                                    {:type :choicebox
                                     :options (zipmap (map first options)
                                                      (map (comp :display-name second) options))}))))
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
             (value (g/fnk [material-resource] material-resource))
             (set (project/gen-resource-setter [[:resource :material-resource]
                                                [:shader :material-shader]
@@ -683,10 +683,10 @@
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
 
   (input dep-build-targets g/Any :array)
-  (input spine-scene-resource (g/protocol resource/Resource))
+  (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
   (input aabb AABB)
-  (input material-resource (g/protocol resource/Resource))
+  (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (input sampler-data {g/Keyword g/Any})

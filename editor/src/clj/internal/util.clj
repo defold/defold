@@ -154,7 +154,7 @@
     (vector? x)    (mapv resolve-schema x)
     (class? x)     x
     (protocol? x)  x
-    (map? x)       (map-vals resolve-schema x)
+    (map? x)       x
     :else          nil))
 
 (defn assert-form-kind [place kind-label required-kind label form]
@@ -166,11 +166,31 @@
   [f]
   (and (fn? f) (contains? (meta f) :schema)))
 
+(defn- quoted-var? [x] (and (seq? x) (= 'var (first x))))
+(defn- pfnk-form?  [x] (seq? x))
+
+(defn- maybe-expand-macros
+  [[call & more :as body]]
+  (if (or (= "fn" (name call)) (= "fnk" (name call)))
+    body
+    (macroexpand-1 body)))
+
+(defn- parse-fnk-arguments
+  [f]
+  (let [f (maybe-expand-macros f)]
+    (loop [args  #{}
+           forms (seq (second f))]
+      (if-let [arg (first forms)]
+        (if (= :- (first forms))
+          (recur args (drop 2 forms))
+          (recur (conj args (keyword (first forms))) (next forms)))
+        args))))
+
 (defn inputs-needed [x]
   (cond
-    (pfnk? x)                         (fnk-arguments x)
-    (symbol? x)                       (inputs-needed (resolve x))
-    (var? x)                          (inputs-needed (var-get x))
-    (and (seq? x) (= 'var (first x))) (inputs-needed (var-get (resolve (second x))))
-    (seq? x)                          (into #{} (map keyword (second x)))
-    :else                             #{}))
+    (pfnk? x)       (fnk-arguments x)
+    (symbol? x)     (inputs-needed (resolve x))
+    (var? x)        (inputs-needed (var-get x))
+    (quoted-var? x) (inputs-needed (var-get (resolve (second x))))
+    (pfnk-form? x)  (parse-fnk-arguments x)
+    :else           #{}))

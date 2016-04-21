@@ -355,14 +355,24 @@
             (validate (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
   (property internal-multiple g/Num
             (dynamic one-dynamic (g/fnk [fourth-input] false))
-            (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings"))))
+            (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings")))
+
+  (output   passthrough g/Num (g/fnk [fifth-input] fifth-input)))
+
+(g/defnode InheritedPropertyDynamicsNode
+  (inherits PropertyDynamicsNode)
+  (property another-property g/Num)
+  (output   output-from-inherited-property g/Num :cached (g/fnk [an-input third-input] an-input))
+  (output   output-from-inherited-input    g/Num :cached (g/fnk [third-input] third-input))
+  (output   output-from-inherited-output   g/Num :cached (g/fnk [passthrough] passthrough))
+  (output   output-from-combined-labels    g/Num         (g/fnk [another-property an-input passthrough] passthrough)))
 
 (deftest node-properties-depend-on-dynamic-inputs
   (let [dependencies              (g/input-dependencies PropertyDynamicsNode)
-        affects-properties-output #(contains? (get dependencies %) :_properties)
-        all-inputs                []]
-    (are [x] (affects-properties-output x)
-      :an-input :third-input :fourth-input :fifth-input)))
+        affects-properties-output #(contains? (get dependencies %) :_properties)]
+    (are [t x] (every? #(contains? (-> t g/input-dependencies (get %)) :_properties) x)
+      PropertyDynamicsNode          #{:an-input :third-input :fourth-input :fifth-input}
+      InheritedPropertyDynamicsNode #{:an-input :third-input :fourth-input :fifth-input :another-property})))
 
 (deftest compile-error-using-property-with-missing-argument-for-dynamic
   (is (thrown? AssertionError
@@ -439,4 +449,79 @@
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
 
-(run-tests)
+(defprotocol AProtocol)
+
+(g/defnode ProtocolPropertyNode
+  (property protocol-property AProtocol))
+
+(g/defnode ProtocolOutputNode
+  (output protocol-output AProtocol (g/fnk [] nil)))
+
+(g/defnode ProtocolInputNode
+  (input protocol-input AProtocol)
+  (input protocol-input-multi [AProtocol] :array))
+
+(g/defnk fnk-without-arguments [])
+(g/defnk fnk-with-arguments [a b c d])
+
+(g/defnode OutputFunctionArgumentsNode
+  (property in1 g/Any)
+  (property in2 g/Any)
+  (property in3 g/Any)
+  (property a   g/Any)
+  (property b   g/Any)
+  (property c   g/Any)
+  (property d   g/Any)
+  (property commands [g/Str])
+  (property roles    g/Any)
+  (property blah     {g/Keyword g/Num})
+  (output inline-arguments                   g/Any (g/fnk [in1 in2 in3]))
+  (output arguments-from-nilary-fnk          g/Any fnk-without-arguments)
+  (output arguments-from-fnk                 g/Any fnk-with-arguments)
+  (output arguments-from-fnk-as-var          g/Any #'fnk-with-arguments)
+  (output inline-arguments-with-input-schema g/Any (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])))
+
+(deftest output-function-arguments
+  (testing "arguments with inline function definition"
+    (are [o x] (= x (get-in OutputFunctionArgumentsNode [:transforms o :arguments]))
+      :inline-arguments                   #{:in1 :in2 :in3}
+      :arguments-from-nilary-fnk          #{}
+      :arguments-from-fnk                 #{:a :b :c :d}
+      :arguments-from-fnk-as-var          #{:a :b :c :d}
+      :inline-arguments-with-input-schema #{:commands :roles :blah})))
+
+(deftest inheritance-across-namespaces
+  (let [original-ns *ns*
+        ns1 (gensym "ns")
+        ns2 (gensym "ns")]
+    (eval `(do
+             (ns ~ns1)
+             ;; define a node type in one namespace
+             (dynamo.graph/defnode ~'ANode (~'property ~'anode-property dynamo.graph/Num))
+
+             ;; inherit from it in another
+             (ns ~ns2 (:require [~ns1 :as ~'n]))
+             (dynamo.graph/defnode ~'BNode (~'inherits ~'n/ANode))
+
+             ;; and restore our original namespace
+             (in-ns '~(symbol (.name original-ns)))))))
+
+(g/defnode ValidationUsesInputs
+  (input single-valued g/Any)
+  (input multi-valued  [g/Any] :array)
+  (input single-valued-with-sub g/Any :substitute false)
+  (input multi-valued-with-sub  [g/Any] :array :substitute 0)
+
+  (property valid-on-single-valued-input g/Any
+            (validate (g/fnk [single-valued] true)))
+
+  (property valid-on-multi-valued-input g/Any
+            (validate (g/fnk [multi-valued] true)))
+
+  (property valid-on-single-valued-with-sub g/Any
+            (validate (g/fnk [single-valued-with-sub] true)))
+
+  (input  overloading-single-valued g/Any)
+  (output overloading-single-valued g/Any :cached (g/fnk [overloading-single-valued] overloading-single-valued))
+  (property valid-on-overloading-single-valued g/Any
+            (validate (g/fnk [single-valued overloading-single-valued] overloading-single-valued))))

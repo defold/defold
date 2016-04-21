@@ -161,7 +161,7 @@
          (mapv (fn [x] (->zip-resources workspace "" x))))))
 
 (g/defnode ResourceNode
-  (extern resource (g/protocol Resource) (dynamic visible (g/fnk [] false))))
+  (extern resource Resource (dynamic visible (g/fnk [] false))))
 
 (defn- seq-children [resource]
   (seq (children resource)))
