@@ -58,6 +58,10 @@
 (def prop-with-validator-as-var          (ip/property-type-descriptor 'g/Num '[(validate #'fooable-fn)]))
 (def prop-with-constant-valued-validator (ip/property-type-descriptor 'g/Num '[(validate false)]))
 
+(defmacro make-fnk [fld msg] `(g/fnk [~fld] (assert ~fld ~msg)))
+
+(def prop-with-validator-macro           (ip/property-type-descriptor 'g/Num '[(validate (make-fnk an-input "Need a thing"))]))
+
 (deftest test-property-type-definition
   (testing "basic property syntax"
     (let [property-defn (ip/property-type-descriptor 'g/Any '[])]
@@ -72,9 +76,14 @@
       prop-with-default-from-fn          '(constantly 23)
       prop-with-default-as-symbol        'default-value))
 
-  (testing "naked protocols aren't allowed"
-    (is (thrown-with-msg? AssertionError #"\(dynamo.graph/protocol internal.property-test/MyProtocol\)"
-                          (eval '(ip/property-type-descriptor 'internal.property-test/MyProtocol '[])))))
+  (testing "a type is required"
+    (is (thrown-with-msg? AssertionError #"doesn't seem like a real schema" (eval '(ip/property-type-descriptor 12 '[]))))
+    (is (thrown-with-msg? AssertionError #"doesn't seem like a real schema" (eval '(ip/property-type-descriptor internal.property-test/default-value '[]))))
+    (is (thrown-with-msg? AssertionError #"doesn't seem like a real schema" (eval '(ip/property-type-descriptor `nil '[])))))
+
+  (testing "naked protocols are allowed"
+    (is (= `(s/protocol internal.property-test/MyProtocol) (ip/value-type
+                                                            (eval '(ip/property-type-descriptor 'internal.property-test/MyProtocol '[]))))))
 
   (testing "properties depend on their getters' inputs"
     (are [p x] (= (::ip/dependencies p) x)
@@ -98,4 +107,8 @@
     (is (= `(plumbing.core/fnk [] 42) (ip/dynamic-evaluator prop-with-constant-valued-dynamic :fooable))))
 
   (testing "validators allow constant values"
-    (is (= `(plumbing.core/fnk [] false) (ip/validation-evaluator prop-with-constant-valued-validator)))))
+    (is (= `(plumbing.core/fnk [] false) (ip/validation-evaluator prop-with-constant-valued-validator))))
+
+  (testing "fnks can be created by macros"
+    (are [p x] (= (::ip/dependencies p) x)
+      prop-with-validator-macro #{:an-input})))

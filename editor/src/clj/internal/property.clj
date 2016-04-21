@@ -3,7 +3,8 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.property :as ip]
-            [plumbing.core :as p]))
+            [plumbing.core :as p]
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 
@@ -14,15 +15,6 @@
 (defn property-default-setter
   [basis node property _ new-value]
   (first (gt/replace-node basis node (gt/set-property (ig/node-by-id-at basis node) basis property new-value))))
-
-;; TODO - rename this. It's more generic than property-values. Maybe
-;; move to internal.util
-(defn property-value-type
-  [x]
-  (cond
-    (symbol? x)                     (property-value-type (resolve x))
-    (var? x)                        (property-value-type (var-get x))
-    :else                           x))
 
 (defn property-default-value [this] (some-> this ::default util/var-get-recursive util/apply-if-fn))
 (defn default-getter?        [this] (not (contains? this ::value)))
@@ -56,15 +48,6 @@
 ;; either extracting it from the source (for a standalone property
 ;; definition) or from the supertype (in the case of inheritance.)
 
-(def assert-symbol (partial util/assert-form-kind "property" "symbol" symbol?))
-
-(defn assert-schema
-  [form]
-  (if-not (util/schema? form)
-    (let [value-type (util/resolve-schema form)]
-      (assert (util/schema? value-type)
-              (str "property requires a schema, not a " (type value-type))))))
-
 (defn- make-fnky-call [form]
   {:fn        (if (or (seq? form) (symbol? form) (var? form))
                 form
@@ -81,7 +64,7 @@
 
     dynamic
     (let [[_ kind remainder] form]
-      (assert-symbol "dynamic" kind)
+      (util/assert-form-kind "property" "symbol" symbol? "dynamic" kind)
       (assoc-in description [::dynamic (keyword kind)] (make-fnky-call remainder)))
 
     set
@@ -98,10 +81,11 @@
                     (util/inputs-needed (:fn (validation property)))
                     (mapcat (comp util/inputs-needed :fn) (vals (dynamics property)))]))
 
-(defn- check-for-protocol-type
-  [{:keys [::value-type ::value-type-name]}]
-  (assert (not (util/protocol? value-type))
-          (str "type " value-type-name " looks like a protocol; try (dynamo.graph/protocol " value-type-name ") instead.")))
+(defn- wrap-protocol
+  [property tp-form]
+  (cond-> property
+    (util/protocol? (value-type property))
+    (assoc ::value-type `(s/protocol ~tp-form))))
 
 (defn- check-for-invalid-type
   [{:keys [::value-type ::value-type-name]}]
@@ -120,7 +104,10 @@
   [prop]
   (update prop ::dependencies into (property-dependencies prop)))
 
-(defn- left [a b] a)
+(defn assert-schema
+  [form tp]
+  (assert (util/schema? tp) (str (pr-str form) " doesn't seem like a real schema"))
+  (assert (not (nil? tp))   (str (pr-str form) " doesn't refer to a schema in this context.")))
 
 (defn property-type-descriptor
   "value-type may be one of:
@@ -128,13 +115,11 @@
    - symbol that refers to a Prismatic schema
    - var that refers to a Prismatic schema
    - a literal schema (including vector and map forms)"
-  [value-type-form body-forms]
-  (let [prop {::value-type-name value-type-form
-              ::value-type      (resolve-value-type value-type-form)
-              ::dependencies   #{}}]
-    (assert-schema value-type-form)
-    (check-for-protocol-type prop)
-    (check-for-invalid-type  prop)
+  [tp-form body-forms]
+  (let [tp   (resolve-value-type tp-form)
+        prop {::value-type   tp
+              ::dependencies #{}}]
+    (assert-schema tp-form tp)
     (-> (reduce property-form prop body-forms)
-        update-dependencies
-        (dissoc ::value-type-name))))
+        (wrap-protocol tp-form)
+        update-dependencies)))

@@ -1,14 +1,11 @@
 (ns internal.node-test
-  (:require [clojure
-             [string :as str]
-             [test :refer :all]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [internal
-             [node :as in]
-             [property :as ip]
-             [system :as is]
-             [util :as util]]
-            [internal.graph.types :as gt]
+            [internal.node :as in]
+            [internal.property :as ip]
+            [internal.system :as is]
+            [internal.util :as util]
             [support.test-support :refer [tx-nodes with-clean-system]])
   (:import clojure.lang.ExceptionInfo))
 

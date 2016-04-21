@@ -90,7 +90,7 @@
 
   (property embedded g/Bool (dynamic visible (g/fnk [] false)))
 
-  (property path (g/protocol resource/Resource)
+  (property path resource/Resource
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (dynamic enabled (g/fnk [] false))
     (value (gu/passthrough source-resource))
@@ -111,7 +111,7 @@
   (display-order [:id :path scene/SceneNode])
 
   (input source-id g/NodeID)
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (input source-properties g/Any)
   (input user-properties g/Any :substitute source-properties-subst)
   (input project-id g/NodeID)
