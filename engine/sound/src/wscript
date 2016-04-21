@@ -35,6 +35,10 @@ def build(bld):
         source.append('sound_ios.cpp')
         source2.append('sound_ios.cpp')
         defines = 'TREMOLO_SCORE=10'
+    elif re.match('arm.*?tvos', bld.env['PLATFORM']):
+        source.append('sound_tvos.mm')
+        source2.append('sound_tvos.mm')
+        defines = 'TREMOLO_SCORE=10'
     else:
         source.append('sound_generic.cpp')
         source2.append('sound_generic.cpp')

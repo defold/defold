@@ -75,8 +75,11 @@ namespace dmHID
     {
     }
 
-    void ResetKeyboard(HContext context)
+    void SetInputTitle(HContext context, const char* title)
     {
     }
 
+    void ResetKeyboard(HContext context)
+    {
+    }
 }

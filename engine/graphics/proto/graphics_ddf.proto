@@ -103,6 +103,7 @@ message PlatformProfile
         OS_ID_IOS     = 4;
         OS_ID_ANDROID = 5;
         OS_ID_WEB     = 6;
+        OS_ID_TVOS    = 7;
     }
 
     required OS os                              = 1;

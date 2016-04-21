@@ -75,18 +75,31 @@ namespace dmScript
         const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        FILE* file = fopen(filename, "wb");
-        if (file != 0x0)
+        if (dmSys::CanPersistFiles())
         {
-            bool result = fwrite(buffer, 1, n_used, file) == n_used;
-            fclose(file);
-            if (result)
+            FILE* file = fopen(filename, "wb");
+            if (file != 0x0)
+            {
+                bool result = fwrite(buffer, 1, n_used, file) == n_used;
+                fclose(file);
+                if (result)
+                {
+                    lua_pushboolean(L, result);
+                    return 1;
+                }
+            }
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+        else
+        {
+            dmSys::Result result = dmSys::StoreBufferByKey(filename, buffer, n_used);
+            if (result == dmSys::RESULT_OK)
             {
                 lua_pushboolean(L, result);
                 return 1;
             }
+            return luaL_error(L, "Could not save data to key %s.", filename);
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
     }
 
     /*# loads a lua table from a file on disk
@@ -101,27 +114,46 @@ namespace dmScript
         //Char arrays function stack are not guaranteed to be 4byte aligned in linux. An union with an int add this guarantee.
         union {uint32_t dummy_align; char buffer[MAX_BUFFER_SIZE];};
         const char* filename = luaL_checkstring(L, 1);
-        FILE* file = fopen(filename, "rb");
-        if (file == 0x0)
-        {
-            lua_newtable(L);
-            return 1;
-        }
-        fread(buffer, 1, sizeof(buffer), file);
-        bool file_size_ok = feof(file) != 0;
-        bool result = ferror(file) == 0 && file_size_ok;
-        fclose(file);
-        if (result)
-        {
-            PushTable(L, buffer);
-            return 1;
-        }
-        else
-        {
-            if(file_size_ok)
-                return luaL_error(L, "Could not read from the file %s.", filename);
+        if (dmSys::CanPersistFiles()) {
+            FILE* file = fopen(filename, "rb");
+            if (file == 0x0)
+            {
+                lua_newtable(L);
+                return 1;
+            }
+            fread(buffer, 1, sizeof(buffer), file);
+            bool file_size_ok = feof(file) != 0;
+            bool result = ferror(file) == 0 && file_size_ok;
+            fclose(file);
+            if (result)
+            {
+                PushTable(L, buffer);
+                return 1;
+            }
             else
-                return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
+            {
+                if(file_size_ok)
+                    return luaL_error(L, "Could not read from the file %s.", filename);
+                else
+                    return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
+            }
+        }
+        else {
+            uint32_t out_size = 0;
+            dmSys::Result result = dmSys::LoadBufferByKey(filename, buffer, MAX_BUFFER_SIZE, &out_size);
+            if (result == dmSys::RESULT_OK)
+            {
+                PushTable(L, buffer);
+            }
+            else if (result == dmSys::RESULT_INVAL)
+            {
+                return luaL_error(L, "Data size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
+            }
+            else
+            {
+                lua_newtable(L);
+            }
+            return 1;
         }
     }
 
@@ -135,28 +167,30 @@ namespace dmScript
      */
     int Sys_GetSaveFile(lua_State* L)
     {
-        const char* application_id = luaL_checkstring(L, 1);
-
         char app_support_path[1024];
-        dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
-        if (r != dmSys::RESULT_OK)
-        {
-            luaL_error(L, "Unable to locate application support path (%d)", r);
-        }
-
+        app_support_path[0] = 0;
+        const char* application_id = luaL_checkstring(L, 1);
         const char* filename = luaL_checkstring(L, 2);
-        char* dm_home = getenv("DM_SAVE_HOME");
 
-        // Higher priority
-        if (dm_home)
-        {
-            dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
+        if (dmSys::CanPersistFiles()) {
+            dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
+            if (r != dmSys::RESULT_OK)
+            {
+                luaL_error(L, "Unable to locate application support path (%d)", r);
+            }
+
+            char* dm_home = getenv("DM_SAVE_HOME");
+
+            // Higher priority
+            if (dm_home)
+            {
+                dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
+            }
         }
 
         dmStrlCat(app_support_path, "/", sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
-
         return 1;
     }
 

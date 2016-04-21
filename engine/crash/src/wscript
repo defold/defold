@@ -24,6 +24,8 @@ def build(bld):
 
     if 'darwin' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
+    if 'tvos' in bld.env['PLATFORM']:
+        load_addrs = 'load_addrs_mach.cpp'
         
     if 'win32' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_win32.cpp'

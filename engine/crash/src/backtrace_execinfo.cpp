@@ -59,6 +59,7 @@ namespace dmCrash
 
     void InstallHandler()
     {
+#if !defined(__TVOS__)
         stack_t stack;
         memset(&stack, 0, sizeof(stack));
         stack.ss_size = sizeof(stack_buffer);
@@ -70,5 +71,6 @@ namespace dmCrash
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);
         InstallOnSignal(SIGILL);
+#endif
     }
 }

@@ -1,17 +1,18 @@
 def build(bld):
 
-    if bld.env.PLATFORM.find('arm') == -1:
-        vpx = 'VPX'
-        record = 'record'
-    else:
-        vpx = ''
-        record = 'record_null'
+    if bld.env.PLATFORM.find('tvos') == -1:
+      if bld.env.PLATFORM.find('arm') == -1:
+          vpx = 'VPX'
+          record = 'record'
+      else:
+          vpx = ''
+          record = 'record_null'
 
-    test_record = bld.new_task_gen(features='cxx cprogram test',
-                                   includes='../../../src .',
-                                   uselib='GTEST DLIB %s' % vpx,
-                                   uselib_local=record,
-                                   proto_gen_py=True,
-                                   target='test_record',
-                                   source='test_record.cpp')
-    test_record.install_path = None
+      test_record = bld.new_task_gen(features='cxx cprogram test',
+                                     includes='../../../src .',
+                                     uselib='GTEST DLIB %s' % vpx,
+                                     uselib_local=record,
+                                     proto_gen_py=True,
+                                     target='test_record',
+                                     source='test_record.cpp')
+      test_record.install_path = None

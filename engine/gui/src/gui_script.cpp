@@ -2949,6 +2949,7 @@ namespace dmGui
      *   <li><code>gui.KEYBOARD_TYPE_PASSWORD</code></li>
      * </ul>
      * @param autoclose close keyboard automatically when clicking outside
+     * @param title (optional) short one line title to show the user
      */
     static int LuaShowKeyboard(lua_State* L)
     {
@@ -2956,6 +2957,11 @@ namespace dmGui
         int type = luaL_checkinteger(L, 1);
         luaL_checktype(L, 2, LUA_TBOOLEAN);
         bool autoclose = (bool) lua_toboolean(L, 2);
+	size_t len = 0;
+	const char* title = luaL_optlstring(L, 3, "", &len);
+        if (len > 0) {
+            dmHID::SetInputTitle(scene->m_Context->m_HidContext, title);
+        }
         dmHID::ShowKeyboard(scene->m_Context->m_HidContext, (dmHID::KeyboardType) type, autoclose);
         return 0;
     }

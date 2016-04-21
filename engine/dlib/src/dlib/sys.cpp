@@ -171,9 +171,33 @@ namespace dmSys
 
 #endif
 
+
+#if (!defined(__TVOS__))
+
+    // Only implemented on tvOS (in sys_cocoa.mm)
+    bool CanPersistFiles() {
+        return true;
+    }
+
+    Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length) {
+        return RESULT_INVAL;
+    }
+
+    Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length) {
+        if (out_length != NULL)
+        {
+            *out_length = 0;
+        }
+        return RESULT_INVAL;
+    }
+
+#endif
+
+
 #if defined(__MACH__)
 
 #if !defined(__arm__) && !defined(__arm64__)
+
     // NOTE: iOS implementation in sys_cocoa.mm
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -425,8 +449,7 @@ namespace dmSys
         return RESULT_OK;
 #endif
     }
-
-#if ((defined(__arm__) || defined(__arm64__)) && defined(__MACH__))
+#if (!defined(__TVOS__) && (defined(__arm__) || defined(__arm64__)) && defined(__MACH__))
     // NOTE: iOS implementation in sys_cocoa.mm
 
 #elif defined(__ANDROID__)

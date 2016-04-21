@@ -120,8 +120,10 @@ static void RunIACListener(NSDictionary *userdata, uint32_t type)
 
 @implementation IACAppDelegate
 
--(BOOL) application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation{
-
+- (BOOL)application:(UIApplication *)sourceApplication
+            openURL:(NSURL *)url
+            options:(NSDictionary<NSString *,id> *)options
+{
     // Handle invocations
     if(g_IAC.m_LaunchInvocation)
     {

@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
 #include "log.h"
@@ -7,7 +8,7 @@
 #include "sys_private.h"
 #include "dstrings.h"
 
-#if defined(__arm__) || defined(__arm64__)
+#if defined(__arm__) || defined(__arm64__) || defined(__TVOS__)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <AdSupport/AdSupport.h>
@@ -29,7 +30,90 @@ namespace dmSys
         }
     }
 
-#if defined(__arm__) || defined(__arm64__)
+#if defined(__TVOS__)
+    bool CanPersistFiles()
+    {
+        return false;
+    }
+
+    Result LoadBufferByKey(const char* key, char* out_buffer, uint32_t max_length, uint32_t* out_length)
+    {
+        NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:[NSString stringWithUTF8String:key]];
+        if (data != NULL && data.length < max_length)
+        {
+            memcpy(out_buffer, [data bytes], data.length);
+            if (out_length != NULL)
+            {
+                *out_length = data.length;
+            }
+            return RESULT_OK;
+        }
+        if (out_length != NULL)
+        {
+            *out_length = 0;
+        }
+        if (data == NULL) {
+            return RESULT_NOENT;
+        }
+        return RESULT_INVAL;
+    }
+
+    Result StoreBufferByKey(const char* key, const char* buffer, uint32_t length)
+    {
+        if (buffer == NULL)
+        {
+            dmLogError("Unable to save invalid buffer.");
+            return RESULT_UNKNOWN;
+        }
+        NSData* data = [NSData dataWithBytes:(const void *)buffer length:sizeof(unsigned char)*length];
+        NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+        [userDefaults setObject:data forKey:[NSString stringWithUTF8String:key]];
+        BOOL result = [userDefaults synchronize];
+        if (result != TRUE)
+        {
+            dmLogError("Unable to synchronize NSUserDefaults with new data.");
+            return RESULT_UNKNOWN;
+        }
+        return RESULT_OK;
+    }
+
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        assert(path_len > 0);
+        NSFileManager* shared_fm = [NSFileManager defaultManager];
+        NSArray* urls = [shared_fm URLsForDirectory:NSCachesDirectory
+                                          inDomains:NSUserDomainMask];
+        if ([urls count] > 0)
+        {
+            NSURL* app_support_dir = [urls objectAtIndex:0];
+            dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
+            path[path_len-1] = '\0';
+            if (dmStrlCat(path, "/", path_len) >= path_len)
+                return RESULT_INVAL;
+            if (dmStrlCat(path, application_name, path_len) >= path_len)
+                return RESULT_INVAL;
+            NSString* ns_path = [NSString stringWithUTF8String: path];
+            Result r;
+            if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+            {
+                r = RESULT_OK;
+            }
+            else
+            {
+                r = RESULT_UNKNOWN;
+            }
+            return r;
+        }
+        else
+        {
+            dmLogError("Unable to locate NSApplicationSupportDirectory");
+            return RESULT_UNKNOWN;
+        }
+    }
+
+#endif
+
+#if !defined(__TVOS__) && (defined(__arm__) || defined(__arm64__))
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
     static SCNetworkReachabilityRef reachability_ref = 0;
@@ -239,7 +323,11 @@ namespace dmSys
     Result OpenURL(const char* url)
     {
         NSString* ns_url = [NSString stringWithUTF8String: url];
+#if defined(__TVOS__)
+        BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
+#else
         BOOL ret = [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString: ns_url]];
+#endif
         if (ret == YES)
         {
             return RESULT_OK;
