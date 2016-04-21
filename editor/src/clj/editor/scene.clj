@@ -57,13 +57,15 @@
   (let [^TextRenderer text-renderer (scene-cache/request-object! ::text-renderer ::overlay-text gl [Font/SANS_SERIF Font/BOLD 12])]
     (gl/overlay gl text-renderer text x y 1.0 1.0)))
 
-(defn substitute-scene [_]
-  {:aabb (geom/null-aabb)
+(defn substitute-scene [error]
+  {:aabb       (geom/null-aabb)
    :renderable {:render-fn (fn [gl render-args renderables count]
-                             (let [pass (:pass render-args)]
+                             (let [pass           (:pass render-args)
+                                   [labels cause] (project/find-errors error [])
+                                   message        (format "Render error [%s] '%s'" (last labels) cause)]
                                (when (= pass pass/overlay)
-                                 (overlay-text gl "An error prevents rendering from happening." 12.0 -22.0))))
-                :passes [pass/overlay]}})
+                                 (overlay-text gl message 12.0 -22.0))))
+                :passes    [pass/overlay]}})
 
 ; Avoid recreating the image each frame
 (defonce ^:private cached-buf-img-ref (atom nil))
@@ -226,7 +228,7 @@
       (setup-pass context gl pass camera viewport)
       (batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(defn flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables camera viewport tmp-p3d]
+(defn- flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables camera viewport tmp-p3d]
   (let [renderable (:renderable scene)
         ^Matrix4d trans (or (:transform scene) geom/Identity4d)
         parent-world world-transform
