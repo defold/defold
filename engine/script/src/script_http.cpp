@@ -9,6 +9,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/http_cache.h>
 
 #include "script.h"
 #include "http_ddf.h"
@@ -66,6 +67,12 @@ namespace dmScript
 
             const char* url = luaL_checkstring(L, 1);
             uint32_t url_len = strlen(url);
+
+            if (url_len > dmHttpCache::MAX_URI_LEN)
+            {
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "http.request does not support URI longer than %d characters.", dmHttpCache::MAX_URI_LEN);
+            }
             const char* method = luaL_checkstring(L, 2);
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
