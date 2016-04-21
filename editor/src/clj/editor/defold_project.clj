@@ -244,7 +244,7 @@
   (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
     (and resource (resource/resource-name resource))))
 
-(defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
+(defn find-errors [{:keys [user-data causes _node-id] :as error} labels]
   (let [labels (conj labels (get-resource-name _node-id))]
     (if causes
       (recur (first causes) labels)
