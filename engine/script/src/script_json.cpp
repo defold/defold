@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "script.h"
+#include <limits.h>
 
 extern "C"
 {
@@ -71,8 +72,7 @@ namespace dmScript
             return index;
         }
 
-        assert(false && "not reached");
-        return index;
+        return luaL_error(L, "Invalid JSON data.");
     }
 
     /*# decode JSON from a string to a lua-table

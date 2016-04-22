@@ -103,6 +103,34 @@ TEST_F(dmJsonTest, Escape1)
     ASSERT_EQ('\n', doc.m_Json[doc.m_Nodes[0].m_Start]);
 }
 
+TEST_F(dmJsonTest, Table)
+{
+    const unsigned int entries = 9;
+    const char* json[entries] = {
+        "{response: \"ok\"}",
+        "{\"response\": ok}",
+        "{\"response\"= \"ok\"}",
+        "{\"response\" = \"ok\"}",
+        "{\"response\" =\"ok\"}",
+        "{response: ok}",
+        "{response : ok}",
+        "{response= ok}",
+        "{response = ok}"
+    };
+
+    for (unsigned int i = 0; i < entries; ++i)
+    {
+        dmJson::Result result = dmJson::Parse(json[i], &doc);
+        printf("Json table : %s\n", json[i]);
+        printf("Json info  : nodes(%d)\n", doc.m_NodeCount);
+        for (unsigned int n = 0; n < doc.m_NodeCount; ++n)
+        {
+            printf("Node(%d), Start(%d), End(%d), Type(%d)\n", n + 1, doc.m_Nodes[n].m_Start, doc.m_Nodes[n].m_End, doc.m_Nodes[n].m_Type);
+        }
+        ASSERT_EQ(dmJson::RESULT_OK, result);
+    }
+}
+
 TEST_F(dmJsonTest, Escape2)
 {
     const char* json = "\"foo\\tbar\\n\"";
@@ -192,7 +220,7 @@ TEST_F(dmJsonTest, Object)
 
 TEST_F(dmJsonTest, MultiRoot)
 {
-    const char* json = "10,20";
+    const char* json = "[10],[20]";
     dmJson::Result r = dmJson::Parse(json, &doc);
     ASSERT_EQ(dmJson::RESULT_OK, r);
     ASSERT_EQ(1, doc.m_NodeCount);

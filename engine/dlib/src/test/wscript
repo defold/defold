@@ -40,76 +40,11 @@ def build(bld):
 
     bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
 
-    create_test(bld, 'test_align', extra_libs = ['THREAD'])
-    create_test(bld, 'test_math', extra_libs = ['THREAD'])
-    create_test(bld, 'test_transform', extra_libs = ['THREAD'])
-    create_test(bld, 'test_hashtable')
-    create_test(bld, 'test_array')
-    create_test(bld, 'test_indexpool')
-    create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_time')
-    create_test(bld, 'test_thread', extra_libs = ['THREAD'])
-    create_test(bld, 'test_mutex', extra_libs =['THREAD'])
-    create_test(bld, 'test_profile', extra_libs = ['THREAD'])
-    create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
-    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_uri', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socks_proxy', extra_libs = ['THREAD'])
-    create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
     bld.new_task_gen(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')
 
     bld.add_group()
 
-    create_test(bld, 'test_embed', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/test.embed', 'generated.embed'])
-    create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
-    create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
-    create_test(bld, 'test_sys', extra_libs = ['THREAD'])
-    create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
-    create_test(bld, 'test_template', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'])
-    create_test(bld, 'test_log', extra_libs = ['THREAD'])
-    create_test(bld, 'test_path', extra_libs = ['THREAD'])
-    create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
-    create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
-    create_test(bld, 'test_easing', extra_libs = ['THREAD'])
     create_test(bld, 'test_json', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/flickr.json'], extra_includes = ['.'])
-    create_test(bld, 'test_utf8', extra_libs = ['THREAD'])
-
-    create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/foo.gz', 'data/foo.deflate'])
-
-    create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/foo.lz4'])
-
-    create_test(bld, 'test_image', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/color_check_2x2.png',
-                                'data/color_check_2x2_premult.png',
-                                'data/case2319.jpg',
-                                'data/color16_check_2x2.png',
-                                'data/gray_check_2x2.png',
-                                'data/gray_alpha_check_2x2.png',
-                                'data/defold_64.jpg',
-                                'data/defold_64_progressive.jpg'],
-                extra_includes = ['.']
-                )
-
-    create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
-                extra_includes = ['.'])
-
-    create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
-    create_test(bld, 'test_md5', extra_libs = ['THREAD'])
-    create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
-    create_test(bld, 'test_objectpool')
-    create_test(bld, 'test_crypt')
