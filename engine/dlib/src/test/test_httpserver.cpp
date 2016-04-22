@@ -260,7 +260,9 @@ TEST_F(dmHttpServerTest, TestServer)
     int iter = 0;
     while (!m_Quit && iter < 1000)
     {
-        dmHttpServer::Update(m_Server);
+        dmHttpServer::Result r = dmHttpServer::Update(m_Server);
+        ASSERT_EQ(dmHttpServer::RESULT_OK, r);
+
         dmTime::Sleep(1000 * 10);
         ++iter;
     }
