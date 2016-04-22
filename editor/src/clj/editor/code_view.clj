@@ -15,7 +15,7 @@
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
-           [org.eclipse.fx.ui.controls.styledtext StyledTextArea TextSelection]
+           [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection]
            [org.eclipse.fx.ui.controls.styledtext.behavior StyledTextBehavior]
            [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin]
            [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
@@ -324,16 +324,56 @@
     (g/set-property code-node :caret-position initial-caret-position)))
   view-id)
 
+(defprotocol TextContainer
+  (text! [this s])
+  (text [this]))
+
+(extend-type Clipboard
+  TextContainer
+  (text! [this s]
+    (let [content (ClipboardContent.)]
+      (.putString content s)
+      (.setContent this content)))
+  (text [this]
+    (when (.hasString this)
+      (.getString this))))
+
+(defprotocol TextView
+  (text-selection [this])
+  (text-selection! [this offset length]))
+
+(defprotocol TextStyles
+  (styles [this]))
+
 (extend-type SourceViewer
   workspace/SelectionProvider
-  (selection [this] this))
+  (selection [this] this)
+  TextView
+  (text-selection [this]
+    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer this)
+          selection (.getSelection text-widget)
+          offset (.-offset ^TextSelection selection)
+          length (.-length ^TextSelection selection)]
+     (.get (.getDocument this) offset length)))
+  (text-selection! [this offset length]
+    (.setSelectionRange (.getTextWidget this) offset length))
+  TextStyles
+  (styles [this] (let [document (-> this (.getDocument))
+                       document-len (.getLength document)
+                       text-widget (.getTextWidget this)
+                       len (dec (.getCharCount text-widget))
+                       style-ranges (.getStyleRanges text-widget (int 0) len false)
+                       style-fn (fn [sr] {:start (.-start ^StyleRange sr)
+                                         :length (.-length ^StyleRange sr)
+                                         :stylename (.-stylename ^StyleRange sr)})]
+                   (mapv style-fn style-ranges))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node} source-viewer)
+    (ui/context! source-viewer :code-view {:code-node code-node :clipboard (Clipboard/getSystemClipboard)} source-viewer)
     (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
@@ -350,37 +390,23 @@
 
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
-  (run [selection]
-    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer selection)
-          text-selection ^TextSelection (.getSelection text-widget)
-          offset  (.-offset text-selection)
-          length  (.-length text-selection)
-          doc ^IDocument (.getDocument ^SourceViewer selection)
-          copy-text  (.get doc offset length)
-          cb ^Clipboard (Clipboard/getSystemClipboard)
-          content (ClipboardContent.)]
-      (.putString content copy-text)
-      (.setContent cb content))))
+  (run [selection clipboard]
+    (text! clipboard (text-selection selection))))
 
 (handler/defhandler :paste :code-view
   (enabled? [selection] selection)
-  (run [selection code-node]
-    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer selection)
-          text-selection ^TextSelection (.getSelection text-widget)
-          doc ^IDocument (.getDocument ^SourceViewer selection)
-          cb ^Clipboard (Clipboard/getSystemClipboard)]
-      (when (.hasString cb)
-        (let [to-paste (.getString cb)
-              code (g/node-value code-node :code)
-              caret (g/node-value code-node :caret-position)
-              new-code (str (.substring ^String code 0 caret)
-                            to-paste
-                            (.substring ^String code caret (count code)))
-              new-caret (+ caret (count to-paste))]
-          (g/transact
-           (concat
-            (g/set-property code-node :code new-code)
-            (g/set-property code-node :caret-position new-caret))))))))
+  (run [selection code-node clipboard]
+    (when-let [text (text clipboard)]
+      (let [code (g/node-value code-node :code)
+            caret (g/node-value code-node :caret-position)
+            new-code (str (.substring ^String code 0 caret)
+                          text
+                          (.substring ^String code caret (count code)))
+            new-caret (+ caret (count text))]
+        (g/transact
+         (concat
+          (g/set-property code-node :code new-code)
+          (g/set-property code-node :caret-position new-caret)))))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
