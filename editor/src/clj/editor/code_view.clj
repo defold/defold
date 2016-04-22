@@ -325,20 +325,17 @@
   view-id)
 
 (defprotocol TextContainer
-  (put! [this s])
-  (has? [this])
-  (get! [this]))
+  (text! [this s])
+  (text [this]))
 
 (extend-type Clipboard
   TextContainer
-  (put! [this s]
+  (text! [this s]
     (let [content (ClipboardContent.)]
       (.putString content s)
       (.setContent this content)))
-  (has? [this]
-    (.hasString this))
-  (get! [this]
-    (when (has? this)
+  (text [this]
+    (when (.hasString this)
       (.getString this))))
 
 (defprotocol TextView
@@ -394,19 +391,18 @@
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
   (run [selection clipboard]
-    (put! clipboard (text-selection selection))))
+    (text! clipboard (text-selection selection))))
 
 (handler/defhandler :paste :code-view
   (enabled? [selection] selection)
   (run [selection code-node clipboard]
-    (when (has? clipboard)
-      (let [to-paste (get! clipboard)
-            code (g/node-value code-node :code)
+    (when-let [text (text clipboard)]
+      (let [code (g/node-value code-node :code)
             caret (g/node-value code-node :caret-position)
             new-code (str (.substring ^String code 0 caret)
-                          to-paste
+                          text
                           (.substring ^String code caret (count code)))
-            new-caret (+ caret (count to-paste))]
+            new-caret (+ caret (count text))]
         (g/transact
          (concat
           (g/set-property code-node :code new-code)

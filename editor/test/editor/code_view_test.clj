@@ -112,9 +112,8 @@
 
 (defrecord TestClipboard [content]
   TextContainer
-  (put! [this s] (reset! content s))
-  (has? [this] (some? @content))
-  (get! [this] @content))
+  (text! [this s] (reset! content s))
+  (text [this] @content))
 
 (defn- copy! [source-viewer code-node clipboard]
   (handler/run
@@ -122,28 +121,20 @@
     [{:name :code-view :env {:selection source-viewer :code-node code-node :clipboard clipboard}}]
     {}))
 
-(deftest copy-test
-  (with-clean-system
-    (let [clipboard (new TestClipboard (atom ""))
-          code "the quick brown fox"
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (text-selection! source-viewer 4 5)
-      (copy! source-viewer code-node clipboard)
-      (is (= "quick" (get! clipboard))))))
-
 (defn- paste! [source-viewer code-node clipboard]
   (handler/run :paste
     [{:name :code-view :env {:selection source-viewer :code-node code-node :clipboard clipboard}}]
     {}))
 
-(deftest paste-test
+(deftest copy-paste-test
   (with-clean-system
-    (let [clipboard (new TestClipboard (atom "hello"))
-          code " world"
+    (let [clipboard (new TestClipboard (atom ""))
+          code "hello world"
           opts lua/lua
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (text-selection! source-viewer 6 5)
+      (copy! source-viewer code-node clipboard)
       (paste! source-viewer code-node clipboard)
-      (is (= "hello world" (g/node-value code-node :code))))))
+      (is (= "world" (text clipboard)))
+      (is (= "worldhello world" (g/node-value code-node :code))))))
