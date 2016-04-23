@@ -53,6 +53,7 @@
 (g/defnode OutlineNode
   (input source-outline OutlineData)
   (input child-outlines OutlineData :array)
+
   (output node-outline OutlineData :abstract)
   (output outline-overridden? g/Bool :cached (g/fnk [_properties child-outlines]
                                                     (boolean
