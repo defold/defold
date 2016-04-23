@@ -23,6 +23,7 @@
 ;; Internal state
 ;; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
+(def ^:dynamic *in-transaction?* nil)
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
@@ -345,9 +346,6 @@
         override-nodes)
       (populate-overrides to-node-id))))
 
-(defn- node-value [basis node-id property]
-  (in/node-value node-id property {:basis basis :cache nil :skip-validation true}))
-
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
   (let [basis (:basis ctx)
@@ -373,7 +371,7 @@
             (mark-activated node-id property)
             (cond->
               (not (nil? setter-fn))
-              (apply-tx (setter-fn (:basis ctx) node-id old-value new-value))))))))))
+              (update :deferred-setters conj [setter-fn node-id old-value new-value])))))))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
@@ -587,7 +585,8 @@
    :successors-changed  #{}
    :node-id-generators node-id-generators
    :completed           []
-   :txid                (new-txid)})
+   :txid                (new-txid)
+   :deferred-setters    []})
 
 (defn update-successors
   [{:keys [successors-changed] :as ctx}]
@@ -600,15 +599,31 @@
   ;; reachable from the original collection.
   (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
 
+(defn apply-setters [ctx]
+  (let [setters (:deferred-setters ctx)
+        ctx (assoc ctx :deferred-setters [])]
+    (if (empty? setters)
+      ctx
+      (-> (reduce (fn [ctx [f node-id old-value new-value]]
+                    (if (ig/node-by-id-at (:basis ctx) node-id)
+                      (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
+                      ctx)) ctx setters)
+        recur))))
+
 (defn transact*
   [ctx actions]
   (when *tx-debug*
     (println (txerrstr ctx "actions" (seq actions))))
-  (-> ctx
+  (with-bindings {#'*in-transaction?* true}
+    (-> ctx
       (apply-tx actions)
+      apply-setters
       mark-outputs-modified
       mark-nodes-modified
       update-successors
       trace-dependencies
       apply-tx-label
-      finalize-update))
+      finalize-update)))
+
+(defn in-transaction? []
+  *in-transaction?*)

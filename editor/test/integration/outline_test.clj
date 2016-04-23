@@ -222,17 +222,26 @@
   (let [p (g/node-value (:node-id (outline root path)) :_properties)]
     (get-in p [:properties property :value])))
 
+(deftest copy-paste-gui-box
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/gui/simple.gui")
+          path [0 0]
+          texture (prop root path :texture)]
+      (copy-paste! project root path)
+      (is (= texture (prop root [0 1] :texture))))))
+
 (deftest copy-paste-gui-template
   (with-clean-system
     (let [[workspace project] (setup world)
           root (test-util/resource-node project "/gui/scene.gui")
           path [0 1]
-          orig-sub-id (prop root (conj path 0) :id)]
+          orig-sub-id (prop root (conj path 0) :generated-id)]
       (is (= "sub_scene/sub_box" (:label (outline root [0 1 0]))))
       (copy-paste! project root path)
-      (is (= orig-sub-id (prop root (conj path 0) :id)))
+      (is (= orig-sub-id (prop root (conj path 0) :generated-id)))
       (let [copy-path [0 2]
-            copy-sub-id (prop root (conj copy-path 0) :id)]
+            copy-sub-id (prop root (conj copy-path 0) :generated-id)]
         (is (not (nil? copy-sub-id)))
         (is (not= copy-sub-id orig-sub-id))
         (is (= "sub_scene/sub_box" (:label (outline root [0 1 0]))))

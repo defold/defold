@@ -89,7 +89,7 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation] :or {ignore-errors 0} :as options}]
+  [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation in-transaction?] :or {ignore-errors 0} :as options}]
   (let [caching?           (and (not (:no-cache options)) cache)
         evaluation-context {:local           (atom {})
                             :cache           (when caching? cache)
@@ -97,6 +97,7 @@
                             :hits            (atom [])
                             :basis           basis
                             :in-production   []
+                            :in-transaction? in-transaction?
                             :ignore-errors   ignore-errors
                             :skip-validation skip-validation
                             :caching?        caching?}]
@@ -675,9 +676,11 @@
         validation          (ip/validation property-definition)
         get-expr            (if default?
                               `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
-                              (call-with-error-checked-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
-                                                                      (ip/getter-for (gt/property-type node-type prop))
-                                                                      `(get-in ~propmap-sym [~prop :internal.property/value])))
+                              `(if (:in-transaction? ~ctx-name)
+                                 (gt/get-property ~self-name (:basis ~ctx-name) ~prop)
+                                 ~(call-with-error-checked-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
+                                             (ip/getter-for (gt/property-type node-type prop))
+                                             `(get-in ~propmap-sym [~prop :internal.property/value]))))
         validate-expr       (property-validation-exprs self-name ctx-name node-type-name node-type propmap-sym prop)]
     (if validation
       `(let [~'v ~get-expr]
@@ -757,11 +760,17 @@
 (defn- has-validation? [node-type prop] (ip/validation (get (gt/declared-properties node-type) prop)))
 
 (defn apply-default-property-shortcut [self-name ctx-name transform node-type forms]
-  (if (and (property-has-default-getter? node-type transform)
-           (property-has-no-overriding-output? node-type transform)
-           (not (has-validation? node-type transform)))
-    `(gt/get-property ~self-name (:basis ~ctx-name) ~transform)
-    forms))
+  (let [property? (and (some? (gt/property-type node-type transform)) (property-has-no-overriding-output? node-type transform))
+        default? (and (property-has-default-getter? node-type transform)
+                      (property-has-no-overriding-output? node-type transform)
+                      (not (has-validation? node-type transform)))]
+    (if default?
+      `(gt/get-property ~self-name (:basis ~ctx-name) ~transform)
+      (if property?
+        `(if (:in-transaction? ~ctx-name)
+           (gt/get-property ~self-name (:basis ~ctx-name) ~transform)
+           ~forms)
+        forms))))
 
 (defn detect-cycles [ctx-name nodeid-sym transform node-type-name forms]
   `(do

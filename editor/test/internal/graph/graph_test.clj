@@ -108,3 +108,10 @@
       (let [basis (is/basis system)]
         (is (empty? (ig/overrides basis original)))
         (is (empty? (get-in basis [:graphs world :overrides])))))))
+
+(deftest graph-values
+  (with-clean-system
+    (g/set-graph-value! world :things {})
+    (is (= {} (g/graph-value world :things)))
+    (g/transact (g/update-graph-value world :things assoc :a 1))
+    (is (= {:a 1} (g/graph-value world :things)))))
