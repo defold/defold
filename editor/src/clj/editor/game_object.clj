@@ -142,12 +142,10 @@
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
 
-  (property resource-type g/Any
-            (dynamic visible (g/always false)))
   (property path g/Any
-            (dynamic edit-type (g/fnk [resource-type]
+            (dynamic edit-type (g/fnk [source-resource]
                                       {:type (g/protocol resource/Resource)
-                                       :ext (:ext resource-type)
+                                       :ext (some-> source-resource resource/resource-type :ext)
                                        :to-type (fn [v] (:resource v))
                                        :from-type (fn [r] {:resource r :overrides {}})}))
             (value (g/fnk [source-resource property-overrides]
@@ -301,7 +299,7 @@
         path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ReferencedComponent :id id :resource-type resource-type :position position :rotation rotation :path path]]
+                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
                   (attach-component self comp-node))))
 
 (defn add-component-handler [self]

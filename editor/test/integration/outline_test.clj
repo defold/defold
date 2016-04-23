@@ -95,6 +95,14 @@
 (defn- outline-seq [root]
   (tree-seq :children :children (g/node-value root :node-outline)))
 
+(deftest copy-paste-ref-component
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/logic/main.go")]
+      (is (= 5 (child-count root)))
+      (copy-paste! project root [0])
+      (is (= 6 (child-count root))))))
+
 (deftest copy-paste-double-embed
   (with-clean-system
     (let [[workspace project] (setup world)
