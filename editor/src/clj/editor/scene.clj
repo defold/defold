@@ -530,7 +530,7 @@
       (g/invalidate! [[view-id :async-frame]]))
     (scene-cache/prune-object-caches! nil)
     (try
-      (g/node-value view-id :async-frame)
+      (let [error (g/node-value view-id :async-frame)])
       (catch Exception e
         (.setImage image-view nil)
         (throw e)))))

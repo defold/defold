@@ -564,6 +564,9 @@
   [node-id p]
   (it/clear-property node-id p))
 
+(defn update-graph-value [graph-id k f & args]
+  (it/update-graph-value graph-id update (into [k f] args)))
+
 (defn set-graph-value
  "Create the transaction step to attach a named value to a graph. It will take effect when the transaction is
   applied in a transact.
@@ -654,12 +657,13 @@
   ([node-id label]
    (node-value node-id label :cache (cache) :basis (now)))
   ([node-id label & {:as options}]
-   (let [options (cond-> options
-                   (not (:cache options))
-                   (assoc :cache (cache))
-                   (not (:basis options))
-                   (assoc :basis (now)))]
-     (in/node-value node-id label options))))
+    (let [options (cond-> options
+                    true (assoc :in-transaction? (it/in-transaction?))
+                    (not (:cache options))
+                    (assoc :cache (cache))
+                    (not (:basis options))
+                    (assoc :basis (now)))]
+      (in/node-value node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

@@ -313,14 +313,14 @@
 
 (defn- properties->overrides [id properties]
   {id (->> (:properties properties)
-        (filter (fn [[k v]] (:original-value v)))
+        (filter (fn [[k v]] (contains? v :original-value)))
         (map (fn [[k v]] [k (:value v)]))
         (into {}))})
 
 (g/defnode Node
-  (property id g/Str
-            (value (g/fnk [id id-prefix] (str id-prefix id))))
+  (property id g/Str)
   (input id-prefix g/Str)
+  (output id g/Str (g/fnk [id-prefix id] (str id-prefix id)))
   (output node-ids IDMap (g/fnk [_node-id id] {id _node-id}))
   (output node-overrides g/Any (g/fnk [id _properties] (properties->overrides id _properties))))
 
@@ -362,42 +362,43 @@
 (g/defnode Template
   (inherits Node)
   (property template g/Any
-            (value (g/fnk [template-resource]
-                          {:resource template-resource :overrides {}}))
+            (value (g/fnk [template-resource source-overrides]
+                          {:resource template-resource :overrides source-overrides}))
             (set (fn [basis self old-value new-value]
                    (let [current-scene (g/node-feeding-into self :template-resource)]
                      (concat
-                      (if current-scene
-                        (g/delete-node current-scene)
-                        [])
-                      (let [gid (g/node-id->graph-id self)
-                            path (:path new-value)]
-                        (if-let [scene (scene-by-path basis gid path)]
-                          (let [{:keys [id-mapping tx-data]} (g/override scene {})
-                                path (g/node-value self :template-path :basis basis)
-                                mapping (comp id-mapping (into {} (map (fn [[k v]] [(str path k) v])
-                                                                       (g/node-value scene :node-ids :basis basis))))
-                                set-prop-data (for [[id props] (:overrides new-value)
-                                                    :let [node-id (mapping id)]
-                                                    [key value] props]
-                                                (g/set-property node-id key value))
-                                or-scene (id-mapping scene)]
-                            (concat
-                              tx-data
-                              set-prop-data
-                              (for [[from to] [[:node-ids :node-ids]
-                                               [:node-overrides :node-overrides]
-                                               [:resource :template-resource]]]
-                                (g/connect or-scene from self to))
-                              (g/connect self :template-path or-scene :id-prefix)))
-                          [])))))))
+                       (if current-scene
+                         (g/delete-node current-scene)
+                         [])
+                       (let [gid (g/node-id->graph-id self)
+                             path (:path new-value)]
+                         (if-let [scene (scene-by-path basis gid path)]
+                           (let [tmpl-path (g/node-value self :template-path :basis basis)
+                                 {:keys [id-mapping tx-data]} (g/override basis scene {})
+                                 mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
+                                                                        (g/node-value scene :node-ids :basis basis))))
+                                 set-prop-data (for [[id props] (:overrides new-value)
+                                                     :let [node-id (mapping id)]
+                                                     :when node-id
+                                                     [key value] props]
+                                                 (g/set-property node-id key value))
+                                 or-scene (id-mapping scene)]
+                             (concat
+                               tx-data
+                               set-prop-data
+                               (for [[from to] [[:node-ids :node-ids]
+                                                [:node-overrides :source-overrides]
+                                                [:resource :template-resource]]]
+                                 (g/connect or-scene from self to))
+                               (g/connect self :template-path or-scene :id-prefix)))
+                           [])))))))
   (input template-resource (g/protocol Resource) :cascade-delete)
   (input node-ids IDMap)
   (input instance g/NodeID)
-  (input node-overrides g/Any)
+  (input source-overrides g/Any)
   (output template-path g/Str (g/fnk [id] (str id "/")))
-  (output node-overrides g/Any :cached (g/fnk [id _properties node-overrides]
-                                              (merge (properties->overrides id _properties) node-overrides)))
+  (output node-overrides g/Any :cached (g/fnk [id _properties source-overrides]
+                                              (merge (properties->overrides id _properties) source-overrides)))
   (output node-ids IDMap (g/fnk [_node-id id node-ids] (into {id _node-id} node-ids))))
 
 (g/defnode Layout
@@ -438,31 +439,25 @@
                 (g/connect scene :id-prefix n :id-prefix)
                 (g/set-property n :nodes {})))
 
-(defn- make-scene! [graph path nodes]
-  (let [resources (or (g/graph-value graph :resources) {})
-        resource (->PathResource path)]
-    (tx-nodes (g/make-nodes graph [scene [Scene :resource resource]
-                                   node-tree [NodeTree]]
-                            (for [[from to] [[:_node-id :node-tree]
-                                             [:node-ids :node-ids]
-                                             [:node-overrides :node-overrides]]]
-                              (g/connect node-tree from scene to))
-                            (for [[from to] [[:id-prefix :id-prefix]]]
-                              (g/connect scene from node-tree to))
-                            (g/set-graph-value graph :resources (assoc resources resource scene))
-                            (reduce (fn [tx [node-type props]]
-                                      (into tx (add-node graph scene node-tree node-type props)))
-                                    [] nodes)))))
+(defn- load-scene [graph path nodes]
+  (let [resource (->PathResource path)]
+    (g/make-nodes graph [scene [Scene :resource resource]
+                         node-tree [NodeTree]]
+                  (for [[from to] [[:_node-id :node-tree]
+                                   [:node-ids :node-ids]
+                                   [:node-overrides :node-overrides]]]
+                    (g/connect node-tree from scene to))
+                  (for [[from to] [[:id-prefix :id-prefix]]]
+                    (g/connect scene from node-tree to))
+                  (g/update-graph-value graph :resources assoc resource scene)
+                  (reduce (fn [tx [node-type props]]
+                            (into tx (add-node graph scene node-tree node-type props)))
+                          [] nodes))))
 
-(deftest scene-loading
-  (with-clean-system
-    (let [[scene _ node] (make-scene! world "my-scene" [[VisualNode {:id "my-node" :value "initial"}]])
-          overrides {"my-template/my-node" {:value "new value"}}
-          [super-scene _ template] (make-scene! world "my-super-scene" [[Template {:id "my-template" :template {:path "my-scene" :overrides overrides}}]])]
-      (is (= "initial" (g/node-value node :value)))
-      (let [or-node (get (g/node-value template :node-ids) "my-template/my-node")]
-        (is (= "new value" (g/node-value or-node :value))))
-      (is (= overrides (g/node-value template :node-overrides))))))
+(defn- make-scene! [graph path nodes]
+  (when (nil? (g/graph-value graph :resources))
+    (g/set-graph-value! graph :resources {}))
+  (tx-nodes (load-scene graph path nodes)))
 
 (defn- has-node? [scene node-id]
   (contains? (g/node-value scene :node-ids) node-id))
@@ -472,6 +467,33 @@
 
 (defn- target [n label]
   (ffirst (g/targets-of n label)))
+
+(deftest scene-loading
+  (with-clean-system
+    (let [[scene _ node] (make-scene! world "my-scene" [[VisualNode {:id "my-node" :value "initial"}]])
+          overrides {"my-template/my-node" {:value "new value"}}
+          [super-scene _ template] (make-scene! world "my-super-scene" [[Template {:id "my-template" :template {:path "my-scene" :overrides overrides}}]])]
+      (is (= "initial" (g/node-value node :value)))
+      (let [or-node (get (g/node-value template :node-ids) "my-template/my-node")]
+        (is (= "new value" (g/node-value or-node :value))))
+      (is (= overrides (select-keys (g/node-value template :node-overrides) (keys overrides)))))))
+
+(deftest scene-loading-with-override-values
+  (with-clean-system
+    (let [scene-overrides {"template/my-node" {:value "scene-override"}}
+          super-overrides {"super-template/template/my-node" {:value "super-override"}}]
+      (g/transact (concat
+                   (load-scene world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
+                   (load-scene world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides scene-overrides}}]])
+                   (load-scene world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides super-overrides}}]])))
+    (doseq [[actual expected] (mapv (fn [[s-path id expected]] [(-> s-path
+                                                                 (->> (scene-by-path world))
+                                                                 (node-by-id id)
+                                                                 (g/node-value :node-overrides))
+                                                                expected])
+                                    [["scene" "template" scene-overrides]
+                                     ["super-scene" "super-template" super-overrides]])]
+      (is (= expected (select-keys actual (keys expected))))))))
 
 (deftest hierarchical-ids
   (with-clean-system
@@ -606,11 +628,11 @@
       (let [p (get-in (g/node-value comp :_properties) [:properties :speed])]
         (is (= 10 (:value p)))
         (is (= 0 (:original-value p)))
-        (g/transact (g/set-property comp :speed 20))
+        (g/transact (g/set-property (:node-id p) :speed 20))
         (let [p' (get-in (g/node-value comp :_properties) [:properties :speed])]
           (is (= 20 (:value p')))
           (is (= 0 (:original-value p'))))
-        (g/transact (g/clear-property comp :speed))
+        (g/transact (g/clear-property (:node-id p) :speed))
         (let [p' (get-in (g/node-value comp :_properties) [:properties :speed])]
           (is (= 0 (:value p')))
           (is (not (contains? p' :original-value))))))))
