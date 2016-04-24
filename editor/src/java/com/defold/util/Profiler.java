@@ -3,18 +3,15 @@ package com.defold.util;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.JsonNodeFactory;
 import org.codehaus.jackson.node.ObjectNode;
-import org.json.simple.JSONObject;
 
 public class Profiler {
 
@@ -40,18 +37,22 @@ public class Profiler {
         String thread;
         int frame = 0;
 
-        private Sample(String name, double start, double end, Object user1) {
-            this(name, start, end, user1, "");
+        private Sample(String name, double start, double end, Object user1, int frame) {
+            this(name, start, end, user1, "", frame);
         }
 
-        private Sample(String name, double start, double end, Object user1, Object user2) {
+        private Sample(String name, double start, double end, Object user1, Object user2, int frame) {
             this.name = name;
             this.start = start;
             this.end = end;
             this.user1 = user1;
             this.user2 = user2;
             this.thread = threadName.get();
-            this.frame = frameNumber.get();
+            this.frame = frame;
+        }
+
+        public int getFrame() {
+            return this.frame;
         }
 
         @Override
@@ -69,8 +70,12 @@ public class Profiler {
     }
 
     public static Sample begin(String name, Object user) {
+        return begin(name, user, frameNumber.get());
+    }
+
+    public static Sample begin(String name, Object user, int frame) {
         double t = System.nanoTime() / 1000000.0;
-        return new Sample(name, t, t, user);
+        return new Sample(name, t, t, user, frame);
     }
 
     public synchronized static void end(Sample s) {
