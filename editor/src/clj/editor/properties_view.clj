@@ -10,8 +10,7 @@
             [editor.types :as types]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [util.profiler :as profiler])
+            [editor.resource :as resource])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
@@ -453,18 +452,17 @@
   (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) (:properties properties)))
 
 (defn- update-pane [parent id workspace properties]
-  (profiler/profile "properties-view" -1
-                    ; NOTE: We cache the ui based on the ::template user-data
-                    (let [properties (properties/coalesce properties)
-                          template (properties->template properties)
-                          prev-template (ui/user-data parent ::template)]
-                      (when (not= template prev-template)
-                        (let [pane (make-pane parent workspace properties)]
-                          (ui/user-data! parent ::template template)
-                          (g/set-property! id :prev-pane pane)))
-                      (let [pane (g/node-value id :prev-pane)]
-                        (refresh-pane parent pane workspace properties)
-                        pane))))
+  ; NOTE: We cache the ui based on the ::template user-data
+  (let [properties (properties/coalesce properties)
+        template (properties->template properties)
+        prev-template (ui/user-data parent ::template)]
+    (when (not= template prev-template)
+      (let [pane (make-pane parent workspace properties)]
+        (ui/user-data! parent ::template template)
+        (g/set-property! id :prev-pane pane)))
+    (let [pane (g/node-value id :prev-pane)]
+      (refresh-pane parent pane workspace properties)
+      pane)))
 
 (g/defnode PropertiesView
   (property parent-view Parent)

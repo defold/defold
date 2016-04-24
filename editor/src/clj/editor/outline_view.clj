@@ -6,8 +6,7 @@
             [editor.ui :as ui]
             [editor.defold-project :as project]
             [editor.resource :as resource]
-            [editor.outline :as outline]
-            [util.profiler :as profiler])
+            [editor.outline :as outline])
   (:import [com.defold.editor Start]
            [editor.outline ItemIterator]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -118,18 +117,17 @@
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
 (g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
-  (profiler/profile "outline-view" -1
-                    (let [resource-set (set open-resources)
-                          root (get root-cache active-resource)
-                          ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
-                          new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
-                      (binding [*programmatic-selection* true]
-                        (when new-root
-                          (.setExpanded new-root true))
-                        (.setRoot tree-view new-root)
-                        (sync-selection tree-view new-root selection)
-                        (g/transact (g/set-property _node-id :root-cache new-cache))
-                        tree-view))))
+  (let [resource-set (set open-resources)
+        root (get root-cache active-resource)
+        ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
+        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
+    (binding [*programmatic-selection* true]
+      (when new-root
+        (.setExpanded new-root true))
+      (.setRoot tree-view new-root)
+      (sync-selection tree-view new-root selection)
+      (g/transact (g/set-property _node-id :root-cache new-cache))
+      tree-view)))
 
 (g/defnode OutlineView
   (property tree-view TreeView)

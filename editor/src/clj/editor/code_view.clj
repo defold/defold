@@ -374,7 +374,7 @@
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :clipboard (Clipboard/getSystemClipboard)} source-viewer)
-    (let [refresh-timer (ui/->timer 10 (fn [_] (g/node-value view-id :new-content)))
+    (let [refresh-timer (ui/->timer 10 "refresh-code-view" (fn [_] (g/node-value view-id :new-content)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)

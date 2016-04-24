@@ -685,7 +685,7 @@
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
   (let [workspace (:workspace opts)
         view-id (g/make-node! graph FormView :parent-view parent :workspace workspace)
-        repainter (ui/->timer (fn [dt] (g/node-value view-id :form)))]
+        repainter (ui/->timer 10 "refresh-form-view" (fn [dt] (g/node-value view-id :form)))]
     (g/transact
       (concat
         (g/connect resource-node :form-data view-id :form-data)))
