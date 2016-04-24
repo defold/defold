@@ -12,7 +12,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.defold-project :as project]
-            [editor.profiler :as profiler]
+            [util.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
@@ -253,7 +253,7 @@
       (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d))))
 
 (defn produce-render-data [scene selection aux-renderables camera viewport]
-  (profiler/profile "data" -1
+  (profiler/profile "render-data" -1
                     (let [selection-set (set selection)
                          out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
                          out-selected-renderables (transient [])

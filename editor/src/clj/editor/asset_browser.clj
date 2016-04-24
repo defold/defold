@@ -7,7 +7,8 @@
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [util.profiler :as profiler])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -352,11 +353,12 @@
     tree-view))
 
 (g/defnk produce-tree-view [tree-view resource-tree]
-  (let [selected-paths (or (ui/user-data tree-view ::pending-selection)
-                           (mapv resource/proj-path (workspace/selection tree-view)))]
-    (update-tree-view tree-view resource-tree selected-paths)
-    (ui/user-data! tree-view ::pending-selection nil)
-    tree-view))
+  (profiler/profile "asset-browser" -1
+                    (let [selected-paths (or (ui/user-data tree-view ::pending-selection)
+                                             (mapv resource/proj-path (workspace/selection tree-view)))]
+                      (update-tree-view tree-view resource-tree selected-paths)
+                      (ui/user-data! tree-view ::pending-selection nil)
+                      tree-view)))
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)

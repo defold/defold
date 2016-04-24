@@ -1,5 +1,5 @@
-(ns editor.profiler
-  (:import [com.defold.editor Profiler]))
+(ns util.profiler
+  (:import [com.defold.util Profiler]))
 
 (set! *warn-on-reflection* true)
 

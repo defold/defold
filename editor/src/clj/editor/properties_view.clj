@@ -10,7 +10,8 @@
             [editor.types :as types]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.profiler :as profiler])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
@@ -452,17 +453,18 @@
   (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) (:properties properties)))
 
 (defn- update-pane [parent id workspace properties]
-  ; NOTE: We cache the ui based on the ::template user-data
-  (let [properties (properties/coalesce properties)
-        template (properties->template properties)
-        prev-template (ui/user-data parent ::template)]
-    (when (not= template prev-template)
-      (let [pane (make-pane parent workspace properties)]
-        (ui/user-data! parent ::template template)
-        (g/set-property! id :prev-pane pane)))
-    (let [pane (g/node-value id :prev-pane)]
-      (refresh-pane parent pane workspace properties)
-      pane)))
+  (profiler/profile "properties-view" -1
+                    ; NOTE: We cache the ui based on the ::template user-data
+                    (let [properties (properties/coalesce properties)
+                          template (properties->template properties)
+                          prev-template (ui/user-data parent ::template)]
+                      (when (not= template prev-template)
+                        (let [pane (make-pane parent workspace properties)]
+                          (ui/user-data! parent ::template template)
+                          (g/set-property! id :prev-pane pane)))
+                      (let [pane (g/node-value id :prev-pane)]
+                        (refresh-pane parent pane workspace properties)
+                        pane))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
@@ -476,9 +478,6 @@
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
-        stage         (.. parent getScene getWindow)
-        refresh-timer (ui/->timer 10 (fn [now] (g/node-value view-id :pane)))]
+        stage         (.. parent getScene getWindow)]
     (g/connect! project :selected-node-properties view-id :selected-node-properties)
-    (ui/timer-stop-on-close! stage refresh-timer)
-    (ui/timer-start! refresh-timer)
     view-id))

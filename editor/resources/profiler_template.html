@@ -51,6 +51,9 @@
 <button>Reset</button>
 <script src="//d3js.org/d3.v3.js"></script>
 <script>
+var data = $PROFILER_DATA;
+</script>
+<script>
 
  var margin = {top: 20, right: 20, bottom: 30, left: 100},
      width = parseInt(d3.select('body').style('width')) - margin.left - margin.right,
@@ -99,73 +102,69 @@
                .append("g")
                .attr("id", "plot");
 
- d3.csv("timeseries.csv", type, function(error, data) {
-     var unique = function(a) {
-         return a.reduce(function(p, c) {
-             if (p.indexOf(c) < 0) p.push(c);
-             return p;
-         }, []);
-     };
+ data = data.map(type);
+ console.log(data);
+ var unique = function(a) {
+     return a.reduce(function(p, c) {
+         if (p.indexOf(c) < 0) p.push(c);
+         return p;
+     }, []);
+ };
 
-     var names = data.map(function(d) { return d.name; });
-     names = unique(names);
-     names.sort();
-     names.reverse();
-     console.log(names);
+ var names = data.map(function(d) { return d.name; });
+ names = unique(names);
+ names.sort();
+ names.reverse();
+ console.log(names);
 
-     y.domain(names);
+ y.domain(names);
 
+ var xmin = d3.min(data, function(d) { return d.start; });
+ var xmax = d3.max(data, function(d) { return d.end; });
+ x.domain([xmin, xmax]);
+ zoom.x(x);
 
-     var xmin = d3.min(data, function(d) { return d.start; });
-     var xmax = d3.max(data, function(d) { return d.end; });
-     x.domain([xmin, xmax]);
-     zoom.x(x);
+ colorOf.domain(names);
 
-     colorOf.domain(names);
+ svg.append("g")
+     .attr("class", "x axis")
+     .attr("transform", "translate(0," + height + ")")
+     .call(xAxis);
 
-     svg.append("g")
-        .attr("class", "x axis")
-        .attr("transform", "translate(0," + height + ")")
-        .call(xAxis);
+ svg.append("g")
+     .attr("class", "y axis")
+     .call(yAxis);
 
-     svg.append("g")
-        .attr("class", "y axis")
-        .call(yAxis);
+ plot.selectAll(".bar")
+     .data(data)
+     .enter().append("rect")
+     .attr("class", "bar")
+     .attr("y", function(d) { return y(d.name); })
+     .attr("height", y.rangeBand())
+     .attr("x", function(d) { return x(d.start); })
+     .attr("width", function(d) { return Math.max(0.05, x(d.end) - x(d.start)); } )
+     .style("fill", function(d) { return colorOf(d.name); })
 
-     plot.selectAll(".bar")
-         .data(data)
-         .enter().append("rect")
-         .attr("class", "bar")
-         .attr("y", function(d) { return y(d.name); })
-         .attr("height", y.rangeBand())
-         .attr("x", function(d) { return x(d.start); })
-         .attr("width", function(d) { return Math.max(0.05, x(d.end) - x(d.start)); } )
-         .style("fill", function(d) { return colorOf(d.name); })
+     .on('mouseover', function(d) {
+         d3.select(this).classed("highlight", true);
 
-         .on('mouseover', function(d) {
-             d3.select(this).classed("highlight", true);
+         var s = "";
+         for (k in d) {
+             s += k + ": " + d[k] + "<br>";
+         }
 
-             var s = "";
-             for (k in d) {
-                 s += k + ": " + d[k] + "<br>";
-             }
-
-             tooltip.html("<tt>" + s + "</tt>")
-                    .style('display', 'block')
-                    .style('top', (d3.event.pageY - 10) + 'px')
-                    .style('left', (d3.event.pageX + 20) + 'px');
+         tooltip.html("<tt>" + s + "</tt>")
+             .style('display', 'block')
+             .style('top', (d3.event.pageY - 10) + 'px')
+             .style('left', (d3.event.pageX + 20) + 'px');
          })
-         .on('mouseout', function(d) {
-             d3.select(this).style("stroke", "");
-             d3.select(this).classed("highlight", false);
-             tooltip.style('display', 'none');
+     .on('mouseout', function(d) {
+         d3.select(this).style("stroke", "");
+         d3.select(this).classed("highlight", false);
+         tooltip.style('display', 'none');
          });
- });
-
 
  function type(d) {
-     d.start = parseFloat(d.start);
-     d.end = parseFloat(d.end);
      d.elapsed = d.end - d.start;
      return d;
  }
@@ -173,7 +172,6 @@
  d3.select("button").on("click", reset);
 
  function zoomed() {
-
      var tx = Math.min(0, d3.event.translate[0]);
      plot.attr("transform", "translate(" + tx + ",0)" + " scale(" + d3.event.scale + ",1)");
      zoom.translate([tx, 0]);
@@ -182,14 +180,14 @@
  }
 
  function reset() {
-   d3.transition().duration(750).tween("zoom", function() {
-     var ix = d3.interpolate(x.domain(), [-width / 2, width / 2]),
-     iy = d3.interpolate(y.domain(), [-height / 2, height / 2]);
-     return function(t) {
-       zoom.x(x.domain(ix(t))).y(y.domain(iy(t)));
-       zoomed();
-     };
-   });
+     d3.transition().duration(750).tween("zoom", function() {
+         var ix = d3.interpolate(x.domain(), [-width / 2, width / 2]),
+         iy = d3.interpolate(y.domain(), [-height / 2, height / 2]);
+         return function(t) {
+             zoom.x(x.domain(ix(t))).y(y.domain(iy(t)));
+             zoomed();
+         };
+     });
  }
 
 
@@ -245,5 +243,4 @@
 
      return h1 >>> 0;
  }
-
 </script>
