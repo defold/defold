@@ -4,7 +4,8 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.profiler :as profiler])
   (:import [com.defold.control LongField]
            [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
@@ -835,9 +836,9 @@ return value."
       (.play))))
 
 (defn ->timer
-  ([tick-fn]
-    (->timer nil tick-fn))
-  ([fps tick-fn]
+  ([name tick-fn]
+    (->timer nil name tick-fn))
+  ([fps name tick-fn]
    (let [last       (atom (System/nanoTime))
          interval   (when fps
                       (long (* 1e9 (/ 1 (double fps)))))
@@ -845,19 +846,20 @@ return value."
      {:last  last
       :timer (proxy [AnimationTimer] []
                (handle [now]
-                 (let [delta (- now @last)]
-                   (when (or (nil? interval) (> delta interval))
-                     (try
-                       (tick-fn (* delta 1e-9))
-                       (reset! last-error nil)
-                       (reset! last (- now (if interval
-                                             (- delta interval)
-                                             0)))
-                       (catch Exception e
-                         (let [clj-ex (Throwable->map e)]
-                           (when (not= @last-error clj-ex)
-                             (println clj-ex)
-                             (reset! last-error clj-ex)))))))))})))
+                 (profiler/profile "timer" name
+                                   (let [delta (- now @last)]
+                                     (when (or (nil? interval) (> delta interval))
+                                       (try
+                                         (tick-fn (* delta 1e-9))
+                                         (reset! last-error nil)
+                                         (reset! last (- now (if interval
+                                                               (- delta interval)
+                                                               0)))
+                                         (catch Exception e
+                                           (let [clj-ex (Throwable->map e)]
+                                             (when (not= @last-error clj-ex)
+                                               (println clj-ex)
+                                               (reset! last-error clj-ex))))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))

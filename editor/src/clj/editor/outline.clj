@@ -45,7 +45,7 @@
 (def OutlineData {:node-id g/NodeID
                   :label g/Str
                   :icon g/Str
-                  (g/optional-key :children) [(g/recursive #'OutlineData)]
+                  (g/optional-key :children) [g/Any]
                   (g/optional-key :child-reqs) [g/Any]
                   (g/optional-key :outline-overridden?) g/Bool
                   g/Keyword g/Any})
