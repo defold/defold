@@ -39,7 +39,9 @@
             [editor.graph-view :as graph-view]
             [editor.core :as core]
             [dynamo.graph :as g]
-            [editor.display-profiles :as display-profiles])
+            [editor.display-profiles :as display-profiles]
+            [editor.web-profiler :as web-profiler]
+            [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
@@ -138,10 +140,13 @@
           ^TextArea console    (.lookup root "#console")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (partial app-view/remove-resource-tab editor-tabs))]
+                                                                 (partial app-view/remove-resource-tab editor-tabs))
+          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
+                                 http-server/start!)]
       (console/setup-console! console)
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
@@ -149,7 +154,8 @@
                          :project-graph (project/graph project)
                          :prefs         prefs
                          :workspace     (g/node-value project :workspace)
-                         :outline-view  outline-view}]
+                         :outline-view  outline-view
+                         :web-server    web-server}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project)))
       (g/transact
        (concat
@@ -158,7 +164,7 @@
           (g/connect app-view label outline-view label))
         (for [view [outline-view asset-browser]]
           (g/update-property app-view :auto-pulls conj [view :tree-view]))
-        (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
+        (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
     (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
@@ -187,8 +193,6 @@
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace
-                                                                 (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph*
-                                                                       (.lookup root "#properties")))]
+                                                                 (.lookup root "#changes-container")))]
     (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))

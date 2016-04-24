@@ -10,10 +10,11 @@
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.profiler :as profiler]
+            [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [com.defold.editor Profiler]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
@@ -31,7 +32,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
-           [java.io File]
+           [java.io File ByteArrayOutputStream]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -187,10 +188,6 @@
   (enabled? [] true)
   (run [] (make-about-dialog)))
 
-(handler/defhandler :profile :global
-  (enabled? [] true)
-  (run [] (Profiler/dump "misc/timeseries.csv")))
-
 (handler/defhandler :reload-stylesheet :global
   (enabled? [] true)
   (run [] (ui/reload-root-styles!)))
@@ -263,9 +260,13 @@
                               :acc "Alt+DOWN"
                               :command :move-down}]}
                  {:label "Help"
-                  :children [{:label "Profile"
-                              :command :profile
-                              :acc "Shift+Shortcut+P"}
+                  :children [{:label "Profiler"
+                              :children [{:label "Measure"
+                                          :command :profile
+                                          :acc "Shortcut+P"}
+                                         {:label "Measure and Show"
+                                          :command :profile-show
+                                          :acc "Shift+Shortcut+P"}]}
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
@@ -313,7 +314,8 @@
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
     (let [refresh-timers [(ui/->timer 2 (fn [dt]
-                                          (ui/refresh (.getScene stage))
+                                          (profiler/profile "ui-refresh" -1
+                                                            (ui/refresh (.getScene stage)))
                                           (let [settings      (g/node-value project :settings)
                                                 project-title (settings ["project" "title"])
                                                 new-title     (make-title project-title)]

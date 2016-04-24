@@ -1,13 +1,20 @@
-package com.defold.editor;
+package com.defold.util;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
+import org.json.simple.JSONObject;
 
 public class Profiler {
 
@@ -76,6 +83,32 @@ public class Profiler {
 
     public static synchronized void reset()  {
         samples.clear();
+    }
+
+    public static synchronized String dumpJson() throws IOException {
+        Collections.sort(samples, new Comparator<Sample>() {
+            @Override
+            public int compare(Sample o1, Sample o2) {
+                return Double.compare(o1.start, o2.start);
+            }
+        });
+        JsonNodeFactory f = JsonNodeFactory.instance;
+        ArrayNode smpls = new ArrayNode(f);
+        double min = Double.MAX_VALUE;
+        for (Sample s : samples) {
+            min = Math.min(min, s.start);
+        }
+        for (Sample s : samples) {
+            ObjectNode o = smpls.addObject();
+            o.put("start", s.start - min);
+            o.put("end", s.end - min);
+            o.put("name", s.name);
+            o.put("user1", s.user1.toString());
+            o.put("user2", s.user2.toString());
+            o.put("thread", s.thread);
+            o.put("frame", s.frame);
+        }
+        return smpls.toString();
     }
 
     public static synchronized void dump(String filename) throws IOException {
