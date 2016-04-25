@@ -12,6 +12,7 @@
         <string>{{project.title}}</string>
         <key>CFBundleIconFiles</key>
         <array>
+                <string>Icon-167.png</string>
                 <string>Icon-60@3x.png</string>
                 <string>Icon-60@2x.png</string>
                 <string>Icon-76@2x.png</string>
@@ -27,6 +28,7 @@
                 <dict>
                         <key>CFBundleIconFiles</key>
                         <array>
+                                <string>Icon-167.png</string>
                                 <string>Icon-60@3x.png</string>
                                 <string>Icon-60@2x.png</string>
                                 <string>Icon-76@2x.png</string>
@@ -212,7 +214,7 @@
                     <key>UILaunchImageMinimumOSVersion</key>
                     <string>8.0</string>
                     <key>UILaunchImageName</key>
-                    <string>Default-736h</string>
+                    <string>Default-Portrait-736h</string>
                     <key>UILaunchImageOrientation</key>
                     <string>Portrait</string>
                     <key>UILaunchImageSize</key>
@@ -247,6 +249,26 @@
                     <string>Landscape</string>
                     <key>UILaunchImageSize</key>
                     <string>{768, 1024}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Portrait-1366h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{1024,1366}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Landscape-1366h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{1024,1366}</string>
                 </dict>
         </array>
 </dict>
