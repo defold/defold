@@ -77,7 +77,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			break;
 		case LEFT: {
 
-
+                    /**
 			if (event.isAltDown()) {
 				invokeAction(ActionType.WORD_PREVIOUS);
 			} else {
@@ -93,8 +93,10 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				getControl().impl_setCaretOffset(newOffset, event.isShiftDown());
 				event.consume();
 			}
+                    **/
                         event.consume();
                         System.out.println("left");
+                        break;
 
 		}
 		case RIGHT: {
@@ -129,6 +131,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
                     break;
 		}
 		case UP: {
+                    /**
 			int rowIndex = currentRowIndex;
 
 			if (rowIndex == 0) {
@@ -142,11 +145,17 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			int newCaretPosition = lineOffset + colIdx;
 			int maxPosition = lineOffset + getControl().getContent().getLine(rowIndex).length();
 
-			getControl().impl_setCaretOffset(Math.min(newCaretPosition, maxPosition), event.isShiftDown());
+			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
+			maxPosition), event.isShiftDown());
+
+                    ***/
+                        System.out.println("up");
 			event.consume();
 			break;
 		}
 		case DOWN: {
+
+                    /**
 			int rowIndex = currentRowIndex;
 			if (rowIndex + 1 == getControl().getContent().getLineCount()) {
 				break;
@@ -159,7 +168,10 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			int newCaretPosition = lineOffset + colIdx;
 			int maxPosition = lineOffset + getControl().getContent().getLine(rowIndex).length();
 
-			getControl().impl_setCaretOffset(Math.min(newCaretPosition, maxPosition), event.isShiftDown());
+			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
+			maxPosition), event.isShiftDown());
+                    **/
+                    System.out.println("down");
 			event.consume();
 			break;
 		}
