@@ -190,4 +190,14 @@
         (select-left! source-viewer)
         (is (= 1 (caret source-viewer)))
         (is (= 1 (g/node-value code-node :caret-position)))
-        (is (= "h" (text-selection source-viewer)))))))
+        (is (= "h" (text-selection source-viewer))))
+      (testing "out of bounds right"
+        (caret! source-viewer (count code) false)
+        (select-right! source-viewer)
+        (select-right! source-viewer)
+        (is (= (count code) (caret source-viewer))))
+      (testing "out of bounds left"
+        (caret! source-viewer 0 false)
+        (select-left! source-viewer)
+        (select-left! source-viewer)
+        (is (= 0 (caret source-viewer)))))))
