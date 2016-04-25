@@ -100,8 +100,7 @@ public class IOSBundler implements IBundler {
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait.png");
 
         // iphone 6
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-667h@2x.png");
 
         // iphone 6 plus portrait+landscape
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
