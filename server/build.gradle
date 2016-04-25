@@ -2,7 +2,7 @@ apply plugin: 'java'
 apply plugin: 'eclipse'
 apply plugin:'application'
 
-sourceCompatibility = 1.7
+sourceCompatibility = 1.8
 version = '1.0'
 
 mainClassName = "com.dynamo.cr.server.Main"
