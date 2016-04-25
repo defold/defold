@@ -184,7 +184,9 @@ public class IOSBundler implements IBundler {
         }
 
         // Copy Executable
-        FileUtils.copyFile(new File(exe), new File(appDir, title));
+        File destExecutable = new File(appDir, title);
+        FileUtils.copyFile(new File(exe), destExecutable);
+        destExecutable.setExecutable(true);
 
         // Sign
         if (identity != null && provisioningProfile != null) {
