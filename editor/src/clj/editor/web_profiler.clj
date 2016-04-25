@@ -13,7 +13,7 @@
   (let [data (Profiler/dumpJson)
         html (-> (slurp template-path)
                (clojure.string/replace "$PROFILER_DATA" data))]
-    (-> (File. target-path)
+    (-> (File. ^String target-path)
       .getParentFile
       .mkdirs)
     (spit target-path html)))
