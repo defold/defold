@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 #include "script.h"
-#include <limits.h>
 
 extern "C"
 {
