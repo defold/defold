@@ -237,7 +237,9 @@ var Progress = {
     },
 
     removeProgress: function () {
-        Progress.progress.parentElement.removeChild(Progress.progress);
+        if (Progress.progress.parentElement !== null) {
+            Progress.progress.parentElement.removeChild(Progress.progress);
+        }
     }
 };
 
@@ -279,6 +281,13 @@ var Module = {
 
     _filesToPreload: [],
     _archiveLoaded: false,
+    _preLoadDone: false,
+    _waitingForArchive: false,
+
+    // Persistent storage
+    _syncInProgress: false,
+    _syncNeeded: false,
+    _syncInitial: false,
 
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },
@@ -354,13 +363,8 @@ var Module = {
         Module._archiveLoaded = true;
         Progress.updateProgress(100, "Starting...");
 
-        if(typeof Module.run == 'undefined') {
-            /* If we are waiting for engine, let it autostart. */
-            Module.noInitialRun = false;
-        } else {
-            Module.preloadAll();
-            Progress.removeProgress();
-            Module.callMain();
+        if (Module._waitingForArchive) {
+            Module._preloadAndCallMain();
         }
     },
 
@@ -372,26 +376,74 @@ var Module = {
         }
     },
 
+    preSync: function(done) {
+        // Initial persistent sync before main is called
+        FS.syncfs(true, function(err) {
+            if(err) {
+                console.error("FS syncfs error: " + err);
+                Module.preSync(done);
+            } else {
+                Module._syncInitial = true;
+                if (done !== undefined) {
+                    done();
+                }
+            }
+        });
+    },
+
     preloadAll: function() {
+        if (Module._preLoadDone) {
+            return;
+        }
         for (var i = 0; i < Module._filesToPreload.length; ++i) {
             var item = Module._filesToPreload[i];
             FS.createPreloadedFile("", item.path, item.data, true, true);
         }
+        Module._preLoadDone = true;
+    },
+
+
+
+    // Tries to do a MEM->IDB sync
+    // It will flag that another one is needed if there is already one sync running.
+    persistentSync: function() {
+
+        // Need to wait for the initial sync to finish since it
+        // will call close on all its file streams which will trigger
+        // new persistentSync for each.
+        if (Module._syncInitial) {
+            if (Module._syncInProgress) {
+                Module._syncNeeded = true;
+            } else {
+                Module._startSyncFS();
+            }
+        }
     },
 
     preInit: [function() {
+
         /* Mount filesystem on preinit */
         var dir = DMSYS.GetUserPersistentDataRoot();
         FS.mkdir(dir);
 
-        if (window.__indexedDB) {
+        // If IndexedDB is supported we mount the persistent data root as IDBFS,
+        // then try to do a IDB->MEM sync before we start the engine to get
+        // previously saved data before boot.
+        window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+        if (window.indexedDB) {
             FS.mount(IDBFS, {}, dir);
-            FS.syncfs(true, function(err) {
-                if(err) {
-                    throw "FS syncfs error: " + err;
-                }
+
+            // Patch FS.close so it will try to sync MEM->IDB
+            var _close = FS.close; FS.close = function(stream) { var r = _close(stream); Module.persistentSync(); return r; }
+
+            // Sync IDB->MEM before calling main()
+            Module.preSync(function() {
+                Module._preloadAndCallMain();
             });
+        } else {
+            Module._preloadAndCallMain();
         }
+
     }],
 
     preRun: [function() {
@@ -406,6 +458,38 @@ var Module = {
             Progress.removeProgress();
         }
     }],
+
+    _preloadAndCallMain: function() {
+        // If the archive isn't loaded,
+        // we will have to wait with calling main.
+        if (!Module._archiveLoaded) {
+            Module._waitingForArchive = true;
+        } else {
+            Module.preloadAll();
+            Progress.removeProgress();
+            Module.callMain();
+        }
+    },
+
+    // Wrap IDBFS syncfs call with logic to avoid multiple syncs
+    // running at the same time.
+    _startSyncFS: function() {
+        Module._syncInProgress = true;
+
+        FS.syncfs(false, function(err) {
+            Module._syncInProgress = false;
+
+            if (err) {
+                console.error("Module._startSyncFS error: " + err);
+            }
+
+            if (Module._syncNeeded) {
+                Module._syncNeeded = false;
+                Module._startSyncFS();
+            }
+
+        });
+    },
 };
 
 window.onerror = function() {
