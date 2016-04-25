@@ -57,18 +57,14 @@ public class GitArchiveProvider {
             cloneTo = Files.createTempDir();
 
             // NOTE: No shallow clone support in current JGit
-            CloneCommand clone = Git.cloneRepository().setURI(repositoryName).setBare(false)
-                    .setDirectory(cloneTo);
+            CloneCommand clone = Git.cloneRepository().setURI(repositoryName).setBare(false).setDirectory(cloneTo);
 
             try {
                 Git git = clone.call();
                 git.checkout().setName(fileKey).call();
             } catch (JGitInternalException | RefAlreadyExistsException e) {
                 throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
-            } catch (RefNotFoundException e) {
-                throw new ServerException(String.format("Version not found: %s", version), e,
-                        Status.INTERNAL_SERVER_ERROR);
-            } catch (InvalidRefNameException e) {
+            } catch (RefNotFoundException | InvalidRefNameException e) {
                 throw new ServerException(String.format("Version not found: %s", version), e,
                         Status.INTERNAL_SERVER_ERROR);
             } catch (GitAPIException e) {
@@ -79,8 +75,7 @@ public class GitArchiveProvider {
             zipFiles(cloneTo, localFile, fileKey);
 
             // nio supports atomic file move
-            java.nio.file.Files.move(localFile.toPath(), Paths.get(archivePathname),
-                    StandardCopyOption.ATOMIC_MOVE);
+            java.nio.file.Files.move(localFile.toPath(), Paths.get(archivePathname), StandardCopyOption.ATOMIC_MOVE);
 
         } catch (IOException e) {
             // NOTE: Only delete zip-file on error as we need the file when
@@ -136,7 +131,7 @@ public class GitArchiveProvider {
         }
     }
 
-    static void zipFiles(File directory, File zipFile, String comment) throws IOException {
+    private static void zipFiles(File directory, File zipFile, String comment) throws IOException {
         ZipOutputStream zipOut = null;
 
         try {
