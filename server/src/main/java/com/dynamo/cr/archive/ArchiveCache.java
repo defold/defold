@@ -176,7 +176,7 @@ public class ArchiveCache {
             }
         } catch (ExecutionException | UncheckedExecutionException | ExecutionError e) {
             // LoadingCache wraps all exceptions, but we throw server errors from the archive provider etc.
-            if (e != null && e.getCause() != null) {
+            if (e.getCause() != null) {
                 if(ServerException.class.isInstance(e.getCause())) {
                     throw (ServerException)e.getCause();
                 }
