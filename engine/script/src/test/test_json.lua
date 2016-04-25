@@ -9,11 +9,13 @@ function test_syntax_error(js)
 end
 
 function test_json()
-    assert(json.decode(123) == 123)
-    assert(json.decode("true") == true)
-    assert(json.decode("false") == false)
+    -- These tests validate "nice json", but are incorrect according to "strict json".
+    -- assert(json.decode(123) == 123)
+    -- assert(json.decode("true") == true)
+    -- assert(json.decode("false") == false)
+    -- assert(json.decode('null') == nil)
+
     assert(json.decode('"foo"') == "foo")
-    assert(json.decode('null') == nil)
     assert(json.decode('"\\n"') == "\n")
     -- NOTE: The file must be in UTF-8 for the unicode test
     assert(json.decode('"x\\u00e5y\\u00e4z\\u00f6w"') == "xåyäzöw")
