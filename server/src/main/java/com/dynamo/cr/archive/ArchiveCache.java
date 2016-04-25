@@ -65,10 +65,10 @@ public class ArchiveCache {
             }
           };
 
-        long maximumCacheWeight = configuration.getArchiveCacheMaxSize() * 1024; // Mb to kb
-        logger.info(String.format("Initializing new archive cache with max size=%d kb", maximumCacheWeight));
+        long maximumCacheWeightKb = configuration.getArchiveCacheMaxSize() * 1024; // Mb to kb
+        logger.info(String.format("Initializing new archive cache with max size=%d kb", maximumCacheWeightKb));
         cachedArchives = CacheBuilder.newBuilder()
-                .maximumWeight(maximumCacheWeight)
+                .maximumWeight(maximumCacheWeightKb)
                 .weigher(weigher)
                 .removalListener(removalListener)
                 .build();
@@ -93,7 +93,7 @@ public class ArchiveCache {
 
     /**
      * Find all subdirectories (non-recursive) containing a zipfile and attempt loading them to the cache
-     * @param baseDirectory
+     * @param dirFile
      */
     private void loadLocalArchives(File dirFile)
             throws SecurityException, ExecutionException, UncheckedExecutionException, ExecutionError  {
@@ -218,11 +218,11 @@ public class ArchiveCache {
      * @param key Archive key, i.e. sha1
      * @param repositoryName Archive repository name used when the local file is not found
      * @param version Archive repository version used when the local file is not found
-     * @return
+     * @return Archive path.
      * @throws IOException
      * @throws ServerException
      */
-    public String loadFile(String key, String repositoryName, String version)
+    private String loadFile(String key, String repositoryName, String version)
             throws IOException, ServerException {
 
         File cacheDirectory = getOrCreateArchiveDir(key);
