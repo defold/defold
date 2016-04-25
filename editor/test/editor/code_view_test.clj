@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
+            [editor.code-view-ux :as cvx :refer :all]
             [editor.handler :as handler]
             [editor.lua :as lua]
             [editor.script :as script]
@@ -109,22 +110,17 @@
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
          (is (= {:start 0 :length 23 :stylename "comment-multi"} (first (styles source-viewer)))))))))
-
+51546
 (defrecord TestClipboard [content]
   TextContainer
   (text! [this s] (reset! content s))
   (text [this] @content))
 
-(defn- copy! [source-viewer code-node clipboard]
-  (handler/run
-    :copy
-    [{:name :code-view :env {:selection source-viewer :code-node code-node :clipboard clipboard}}]
-    {}))
+(defn- copy! [source-viewer clipboard]
+  (handler/run :copy [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}] {}))
 
-(defn- paste! [source-viewer code-node clipboard]
-  (handler/run :paste
-    [{:name :code-view :env {:selection source-viewer :code-node code-node :clipboard clipboard}}]
-    {}))
+(defn- paste! [source-viewer clipboard]
+  (handler/run :paste [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
 
 (deftest copy-paste-test
   (with-clean-system
@@ -134,7 +130,52 @@
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (text-selection! source-viewer 6 5)
-      (copy! source-viewer code-node clipboard)
-      (paste! source-viewer code-node clipboard)
+      (copy! source-viewer clipboard)
+      (paste! source-viewer clipboard)
       (is (= "world" (text clipboard)))
       (is (= "worldhello world" (g/node-value code-node :code))))))
+
+(defn- right! [source-viewer]
+  (handler/run :right [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- left! [source-viewer]
+  (handler/run :left [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest move-test
+  (with-clean-system
+    (let [code "hello world"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (caret! source-viewer 5 false)
+      (right! source-viewer)
+      (g/node-value viewer-node :new-content)
+      (is (= 6 (caret source-viewer)))
+      (is (= 6 (g/node-value code-node :caret-position)))
+      (left! source-viewer)
+      (g/node-value viewer-node :new-content)
+      (is (= 5 (caret source-viewer)))
+      (is (= 5 (g/node-value code-node :caret-position))))))
+
+(defn- select-right! [source-viewer]
+  (handler/run :select-right [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- select-left! [source-viewer]
+  (handler/run :select-left [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-move-test
+  (with-clean-system
+    (let [code "hello world"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (select-right! source-viewer)
+      (select-right! source-viewer)
+      (g/node-value viewer-node :new-content)
+      (is (= 2 (caret source-viewer)))
+      (is (= 2 (g/node-value code-node :caret-position)))
+      (is (= "he" (text-selection source-viewer)))
+      (select-left! source-viewer)
+      (is (= 1 (caret source-viewer)))
+      (is (= 1 (g/node-value code-node :caret-position)))
+      (is (= "h" (text-selection source-viewer))))))

@@ -76,6 +76,8 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		case CONTROL:
 			break;
 		case LEFT: {
+
+
 			if (event.isAltDown()) {
 				invokeAction(ActionType.WORD_PREVIOUS);
 			} else {
@@ -91,9 +93,12 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				getControl().impl_setCaretOffset(newOffset, event.isShiftDown());
 				event.consume();
 			}
-			break;
+                        event.consume();
+                        System.out.println("left");
+
 		}
 		case RIGHT: {
+                    /**
 			if (event.isAltDown()) {
 				invokeAction(ActionType.WORD_NEXT);
 			} else if (event.isMetaDown()) {
@@ -118,6 +123,10 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				event.consume();
 			}
 			break;
+                    **/
+                    event.consume();
+                    System.out.println("right");
+                    break;
 		}
 		case UP: {
 			int rowIndex = currentRowIndex;
@@ -270,4 +279,5 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			}
 		}
 	}
+
 }
