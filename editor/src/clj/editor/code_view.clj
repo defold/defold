@@ -1,6 +1,7 @@
 (ns editor.code-view
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.code-view-ux :as cvx]
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
@@ -280,6 +281,9 @@
           styled-text-behavior (new DefoldStyledTextBehavior text-area)
           skin (new StyledTextSkin text-area styled-text-behavior)]
       (.setSkin text-area skin)
+      (.addEventHandler ^StyledTextArea text-area
+                        KeyEvent/KEY_PRESSED
+                        (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
       (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
       (ui/user-data! text-area ::programmatic-change (atom nil))
 
@@ -324,12 +328,8 @@
     (g/set-property code-node :caret-position initial-caret-position)))
   view-id)
 
-(defprotocol TextContainer
-  (text! [this s])
-  (text [this]))
-
 (extend-type Clipboard
-  TextContainer
+  cvx/TextContainer
   (text! [this s]
     (let [content (ClipboardContent.)]
       (.putString content s)
@@ -338,28 +338,28 @@
     (when (.hasString this)
       (.getString this))))
 
-(defprotocol TextView
-  (text-selection [this])
-  (text-selection! [this offset length]))
-
-(defprotocol TextStyles
-  (styles [this]))
-
 (extend-type SourceViewer
   workspace/SelectionProvider
   (selection [this] this)
-  TextView
+  cvx/TextContainer
+  (text! [this s]
+    (.set (.getDocument this) s))
+  (text [this]
+    (.get (.getDocument this)))
+  cvx/TextView
+  (selection-offset [this]
+    (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
+  (selection-length [this]
+    (.-length ^TextSelection (-> this (.getTextWidget) (.getSelection))))
+  (caret! [this offset select?]
+    (.impl_setCaretOffset (.getTextWidget this) offset select?))
+  (caret [this] (.getCaretOffset (.getTextWidget this)))
   (text-selection [this]
-    (let [text-widget ^StyledTextArea (.getTextWidget ^SourceViewer this)
-          selection (.getSelection text-widget)
-          offset (.-offset ^TextSelection selection)
-          length (.-length ^TextSelection selection)]
-     (.get (.getDocument this) offset length)))
+    (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
     (.setSelectionRange (.getTextWidget this) offset length))
-  TextStyles
-  (styles [this] (let [document (-> this (.getDocument))
-                       document-len (.getLength document)
+  cvx/TextStyles
+  (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
                        len (dec (.getCharCount text-widget))
                        style-ranges (.getStyleRanges text-widget (int 0) len false)
@@ -387,26 +387,6 @@
       (g/transact
        (concat
         (g/set-property code-node :caret-position caret-position))))))
-
-(handler/defhandler :copy :code-view
-  (enabled? [selection] selection)
-  (run [selection clipboard]
-    (text! clipboard (text-selection selection))))
-
-(handler/defhandler :paste :code-view
-  (enabled? [selection] selection)
-  (run [selection code-node clipboard]
-    (when-let [text (text clipboard)]
-      (let [code (g/node-value code-node :code)
-            caret (g/node-value code-node :caret-position)
-            new-code (str (.substring ^String code 0 caret)
-                          text
-                          (.substring ^String code caret (count code)))
-            new-caret (+ caret (count text))]
-        (g/transact
-         (concat
-          (g/set-property code-node :code new-code)
-          (g/set-property code-node :caret-position new-caret)))))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
