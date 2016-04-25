@@ -41,7 +41,7 @@ import com.google.inject.Singleton;
 
 @Singleton
 public class GitArchiveProvider {
-    protected static Logger logger = LoggerFactory.getLogger(GitArchiveProvider.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(GitArchiveProvider.class);
 
     @Inject
     public GitArchiveProvider() {
@@ -50,14 +50,14 @@ public class GitArchiveProvider {
     public void createLocalArchive(String archivePathname, String fileKey, String repositoryName, String version)
             throws IOException, ServerException {
 
-        File cloneTo = null;
-        File localFile = null;
+        File cloneToDirectory = null;
+        File temporaryZipFile = null;
 
         try {
-            cloneTo = Files.createTempDir();
+            cloneToDirectory = Files.createTempDir();
 
             // NOTE: No shallow clone support in current JGit
-            CloneCommand clone = Git.cloneRepository().setURI(repositoryName).setBare(false).setDirectory(cloneTo);
+            CloneCommand clone = Git.cloneRepository().setURI(repositoryName).setBare(false).setDirectory(cloneToDirectory);
 
             try {
                 Git git = clone.call();
@@ -71,23 +71,22 @@ public class GitArchiveProvider {
                 throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
             }
 
-            localFile = File.createTempFile("archive", ".zip");
-            zipFiles(cloneTo, localFile, fileKey);
+            temporaryZipFile = File.createTempFile("archive", ".zip");
+            zipFiles(cloneToDirectory, temporaryZipFile, fileKey);
 
-            // nio supports atomic file move
-            java.nio.file.Files.move(localFile.toPath(), Paths.get(archivePathname), StandardCopyOption.ATOMIC_MOVE);
+            // Do atomic move of file to prevent serving incomplete files.
+            java.nio.file.Files.move(temporaryZipFile.toPath(), Paths.get(archivePathname), StandardCopyOption.ATOMIC_MOVE);
 
         } catch (IOException e) {
-            // NOTE: Only delete zip-file on error as we need the file when
-            // streaming.
-            localFile.delete();
+            // Delete temporary file on error. If successful the file has been moved to an archive.
+            temporaryZipFile.delete();
             throw new IOException("Failed to clone and zip project", e);
         } finally {
-            // NOTE: We always delete temporary cloneTo directory
+            // Always delete
             try {
-                FileUtils.deleteDirectory(cloneTo);
+                FileUtils.deleteDirectory(cloneToDirectory);
             } catch (IOException | IllegalArgumentException e) {
-                logger.error("Failed to remove temporary clone directory", e);
+                LOGGER.error("Failed to remove temporary clone directory", e);
             }
         }
     }
