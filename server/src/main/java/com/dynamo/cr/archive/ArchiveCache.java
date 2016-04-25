@@ -100,6 +100,7 @@ public class ArchiveCache {
 
         if (!dirFile.isDirectory() || dirFile.getName().startsWith(".")) {
             // Avoid searching through hidden directories
+            logger.warn("Invalid archive directory: %s", dirFile.getName());
             return;
         }
 
