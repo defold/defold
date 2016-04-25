@@ -13,9 +13,7 @@
   (selection-offset [this])
   (selection-length [this])
   (caret [this])
-  (caret! [this offset select?])
-  (doc! [this s])
-  (doc [s]))
+  (caret! [this offset select?]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -70,35 +68,48 @@
   (enabled? [selection] selection)
   (run [selection clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [code (doc selection)
+      (let [code (text selection)
             caret (caret selection)
             new-code (str (.substring ^String code 0 caret)
                           clipboard-text
                           (.substring ^String code caret (count code)))
             new-caret (+ caret (count clipboard-text))]
-        (doc! selection new-code)
+        (text! selection new-code)
         (caret! selection new-caret false)))))
+
+(defn- in-bounds? [selection caret-pos]
+  (and
+   (not (neg? caret-pos))
+   (>= (count (text selection)) caret-pos)))
 
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)]
-     (caret! selection (inc c) false))))
+    (let [c (caret selection)
+          next-pos (inc c)]
+      (when (in-bounds? selection next-pos)
+         (caret! selection next-pos false)))))
 
 (handler/defhandler :left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)]
-     (caret! selection (dec c) false))))
+    (let [c (caret selection)
+          next-pos (dec c)]
+      (when (in-bounds? selection next-pos)
+         (caret! selection next-pos false)))))
 
 (handler/defhandler :select-right :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)]
-     (caret! selection (inc c) true))))
+    (let [c (caret selection)
+          next-pos (inc c)]
+      (when (in-bounds? selection next-pos)
+         (caret! selection next-pos true)))))
 
 (handler/defhandler :select-left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)]
-     (caret! selection (dec c) true))))
+    (let [c (caret selection)
+          next-pos (dec c)]
+      (when (in-bounds? selection next-pos)
+         (caret! selection next-pos true)))))

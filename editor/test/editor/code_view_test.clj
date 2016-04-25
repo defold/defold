@@ -110,7 +110,7 @@
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
          (is (= {:start 0 :length 23 :stylename "comment-multi"} (first (styles source-viewer)))))))))
-51546
+
 (defrecord TestClipboard [content]
   TextContainer
   (text! [this s] (reset! content s))
@@ -148,14 +148,25 @@
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 5 false)
-      (right! source-viewer)
-      (g/node-value viewer-node :new-content)
-      (is (= 6 (caret source-viewer)))
-      (is (= 6 (g/node-value code-node :caret-position)))
-      (left! source-viewer)
-      (g/node-value viewer-node :new-content)
-      (is (= 5 (caret source-viewer)))
-      (is (= 5 (g/node-value code-node :caret-position))))))
+      (testing "moving right" (right! source-viewer)
+               (g/node-value viewer-node :new-content)
+               (is (= 6 (caret source-viewer)))
+               (is (= 6 (g/node-value code-node :caret-position))))
+      (testing "moving left"
+        (left! source-viewer)
+        (g/node-value viewer-node :new-content)
+        (is (= 5 (caret source-viewer)))
+        (is (= 5 (g/node-value code-node :caret-position))))
+      (testing "out of bounds right"
+        (caret! source-viewer (count code) false)
+        (right! source-viewer)
+        (right! source-viewer)
+        (is (= (count code) (caret source-viewer))))
+      (testing "out of bounds left"
+        (caret! source-viewer 0 false)
+        (left! source-viewer)
+        (left! source-viewer)
+        (is (= 0 (caret source-viewer)))))))
 
 (defn- select-right! [source-viewer]
   (handler/run :select-right [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -169,13 +180,14 @@
           opts lua/lua
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (select-right! source-viewer)
-      (select-right! source-viewer)
-      (g/node-value viewer-node :new-content)
-      (is (= 2 (caret source-viewer)))
-      (is (= 2 (g/node-value code-node :caret-position)))
-      (is (= "he" (text-selection source-viewer)))
-      (select-left! source-viewer)
-      (is (= 1 (caret source-viewer)))
-      (is (= 1 (g/node-value code-node :caret-position)))
-      (is (= "h" (text-selection source-viewer))))))
+      (testing "selecting right"(select-right! source-viewer)
+               (select-right! source-viewer)
+               (g/node-value viewer-node :new-content)
+               (is (= 2 (caret source-viewer)))
+               (is (= 2 (g/node-value code-node :caret-position)))
+               (is (= "he" (text-selection source-viewer))))
+      (testing "selecting left"
+        (select-left! source-viewer)
+        (is (= 1 (caret source-viewer)))
+        (is (= 1 (g/node-value code-node :caret-position)))
+        (is (= "h" (text-selection source-viewer)))))))
