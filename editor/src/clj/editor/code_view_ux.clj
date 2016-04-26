@@ -74,45 +74,40 @@
         (text! selection new-code)
         (caret! selection new-caret false)))))
 
-(defn- in-bounds? [selection caret-pos]
-  (and
-   (not (neg? caret-pos))
-   (>= (count (text selection)) caret-pos)))
+(defn- adjust-bounds [s pos]
+  (if (neg? pos) 0 (min (count s) pos)))
 
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
     (let [c (caret selection)
-          next-pos (inc c)]
-      (when (in-bounds? selection next-pos)
-         (caret! selection next-pos false)))))
+          doc (text selection)
+          next-pos (adjust-bounds doc (inc c))]
+      (caret! selection next-pos false))))
 
 (handler/defhandler :left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
     (let [c (caret selection)
-          next-pos (dec c)]
-      (when (in-bounds? selection next-pos)
-         (caret! selection next-pos false)))))
+          doc (text selection)
+          next-pos (adjust-bounds doc (dec c))]
+      (caret! selection next-pos false))))
 
 (handler/defhandler :select-right :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
     (let [c (caret selection)
-          next-pos (inc c)]
-      (when (in-bounds? selection next-pos)
-         (caret! selection next-pos true)))))
+          doc (text selection)
+          next-pos (adjust-bounds doc (inc c))]
+      (caret! selection next-pos true))))
 
 (handler/defhandler :select-left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
     (let [c (caret selection)
-          next-pos (dec c)]
-      (when (in-bounds? selection next-pos)
-         (caret! selection next-pos true)))))
-
-(defn- adjust-bounds [s pos]
-  (if (neg? pos) 0 (min (count s) pos)))
+          doc (text selection)
+          next-pos (adjust-bounds doc (dec c))]
+      (caret! selection next-pos true))))
 
 (defn up-line [s pos]
   (let [np (adjust-bounds s (inc pos))
@@ -120,11 +115,9 @@
         len-before (-> lines
                        last
                        count)
-        prev-line (-> lines reverse second)]
-    (println :prev-line prev-line (if (pos? (count prev-line)) true false))
-    (println :len-before len-before)
-    (if (pos? (count prev-line))
-      (adjust-bounds s (- pos (count prev-line) 1))
+        prev-line-len (-> lines reverse second count)]
+    (if (pos? prev-line-len)
+      (adjust-bounds s (- pos prev-line-len 1))
       (adjust-bounds s (- pos len-before 1)))))
 
 (defn down-line [s pos]
@@ -133,12 +126,8 @@
                        last
                        count)
         lines-after (string/split (.substring s np) #"\n")
-        _ (println :lines-after lines-after)
         len-after (-> lines-after first count)
-        _ (println :len-after len-after)
-        _ (println :len-before len-before)
         next-line-len (-> lines-after second count)]
-    (println :next-line-len next-line-len)
     (if (pos? next-line-len)
       (adjust-bounds s (+ pos len-after 1 len-before))
       (adjust-bounds s (+ pos len-after 1)))))
@@ -149,8 +138,7 @@
     (let [c (caret selection)
           doc (text selection)
           next-pos (up-line doc c)]
-      (when (in-bounds? selection next-pos)
-         (caret! selection next-pos false)))))
+      (caret! selection next-pos false))))
 
 (handler/defhandler :down :code-view
   (enabled? [selection] selection)
@@ -158,20 +146,4 @@
     (let [c (caret selection)
           doc (text selection)
           next-pos (down-line doc c)]
-      (when (in-bounds? selection next-pos)
-         (caret! selection next-pos false)))))
-
-(comment
-
-
-  (def doc "line1\nline2\nline3")
-  (count doc)
-  (get doc 16)
-  (get doc (up-line doc 4))
-  (get doc (down-line doc 4))
-  (second (reverse (string/split (.substring doc 0 (inc 10)) #"\n")
-
-                   ))
-  (count (last (string/split (.substring doc 0 (inc 10)) #"\n")))
-  (count (first (string/split (.substring doc (inc 10)) #"\n")))
-  )
+      (caret! selection next-pos false))))
