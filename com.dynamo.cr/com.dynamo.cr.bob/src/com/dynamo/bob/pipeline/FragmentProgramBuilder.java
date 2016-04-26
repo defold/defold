@@ -27,6 +27,13 @@ public class FragmentProgramBuilder extends CopyBuilder {
         writer.println("#define mediump");
         writer.println("#define highp");
         writer.println("#endif");
+
+        // We want "correct" line numbers from the GLSL compiler.
+        //
+        // Some Android devices don't like setting #line to something below 1,
+        // see JIRA issue: DEF-1786.
+        // We still want to have correct line reporting on most devices so
+        // only output "#line 0" in debug builds.
         if (project.hasOption("debug")) {
             writer.println("#line 0");
         }
