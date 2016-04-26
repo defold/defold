@@ -26,8 +26,7 @@
   (cascade-deletes        [this])
   (output-type            [this output])
   (passthroughs           [this])
-  (property-display-order [this])
-  (produce-value          [this node output evaluation-context] "Return the value of the named output on node"))
+  (property-display-order [this]))
 
 (defn node-type? [x] (satisfies? NodeType x))
 
@@ -44,32 +43,20 @@
 (def NodeID s/Int)
 (defn node-id? [v] (integer? v))
 
+(defprotocol Evaluation
+  (produce-value       [this label evaluation-context] "Pull a value using an evaluation context"))
+
 (defprotocol Node
-  (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
-  (node-type           [this basis]        "Return the node type that created this node.")
-  (property-types      [this basis]        "Return the combined map of compile-time and runtime properties")
-  (get-property        [this basis property] "Return the value of the named property")
-  (set-property        [this basis property value] "Set the named property"))
+  (node-id             [this]                          "Return an ID that can be used to get this node (or a future value of it).")
+  (node-type           [this]                          "Return the node type that created this node.")
+  (get-property        [this basis property]           "Return the value of the named property")
+  (set-property        [this basis property value]     "Set the named property"))
 
 (defprotocol OverrideNode
-  (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
-  (override-id         [this] "Return the ID of the override this node belongs to, if any")
-  (original            [this] "Return the ID of the original of this node, if any")
-  (set-original        [this original-id] "Set the ID of the original of this node, if any"))
-
-(def node-id        :_node-id)
-(def node-type      ::type)
-(def property-types (comp public-properties node-type))
-
-(defn get-property
-  [this basis property]
-  (get this property))
-
-(defn set-property
-  [this basis property value]
-  (assert (has-property? (node-type this) property)
-          (format "Attempting to use property %s from %s, but it does not exist" property (node-type this)))
-  (assoc this property value))
+  (clear-property      [this basis property]           "Clear the named property (this is only valid for override nodes)")
+  (override-id         [this]                          "Return the ID of the override this node belongs to, if any")
+  (original            [this]                          "Return the ID of the original of this node, if any")
+  (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
 
 (defprotocol IBasis
   (node-by-property [this label value])

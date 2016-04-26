@@ -146,6 +146,14 @@
 
 (defn vgr [s] (some-> s resolve var?! var-get))
 
+(defn resolve-value-type
+  [x]
+  (cond
+    (symbol? x)                     (resolve-value-type (resolve x))
+    (var? x)                        (resolve-value-type (var-get x))
+    (vector? x)                     (mapv resolve-value-type x)
+    :else                           x))
+
 (defn resolve-schema [x]
   (cond
     (symbol? x)    (resolve-schema (resolve x))
@@ -170,7 +178,7 @@
 (defn- pfnk-form?  [x] (seq? x))
 
 (defn- maybe-expand-macros
-  [[call & more :as body]]
+  [[call & _ :as body]]
   (if (or (= "fn" (name call)) (= "fnk" (name call)))
     body
     (macroexpand-1 body)))
@@ -194,3 +202,26 @@
     (quoted-var? x) (inputs-needed (var-get (resolve (second x))))
     (pfnk-form? x)  (parse-fnk-arguments x)
     :else           #{}))
+
+(defn- wrap-protocol
+  [tp tp-form]
+  (if (protocol? tp)
+    (list `s/protocol tp-form)
+    tp))
+
+(defn- wrap-enum
+  [tp tp-form]
+  (if (set? tp)
+    (do (println tp-form)
+      (list `s/enum tp-form))
+    tp))
+
+(defn preprocess-schema
+  [tp-form]
+  (let [multi?    (vector? tp-form)
+        schema    (if multi? (first tp-form) tp-form)
+        tp        (resolve-value-type schema)
+        processed (wrap-enum (wrap-protocol tp schema) schema)]
+    (if multi?
+      (vector processed)
+      processed)))

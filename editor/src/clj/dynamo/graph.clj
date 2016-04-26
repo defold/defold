@@ -22,7 +22,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id property-types produce-value NodeType supertypes  transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id produce-value NodeType supertypes  transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
@@ -73,14 +73,14 @@
    (node-type* (now) node-id))
   ([basis node-id]
    (when-let [n (ig/node-by-id-at basis node-id)]
-     (gt/node-type n basis))))
+     (gt/node-type n))))
 
 (defn node-type
   "Return the node-type given a node. Uses the current basis if not provided."
   ([node]
     (node-type (now) node))
   ([basis node]
-    (gt/node-type node basis)))
+    (gt/node-type node)))
 
 (defn cache "The system cache of node values"
   []
@@ -223,12 +223,11 @@
 
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
-  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (declared-properties node-type)))]
+  (let [args-without-properties (set/difference (util/key-set args) (externs node-type) (util/key-set (merge (internal-properties node-type) (declared-properties node-type))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   (-> (new internal.node.NodeImpl node-type)
       (merge (in/defaults node-type))
-      (merge args)
-      (assoc ::gt/type node-type)))
+      (merge args)))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -406,9 +405,13 @@
   Every node always implements dynamo.graph/Node."
   [symb & body]
   (let [[symb forms] (ctm/name-with-attributes symb body)]
-    `(def ~symb (in/map->NodeTypeImpl
-                 ~(in/make-node-type-map
-                   (in/node-type-forms symb (concat node-intrinsics forms)))))))
+    `(do
+       (def ~symb (in/map->NodeTypeImpl
+                  ~(in/make-node-type-map
+                    (in/node-type-forms symb (concat node-intrinsics forms)))))
+       (doseq [super-type# (gt/supertypes ~symb)]
+         (derive ~symb super-type#))
+       (var ~symb))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -497,6 +500,7 @@
 
   `(transact (delete-node node-id))`"
   [node-id]
+  (assert node-id)
   (it/delete-node node-id))
 
 (defn delete-node!
@@ -506,8 +510,8 @@
   Example:
 
   `(delete-node! node-id)`"
-
   [node-id]
+  (assert node-id)
   (transact (delete-node node-id)))
 
 (defn connect
@@ -518,6 +522,8 @@
 
   `(transact (connect content-node :scalar view-node :first-name))`"
   [source-node-id source-label target-node-id target-label]
+  (assert source-node-id)
+  (assert target-node-id)
   (it/connect source-node-id source-label target-node-id target-label))
 
 (defn connect!
@@ -528,6 +534,8 @@
 
   `(connect! content-node :scalar view-node :first-name)`"
   [source-node-id source-label target-node-id target-label]
+  (assert source-node-id)
+  (assert target-node-id)
   (transact (connect source-node-id source-label target-node-id target-label)))
 
 (defn disconnect
@@ -540,6 +548,8 @@
 
   (`transact (disconnect aux-node :scalar view-node :last-name))`"
   [source-node-id source-label target-node-id target-label]
+  (assert source-node-id)
+  (assert target-node-id)
   (it/disconnect source-node-id source-label target-node-id target-label))
 
 (defn disconnect!
@@ -558,6 +568,7 @@
   ([target-node-id target-label]
     (disconnect-sources (now) target-node-id target-label))
   ([basis target-node-id target-label]
+   (assert target-node-id)
     (it/disconnect-sources basis target-node-id target-label)))
 
 (defn become
@@ -574,6 +585,7 @@
   labels that don't exist on new-node will be disconnected in the same
   transaction."
   [node-id new-node]
+  (assert node-id)
   (it/become node-id new-node))
 
 (defn become!
@@ -600,6 +612,7 @@
 
   `(transact (set-property root-id :touched 1))`"
   [node-id & kvs]
+  (assert node-id)
   (mapcat
    (fn [[p v]]
      (it/update-property node-id p (constantly v) []))
@@ -613,6 +626,7 @@
 
   `(set-property! root-id :touched 1)`"
   [node-id & kvs]
+  (assert node-id)
   (transact (apply set-property node-id kvs)))
 
 (defn update-property
@@ -624,6 +638,7 @@
 
   `(transact (g/update-property node-id :int-prop inc))`"
   [node-id p f & args]
+  (assert node-id)
   (it/update-property node-id p f args))
 
 (defn update-property!
@@ -634,10 +649,12 @@
 
   `g/update-property! node-id :int-prop inc)`"
   [node-id p f & args]
+  (assert node-id)
   (transact (apply update-property node-id p f args)))
 
 (defn clear-property
   [node-id p]
+  (assert node-id)
   (it/clear-property node-id p))
 
 (defn set-graph-value
@@ -648,6 +665,7 @@
 
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
+  (assert graph-id)
   (it/update-graph-value graph-id assoc [k v]))
 
 (defn set-graph-value!
@@ -658,6 +676,7 @@
 
   (set-graph-value! 0 :string-value \"A String\")"
   [graph-id k v]
+  (assert graph-id)
   (transact (set-graph-value graph-id k v)))
 
 (defn invalidate
@@ -668,6 +687,7 @@
 
   `(transact (invalidate node-id))`"
   [node-id]
+  (assert node-id)
   (it/invalidate node-id))
 
 (defn invalidate!
@@ -677,6 +697,7 @@
 
   `(invalidate! node-id)`"
   [node-id]
+  (assert node-id)
   (transact (invalidate node-id)))
 
 (defn mark-defective
@@ -688,8 +709,10 @@
 
   `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
   ([node-id defective-value]
+   (assert node-id)
    (mark-defective node-id (node-type* node-id) defective-value))
   ([node-id node-type defective-value]
+   (assert node-id)
    (let [outputs   (keys (gt/transforms node-type))
          externs   (gt/externs node-type)]
      (list
@@ -707,6 +730,7 @@
 
   `(mark-defective! node-id (g/severe \"Resource Not Found\"))`"
   [node-id defective-value]
+  (assert node-id)
   (transact (mark-defective node-id defective-value)))
 
 ;; ---------------------------------------------------------------------------
@@ -1052,11 +1076,11 @@
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
 (defn- traverse-cascade-delete [basis [src-id src-label tgt-id tgt-label]]
-  ((cascade-deletes (node-type* basis tgt-id)) tgt-label))
+  (get (cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
 (defn- make-override-node
   [graph-id override-id original-node-id]
-  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
+  (in/make-override-node (gt/node-type (node-by-id original-node-id)) override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
 
 (defn override
   ([root-id]

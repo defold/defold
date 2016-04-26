@@ -329,7 +329,7 @@
                                   [:index :layer-index]])
 
 (def ^:private IDMap {g/Str g/NodeID})
-(def ^:private TemplateData {:resource (g/maybe resource/Resource) :overrides {g/Str g/Any}})
+(def ^:private TemplateData {:resource (g/maybe (g/protocol resource/Resource)) :overrides {g/Str g/Any}})
 
 (def GuiNode)
 (def NodesNode)
@@ -918,34 +918,34 @@
                  {:name name
                   :nodes nodes})))
 
-(defn- gen-outline-fnk [label order sort-children? child-reqs]
-  (g/fnk [_node-id child-outlines]
-         {:node-id _node-id
-          :label label
-          :icon virtual-icon
-          :order order
-          :read-only true
-          :child-reqs child-reqs
-          :children (if sort-children?
-                      (vec (sort-by :index child-outlines))
-                      child-outlines)}))
+(defmacro gen-outline-fnk-body [_node-id child-outlines label order sort-children? child-reqs]
+  `{:node-id ~_node-id
+   :label ~label
+   :icon virtual-icon
+   :order ~order
+   :read-only true
+   :child-reqs ~child-reqs
+   :children ~(if sort-children?
+               `(vec (sort-by :index ~child-outlines))
+               child-outlines)})
 
 (g/defnode NodesNode
   (inherits outline/OutlineNode)
 
-  (property id g/Str (default (g/fnk [] "")))
+  (property id g/Str (default ""))
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Nodes" 0 true
-                           [{:node-type GuiNode
-                             :tx-attach-fn (fn [target source]
-                                             (let [scene (node->gui-scene target)
-                                                   type (g/node-value source :type)]
-                                               (concat
-                                                 (g/update-property source :id outline/resolve-id
-                                                                    (keys (g/node-value scene :node-ids)))
-                                                 (attach-gui-node scene target source type))))}]))
+          (g/fnk [_node-id child-outlines]
+                 (gen-outline-fnk-body _node-id child-outlines "Nodes" 0 true
+                                  [{:node-type GuiNode
+                                    :tx-attach-fn (fn [target source]
+                                                    (let [scene (node->gui-scene target)
+                                                          type (g/node-value source :type)]
+                                                      (concat
+                                                       (g/update-property source :id outline/resolve-id
+                                                                          (keys (g/node-value scene :node-ids)))
+                                                       (attach-gui-node scene target source type))))}])))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
@@ -953,20 +953,20 @@
 
 (g/defnode TexturesNode
   (inherits outline/OutlineNode)
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Textures" 1 false [])))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines] (gen-outline-fnk-body _node-id child-outlines "Textures" 1 false []))))
 
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Fonts" 2 false [])))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines] (gen-outline-fnk-body _node-id child-outlines "Fonts" 2 false []))))
 
 (g/defnode LayersNode
   (inherits outline/OutlineNode)
   (input child-indices g/Int :array)
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" 3 true [])))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines] (gen-outline-fnk-body _node-id child-outlines "Layers" 3 true []))))
 
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" 4 false [])))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines] (gen-outline-fnk-body _node-id child-outlines "Layouts" 4 false []))))
 
 (defn- apply-alpha [parent-alpha scene]
   (let [scene-alpha (get-in scene [:renderable :user-data :color 3] 1.0)]
