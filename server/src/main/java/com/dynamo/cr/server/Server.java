@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Query;
@@ -50,6 +51,8 @@ import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.archive.ArchiveCache;
+import com.dynamo.cr.archive.GitArchiveProvider;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
@@ -130,6 +133,10 @@ public class Server {
 
                     bind(Server.class).toInstance(server);
                     bind(OAuthAuthenticator.class).toInstance(new OAuthAuthenticator(MAX_ACTIVE_LOGINS));
+
+                    bind(GitArchiveProvider.class).in(Singleton.class);
+                    bind(ArchiveCache.class).in(Singleton.class);
+                    bind(Configuration.class).toInstance(server.getConfiguration());
 
                     bind(RepositoryResource.class);
                     bind(ProjectResource.class);
