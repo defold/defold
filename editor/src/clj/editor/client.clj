@@ -5,6 +5,8 @@
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
            [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
@@ -46,3 +48,16 @@
         resource   (.resource ^Client (:client client) (URI. server-url))
         builder    (.accept (.path resource path) media-types)]
     (protobuf/pb->map (.get builder entity-class))))
+
+(defn rpost [client ^String path]
+  (let [server-url "http://localhost:9000"
+        resource   (.resource ^Client (:client client) (URI. server-url))
+        builder    (.accept (.path resource path) media-types)
+        form (FormDataMultiPart.  )]
+    (.bodyPart form (FileDataBodyPart. "file" (clojure.java.io/file "/tmp/foo.cpp") MediaType/APPLICATION_OCTET_STREAM_TYPE))
+    (let [cr (.post (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)]
+      (count (slurp (.getEntityInputStream cr))))))
+
+(let [c (make-client (prefs/make-prefs "defold"))]
+  (rpost c "/build"))
+
