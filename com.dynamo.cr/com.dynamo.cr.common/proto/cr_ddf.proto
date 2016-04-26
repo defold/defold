@@ -45,6 +45,10 @@ message Configuration
     // Max number of users registered until the open registration will be closed
     optional int32 open_registration_max_users = 36 [default=1000];
     optional int32 open_invitation_count = 37 [default=3];
+
+    // Local archive configuration
+    required string archive_cache_root = 38;
+    required int32 archive_cache_max_size = 39 [default=1024];
 }
 
 message EMailTemplate

@@ -2,7 +2,7 @@ apply plugin: 'java'
 apply plugin: 'eclipse'
 apply plugin:'application'
 
-sourceCompatibility = 1.7
+sourceCompatibility = 1.8
 version = '1.0'
 
 mainClassName = "com.dynamo.cr.server.Main"
@@ -65,6 +65,7 @@ dependencies {
     compile 'ws.antonov.gradle.plugins:gradle-plugin-protobuf:0.9.1'
     compile 'org.apache.derby:derby:10.11.1.1'
     compile 'commons-configuration:commons-configuration:1.10'
+    compile 'com.google.guava:guava:19.0'
 
     testCompile 'org.mockito:mockito-all:1.10.19'
     testCompile 'org.apache.derby:derby:10.11.1.1'

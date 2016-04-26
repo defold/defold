@@ -579,10 +579,12 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     ClientResponse testGetArchive(String version, String sha1) throws IOException {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        return testGetArchive(version, sha1, projectInfo);
+    }
+
+    ClientResponse testGetArchive(String version, String sha1, ProjectInfo projectInfo) throws IOException {
         String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
         WebResource resource = joeProjectsWebResource.path(path);
-        if (sha1 != null) {
-        }
         if (sha1 != null) {
             return resource.header("If-None-Match", sha1).get(ClientResponse.class);
         } else {
@@ -654,6 +656,82 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(null, sha1);
         assertEquals(404, response.getStatus());
     }
+
+    @Test
+    public void getCachedArchive() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response1 = testGetArchive("", null, projectInfo);
+        String sha1 = response1.getHeaders().getFirst("ETag");
+        assertEquals(200, response1.getStatus());
+        verifyArchive(response1);
+
+        ClientResponse response2 = testGetArchive("", null, projectInfo);
+        String sha2 = response2.getHeaders().getFirst("ETag");
+        assertEquals(200, response2.getStatus());
+        assertEquals(sha1, sha2);
+        verifyArchive(response2);
+    }
+
+    @Test
+    public void getArchiveWithCacheMiss() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response1 = testGetArchive("", null, projectInfo);
+        String sha1 = response1.getHeaders().getFirst("ETag");
+        assertEquals(200, response1.getStatus());
+        verifyArchive(response1);
+
+        clearTemporaryFileArea();
+
+        ClientResponse response2 = testGetArchive("", null, projectInfo);
+        String sha2 = response2.getHeaders().getFirst("ETag");
+        assertEquals(200, response2.getStatus());
+        assertEquals(sha1, sha2);
+        verifyArchive(response2);
+    }
+
+
+    class ArchiveStressRunnable implements Runnable {
+        private long projectId;
+        public Throwable exception;
+
+        public ArchiveStressRunnable(long projectId) {
+            this.projectId = projectId;
+        }
+
+        @Override
+        public void run() {
+            try {
+                for(int i=0; i < 1000; ++i) {
+                    String path = String.format("/%d/%d/archive/", -1, projectId);
+                    WebResource resource = joeProjectsWebResource.path(path);
+
+                    ClientResponse response = resource.get(ClientResponse.class);
+                    assertEquals(200, response.getStatus());
+                    verifyArchive(response);
+                }
+            } catch (Throwable e) {
+                this.exception = e;
+            }
+        }
+    }
+
+    @Test
+    public void archiveStressTest() throws Exception {
+        final ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ArchiveStressRunnable runnable1 = new ArchiveStressRunnable(projectInfo.getId());
+        ArchiveStressRunnable runnable2 = new ArchiveStressRunnable(projectInfo.getId());
+
+        Thread t1 = new Thread(runnable1);
+        Thread t2 = new Thread(runnable2);
+        t1.start();
+        t2.start();
+        t1.join(100000);
+        t2.join(100000);
+
+        assertEquals(null, runnable1.exception);
+        assertEquals(null, runnable2.exception);
+    }
+
 
     ClientResponse getArchiveETag(String version) {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
