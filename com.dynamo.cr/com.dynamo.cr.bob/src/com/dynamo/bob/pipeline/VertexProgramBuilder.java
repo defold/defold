@@ -25,8 +25,10 @@ public class VertexProgramBuilder extends CopyBuilder {
         writer.println("#define highp");
         writer.println("#endif");
 
-        // To get "correct" line number from the GLSL compiler
-        writer.println("#line 0");
+        if (project.hasOption("debug")) {
+            // To get "correct" line number from the GLSL compiler
+            writer.println("#line 0");
+        }
 
         writer.close();
         os.write(in.getContent());

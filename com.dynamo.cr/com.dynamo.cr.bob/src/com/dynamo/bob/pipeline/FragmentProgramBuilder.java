@@ -27,7 +27,9 @@ public class FragmentProgramBuilder extends CopyBuilder {
         writer.println("#define mediump");
         writer.println("#define highp");
         writer.println("#endif");
-        writer.println("#line 0");
+        if (project.hasOption("debug")) {
+            writer.println("#line 0");
+        }
 
         writer.close();
         os.write(in.getContent());
