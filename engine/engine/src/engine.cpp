@@ -423,6 +423,24 @@ namespace dmEngine
             }
         }
 
+        // Catch engine specific arguments
+        bool verify_graphics_calls = dLib::IsDebugMode();
+        for (int i = 0; i < argc; ++i)
+        {
+            const char* arg = argv[i];
+            if (strncmp("--verify-graphics-calls=", arg, sizeof("--verify-graphics-calls=")-1) == 0)
+            {
+                const char* eq = strchr(arg, '=');
+                if (strncmp("true", eq+1, sizeof("true")-1) == 0) {
+                    verify_graphics_calls = true;
+                } else if (strncmp("false", eq+1, sizeof("false")-1) == 0) {
+                    verify_graphics_calls = false;
+                } else {
+                    dmLogWarning("Invalid value used for --verify-graphics-calls.");
+                }
+            }
+        }
+
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         dmExtension::Result er = dmExtension::AppInitialize(&app_params);
@@ -451,6 +469,8 @@ namespace dmEngine
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
+        graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
+
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
