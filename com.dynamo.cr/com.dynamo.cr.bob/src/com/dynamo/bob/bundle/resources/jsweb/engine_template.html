@@ -65,11 +65,14 @@
 	<!-- -->
 
 	<script type='text/javascript'>
-		var archive_location_filter = function( path ) {
-			return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+		var extra_params = {
+			archive_location_filter: function( path ) {
+				return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+			},
+			splash_image: "{{DEFOLD_SPLASH_IMAGE}}"
 		}
 
-        Module.runApp("canvas", "{{DEFOLD_SPLASH_IMAGE}}", archive_location_filter);
+        Module.runApp("canvas", extra_params);
 
 	    /* Fullscreen button */
 	    document.getElementById("fullscreen").onclick = function (e) {
