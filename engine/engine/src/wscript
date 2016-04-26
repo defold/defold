@@ -121,7 +121,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_headless',
-        source='main.cpp')
+        source=['main.cpp'])
 
     if bld.env.BUILD_PLATFORM == 'win32':
         obj.source.append('engine.rc')
