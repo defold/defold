@@ -74,7 +74,9 @@
 
 (defn- load-nodes! [project node-ids render-progress!]
   (g/transact
-    (load-resource-nodes project node-ids render-progress!)))
+   (let [x (load-resource-nodes project node-ids render-progress!)]
+     (def load-nodes* x)
+     x)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]

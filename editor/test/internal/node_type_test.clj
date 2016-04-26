@@ -25,13 +25,13 @@
   (is (= #{:super-prop :sub-prop :_output-jammers :_node-id} (set (keys (g/declared-properties SubType))))))
 
 (deftest input-prop-collision
-  (is (thrown? AssertionError (g/defnode InputPropertyCollision
-                                (input value g/Str)
-                                (property value g/Str)))))
+  (is (thrown? AssertionError (eval '(g/defnode InputPropertyCollision
+                                      (input value g/Str)
+                                      (property value g/Str))))))
 
 (deftest output-arg-missing
-  (is (thrown? AssertionError (g/defnode OutputArgMissing
-                                (output out-value g/Str (g/fnk [missing-arg] nil))))))
+  (is (thrown? AssertionError (eval '(g/defnode OutputArgMissing
+                                        (output out-value g/Str (g/fnk [missing-arg] nil)))))))
 
 (deftest deep-inheritance
   (with-clean-system

@@ -3,8 +3,9 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [internal.property :as ip]
             [support.test-support :refer [tx-nodes with-clean-system]])
-  (:import clojure.lang.Compiler$CompilerException))
+  (:import clojure.lang.Compiler))
 
 (defn substitute-value-fn [& _] "substitute value")
 
@@ -161,6 +162,14 @@
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
+  (testing "property value types are inherited"
+    (are [t p vt] (= vt (ip/value-type (gt/property-type t p)))
+      SinglePropertyNode    :a-property       g/Str
+      TwoPropertyNode       :a-property       g/Str
+      TwoPropertyNode       :another-property g/Int
+      InheritedPropertyNode :a-property       g/Str
+      InheritedPropertyNode :another-property g/Int))
+
   (testing "property defaults can be inherited or overridden"
     (let [node (g/construct InheritedPropertyNode)]
       (is (= "default value" (:a-property node)))
@@ -230,12 +239,7 @@
   (testing "properties are named by symbols"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadProperty
-                          (property :not-a-symbol dynamo.graph/Keyword))))))
-
-  (testing "property types have schemas"
-    (is (thrown? AssertionError
-                 (eval '(dynamo.graph/defnode BadProperty
-                          (property a-symbol :not-a-type)))))))
+                          (property :not-a-symbol dynamo.graph/Keyword)))))))
 
 (g/defnode ExternNode
   (extern external-resource g/Str (default "/foo")))
@@ -247,7 +251,6 @@
       (is (contains? (g/property-labels ExternNode) :external-resource))
       (is (contains? (g/externs ExternNode) :external-resource))
       (is (some #{:external-resource} (keys node))))))
-
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this] 42)
@@ -280,37 +283,58 @@
   (testing "outputs must be defined with symbols"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.graph/Str :abstract))))))
+
   (testing "outputs must be defined with a schema"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output (fn [] "not a schema") :abstract))))))
+
   (testing "outputs must have flags after the schema and before the production function"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str (dynamo.graph/fnk []) :cached))))))
+
   (testing "outputs must either have a production function defined or be marked as abstract"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str))))))
+
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]
         (is (get (g/output-labels MultipleOutputNode) expected-output)))
-      (doseq [[label expected-schema] {:string-output g/Str
+      (doseq [[label expected-schema] {:string-output  g/Str
                                        :integer-output g/Int
-                                       :cached-output g/Str
-                                       :inline-string g/Str}]
+                                       :cached-output  g/Str
+                                       :inline-string  g/Str}]
         (is (= expected-schema (-> MultipleOutputNode g/transform-types (get label)))))
       (is (:cached-output (g/cached-outputs MultipleOutputNode)))))
 
   (testing "output inheritance"
-    (let [node (g/construct InheritedOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :abstract-output]]
-        (is (get (g/output-labels InheritedOutputNode) expected-output)))
-      (doseq [[label expected-schema] {:string-output g/Str
-                                       :integer-output g/Int
-                                       :cached-output g/Str
-                                       :inline-string g/Str
-                                       :abstract-output g/Str}]
-        (is (= expected-schema (-> InheritedOutputNode g/transform-types (get label)))))
-      (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
+    (are [t o] (contains? (g/output-labels t) o)
+      MultipleOutputNode  :string-output
+      MultipleOutputNode  :integer-output
+      MultipleOutputNode  :cached-output
+      MultipleOutputNode  :inline-string
+      AbstractOutputNode  :abstract-output
+      InheritedOutputNode :string-output
+      InheritedOutputNode :integer-output
+      InheritedOutputNode :cached-output
+      InheritedOutputNode :inline-string
+      InheritedOutputNode :abstract-output)
+
+    (are [t o vt] (= vt (get (gt/transform-types t) o))
+      MultipleOutputNode  :string-output   g/Str
+      MultipleOutputNode  :integer-output  g/Int
+      MultipleOutputNode  :cached-output   g/Str
+      MultipleOutputNode  :inline-string   g/Str
+      AbstractOutputNode  :abstract-output g/Str
+      InheritedOutputNode :string-output   g/Str
+      InheritedOutputNode :integer-output  g/Int
+      InheritedOutputNode :cached-output   g/Str
+      InheritedOutputNode :inline-string   g/Str
+      InheritedOutputNode :abstract-output g/Str)
+
+    (are [t co] (contains? (g/cached-outputs t) co)
+      MultipleOutputNode  :cached-output
+      InheritedOutputNode :cached-output))
 
   (testing "output dependencies include transforms and their inputs"
     (is (= {:_node-id             #{:_node-id}
@@ -373,12 +397,6 @@
     (are [t x] (every? #(contains? (-> t g/input-dependencies (get %)) :_properties) x)
       PropertyDynamicsNode          #{:an-input :third-input :fourth-input :fifth-input}
       InheritedPropertyDynamicsNode #{:an-input :third-input :fourth-input :fifth-input :another-property})))
-
-(deftest compile-error-using-property-with-missing-argument-for-dynamic
-  (is (thrown? AssertionError
-               (eval '(dynamo.graph/defnode BadDynamicArgument
-                        (property foo
-                                  (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false))))))))
 
 ;;; example taken from editor/collection.clj
 (def Vec3    [(g/one g/Num "x")
@@ -449,17 +467,31 @@
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
 
-(defprotocol AProtocol)
+(defprotocol AProtocol
+  (path      [this])
+  (children  [this])
+  (workspace [this]))
 
 (g/defnode ProtocolPropertyNode
-  (property protocol-property AProtocol))
+  (property protocol-property AProtocol)
+  (property protocol-property-multi [AProtocol]))
+
+(g/defnode InheritsProtocolPropertyNode
+  (inherits ProtocolPropertyNode))
 
 (g/defnode ProtocolOutputNode
-  (output protocol-output AProtocol (g/fnk [] nil)))
+  (output protocol-output AProtocol (g/fnk [] nil))
+  (output protocol-output-multi [AProtocol] (g/fnk [] nil)))
+
+(g/defnode InheritsProtocolOutputNode
+  (inherits ProtocolOutputNode))
 
 (g/defnode ProtocolInputNode
   (input protocol-input AProtocol)
   (input protocol-input-multi [AProtocol] :array))
+
+(g/defnode InheritsProtocolInputNode
+  (inherits ProtocolInputNode))
 
 (g/defnk fnk-without-arguments [])
 (g/defnk fnk-with-arguments [a b c d])

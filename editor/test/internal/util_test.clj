@@ -1,11 +1,12 @@
 (ns internal.util-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
+            [dynamo.graph :as g]
             [internal.util :refer :all]
-            [dynamo.graph :as g]))
+            [schema.core :as s]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -125,3 +126,27 @@
       '(g/fnk [one two three])                                                #{:one :two :three}
       (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])  #{:commands :roles :blah}
       '(g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}]) #{:commands :roles :blah})))
+
+(defprotocol MyProtocol)
+
+(def var-to-str s/Str)
+(def var-to-str-vec [s/Str])
+
+(deftest resolve-value-type-tests
+  (are [x] (= java.lang.String (resolve-value-type x))
+    's/Str
+    var-to-str
+    #'var-to-str
+    String)
+
+  (are [x] (= [java.lang.String] (resolve-value-type x))
+    '[s/Str]
+    #'var-to-str-vec
+    var-to-str-vec)
+
+  (are [x] (= MyProtocol (resolve-value-type x))
+    MyProtocol
+    `MyProtocol)
+
+  (are [x] (= '[MyProtocol] (resolve-value-type x))
+    '[MyProtocol]))

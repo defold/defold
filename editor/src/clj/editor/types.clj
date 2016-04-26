@@ -67,7 +67,7 @@
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
 
-(def MouseType (g/enum :one-button :three-button))
+(def MouseType #{:one-button :three-button})
 
 (def Registry {g/Any g/Any})
 

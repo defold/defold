@@ -7,29 +7,7 @@
             [plumbing.fnk.pfnk :as pf]
             [schema.core :as s]
             [support.test-support :refer [tx-nodes with-clean-system]]
-            [internal.property :as ip])
-  (:import clojure.lang.Compiler))
-
-(defprotocol MyProtocol)
-
-(def var-to-str s/Str)
-(def var-to-str-vec [s/Str])
-
-(deftest resolve-value-type-tests
-  (are [x] (= java.lang.String (ip/resolve-value-type x))
-    's/Str
-    var-to-str
-    #'var-to-str
-    String)
-
-  (are [x] (= [java.lang.String] (ip/resolve-value-type x))
-    '[s/Str]
-    #'var-to-str-vec
-    var-to-str-vec)
-
-  (are [x] (= MyProtocol (ip/resolve-value-type x))
-    MyProtocol
-    `MyProtocol))
+            [internal.property :as ip]))
 
 (def default-value -5)
 
@@ -58,6 +36,11 @@
 (def prop-with-validator-as-var          (ip/property-type-descriptor 'g/Num '[(validate #'fooable-fn)]))
 (def prop-with-constant-valued-validator (ip/property-type-descriptor 'g/Num '[(validate false)]))
 
+(defprotocol MyProtocol)
+
+(def prop-with-protocol                  (ip/property-type-descriptor 'MyProtocol   '[]))
+(def prop-with-protocol-multi            (ip/property-type-descriptor '[MyProtocol] '[]))
+
 (defmacro make-fnk [fld msg] `(g/fnk [~fld] (assert ~fld ~msg)))
 
 (def prop-with-validator-macro           (ip/property-type-descriptor 'g/Num '[(validate (make-fnk an-input "Need a thing"))]))
@@ -76,14 +59,13 @@
       prop-with-default-from-fn          '(constantly 23)
       prop-with-default-as-symbol        'default-value))
 
-  (testing "a type is required"
-    (is (thrown-with-msg? AssertionError #"doesn't seem like a real schema" (eval '(ip/property-type-descriptor 12 '[]))))
-    (is (thrown-with-msg? AssertionError #"doesn't seem like a real schema" (eval '(ip/property-type-descriptor internal.property-test/default-value '[]))))
-    (is (thrown-with-msg? AssertionError #"doesn't seem like a real schema" (eval '(ip/property-type-descriptor `nil '[])))))
-
   (testing "naked protocols are allowed"
     (is (= `(s/protocol internal.property-test/MyProtocol) (ip/value-type
                                                             (eval '(ip/property-type-descriptor 'internal.property-test/MyProtocol '[]))))))
+
+  (testing "protocols are not expanded to their map form"
+    (is (= '(schema.core/protocol MyProtocol)   (::ip/value-type prop-with-protocol)))
+    (is (= '[(schema.core/protocol MyProtocol)] (::ip/value-type prop-with-protocol-multi))))
 
   (testing "properties depend on their getters' inputs"
     (are [p x] (= (::ip/dependencies p) x)
