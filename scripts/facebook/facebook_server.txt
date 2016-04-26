@@ -16,3 +16,14 @@ starts with 172 (172.19.13.173 for example).
     - Submit and write down the external URL that is returned
     - The local machine is now reachable through the external URL over HTTPS.
     - fbdev.midasplayer.com is only reachable through the cable network!
+
+
+NOTE 1: If you wish to use the editor at the same time, choose another port than 8080
+
+NOTE 2: If you are using the DefoldIAPtester app, you need to update the app with the new server address.
+(Search for *.fbdev.midasplayer.com). You'll find it in store.gui_script and also the products (.html).
+On the FB app page, you need to change:
+* Settings: "Facebook Canvas - Secure Canvas URL"
+* Canvas Payments: "Payments Object - Callback URL" (verify with "tokentest") and "Payment Subscriptions Object - Callback URL" (verify with "tokentest")
+Lastly, before starting the local server, you need to copy the resources (products html and product images) from the "Defold IAP Tester" app, to your local server folder:
+E.g. to ~/work/defold/scripts/facebook/DefoldAPItester/...
