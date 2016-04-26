@@ -311,7 +311,7 @@
   Resource
   (path [this] path))
 
-(defn- properties->overrides [id properties]
+(defn properties->overrides [id properties]
   {id (->> (:properties properties)
         (filter (fn [[k v]] (:original-value v)))
         (map (fn [[k v]] [k (:value v)]))
@@ -342,7 +342,7 @@
   (output node-overrides g/Any :cached (g/fnk [node-overrides]
                                               (reduce into {} node-overrides))))
 
-(defn- scene-by-path
+(defn scene-by-path
   ([graph path]
     (scene-by-path (g/now) graph path))
   ([basis graph path]
@@ -403,9 +403,9 @@
                 (for [[output input] scene-outputs]
                   (g/connect scene output n input))))
 
-(defn- make-scene! [graph path nodes]
+(defn make-scene! [graph path nodes]
   (let [resources (or (g/graph-value graph :resources) {})
-        resource (->PathResource path)]
+        resource  (->PathResource path)]
     (tx-nodes (g/make-nodes graph [scene [Scene :resource resource]]
                             (-> (g/set-graph-value graph :resources (assoc resources resource scene))
                               ((partial reduce (fn [tx [node-type props]]
@@ -514,7 +514,7 @@
                                                   (-> _declared-properties
                                                     (update :properties dissoc :script-properties)
                                                     (update :properties merge (into {} (map (fn [[key value]] [key {:value value
-                                                                                                                    :type (g/make-property-type key (type value))
+                                                                                                                    :type (type value)
                                                                                                                     :node-id _node-id}]) script-properties)))
                                                     (update :display-order (comp vec (partial remove #{:script-properties})))))))
 

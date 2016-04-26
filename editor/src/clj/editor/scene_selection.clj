@@ -132,7 +132,7 @@
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)
-  (property mode (g/enum :direct :toggle))
+  (property mode #{:direct :toggle})
   (property prev-selection-set g/Any)
 
   (input selection g/Any)

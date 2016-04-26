@@ -92,22 +92,9 @@
   (assert (util/schema?   value-type)
           (str value-type-name " doesn't seem like a real value type")))
 
-(defn resolve-value-type
-  [x]
-  (cond
-    (symbol? x)                     (resolve-value-type (resolve x))
-    (var? x)                        (resolve-value-type (var-get x))
-    (vector? x)                     (mapv resolve-value-type x)
-    :else                           x))
-
 (defn- update-dependencies
   [prop]
   (update prop ::dependencies into (property-dependencies prop)))
-
-(defn assert-schema
-  [form tp]
-  (assert (util/schema? tp) (str (pr-str form) " doesn't seem like a real schema"))
-  (assert (not (nil? tp))   (str (pr-str form) " doesn't refer to a schema in this context.")))
 
 (defn property-type-descriptor
   "value-type may be one of:
@@ -116,10 +103,9 @@
    - var that refers to a Prismatic schema
    - a literal schema (including vector and map forms)"
   [tp-form body-forms]
-  (let [tp   (resolve-value-type tp-form)
-        prop {::value-type   tp
-              ::dependencies #{}}]
-    (assert-schema tp-form tp)
+  (let [tp-form (util/preprocess-schema tp-form)
+        prop    {::value-type   tp-form
+                 ::dependencies #{}}]
     (-> (reduce property-form prop body-forms)
         (wrap-protocol tp-form)
         update-dependencies)))
