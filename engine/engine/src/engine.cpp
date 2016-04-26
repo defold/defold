@@ -425,10 +425,11 @@ namespace dmEngine
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
+        const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
-            if (strncmp("--verify-graphics-calls=", arg, sizeof("--verify-graphics-calls=")-1) == 0)
+            if (strncmp(verify_graphics_calls_arg, arg, sizeof(verify_graphics_calls_arg)-1) == 0)
             {
                 const char* eq = strchr(arg, '=');
                 if (strncmp("true", eq+1, sizeof("true")-1) == 0) {
@@ -436,7 +437,7 @@ namespace dmEngine
                 } else if (strncmp("false", eq+1, sizeof("false")-1) == 0) {
                     verify_graphics_calls = false;
                 } else {
-                    dmLogWarning("Invalid value used for --verify-graphics-calls.");
+                    dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
                 }
             }
         }
