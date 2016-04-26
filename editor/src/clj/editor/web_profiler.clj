@@ -1,17 +1,18 @@
 (ns editor.web-profiler
   (:require [editor.handler :as handler]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [clojure.java.io :as io])
   (:import  [com.defold.util Profiler]
             [java.io File]
             [java.awt Desktop]
             [java.net URI]))
 
-(def ^:private template-path "resources/profiler_template.html")
+(def ^:private template-path "profiler_template.html")
 (def ^:private target-path "tmp/profiler.html")
 
 (defn- dump-profiler []
   (let [data (Profiler/dumpJson)
-        html (-> (slurp template-path)
+        html (-> (slurp (io/resource template-path))
                (clojure.string/replace "$PROFILER_DATA" data))]
     (-> (File. ^String target-path)
       .getParentFile
