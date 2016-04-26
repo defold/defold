@@ -84,6 +84,9 @@ def build(bld):
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
+    if bld.env.BUILD_PLATFORM == 'win32':
+        obj.source.append('engine.rc')
+
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
@@ -119,6 +122,9 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_headless',
         source='main.cpp')
+
+    if bld.env.BUILD_PLATFORM == 'win32':
+        obj.source.append('engine.rc')
 
     bld.new_task_gen(source = '../proto/engine_ddf.proto',
                      target = 'engine_doc.sdoc',
