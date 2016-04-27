@@ -9,6 +9,7 @@
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
 #include "iap.h"
+#include "iap_common.h"
 
 #define LIB_NAME "iap"
 
@@ -105,20 +106,11 @@ int IAP_List(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
-    char buf[1024];
-    buf[0] = '\0';
-
-    luaL_checktype(L, 1, LUA_TTABLE);
-    int i = 0;
-    lua_pushnil(L);
-    while (lua_next(L, 1) != 0) {
-        if (i > 0) {
-            dmStrlCat(buf, ",", sizeof(buf));
-        }
-        const char* p = luaL_checkstring(L, -1);
-        dmStrlCat(buf, p, sizeof(buf));
-        lua_pop(L, 1);
-        ++i;
+    char* buf = IAP_List_CreateBuffer(L);
+    if( buf == 0 )
+    {
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
@@ -136,6 +128,7 @@ int IAP_List(lua_State* L)
     env->DeleteLocalRef(products);
     Detach();
 
+    free(buf);
     assert(top == lua_gettop(L));
     return 0;
 }
@@ -164,7 +157,6 @@ int IAP_Finish(lua_State* L)
         dmLogWarning("Calling iap.finish when autofinish transactions is enabled. Ignored.");
         return 0;
     }
-
 
     int top = lua_gettop(L);
 
