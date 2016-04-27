@@ -5,9 +5,12 @@
 #include <dlib/log.h>
 #include <script/script.h>
 
-
+// Creates a comma separated string, given a table where all values are strings (or numbers)
+// Returns a malloc'ed string, which the caller must free
 char* IAP_List_CreateBuffer(lua_State* L)
 {
+    int top = lua_gettop(L);
+
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushnil(L);
     int length = 0;
@@ -15,7 +18,11 @@ char* IAP_List_CreateBuffer(lua_State* L)
         if (length > 0) {
             ++length;
         }
-        const char* p = luaL_checkstring(L, -1);
+        const char* p = lua_tostring(L, -1);
+        if(!p)
+        {
+            luaL_error(L, "IAP: Failed to get value (string) from table");
+        }
         length += strlen(p);
         lua_pop(L, 1);
     }
@@ -24,21 +31,27 @@ char* IAP_List_CreateBuffer(lua_State* L)
     if( buf == 0 )
     {
         dmLogError("Could not allocate buffer of size %d", length+1);
+        assert(top == lua_gettop(L));
         return 0;
     }
     buf[0] = '\0';
 
     int i = 0;
     lua_pushnil(L);
-    int index =0;
     while (lua_next(L, 1) != 0) {
         if (i > 0) {
             dmStrlCat(buf, ",", length+1);
         }
-        const char* p = luaL_checkstring(L, -1);
+        const char* p = lua_tostring(L, -1);
+        if(!p)
+        {
+            luaL_error(L, "IAP: Failed to get value (string) from table");
+        }
         dmStrlCat(buf, p, length+1);
         lua_pop(L, 1);
         ++i;
     }
+
+    assert(top == lua_gettop(L));
     return buf;
 }
