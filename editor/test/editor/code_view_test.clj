@@ -141,7 +141,7 @@
 (defn- left! [source-viewer]
   (handler/run :left [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest move-test
+(deftest move-right-left-test
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
@@ -174,18 +174,19 @@
 (defn- select-left! [source-viewer]
   (handler/run :select-left [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest select-move-test
+(deftest select-move-right-left-test
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "selecting right"(select-right! source-viewer)
-               (select-right! source-viewer)
-               (g/node-value viewer-node :new-content)
-               (is (= 2 (caret source-viewer)))
-               (is (= 2 (g/node-value code-node :caret-position)))
-               (is (= "he" (text-selection source-viewer))))
+      (testing "selecting right"
+        (select-right! source-viewer)
+        (select-right! source-viewer)
+        (g/node-value viewer-node :new-content)
+        (is (= 2 (caret source-viewer)))
+        (is (= 2 (g/node-value code-node :caret-position)))
+        (is (= "he" (text-selection source-viewer))))
       (testing "selecting left"
         (select-left! source-viewer)
         (is (= 1 (caret source-viewer)))
@@ -200,4 +201,43 @@
         (caret! source-viewer 0 false)
         (select-left! source-viewer)
         (select-left! source-viewer)
+        (is (= 0 (caret source-viewer)))))))
+
+(defn- up! [source-viewer]
+  (handler/run :up [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- down! [source-viewer]
+  (handler/run :down [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- get-char-at-caret [source-viewer]
+  (get (text source-viewer) (caret source-viewer)))
+
+(deftest move-up-down-test
+  (with-clean-system
+    (let [code "line1\nline2\nhi"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (caret! source-viewer 4 false)
+      (is (= \1 (get-char-at-caret source-viewer)))
+      (testing "moving down"
+        (down! source-viewer)
+        (is (= \2 (get-char-at-caret source-viewer)))
+        (down! source-viewer))
+        (println (caret source-viewer))
+        (is (= \h (get-char-at-caret source-viewer)))
+      #_(testing "moving left"
+        (left! source-viewer)
+        (g/node-value viewer-node :new-content)
+        (is (= 5 (caret source-viewer)))
+        (is (= 5 (g/node-value code-node :caret-position))))
+      #_(testing "out of bounds right"
+        (caret! source-viewer (count code) false)
+        (right! source-viewer)
+        (right! source-viewer)
+        (is (= (count code) (caret source-viewer))))
+      #_(testing "out of bounds left"
+        (caret! source-viewer 0 false)
+        (left! source-viewer)
+        (left! source-viewer)
         (is (= 0 (caret source-viewer)))))))
