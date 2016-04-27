@@ -130,7 +130,7 @@ namespace dmHttpClient
             m_Socket = 0;
             m_SSLConnection = 0;
         }
-        Result Connect(const char* host, uint16_t port, bool secure, int timeout);
+        Result Connect(const char* host, uint16_t port, bool secure, int sslhandshaketimeout);
         ~Response();
     };
 
@@ -171,11 +171,11 @@ namespace dmHttpClient
         char                m_Buffer[BUFFER_SIZE + 1];
     };
 
-    Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
+    Result Response::Connect(const char* host, uint16_t port, bool secure, int sslhandshaketimeout)
     {
         m_Pool = g_PoolCreator.GetPool();
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
 
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, sslhandshaketimeout, &m_Connection, &m_Client->m_SocketResult);
         if (r == dmConnectionPool::RESULT_OK) {
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
@@ -280,6 +280,7 @@ namespace dmHttpClient
             default:
                 return RESULT_INVAL_ERROR;
         }
+
         return RESULT_OK;
     }
 
@@ -990,19 +991,8 @@ bail:
                 return r;
             }
 
-            if( HasRequestTimedOut(client) )
-            {
-                return r;
-            }
-
             r = DoDoRequest(client, response, path, method);
             if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
-
-                if( HasRequestTimedOut(client) )
-                {
-                    return r;
-                }
-
                 response.m_CloseConnection = 1;
                 uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
 
