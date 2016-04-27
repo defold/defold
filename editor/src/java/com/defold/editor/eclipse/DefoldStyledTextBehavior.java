@@ -190,7 +190,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
                     break;
 		}
 		case UP: {
-
+                    /**
 			int rowIndex = currentRowIndex;
 
 			if (rowIndex == 0) {
@@ -210,6 +210,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 
                         System.out.println("up");
                         System.out.println("colx!"  + colx);
+                    **/
 			event.consume();
 			break;
 		}
@@ -231,8 +232,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
 			maxPosition), event.isShiftDown());
 
-                    System.out.println("down");
-                    System.out.println("colx!"  + colx);
                     **/
 			event.consume();
 			break;
