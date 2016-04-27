@@ -40,6 +40,9 @@
 (defn- code-node [text-area]
   (ui/user-data text-area ::code-node))
 
+(defn- behavior [text-area]
+  (ui/user-data text-area ::behavior))
+
 (defn- restart-opseq-timer [text-area]
   (if-let [timer (ui/user-data text-area ::opseq-timer)]
     (ui/restart timer)
@@ -286,6 +289,7 @@
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
       (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
       (ui/user-data! text-area ::programmatic-change (atom nil))
+      (ui/user-data! text-area ::behavior styled-text-behavior)
 
       (.addDocumentListener document
                             (reify IDocumentListener
@@ -358,6 +362,10 @@
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
     (.setSelectionRange (.getTextWidget this) offset length))
+  cvx/TextScroller
+  (preferred-offset [this]
+    (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
+      (.getPreferredColOffset b)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
