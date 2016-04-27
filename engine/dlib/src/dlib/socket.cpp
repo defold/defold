@@ -34,7 +34,7 @@ namespace dmSocket
         int err = WSAStartup(version_requested, &wsa_data);
         if (err != 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -58,7 +58,7 @@ namespace dmSocket
         int s = ::socket(PF_INET, type, protocol);
         if (s < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -78,7 +78,7 @@ namespace dmSocket
         int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -110,12 +110,12 @@ namespace dmSocket
 
         int ret = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
         if (ret < 0)
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
 
         uint8_t ttl_byte = (uint8_t) ttl;
         ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl_byte, sizeof(ttl_byte));
         if (ret < 0)
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
 
         return RESULT_OK;
     }
@@ -126,7 +126,7 @@ namespace dmSocket
         if_addr.s_addr = htonl(address);
         int ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *)&if_addr, sizeof(if_addr));
         if (ret != 0)
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         return RESULT_OK;
     }
 
@@ -139,7 +139,7 @@ namespace dmSocket
 #endif
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -165,7 +165,7 @@ namespace dmSocket
         if (s < 0)
         {
             *accept_socket = s;
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -185,7 +185,7 @@ namespace dmSocket
 
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -199,15 +199,16 @@ namespace dmSocket
         sock_addr.sin_family = AF_INET;
         sock_addr.sin_addr.s_addr = htonl(address);
         sock_addr.sin_port  = htons(port);
+        int ret =connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
 
-        int ret = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
-
-        if (ret == -1 && !( (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_WOULDBLOCK) ) )
+        if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
-
-        return RESULT_OK;
+        else
+        {
+            return RESULT_OK;
+        }
     }
 
     Result Listen(Socket socket, int backlog)
@@ -215,7 +216,7 @@ namespace dmSocket
         int ret = listen(socket, backlog);
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -228,7 +229,7 @@ namespace dmSocket
         int ret = shutdown(socket, how);
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -355,8 +356,8 @@ namespace dmSocket
     Result Select(Selector* selector, int32_t timeout)
     {
         timeval timeout_val;
-        timeout_val.tv_sec = timeout / 1000000;
-        timeout_val.tv_usec = timeout % 1000000;
+        timeout_val.tv_sec = 0;
+        timeout_val.tv_usec = timeout;
 
         int r;
         if (timeout < 0)
@@ -366,11 +367,7 @@ namespace dmSocket
 
         if (r < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else if(timeout > 0 && r == 0)
-        {
-            return RESULT_WOULDBLOCK;
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -389,7 +386,7 @@ namespace dmSocket
         int r = getsockname(socket, (sockaddr *) &addr, &addr_len);
         if (r < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -407,7 +404,7 @@ namespace dmSocket
 
         if (r < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -489,7 +486,7 @@ namespace dmSocket
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
 
         if (blocking)
@@ -503,7 +500,7 @@ namespace dmSocket
 
         if (fcntl(socket, F_SETFL, flags) < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -527,7 +524,7 @@ namespace dmSocket
         }
         else
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
 
 #endif
@@ -554,7 +551,7 @@ namespace dmSocket
         int ret = setsockopt(socket, level, name, (char *) &timeval, sizeof(timeval));
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
@@ -602,7 +599,7 @@ namespace dmSocket
                 return RESULT_HOST_NOT_FOUND;
             }
         } else {
-            return HNATIVETORESULT(gh_errno);
+            return HNativeToResult(gh_errno);
         }
 #else
         struct hostent* host = gethostbyname(name);
@@ -610,7 +607,7 @@ namespace dmSocket
             *address = ntohl(*((unsigned long *) host->h_addr_list[0]));
             return RESULT_OK;
         } else {
-            return HNATIVETORESULT(DM_SOCKET_HERRNO);
+            return HNativeToResult(DM_SOCKET_HERRNO);
         }
 #endif
     }

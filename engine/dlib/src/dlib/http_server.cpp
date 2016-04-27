@@ -561,15 +561,12 @@ bail:
             server->m_Reconnect = 0;
         }
         dmSocket::Selector selector;
-        dmSocket::SelectorZero(&selector);
         dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, server->m_ServerSocket);
 
         dmSocket::Result r = dmSocket::Select(&selector, 0);
 
         if (r != dmSocket::RESULT_OK)
-        {
             return RESULT_SOCKET_ERROR;
-        }
 
         // Check for new connections
         if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_READ, server->m_ServerSocket))
