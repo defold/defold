@@ -677,5 +677,10 @@
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
           [tmpl-scene tmpl1-scene] (g/overrides sub-scene)
           [tmpl-sub tmpl1-sub] (mapv #(node-by-id scene %) ["template/my-node" "template1/my-node"])]
+      (println 'sub-scene-dep-rules :scene-node-ids (g/node-value scene :node-ids))
+      (println 'sub-scene-dep-rules :sub-scene-tmpls (g/overrides sub-scene))
+      (println 'sub-scene-dep-rules :sub-scene-overrides (mapv #(node-by-id scene %) ["template/my-node" "template1/my-node"]))
+      (println 'sub-scene-dep-rules :tmpl-sub tmpl-sub :tmpl-scene tmpl-scene)
+      (println 'sub-scene-dep-rules :tmpl1-sub tmpl1-sub :tmpl1-scene tmpl1-scene)
       (is (conn? [tmpl-sub :node-overrides tmpl-scene :node-overrides]))
       (is (conn? [tmpl1-sub :node-overrides tmpl1-scene :node-overrides])))))
