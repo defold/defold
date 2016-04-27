@@ -34,6 +34,32 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
                 super(styledText);
 	}
 
+        private int colx = 0;
+
+       /**
+        * Fix for keeping track of the horizontal caret position when
+        * changing lines - Defold
+        **/
+
+        public void setPreferredColOffset(int x){
+          colx =x;
+        }
+
+        public int getPreferredColOffset(){
+          return colx;
+        }
+
+        /**
+        *  Call to remember the horizonatal caret position when
+        *  changing lines
+        **/
+        public void rememberCaretCol(int offset){
+          int currentRowIndex = getControl().getContent().getLineAtOffset(offset);
+          int colIdx = offset - getControl().getContent().getOffsetAtLine(currentRowIndex);
+          System.out.println("Carin"  + colIdx);
+          setPreferredColOffset(colIdx);
+        }
+
 	/**
 	 * Handle key event
 	 *
@@ -47,6 +73,35 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			defold_keyTyped(arg0);
 		}
 	}
+
+        /**
+	 * handle the mouse pressed
+	 *
+	 * @param arg0
+	 *            the mouse event
+	 */
+	public void mousePressed(MouseEvent arg0) {
+		getControl().requestFocus();
+	}
+
+       	/**
+	 * Send a mouse pressed
+	 *
+	 * @param event
+	 *            the event
+	 * @param visibleCells
+	 *            the visible cells
+	 * @param selection
+	 *            are we in selection mode
+         *  Override for Defold to handle down/up width
+	 */
+	@SuppressWarnings("deprecation")
+        @Override
+	public void updateCursor(MouseEvent event, List<LineCell> visibleCells, boolean selection) {
+            super.updateCursor(event, visibleCells, selection);
+            rememberCaretCol(getControl().getCaretOffset());
+        }
+
 
 
 	@SuppressWarnings("deprecation")
@@ -94,6 +149,8 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				event.consume();
 			}
                     **/
+
+                        rememberCaretCol(getControl().getCaretOffset());
                         event.consume();
                         System.out.println("left");
                         break;
@@ -126,12 +183,14 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			}
 			break;
                     **/
+
+                    rememberCaretCol(getControl().getCaretOffset());
                     event.consume();
                     System.out.println("right");
                     break;
 		}
 		case UP: {
-                    /**
+
 			int rowIndex = currentRowIndex;
 
 			if (rowIndex == 0) {
@@ -148,8 +207,9 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
 			maxPosition), event.isShiftDown());
 
-                    ***/
+
                         System.out.println("up");
+                        System.out.println("colx!"  + colx);
 			event.consume();
 			break;
 		}
@@ -170,8 +230,10 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 
 			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
 			maxPosition), event.isShiftDown());
-                    **/
+
                     System.out.println("down");
+                    System.out.println("colx!"  + colx);
+                    **/
 			event.consume();
 			break;
 		}
@@ -287,8 +349,11 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 					&& !event.isMetaDown()) {
 				final int offset = getControl().getCaretOffset();
 				getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
-				getControl().setCaretOffset(offset + 1);
-			}
+                                final int newOffset = offset + 1;
+				getControl().setCaretOffset(newOffset);
+                                rememberCaretCol(newOffset);
+                        }
+
 		}
 	}
 
