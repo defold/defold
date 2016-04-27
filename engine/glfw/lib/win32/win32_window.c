@@ -1311,6 +1311,17 @@ int _glfwPlatformOpenWindow( int width, int height,
 {
     GLboolean recreateContext = GL_FALSE;
 
+    _glfwWin.highDPI = 0;
+    if (wndconfig->highDPI) {
+        // SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE);
+        if (_glfwLibrary.Libs.SetProcessDPIAware != NULL) {
+            _glfwLibrary.Libs.SetProcessDPIAware();
+            _glfwWin.highDPI = 1;
+        }
+    } else {
+        // SetProcessDpiAwareness(PROCESS_DPI_UNAWARE);
+    }
+
     // Clear platform specific GLFW window state
     _glfwWin.classAtom         = 0;
     _glfwWin.oldMouseLockValid = GL_FALSE;
