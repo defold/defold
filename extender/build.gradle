@@ -30,6 +30,8 @@ dependencies {
         exclude module: "spring-boot-starter-tomcat"
     }
     compile("org.springframework.boot:spring-boot-starter-jetty")
+    //compile("org.springframework.boot:spring-boot-starter-mustache")
+    compile('com.samskivert:jmustache:1.12')
     // end::jetty[]
     compile('commons-io:commons-io:2.4')
     // tag::actuator[]

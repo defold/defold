@@ -1,4 +1,4 @@
-package hello;
+package com.defold.extender;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,7 +23,7 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.yaml.snakeyaml.Yaml;
 
 @RestController
-public class AssemblerController {
+public class ExtenderController {
 
     private static String exec(String...args) throws IOException, InterruptedException {
         System.out.println(Arrays.toString(args) + " ...");
@@ -175,7 +175,7 @@ public class AssemblerController {
 
     @RequestMapping("/")
     public String index() {
-        return "Assembler";
+        return "Extender";
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build")
