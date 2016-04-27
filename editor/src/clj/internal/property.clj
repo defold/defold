@@ -2,7 +2,6 @@
   (:require [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.property :as ip]
             [plumbing.core :as p]
             [schema.core :as s]))
 

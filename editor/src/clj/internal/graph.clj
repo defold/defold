@@ -157,9 +157,9 @@
 
 (defn- assert-type-compatible
   [basis src-id src-label tgt-id tgt-label]
-  (let [output-type   (gt/node-type (node-by-id-at basis src-id))
+  (let [output-type   (gt/node-type (node-by-id-at basis src-id) basis)
         output-schema (gt/output-type output-type src-label)
-        input-type    (gt/node-type (node-by-id-at basis tgt-id))
+        input-type    (gt/node-type (node-by-id-at basis tgt-id) basis)
         input-schema  (gt/input-type input-type tgt-label)]
     (assert output-schema
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
@@ -389,7 +389,7 @@
           tgt-gid       (gt/node-id->graph-id tgt-id)
           tgt-graph     (get graphs tgt-gid)
           tgt-node      (node tgt-graph tgt-id)
-          tgt-type      (gt/node-type tgt-node)]
+          tgt-type      (gt/node-type tgt-node this)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
       (assert-type-compatible this src-id src-label tgt-id tgt-label)
       (assert (some #{tgt-label} (-> tgt-type gt/input-labels)) (str "No label " tgt-label " exists on node " tgt-node))
@@ -453,8 +453,8 @@
 
 (defn- input-deps [basis node-id]
   (some-> (node-by-id-at basis node-id)
-    gt/node-type
-    gt/input-dependencies))
+          (gt/node-type basis)
+          gt/input-dependencies))
 
 (defn update-successors
   [basis changes]
