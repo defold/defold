@@ -9,7 +9,8 @@
   (text [this]))
 
 (defprotocol TextScroller
-  (preferred-offset [this]))
+  (preferred-offset [this])
+  (preferred-offset! [this offset]))
 
 (defprotocol TextView
   (text-selection [this])
@@ -27,7 +28,7 @@
    :Left :left
    :Shift+Right :select-right
    :Shift+Left :select-left
-   ;:Up :up
+   :Up :up
    :Down :down
    })
 
@@ -113,41 +114,28 @@
           next-pos (adjust-bounds doc (dec c))]
       (caret! selection next-pos true))))
 
-(defn line-len-before [s pos]
-  (let [np (adjust-bounds s (inc pos))]
-    (-> (string/split (.substring s 0 np) #"\n")
-        last
-        count
-        dec)))
+(defn lines-before [s pos]
+  (let [np (adjust-bounds s pos)]
+    ;; an extra char is put in to pick up mult newlines
+    (string/split (str (.substring s 0 np) "x") #"\n")))
 
 (defn lines-after [s pos]
   (let [np (adjust-bounds s pos)]
     (string/split (.substring s np) #"\n")))
 
-(defn up-line [s pos]
-  (let [np (adjust-bounds s (inc pos))
-        lines (string/split (.substring s 0 np) #"\n")
-        len-before (-> lines
-                       last
-                       count)
-        prev-line-len (-> lines reverse second count)]
-    (if (pos? prev-line-len)
-      (adjust-bounds s (- pos prev-line-len 1))
-      (adjust-bounds s (- pos len-before 1)))))
+(defn up-line [s pos preferred-offset]
+  (let [lines-before (lines-before s pos)
+        len-before (-> lines-before last count dec)
+        prev-line-len (-> lines-before reverse second count)
+        preferred-next-pos (+ (- pos len-before 1 prev-line-len)
+                              (min preferred-offset prev-line-len))]
+    (adjust-bounds s preferred-next-pos)))
 
 (defn down-line [s pos preferred-offset]
-  (println "*****down****")
-  (println :pos pos)
-  (let [len-before (line-len-before s pos)
-        _ (println :len-before len-before)
-        lines-after (lines-after s pos)
-        _ (println :liens-after lines-after)
+  (let [lines-after (lines-after s pos)
         len-after (-> lines-after first count)
-        _ (println :len-after len-after)
         next-line-len (-> lines-after second count)
-        _ (println :next-line-len next-line-len)
-        preferred-next-pos (+ pos len-after 1 (min preferred-offset next-line-len))
-        _ (println :preferred-next-pos preferred-next-pos)]
+        preferred-next-pos (+ pos len-after 1 (min preferred-offset next-line-len))]
       (adjust-bounds s preferred-next-pos)))
 
 (handler/defhandler :up :code-view
@@ -155,7 +143,8 @@
   (run [selection user-data]
     (let [c (caret selection)
           doc (text selection)
-          next-pos (up-line doc c)]
+          preferred-offset (preferred-offset selection)
+          next-pos (up-line doc c preferred-offset)]
       (caret! selection next-pos false))))
 
 (handler/defhandler :down :code-view
@@ -164,6 +153,5 @@
     (let [c (caret selection)
           doc (text selection)
           preferred-offset (preferred-offset selection)
-          _ (println "preferred offset is " preferred-offset)
           next-pos (down-line doc c preferred-offset)]
       (caret! selection next-pos false))))

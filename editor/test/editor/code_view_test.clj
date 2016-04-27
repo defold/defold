@@ -214,30 +214,35 @@
 
 (deftest move-up-down-test
   (with-clean-system
-    (let [code "line1\nline2\nhi"
+    (let [code "line1\nline2\n\nline3and"
           opts lua/lua
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
+      (preferred-offset! source-viewer 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "moving down"
         (down! source-viewer)
         (is (= \2 (get-char-at-caret source-viewer)))
         (down! source-viewer))
-        (println (caret source-viewer))
-        (is (= \h (get-char-at-caret source-viewer)))
-      #_(testing "moving left"
-        (left! source-viewer)
-        (g/node-value viewer-node :new-content)
-        (is (= 5 (caret source-viewer)))
-        (is (= 5 (g/node-value code-node :caret-position))))
-      #_(testing "out of bounds right"
-        (caret! source-viewer (count code) false)
-        (right! source-viewer)
-        (right! source-viewer)
-        (is (= (count code) (caret source-viewer))))
-      #_(testing "out of bounds left"
-        (caret! source-viewer 0 false)
-        (left! source-viewer)
-        (left! source-viewer)
-        (is (= 0 (caret source-viewer)))))))
+        (is (= \newline (get-char-at-caret source-viewer)))
+        (down! source-viewer)
+        (is (= \3 (get-char-at-caret source-viewer)))
+        (down! source-viewer)
+        (is (nil? (get-char-at-caret source-viewer)))
+        (testing "out of bounds down"
+          (down! source-viewer)
+          (down! source-viewer)
+          (is (nil? (get-char-at-caret source-viewer))))
+        (testing "moving up"
+          (up! source-viewer)
+          (is (= \newline (get-char-at-caret source-viewer)))
+          (up! source-viewer)
+          (is (= \2 (get-char-at-caret source-viewer)))
+          (up! source-viewer)
+          (is (= \1 (get-char-at-caret source-viewer)))
+          (up! source-viewer)
+          (is (= \l (get-char-at-caret source-viewer))))
+        (testing "out of bounds up"
+          (up! source-viewer)
+          (is (= \l (get-char-at-caret source-viewer)))))))

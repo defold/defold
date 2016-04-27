@@ -366,6 +366,9 @@
   (preferred-offset [this]
     (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
       (.getPreferredColOffset b)))
+  (preferred-offset! [this offset]
+    (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
+      (.setPreferredColOffset b offset)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
