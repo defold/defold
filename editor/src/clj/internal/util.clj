@@ -207,14 +207,14 @@
   [tp tp-form]
   (if (protocol? tp)
     (list `s/protocol tp-form)
-    tp))
+    tp-form))
 
 (defn- wrap-enum
   [tp tp-form]
   (if (set? tp)
     (do (println tp-form)
       (list `s/enum tp-form))
-    tp))
+    tp-form))
 
 (defn preprocess-schema
   [tp-form]

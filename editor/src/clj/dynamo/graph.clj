@@ -73,14 +73,14 @@
    (node-type* (now) node-id))
   ([basis node-id]
    (when-let [n (ig/node-by-id-at basis node-id)]
-     (gt/node-type n))))
+     (gt/node-type n basis))))
 
 (defn node-type
   "Return the node-type given a node. Uses the current basis if not provided."
   ([node]
     (node-type (now) node))
   ([basis node]
-    (gt/node-type node)))
+    (gt/node-type node basis)))
 
 (defn cache "The system cache of node values"
   []
@@ -1080,7 +1080,7 @@
 
 (defn- make-override-node
   [graph-id override-id original-node-id]
-  (in/make-override-node (gt/node-type (node-by-id original-node-id)) override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
+  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
 
 (defn override
   ([root-id]

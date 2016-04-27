@@ -125,7 +125,7 @@ Outputs:
   (output outline-label    g/Str :abstract)
   (output outline-commands [types/OutlineCommand] (g/fnk [] []))
   (output outline-tree     types/OutlineItem
-          (g/fnk [this outline-label outline-commands outline-children :- [types/OutlineItem]]
+          (g/fnk [this outline-label outline-commands outline-children]
                {:label outline-label
                 ;; :icon "my type of icon"
                 :node-ref (g/node-id this)
