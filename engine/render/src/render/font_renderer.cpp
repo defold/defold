@@ -648,8 +648,6 @@ namespace dmRender
                             int16_t descent = (int16_t)g->m_Descent;
                             int16_t ascent = (int16_t)g->m_Ascent;
 
-                            // TODO: 16 bytes alignment and simd (when enabled in vector-math library)
-                            //       Legal cast? (strict aliasing)
                             (Vector4&) v1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
                             (Vector4&) v2.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
                             (Vector4&) v3.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
