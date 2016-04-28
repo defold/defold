@@ -32,6 +32,8 @@
    :Down :down
    })
 
+(def tab-size 4)
+
 (defn- info [e]
   {:key-code (.getCode ^KeyEvent e)
    :control? (.isControlDown ^KeyEvent e)
@@ -114,6 +116,10 @@
           next-pos (adjust-bounds doc (dec c))]
       (caret! selection next-pos true))))
 
+(defn tab-count [s]
+  (let [tab-count (count (filter #(= \tab %) s))]
+    tab-count))
+
 (defn lines-before [s pos]
   (let [np (adjust-bounds s pos)]
     ;; an extra char is put in to pick up mult newlines
@@ -134,9 +140,18 @@
 (defn down-line [s pos preferred-offset]
   (let [lines-after (lines-after s pos)
         len-after (-> lines-after first count)
+        next-line-tabs (-> lines-after second tab-count)
+        _ (println :next-line-tabs next-line-tabs)
         next-line-len (-> lines-after second count)
-        preferred-next-pos (+ pos len-after 1 (min preferred-offset next-line-len))]
-      (adjust-bounds s preferred-next-pos)))
+        _ (println :next-line-len next-line-len)
+        preferred-next-pos (min preferred-offset (+ next-line-len (* next-line-tabs 4)))
+        _ (println :preferred-next-pos preferred-next-pos)
+        actual-next-pos (- preferred-next-pos (* next-line-tabs 3))
+        _ (println :actual-next-pos actual-next-pos)
+        adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))
+        _ (println :adj-next-pos adj-next-pos)]
+      (adjust-bounds s adj-next-pos)))
+
 
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)

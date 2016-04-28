@@ -245,4 +245,13 @@
           (is (= \l (get-char-at-caret source-viewer))))
         (testing "out of bounds up"
           (up! source-viewer)
-          (is (= \l (get-char-at-caret source-viewer)))))))
+          (is (= \l (get-char-at-caret source-viewer))))
+        (testing "respects tab spacing"
+          (let [new-code "line1\n\t2345"]
+            (g/transact (g/set-property code-node :code new-code))
+            (g/node-value viewer-node :new-content)
+            (caret! source-viewer 3 false)
+            (preferred-offset! source-viewer 4)
+            (is (= \e (get-char-at-caret source-viewer)))
+            (down! source-viewer)
+            (is (= \2 (get-char-at-caret source-viewer))))))))
