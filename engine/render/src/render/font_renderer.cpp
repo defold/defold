@@ -3,6 +3,8 @@
 #include <float.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dlib/static_assert.h>
+#include <dlib/align.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -109,12 +111,14 @@ namespace dmRender
 
     struct GlyphVertex
     {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations on
         float    m_Position[4];
         float    m_UV[2];
         uint32_t m_FaceColor;
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
+        uint32_t m_Pad[3];
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
@@ -286,6 +290,8 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
     {
+        DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
+
         TextContext& text_context = render_context->m_TextContext;
 
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
