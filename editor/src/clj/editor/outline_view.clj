@@ -257,8 +257,8 @@
       (let [db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
             data (outline/copy item-iterators)]
         (when-let [icon (and (= 1 (count item-iterators))
-                             (:icon (.getValue ^ TreeItem (:tree-item (first item-iterators)))))]
-          (.setDragView db (jfx/get-image icon)))
+                             (:icon (outline/value (first item-iterators))))]
+          (.setDragView db (jfx/get-image icon 16) 0 16))
         (.setContent db {(data-format-fn) data})
         (.consume e)))))
 
@@ -316,7 +316,15 @@
 
 (defn- drag-entered [tree-view ^DragEvent e]
   (when-let [^TreeCell cell (target (.getTarget e))]
-    (ui/add-style! cell "drop-target")
+    (let [project        (project tree-view)
+          item-iterators (if (ui/drag-internal? e)
+                           (root-iterators tree-view)
+                           [])
+          db             (.getDragboard e)]
+      (when (outline/drop? (project/graph project) item-iterators (->iterator (.getTreeItem cell))
+                           (.getContent db (data-format-fn)))
+        (ui/add-style! cell "drop-target")))
+
     (let [future (ui/->future 0.5 (fn []
                                     (-> cell (.getTreeItem) (.setExpanded true))
                                     (ui/user-data! cell :future-expand nil)))]

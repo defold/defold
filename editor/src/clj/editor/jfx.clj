@@ -9,16 +9,21 @@
 
 ;; Image cache
 (defonce cached-images (atom {}))
-(defn- load-image [name]
-  (if-let [url (io/resource (str name))]
-    (Image. (str url))
-    nil))
 
-(defn get-image [name]
-  (if-let [image (get @cached-images name)]
-    image
-    (let [image (load-image name)]
-      ((swap! cached-images assoc name image) name))))
+(defn get-image
+  ([name]
+   (get-image name nil))
+  ([name ^Double size]
+   (let [image-key    [name size]
+         url          (io/resource (str name))
+         cached-image (get @cached-images image-key)]
+     (cond
+       cached-image cached-image
+       url          (let [image (if size
+                                  (Image. (str url) size size true true)
+                                  (Image. (str url)))]
+                        (swap! cached-images assoc image-key image)
+                        image)))))
 
 (defn get-image-view
   ([name]

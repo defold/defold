@@ -367,7 +367,8 @@
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
     (when (= 1 (count resources))
-      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)))))
+      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)) 16)
+                    0 16))
     (.putFiles content files)
     (.setContent db content)
     (.consume e)))
@@ -381,8 +382,11 @@
 (defn- drag-done [^DragEvent e selection])
 
 (defn- drag-entered [^DragEvent e]
-  (when-let [cell (target (.getTarget e))]
-    (ui/add-style! cell "drop-target")))
+  (when-let [^TreeCell cell (target (.getTarget e))]
+    (let [resource (.getValue (.getTreeItem cell))]
+      (when (and (= :folder (resource/source-type resource))
+                 (not (resource/read-only? resource)))
+        (ui/add-style! cell "drop-target")))))
 
 (defn- drag-exited [^DragEvent e]
   (when-let [cell (target (.getTarget e))]
