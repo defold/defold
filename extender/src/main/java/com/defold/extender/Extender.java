@@ -12,22 +12,28 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.yaml.snakeyaml.Yaml;
 
+import com.google.common.collect.ImmutableMap;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 
 public class Extender {
 
-    private Configuration config;
     private File src;
     private File build;
     private Platform platform;
 
     public Extender(Configuration config, String platform, File src) throws IOException {
-        this.config = config;
         this.platform = config.getPlatforms().get(platform);
         this.src = src;
         this.build = Files.createTempDirectory("engine").toFile();
+    }
+
+    private String[] subst(String template, Map<String, Object> context) {
+        String s = Mustache.compiler().compile(template).execute(context);
+        return s.split(" ");
     }
 
     private static String exec(String...args) throws IOException, InterruptedException {
@@ -69,20 +75,9 @@ public class Extender {
         allSymbols.addAll(symbols);
         allSymbols.addAll(Arrays.asList("DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"));
 
-        StringBuilder sb = new StringBuilder();
-        for (String s : allSymbols) {
-            sb.append(String.format("extern \"C\" void %s();\n", s));
-        }
-
-        sb.append("void dmExportedSymbols() {\n");
-
-        for (String s : allSymbols) {
-            sb.append(String.format("    %s();\n", s));
-        }
-
-        sb.append("}\n");
-
-        FileUtils.writeStringToFile(exportedcpp, sb.toString());
+        Template exportedTemplate = Mustache.compiler().compile(IOUtils.toString(this.getClass().getResourceAsStream("/exported_symbols.cpp")));
+        String exported = exportedTemplate.execute(ImmutableMap.of("symbols", allSymbols));
+        FileUtils.writeStringToFile(exportedcpp, exported);
 
         String libPathHack = "-L/Users/chmu/Downloads/new3/sdk/redistributable_bin/osx32";
         String libHack = "-lsteam_api";
@@ -100,20 +95,13 @@ public class Extender {
     }
 
     private File compileFile(int i, File f, File build) throws IOException, InterruptedException {
-        List<String> headers = new ArrayList<>(Arrays.asList("/Users/chmu/tmp/dynamo-home/include", "/Users/chmu/tmp/dynamo-home/ext/include"));
-        headers.add(build.getParent() + "/include"); // TODO: HACK? :-)
-
+        List<String> includes = new ArrayList<>(Arrays.asList("/Users/chmu/tmp/dynamo-home/include", "/Users/chmu/tmp/dynamo-home/ext/include"));
+        includes.add(build.getParent() + "/include"); // TODO: HACK? :-)
         File o = new File(build, String.format("%s_%d.o", f.getName(), i));
-        ArrayList<String> args = new ArrayList<>(Arrays.asList("clang++", "-c", "-m32", f.getAbsolutePath(), "-o", o.getAbsolutePath()));
-        for (String h : headers) {
-            args.add("-I" + h);
-        }
-        exec(args.toArray(new String[args.size()]));
+        String[] args = subst(platform.getCompile(), ImmutableMap.of("src", f, "tgt", o, "includes", includes));
+        System.out.println(Arrays.toString(args));
+        exec(args);
         return o;
-    }
-
-    private String subst(String template, Map<String, Object> context) {
-        return Mustache.compiler().compile(template).execute(context);
     }
 
     private File buildExtension(File manifest) throws IOException, InterruptedException {
@@ -135,15 +123,8 @@ public class Extender {
         File lib = File.createTempFile("lib", ".a", build);
         lib.delete();
 
-        //platform.getLib().
-
-        List<String> args = new ArrayList<>();
-        args.add("ar");
-        args.add("rcs");
-        args.add(lib.getAbsolutePath());
-        args.addAll(objs);
-        exec(args.toArray(new String[args.size()]));
-
+        String[] args = subst(platform.getLib(), ImmutableMap.of("tgt", lib, "objs", objs));
+        exec(args);
         return lib;
     }
 
