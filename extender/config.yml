@@ -1,0 +1,10 @@
+headers: ['${DYNAMO_HOME}/include', '${DYNAMO_HOME}/ext/include']
+platforms:
+  x86-osx:
+    compile: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o {{obj}}'
+    link: 'clang++ {{#libs}}-l{{.}} {{/libs}} {{#libs-paths}}-L{{.}} {{/libs-paths}} -o {{tgt}}'
+    includePathPattern: '-I%s'
+    libPathPattern: '-L%s'
+    libPattern: '-l%s clang++ {{#includes}}{{.}}{{/includes}}'
+    compileArgs: [clang++, -c, -m32, '${SRC}', -o, '${OBJ}']
+

@@ -32,6 +32,8 @@ dependencies {
     compile("org.springframework.boot:spring-boot-starter-jetty")
     //compile("org.springframework.boot:spring-boot-starter-mustache")
     compile('com.samskivert:jmustache:1.12')
+    compile('com.google.guava:guava:19.0')
+
     // end::jetty[]
     compile('commons-io:commons-io:2.4')
     // tag::actuator[]

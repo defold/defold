@@ -1,0 +1,6 @@
+headers: ['${DYNAMO_HOME}/include', '${DYNAMO_HOME}/ext/include']
+platforms:
+  x86-osx:
+    compile: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o {{obj}}'
+    link: 'clang++ {{#libs}}-l{{.}} {{/libs}} {{#libs-paths}}-L{{.}} {{/libs-paths}} -o {{tgt}}'
+    lib: 'ar rcs {{tgt}} {{#objs}}{{/objs}}'
