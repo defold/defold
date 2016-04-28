@@ -13,12 +13,24 @@ extern "C"
 #include "script_json.h"
 #include "script_private.h"
 
+static int min(int a, int b)
+{
+    return a < b ? a : b;
+}
+
 namespace dmScript
 {
     #define LIB_NAME "json"
 
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index)
     {
+        const uint32_t buffer_len = 1024;
+
+        if (index >= doc->m_NodeCount)
+        {
+            return luaL_error(L, "Unexpected JSON index, unable to parse content.");
+        }
+
         const dmJson::Node& n = doc->m_Nodes[index];
         const char* json = doc->m_Json;
         int l = n.m_End - n.m_Start;
@@ -39,8 +51,20 @@ namespace dmScript
             }
             else
             {
-                double val = atof(json + n.m_Start);
-                lua_pushnumber(L, val);
+                char buffer[buffer_len] = { 0 };
+                memcpy(buffer, json + n.m_Start, min(buffer_len - 1, l));
+
+                uint32_t bytes_read = 0;
+                double value = 0.0f;
+                int result = sscanf(buffer, "%lf%n", &value, &bytes_read);
+                if (result == 1 && bytes_read == min(buffer_len - 1, l))
+                {
+                    lua_pushnumber(L, value);
+                }
+                else
+                {
+                    return luaL_error(L, "Invalid JSON primitive: %s", buffer);
+                }
             }
             return index + 1;
 
@@ -59,19 +83,30 @@ namespace dmScript
             return index;
 
         case dmJson::TYPE_OBJECT:
-            lua_createtable(L, 0, n.m_Size);
-            ++index;
-            for (int i = 0; i < n.m_Size; i += 2)
+            // {1 2 3} is a valid object according to the jsmn parser, we need
+            // to protect against this to avoid reading random memory.
+            if ((n.m_Size % 2) == 0)
             {
-                index = JsonToLua(L, doc, index);
-                index = JsonToLua(L, doc, index);
-                lua_rawset(L, -3);
-            }
+                lua_createtable(L, 0, n.m_Size);
+                ++index;
+                for (int i = 0; i < n.m_Size; i += 2)
+                {
+                    index = JsonToLua(L, doc, index);
+                    index = JsonToLua(L, doc, index);
+                    lua_rawset(L, -3);
+                }
 
-            return index;
+                return index;
+            }
+            else
+            {
+                char buffer[buffer_len] = { 0 };
+                memcpy(buffer, json + n.m_Start, min(buffer_len - 1, l));
+                luaL_error(L, "Incomplete JSON object: %s", buffer);
+            }
         }
 
-        return luaL_error(L, "Invalid JSON data.");
+        luaL_error(L, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
     }
 
     /*# decode JSON from a string to a lua-table
