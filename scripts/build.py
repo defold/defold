@@ -945,7 +945,12 @@ instructions.configure=\
         prefix = self._get_s3_archive_prefix()
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
-            if rel.split('/')[0] != 'editor':
+
+            # Download everything, except the editors.
+            # We check if the relative path includes '/editor/'
+            # since the path looks like this:
+            # archive_path/{channel}/editor/...
+            if '/editor/' not in rel:
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
                 self._log('s3://%s/%s -> %s' % (bucket_name, key.name, p))
