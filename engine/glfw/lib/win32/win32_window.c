@@ -1311,6 +1311,7 @@ int _glfwPlatformOpenWindow( int width, int height,
                              const _GLFWwndconfig *wndconfig,
                              const _GLFWfbconfig *fbconfig )
 {
+    const float baseDPI = 96.0f; // 96 is the baseline DPI on Windows
     GLboolean recreateContext = GL_FALSE;
     HDC screen;
     int dpiX;
@@ -1329,9 +1330,8 @@ int _glfwPlatformOpenWindow( int width, int height,
             dpiY = _glfwLibrary.Libs.GetDeviceCaps(screen, LOGPIXELSY);
             ReleaseDC(0, screen);
 
-            // 96 is the baseline DPI on Windows
-            dX = (float)dpiX / 96.0;
-            dY = (float)dpiY / 96.0;
+            dX = (float)dpiX / baseDPI;
+            dY = (float)dpiY / baseDPI;
             width = ((float)width * dX);
             height = ((float)height * dY);
             _glfwWin.width = width;
