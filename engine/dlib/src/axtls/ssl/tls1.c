@@ -1325,6 +1325,13 @@ int basic_read(SSL *ssl, uint8_t **in_data)
             {
                 ssl->dc->bm_proc_index = 0;
                 ret = do_handshake(ssl, buf, read_len);
+                if( ret < 0 )
+                {
+                    fprintf(stderr, "AXTLS: Handshake failed: %d  Can it be timeout related? (on the server)\n", ret);
+                    ret = SSL_ERROR_CONN_LOST;
+                    ssl->hs_status = SSL_ERROR_DEAD;  /* make sure it stays dead */
+                    goto error;
+                }
             }
             else /* no client renegotiation allowed */
             {
