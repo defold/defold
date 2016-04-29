@@ -49,6 +49,27 @@ static int _glfwInitLibraries( void )
 {
 	_glfwPlatformDiscoverJoysticks();
 
+    // user32.dll (High DPI query function SetProcessDPIAware)
+#ifndef _GLFW_NO_DLOAD_USER32
+    _glfwLibrary.Libs.user32 = LoadLibrary( "user32.dll" );
+    if( _glfwLibrary.Libs.user32 != NULL )
+    {
+        _glfwLibrary.Libs.SetProcessDPIAware = (SETPROCESSDPIAWARE_T)
+            GetProcAddress(_glfwLibrary.Libs.user32, "SetProcessDPIAware");
+
+        if( _glfwLibrary.Libs.SetProcessDPIAware == NULL )
+        {
+            FreeLibrary( _glfwLibrary.Libs.user32 );
+            _glfwLibrary.Libs.user32 = NULL;
+            return GL_FALSE;
+        }
+    }
+    else
+    {
+        return GL_FALSE;
+    }
+#endif // _GLFW_NO_DLOAD_USER32
+
     // gdi32.dll (OpenGL pixel format functions & SwapBuffers)
 #ifndef _GLFW_NO_DLOAD_GDI32
     _glfwLibrary.Libs.gdi32 = LoadLibrary( "gdi32.dll" );
@@ -64,11 +85,14 @@ static int _glfwInitLibraries( void )
             GetProcAddress( _glfwLibrary.Libs.gdi32, "SetPixelFormat" );
         _glfwLibrary.Libs.SwapBuffers         = (SWAPBUFFERS_T)
             GetProcAddress( _glfwLibrary.Libs.gdi32, "SwapBuffers" );
+        _glfwLibrary.Libs.GetDeviceCaps       = (GETDEVICECAPS_T)
+            GetProcAddress( _glfwLibrary.Libs.gdi32, "GetDeviceCaps" );
         if( _glfwLibrary.Libs.ChoosePixelFormat   == NULL ||
             _glfwLibrary.Libs.DescribePixelFormat == NULL ||
             _glfwLibrary.Libs.GetPixelFormat      == NULL ||
             _glfwLibrary.Libs.SetPixelFormat      == NULL ||
-            _glfwLibrary.Libs.SwapBuffers         == NULL )
+            _glfwLibrary.Libs.SwapBuffers         == NULL ||
+            _glfwLibrary.Libs.GetDeviceCaps       == NULL )
         {
             FreeLibrary( _glfwLibrary.Libs.gdi32 );
             _glfwLibrary.Libs.gdi32 = NULL;
@@ -120,6 +144,15 @@ static int _glfwInitLibraries( void )
 
 static void _glfwFreeLibraries( void )
 {
+    // user32.dll
+#ifndef _GLFW_NO_DLOAD_USER32
+    if( _glfwLibrary.Libs.user32 != NULL )
+    {
+        FreeLibrary( _glfwLibrary.Libs.user32 );
+        _glfwLibrary.Libs.user32 = NULL;
+    }
+#endif // _GLFW_NO_DLOAD_USER32
+
     // gdi32.dll
 #ifndef _GLFW_NO_DLOAD_GDI32
     if( _glfwLibrary.Libs.gdi32 != NULL )
