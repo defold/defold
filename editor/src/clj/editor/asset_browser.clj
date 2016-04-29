@@ -351,7 +351,7 @@
     (sync-selection tree-view new-root selected-paths)
     tree-view))
 
-(g/defnk produce-tree-view [tree-view resource-tree]
+(g/defnk produce-tree-view [_node-id tree-view resource-tree]
   (let [selected-paths (or (ui/user-data tree-view ::pending-selection)
                            (mapv resource/proj-path (workspace/selection tree-view)))]
     (update-tree-view tree-view resource-tree selected-paths)
@@ -367,7 +367,8 @@
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
     (when (= 1 (count resources))
-      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)))))
+      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)) 16)
+                    0 16))
     (.putFiles content files)
     (.setContent db content)
     (.consume e)))
@@ -381,8 +382,11 @@
 (defn- drag-done [^DragEvent e selection])
 
 (defn- drag-entered [^DragEvent e]
-  (when-let [cell (target (.getTarget e))]
-    (ui/add-style! cell "drop-target")))
+  (when-let [^TreeCell cell (target (.getTarget e))]
+    (let [resource (.getValue (.getTreeItem cell))]
+      (when (and (= :folder (resource/source-type resource))
+                 (not (resource/read-only? resource)))
+        (ui/add-style! cell "drop-target")))))
 
 (defn- drag-exited [^DragEvent e]
   (when-let [cell (target (.getTarget e))]

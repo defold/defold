@@ -1,4 +1,4 @@
-package com.defold.editor;
+package com.defold.util;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -8,6 +8,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
 
 public class Profiler {
 
@@ -33,18 +37,22 @@ public class Profiler {
         String thread;
         int frame = 0;
 
-        private Sample(String name, double start, double end, Object user1) {
-            this(name, start, end, user1, "");
+        private Sample(String name, double start, double end, Object user1, int frame) {
+            this(name, start, end, user1, "", frame);
         }
 
-        private Sample(String name, double start, double end, Object user1, Object user2) {
+        private Sample(String name, double start, double end, Object user1, Object user2, int frame) {
             this.name = name;
             this.start = start;
             this.end = end;
             this.user1 = user1;
             this.user2 = user2;
             this.thread = threadName.get();
-            this.frame = frameNumber.get();
+            this.frame = frame;
+        }
+
+        public int getFrame() {
+            return this.frame;
         }
 
         @Override
@@ -62,8 +70,12 @@ public class Profiler {
     }
 
     public static Sample begin(String name, Object user) {
+        return begin(name, user, frameNumber.get());
+    }
+
+    public static Sample begin(String name, Object user, int frame) {
         double t = System.nanoTime() / 1000000.0;
-        return new Sample(name, t, t, user);
+        return new Sample(name, t, t, user, frame);
     }
 
     public synchronized static void end(Sample s) {
@@ -76,6 +88,32 @@ public class Profiler {
 
     public static synchronized void reset()  {
         samples.clear();
+    }
+
+    public static synchronized String dumpJson() throws IOException {
+        Collections.sort(samples, new Comparator<Sample>() {
+            @Override
+            public int compare(Sample o1, Sample o2) {
+                return Double.compare(o1.start, o2.start);
+            }
+        });
+        JsonNodeFactory f = JsonNodeFactory.instance;
+        ArrayNode smpls = new ArrayNode(f);
+        double min = Double.MAX_VALUE;
+        for (Sample s : samples) {
+            min = Math.min(min, s.start);
+        }
+        for (Sample s : samples) {
+            ObjectNode o = smpls.addObject();
+            o.put("start", s.start - min);
+            o.put("end", s.end - min);
+            o.put("name", s.name);
+            o.put("user1", s.user1.toString());
+            o.put("user2", s.user2.toString());
+            o.put("thread", s.thread);
+            o.put("frame", s.frame);
+        }
+        return smpls.toString();
     }
 
     public static synchronized void dump(String filename) throws IOException {

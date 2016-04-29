@@ -12,7 +12,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.defold-project :as project]
-            [editor.profiler :as profiler]
+            [util.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
@@ -253,18 +253,17 @@
       (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d))))
 
 (defn produce-render-data [scene selection aux-renderables camera viewport]
-  (profiler/profile "data" -1
-                    (let [selection-set (set selection)
-                         out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
-                         out-selected-renderables (transient [])
-                         world-transform (doto (Matrix4d.) (.setIdentity))
-                         tmp-p3d (Point3d.)
-                         render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d)
-                         out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
-                         out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
-                         out-selected-renderables (persistent! out-selected-renderables)]
-                     {:renderables out-renderables
-                      :selected-renderables out-selected-renderables})))
+  (let [selection-set (set selection)
+        out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
+        out-selected-renderables (transient [])
+        world-transform (doto (Matrix4d.) (.setIdentity))
+        tmp-p3d (Point3d.)
+        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d)
+        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
+        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
+        out-selected-renderables (persistent! out-selected-renderables)]
+    {:renderables out-renderables
+     :selected-renderables out-selected-renderables}))
 
 (g/defnode SceneRenderer
   (input scene g/Any :substitute substitute-scene)
@@ -296,13 +295,14 @@
                                       context (assoc context
                                                      :world-transform (:world-transform updatable))]]
                           ((get-in updatable [:updatable :update-fn]) context))))
-    (when-let [^GLContext context (.getContext drawable)]
-      (let [gl ^GL2 (.getGL context)]
-        (.beginFrame async-copier gl)
-        (render! viewport drawable camera all-renderables context gl)
-        (scene-cache/prune-object-caches! gl)
-        (.endFrame async-copier gl)
-        :ok))))
+    (profiler/profile "render" -1
+                      (when-let [^GLContext context (.getContext drawable)]
+                        (let [gl ^GL2 (.getGL context)]
+                          (.beginFrame async-copier gl)
+                          (render! viewport drawable camera all-renderables context gl)
+                          (scene-cache/prune-object-caches! gl)
+                          (.endFrame async-copier gl)
+                          :ok)))))
 
 ;; Scene selection
 
@@ -543,19 +543,19 @@
 
 (defn- register-event-handler! [^Parent parent view-id]
   (let [tool-user-data (atom [])
-        event-handler   (ui/event-handler
-                          e
-                          (let [action (augment-action view-id (i/action-from-jfx e))
-                                x (:x action)
-                                y (:y action)
-                                pos [x y 0.0]
-                                picking-rect (selection/calc-picking-rect pos pos)]
-                            ; Only look for tool selection when the mouse is moving with no button pressed
-                            (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                              (let [s (g/node-value view-id :selected-tool-renderables)]
-                                (reset! tool-user-data s)))
-                            (g/transact (g/set-property view-id :tool-picking-rect picking-rect))
-                            (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data)))] (.setOnMousePressed parent event-handler)
+        event-handler   (ui/event-handler e
+                          (profiler/profile "input" -1
+                                            (let [action (augment-action view-id (i/action-from-jfx e))
+                                                  x (:x action)
+                                                  y (:y action)
+                                                  pos [x y 0.0]
+                                                  picking-rect (selection/calc-picking-rect pos pos)]
+                                              ; Only look for tool selection when the mouse is moving with no button pressed
+                                              (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
+                                                (let [s (g/node-value view-id :selected-tool-renderables)]
+                                                  (reset! tool-user-data s)))
+                                              (g/transact (g/set-property view-id :tool-picking-rect picking-rect))
+                                              (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))] (.setOnMousePressed parent event-handler)
     (.setOnMouseReleased parent event-handler)
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
@@ -588,7 +588,7 @@
                            (register-event-handler! parent view-id)
                            (ui/user-data! image-view ::view-id view-id)
                            (let [^Tab tab      (:tab opts)
-                                 repainter     (ui/->timer
+                                 repainter     (ui/->timer "refresh-scene-view"
                                                 (fn [dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt))))]

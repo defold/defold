@@ -1,15 +1,18 @@
-(ns editor.profiler
-  (:import [com.defold.editor Profiler]))
+(ns util.profiler
+  (:import [com.defold.util Profiler]))
 
 (set! *warn-on-reflection* true)
 
 (defmacro profile
-  [name user expr]
+  [name user & body]
   `(let [s# (Profiler/begin ~name ~user)]
      (try
-       ~expr
+       ~@body
        (finally
          (Profiler/end s#)))))
 
 (defn begin-frame []
   (Profiler/beginFrame))
+
+(defn dump-json []
+  (Profiler/dumpJson))
