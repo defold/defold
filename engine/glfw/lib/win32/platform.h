@@ -243,6 +243,7 @@ typedef int  (WINAPI * DESCRIBEPIXELFORMAT_T) (HDC,int,UINT,LPPIXELFORMATDESCRIP
 typedef int  (WINAPI * GETPIXELFORMAT_T) (HDC);
 typedef BOOL (WINAPI * SETPIXELFORMAT_T) (HDC,int,const PIXELFORMATDESCRIPTOR*);
 typedef BOOL (WINAPI * SWAPBUFFERS_T) (HDC);
+typedef int  (WINAPI * GETDEVICECAPS_T) (HDC,int);
 #endif // _GLFW_NO_DLOAD_GDI32
 
 // winmm.dll function pointer typedefs
@@ -466,6 +467,7 @@ GLFWGLOBAL struct {
       GETPIXELFORMAT_T      GetPixelFormat;
       SETPIXELFORMAT_T      SetPixelFormat;
       SWAPBUFFERS_T         SwapBuffers;
+      GETDEVICECAPS_T       GetDeviceCaps;
 #endif // _GLFW_NO_DLOAD_GDI32
 
       // winmm.dll

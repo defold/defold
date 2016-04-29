@@ -56,6 +56,13 @@ static int _glfwInitLibraries( void )
     {
         _glfwLibrary.Libs.SetProcessDPIAware = (SETPROCESSDPIAWARE_T)
             GetProcAddress(_glfwLibrary.Libs.user32, "SetProcessDPIAware");
+
+        if( _glfwLibrary.Libs.SetProcessDPIAware == NULL )
+        {
+            FreeLibrary( _glfwLibrary.Libs.user32 );
+            _glfwLibrary.Libs.user32 = NULL;
+            return GL_FALSE;
+        }
     }
     else
     {
@@ -78,11 +85,14 @@ static int _glfwInitLibraries( void )
             GetProcAddress( _glfwLibrary.Libs.gdi32, "SetPixelFormat" );
         _glfwLibrary.Libs.SwapBuffers         = (SWAPBUFFERS_T)
             GetProcAddress( _glfwLibrary.Libs.gdi32, "SwapBuffers" );
+        _glfwLibrary.Libs.GetDeviceCaps       = (GETDEVICECAPS_T)
+            GetProcAddress( _glfwLibrary.Libs.gdi32, "GetDeviceCaps" );
         if( _glfwLibrary.Libs.ChoosePixelFormat   == NULL ||
             _glfwLibrary.Libs.DescribePixelFormat == NULL ||
             _glfwLibrary.Libs.GetPixelFormat      == NULL ||
             _glfwLibrary.Libs.SetPixelFormat      == NULL ||
-            _glfwLibrary.Libs.SwapBuffers         == NULL )
+            _glfwLibrary.Libs.SwapBuffers         == NULL ||
+            _glfwLibrary.Libs.GetDeviceCaps       == NULL )
         {
             FreeLibrary( _glfwLibrary.Libs.gdi32 );
             _glfwLibrary.Libs.gdi32 = NULL;

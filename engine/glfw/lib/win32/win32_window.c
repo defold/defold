@@ -30,6 +30,8 @@
 
 #include "internal.h"
 
+#include <windows.h>
+
 
 
 //************************************************************************
@@ -1310,16 +1312,31 @@ int _glfwPlatformOpenWindow( int width, int height,
                              const _GLFWfbconfig *fbconfig )
 {
     GLboolean recreateContext = GL_FALSE;
+    HDC screen;
+    int dpiX;
+    int dpiY;
+    float dX,dY;
 
     _glfwWin.highDPI = 0;
     if (wndconfig->highDPI) {
-        // SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE);
-        if (_glfwLibrary.Libs.SetProcessDPIAware != NULL) {
+        if (_glfwLibrary.Libs.SetProcessDPIAware != NULL && _glfwLibrary.Libs.GetDeviceCaps != NULL) {
             _glfwLibrary.Libs.SetProcessDPIAware();
             _glfwWin.highDPI = 1;
+
+            // Get DPI for screen
+            screen = GetDC(0);
+            dpiX = _glfwLibrary.Libs.GetDeviceCaps(screen, LOGPIXELSX);
+            dpiY = _glfwLibrary.Libs.GetDeviceCaps(screen, LOGPIXELSY);
+            ReleaseDC(0, screen);
+
+            // 96 is the baseline DPI on Windows
+            dX = (float)dpiX / 96.0;
+            dY = (float)dpiY / 96.0;
+            width = ((float)width * dX);
+            height = ((float)height * dY);
+            _glfwWin.width = width;
+            _glfwWin.height = height;
         }
-    } else {
-        // SetProcessDpiAwareness(PROCESS_DPI_UNAWARE);
     }
 
     // Clear platform specific GLFW window state
