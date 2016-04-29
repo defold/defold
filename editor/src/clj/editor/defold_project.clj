@@ -137,23 +137,24 @@
 (defn save-data [project]
   (g/node-value project :save-data :skip-validation true))
 
-(defn save-all
-  ([project]
-   (save-all project progress/null-render-progress!))
-  ([project render-progress!]
-   (let [save-data (save-data project)]
-     (if-not (g/error? save-data)
-       (do
-         (progress/progress-mapv
-          (fn [{:keys [resource content]} _]
-            (when-not (resource/read-only? resource)
-              (spit resource content)))
-          save-data
-          render-progress!
-          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-         (workspace/resource-sync! (g/node-value project :workspace) false [] render-progress!))
-       ;; TODO: error message somewhere...
-       (println (validation/error-message save-data))))))
+(defn save-all [project {:keys [render-progress! basis cache]
+                         :or {render-progress! progress/null-render-progress!
+                              basis            (g/now)
+                              cache            (g/cache)}
+                         :as opts}]
+  (let [save-data (g/node-value project :save-data :basis basis :cache cache :skip-validation true)]
+    (if-not (g/error? save-data)
+      (do
+        (progress/progress-mapv
+         (fn [{:keys [resource content]} _]
+           (when-not (resource/read-only? resource)
+             (spit resource content)))
+         save-data
+         render-progress!
+         (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+        (workspace/resource-sync! (g/node-value project :workspace :basis basis :cache cache) false [] render-progress!))
+      ;; TODO: error message somewhere...
+      (println (validation/error-message save-data)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
@@ -207,13 +208,33 @@
 (defn workspace [project]
   (g/node-value project :workspace))
 
+(defonce ongoing-build-save? (atom false))
+
+;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
+;; if the system cache hasn't changed during the build.
+(defn- update-system-cache! [old-cache-val new-cache]
+  (swap! (g/cache) (fn [current-cache-val]
+                     (if (= old-cache-val current-cache-val)
+                       @new-cache
+                       current-cache-val))))
+
 (handler/defhandler :save-all :global
-  (enabled? [] true)
-  (run [project] (future
-                   (ui/with-disabled-ui
-                     (ui/with-progress [render-fn ui/default-render-progress!]
-                       (save-all project render-fn)
-                       (workspace/update-version-on-disk! (workspace project)))))))
+  (enabled? [] (not @ongoing-build-save?))
+  (run [project]
+    (when-not @ongoing-build-save?
+      (reset! ongoing-build-save? true)
+      (let [workspace     (workspace project)
+            old-cache-val @(g/cache)
+            cache         (atom old-cache-val)]
+        (future
+          (try
+            (ui/with-progress [render-fn ui/default-render-progress!]
+              (save-all project {:render-progress! render-fn
+                                 :basis            (g/now)
+                                 :cache            cache})
+              (workspace/update-version-on-disk! workspace)
+              (update-system-cache! old-cache-val cache))
+            (finally (reset! ongoing-build-save? false))))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -510,14 +531,12 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defonce ongoing-build? (atom false))
-
 (handler/defhandler :build :global
-  (enabled? [] (not @ongoing-build?))
+  (enabled? [] (not @ongoing-build-save?))
   (run [project]
-    (when-not @ongoing-build?
-      (reset! ongoing-build? true)
-      (let [workspace     (g/node-value project :workspace)
+    (when-not @ongoing-build-save?
+      (reset! ongoing-build-save? true)
+      (let [workspace     (workspace project)
             game-project  (get-resource-node project "/game.project")
             launch-path   (workspace/project-path (g/node-value project :workspace))
             old-cache-val @(g/cache)
@@ -530,14 +549,9 @@
                                                   :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
                                                   :basis            (g/now)
                                                   :cache            cache}))
-                ;; We want to save any work done by the build, so we use our 'build cache' as system cache
-                ;; if the system cache hasn't changed during the build.
-                (swap! (g/cache) (fn [current-cache-val]
-                                   (if (= old-cache-val current-cache-val)
-                                     @cache
-                                     current-cache-val)))
+                (update-system-cache! old-cache-val cache)
                 (launch-engine (io/file launch-path))))
-            (finally (reset! ongoing-build? false))))))))
+            (finally (reset! ongoing-build-save? false))))))))
 
 (defn settings [project]
   (g/node-value project :settings))
