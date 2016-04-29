@@ -67,6 +67,8 @@
 
     NSRect contentRect =
         [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+
+    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
     _glfwWin.width = contentRect.size.width;
     _glfwWin.height = contentRect.size.height;
 
@@ -316,11 +318,16 @@ static int convertMacKeyCode( unsigned int macKeyCode )
     }
     else
     {
-        NSPoint p = [event locationInWindow];
-
         // Cocoa coordinate system has origin at lower left
+        NSPoint p = [event locationInWindow];
+        p.y = [[_glfwWin.window contentView] bounds].size.height - p.y;
+
+        // Need convert mouse coord into backing coords
+        // which will be different for retina windows.
+        p = [self convertPointToBacking:p];
+
         _glfwInput.MousePosX = p.x;
-        _glfwInput.MousePosY = [[_glfwWin.window contentView] bounds].size.height - p.y;
+        _glfwInput.MousePosY = p.y;
     }
 
     if( _glfwWin.mousePosCallback )
@@ -556,6 +563,11 @@ int  _glfwPlatformOpenWindow( int width, int height,
                     backing:NSBackingStoreBuffered
                       defer:NO];
     [_glfwWin.window setContentView:[[GLFWContentView alloc] init]];
+
+    if (wndconfig->highDPI) {
+        [ [_glfwWin.window contentView] setWantsBestResolutionOpenGLSurface:YES];
+    }
+
     [_glfwWin.window setDelegate:_glfwWin.delegate];
     [_glfwWin.window setAcceptsMouseMovedEvents:YES];
     [_glfwWin.window center];
@@ -640,6 +652,14 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
     [_glfwWin.window makeKeyAndOrderFront:nil];
     [_glfwWin.context setView:[_glfwWin.window contentView]];
+
+    // Fetch the resulting width and height for backing buffer
+    // will differ from the input params on retina enabled windows.
+    NSRect contentRect =
+        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+    _glfwWin.width = contentRect.size.width;
+    _glfwWin.height = contentRect.size.height;
 
     if( wndconfig->mode == GLFW_FULLSCREEN )
     {
@@ -864,6 +884,14 @@ void _glfwPlatformRefreshWindowParams( void )
     _glfwWin.glForward = GL_FALSE;
     _glfwWin.glDebug = GL_FALSE;
     _glfwWin.glProfile = 0;
+
+    NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    NSRect contentRectBacking = [[_glfwWin.window contentView] convertRectToBacking:contentRectFrame];
+    _glfwWin.highDPI = 0;
+    if (contentRectBacking.size.width > contentRectFrame.size.width ||
+        contentRectBacking.size.height > contentRectFrame.size.height) {
+        _glfwWin.highDPI = 1;
+    }
 }
 
 //========================================================================

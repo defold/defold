@@ -81,6 +81,7 @@ typedef struct {
     int         glForward;
     int         glDebug;
     int         glProfile;
+    int         highDPI;
 } _GLFWhints;
 
 
@@ -107,6 +108,7 @@ typedef struct {
     int         glForward;
     int         glDebug;
     int         glProfile;
+    int         highDPI;
 } _GLFWwndconfig;
 
 
