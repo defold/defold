@@ -8,7 +8,7 @@
    <children>
       <TextField id="name" />
       <Label id="name-label" text="New name" />
-      <TextField id="path" editable="true"/>
+      <TextField id="path" editable="false"/>
       <AnchorPane>
 	<children>
 	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
