@@ -5,7 +5,7 @@
 /**
  * Allocates a fresh unused token from the token pull.
  */
-static jsmntok_t *jsmn_alloc_token(jsmn_parser *parser,
+static jsmntok_t *jsmn_alloc_token(jsmn_parser *parser, 
 		jsmntok_t *tokens, size_t num_tokens) {
 	jsmntok_t *tok;
 	if (parser->toknext >= num_tokens) {
@@ -23,7 +23,7 @@ static jsmntok_t *jsmn_alloc_token(jsmn_parser *parser,
 /**
  * Fills token type and boundaries.
  */
-static void jsmn_fill_token(jsmntok_t *token, jsmntype_t type,
+static void jsmn_fill_token(jsmntok_t *token, jsmntype_t type, 
                             int start, int end) {
 	token->type = type;
 	token->start = start;
@@ -235,7 +235,7 @@ jsmnerr_t jsmn_parse(jsmn_parser *parser, const char *js, size_t len,
 				if (parser->toksuper != -1 && tokens != NULL)
 					tokens[parser->toksuper].size++;
 				break;
-			case '\t' : case '\r' : case '\n' : case ':' : case ',': case ' ':
+			case '\t' : case '\r' : case '\n' : case ':' : case ',': case ' ': 
 				break;
 #ifdef JSMN_STRICT
 			/* In strict mode primitives are: numbers and booleans */
@@ -272,7 +272,7 @@ jsmnerr_t jsmn_parse(jsmn_parser *parser, const char *js, size_t len,
 }
 
 /**
- * Creates a new parser based over a given  buffer with an array of tokens
+ * Creates a new parser based over a given  buffer with an array of tokens 
  * available.
  */
 void jsmn_init(jsmn_parser *parser) {

@@ -5,8 +5,6 @@
 extern "C" {
 #endif
 
-#define JSMN_STRICT
-
 /**
  * JSON type identifier. Basic types are:
  * 	o Object

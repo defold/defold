@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <float.h>
 
 #include "script.h"
 
@@ -13,18 +14,14 @@ extern "C"
 #include "script_json.h"
 #include "script_private.h"
 
-static int min(int a, int b)
-{
-    return a < b ? a : b;
-}
-
 namespace dmScript
 {
     #define LIB_NAME "json"
 
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index)
     {
-        const uint32_t buffer_len = 1024;
+        // The maximum length of a IEEE 754 double
+        const uint32_t buffer_len = 3 + DBL_MANT_DIG - DBL_MIN_EXP;
 
         if (index >= doc->m_NodeCount)
         {
@@ -33,7 +30,7 @@ namespace dmScript
 
         const dmJson::Node& n = doc->m_Nodes[index];
         const char* json = doc->m_Json;
-        int l = n.m_End - n.m_Start;
+        uint32_t l = n.m_End - n.m_Start;
         switch (n.m_Type)
         {
         case dmJson::TYPE_PRIMITIVE:
@@ -52,12 +49,12 @@ namespace dmScript
             else
             {
                 char buffer[buffer_len] = { 0 };
-                memcpy(buffer, json + n.m_Start, min(buffer_len - 1, l));
+                memcpy(buffer, json + n.m_Start, dmMath::Min(buffer_len - 1, l));
 
                 uint32_t bytes_read = 0;
                 double value = 0.0f;
                 int result = sscanf(buffer, "%lf%n", &value, &bytes_read);
-                if (result == 1 && bytes_read == min(buffer_len - 1, l))
+                if (result == 1 && bytes_read == dmMath::Min(buffer_len - 1, l))
                 {
                     lua_pushnumber(L, value);
                 }
@@ -101,12 +98,12 @@ namespace dmScript
             else
             {
                 char buffer[buffer_len] = { 0 };
-                memcpy(buffer, json + n.m_Start, min(buffer_len - 1, l));
-                luaL_error(L, "Incomplete JSON object: %s", buffer);
+                memcpy(buffer, json + n.m_Start, dmMath::Min(buffer_len - 1, l));
+                return luaL_error(L, "Incomplete JSON object: %s", buffer);
             }
         }
 
-        luaL_error(L, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
+        return luaL_error(L, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
     }
 
     /*# decode JSON from a string to a lua-table
