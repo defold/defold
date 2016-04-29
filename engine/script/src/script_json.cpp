@@ -20,8 +20,8 @@ namespace dmScript
 
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index)
     {
-        // The maximum length of a IEEE 754 double
-        const uint32_t buffer_len = 3 + DBL_MANT_DIG - DBL_MIN_EXP;
+        // The maximum length of a IEEE 754 double (+ \0)
+        const uint32_t buffer_len = 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1;
 
         if (index >= doc->m_NodeCount)
         {
