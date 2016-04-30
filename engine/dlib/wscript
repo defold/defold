@@ -40,6 +40,9 @@ def configure(conf):
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
 
+    if build_util.get_target_os() == 'web' and build_util.get_target_architecture() == 'js':
+        conf.env.append_unique('CCDEFINES', 'WEBP_FORCE_ALIGNED"')
+
 def build(bld):
     if not os.path.exists('tmp'):
         os.mkdir('tmp')

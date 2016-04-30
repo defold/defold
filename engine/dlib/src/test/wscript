@@ -93,6 +93,13 @@ def build(bld):
     create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.lz4'])
 
+    create_test(bld, 'test_webp', extra_features = ['embed'], extra_libs = ['THREAD'],
+                embed_source = ['data/webp_rgb_lossless.webp',
+                                'data/webp_rgba_lossless.webp',
+                                'data/webp_rgb_lossy.webp',
+                                'data/webp_rgba_lossy.webp']
+                )
+
     create_test(bld, 'test_image', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/color_check_2x2.png',
                                 'data/color_check_2x2_premult.png',
