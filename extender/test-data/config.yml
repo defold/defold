@@ -1,6 +1,10 @@
-headers: ['${DYNAMO_HOME}/include', '${DYNAMO_HOME}/ext/include']
+context:
+    dynamo_home: '/Users/chmu/tmp/dynamo-home'
+exportedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
+includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
 platforms:
   x86-osx:
+    exeExt: ''
     compile: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
     link: clang++ {{#libs}}-l{{.}} {{/libs}} {{#libs-paths}}-L{{.}} {{/libs-paths}} -o {{tgt}}'
     lib: 'ar rcs {{tgt}} {{#objs}}{{.}}{{/objs}}'

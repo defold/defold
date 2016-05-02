@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -21,12 +22,14 @@ import com.samskivert.mustache.Template;
 
 public class Extender {
 
+    private Configuration config;
     private File src;
     private File build;
     private Platform platform;
 
     public Extender(Configuration config, String platform, File src) throws IOException {
-        this.platform = config.getPlatforms().get(platform);
+        this.config = config;
+        this.platform = config.platforms.get(platform);
         this.src = src;
         this.build = Files.createTempDirectory("engine").toFile();
     }
@@ -34,6 +37,14 @@ public class Extender {
     private String[] subst(String template, Map<String, Object> context) {
         String s = Mustache.compiler().compile(template).execute(context);
         return s.split(" ");
+    }
+
+    private String[] subst(String[] template, Map<String, Object> context) {
+        String[] ret = new String[template.length];
+        for (int i = 0; i < template.length; i++) {
+            ret[i] = Mustache.compiler().compile(template[i]).execute(context);
+        }
+        return ret;
     }
 
     private static String exec(String...args) throws IOException, InterruptedException {
@@ -67,13 +78,13 @@ public class Extender {
         ClassLoader cl = getClass().getClassLoader();
         File maincpp = new File(build, "main.cpp");
         File exportedcpp = new File(build, "exported_symbols.cpp");
-        File exe = new File(build, "dmengine");
+        File exe = new File(build, String.format("dmengine%s", platform.exeExt));
 
         FileUtils.copyURLToFile(cl.getResource("main.cpp"), maincpp);
 
         List<String> allSymbols = new ArrayList<>();
         allSymbols.addAll(symbols);
-        allSymbols.addAll(Arrays.asList("DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"));
+        allSymbols.addAll(Arrays.asList(config.exportedSymbols));
 
         Template exportedTemplate = Mustache.compiler().compile(IOUtils.toString(this.getClass().getResourceAsStream("/exported_symbols.cpp")));
         String exported = exportedTemplate.execute(ImmutableMap.of("symbols", allSymbols));
@@ -95,13 +106,18 @@ public class Extender {
     }
 
     private File compileFile(int i, File f, File build) throws IOException, InterruptedException {
-        List<String> includes = new ArrayList<>(Arrays.asList("/Users/chmu/tmp/dynamo-home/include", "/Users/chmu/tmp/dynamo-home/ext/include"));
+        Map<String, Object> context = context();
+        List<String> includes = new ArrayList<>(Arrays.asList(subst(config.includes, context)));
         includes.add(build.getParent() + "/include"); // TODO: HACK? :-)
         File o = new File(build, String.format("%s_%d.o", f.getName(), i));
-        String[] args = subst(platform.getCompile(), ImmutableMap.of("src", f, "tgt", o, "includes", includes));
+        String[] args = subst(platform.compile, ImmutableMap.of("src", f, "tgt", o, "includes", includes));
         System.out.println(Arrays.toString(args));
         exec(args);
         return o;
+    }
+
+    private Map<String, Object> context() {
+        return new HashMap<>(config.context);
     }
 
     private File buildExtension(File manifest) throws IOException, InterruptedException {
@@ -123,7 +139,7 @@ public class Extender {
         File lib = File.createTempFile("lib", ".a", build);
         lib.delete();
 
-        String[] args = subst(platform.getLib(), ImmutableMap.of("tgt", lib, "objs", objs));
+        String[] args = subst(platform.lib, ImmutableMap.of("tgt", lib, "objs", objs));
         exec(args);
         return lib;
     }
