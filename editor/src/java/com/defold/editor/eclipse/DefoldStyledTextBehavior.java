@@ -35,6 +35,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 	}
 
         private int colx = 0;
+        private int tabSize = 4;
 
        /**
         * Fix for keeping track of the horizontal caret position when
@@ -55,9 +56,13 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
         **/
         public void rememberCaretCol(int offset){
           int currentRowIndex = getControl().getContent().getLineAtOffset(offset);
-          int colIdx = offset - getControl().getContent().getOffsetAtLine(currentRowIndex);
-          System.out.println("Carin"  + colIdx);
-          setPreferredColOffset(colIdx);
+          int startOffset = getControl().getContent().getOffsetAtLine(currentRowIndex);
+          int offsetLength = offset - startOffset;
+          String offsetText = getControl().getContent().getTextRange(startOffset, offsetLength);
+          int tabCount = (int) offsetText.chars().filter(num -> num == '\t').count();
+          int colOffset = offsetLength + (tabCount * (tabSize - 1));
+
+          setPreferredColOffset(colOffset);
         }
 
 	/**
