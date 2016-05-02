@@ -257,3 +257,43 @@
             (is (= \2 (get-char-at-caret source-viewer)))
             (up! source-viewer)
             (is (= \1 (get-char-at-caret source-viewer))))))))
+
+(defn- next-word! [source-viewer]
+  (handler/run :next-word [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- prev-word! [source-viewer]
+  (handler/run :prev-word [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest word-move-test
+  (with-clean-system
+    (let [code "the quick.brown\nfox"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (is (= \t (get-char-at-caret source-viewer)))
+      (testing "moving next word"
+        (next-word! source-viewer)
+        (is (= \space (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
+        (is (= \. (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
+        (is (= \b (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
+        (is (= \newline (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
+        (is (= \f (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
+        (is (= nil (get-char-at-caret source-viewer))))
+      (testing "moving prev word"
+        (prev-word! source-viewer)
+        (is (= \f (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \newline (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \b (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \. (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \q (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \t (get-char-at-caret source-viewer)))))))

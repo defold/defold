@@ -30,6 +30,8 @@
    :Shift+Left :select-left
    :Up :up
    :Down :down
+   :Control+Right :next-word
+   :Control+Left :prev-word
    })
 
 (def tab-size 4)
@@ -74,9 +76,9 @@
     (when-let [clipboard-text (text clipboard)]
       (let [code (text selection)
             caret (caret selection)
-            new-code (str (.substring ^String code 0 caret)
+            new-code (str (subs code 0 caret)
                           clipboard-text
-                          (.substring ^String code caret (count code)))
+                          (subs code caret (count code)))
             new-caret (+ caret (count clipboard-text))]
         (text! selection new-code)
         (caret! selection new-caret false)))))
@@ -123,11 +125,11 @@
 (defn lines-before [s pos]
   (let [np (adjust-bounds s pos)]
     ;; an extra char is put in to pick up mult newlines
-    (string/split (str (.substring s 0 np) "x") #"\n")))
+    (string/split (str (subs s 0 np) "x") #"\n")))
 
 (defn lines-after [s pos]
   (let [np (adjust-bounds s pos)]
-    (string/split (.substring s np) #"\n")))
+    (string/split (subs s np) #"\n")))
 
 (defn up-line [s pos preferred-offset]
   (let [lines-before (lines-before s pos)
@@ -166,4 +168,26 @@
           doc (text selection)
           preferred-offset (preferred-offset selection)
           next-pos (down-line doc c preferred-offset)]
+      (caret! selection next-pos false))))
+
+(def word-regex  #"\n|\w+|\s\w+|.")
+
+(handler/defhandler :next-word :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          next-word-move (re-find word-regex (subs doc np))
+          next-pos (+ np (count next-word-move))]
+      (caret! selection next-pos false))))
+
+(handler/defhandler :prev-word :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          next-word-move (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str)))
+          next-pos (- np (count next-word-move))]
       (caret! selection next-pos false))))
