@@ -34,6 +34,10 @@
    :Alt+Right :next-word
    :Control+Left :prev-word
    :Alt+Left :prev-word
+   :Meta+Left :line-begin
+   :Control+A :line-begin
+   :Meta+Right :line-end
+   :Control+E :line-end
    })
 
 (def tab-size 4)
@@ -192,4 +196,26 @@
           np (adjust-bounds doc c)
           next-word-move (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str)))
           next-pos (- np (count next-word-move))]
+      (caret! selection next-pos false))))
+
+(handler/defhandler :line-begin :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          lines-before (lines-before doc np)
+          len-before (-> lines-before last count dec)
+          next-pos (- np len-before)]
+      (caret! selection next-pos false))))
+
+(handler/defhandler :line-end :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          lines-after (lines-after doc np)
+          len-after (-> lines-after first count)
+          next-pos (+ np len-after)]
       (caret! selection next-pos false))))
