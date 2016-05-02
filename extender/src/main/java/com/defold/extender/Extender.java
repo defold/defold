@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import com.google.common.collect.ImmutableMap;
@@ -26,6 +28,7 @@ public class Extender {
     private File src;
     private File build;
     private Platform platform;
+    private static Logger logger = LoggerFactory.getLogger(Extender.class);
 
     public Extender(Configuration config, String platform, File src) throws IOException {
         this.config = config;
@@ -48,6 +51,8 @@ public class Extender {
     }
 
     private static String exec(String...args) throws IOException, InterruptedException {
+        logger.debug(Arrays.toString(args));
+
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
         Process p = pb.start();
@@ -108,10 +113,9 @@ public class Extender {
     private File compileFile(int i, File f, File build) throws IOException, InterruptedException {
         Map<String, Object> context = context();
         List<String> includes = new ArrayList<>(Arrays.asList(subst(config.includes, context)));
-        includes.add(build.getParent() + "/include"); // TODO: HACK? :-)
+        includes.add(src.getAbsolutePath() + File.separator + "include");
         File o = new File(build, String.format("%s_%d.o", f.getName(), i));
         String[] args = subst(platform.compile, ImmutableMap.of("src", f, "tgt", o, "includes", includes));
-        System.out.println(Arrays.toString(args));
         exec(args);
         return o;
     }

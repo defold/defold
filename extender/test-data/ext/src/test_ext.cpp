@@ -1,4 +1,5 @@
 #include <extension/extension.h>
+#include "test_ext.h"
 
 dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
