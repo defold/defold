@@ -132,26 +132,23 @@
 (defn up-line [s pos preferred-offset]
   (let [lines-before (lines-before s pos)
         len-before (-> lines-before last count dec)
-        prev-line-len (-> lines-before reverse second count)
-        preferred-next-pos (+ (- pos len-before 1 prev-line-len)
-                              (min preferred-offset prev-line-len))]
-    (adjust-bounds s preferred-next-pos)))
+        prev-line-tabs (-> lines-before drop-last last tab-count)
+        prev-line-len (-> lines-before drop-last last count)
+        preferred-next-pos (min preferred-offset (+ prev-line-len (* prev-line-tabs (dec tab-size))))
+        actual-next-pos (- preferred-next-pos (* prev-line-tabs (dec tab-size)))
+        adj-next-pos (+ (- pos len-before 1 prev-line-len)
+                        (if (neg? actual-next-pos) 0 actual-next-pos))]
+      (adjust-bounds s adj-next-pos)))
 
 (defn down-line [s pos preferred-offset]
   (let [lines-after (lines-after s pos)
         len-after (-> lines-after first count)
         next-line-tabs (-> lines-after second tab-count)
-        _ (println :next-line-tabs next-line-tabs)
         next-line-len (-> lines-after second count)
-        _ (println :next-line-len next-line-len)
-        preferred-next-pos (min preferred-offset (+ next-line-len (* next-line-tabs 4)))
-        _ (println :preferred-next-pos preferred-next-pos)
-        actual-next-pos (- preferred-next-pos (* next-line-tabs 3))
-        _ (println :actual-next-pos actual-next-pos)
-        adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))
-        _ (println :adj-next-pos adj-next-pos)]
+        preferred-next-pos (min preferred-offset (+ next-line-len (* next-line-tabs (dec tab-size))))
+        actual-next-pos (- preferred-next-pos (* next-line-tabs (dec tab-size)))
+        adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))]
       (adjust-bounds s adj-next-pos)))
-
 
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)

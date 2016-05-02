@@ -254,4 +254,6 @@
             (preferred-offset! source-viewer 4)
             (is (= \e (get-char-at-caret source-viewer)))
             (down! source-viewer)
-            (is (= \2 (get-char-at-caret source-viewer))))))))
+            (is (= \2 (get-char-at-caret source-viewer)))
+            (up! source-viewer)
+            (is (= \1 (get-char-at-caret source-viewer))))))))
