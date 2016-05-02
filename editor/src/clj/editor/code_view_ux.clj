@@ -242,26 +242,19 @@
     (let [line  (Integer/parseInt line-number)
           doc (text selection)
           doc-lines (string/split doc #"\n")
-          _ (println "line " line)
-          _ (println doc-lines)
           target-lines (take (dec line) doc-lines)
-          _ (println target-lines)
           np (+ (count target-lines) (reduce + (map count target-lines)))]
-      (println "number?" (number? line) "np " np)
       (caret! selection (adjust-bounds doc (if (zero? np) 0 np)) false))
     (catch Exception e (println "Not a valid line number" line-number (.getMessage e)))))
 
 (handler/defhandler :goto-line :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (println "event " (:event user-data))
-    (println "running gotoline")
     ;; when using show and wait on the dialog, was getting very
     ;; strange double events not solved by consume - this is a
     ;; workaround to let us use show
     (let [line-number (promise)
           stage (dialogs/make-goto-line-dialog line-number)
           go-to-line-fn (fn [] (when (realized? line-number)
-                                (println @line-number)
                                 (go-to-line selection @line-number)))]
       (.setOnHidden stage (ui/event-handler e (go-to-line-fn))))))

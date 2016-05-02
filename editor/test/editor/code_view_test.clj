@@ -348,3 +348,29 @@
         (is (= \o (get-char-at-caret source-viewer)))
         (file-end! source-viewer)
         (is (= 11 (caret source-viewer)))))))
+
+(defn- go-to-line! [source-viewer line-number]
+  ;; bypassing handler for the dialog handling
+  (go-to-line source-viewer line-number))
+
+(deftest goto-line-test
+  (with-clean-system
+    (let [code "a\nb\nc"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "goto line"
+        (go-to-line! source-viewer "2")
+        (is (= \b (get-char-at-caret source-viewer)))
+        (go-to-line! source-viewer "3")
+        (is (= \c (get-char-at-caret source-viewer)))
+        (go-to-line! source-viewer "1")
+        (is (= \a (get-char-at-caret source-viewer))))
+      (testing "goto line bounds"
+        (go-to-line! source-viewer "0")
+        (is (= \a (get-char-at-caret source-viewer)))
+        (go-to-line! source-viewer "-2")
+        (is (= \a (get-char-at-caret source-viewer)))
+        (go-to-line! source-viewer "100")
+        (is (= nil (get-char-at-caret source-viewer)))
+        (is (= 5 (caret source-viewer)))))))
