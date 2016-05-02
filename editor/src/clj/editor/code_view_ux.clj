@@ -31,7 +31,9 @@
    :Up :up
    :Down :down
    :Control+Right :next-word
+   :Alt+Right :next-word
    :Control+Left :prev-word
+   :Alt+Left :prev-word
    })
 
 (def tab-size 4)
