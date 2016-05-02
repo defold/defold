@@ -1327,8 +1327,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
                 ret = do_handshake(ssl, buf, read_len);
                 if( ret < 0 )
                 {
-                    fprintf(stderr, "AXTLS: Handshake failed: %d  Can it be timeout related? (on the server)\n", ret);
-                    ret = SSL_ERROR_CONN_LOST;
+                    fprintf(stderr, "AXTLS: Handshake failed: %d\n", ret);
                     ssl->hs_status = SSL_ERROR_DEAD;  /* make sure it stays dead */
                     goto error;
                 }
