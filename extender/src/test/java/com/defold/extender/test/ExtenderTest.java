@@ -8,7 +8,6 @@ import java.io.IOException;
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.nodes.Tag;
 
 import com.defold.extender.Configuration;
 import com.defold.extender.Extender;

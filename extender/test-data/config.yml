@@ -5,6 +5,8 @@ includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
 platforms:
   x86-osx:
     exeExt: ''
+    shlibExt: '.dylib'
+    shlibRe: 'lib(.+).dylib'
     compile: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
-    link: clang++ {{#libs}}-l{{.}} {{/libs}} {{#libs-paths}}-L{{.}} {{/libs-paths}} -o {{tgt}}'
-    lib: 'ar rcs {{tgt}} {{#objs}}{{.}}{{/objs}}'
+    link: clang++ -m32 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#libs}}{{.}} {{/libs}} -framework Cocoa -framework OpenGL -framework OpenAL -framework AGL -framework IOKit -framework Carbon -framework CoreVideo -framework Foundation -framework AppKit -framework Carbon -L/Users/chmu/tmp/dynamo-home/lib/darwin -L/Users/chmu/tmp/dynamo-home/ext/lib/darwin -lengine -ladtruthext -lfacebookext -liapext -lpushext -liacext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -lluajit-5.1 -lextension -lhid -linput -lparticle -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound2 -ltremolo -lvpx
+    lib: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'

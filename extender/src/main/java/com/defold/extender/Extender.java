@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -10,6 +11,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
@@ -25,15 +28,17 @@ import com.samskivert.mustache.Template;
 public class Extender {
 
     private Configuration config;
-    private File src;
+    private String platform;
+    private File root;
     private File build;
-    private Platform platform;
+    private PlatformConfig platformConfig;
     private static Logger logger = LoggerFactory.getLogger(Extender.class);
 
-    public Extender(Configuration config, String platform, File src) throws IOException {
+    public Extender(Configuration config, String platform, File root) throws IOException {
         this.config = config;
-        this.platform = config.platforms.get(platform);
-        this.src = src;
+        this.platform = platform;
+        this.platformConfig = config.platforms.get(platform);
+        this.root = root;
         this.build = Files.createTempDirectory("engine").toFile();
     }
 
@@ -83,7 +88,7 @@ public class Extender {
         ClassLoader cl = getClass().getClassLoader();
         File maincpp = new File(build, "main.cpp");
         File exportedcpp = new File(build, "exported_symbols.cpp");
-        File exe = new File(build, String.format("dmengine%s", platform.exeExt));
+        File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
 
         FileUtils.copyURLToFile(cl.getResource("main.cpp"), maincpp);
 
@@ -95,17 +100,31 @@ public class Extender {
         String exported = exportedTemplate.execute(ImmutableMap.of("symbols", allSymbols));
         FileUtils.writeStringToFile(exportedcpp, exported);
 
-        String libPathHack = "-L/Users/chmu/Downloads/new3/sdk/redistributable_bin/osx32";
-        String libHack = "-lsteam_api";
+        /*Pattern p = Pattern.compile("lib(.+).dylib");
+        File libDir =  new File(root, "lib" + File.separator + this.platform);
+        List<String> extLibs = FileUtils.listFiles(libDir, null, false).stream().map(f -> p.matcher(f.getName())).filter(m -> m.matches()).map(m -> m.group(1)).collect(Collectors.toList());
+        */
+        //File[] files = libPath.listFiles();
 
-        List<String> args = Arrays.asList("clang++", libPathHack, libHack, maincpp.getAbsolutePath(), exportedcpp.getAbsolutePath(), "-o", exe.getAbsolutePath(), "-framework", "Cocoa", "-framework", "OpenGL", "-framework", "OpenAL", "-framework", "AGL", "-framework", "IOKit", "-framework", "Carbon", "-framework", "CoreVideo", "-framework", "Foundation", "-framework", "AppKit", "-m32", "-stdlib=libstdc++", "-mmacosx-version-min=10.7", "-framework", "Carbon", "-L/Users/chmu/tmp/dynamo-home/lib/darwin", "-L/Users/chmu/tmp/dynamo-home/ext/lib/darwin", "-lengine", "-ladtruthext", "-lfacebookext", "-liapext", "-lpushext", "-liacext", "-lrecord", "-lgameobject", "-lddf", "-lresource", "-lgamesys", "-lgraphics", "-lphysics", "-lBulletDynamics", "-lBulletCollision", "-lLinearMath", "-lBox2D", "-lrender", "-lscript", "-lluajit-5.1", "-lextension", "-lhid", "-linput", "-lparticle", "-ldlib", "-ldmglfw", "-lgui", "-ltracking", "-lcrashext", "-lsound2", "-ltremolo", "-lvpx");
-        args = new ArrayList<>(args);
+        //String libPathHack = "-L/Users/chmu/Downloads/new3/sdk/redistributable_bin/osx32";
+        //String libHack = "-lsteam_api";
 
-        for (File f : libs) {
-            args.add(f.getAbsolutePath());
-        }
+        /*Pattern p = Pattern.compile("lib(.+).dylib");
+        Matcher m = p.matcher("libFoo.dylib");
+        System.out.println("--------");
+        System.out.println(m.matches());
+        System.out.println(m.group(1));
+        System.out.println("--------");*/
 
-        exec(args.toArray(new String[args.size()]));
+        //List<File> allLibs
+
+        Map<String, Object> context = context();
+        context.put("src", Arrays.asList(maincpp.getAbsolutePath(), exportedcpp.getAbsolutePath()));
+        context.put("tgt", exe.getAbsolutePath());
+        context.put("libs", libs);
+
+        String[] args = subst(platformConfig.link, context);
+        exec(args);
 
         return exe;
     }
@@ -113,9 +132,9 @@ public class Extender {
     private File compileFile(int i, File f, File build) throws IOException, InterruptedException {
         Map<String, Object> context = context();
         List<String> includes = new ArrayList<>(Arrays.asList(subst(config.includes, context)));
-        includes.add(src.getAbsolutePath() + File.separator + "include");
+        includes.add(root.getAbsolutePath() + File.separator + "include");
         File o = new File(build, String.format("%s_%d.o", f.getName(), i));
-        String[] args = subst(platform.compile, ImmutableMap.of("src", f, "tgt", o, "includes", includes));
+        String[] args = subst(platformConfig.compile, ImmutableMap.of("src", f, "tgt", o, "includes", includes));
         exec(args);
         return o;
     }
@@ -143,14 +162,13 @@ public class Extender {
         File lib = File.createTempFile("lib", ".a", build);
         lib.delete();
 
-        String[] args = subst(platform.lib, ImmutableMap.of("tgt", lib, "objs", objs));
+        String[] args = subst(platformConfig.lib, ImmutableMap.of("tgt", lib, "objs", objs));
         exec(args);
         return lib;
     }
 
     public File buildEngine() throws IOException, InterruptedException {
-
-        Collection<File> allFiles = FileUtils.listFiles(src, null, true);
+        Collection<File> allFiles = FileUtils.listFiles(root, null, true);
         List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
 
         List<String> symbols = new ArrayList<>();
