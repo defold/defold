@@ -38,6 +38,8 @@
    :Control+A :line-begin
    :Meta+Right :line-end
    :Control+E :line-end
+   :Meta+Up :file-begin
+   :Meta+Down :file-end
    })
 
 (def tab-size 4)
@@ -219,3 +221,14 @@
           len-after (-> lines-after first count)
           next-pos (+ np len-after)]
       (caret! selection next-pos false))))
+
+(handler/defhandler :file-begin :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (caret! selection 0 false)))
+
+(handler/defhandler :file-end :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (let [doc (text selection)]
+      (caret! selection (count doc) false))))
