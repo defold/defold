@@ -15,15 +15,29 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.junit.Test;
-import org.springframework.boot.SpringApplication;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.embedded.EmbeddedWebApplicationContext;
+import org.springframework.boot.test.SpringApplicationConfiguration;
+import org.springframework.boot.test.WebIntegrationTest;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.yaml.snakeyaml.Yaml;
 
 import com.defold.extender.Configuration;
 import com.defold.extender.Extender;
 import com.defold.extender.ExtenderApplication;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@SpringApplicationConfiguration(ExtenderApplication.class)
+@WebIntegrationTest(randomPort = true)
 public class ExtenderTest {
+
+    @Autowired
+    EmbeddedWebApplicationContext server;
+
+    @Value("${local.server.port}")
+    int port;
 
     @Test
     public void testBuild() throws IOException, InterruptedException {
@@ -42,8 +56,6 @@ public class ExtenderTest {
 
     @Test
     public void testRemoteBuild() throws ClientProtocolException, IOException {
-        ConfigurableApplicationContext ctx = SpringApplication.run(ExtenderApplication.class, new String[] {});
-
         MultipartEntityBuilder builder = MultipartEntityBuilder.create();
         File root = new File("test-data/ext");
         for (String s : new String[] {"ext.manifest", "src/test_ext.cpp", "include/test_ext.h"}) {
@@ -51,7 +63,7 @@ public class ExtenderTest {
         }
 
         HttpEntity entity = builder.build();
-        String url = "http://localhost:9000/build/x86-osx";
+        String url = String.format("http://localhost:%d/build/x86-osx", port);
         HttpPost request = new HttpPost(url);
 
         request.setEntity(entity);
@@ -65,7 +77,6 @@ public class ExtenderTest {
         }*/
 
         client.close();
-        ctx.close();
     }
 
 }

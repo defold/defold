@@ -25,11 +25,15 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 dependencies {
+	// TODO lock version to 4.2.5.RELEASE?
+
     // tag::jetty[]
     compile("org.springframework.boot:spring-boot-starter-web") {
         exclude module: "spring-boot-starter-tomcat"
     }
     compile("org.springframework.boot:spring-boot-starter-jetty")
+    testCompile('org.springframework:spring-test')
+
     //compile("org.springframework.boot:spring-boot-starter-mustache")
     compile('com.samskivert:jmustache:1.12')
     compile('com.google.guava:guava:19.0')
