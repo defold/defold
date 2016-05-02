@@ -325,3 +325,26 @@
         (is (= 11 (caret source-viewer)))
         (line-end! source-viewer)
         (is (= 11 (caret source-viewer)))))))
+
+(defn- file-begin! [source-viewer]
+  (handler/run :file-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- file-end! [source-viewer]
+  (handler/run :file-end [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest file-begin-end-test
+  (with-clean-system
+    (let [code "hello\nworld"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "moving to beginning of the file"
+        (caret! source-viewer 4 false)
+        (is (= \o (get-char-at-caret source-viewer)))
+        (file-begin! source-viewer)
+        (is (= 0 (caret source-viewer))))
+      (testing "moving to the end of the file"
+        (caret! source-viewer 4 false)
+        (is (= \o (get-char-at-caret source-viewer)))
+        (file-end! source-viewer)
+        (is (= 11 (caret source-viewer)))))))
