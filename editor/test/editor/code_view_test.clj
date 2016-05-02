@@ -297,3 +297,31 @@
         (is (= \q (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
         (is (= \t (get-char-at-caret source-viewer)))))))
+
+(defn- line-begin! [source-viewer]
+  (handler/run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- line-end! [source-viewer]
+  (handler/run :line-end [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest line-begin-end-test
+  (with-clean-system
+    (let [code "hello world"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "moving to beginning of the line"
+        (caret! source-viewer 4 false)
+        (is (= \o (get-char-at-caret source-viewer)))
+        (line-begin! source-viewer)
+        (is (= \h (get-char-at-caret source-viewer)))
+        (line-begin! source-viewer)
+        (is (= \h (get-char-at-caret source-viewer))))
+      (testing "moving to the end of the line"
+        (caret! source-viewer 4 false)
+        (is (= \o (get-char-at-caret source-viewer)))
+        (line-end! source-viewer)
+        (is (= nil (get-char-at-caret source-viewer)))
+        (is (= 11 (caret source-viewer)))
+        (line-end! source-viewer)
+        (is (= 11 (caret source-viewer)))))))
