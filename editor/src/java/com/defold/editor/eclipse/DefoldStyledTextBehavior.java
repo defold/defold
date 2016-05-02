@@ -157,7 +157,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 
                         rememberCaretCol(getControl().getCaretOffset());
                         event.consume();
-                        System.out.println("left");
                         break;
 
 		}
@@ -191,7 +190,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 
                     rememberCaretCol(getControl().getCaretOffset());
                     event.consume();
-                    System.out.println("right");
                     break;
 		}
 		case UP: {

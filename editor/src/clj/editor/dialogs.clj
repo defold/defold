@@ -449,7 +449,6 @@
     @return))
 
 (defn make-goto-line-dialog [result]
-  (println "making dialog")
   (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
         stage (Stage.)
         scene (Scene. root)
