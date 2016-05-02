@@ -1,12 +1,17 @@
 context:
-    dynamo_home: '/Users/chmu/tmp/dynamo-home'
+    dynamo_home: '/Users/chmu/workspace/defold/tmp/dynamo_home'
+    foo: [hej, bla]
+    frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
 exportedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
+
 includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
 platforms:
   x86-osx:
+    context:
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound2", "tremolo", "vpx"]
     exeExt: ''
     shlibExt: '.dylib'
     shlibRe: 'lib(.+).dylib'
-    compile: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
-    link: clang++ -m32 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#libs}}{{.}} {{/libs}} -framework Cocoa -framework OpenGL -framework OpenAL -framework AGL -framework IOKit -framework Carbon -framework CoreVideo -framework Foundation -framework AppKit -framework Carbon -L/Users/chmu/tmp/dynamo-home/lib/darwin -L/Users/chmu/tmp/dynamo-home/ext/lib/darwin -lengine -ladtruthext -lfacebookext -liapext -lpushext -liacext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -lluajit-5.1 -lextension -lhid -linput -lparticle -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound2 -ltremolo -lvpx
-    lib: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -m32 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#extLibs}}{{.}} {{/extLibs}} {{#frameworks}}-framework {{.}} {{/frameworks}} -L{{dynamo_home}}/lib/darwin -L{{dynamo_home}}/ext/lib/darwin {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'

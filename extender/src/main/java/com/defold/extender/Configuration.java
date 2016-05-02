@@ -4,7 +4,7 @@ import java.util.Map;
 
 public class Configuration {
     public Map<String, PlatformConfig> platforms;
-    public Map<String, String> context;
+    public Map<String, Object> context;
     public String[] exportedSymbols;
     public String[] includes;
 }

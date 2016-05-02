@@ -1,7 +1,6 @@
 package com.defold.extender;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -11,8 +10,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
@@ -100,30 +97,12 @@ public class Extender {
         String exported = exportedTemplate.execute(ImmutableMap.of("symbols", allSymbols));
         FileUtils.writeStringToFile(exportedcpp, exported);
 
-        /*Pattern p = Pattern.compile("lib(.+).dylib");
-        File libDir =  new File(root, "lib" + File.separator + this.platform);
-        List<String> extLibs = FileUtils.listFiles(libDir, null, false).stream().map(f -> p.matcher(f.getName())).filter(m -> m.matches()).map(m -> m.group(1)).collect(Collectors.toList());
-        */
-        //File[] files = libPath.listFiles();
-
-        //String libPathHack = "-L/Users/chmu/Downloads/new3/sdk/redistributable_bin/osx32";
-        //String libHack = "-lsteam_api";
-
-        /*Pattern p = Pattern.compile("lib(.+).dylib");
-        Matcher m = p.matcher("libFoo.dylib");
-        System.out.println("--------");
-        System.out.println(m.matches());
-        System.out.println(m.group(1));
-        System.out.println("--------");*/
-
-        //List<File> allLibs
-
         Map<String, Object> context = context();
         context.put("src", Arrays.asList(maincpp.getAbsolutePath(), exportedcpp.getAbsolutePath()));
         context.put("tgt", exe.getAbsolutePath());
-        context.put("libs", libs);
+        context.put("extLibs", libs);
 
-        String[] args = subst(platformConfig.link, context);
+        String[] args = subst(platformConfig.linkCmd, context);
         exec(args);
 
         return exe;
@@ -134,13 +113,15 @@ public class Extender {
         List<String> includes = new ArrayList<>(Arrays.asList(subst(config.includes, context)));
         includes.add(root.getAbsolutePath() + File.separator + "include");
         File o = new File(build, String.format("%s_%d.o", f.getName(), i));
-        String[] args = subst(platformConfig.compile, ImmutableMap.of("src", f, "tgt", o, "includes", includes));
+        String[] args = subst(platformConfig.compileCmd, ImmutableMap.of("src", f, "tgt", o, "includes", includes));
         exec(args);
         return o;
     }
 
     private Map<String, Object> context() {
-        return new HashMap<>(config.context);
+        Map<String, Object> c = new HashMap<>(config.context);
+        c.putAll(platformConfig.context);
+        return c;
     }
 
     private File buildExtension(File manifest) throws IOException, InterruptedException {
@@ -162,7 +143,7 @@ public class Extender {
         File lib = File.createTempFile("lib", ".a", build);
         lib.delete();
 
-        String[] args = subst(platformConfig.lib, ImmutableMap.of("tgt", lib, "objs", objs));
+        String[] args = subst(platformConfig.libCmd, ImmutableMap.of("tgt", lib, "objs", objs));
         exec(args);
         return lib;
     }

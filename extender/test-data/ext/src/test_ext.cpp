@@ -1,6 +1,7 @@
-#include <extension/extension.h>
+//#include <extension/extension.h>
 #include "test_ext.h"
 
+/*
 dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
     return dmExtension::RESULT_OK;
@@ -22,3 +23,12 @@ dmExtension::Result FinalizeTest(dmExtension::Params* params)
 }
 
 DM_DECLARE_EXTENSION(Test, "Test", AppInitializeTest, AppFinalizeTest, InitializeTest, 0, 0, FinalizeTest)
+*/
+
+extern "C"
+{
+	void Test()
+	{
+
+	}
+}
