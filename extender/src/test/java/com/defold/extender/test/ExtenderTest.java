@@ -23,7 +23,6 @@ import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.boot.test.WebIntegrationTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.nodes.Tag;
 
 import com.defold.extender.Configuration;
 import com.defold.extender.Extender;
@@ -31,7 +30,8 @@ import com.defold.extender.ExtenderApplication;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(ExtenderApplication.class)
-@WebIntegrationTest(randomPort = true)
+
+@WebIntegrationTest(randomPort = true, value = "extender.config-url = file:test-data/config.yml")
 public class ExtenderTest {
 
     @Autowired
