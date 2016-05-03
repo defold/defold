@@ -73,7 +73,7 @@ public class GitArchiveProvider {
             }
 
             Path targetZipFile = Paths.get(archivePathname);
-            temporaryZipFile = File.createTempFile("archive", ".zip", targetZipFile.getParent().toFile());
+            temporaryZipFile = File.createTempFile("tmp", ".zip", targetZipFile.getParent().toFile());
             zipFiles(cloneToDirectory, temporaryZipFile, fileKey);
 
             // Do atomic move of file to prevent serving incomplete files.
