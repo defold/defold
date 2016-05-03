@@ -3,6 +3,7 @@ package com.dynamo.cr.archive;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Collection;
@@ -71,11 +72,12 @@ public class GitArchiveProvider {
                 throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
             }
 
-            temporaryZipFile = File.createTempFile("archive", ".zip");
+            Path targetZipFile = Paths.get(archivePathname);
+            temporaryZipFile = File.createTempFile("archive", ".zip", targetZipFile.getParent().toFile());
             zipFiles(cloneToDirectory, temporaryZipFile, fileKey);
 
             // Do atomic move of file to prevent serving incomplete files.
-            java.nio.file.Files.move(temporaryZipFile.toPath(), Paths.get(archivePathname), StandardCopyOption.ATOMIC_MOVE);
+            java.nio.file.Files.move(temporaryZipFile.toPath(), targetZipFile, StandardCopyOption.ATOMIC_MOVE);
 
         } catch (IOException e) {
             // Delete temporary file on error. If successful the file has been moved to an archive.
