@@ -1,5 +1,7 @@
 package com.defold.push;
 
+import com.dynamo.android.DefoldActivity;
+
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -317,76 +319,83 @@ public class Push {
         Intent intent = new Intent(context, PushDispatchActivity.class)
                 .setAction(ACTION_FORWARD_PUSH);
 
-        for (String key : extras.keySet()) {
-            intent.putExtra(key, extras.getString(key));
-        }
-
-        int id = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
-        PendingIntent contentIntent = PendingIntent.getActivity(context, id,
-                intent, 0);
-
-        String fieldTitle = null;
-        String fieldText = null;
-
-        // Try to find field names from manifest file
-        PackageManager pm = context.getPackageManager();
-        try {
-            ComponentName cn = new ComponentName(context, DEFOLD_ACTIVITY);
-            ActivityInfo activityInfo = pm.getActivityInfo(cn, PackageManager.GET_META_DATA);
-
-            Bundle bundle = activityInfo.metaData;
-            if (bundle != null) {
-                fieldTitle = bundle.getString("com.defold.push.field_title", null);
-                fieldText = bundle.getString("com.defold.push.field_text", "alert");
-            } else {
-                Log.w(TAG, "Bundle was null, could not get meta data from manifest.");
+        if (DefoldActivity.isActivityVisible()) {
+            // Send the push notification directly to the dispatch
+            // activity if app is visible.
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } else {
+            for (String key : extras.keySet()) {
+                intent.putExtra(key, extras.getString(key));
             }
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.w(TAG, "Could not get activity info, needed to get push field conversion.");
+
+            int id = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
+            PendingIntent contentIntent = PendingIntent.getActivity(context, id,
+                    intent, 0);
+
+            String fieldTitle = null;
+            String fieldText = null;
+
+            // Try to find field names from manifest file
+            PackageManager pm = context.getPackageManager();
+            try {
+                ComponentName cn = new ComponentName(context, DEFOLD_ACTIVITY);
+                ActivityInfo activityInfo = pm.getActivityInfo(cn, PackageManager.GET_META_DATA);
+
+                Bundle bundle = activityInfo.metaData;
+                if (bundle != null) {
+                    fieldTitle = bundle.getString("com.defold.push.field_title", null);
+                    fieldText = bundle.getString("com.defold.push.field_text", "alert");
+                } else {
+                    Log.w(TAG, "Bundle was null, could not get meta data from manifest.");
+                }
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.w(TAG, "Could not get activity info, needed to get push field conversion.");
+            }
+
+            ApplicationInfo info = context.getApplicationInfo();
+            String title = info.loadLabel(pm).toString();
+            if (fieldTitle != null && extras.getString(fieldTitle) != null) {
+                title = extras.getString(fieldTitle);
+            }
+
+            String text = extras.getString(fieldText);
+            if (text == null) {
+                Log.w(TAG, "Missing text field in push message");
+                text = "New message";
+            }
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+                    .setContentTitle(title)
+                    .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                    .setContentText(text);
+
+            // Find icons if they were supplied, fallback to app icon
+            int smallIconId = context.getResources().getIdentifier("push_icon_small", "drawable", context.getPackageName());
+            int largeIconId = context.getResources().getIdentifier("push_icon_large", "drawable", context.getPackageName());
+            if (smallIconId == 0) {
+                smallIconId = info.icon;
+            }
+            if (largeIconId == 0) {
+                largeIconId = info.icon;
+            }
+
+            // Get bitmap for large icon resource
+            try {
+                Resources resources = pm.getResourcesForApplication(info);
+                Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
+                builder.setLargeIcon(largeIconBitmap);
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.w(TAG, "Could not get application resources.");
+            }
+
+            builder.setSmallIcon(smallIconId);
+
+            builder.setContentIntent(contentIntent);
+            Notification notification = builder.build();
+            notification.flags |= Notification.FLAG_AUTO_CANCEL;
+            nm.notify(id, notification);
         }
-
-        ApplicationInfo info = context.getApplicationInfo();
-        String title = info.loadLabel(pm).toString();
-        if (fieldTitle != null && extras.getString(fieldTitle) != null) {
-            title = extras.getString(fieldTitle);
-        }
-
-        String text = extras.getString(fieldText);
-        if (text == null) {
-            Log.w(TAG, "Missing text field in push message");
-            text = "New message";
-        }
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
-                .setContentTitle(title)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
-                .setContentText(text);
-
-        // Find icons if they were supplied, fallback to app icon
-        int smallIconId = context.getResources().getIdentifier("push_icon_small", "drawable", context.getPackageName());
-        int largeIconId = context.getResources().getIdentifier("push_icon_large", "drawable", context.getPackageName());
-        if (smallIconId == 0) {
-            smallIconId = info.icon;
-        }
-        if (largeIconId == 0) {
-            largeIconId = info.icon;
-        }
-
-        // Get bitmap for large icon resource
-        try {
-            Resources resources = pm.getResourcesForApplication(info);
-            Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
-            builder.setLargeIcon(largeIconBitmap);
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.w(TAG, "Could not get application resources.");
-        }
-
-        builder.setSmallIcon(smallIconId);
-
-        builder.setContentIntent(contentIntent);
-        Notification notification = builder.build();
-        notification.flags |= Notification.FLAG_AUTO_CANCEL;
-        nm.notify(id, notification);
     }
 
 }

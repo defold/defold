@@ -54,6 +54,11 @@ public class DefoldActivity extends NativeActivity {
     private EditText mTextEdit = null;
     private boolean mUseHiddenInputField = false;
 
+    private static boolean activityVisible;
+    public static boolean isActivityVisible() {
+        return activityVisible;
+    }
+
     private static final String TAG = "DefoldActivity";
 
     /**
@@ -192,6 +197,18 @@ public class DefoldActivity extends NativeActivity {
                 }
             }
         }).start();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        activityVisible = false;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        activityVisible = true;
     }
 
     private Object m_AdGuard = new Object();

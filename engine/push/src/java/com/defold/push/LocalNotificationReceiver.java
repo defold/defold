@@ -1,5 +1,6 @@
 package com.defold.push;
 
+import com.dynamo.android.DefoldActivity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -33,43 +34,52 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
         new_intent.putExtras(extras);
         new_intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
-        try {
-            PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
+        if (DefoldActivity.isActivityVisible()) {
+            // Send the push notification directly to the dispatch
+            // activity if app is visible.
+            new_intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(new_intent);
+        } else {
+            try {
 
-            ApplicationInfo info = context.getApplicationInfo();
+                PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
-                .setContentTitle(extras.getString("title"))
-                .setContentText(extras.getString("message"))
-                .setWhen(System.currentTimeMillis())
-                .setContentIntent(contentIntent)
-                .setPriority(extras.getInt("priority"));
+                ApplicationInfo info = context.getApplicationInfo();
 
-            // Find icons, if they were supplied
-            int smallIconId = extras.getInt("smallIcon");
-            int largeIconId = extras.getInt("largeIcon");
-            if (smallIconId == 0) {
-                smallIconId = info.icon;
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+                    .setContentTitle(extras.getString("title"))
+                    .setContentText(extras.getString("message"))
+                    .setWhen(System.currentTimeMillis())
+                    .setContentIntent(contentIntent)
+                    .setPriority(extras.getInt("priority"));
+
+                // Find icons, if they were supplied
+                int smallIconId = extras.getInt("smallIcon");
+                int largeIconId = extras.getInt("largeIcon");
+                if (smallIconId == 0) {
+                    smallIconId = info.icon;
+                }
+                if (largeIconId == 0) {
+                    largeIconId = info.icon;
+                }
+
+                // Get bitmap for large icon resource
+                PackageManager pm = context.getPackageManager();
+                Resources resources = pm.getResourcesForApplication(info);
+                Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
+
+                builder.setSmallIcon(smallIconId);
+                builder.setLargeIcon(largeIconBitmap);
+
+                Notification notification = builder.build();
+                notification.defaults = Notification.DEFAULT_ALL;
+                notification.flags |= Notification.FLAG_AUTO_CANCEL;
+                nm.notify(id, notification);
+
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.e("LocalNotificationReceiver", "PackageManager.NameNotFoundException!");
             }
-            if (largeIconId == 0) {
-                largeIconId = info.icon;
-            }
 
-            // Get bitmap for large icon resource
-            PackageManager pm = context.getPackageManager();
-            Resources resources = pm.getResourcesForApplication(info);
-            Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
-
-            builder.setSmallIcon(smallIconId);
-            builder.setLargeIcon(largeIconBitmap);
-
-            Notification notification = builder.build();
-            notification.defaults = Notification.DEFAULT_ALL;
-            notification.flags |= Notification.FLAG_AUTO_CANCEL;
-            nm.notify(id, notification);
-
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.e("LocalNotificationReceiver", "PackageManager.NameNotFoundException!");
         }
 
     }
