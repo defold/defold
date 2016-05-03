@@ -5,8 +5,9 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
@@ -40,11 +41,14 @@ public class ExtenderTest {
     @Value("${local.server.port}")
     int port;
 
+    @Value("${extender.config-url}")
+    URL configUrl;
+
     @Test
     public void testBuild() throws IOException, InterruptedException {
 
         Yaml yaml = new Yaml();
-        Configuration config = yaml.loadAs(FileUtils.readFileToString(new File("test-data/config.yml")), Configuration.class);
+        Configuration config = yaml.loadAs(IOUtils.toString(configUrl), Configuration.class);
         //System.out.println(yaml.dumpAs(config, Tag.MAP, null));
         //System.out.println("-----------");
 
