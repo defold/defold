@@ -1,17 +1,37 @@
 context:
-    dynamo_home: '/Users/chmu/workspace/defold/tmp/dynamo_home'
-    foo: [hej, bla]
+    dynamo_home: '/Users/chmu/tmp/dynamo-home'
     frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
-exportedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
+
+exportedSymbols: []
+main: |
+    #include <stdio.h>
+
+    {{#symbols}}
+    extern "C" void {{.}}();
+    {{/symbols}}
+
+    void dmExportedSymbols() {
+        {{#symbols}}
+        {{.}}();
+        {{/symbols}}
+    }
+
+    extern "C" void Test();
+    int main(int argc, char *argv[])
+    {
+        printf("Hello Extender\n");
+        Test();
+        return 0;
+    }
 
 includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
 platforms:
   x86-osx:
     context:
-        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound2", "tremolo", "vpx"]
+        engineLibs: []
     exeExt: ''
     shlibExt: '.dylib'
     shlibRe: 'lib(.+).dylib'
     compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
-    linkCmd: clang++ -m32 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#extLibs}}{{.}} {{/extLibs}} {{#frameworks}}-framework {{.}} {{/frameworks}} -L{{dynamo_home}}/lib/darwin -L{{dynamo_home}}/ext/lib/darwin {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    linkCmd: clang++ -m32 -stdlib=libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} {{#extLibs}}{{.}} {{/extLibs}}
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'

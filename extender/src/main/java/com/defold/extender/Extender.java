@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -21,6 +20,7 @@ import org.yaml.snakeyaml.Yaml;
 import com.google.common.collect.ImmutableMap;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
+
 
 public class Extender {
 
@@ -53,7 +53,7 @@ public class Extender {
     }
 
     private static String exec(String...args) throws IOException, InterruptedException {
-        logger.debug(Arrays.toString(args));
+        logger.info(Arrays.toString(args));
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
@@ -81,24 +81,20 @@ public class Extender {
         return sb.toString();
     }
 
-    private File buildEngine(List<File> libs, List<String> symbols) throws IOException, InterruptedException {
-        ClassLoader cl = getClass().getClassLoader();
+    private File linkEngine(List<File> libs, List<String> symbols) throws IOException, InterruptedException {
         File maincpp = new File(build, "main.cpp");
-        File exportedcpp = new File(build, "exported_symbols.cpp");
         File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
-
-        FileUtils.copyURLToFile(cl.getResource("main.cpp"), maincpp);
 
         List<String> allSymbols = new ArrayList<>();
         allSymbols.addAll(symbols);
         allSymbols.addAll(Arrays.asList(config.exportedSymbols));
 
-        Template exportedTemplate = Mustache.compiler().compile(IOUtils.toString(this.getClass().getResourceAsStream("/exported_symbols.cpp")));
-        String exported = exportedTemplate.execute(ImmutableMap.of("symbols", allSymbols));
-        FileUtils.writeStringToFile(exportedcpp, exported);
+        Template mainTemplate = Mustache.compiler().compile(config.main);
+        String main = mainTemplate.execute(ImmutableMap.of("symbols", allSymbols));
+        FileUtils.writeStringToFile(maincpp, main);
 
         Map<String, Object> context = context();
-        context.put("src", Arrays.asList(maincpp.getAbsolutePath(), exportedcpp.getAbsolutePath()));
+        context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
         context.put("tgt", exe.getAbsolutePath());
         context.put("extLibs", libs);
 
@@ -166,7 +162,7 @@ public class Extender {
             libs.add(lib);
         }
 
-        return buildEngine(libs, symbols);
+        return linkEngine(libs, symbols);
     }
 
     public void dispose() throws IOException {

@@ -7,4 +7,5 @@ public class Configuration {
     public Map<String, Object> context;
     public String[] exportedSymbols;
     public String[] includes;
+    public String main;
 }

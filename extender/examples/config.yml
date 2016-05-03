@@ -1,0 +1,23 @@
+context:
+    dynamo_home: '/Users/chmu/tmp/dynamo-home'
+    frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
+exportedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
+main: |
+    extern int engine_main(int argc, char *argv[]);
+
+    int main(int argc, char *argv[])
+    {
+        return engine_main(argc, argv);
+    }
+
+includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
+platforms:
+  x86-osx:
+    context:
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound2", "tremolo", "vpx"]
+    exeExt: ''
+    shlibExt: '.dylib'
+    shlibRe: 'lib(.+).dylib'
+    compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -m32 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#extLibs}}{{.}} {{/extLibs}} {{#frameworks}}-framework {{.}} {{/frameworks}} -L{{dynamo_home}}/lib/darwin -L{{dynamo_home}}/ext/lib/darwin {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
