@@ -6,11 +6,12 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextBehavior]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextBehavior DefoldStyledTextSkin]
            [javafx.scene Parent]
-           [javafx.scene.input Clipboard ClipboardContent KeyEvent]
+           [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
+           [javafx.scene.control ListView]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.contentassist ContentAssistant ContentAssistContextData ICompletionProposal]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
@@ -282,11 +283,16 @@
 
     (let [text-area (.getTextWidget source-viewer)
           styled-text-behavior (new DefoldStyledTextBehavior text-area)
-          skin (new StyledTextSkin text-area styled-text-behavior)]
+          skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
+      (println "listview is list-view" (.getListView skin))
       (.setSkin text-area skin)
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
+      (.addEventHandler  ^ListView (.getListView skin)
+                         MouseEvent/MOUSE_CLICKED
+                          (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))
+
       (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
       (ui/user-data! text-area ::programmatic-change (atom nil))
       (ui/user-data! text-area ::behavior styled-text-behavior)
