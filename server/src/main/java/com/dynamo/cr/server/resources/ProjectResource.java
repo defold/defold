@@ -163,7 +163,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/archive/{version: .*}")
+    @Path("/archive/{version: .+}")
     @RolesAllowed(value = { "member" })
     public Response getArchive(@PathParam("project") String project,
                                @PathParam("version") String version,
