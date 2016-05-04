@@ -347,6 +347,9 @@
     (when (.hasString this)
       (.getString this))))
 
+(defn source-viewer-set-caret [source-viewer offset select?]
+  (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?))
+
 (extend-type SourceViewer
   workspace/SelectionProvider
   (selection [this] this)
@@ -361,7 +364,7 @@
   (selection-length [this]
     (.-length ^TextSelection (-> this (.getTextWidget) (.getSelection))))
   (caret! [this offset select?]
-    (.impl_setCaretOffset (.getTextWidget this) offset select?))
+    (source-viewer-set-caret this offset select?))
   (caret [this] (.getCaretOffset (.getTextWidget this)))
   (text-selection [this]
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))

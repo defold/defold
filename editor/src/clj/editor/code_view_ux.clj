@@ -217,25 +217,41 @@
 
 (def word-regex  #"\n|\w+|\s\w+|.")
 
+(defn next-word [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)
+        next-word-move (re-find word-regex (subs doc np))
+        next-pos (+ np (count next-word-move))]
+    (caret! selection next-pos select?)))
+
+(defn prev-word [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)
+        next-word-move (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str)))
+        next-pos (- np (count next-word-move))]
+    (caret! selection next-pos select?)))
+
 (handler/defhandler :next-word :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          np (adjust-bounds doc c)
-          next-word-move (re-find word-regex (subs doc np))
-          next-pos (+ np (count next-word-move))]
-      (caret! selection next-pos false))))
+  (run [selection]
+    (next-word selection false)))
 
 (handler/defhandler :prev-word :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          np (adjust-bounds doc c)
-          next-word-move (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str)))
-          next-pos (- np (count next-word-move))]
-      (caret! selection next-pos false))))
+    (prev-word selection false)))
+
+(handler/defhandler :select-next-word :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (next-word selection true)))
+
+(handler/defhandler :select-prev-word :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (prev-word selection true)))
 
 (handler/defhandler :line-begin :code-view
   (enabled? [selection] selection)
