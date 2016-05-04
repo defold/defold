@@ -34,8 +34,8 @@ public class DefoldStyledTextSkin extends StyledTextSkin {
             defoldContentView = contentView;
 	}
 
-    public ListView<Line> getListView(){
-        return defoldContentView;
-    }
+       public ListView<Line> getListView(){
+           return defoldContentView;
+       }
 
 }
