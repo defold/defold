@@ -163,14 +163,11 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/archive/{version}")
+    @Path("/archive/{version: .*}")
     @RolesAllowed(value = { "member" })
     public Response getArchive(@PathParam("project") String project,
                                @PathParam("version") String version,
                                @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
-
-        // NOTE: Currently neither caching of created zip-files nor appropriate cache-headers (ETag)
-        // Appropriate ETag might be SHA1 of zip-file or even SHA1 from git (head commit)
 
         String repositoryName = getRepositoryString(project);
         String sha1 = GitArchiveProvider.getSHA1ForName(repositoryName, version);
@@ -185,12 +182,9 @@ public class ProjectResource extends BaseResource {
         String filePathname = cachedArchives.get(sha1, repositoryName, version);
         final File zipFile = new File(filePathname);
 
-        StreamingOutput output = new StreamingOutput() {
-            @Override
-            public void write(OutputStream os) throws IOException, WebApplicationException {
-                FileUtils.copyFile(zipFile, os);
-                os.close();
-            }
+        StreamingOutput output = os -> {
+            FileUtils.copyFile(zipFile, os);
+            os.close();
         };
 
         return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM_TYPE)
