@@ -71,7 +71,7 @@
     (get mappings code)))
 
 (defn- click-fn [click-count]
-  (let [code (if (= click-count 2) "Double-Click" "Single-Click")]
+  (let [code (if (= click-count 2) :Double-Click :Single-Click)]
     (println "code" code)
     (get mappings code)))
 
@@ -87,6 +87,7 @@
   (println "Mouse clicked" e)
   (let [click-count (.getClickCount ^MouseEvent e)
         cf (click-fn click-count)]
+    (println :cf cf)
     (when cf (handler/run
                cf
                [{:name :code-view :env {:selection source-viewer}}]
@@ -277,7 +278,14 @@
 (handler/defhandler :select-word :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (println "select word")
-    (let [c (caret selection)
+    (let [regex #"^\w+"
+          c (caret selection)
           doc (text selection)
-          np (adjust-bounds doc c)])))
+          np (adjust-bounds doc c)
+          word-end (re-find regex (subs doc np))
+          text-before (->> (subs doc 0 (inc np)) (reverse) (rest) (apply str))
+          word-begin (re-find regex text-before)
+          start-pos (- np (count word-begin))
+          end-pos (+ np (count word-end))
+          len (- end-pos start-pos)]
+      (text-selection! selection start-pos len))))
