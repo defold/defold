@@ -32,6 +32,8 @@
    :Shift+Left :select-left
    :Up :up
    :Down :down
+   :Shift+Up :select-up
+   :Shift+Down :select-down
    :Control+Right :next-word
    :Alt+Right :next-word
    :Control+Left :prev-word
@@ -87,7 +89,6 @@
   (println "Mouse clicked" e)
   (let [click-count (.getClickCount ^MouseEvent e)
         cf (click-fn click-count)]
-    (println :cf cf)
     (when cf (handler/run
                cf
                [{:name :code-view :env {:selection source-viewer}}]
@@ -114,37 +115,37 @@
 (defn- adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
 
-(handler/defhandler :right :code-view
-  (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
+(defn right [selection select?]
+  (let [c (caret selection)
           doc (text selection)
           next-pos (adjust-bounds doc (inc c))]
-      (caret! selection next-pos false))))
+      (caret! selection next-pos select?)))
+
+(defn left [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        next-pos (adjust-bounds doc (dec c))]
+      (caret! selection next-pos select?)))
+
+(handler/defhandler :right :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (right selection false)))
 
 (handler/defhandler :left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          next-pos (adjust-bounds doc (dec c))]
-      (caret! selection next-pos false))))
+    (left selection false)))
 
 (handler/defhandler :select-right :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          next-pos (adjust-bounds doc (inc c))]
-      (caret! selection next-pos true))))
+  (run [selection]
+    (right selection true)))
 
 (handler/defhandler :select-left :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          next-pos (adjust-bounds doc (dec c))]
-      (caret! selection next-pos true))))
+  (run [selection]
+    (left selection true)))
 
 (defn tab-count [s]
   (let [tab-count (count (filter #(= \tab %) s))]
@@ -180,23 +181,39 @@
         adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))]
       (adjust-bounds s adj-next-pos)))
 
+(defn up [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        preferred-offset (preferred-offset selection)
+        next-pos (up-line doc c preferred-offset)]
+    (caret! selection next-pos select?)))
+
+(defn down [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        preferred-offset (preferred-offset selection)
+        next-pos (down-line doc c preferred-offset)]
+      (caret! selection next-pos select?)))
+
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          preferred-offset (preferred-offset selection)
-          next-pos (up-line doc c preferred-offset)]
-      (caret! selection next-pos false))))
+  (run [selection]
+    (up selection false)))
 
 (handler/defhandler :down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          preferred-offset (preferred-offset selection)
-          next-pos (down-line doc c preferred-offset)]
-      (caret! selection next-pos false))))
+    (down selection false)))
+
+(handler/defhandler :select-up :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (up selection true)))
+
+(handler/defhandler :select-down :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (down selection true)))
 
 (def word-regex  #"\n|\w+|\s\w+|.")
 

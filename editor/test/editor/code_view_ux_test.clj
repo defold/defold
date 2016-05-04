@@ -156,6 +156,30 @@
             (up! source-viewer)
             (is (= \1 (get-char-at-caret source-viewer))))))))
 
+(defn- select-up! [source-viewer]
+  (handler/run :select-up [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- select-down! [source-viewer]
+  (handler/run :select-down [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-move-up-down-test
+  (with-clean-system
+    (let [code "line1\nline2"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (caret! source-viewer 4 false)
+      (preferred-offset! source-viewer 4)
+      (is (= \1 (get-char-at-caret source-viewer)))
+      (testing "select moving down"
+        (select-down! source-viewer)
+        (is (= "1\nline" (text-selection source-viewer))))
+      (testing "select moving up"
+        (select-up! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (select-up! source-viewer)
+        (is (= "line" (text-selection source-viewer)))))))
+
 (defn- next-word! [source-viewer]
   (handler/run :next-word [{:name :code-view :env {:selection source-viewer}}]{}))
 
