@@ -9,11 +9,16 @@ class dmJsonTest: public ::testing::Test
 {
 
 public:
-    virtual void SetUp() {}
+    virtual void SetUp() {
+        memset(&doc, 0x0, sizeof(dmJson::Document));
+    }
 
     virtual void TearDown()
     {
-
+        if (doc.m_Nodes != 0x0)
+        {
+            dmJson::Free(&doc);
+        }
     }
 
     dmJson::Document doc;
