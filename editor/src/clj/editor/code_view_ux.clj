@@ -4,7 +4,7 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui])
-  (:import  [javafx.scene.input KeyEvent]))
+  (:import  [javafx.scene.input KeyEvent MouseEvent]))
 
 (defprotocol TextContainer
   (text! [this s])
@@ -25,7 +25,7 @@
 (defprotocol TextStyles
   (styles [this]))
 
-(def key-mappings
+(def mappings
   {:Right :right
    :Left :left
    :Shift+Right :select-right
@@ -43,6 +43,7 @@
    :Meta+Up :file-begin
    :Meta+Down :file-end
    :Meta+L :goto-line
+   :Double-Click :select-word
    })
 
 (def tab-size 4)
@@ -67,7 +68,12 @@
                  (add-modifier info :shift? "Shift+")
                  (keyword))]
     (println "code" code)
-    (get key-mappings code)))
+    (get mappings code)))
+
+(defn- click-fn [click-count]
+  (let [code (if (= click-count 2) "Double-Click" "Single-Click")]
+    (println "code" code)
+    (get mappings code)))
 
 (defn handle-key-pressed [e source-viewer]
   (let [k-info (info e)
@@ -76,6 +82,15 @@
                kf
                [{:name :code-view :env {:selection source-viewer}}]
                k-info))))
+
+(defn handle-mouse-clicked [e source-viewer]
+  (println "Mouse clicked" e)
+  (let [click-count (.getClickCount ^MouseEvent e)
+        cf (click-fn click-count)]
+    (when cf (handler/run
+               cf
+               [{:name :code-view :env {:selection source-viewer}}]
+               e))))
 
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
@@ -258,3 +273,11 @@
           go-to-line-fn (fn [] (when (realized? line-number)
                                 (go-to-line selection @line-number)))]
       (.setOnHidden stage (ui/event-handler e (go-to-line-fn))))))
+
+(handler/defhandler :select-word :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (println "select word")
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)])))
