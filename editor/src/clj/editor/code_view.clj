@@ -284,7 +284,6 @@
     (let [text-area (.getTextWidget source-viewer)
           styled-text-behavior (new DefoldStyledTextBehavior text-area)
           skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
-      (println "listview is list-view" (.getListView skin))
       (.setSkin text-area skin)
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
