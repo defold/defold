@@ -224,12 +224,6 @@
 (defn- external-property? [x] (not (:internal? x)))
 
 
-(defn resolve-display-order
-  [{:keys [display-order-decl property-order-decl] :as description} supertype-display-orders]
-  (-> description
-      (assoc :property-display-order (list `quote (apply merge-display-order display-order-decl property-order-decl supertype-display-orders)))
-      (dissoc :display-order-decl :property-order-decl)))
-
 (defn dummy-produce-declared-properties []
   `(fn [] (assert false "This is a dummy function. You're probably looking for declared-properties-function.")))
 
@@ -676,11 +670,14 @@
 
 (defmethod process-as 'property [[_ label & forms]]
   (assert-symbol "property" label)
-  {:property
-   {(keyword label)
-    (cond-> (process-property-forms forms)
-      (contains? internal-keys (keyword label))
-      (assoc :internal? true))}})
+  (let [label (keyword label)]
+    {:property
+     {label
+      (cond-> (process-property-forms forms)
+        (contains? internal-keys label)
+        (assoc :internal? true))}
+
+     :property-order-decl (when (not (contains? internal-keys label)) [label])}))
 
 (defmethod process-as 'output [[_ label & forms]]
   (assert-symbol "output" label)
@@ -710,6 +707,9 @@
     (assert-symbol "inherits" t))
   {:supertypes (vec (map fqsymbol forms))})
 
+(defmethod process-as 'display-order [[_ & decl]]
+  {:display-order-decl (vec (first decl))})
+
 (defn group-node-type-forms
   [forms]
   (apply merge-with into
@@ -721,10 +721,12 @@
   ([] {})
   ([l] l)
   ([l r]
-   {:property   (merge-with merge (:property l) (:property r))
-    :input      (merge-with merge (:input l)    (:input r))
-    :output     (merge-with merge (:output l)   (:output r))
-    :supertypes (vec (into (:supertypes l) (:supertypes r)))})
+   {:property           (merge-with merge (:property l)    (:property r))
+    :input              (merge-with merge (:input l)       (:input r))
+    :output             (merge-with merge (:output l)      (:output r))
+    :display-order-decl (vec (into (:display-order-decl l) (:display-order-decl r)))
+    :property-order-decl (vec (into (:property-order-decl l) (:property-order-decl r)))
+    :supertypes         (vec (into (:supertypes l)         (:supertypes r)))})
   ([l r & more]
    (apply node-type-merge (node-type-merge l r) more)))
 
@@ -743,6 +745,12 @@
   [tree]
   (update tree :supertypes (fn [supers] (mapv fqsymbol supers))))
 
+(defn- resolve-display-order
+  [tree]
+  (assoc tree :property-display-order
+         `(apply merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
+                 (map :display-order-decl ~(:supertypes tree)))))
+
 (defn- wrap-when
   [tree key-pred val-pred xf]
   (walk/postwalk
@@ -757,7 +765,13 @@
 
 (defn wrap-protocols
   [tree]
-  (wrap-when tree #(= :value-type %) util/protocol-symbol? (fn [v] `(s/protocol ~v))))
+  (-> tree
+      (wrap-when #(= :value-type %)
+                 util/protocol-symbol?
+                 (fn [v] `(s/protocol ~v)))
+      (wrap-when #(= :value-type %)
+                 (fn [v] (and (vector? v) (util/protocol-symbol? (first v))))
+                 (fn [v] [`(s/protocol ~(first v))]))))
 
 (defn wrap-enums
   [tree]
@@ -777,7 +791,8 @@
       resolve-supertypes
       wrap-protocols
       wrap-enums
-      wrap-constant-fns))
+      wrap-constant-fns
+      resolve-display-order))
 
 (defn map-zipper [m]
   (zip/zipper
