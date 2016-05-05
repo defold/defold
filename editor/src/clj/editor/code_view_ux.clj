@@ -52,6 +52,8 @@
    :Shift+Control+E :select-line-end
    :Meta+Up :file-begin
    :Meta+Down :file-end
+   :Shift+Meta+Up :select-file-begin
+   :Shift+Meta+Down :select-file-end
    :Meta+L :goto-line
    :Double-Click :select-word
    })
@@ -309,6 +311,17 @@
   (run [selection user-data]
     (let [doc (text selection)]
       (caret! selection (count doc) false))))
+
+(handler/defhandler :select-file-begin :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (caret! selection 0 true)))
+
+(handler/defhandler :select-file-end :code-view
+  (enabled? [selection] selection)
+  (run [selection user-data]
+    (let [doc (text selection)]
+      (caret! selection (count doc) true))))
 
 (defn go-to-line [selection line-number]
   (try

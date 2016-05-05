@@ -295,7 +295,7 @@
 (defn- select-line-end! [source-viewer]
   (handler/run :select-line-end [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest line-begin-end-test
+(deftest select-line-begin-end-test
   (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
     (with-clean-system
       (let [code "hello world"
@@ -336,6 +336,30 @@
           (is (= \o (get-char-at-caret source-viewer)))
           (file-end! source-viewer)
           (is (= 11 (caret source-viewer))))))))
+
+(defn- select-file-begin! [source-viewer]
+  (handler/run :select-file-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- select-file-end! [source-viewer]
+  (handler/run :select-file-end [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-file-begin-end-test
+  (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
+    (with-clean-system
+      (let [code "hello\nworld"
+            opts lua/lua
+            source-viewer (setup-source-viewer opts)
+            [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+        (testing "selecting to the end of the file"
+          (caret! source-viewer 4 false)
+          (is (= \o (get-char-at-caret source-viewer)))
+          (select-file-end! source-viewer)
+          (is (= "o\nworld" (text-selection source-viewer))))
+        (testing "selecting to the beginning of the file"
+          (caret! source-viewer 8 false)
+          (is (= \r (get-char-at-caret source-viewer)))
+          (select-file-begin! source-viewer)
+          (is (= "hello\nwo" (text-selection source-viewer))))))))
 
 (defn- go-to-line! [source-viewer line-number]
   ;; bypassing handler for the dialog handling
