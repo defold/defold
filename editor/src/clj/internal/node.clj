@@ -10,7 +10,9 @@
             [internal.property :as ip]
             [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf]
-            [schema.core :as s])
+            [schema.core :as s]
+            [clojure.walk :as walk]
+            [clojure.zip :as zip])
   (:import [internal.graph.types IBasis]
            [internal.graph.error_values ErrorValue]
            [clojure.lang Named]))
@@ -382,7 +384,7 @@
 
 (defn attach-property-behaviors
   [description]
-  (update description :property-behaviors merge (transform-properties-plumbing-map description)))
+  (update description :property-behaviors #(merge (transform-properties-plumbing-map description) %)))
 
 (defn make-node-type-map
   "Create a node type object from a maplike description of the node.
@@ -418,7 +420,7 @@
   (reduce-kv
    (fn [m label v]
      (when (contains? v ::ip/value-type)
-       (println 'lookup-properties :from node-sym label :value-type (::ip/value-type v)))
+       (println 'lookup-properties :from node-sym label :value-type (::ip/value-type v) "(" (type (::ip/value-type v)) ")"))
      (assoc m label
             (cond-> {}
               (contains? v ::ip/value)
@@ -449,6 +451,14 @@
    {}
    (get node-type :declared-properties)))
 
+(defn inherit-property-behaviors
+  [supertype-name supertype-val]
+  (reduce-kv
+   (fn [m behavior-label _]
+     (assoc m behavior-label `(fn [~'this ~'ctx] ((get-in ~supertype-name [:property-behaviors ~behavior-label]) ~'this ~'ctx))))
+   {}
+   (:property-behaviors supertype-val)))
+
 (defn flatten-supertype
   [base supertype]
   (assert-symbol "inherits" supertype)
@@ -458,11 +468,11 @@
         (update :supertypes           util/conjv supertype)
         (update :transforms           merge      (lookup-transforms supertype superval))
         (update :declared-properties  merge      (lookup-properties supertype superval))
+        (update :property-behaviors   merge      (inherit-property-behaviors supertype superval))
         (update :inputs               merge      (:inputs              superval))
         (update :injectable-inputs    set/union  (:injectable-inputs   superval))
         (update :passthroughs         set/union  (:passthroughs        superval))
         (update :outputs              merge      (:outputs             superval))
-        (update :transform-types      merge      (:transform-types     superval))
         (update :cached-outputs       set/union  (:cached-outputs      superval))
         (update :substitutes          merge      (:substitutes         superval))
         (update :cardinalities        merge      (:cardinalities       superval))
@@ -526,11 +536,7 @@
                           (abstract-function label schema)
                           (first remainder))
         arguments       (util/inputs-needed production-fn)
-        _ (println 'attach-output :schema-before (type schema) schema)
-
-        schema          (util/preprocess-schema schema)
-        _ (println 'attach-output :schema-after (type schema) schema)
-]
+        schema          (util/preprocess-schema schema)]
     (assert
       (empty? (rest remainder))
       (format "Options and flags for output %s must go before the production function." label))
@@ -545,7 +551,7 @@
         (:cached properties)
         (update-in [:cached-outputs] #(conj (or % #{}) label))))))
 
-(def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
+(def internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -635,6 +641,160 @@
         other-clauses    (filter #(not= 'inherits (first %)) forms)
         base             (assoc (flatten-supertypes (map second inherits-clauses)) :name (str symb))]
     (reduce node-type-form base other-clauses)))
+
+(defmulti process-property-form first)
+
+;TODO: Instead of asserting, add errors to a collection and report all
+;at once.
+(defmethod process-property-form 'dynamic [[_ label forms]]
+  (assert-symbol "dynamic" label)
+  {:dynamics {(keyword label) {:fn forms}}})
+
+(defmethod process-property-form 'value [[_ forms]]
+  {:value {:fn forms}})
+
+(defmethod process-property-form 'set [[_ form]]
+  {:setter form})
+
+(defmethod process-property-form 'default [[_ form]]
+  {:default {:fn form}})
+
+(defmethod process-property-form 'validate [[_ form]]
+  {:validate {:fn form}})
+
+(defn process-property-forms
+  [[type-form & body-forms]]
+  (apply merge-with merge
+         {:value-type type-form}
+         (for [b body-forms]
+           (process-property-form b))))
+
+(defmulti process-as first)
+
+(defmethod process-as 'extern [[_ label & forms]]
+  (assert-symbol "extern" label)
+  (assoc-in
+   (process-as (list* 'property label forms))
+   [:property (keyword label) :unjammable?] true))
+
+(defmethod process-as 'property [[_ label & forms]]
+  (assert-symbol "property" label)
+  {:property
+   {(keyword label)
+    (cond-> (process-property-forms forms)
+      (contains? internal-keys (keyword label))
+      (assoc :internal? true))}})
+
+(defmethod process-as 'output [[_ label & forms]]
+  (assert-symbol "output" label)
+  (let [value-type        (first forms)
+        [flags options fn-forms] (parse-flags-and-options output-flags output-options (rest forms))]
+    {:output
+     {(keyword label)
+      (cond-> {:value-type value-type
+               :flags      flags
+               :options    options}
+
+        (first fn-forms)
+        (assoc :fn (first fn-forms)))}}))
+
+(defmethod process-as 'input [[_ label & forms]]
+  (assert-symbol "input" label)
+  (let [value-type        (first forms)
+        [flags options _] (parse-flags-and-options input-flags input-options (rest forms))]
+    {:input
+     {(keyword label)
+      {:value-type value-type
+       :flags      flags
+       :options    options}}}))
+
+(defmethod process-as 'inherits [[_ & forms]]
+  (doseq [t forms]
+    (assert-symbol "inherits" t))
+  {:supertypes (vec forms)})
+
+(defn group-node-type-forms
+  [forms]
+  (apply merge-with merge
+         (for [f forms
+               :when (seq? f)]
+           (process-as f))))
+
+(defn deep-merge
+  [& maps]
+  (if (every? map? maps)
+    (apply merge-with deep-merge maps)
+    (last maps)))
+
+(defn merge-left
+  [tree selector]
+  (let [vals (map util/vgr (get tree selector []))]
+    (deep-merge (apply deep-merge vals) tree)))
+
+(defn- wrap-when
+  [tree key-pred val-pred xf]
+  (walk/postwalk
+   (fn [f]
+     (if (vector? f)
+       (let [[k v] f]
+         (if (and (key-pred k) (val-pred v))
+           [k (xf v)]
+           f))
+       f))
+   tree))
+
+(defn wrap-protocols
+  [tree]
+  (wrap-when tree #(= :value-type %) util/protocol-symbol? (fn [v] `(s/protocol ~v))))
+
+(defn wrap-enums
+  [tree]
+  (wrap-when tree #(= :value-type %) set? (fn [v] `(s/enum ~@v))))
+
+(defn wrap-constant-fns
+  [tree]
+  (wrap-when tree #(= :fn %) (comp not seq?)
+             (fn [v] `(g/fnk [] ~(if (symbol? v) (resolve v) v)))))
+
+(defn process-node-type-forms
+  [forms]
+  (-> (group-node-type-forms forms)
+      (merge-left :supertypes)
+      wrap-protocols
+      wrap-enums
+      wrap-constant-fns))
+
+(defn map-zipper [m]
+  (zip/zipper
+   (fn [x] (or (map? x) (map? (nth x 1))))
+   (fn [x] (seq (if (map? x) x (nth x 1))))
+   (fn [x children]
+     (if (map? x)
+       (into {} children)
+       (assoc x 1 (into {} children))))
+   m))
+
+(defn key-path
+  [z]
+  (map first (rest (zip/path z))))
+
+(defn extract-functions
+  [tree]
+  (loop [where (map-zipper tree)
+         what  []]
+    (if (zip/end? where)
+      what
+      (recur (zip/next where)
+             (if (= :fn (first (zip/node where)))
+               (conj what [(key-path where) (second (zip/node where))])
+               what)))))
+
+(defn dollar-name [prefix path]
+    (->> path
+         (map name)
+         (interpose "$")
+         (apply str prefix "$")
+         symbol))
 
 (defn defaults
   "Return a map of default values for the node type."
@@ -960,7 +1120,7 @@
              {dynamic-label dyn-exprs}))))
 
 (defn collect-property-values
-  [self-name ctx-name beh-sym node-type-sym node-type nodeid-sym value-sym forms]
+  [self-name ctx-name node-type-sym beh-sym node-type nodeid-sym value-sym forms]
   (let [props (:declared-properties node-type)]
     `(let [~value-sym ~(apply merge
                               (for [[p ptype] (filter external-property? props)]
