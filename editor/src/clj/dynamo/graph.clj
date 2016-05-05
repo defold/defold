@@ -404,11 +404,16 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms] (ctm/name-with-attributes symb body)]
+  (let [[symb forms] (ctm/name-with-attributes symb body)
+        node-type-def (in/process-node-type-forms (concat node-intrinsics forms))
+        fn-paths      (in/extract-functions node-type-def)
+        fn-defs       (for [[path func] fn-paths]
+                        (list `def (in/dollar-name symb path) func))
+        node-type-def (util/update-paths node-type-def fn-paths (fn [p _] (list `quote (in/dollar-name symb p))))]
+    (println node-type-def)
     `(do
-       (def ~symb (in/map->NodeTypeImpl
-                  ~(in/make-node-type-map
-                    (in/node-type-forms symb (concat node-intrinsics forms)))))
+       ~@fn-defs
+       (def ~symb (in/map->NodeTypeImpl ~node-type-def))
        (doseq [super-type# (gt/supertypes ~symb)]
          (derive ~symb super-type#))
        (var ~symb))))

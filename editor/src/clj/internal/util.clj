@@ -146,6 +146,12 @@
 
 (defn vgr [s] (some-> s resolve var?! var-get))
 
+(defn protocol-symbol?
+  [x]
+  (and (symbol? x)
+       (let [x' (vgr x)]
+         (and (map? x') (contains? x' :on-interface)))))
+
 (defn resolve-value-type
   [x]
   (cond
@@ -165,9 +171,9 @@
     (map? x)       x
     :else          nil))
 
-(defn assert-form-kind [place kind-label required-kind label form]
-  (assert (required-kind form)
-          (str place " " label " requires a " kind-label " not a " (class form) " of " form)))
+(defn assert-form-kind [place required-kind-label required-kind-pred label form]
+  (assert (required-kind-pred form)
+          (str place " " label " requires a " required-kind-label " not '" form "' of type " (type form))))
 
 (defn pfnk?
   "True if the function has a schema. (I.e., it is a valid production function"
@@ -225,3 +231,7 @@
     (if multi?
       (vector processed)
       processed)))
+
+(defn update-paths
+  [m paths xf]
+  (reduce (fn [m [p v]] (assoc-in m p (xf p v))) m paths))
