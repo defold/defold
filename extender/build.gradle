@@ -13,7 +13,7 @@ apply plugin: 'idea'
 apply plugin: 'spring-boot'
 
 jar {
-    baseName = 'gs-spring-boot'
+    baseName = 'extender'
     version =  '0.1.0'
 }
 
