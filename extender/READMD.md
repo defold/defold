@@ -8,7 +8,7 @@
     - [ ] Build engine
     - [ ] Cache
     - [ ] Copy shared libraries to a stage folder. Make sure libraries are loaded relative to executable
-* [ ] osx vs darwin and the rest of the engine
+* [ ] osx vs darwin and the rest of the engine
 * [ ] Unit tests and platforms. Currently x86-osx only
 
 # Compiling and linking OS X on Linux
