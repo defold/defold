@@ -10,6 +10,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
@@ -81,7 +83,24 @@ public class Extender {
         return sb.toString();
     }
 
-    private File linkEngine(List<File> libs, List<String> symbols) throws IOException, InterruptedException {
+    private List<String> collectLibraries(String re) {
+        Pattern p = Pattern.compile(re);
+        File lib = new File(root, "lib" + File.separator + this.platform);
+        List<String> libs = new ArrayList<>();
+        if (lib.exists()) {
+            File[] files = lib.listFiles();
+            for (File f : files) {
+                Matcher m = p.matcher(f.getName());
+                if (m.matches()) {
+                    libs.add(m.group(1));
+                }
+
+            }
+        }
+        return libs;
+    }
+
+    private File linkEngine(List<File> extLibs, List<String> symbols) throws IOException, InterruptedException {
         File maincpp = new File(build, "main.cpp");
         File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
 
@@ -93,10 +112,18 @@ public class Extender {
         String main = mainTemplate.execute(ImmutableMap.of("symbols", allSymbols));
         FileUtils.writeStringToFile(maincpp, main);
 
+        List<String> libs = new ArrayList<>();
+        libs.addAll(collectLibraries(platformConfig.shlibRe));
+        libs.addAll(collectLibraries(platformConfig.stlibRe));
+
+        List<String> libPaths = Arrays.asList(new File(root, "lib" + File.separator + this.platform).toString());
+
         Map<String, Object> context = context();
         context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
         context.put("tgt", exe.getAbsolutePath());
-        context.put("extLibs", libs);
+        context.put("libs", libs);
+        context.put("extLibs", extLibs);
+        context.put("libPaths", libPaths);
 
         String[] args = subst(platformConfig.linkCmd, context);
         exec(args);

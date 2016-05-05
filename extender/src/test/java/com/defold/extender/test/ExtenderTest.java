@@ -63,7 +63,7 @@ public class ExtenderTest {
     public void testRemoteBuild() throws ClientProtocolException, IOException {
         MultipartEntityBuilder builder = MultipartEntityBuilder.create();
         File root = new File("test-data/ext");
-        for (String s : new String[] {"ext.manifest", "src/test_ext.cpp", "include/test_ext.h"}) {
+        for (String s : new String[] {"ext.manifest", "src/test_ext.cpp", "include/test_ext.h", "lib/x86-osx/libalib.a"}) {
             builder.addBinaryBody(s, new File(root, s));
         }
 

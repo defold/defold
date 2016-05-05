@@ -1,3 +1,16 @@
+# TODO
+
+* [x] Collect and link static and dynamic libraries
+* [ ] Document
+    - [ ] config.yml
+    - [ ] directory structure (src, lib) etc
+* [ ] Run and launch from editor
+    - [ ] Build engine
+    - [ ] Cache
+    - [ ] Copy shared libraries to a stage folder. Make sure libraries are loaded relative to executable
+* [ ] osx vs darwin and the rest of the engine
+* [ ] Unit tests and platforms. Currently x86-osx only
+
 # Compiling and linking OS X on Linux
 
 Linker (ld) from here
@@ -27,4 +40,3 @@ Other interesting links
 
     With frameworks lld crashed. Probably not ready for production
     ./bin/lld -flavor darwin -syslibroot /tmp /tmp/foo.o  -demangle -dynamic -arch x86_64 -L/tmp -v -lSystem
-
