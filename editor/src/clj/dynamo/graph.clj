@@ -331,6 +331,8 @@
                     (mapv node-id to-be-replaced#))))
          (var ~symb)))))
 
+(defn- quote-it [it] (list `quote it))
+
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
    and attendant functions.
@@ -405,17 +407,21 @@
   Every node always implements dynamo.graph/Node."
   [symb & body]
   (let [[symb forms] (ctm/name-with-attributes symb body)
-        node-type-def (in/process-node-type-forms (concat node-intrinsics forms))
+        node-type-def (in/process-node-type-forms symb (concat node-intrinsics forms))
         fn-paths      (in/extract-functions node-type-def)
         fn-defs       (for [[path func] fn-paths]
                         (list `def (in/dollar-name symb path) func))
-        node-type-def (util/update-paths node-type-def fn-paths (fn [p _] (list `quote (in/dollar-name symb p))))]
-    (println node-type-def)
+        node-type-def (util/update-paths node-type-def fn-paths
+                                         (fn [path func]
+                                           {:fn (quote-it (in/dollar-name symb path))
+                                            :arguments (into #{} (map keyword (second func)))}))
+        derivations   (for [t (:supertypes node-type-def)]
+                        `(derive ~(:hierarchy-name node-type-def) (:hierarchy-name ~t)))
+        node-type-def (update node-type-def :supertypes #(list `quote %))]
     `(do
        ~@fn-defs
        (def ~symb (in/map->NodeTypeImpl ~node-type-def))
-       (doseq [super-type# (gt/supertypes ~symb)]
-         (derive ~symb super-type#))
+       ~@derivations
        (var ~symb))))
 
 ;; ---------------------------------------------------------------------------
@@ -718,7 +724,7 @@
    (mark-defective node-id (node-type* node-id) defective-value))
   ([node-id node-type defective-value]
    (assert node-id)
-   (let [outputs   (keys (gt/transforms node-type))
+   (let [outputs   (gt/output-labels node-type)
          externs   (gt/externs node-type)]
      (list
       (set-property node-id :_output-jammers

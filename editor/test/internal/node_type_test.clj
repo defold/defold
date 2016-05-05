@@ -20,8 +20,8 @@
   (inherits SubType))
 
 (deftest type-fns
-  (is (= #{:super-out :sub-out :_properties :_declared-properties} (set (keys (g/declared-outputs SubType)))))
-  (is (= #{:super-in :sub-in} (set (keys (g/declared-inputs SubType)))))
+  (is (= #{:super-out :sub-out :_properties :_declared-properties} (g/declared-outputs SubType)))
+  (is (= #{:super-in :sub-in} (g/declared-inputs SubType)))
   (is (= #{:super-prop :sub-prop :_output-jammers :_node-id} (set (keys (g/declared-properties SubType))))))
 
 (deftest input-prop-collision

@@ -25,7 +25,6 @@
   (input-cardinality      [this input])
   (cascade-deletes        [this])
   (output-type            [this output])
-  (passthroughs           [this])
   (property-display-order [this]))
 
 (defn node-type? [x] (satisfies? NodeType x))
