@@ -235,6 +235,31 @@
           (prev-word! source-viewer)
           (is (= \t (get-char-at-caret source-viewer))))))))
 
+(defn- select-next-word! [source-viewer]
+  (handler/run :select-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- select-prev-word! [source-viewer]
+  (handler/run :select-prev-word [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-word-move-test
+  (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
+    (with-clean-system
+      (let [code "the quick"
+            opts lua/lua
+            source-viewer (setup-source-viewer opts)
+            [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+        (is (= \t (get-char-at-caret source-viewer)))
+        (testing "select moving next word"
+          (select-next-word! source-viewer)
+          (is (= "the" (text-selection source-viewer)))
+          (select-next-word! source-viewer)
+          (is (= "the quick" (text-selection source-viewer))))
+        (testing "moving prev word"
+          (select-prev-word! source-viewer)
+          (is (= "the " (text-selection source-viewer)))
+          (select-prev-word! source-viewer)
+          (is (= "" (text-selection source-viewer))))))))
+
 (defn- line-begin! [source-viewer]
   (handler/run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
 
@@ -263,6 +288,30 @@
           (is (= 11 (caret source-viewer)))
           (line-end! source-viewer)
           (is (= 11 (caret source-viewer))))))))
+
+(defn- select-line-begin! [source-viewer]
+  (handler/run :select-line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- select-line-end! [source-viewer]
+  (handler/run :select-line-end [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest line-begin-end-test
+  (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
+    (with-clean-system
+      (let [code "hello world"
+            opts lua/lua
+            source-viewer (setup-source-viewer opts)
+            [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+        (testing "selecting to beginning of the line"
+          (caret! source-viewer 4 false)
+          (is (= \o (get-char-at-caret source-viewer)))
+          (select-line-begin! source-viewer)
+          (is (= "hell" (text-selection source-viewer))))
+        (testing "selecting to the end of the line"
+          (caret! source-viewer 4 false)
+          (is (= \o (get-char-at-caret source-viewer)))
+          (select-line-end! source-viewer)
+          (is (= "o world" (text-selection source-viewer))))))))
 
 (defn- file-begin! [source-viewer]
   (handler/run :file-begin [{:name :code-view :env {:selection source-viewer}}]{}))

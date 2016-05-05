@@ -36,12 +36,20 @@
    :Shift+Down :select-down
    :Control+Right :next-word
    :Alt+Right :next-word
+   :Shift+Control+Right :select-next-word
+   :Shift+Alt+Right :select-next-word
    :Control+Left :prev-word
    :Alt+Left :prev-word
+   :Shift+Control+Left :select-prev-word
+   :Shift+Alt+Left :select-prev-word
    :Meta+Left :line-begin
    :Control+A :line-begin
+   :Shift+Meta+Left :select-line-begin
+   :Shift+Control+A :select-line-begin
    :Meta+Right :line-end
    :Control+E :line-end
+   :Shift+Meta+Right :select-line-end
+   :Shift+Control+E :select-line-end
    :Meta+Up :file-begin
    :Meta+Down :file-end
    :Meta+L :goto-line
@@ -253,27 +261,43 @@
   (run [selection user-data]
     (prev-word selection true)))
 
+(defn line-begin [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)
+        lines-before (lines-before doc np)
+        len-before (-> lines-before last count dec)
+        next-pos (- np len-before)]
+    (caret! selection next-pos select?)))
+
+(defn line-end [selection select?]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)
+        lines-after (lines-after doc np)
+        len-after (-> lines-after first count)
+        next-pos (+ np len-after)]
+    (caret! selection next-pos select?)))
+
 (handler/defhandler :line-begin :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          np (adjust-bounds doc c)
-          lines-before (lines-before doc np)
-          len-before (-> lines-before last count dec)
-          next-pos (- np len-before)]
-      (caret! selection next-pos false))))
+  (run [selection]
+    (line-begin selection false)))
 
 (handler/defhandler :line-end :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
-    (let [c (caret selection)
-          doc (text selection)
-          np (adjust-bounds doc c)
-          lines-after (lines-after doc np)
-          len-after (-> lines-after first count)
-          next-pos (+ np len-after)]
-      (caret! selection next-pos false))))
+  (run [selection]
+    (line-end selection false)))
+
+(handler/defhandler :select-line-begin :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (line-begin selection true)))
+
+(handler/defhandler :select-line-end :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (line-end selection true)))
 
 (handler/defhandler :file-begin :code-view
   (enabled? [selection] selection)
