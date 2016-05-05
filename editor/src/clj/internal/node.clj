@@ -186,26 +186,32 @@
       (assert (util/schema? resolved-schema)
               (str "The " kind " '" label "' requires a schema.  '" form "' cannot be resolved to a schema in this context.")))))
 
+(defn has-flag? [flag entry]
+  (when (contains? (:flags (val entry)) flag) (key entry)))
+
+(def injectable?      (partial has-flag? :inject))
+(def cached?          (partial has-flag? :cached))
+(def cascade-deletes? (partial has-flag? :cascade-delete))
+
 (defrecord NodeTypeImpl
-    [name supertypes outputs transforms transform-types declared-properties passthroughs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes property-display-order behaviors]
+    [name supertypes output input property input-dependencies property-display-order]
 
   gt/NodeType
-  (supertypes            [_] supertypes)
-  (transforms            [_] transforms)
-  (transform-types       [_] transform-types)
-  (declared-properties   [_] declared-properties)
-  (declared-inputs       [_] inputs)
-  (injectable-inputs     [_] injectable-inputs)
-  (declared-outputs      [_] outputs)
-  (cached-outputs        [_] cached-outputs)
-  (input-dependencies    [_] input-dependencies)
-  (substitute-for        [_ input] (get substitutes input))
-  (input-type            [_ input] (get inputs input))
-  (input-cardinality     [_ input] (get cardinalities input))
-  (cascade-deletes       [_]        cascade-deletes)
-  (output-type           [_ output] (get transform-types output))
-  (passthroughs          [_] passthroughs)
-  (property-display-order [this] property-display-order)
+  (supertypes             [_] supertypes)
+  (transforms             [_] output)
+  (transform-types        [_] output)
+  (declared-properties    [_] (into {} (remove #(contains? internal-keys (key %)) property)))
+  (declared-inputs        [_] (util/key-set input))
+  (injectable-inputs      [_] (into #{} (keep injectable? input)))
+  (declared-outputs       [_] (util/key-set output))
+  (cached-outputs         [_] (into #{} (keep cached? output)))
+  (input-dependencies     [_] input-dependencies)
+  (substitute-for         [_ label] (get-in input [label :options :substitute]))
+  (input-type             [_ label] (get-in input [label :value-type]))
+  (input-cardinality      [_ label] (if (has-flag? :array (get input label)) :many :one))
+  (cascade-deletes        [_] (into #{} (keep cascade-deletes? input)))
+  (output-type            [_ label] (get-in output [label :value-type]))
+  (property-display-order [_] property-display-order)
 
   Named
   (getNamespace [_] (str (:ns (meta (resolve (symbol name))))))
@@ -234,7 +240,6 @@
         argument-schema (zipmap argument-names (repeat s/Any))]
     (-> node-type-description
         (update-in [:transform-types] assoc :_declared-properties `gt/Properties)
-        (update-in [:passthroughs]    #(disj (or % #{}) :_declared-properties))
         (update-in [:transforms]      assoc :_declared-properties {:fn (dummy-produce-declared-properties)
                                                                    :output-type `gt/Properties
                                                                    :arguments (into #{} argument-names)})
@@ -419,8 +424,6 @@
   [node-sym node-type]
   (reduce-kv
    (fn [m label v]
-     (when (contains? v ::ip/value-type)
-       (println 'lookup-properties :from node-sym label :value-type (::ip/value-type v) "(" (type (::ip/value-type v)) ")"))
      (assoc m label
             (cond-> {}
               (contains? v ::ip/value)
@@ -471,7 +474,6 @@
         (update :property-behaviors   merge      (inherit-property-behaviors supertype superval))
         (update :inputs               merge      (:inputs              superval))
         (update :injectable-inputs    set/union  (:injectable-inputs   superval))
-        (update :passthroughs         set/union  (:passthroughs        superval))
         (update :outputs              merge      (:outputs             superval))
         (update :cached-outputs       set/union  (:cached-outputs      superval))
         (update :substitutes          merge      (:substitutes         superval))
@@ -542,7 +544,6 @@
       (format "Options and flags for output %s must go before the production function." label))
     (-> description
       (update-in [:transform-types] assoc label schema)
-      (update-in [:passthroughs] #(disj (or % #{}) label))
       (update-in [:transforms label] assoc-in [:fn] production-fn)
       (update-in [:transforms label] assoc-in [:output-type] schema)
       (update-in [:transforms label] assoc-in [:arguments] arguments)
@@ -571,11 +572,7 @@
         (update-in [:transform-types]   assoc    label (::ip/value-type property-type))
         (cond->
             (not (internal-keys label))
-            (update-in [:property-order-decl] #(conj (or % []) label))
-
-            (and (nil? (ip/validation property-type))
-                 (nil? getter))
-            (update-in [:passthroughs] #(conj (or % #{}) label))))))
+            (update-in [:property-order-decl] #(conj (or % []) label))))))
 
 (defn attach-extern
   "Update the node type description with the given extern. It will be
@@ -711,25 +708,40 @@
 (defmethod process-as 'inherits [[_ & forms]]
   (doseq [t forms]
     (assert-symbol "inherits" t))
-  {:supertypes (vec forms)})
+  {:supertypes (vec (map fqsymbol forms))})
 
 (defn group-node-type-forms
   [forms]
-  (apply merge-with merge
+  (apply merge-with into
          (for [f forms
                :when (seq? f)]
            (process-as f))))
 
-(defn deep-merge
-  [& maps]
-  (if (every? map? maps)
-    (apply merge-with deep-merge maps)
-    (last maps)))
+(defn- node-type-merge
+  ([] {})
+  ([l] l)
+  ([l r]
+   {:property   (merge-with merge (:property l) (:property r))
+    :input      (merge-with merge (:input l)    (:input r))
+    :output     (merge-with merge (:output l)   (:output r))
+    :supertypes (vec (into (:supertypes l) (:supertypes r)))})
+  ([l r & more]
+   (apply node-type-merge (node-type-merge l r) more)))
 
 (defn merge-left
   [tree selector]
   (let [vals (map util/vgr (get tree selector []))]
-    (deep-merge (apply deep-merge vals) tree)))
+    (node-type-merge (apply node-type-merge vals) tree)))
+
+(defn- fqsymbol
+  [s]
+  (assert (symbol? s) (str s))
+  (let [{:keys [ns name]} (meta (resolve s))]
+    (symbol (str ns) (str name))))
+
+(defn- resolve-supertypes
+  [tree]
+  (update tree :supertypes (fn [supers] (mapv fqsymbol supers))))
 
 (defn- wrap-when
   [tree key-pred val-pred xf]
@@ -757,9 +769,12 @@
              (fn [v] `(g/fnk [] ~(if (symbol? v) (resolve v) v)))))
 
 (defn process-node-type-forms
-  [forms]
+  [symb forms]
   (-> (group-node-type-forms forms)
       (merge-left :supertypes)
+      (assoc :name (str *ns* "/" symb))
+      (assoc :hierarchy-name (keyword (str *ns*) (str symb)))
+      resolve-supertypes
       wrap-protocols
       wrap-enums
       wrap-constant-fns))
@@ -1240,7 +1255,6 @@
 
 (defn property-value-exprs
   [self-name ctx-name nodeid-sym node-type prop-name prop-type]
-  (println 'property-value-exprs (:name node-type) (type prop-type) prop-type)
   (let [basic-val `{:type    ~prop-type
                     :value   ~(collect-base-property-value self-name ctx-name nodeid-sym node-type prop-name)
                     :node-id ~nodeid-sym}]
@@ -1268,7 +1282,6 @@
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
-    (println 'produce-value (:name node-type) "/" label)
     (let [behavior (get-in node-type [:behaviors label])]
       (assert behavior (str "No such output, input, or property " label " exists for node " (gt/node-id this) " of type " (:name node-type) "\nIn production: " (get evaluation-context :in-production)))
       (behavior this evaluation-context)))
@@ -1316,8 +1329,7 @@
                                 (get-in orig-props [k :value]))))
                   props properties))
 
-        (or (contains? (gt/passthroughs type) output)
-            (contains? (gt/transforms type) output)
+        (or (contains? (gt/transforms type) output)
             (contains? (gt/input-labels type) output))
         (let [f (get-in type [:behaviors output])]
           (f this evaluation-context))
