@@ -440,3 +440,23 @@
           (text-selection! source-viewer 0 2)
           (delete! source-viewer)
           (is (= "e" (text source-viewer))))))))
+
+(defn- cut! [source-viewer clipboard]
+  (handler/run :cut [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
+
+(deftest cut-test
+  (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
+    (with-clean-system
+      (let [
+            clipboard (new TestClipboard (atom ""))
+            code "blue duck"
+            opts lua/lua
+            source-viewer (setup-source-viewer opts)
+            [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+        (testing "cutting"
+          (text-selection! source-viewer 0 4)
+          (cut! source-viewer clipboard)
+          (is (= " duck" (text source-viewer)))
+          (caret! source-viewer 5 false)
+          (paste! source-viewer clipboard)
+          (is (= " duckblue" (text source-viewer))))))))
