@@ -264,16 +264,19 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			break;
 		case DELETE:
 			if (getControl().getEditable()) {
+                            /** Defold handling ourselves
 				if (event.isMetaDown()) {
 					invokeAction(ActionType.DELETE_WORD_NEXT);
 				} else {
 					getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 1, ""); //$NON-NLS-1$
 					getControl().setCaretOffset(offset);
 				}
+                            **/
 				break;
 			}
 		case BACK_SPACE:
 			if (getControl().getEditable()) {
+                            /** Defold handling oursleves
 				if (event.isMetaDown()) {
 					invokeAction(ActionType.DELETE_WORD_PREVIOUS);
 				} else {
@@ -286,6 +289,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 						getControl().setCaretOffset(offset - 1);
 					}
 				}
+                            **/
 				break;
 			}
 		case TAB:
@@ -304,7 +308,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			if (getControl().getEditable()) {
 				if (event.isShortcutDown()) {
                                     //getControl().paste();
-                                    //we are handling this through the graph
+                                    //Defold we are handling this through the graph
 					event.consume();
 					break;
 				}
@@ -312,7 +316,8 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		case X:
 			if (getControl().getEditable()) {
 				if (event.isShortcutDown()) {
-					getControl().cut();
+                                    //Defold handling ourselves
+                                    //	getControl().cut();
 					event.consume();
 					break;
 				}
@@ -320,7 +325,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		case C: {
 			if (event.isShortcutDown()) {
                             //getControl().copy();
-                            //we are handling this through the graph
+                            //Defold we are handling this through the graph
 				event.consume();
 				break;
 			}
