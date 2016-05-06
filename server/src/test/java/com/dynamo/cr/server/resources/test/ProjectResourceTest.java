@@ -45,23 +45,23 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class ProjectResourceTest extends AbstractResourceTest {
 
-    int port = 6500;
+    private int port = 6500;
 
-    String ownerEmail = "owner@foo.com";
-    String ownerPassword = "secret";
+    private String ownerEmail = "owner@foo.com";
+    private String ownerPassword = "secret";
     private User owner;
     private UserInfo ownerInfo;
 
     private Project proj1;
 
-    String memberEmail = "member@foo.com";
-    String memberPassword = "secret";
+    private String memberEmail = "member@foo.com";
+    private String memberPassword = "secret";
     private User member;
     private UserInfo memberInfo;
     private WebResource memberProjectsWebResource;
 
-    String nonMemberEmail = "nonmember@foo.com";
-    String nonMemberPassword = "secret";
+    private String nonMemberEmail = "nonmember@foo.com";
+    private String nonMemberPassword = "secret";
     private User nonMember;
     private UserInfo nonMemberInfo;
 
@@ -69,6 +69,8 @@ public class ProjectResourceTest extends AbstractResourceTest {
     private WebResource usersResource;
     private WebResource ownerProjectsResource;
     private WebResource ownerProjectResource;
+
+    private EntityManager em;
 
     private void execCommand(String command, String arg) throws IOException {
         TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
@@ -98,7 +100,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
     public void setUp() throws Exception {
         setupUpTest();
 
-        EntityManager em = emf.createEntityManager();
+        em = emf.createEntityManager();
         em.getTransaction().begin();
         owner = new User();
         owner.setEmail(ownerEmail);
@@ -131,7 +133,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         URI uri;
         Client client;
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(port).build();
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
@@ -240,6 +242,54 @@ public class ProjectResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void changeProjectOwner() throws Exception {
+        ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
+                .post();
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(memberInfo.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
+    public void changeProjectOwnerToNonMember() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        UserInfo projectOwner = projectInfo.getOwner();
+
+        ClientResponse response = ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(nonMemberInfo.getId()))
+                .post(ClientResponse.class, null);
+
+        assertEquals(403, response.getStatus());
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
+    public void changeProjectOwnerCapReached() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        UserInfo projectOwner = projectInfo.getOwner();
+
+        // Create maximum amount of projects
+        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
+        em.getTransaction().begin();
+        for (int i = 0; i < maxProjectCount; ++i) {
+            ModelUtil.newProject(em, member, "member_proj" + i, String.format("member_proj%d description", i));
+        }
+        em.getTransaction().commit();
+
+        ClientResponse response = ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
+                .post(ClientResponse.class, null);
+
+        assertEquals(403, response.getStatus());
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
     public void deleteProject() throws Exception {
         assertEquals(1, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
 
@@ -256,20 +306,17 @@ public class ProjectResourceTest extends AbstractResourceTest {
     }
 
     private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
-        final ZipFile file = new ZipFile( path );
-        try
-        {
+        try (ZipFile file = new ZipFile(path)) {
             final Enumeration<? extends ZipEntry> entries = file.entries();
-            while ( entries.hasMoreElements() )
-            {
+            while (entries.hasMoreElements()) {
                 final ZipEntry entry = entries.nextElement();
                 final String entryName = entry.getName();
-                if( !entryName.endsWith("Info.plist") )
+                if (!entryName.endsWith("Info.plist"))
                     continue;
 
                 try {
                     XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-                    plist.load(file.getInputStream( entry ));
+                    plist.load(file.getInputStream(entry));
                     return plist;
                 } catch (ConfigurationException e) {
                     throw new IOException("Failed to read Info.plist", e);
@@ -278,10 +325,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
             // Info.plist not found
             throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
-        }
-        finally
-        {
-            file.close();
         }
     }
 
@@ -343,5 +386,4 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
         assertEquals(downloadedmanifest_bundleid, downloadedbundleid);
     }
-
 }
