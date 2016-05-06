@@ -42,6 +42,8 @@
 // between applications using different versions of GLFW
 #define _GLFW_WNDCLASSNAME "GLFW27"
 
+// Resource ID that holds the application icon.
+#define _GLFICON_RES_ID 100
 
 //========================================================================
 // Enable/disable minimize/restore animations
@@ -1086,7 +1088,7 @@ static ATOM registerWindowClass( void )
     wc.lpszClassName = _GLFW_WNDCLASSNAME;            // Set class name
 
     // Load user-provided icon if available
-    wc.hIcon = LoadIcon( _glfwLibrary.instance, "GLFW_ICON" );
+    wc.hIcon = LoadIcon( _glfwLibrary.instance, MAKEINTRESOURCE(_GLFW_ICON_RES_ID));
     if( !wc.hIcon )
     {
         // Load default icon
