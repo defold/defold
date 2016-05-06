@@ -29,6 +29,7 @@
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
            [com.sun.jersey.multipart FormDataMultiPart]
            [com.sun.jersey.multipart.impl MultiPartWriter]
+           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
            [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]))
 
 (set! *warn-on-reflection* true)
@@ -335,7 +336,11 @@
 (defn- launch-engine [workspace launch-dir]
   (let [server-url "http://localhost:9000"
         cc (DefaultClientConfig.)
+        ; TODO: Random errors wihtout this... Don't understand why random!
+        ; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
         _ (.add (.getClasses cc) MultiPartWriter)
+        _ (.add (.getClasses cc) InputStreamProvider)
+        _ (.add (.getClasses cc) StringProvider)
         client (Client/create cc)
         platform "x86-osx"
         resource (.resource ^Client client (URI. server-url))

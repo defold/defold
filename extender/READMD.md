@@ -5,13 +5,14 @@
 * [ ] Setup linux build machine with OS X toolchain
 * [ ] editor2 and save. doesn't work with cpp files?
 * [ ] Run and launch from editor
-    - [ ] Build engine
+    - [x] Build engine
     - [ ] Cache
     - [ ] Copy shared libraries to a stage folder. Make sure libraries are loaded relative to executable
-* [ ] Test with extensions in libraries
+* [x] Test with extensions in libraries
 
 ## Later
-* [ ] Caching. Both locally and server-side. Can be different methods
+* [ ] Build Caching. Both locally and server-side. Can be different methods
+* [ ] Upload cache. "Don't upload big files every time"
 * [ ] Deploy and download of Defold SDK
 * [ ] Archive Defold SDK
 * [ ] Document
