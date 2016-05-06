@@ -28,6 +28,7 @@
            [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
            [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.impl MultiPartWriter]
            [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]))
 
 (set! *warn-on-reflection* true)
@@ -333,7 +334,9 @@
 
 (defn- launch-engine [workspace launch-dir]
   (let [server-url "http://localhost:9000"
-        client (Client/create (DefaultClientConfig.))
+        cc (DefaultClientConfig.)
+        _ (.add (.getClasses cc) MultiPartWriter)
+        client (Client/create cc)
         platform "x86-osx"
         resource (.resource ^Client client (URI. server-url))
         builder (.accept (.path resource (format "/build/%s" platform)) (into-array MediaType []))
