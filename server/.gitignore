@@ -6,4 +6,5 @@
 /server*.log
 /derby.log
 /*.iml
+/local
 
