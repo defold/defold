@@ -25,6 +25,7 @@ namespace dmScript
 
         if (index >= doc->m_NodeCount)
         {
+            dmJson::Free(doc);
             return luaL_error(L, "Unexpected JSON index, unable to parse content.");
         }
 
@@ -60,6 +61,7 @@ namespace dmScript
                 }
                 else
                 {
+                    dmJson::Free(doc);
                     return luaL_error(L, "Invalid JSON primitive: %s", buffer);
                 }
             }
@@ -99,10 +101,12 @@ namespace dmScript
             {
                 char buffer[buffer_len] = { 0 };
                 memcpy(buffer, json + n.m_Start, dmMath::Min(buffer_len - 1, l));
+                dmJson::Free(doc);
                 return luaL_error(L, "Incomplete JSON object: %s", buffer);
             }
         }
 
+        dmJson::Free(doc);
         return luaL_error(L, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
     }
 
@@ -120,17 +124,22 @@ namespace dmScript
         const char* json = luaL_checkstring(L, 1);
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse(json, &doc);
+
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0)
         {
             JsonToLua(L, &doc, 0);
             dmJson::Free(&doc);
-            assert(top + 1== lua_gettop(L));
+
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        else
+        else if (r == dmJson::RESULT_OK && doc.m_NodeCount == 0)
         {
-            return luaL_error(L, "Failed to parse json '%s' (%d).", json, r);
+            dmJson::Free(&doc);
         }
+
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "Failed to parse json '%s' (%d).", json, r);
     }
 
     static const luaL_reg ScriptJson_methods[] =
