@@ -58,6 +58,7 @@
    :Double-Click :select-word
    :Backspace :delete
    :Delete :delete
+   :Meta+X :cut
    })
 
 (def tab-size 4)
@@ -378,7 +379,7 @@
         selection-length (selection-length selection)
         new-doc (str (subs doc 0 selection-offset)
                      (subs doc (+ selection-offset selection-length)))
-        next-pos (adjust-bounds doc (- c selection-length))]
+        next-pos (adjust-bounds doc selection-offset)]
     (text! selection new-doc)
     (caret! selection next-pos false)))
 
@@ -388,3 +389,10 @@
     (if (pos? (selection-length selection))
       (delete-selected selection)
       (delete selection))))
+
+(handler/defhandler :cut :code-view
+  (enabled? [selection] selection)
+  (run [selection clipboard]
+    (when (pos? (selection-length selection))
+      (text! clipboard (text-selection selection))
+      (delete-selected selection))))
