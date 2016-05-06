@@ -13,6 +13,8 @@ bool g_MemprofileActive = false;
 
 extern void dmMemProfileInternalData();
 
+void* g_dont_optimize = 0;
+
 TEST(dmMemProfile, TestMalloc)
 {
     // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
@@ -21,6 +23,7 @@ TEST(dmMemProfile, TestMalloc)
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     void* p = malloc(1024);
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
@@ -52,6 +55,7 @@ TEST(dmMemProfile, TestCalloc)
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     void* p = calloc(1024, 1);
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
@@ -193,6 +197,7 @@ TEST(dmMemProfile, TestNewDelete1)
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     int* p = new int;
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
@@ -224,6 +229,7 @@ TEST(dmMemProfile, TestNewDelete2)
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     int* p = new int[1];
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
@@ -311,4 +317,3 @@ int main(int argc, char **argv)
     dmMemProfile::Finalize();
     return ret;
 }
-

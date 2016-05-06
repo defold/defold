@@ -10,10 +10,11 @@
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.profiler :as profiler]
+            [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [com.defold.editor Profiler]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
@@ -31,7 +32,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
-           [java.io File]
+           [java.io File ByteArrayOutputStream]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -187,10 +188,6 @@
   (enabled? [] true)
   (run [] (make-about-dialog)))
 
-(handler/defhandler :profile :global
-  (enabled? [] true)
-  (run [] (Profiler/dump "misc/timeseries.csv")))
-
 (handler/defhandler :reload-stylesheet :global
   (enabled? [] true)
   (run [] (ui/reload-root-styles!)))
@@ -263,9 +260,13 @@
                               :acc "Alt+DOWN"
                               :command :move-down}]}
                  {:label "Help"
-                  :children [{:label "Profile"
-                              :command :profile
-                              :acc "Shift+Shortcut+P"}
+                  :children [{:label "Profiler"
+                              :children [{:label "Measure"
+                                          :command :profile
+                                          :acc "Shortcut+P"}
+                                         {:label "Measure and Show"
+                                          :command :profile-show
+                                          :acc "Shift+Shortcut+P"}]}
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
@@ -290,6 +291,20 @@
   ([] "Defold Editor 2.0")
   ([project-title] (str (make-title) " - " project-title)))
 
+(defn- refresh-ui! [^Stage stage project]
+  (ui/refresh (.getScene stage))
+  (let [settings      (g/node-value project :settings)
+        project-title (settings ["project" "title"])
+        new-title     (make-title project-title)]
+    (when (not= (.getTitle stage) new-title)
+      (.setTitle stage new-title))))
+
+(defn- refresh-views! [app-view]
+  (let [auto-pulls (g/node-value app-view :auto-pulls)]
+    (doseq [[node label] auto-pulls]
+      (profiler/profile "view" (:name (g/node-type* node))
+                        (g/node-value node label)))))
+
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
@@ -312,17 +327,8 @@
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
-    (let [refresh-timers [(ui/->timer 2 (fn [dt]
-                                          (ui/refresh (.getScene stage))
-                                          (let [settings      (g/node-value project :settings)
-                                                project-title (settings ["project" "title"])
-                                                new-title     (make-title project-title)]
-                                            (when (not= (.getTitle stage) new-title)
-                                              (.setTitle stage new-title)))))
-                          (ui/->timer 10 (fn [dt]
-                                           (let [auto-pulls (g/node-value app-view :auto-pulls)]
-                                             (doseq [[node label] auto-pulls]
-                                               (g/node-value node label)))))]]
+    (let [refresh-timers [(ui/->timer 2 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
+                          (ui/->timer 10 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-close! stage timer)
         (ui/timer-start! timer)))

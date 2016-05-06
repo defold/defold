@@ -187,13 +187,14 @@
       (g/transact (g/set-property tmpl-node :id "sub_scene2"))
       (is (not (nil? (gui-node node-id new-name))))
       (is (nil? (gui-node node-id old-name)))
-      (is (false? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :id :read-only?])))
+      (is (true? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :id :visible])))
+      (is (false? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :generated-id :visible])))
       (let [sub-node (gui-node node-id new-name)
             props (get (g/node-value sub-node :_declared-properties) :properties)]
-        (is (= new-name (prop sub-node :id)))
-        (is (= (g/node-value sub-node :id)
-               (get-in props [:id :value])))
-        (is (true? (get-in props [:id :read-only?])))))))
+        (is (= new-name (prop sub-node :generated-id)))
+        (is (= (g/node-value sub-node :generated-id)
+               (get-in props [:generated-id :value])))
+        (is (false? (get-in props [:id :visible])))))))
 
 (deftest gui-templates-complex-property
  (with-clean-system

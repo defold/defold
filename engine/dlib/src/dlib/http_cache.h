@@ -38,6 +38,9 @@ namespace dmHttpCache
     /// Maximum length of tags
     const uint32_t MAX_TAG_LEN = 64;
 
+    // Maximum length of an URI
+    const uint32_t MAX_URI_LEN = 2048;
+
     /**
      * Cache entry info
      */

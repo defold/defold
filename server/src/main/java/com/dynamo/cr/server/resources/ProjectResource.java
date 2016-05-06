@@ -2,18 +2,16 @@ package com.dynamo.cr.server.resources;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
-import java.util.Collection;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
 
 import javax.annotation.security.RolesAllowed;
+import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -37,27 +35,11 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.AbstractFileFilter;
-import org.apache.commons.io.filefilter.IOFileFilter;
-import org.apache.commons.io.filefilter.TrueFileFilter;
-import org.eclipse.jgit.api.CloneCommand;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.InvalidRefNameException;
-import org.eclipse.jgit.api.errors.JGitInternalException;
-import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
-import org.eclipse.jgit.api.errors.RefNotFoundException;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevObject;
-import org.eclipse.jgit.revwalk.RevTag;
-import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.archive.ArchiveCache;
+import com.dynamo.cr.archive.GitArchiveProvider;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
@@ -67,7 +49,6 @@ import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
-import com.google.common.io.Files;
 import com.sun.jersey.api.NotFoundException;
 
 /*
@@ -148,76 +129,11 @@ public class ProjectResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectResource.class);
 
-    /*
-     * Project
-     */
-    private static void zipFiles(File directory, File zipFile, String comment) throws IOException {
-        ZipOutputStream zipOut = null;
+    private ArchiveCache cachedArchives;
 
-        try {
-            zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
-            zipOut.setComment(comment);
-            IOFileFilter dirFilter = new AbstractFileFilter() {
-                @Override
-                public boolean accept(File file) {
-                    return !file.getName().equals(".git");
-                }
-            };
-
-            Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
-            int prefixLength = directory.getAbsolutePath().length();
-            for (File file : files) {
-                String p = file.getAbsolutePath().substring(prefixLength);
-                if (p.startsWith("/")) {
-                    p = p.substring(1);
-                }
-                ZipEntry ze = new ZipEntry(p);
-                zipOut.putNextEntry(ze);
-                FileUtils.copyFile(file, zipOut);
-            }
-        } finally {
-            IOUtils.closeQuietly(zipOut);
-        }
-    }
-
-    static String getSHA1ForName(String repository, String name) throws IOException {
-
-        Repository repo = null;
-        RevWalk walk = null;
-
-        try {
-            FileRepositoryBuilder builder = new FileRepositoryBuilder();
-            repo = builder.setGitDir(new File(repository))
-                    .findGitDir()
-                    .build();
-
-            walk = new RevWalk(repo);
-            Ref p = repo.getRef(name);
-            if (p == null) {
-                // if not ref
-                ObjectId objId = repo.resolve(name);
-                if (objId != null)
-                    return objId.getName();
-                return null;
-            }
-            RevObject object = walk.parseAny(p.getObjectId());
-            if (object instanceof RevTag) {
-                RevTag tag = (RevTag) object;
-                return tag.getObject().getName();
-            } else if (object instanceof RevCommit) {
-                RevCommit commit = (RevCommit) object;
-                return commit.getName();
-            } else {
-                throw new IllegalArgumentException(String.format("Unknown object: %s", object.toString()));
-            }
-        } finally {
-            if (walk != null) {
-                walk.dispose();
-            }
-            if (repo != null) {
-                repo.close();
-            }
-        }
+    @Inject
+    public void setArchiveCache(ArchiveCache cachedArchives) {
+        this.cachedArchives = cachedArchives;
     }
 
     @HEAD
@@ -226,10 +142,10 @@ public class ProjectResource extends BaseResource {
     public Response getArchiveHead(@PathParam("project") String project,
                                       @PathParam("version") String version) throws IOException {
 
-        // TODO: Refactor this to a method and replace
-        String repository = String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
-        String sha1 = getSHA1ForName(repository, version);
-        if (sha1 == null) {
+        String repository = getRepositoryString(project);
+        String sha1 = GitArchiveProvider.getSHA1ForName(repository, version);
+
+        if(sha1 == null) {
             return Response.status(Status.NOT_FOUND).build();
         } else {
             return Response.ok()
@@ -247,18 +163,15 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/archive/{version}")
+    @Path("/archive/{version: .+}")
     @RolesAllowed(value = { "member" })
     public Response getArchive(@PathParam("project") String project,
                                @PathParam("version") String version,
                                @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
 
-        // NOTE: Currently neither caching of created zip-files nor appropriate cache-headers (ETag)
-        // Appropriate ETag might be SHA1 of zip-file or even SHA1 from git (head commit)
-
-        String repository = String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
-        String sha1 = getSHA1ForName(repository, version);
-        if (sha1 == null) {
+        String repositoryName = getRepositoryString(project);
+        String sha1 = GitArchiveProvider.getSHA1ForName(repositoryName, version);
+        if(sha1 == null) {
             return Response.status(Status.NOT_FOUND).build();
         }
 
@@ -266,58 +179,22 @@ public class ProjectResource extends BaseResource {
             return Response.status(Status.NOT_MODIFIED).build();
         }
 
-        File cloneTo = null;
-        final File zipFile = File.createTempFile("archive", ".zip");
+        String filePathname = cachedArchives.get(sha1, repositoryName, version);
+        final File zipFile = new File(filePathname);
 
-        try {
-            cloneTo = Files.createTempDir();
-            // NOTE: No shallow clone support in current JGit
-            CloneCommand clone = Git.cloneRepository()
-                    .setURI(repository)
-                    .setBare(false)
-                    .setDirectory(cloneTo);
-
-            try {
-                Git git = clone.call();
-                git.checkout().setName(sha1).call();
-            } catch (JGitInternalException|RefAlreadyExistsException e) {
-                throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
-            } catch (RefNotFoundException e) {
-                throw new ServerException(String.format("Version not found: %s", version), e, Status.INTERNAL_SERVER_ERROR);
-            } catch (InvalidRefNameException e) {
-                throw new ServerException(String.format("Version not found: %s", version), e, Status.INTERNAL_SERVER_ERROR);
-            } catch (GitAPIException e) {
-                throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
-            }
-
-            zipFiles(cloneTo, zipFile, sha1);
-        } catch (IOException e) {
-            // NOTE: Only delete zip-file on error as we need the file
-            // when streaming. See .delete() in StreamingOutput below.
-            zipFile.delete();
-            throw new IOException("Failed to clone and zip project", e);
-        } finally {
-            // NOTE: We always delete temporary cloneTo directory
-            try {
-                FileUtils.deleteDirectory(cloneTo);
-            } catch (IOException e) {
-                logger.error("Failed to remove temporary clone directory", e);
-            }
-        }
-
-        StreamingOutput output = new StreamingOutput() {
-            @Override
-            public void write(OutputStream os) throws IOException, WebApplicationException {
-                FileUtils.copyFile(zipFile, os);
-                os.close();
-                zipFile.delete();
-            }
+        StreamingOutput output = os -> {
+            FileUtils.copyFile(zipFile, os);
+            os.close();
         };
 
         return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM_TYPE)
                 .header("content-disposition", String.format("attachment; filename = archive_%s_%s", project, version))
                 .header("ETag", sha1)
                 .build();
+    }
+
+    private String getRepositoryString(String project) {
+        return String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
     }
 
     @POST
