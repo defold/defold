@@ -56,6 +56,8 @@
    :Shift+Meta+Down :select-file-end
    :Meta+L :goto-line
    :Double-Click :select-word
+   :Backspace :delete
+   :Delete :delete
    })
 
 (def tab-size 4)
@@ -303,18 +305,18 @@
 
 (handler/defhandler :file-begin :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
+  (run [selection]
     (caret! selection 0 false)))
 
 (handler/defhandler :file-end :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
+  (run [selection]
     (let [doc (text selection)]
       (caret! selection (count doc) false))))
 
 (handler/defhandler :select-file-begin :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
+  (run [selection]
     (caret! selection 0 true)))
 
 (handler/defhandler :select-file-end :code-view
@@ -335,7 +337,7 @@
 
 (handler/defhandler :goto-line :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
+  (run [selection]
     ;; when using show and wait on the dialog, was getting very
     ;; strange double events not solved by consume - this is a
     ;; workaround to let us use show
@@ -347,7 +349,7 @@
 
 (handler/defhandler :select-word :code-view
   (enabled? [selection] selection)
-  (run [selection user-data]
+  (run [selection]
     (let [regex #"^\w+"
           c (caret selection)
           doc (text selection)
@@ -359,3 +361,30 @@
           end-pos (+ np (count word-end))
           len (- end-pos start-pos)]
       (text-selection! selection start-pos len))))
+
+(defn delete [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        new-doc (str (subs doc 0 (dec c))
+                     (subs doc c))
+        next-pos (adjust-bounds new-doc (dec c))]
+    (text! selection new-doc)
+    (caret! selection next-pos false)))
+
+(defn delete-selected [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        selection-offset (selection-offset selection)
+        selection-length (selection-length selection)
+        new-doc (str (subs doc 0 selection-offset)
+                     (subs doc (+ selection-offset selection-length)))
+        next-pos (adjust-bounds doc (- c selection-length))]
+    (text! selection new-doc)
+    (caret! selection next-pos false)))
+
+(handler/defhandler :delete :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (if (pos? (selection-length selection))
+      (delete-selected selection)
+      (delete selection))))
