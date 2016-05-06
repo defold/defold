@@ -61,7 +61,9 @@
    :Meta+X :cut
    :Meta+D :cut
    :Alt+Backspace :delete-prev-word
-   :Alt+Delete :delete-next-word})
+   :Alt+Delete :delete-next-word
+   :Shift+Meta+Delete :delete-to-end-of-line
+   :Meta+Delete :delete-to-start-of-line})
 
 (def tab-size 4)
 
@@ -452,3 +454,28 @@
           new-doc (str (subs doc 0 np)
                        (subs doc next-word-pos))]
       (text! selection new-doc))))
+
+(handler/defhandler :delete-to-end-of-line :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (println "delete-to-end-of-line")
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          line-end-offset (line-end-pos selection)
+          new-doc (str (subs doc 0 np)
+                       (subs doc line-end-offset))]
+      (text! selection new-doc))))
+
+(handler/defhandler :delete-to-start-of-line :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (println "delete-to-start-of-line")
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          line-begin-offset (line-begin-pos selection)
+          new-doc (str (subs doc 0 line-begin-offset)
+                       (subs doc np))]
+      (text! selection new-doc)
+      (caret! selection line-begin-offset false))))
