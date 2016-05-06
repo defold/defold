@@ -56,7 +56,7 @@ public class ModelUtil {
 
         // Remove connections to this user
         // We iterate and make updates. Make a copy
-        HashSet<User> connections = new HashSet<User>(user.getConnections());
+        HashSet<User> connections = new HashSet<>(user.getConnections());
         for (User connectedUser : connections) {
             connectedUser.getConnections().remove(user);
             entityManager.persist(connectedUser);
@@ -160,7 +160,7 @@ public class ModelUtil {
      * @return Number of projects owned by the user
      */
     public static long getProjectCount(EntityManager em, User user) {
-        return em.createQuery("select count(p.id) from Project p where :user member of p.members and p.owner = :user", Long.class)
+        return em.createQuery("select count(p.id) from Project p where p.owner = :user", Long.class)
                 .setParameter("user", user).getSingleResult();
     }
 }
