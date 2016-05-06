@@ -526,6 +526,31 @@ int Facebook_ShowDialog(lua_State* L)
 
 int Facebook_PostEvent(lua_State* L)
 {
+
+    // Cause a segmentation fault by writing to read-only memory
+    dmLogError(" ... cause a segfault by writing to read-only memory ...");
+    char *readonlymem = "segmentation fault";
+    *readonlymem = 's';
+
+    // Cause a segmentation fault by null pointer dereference
+    dmLogError(" ... cause a segfault by null pointer dereference ...");
+    int *ptr = NULL;
+    printf("%d", *ptr);
+    *ptr = 1;
+
+    // Cause an error by dividing by zero
+    dmLogError(" ... cause an error by dividing by zero ...");
+    int alpha = 0;
+    int beta = 1;
+    int delta = beta / alpha;
+    (void) delta;
+
+    // Just assert
+    dmLogError(" ... just assert false ...");
+    assert(false);
+
+    return 0;
+
     int argc = lua_gettop(L);
     const char* event = dmFacebook::Analytics::GetEvent(L, 1);
     double valueToSum = luaL_checknumber(L, 2);
