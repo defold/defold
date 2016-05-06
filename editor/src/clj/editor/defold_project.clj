@@ -344,20 +344,22 @@
         all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
 
     ; TODO: potential leak with io/input-stream below?
+    ; TODO: This try/catch shouldn't be necessary. Caught somewhere else and discarded?
     (try
       (doseq [r all-resources]
-      (prn (resource/proj-path r))
-      (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
-      (catch Throwable e
-        (prn e)))
+        (prn (resource/proj-path r))
+        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
 
-    ; NOTE: We need at least one part..
-    (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
-    (let [cr (.post (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-          f (io/file "/tmp/e")]
-      (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-      (.setExecutable f true)
-      (do-launch-engine (.getPath f) launch-dir))))
+      ; NOTE: We need at least one part..
+      (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
+      (let [cr (.post (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+            f (io/file "/tmp/e")]
+        (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
+        (.setExecutable f true)
+
+        (do-launch-engine (.getPath f) launch-dir))
+      (catch Throwable e
+        (prn e)))))
 
 (defn build-and-write
   ([project node]
