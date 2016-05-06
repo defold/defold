@@ -4,7 +4,7 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui])
-  (:import  [javafx.scene.input KeyEvent MouseEvent]))
+  (:import  [javafx.scene.input Clipboard KeyEvent MouseEvent]))
 
 (defprotocol TextContainer
   (text! [this s])
@@ -59,6 +59,7 @@
    :Backspace :delete
    :Delete :delete
    :Meta+X :cut
+   :Meta+D :cut
    :Alt+Backspace :delete-prev-word
    :Alt+Delete :delete-next-word})
 
@@ -96,16 +97,15 @@
         kf (key-fn k-info (.getCode ^KeyEvent e))]
     (when kf (handler/run
                kf
-               [{:name :code-view :env {:selection source-viewer}}]
+               [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                k-info))))
 
 (defn handle-mouse-clicked [e source-viewer]
-  (println "Mouse clicked" e)
   (let [click-count (.getClickCount ^MouseEvent e)
         cf (click-fn click-count)]
     (when cf (handler/run
                cf
-               [{:name :code-view :env {:selection source-viewer}}]
+               [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                e))))
 
 (handler/defhandler :copy :code-view
@@ -273,22 +273,28 @@
   (run [selection user-data]
     (prev-word selection true)))
 
-(defn line-begin [selection select?]
+(defn line-begin-pos [selection]
   (let [c (caret selection)
         doc (text selection)
         np (adjust-bounds doc c)
         lines-before (lines-before doc np)
-        len-before (-> lines-before last count dec)
-        next-pos (- np len-before)]
+        len-before (-> lines-before last count dec)]
+        (- np len-before)))
+
+(defn line-begin [selection select?]
+  (let [next-pos (line-begin-pos selection)]
     (caret! selection next-pos select?)))
 
-(defn line-end [selection select?]
+(defn line-end-pos [selection]
   (let [c (caret selection)
         doc (text selection)
         np (adjust-bounds doc c)
         lines-after (lines-after doc np)
-        len-after (-> lines-after first count)
-        next-pos (+ np len-after)]
+        len-after (-> lines-after first count)]
+    (+ np len-after)))
+
+(defn line-end [selection select?]
+  (let [next-pos (line-end-pos selection)]
     (caret! selection next-pos select?)))
 
 (handler/defhandler :line-begin :code-view
@@ -397,12 +403,30 @@
       (delete-selected selection)
       (delete selection))))
 
+(defn cut-selection [selection clipboard]
+  (text! clipboard (text-selection selection))
+  (delete-selected selection))
+
+(defn cut-line [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)
+        line-begin-offset (line-begin-pos selection)
+        line-end-offset (line-end-pos selection)
+        consume-pos (if (= line-end-offset (count doc))
+                      line-end-offset
+                      (inc line-end-offset))
+        new-doc (str (subs doc 0 line-begin-offset)
+                     (subs doc consume-pos))]
+    (text! selection new-doc)
+    (caret! selection (adjust-bounds new-doc line-begin-offset) false)))
+
 (handler/defhandler :cut :code-view
   (enabled? [selection] selection)
   (run [selection clipboard]
-    (when (pos? (selection-length selection))
-      (text! clipboard (text-selection selection))
-      (delete-selected selection))))
+    (if (pos? (selection-length selection))
+      (cut-selection selection clipboard)
+      (cut-line selection))))
 
 (handler/defhandler :delete-prev-word :code-view
   (enabled? [selection] selection)
