@@ -12,6 +12,7 @@
 (defn quiet-source-viewer-set-caret [source-viewer offset select?]
   ;; catches exceptions on event handling in the widget that throws
   ;; errors in the test, but don't really matter to the test
+  ;; revisit and see if a mock would be better
   (Thread/setDefaultUncaughtExceptionHandler
      (reify Thread$UncaughtExceptionHandler
        (uncaughtException [_ thread exception])))
@@ -418,3 +419,24 @@
          (is (= \space (get-char-at-caret source-viewer)))
          (select-word! source-viewer)
          (is (= "" (text-selection source-viewer))))))))
+
+(defn- delete! [source-viewer]
+  (handler/run :delete [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest delete-test
+  (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
+    (with-clean-system
+      (let [code "blue"
+            opts lua/lua
+            source-viewer (setup-source-viewer opts)
+            [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+        (testing "deleting"
+          (caret! source-viewer 3 false)
+          (delete! source-viewer)
+          (is (= \e (get-char-at-caret source-viewer)))
+          (is (= "ble" (text source-viewer))))
+        (testing "deleting with highlighting selection"
+          (caret! source-viewer 0 false)
+          (text-selection! source-viewer 0 2)
+          (delete! source-viewer)
+          (is (= "e" (text source-viewer))))))))
