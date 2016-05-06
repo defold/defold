@@ -49,15 +49,3 @@
         builder    (.accept (.path resource path) media-types)]
     (protobuf/pb->map (.get builder entity-class))))
 
-(defn rpost [client ^String path]
-  (let [server-url "http://localhost:9000"
-        resource   (.resource ^Client (:client client) (URI. server-url))
-        builder    (.accept (.path resource path) media-types)
-        form (FormDataMultiPart.  )]
-    (.bodyPart form (FileDataBodyPart. "file" (clojure.java.io/file "/tmp/foo.cpp") MediaType/APPLICATION_OCTET_STREAM_TYPE))
-    (let [cr (.post (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)]
-      (count (slurp (.getEntityInputStream cr))))))
-
-(let [c (make-client (prefs/make-prefs "defold"))]
-  (rpost c "/build"))
-

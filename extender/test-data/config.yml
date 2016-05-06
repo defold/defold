@@ -1,8 +1,9 @@
 context:
     dynamo_home: '/Users/chmu/tmp/dynamo-home'
     frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
+    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
+    symbols: []
 
-exportedSymbols: []
 main: |
     #include <stdio.h>
 
@@ -10,10 +11,17 @@ main: |
     extern "C" void {{.}}();
     {{/symbols}}
 
+    {{#ext.symbols}}
+    extern "C" void {{.}}();
+    {{/ext.symbols}}
+
     void dmExportedSymbols() {
         {{#symbols}}
         {{.}}();
         {{/symbols}}
+        {{#ext.symbols}}
+        {{.}}();
+        {{/ext.symbols}}
     }
 
     extern "C" void Test();
@@ -24,15 +32,13 @@ main: |
         return 0;
     }
 
-includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
 platforms:
   x86-osx:
     context:
         engineLibs: []
     exeExt: ''
-    shlibExt: '.dylib'
     shlibRe: 'lib(.+).dylib'
     stlibRe: 'lib(.+).a'
-    compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
-    linkCmd: clang++ -m32 -stdlib=libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#extLibs}}{{.}} {{/extLibs}} {{#libs}}-l{{.}} {{/libs}}
+    compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -m32 -stdlib=libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}}
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'

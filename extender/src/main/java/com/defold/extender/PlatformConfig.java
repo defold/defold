@@ -9,7 +9,6 @@ public class PlatformConfig {
     public List<String> compileArgs;
     public Map<String, Object> context = new HashMap<>();
     public String exeExt;
-    public String shlibExt;
     public String shlibRe;
     public String stlibRe;
     public String compileCmd;

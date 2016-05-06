@@ -37,21 +37,22 @@ public class ExtenderController {
 
         File src = Files.createTempDirectory("engine").toFile();
 
-        for (String k : keys) {
-            MultipartFile mpf = req.getMultiFileMap().getFirst(k);
-            File f = new File(src, mpf.getName());
-            f.getParentFile().mkdirs();
-            FileUtils.copyInputStreamToFile(mpf.getInputStream(), f);
+        try {
+            for (String k : keys) {
+                MultipartFile mpf = req.getMultiFileMap().getFirst(k);
+                File f = new File(src, mpf.getName());
+                f.getParentFile().mkdirs();
+                FileUtils.copyInputStreamToFile(mpf.getInputStream(), f);
+            }
+
+            Configuration config = new Yaml().loadAs(IOUtils.toString(configUrl), Configuration.class);
+            Extender e = new Extender(config, platform, src);
+            File exe = e.buildEngine();
+            FileUtils.copyFile(exe, resp.getOutputStream());
+            e.dispose();
+        } finally {
+            FileUtils.deleteDirectory(src);
         }
-
-        Configuration config = new Yaml().loadAs(IOUtils.toString(configUrl), Configuration.class);
-        Extender e = new Extender(config, platform, src);
-        File exe = e.buildEngine();
-        FileUtils.copyFile(exe, resp.getOutputStream());
-        e.dispose();
-
-        FileUtils.deleteDirectory(src);
     }
-
 }
 

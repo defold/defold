@@ -1,4 +1,4 @@
 server:
     port: 9000
 extender:
-    config-url: file:config.yml
+    config-url: file:examples/config.yml

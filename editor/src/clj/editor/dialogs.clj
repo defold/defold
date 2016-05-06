@@ -138,34 +138,6 @@
 
       (assoc dialog :refresh refresh))))
 
-
-
-(def foo (atom nil))
-
-#_(resource/proj-path (nth @foo 70))
-#_(resource/resource-name (nth @foo 70))
-#_(nth @foo 70)
-
-(defn- parent-resource [r]
-  (let [workspace (resource/workspace r)
-        path (resource/proj-path r)
-        parent-path (subs path 0 (dec (- (count path) (count (resource/resource-name r)))))
-        parent (workspace/resolve-workspace-resource workspace parent-path)]
-    parent))
-
-;root (workspace/resolve-workspace-resource workspace )
-(defn- load-ext [manifest]
-  (let [root (parent-resource manifest)]
-    root))
-
-#_(doseq [x (map load-ext (filter #(= "ext.manifest" (resource/resource-name %)) @foo))]
-   (doseq [y (resource/resource-seq x)]
-     (prn (resource/proj-path y))))
-
-#_(map load-ext (filter #(= "ext.manifest" (resource/resource-name %)) @foo))
-
-#_(slurp (nth @foo 70))
-
 (defn make-resource-dialog [workspace options]
   (let [root         ^Parent (ui/load-fxml "resource-dialog.fxml")
         stage        (Stage.)
@@ -177,9 +149,6 @@
         items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
                              (g/node-value workspace :resource-list))
         close        (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
-
-    (reset! foo (g/node-value workspace :resource-list))
-    (prn (map resource/proj-path (g/node-value workspace :resource-list)))
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (or (:title options) "Select Resource"))
     (ui/items! (:resources controls) items)

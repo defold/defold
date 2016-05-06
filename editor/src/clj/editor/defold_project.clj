@@ -21,7 +21,14 @@
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
            [editor.resource FileResource]
-           [com.defold.editor Platform]))
+           [java.net URI]
+           [org.apache.commons.io IOUtils FileUtils]
+           [com.defold.editor Platform]
+           [javax.ws.rs.core MediaType]
+           [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
+           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]))
 
 (set! *warn-on-reflection* true)
 
@@ -308,15 +315,49 @@
             (console/append-console-message! msg)
             (recur)))))))
 
-(defn- launch-engine [launch-dir]
+(defn- do-launch-engine [path launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
     (let [p (.start pb)
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
+
+(defn- parent-resource [r]
+  (let [workspace (resource/workspace r)
+        path (resource/proj-path r)
+        parent-path (subs path 0 (dec (- (count path) (count (resource/resource-name r)))))
+        parent (workspace/resolve-workspace-resource workspace parent-path)]
+    parent))
+
+(defn- launch-engine [workspace launch-dir]
+  (let [server-url "http://localhost:9000"
+        client (Client/create (DefaultClientConfig.))
+        platform "x86-osx"
+        resource (.resource ^Client client (URI. server-url))
+        builder (.accept (.path resource (format "/build/%s" platform)) (into-array MediaType []))
+        form (FormDataMultiPart.)
+
+        resources (g/node-value workspace :resource-list)
+        manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
+        all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
+
+    ; TODO: potential leak with io/input-stream below?
+    (try
+      (doseq [r all-resources]
+      (prn (resource/proj-path r))
+      (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
+      (catch Throwable e
+        (prn e)))
+
+    ; NOTE: We need at least one part..
+    (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
+    (let [cr (.post (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+          f (io/file "/tmp/e")]
+      (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
+      (.setExecutable f true)
+      (do-launch-engine (.getPath f) launch-dir))))
 
 (defn build-and-write
   ([project node]
@@ -528,7 +569,7 @@
                          (ui/with-progress [render-fn ui/default-render-progress!]
                            (when (not-empty (build-and-write project game-project render-fn
                                                              #(ui/run-later (dialogs/make-alert-dialog %))))
-                             (launch-engine (io/file launch-path)))))))))
+                             (launch-engine workspace (io/file launch-path)))))))))
 
 (defn settings [project]
   (g/node-value project :settings))
