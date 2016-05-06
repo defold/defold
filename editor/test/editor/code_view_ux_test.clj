@@ -476,3 +476,30 @@
         (delete-next-word! source-viewer)
         (is (= "bl" (text source-viewer)))
         (is (= nil  (get-char-at-caret source-viewer)))))))
+
+(defn- delete-to-end-of-line! [source-viewer]
+  (handler/run :delete-to-end-of-line [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- delete-to-start-of-line! [source-viewer]
+  (handler/run :delete-to-start-of-line [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest delete-to-start-end-line
+  (with-clean-system
+    (let [code "blue duck"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "deleting to end of the line"
+        (caret! source-viewer 7 false)
+        (is (= \c (get-char-at-caret source-viewer)))
+        (delete-to-end-of-line! source-viewer)
+        (is (= "blue du" (text source-viewer)))
+        (is (= nil (get-char-at-caret source-viewer))))
+      (testing "deleting to start of the line"
+        (g/transact (g/set-property code-node :code code))
+        (g/node-value viewer-node :new-content)
+        (caret! source-viewer 7 false)
+        (is (= \c (get-char-at-caret source-viewer)))
+        (delete-to-start-of-line! source-viewer)
+        (is (= "ck" (text source-viewer)))
+        (is (= \c (get-char-at-caret source-viewer)))))))
