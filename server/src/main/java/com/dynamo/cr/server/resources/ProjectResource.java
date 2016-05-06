@@ -4,9 +4,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URI;
 import java.util.Enumeration;
+import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -124,7 +124,7 @@ import com.sun.jersey.api.NotFoundException;
 // NOTE: {member} isn't currently used.
 // See README.md in this project for additional information
 @Path("/projects/{owner}/{project}")
-@RolesAllowed(value = { "member" })
+@RolesAllowed(value = {"member"})
 public class ProjectResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectResource.class);
@@ -138,14 +138,14 @@ public class ProjectResource extends BaseResource {
 
     @HEAD
     @Path("/archive/{version}")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     public Response getArchiveHead(@PathParam("project") String project,
-                                      @PathParam("version") String version) throws IOException {
+                                   @PathParam("version") String version) throws IOException {
 
         String repository = getRepositoryString(project);
         String sha1 = GitArchiveProvider.getSHA1ForName(repository, version);
 
-        if(sha1 == null) {
+        if (sha1 == null) {
             return Response.status(Status.NOT_FOUND).build();
         } else {
             return Response.ok()
@@ -156,7 +156,7 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/archive")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     public Response getArchive(@PathParam("project") String project,
                                @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
         return getArchive(project, "HEAD", ifNoneMatch);
@@ -164,14 +164,14 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/archive/{version: .+}")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     public Response getArchive(@PathParam("project") String project,
                                @PathParam("version") String version,
                                @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
 
         String repositoryName = getRepositoryString(project);
         String sha1 = GitArchiveProvider.getSHA1ForName(repositoryName, version);
-        if(sha1 == null) {
+        if (sha1 == null) {
             return Response.status(Status.NOT_FOUND).build();
         }
 
@@ -199,7 +199,7 @@ public class ProjectResource extends BaseResource {
 
     @POST
     @Path("/members")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     @Transactional
     public void addMember(@PathParam("project") String projectId,
                           String memberEmail) {
@@ -224,7 +224,7 @@ public class ProjectResource extends BaseResource {
     @Path("/members/{id}")
     @Transactional
     public void removeMember(@PathParam("project") String projectId,
-                          @PathParam("id") String memberId) {
+                             @PathParam("id") String memberId) {
         // Ensure user is valid
         User user = getUser();
         User member = server.getUser(em, memberId);
@@ -235,8 +235,8 @@ public class ProjectResource extends BaseResource {
             throw new NotFoundException(String.format("User %s is not a member of project %s", user.getId(), projectId));
         }
         // Only owners can remove other users and only non-owners can remove themselves
-        boolean isOwner = user.getId() == project.getOwner().getId();
-        boolean removeSelf = user.getId() == member.getId();
+        boolean isOwner = Objects.equals(user.getId(), project.getOwner().getId());
+        boolean removeSelf = Objects.equals(user.getId(), member.getId());
         if ((isOwner && removeSelf) || (!isOwner && !removeSelf)) {
             throw new WebApplicationException(403);
         }
@@ -255,29 +255,37 @@ public class ProjectResource extends BaseResource {
     }
 
     @PUT
-    @RolesAllowed(value = { "owner" })
+    @RolesAllowed(value = {"owner"})
     @Transactional
     @Path("/project_info")
-    public void updateProjectInfo(@PathParam("project") String projectId,
-                                  ProjectInfo projectInfo ) {
-        /*
-         * Only owner ID or name and description is updated
-         */
+    public void updateProjectInfo(@PathParam("project") String projectId, ProjectInfo projectInfo) {
         Project project = server.getProject(em, projectId);
-        if(projectInfo.hasNewOwnerId()) {
-            if(!changeProjectOwner(project, projectInfo.getNewOwnerId())) {
-                throw new ServerException("Could not change ownership: new owner must be a project member.", Status.FORBIDDEN);
-            }
-        } else {
-            project.setName(projectInfo.getName());
-            project.setDescription(projectInfo.getDescription());
+        project.setName(projectInfo.getName());
+        project.setDescription(projectInfo.getDescription());
+    }
+
+    @POST
+    @RolesAllowed(value = {"owner"})
+    @Transactional
+    @Path("/change_owner")
+    public void changeOwner(@PathParam("project") String projectId, @QueryParam("newOwnerId") Long newOwnerId) {
+
+        if (newOwnerId == null) {
+            throw new ServerException("Query parameter newOwnerId is missing.", Status.BAD_REQUEST);
         }
+
+        Project project = server.getProject(em, projectId);
+
+        if (!changeProjectOwner(project, newOwnerId)) {
+            throw new ServerException("Could not change ownership: new owner must be a project member.", Status.FORBIDDEN);
+        }
+
     }
 
     private boolean changeProjectOwner(Project project, long newOwnerId) {
         User newOwner = server.getUser(em, Long.toString(newOwnerId));
-        for(User member: project.getMembers()) {
-            if(member.getId() == newOwner.getId()) {
+        for (User member : project.getMembers()) {
+            if (Objects.equals(member.getId(), newOwner.getId())) {
                 validateMaxProjectCount(newOwner);
                 logger.debug(String.format("Changing project %d ownership to user %s", project.getId(), newOwnerId));
                 project.setOwner(newOwner);
@@ -291,7 +299,7 @@ public class ProjectResource extends BaseResource {
         long projectCount = ModelUtil.getProjectCount(em, newOwner);
         int maxProjectCount = server.getConfiguration().getMaxProjectCount();
 
-        if(projectCount >= maxProjectCount) {
+        if (projectCount >= maxProjectCount) {
             throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount),
                     Status.FORBIDDEN);
         }
@@ -299,16 +307,14 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/log")
-    public Log log(@PathParam("project") String project,
-                              @QueryParam("max_count") int maxCount) throws Exception {
-        Log log = server.log(em, project, maxCount);
-        return log;
+    public Log log(@PathParam("project") String project, @QueryParam("max_count") int maxCount) throws Exception {
+        return server.log(em, project, maxCount);
     }
 
     @DELETE
-    @RolesAllowed(value = { "owner" })
+    @RolesAllowed(value = {"owner"})
     @Transactional
-    public void deleteProject(@PathParam("project") String projectId)  {
+    public void deleteProject(@PathParam("project") String projectId) {
         Project project = server.getProject(em, projectId);
         try {
             ModelUtil.removeProject(em, project);
@@ -323,7 +329,7 @@ public class ProjectResource extends BaseResource {
      */
     @POST
     @Consumes(MediaType.APPLICATION_OCTET_STREAM)
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     @Path("/engine/{platform}")
     public Response uploadEngine(@PathParam("project") String projectId,
                                  @PathParam("platform") String platform,
@@ -337,22 +343,18 @@ public class ProjectResource extends BaseResource {
         return Response.ok().build();
     }
 
-
     private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
-        final ZipFile file = new ZipFile( path );
-        try
-        {
+        try (ZipFile file = new ZipFile(path)) {
             final Enumeration<? extends ZipEntry> entries = file.entries();
-            while ( entries.hasMoreElements() )
-            {
+            while (entries.hasMoreElements()) {
                 final ZipEntry entry = entries.nextElement();
                 final String entryName = entry.getName();
-                if( !entryName.endsWith("Info.plist") )
+                if (!entryName.endsWith("Info.plist"))
                     continue;
 
                 try {
                     XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-                    plist.load(file.getInputStream( entry ));
+                    plist.load(file.getInputStream(entry));
                     return plist;
                 } catch (ConfigurationException e) {
                     throw new IOException("Failed to read Info.plist", e);
@@ -362,18 +364,14 @@ public class ProjectResource extends BaseResource {
             // Info.plist not found
             throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
         }
-        finally
-        {
-            file.close();
-        }
     }
 
     @GET
-    @RolesAllowed(value = { "anonymous" })
+    @RolesAllowed(value = {"anonymous"})
     @Path("/engine/{platform}/{key}.ipa")
     public Response downloadEngine(@PathParam("project") String projectId,
-                                 @PathParam("key") String key,
-                                 @PathParam("platform") String platform) throws IOException {
+                                   @PathParam("key") String key,
+                                   @PathParam("platform") String platform) throws IOException {
 
         if (!platform.equals("ios")) {
             // Only iOS for now
@@ -389,12 +387,9 @@ public class ProjectResource extends BaseResource {
 
         final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
 
-        StreamingOutput output = new StreamingOutput() {
-            @Override
-            public void write(OutputStream os) throws IOException, WebApplicationException {
-                FileUtils.copyFile(file, os);
-                os.close();
-            }
+        StreamingOutput output = os -> {
+            FileUtils.copyFile(file, os);
+            os.close();
         };
 
         return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM)
@@ -404,7 +399,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @RolesAllowed(value = { "anonymous" })
+    @RolesAllowed(value = {"anonymous"})
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
     public String downloadEngineManifest(@PathParam("owner") String owner,
@@ -433,17 +428,16 @@ public class ProjectResource extends BaseResource {
 
         final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), projectId, platform);
 
-        String bundleid = "unknown";
+        String bundleid;
         try {
-            final XMLPropertyListConfiguration bundleplist = readPlistFromBundle( ipaPath );
+            final XMLPropertyListConfiguration bundleplist = readPlistFromBundle(ipaPath);
             bundleid = bundleplist.getString("CFBundleIdentifier");
         } catch (Exception e) {
             throw new ServerException("Failed to read plist", e, Status.INTERNAL_SERVER_ERROR);
         }
 
-        String manifestPrim = manifest.replace("${URL}", engineUri.toString()+".ipa");
+        String manifestPrim = manifest.replace("${URL}", engineUri.toString() + ".ipa");
         manifestPrim = manifestPrim.replace("${BUNDLEID}", bundleid);
         return manifestPrim;
     }
-
 }

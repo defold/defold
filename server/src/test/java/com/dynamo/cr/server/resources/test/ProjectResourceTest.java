@@ -25,12 +25,10 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.eclipse.jgit.api.errors.TransportException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -47,23 +45,23 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class ProjectResourceTest extends AbstractResourceTest {
 
-    int port = 6500;
+    private int port = 6500;
 
-    String ownerEmail = "owner@foo.com";
-    String ownerPassword = "secret";
+    private String ownerEmail = "owner@foo.com";
+    private String ownerPassword = "secret";
     private User owner;
     private UserInfo ownerInfo;
 
     private Project proj1;
 
-    String memberEmail = "member@foo.com";
-    String memberPassword = "secret";
+    private String memberEmail = "member@foo.com";
+    private String memberPassword = "secret";
     private User member;
     private UserInfo memberInfo;
     private WebResource memberProjectsWebResource;
 
-    String nonMemberEmail = "nonmember@foo.com";
-    String nonMemberPassword = "secret";
+    private String nonMemberEmail = "nonmember@foo.com";
+    private String nonMemberPassword = "secret";
     private User nonMember;
     private UserInfo nonMemberInfo;
 
@@ -135,7 +133,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         URI uri;
         Client client;
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(port).build();
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
@@ -245,15 +243,11 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
     @Test
     public void changeProjectOwner() throws Exception {
+        ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
+                .post();
         ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
-
-        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
-                .mergeFrom(projectInfo)
-                .setNewOwnerId(memberInfo.getId())
-                .build();
-
-        put(ownerProjectResource, "/project_info", newProjectInfo);
-        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         assertEquals(memberInfo.getId(), projectInfo.getOwner().getId());
     }
 
@@ -262,12 +256,11 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         UserInfo projectOwner = projectInfo.getOwner();
 
-        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
-                .mergeFrom(projectInfo)
-                .setNewOwnerId(nonMemberInfo.getId())
-                .build();
+        ClientResponse response = ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(nonMemberInfo.getId()))
+                .post(ClientResponse.class, null);
 
-        ClientResponse response = ownerProjectResource.path("/project_info").put(ClientResponse.class, newProjectInfo);
         assertEquals(403, response.getStatus());
         projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
@@ -286,12 +279,11 @@ public class ProjectResourceTest extends AbstractResourceTest {
         }
         em.getTransaction().commit();
 
-        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
-                .mergeFrom(projectInfo)
-                .setNewOwnerId(memberInfo.getId())
-                .build();
+        ClientResponse response = ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
+                .post(ClientResponse.class, null);
 
-        ClientResponse response = ownerProjectResource.path("/project_info").put(ClientResponse.class, newProjectInfo);
         assertEquals(403, response.getStatus());
         projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
@@ -314,20 +306,17 @@ public class ProjectResourceTest extends AbstractResourceTest {
     }
 
     private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
-        final ZipFile file = new ZipFile( path );
-        try
-        {
+        try (ZipFile file = new ZipFile(path)) {
             final Enumeration<? extends ZipEntry> entries = file.entries();
-            while ( entries.hasMoreElements() )
-            {
+            while (entries.hasMoreElements()) {
                 final ZipEntry entry = entries.nextElement();
                 final String entryName = entry.getName();
-                if( !entryName.endsWith("Info.plist") )
+                if (!entryName.endsWith("Info.plist"))
                     continue;
 
                 try {
                     XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-                    plist.load(file.getInputStream( entry ));
+                    plist.load(file.getInputStream(entry));
                     return plist;
                 } catch (ConfigurationException e) {
                     throw new IOException("Failed to read Info.plist", e);
@@ -336,10 +325,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
             // Info.plist not found
             throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
-        }
-        finally
-        {
-            file.close();
         }
     }
 
@@ -401,5 +386,4 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
         assertEquals(downloadedmanifest_bundleid, downloadedbundleid);
     }
-
 }

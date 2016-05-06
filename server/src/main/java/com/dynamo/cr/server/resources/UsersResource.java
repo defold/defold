@@ -1,6 +1,7 @@
 package com.dynamo.cr.server.resources;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.security.RolesAllowed;
@@ -36,7 +37,7 @@ public class UsersResource extends BaseResource {
     private static Logger logger = LoggerFactory.getLogger(UsersResource.class);
     private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
-    static UserInfo createUserInfo(User u) {
+    private static UserInfo createUserInfo(User u) {
         UserInfo.Builder b = UserInfo.newBuilder();
         b.setId(u.getId())
          .setEmail(u.getEmail())
@@ -45,7 +46,7 @@ public class UsersResource extends BaseResource {
         return b.build();
     }
 
-    static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
+    private static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
         InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
         b.setOriginalCount(a.getOriginalCount())
             .setCurrentCount(a.getCurrentCount());
@@ -69,7 +70,7 @@ public class UsersResource extends BaseResource {
     public void connect(@PathParam("user2") String user2) {
         User u = getUser();
         User u2 = server.getUser(em, user2);
-        if (u.getId() == u2.getId()) {
+        if (Objects.equals(u.getId(), u2.getId())) {
             throw new ServerException("A user can not be connected to him/herself.", Response.Status.FORBIDDEN);
         }
 
@@ -116,7 +117,7 @@ public class UsersResource extends BaseResource {
         for(Project p : u.getProjects()) {
             for(User member: p.getMembers()) {
 
-                if(member.getId() != u.getId()) {
+                if(!Objects.equals(member.getId(), u.getId())) {
                     throw new ServerException(String.format("Existing project %s with other members must be deleted or transferred",
                             p.getName()),
                             Response.Status.FORBIDDEN);
@@ -152,8 +153,7 @@ public class UsersResource extends BaseResource {
         em.persist(user);
         em.flush();
 
-        UserInfo userInfo = createUserInfo(user);
-        return userInfo;
+        return createUserInfo(user);
     }
 
     @PUT
@@ -181,6 +181,5 @@ public class UsersResource extends BaseResource {
         InvitationAccount a = server.getInvitationAccount(em, user);
         return createInvitationAccountInfo(a);
     }
-
 }
 
