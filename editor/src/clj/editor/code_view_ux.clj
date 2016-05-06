@@ -59,7 +59,8 @@
    :Backspace :delete
    :Delete :delete
    :Meta+X :cut
-   })
+   :Alt+Backspace :delete-prev-word
+   :Alt+Delete :delete-next-word})
 
 (def tab-size 4)
 
@@ -230,19 +231,25 @@
 
 (def word-regex  #"\n|\w+|\s\w+|.")
 
+(defn next-word-move [doc np]
+  (re-find word-regex (subs doc np)))
+
 (defn next-word [selection select?]
   (let [c (caret selection)
         doc (text selection)
         np (adjust-bounds doc c)
-        next-word-move (re-find word-regex (subs doc np))
+        next-word-move (next-word-move doc np)
         next-pos (+ np (count next-word-move))]
     (caret! selection next-pos select?)))
+
+(defn prev-word-move [doc np]
+  (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str))))
 
 (defn prev-word [selection select?]
   (let [c (caret selection)
         doc (text selection)
         np (adjust-bounds doc c)
-        next-word-move (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str)))
+        next-word-move (prev-word-move doc np)
         next-pos (- np (count next-word-move))]
     (caret! selection next-pos select?)))
 
@@ -396,3 +403,28 @@
     (when (pos? (selection-length selection))
       (text! clipboard (text-selection selection))
       (delete-selected selection))))
+
+(handler/defhandler :delete-prev-word :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          next-word-move (prev-word-move doc np)
+          new-pos (- np (count next-word-move))
+          new-doc (str (subs doc 0 new-pos)
+                       (subs doc np))]
+      (text! selection new-doc)
+      (caret! selection new-pos false))))
+
+(handler/defhandler :delete-next-word :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          next-word-move (next-word-move doc np)
+          next-word-pos (+ np (count next-word-move))
+          new-doc (str (subs doc 0 np)
+                       (subs doc next-word-pos))]
+      (text! selection new-doc))))
