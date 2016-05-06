@@ -447,8 +447,7 @@
 (deftest cut-test
   (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
     (with-clean-system
-      (let [
-            clipboard (new TestClipboard (atom ""))
+      (let [clipboard (new TestClipboard (atom ""))
             code "blue duck"
             opts lua/lua
             source-viewer (setup-source-viewer opts)
@@ -460,3 +459,37 @@
           (caret! source-viewer 5 false)
           (paste! source-viewer clipboard)
           (is (= " duckblue" (text source-viewer))))))))
+
+(defn- delete-prev-word! [source-viewer]
+  (handler/run :delete-prev-word [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- delete-next-word! [source-viewer]
+  (handler/run :delete-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest delete-by-word
+  (with-redefs [source-viewer-set-caret quiet-source-viewer-set-caret]
+    (with-clean-system
+      (let [code "blue duck"
+            opts lua/lua
+            source-viewer (setup-source-viewer opts)
+            [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+        (testing "deleting back"
+          (caret! source-viewer 7 false)
+          (is (= \c (get-char-at-caret source-viewer)))
+          (delete-prev-word! source-viewer)
+          (is (= "blue ck" (text source-viewer)))
+          (is (= \c  (get-char-at-caret source-viewer)))
+          (delete-prev-word! source-viewer)
+          (is (= "ck" (text source-viewer)))
+          (is (= \c  (get-char-at-caret source-viewer))))
+        (testing "deleting next"
+          (g/transact (g/set-property code-node :code code))
+          (g/node-value viewer-node :new-content)
+          (caret! source-viewer 2 false)
+          (is (= \u (get-char-at-caret source-viewer)))
+          (delete-next-word! source-viewer)
+          (is (= "bl duck" (text source-viewer)))
+          (is (= \space  (get-char-at-caret source-viewer)))
+          (delete-next-word! source-viewer)
+          (is (= "bl" (text source-viewer)))
+          (is (= nil  (get-char-at-caret source-viewer))))))))
