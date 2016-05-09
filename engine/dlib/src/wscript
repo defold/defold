@@ -2,7 +2,6 @@
 
 import os, re, sys
 from TaskGen import feature, after
-import buildtools
 
 def set_options(opt):
     pass

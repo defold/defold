@@ -71,7 +71,7 @@ namespace dmGameSystem
         uint8_t* decompressed_data = new uint8_t[decompressed_data_size];
         if(!decompressed_data)
         {
-            dmLogError("Not enough memory to decode WebP encoded image (%d bytes). Using blank texture.", decompressed_data_size);
+            dmLogError("Not enough memory to decode WebP encoded image (%u bytes). Using blank texture.", decompressed_data_size);
             return false;
         }
 
@@ -87,7 +87,7 @@ namespace dmGameSystem
         }
         if(webp_res != dmWebP::RESULT_OK)
         {
-            dmLogError("Failed to decode WebP encoded image, code(%d). Using blank texture.", (uint32_t) webp_res);
+            dmLogError("Failed to decode WebP encoded image, code(%d). Using blank texture.", (int32_t) webp_res);
             delete[] decompressed_data;
             return false;
         }

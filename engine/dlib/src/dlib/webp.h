@@ -26,7 +26,7 @@ namespace dmWebP
      * @param output_buffer_stride distance (in bytes) between scanlines
      * @return RESULT_OK on success
      */
-    Result DecodeRGB(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_stride);
+    Result DecodeRGB(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_buffer_stride);
 
     /**
      * Decode WebP compressed data to RGBA buffer
@@ -37,7 +37,7 @@ namespace dmWebP
      * @param output_buffer_stride distance (in bytes) between scanlines
      * @return RESULT_OK on success
      */
-    Result DecodeRGBA(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_stride);
+    Result DecodeRGBA(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_buffer_stride);
 
 }
 
