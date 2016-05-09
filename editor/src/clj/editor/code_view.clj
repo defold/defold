@@ -347,7 +347,7 @@
     (when (.hasString this)
       (.getString this))))
 
-(defn source-viewer-set-caret [source-viewer offset select?]
+(defn source-viewer-set-caret! [source-viewer offset select?]
   (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?))
 
 (extend-type SourceViewer
@@ -364,7 +364,7 @@
   (selection-length [this]
     (.-length ^TextSelection (-> this (.getTextWidget) (.getSelection))))
   (caret! [this offset select?]
-    (source-viewer-set-caret this offset select?))
+    (source-viewer-set-caret! this offset select?))
   (caret [this] (.getCaretOffset (.getTextWidget this)))
   (text-selection [this]
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
@@ -392,7 +392,7 @@
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node} source-viewer)
+    (ui/context! source-viewer :code-view {:code-node code-node :clipboard (Clipboard/getSystemClipboard)} source-viewer)
     (let [refresh-timer (ui/->timer 10 "refresh-code-view" (fn [_] (g/node-value view-id :new-content)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
