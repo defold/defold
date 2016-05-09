@@ -7,6 +7,7 @@ import java.io.IOException;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
@@ -47,6 +48,12 @@ public class TextureBuilder extends Builder<Void> {
             texture = TextureGenerator.generate(is, texProfile);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+        }
+
+        for(TextureImage.Image img  : texture.getAlternativesList()) {
+            if(img.getCompressionType() != TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
+                this.project.addOutputFlags(task.output(0).getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+            }
         }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);

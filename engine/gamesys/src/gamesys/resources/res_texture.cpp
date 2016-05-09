@@ -1,6 +1,7 @@
 #include "res_texture.h"
 
 #include <dlib/log.h>
+#include <dlib/webp.h>
 #include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
 
@@ -42,9 +43,76 @@ namespace dmGameSystem
         }
     }
 
+    void SetBlankTexture(dmGraphics::HTexture texture, dmGraphics::TextureParams& params)
+    {
+        const static uint8_t blank[6*4] = {0};
+        params.m_Width = 1;
+        params.m_Height = 1;
+        params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_Data = blank;
+        params.m_DataSize = 4;
+        params.m_MipMap = 0;
+        dmGraphics::SetTexture(texture, params);
+    }
+
+    bool WebPDecodeTexture(dmGraphics::HTexture texture, dmGraphics::TextureParams& params, dmGraphics::TextureImage::Image* image)
+    {
+        uint32_t compressed_data_size = image->m_MipMapSizeCompressed[params.m_MipMap];
+        if(!compressed_data_size)
+        {
+            params.m_Data = &image->m_Data[image->m_MipMapOffset[params.m_MipMap]];
+            params.m_DataSize = image->m_MipMapSize[params.m_MipMap];
+            dmGraphics::SetTexture(texture, params);
+            return true;
+        }
+
+        uint8_t* compressed_data = &image->m_Data[image->m_MipMapOffset[params.m_MipMap]];
+        uint32_t decompressed_data_size = image->m_MipMapSize[params.m_MipMap];
+        uint8_t* decompressed_data = new uint8_t[decompressed_data_size];
+        if(!decompressed_data)
+        {
+            dmLogError("Not enough memory to decode WebP encoded image (%d bytes). Using blank texture.", decompressed_data_size);
+            return false;
+        }
+
+        uint32_t stride = decompressed_data_size/params.m_Height;
+        dmWebP::Result webp_res;
+        if(stride == params.m_Width*3)
+        {
+            webp_res = dmWebP::DecodeRGB(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+        }
+        else
+        {
+            webp_res = dmWebP::DecodeRGBA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+        }
+        if(webp_res != dmWebP::RESULT_OK)
+        {
+            dmLogError("Failed to decode WebP encoded image, code(%d). Using blank texture.", (uint32_t) webp_res);
+            delete[] decompressed_data;
+            return false;
+        }
+
+        if(image->m_CompressionFlags & dmGraphics::TextureImage::COMPRESSION_FLAG_ALPHA_CLEAN)
+        {
+            uint32_t* p_end = (uint32_t*)(decompressed_data+decompressed_data_size);
+            for(uint32_t* p = (uint32_t*) decompressed_data; p != p_end; ++p)
+            {
+                uint32_t rgba = *p;
+                if((!(rgba & 0xff000000)) && (rgba & 0x00ffffff))
+                    *p = 0;
+            }
+        }
+
+        params.m_DataSize = decompressed_data_size;
+        params.m_Data = decompressed_data;
+        dmGraphics::SetTexture(texture, params);
+        delete[] decompressed_data;
+        return true;
+    }
+
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
-        bool found_match = false;
+        dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
         for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
         {
             dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
@@ -54,8 +122,8 @@ namespace dmGameSystem
             {
                 continue;
             }
+            result = dmResource::RESULT_OK;
 
-            found_match = true;
             dmGraphics::TextureCreationParams creation_params;
             dmGraphics::TextureParams params;
             dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
@@ -91,24 +159,29 @@ namespace dmGameSystem
             if (params.m_Width > max_size || params.m_Height > max_size) {
                 // SetTexture will fail if texture is too big; fall back to 1x1 texture.
                 dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
-                const static uint8_t blank[6*4] = {0};
-                params.m_Width = 1;
-                params.m_Height = 1;
-                params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-                params.m_Data = blank;
-                params.m_DataSize = 4;
-                params.m_MipMap = 0;
-                dmGraphics::SetTexture(texture, params);
+                SetBlankTexture(texture, params);
                 break;
             }
 
             for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
             {
                 params.m_MipMap = i;
-                params.m_Data = &image->m_Data[image->m_MipMapOffset[i]];
-                params.m_DataSize = image->m_MipMapSize[i];
+                switch(image->m_CompressionType)
+                {
+                    case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP:
+                    case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP_LOSSY:
+                        if(!WebPDecodeTexture(texture, params, image))
+                        {
+                            SetBlankTexture(texture, params);
+                        }
+                        break;
 
-                dmGraphics::SetTexture(texture, params);
+                    default:
+                        params.m_Data = &image->m_Data[image->m_MipMapOffset[i]];
+                        params.m_DataSize = image->m_MipMapSize[i];
+                        dmGraphics::SetTexture(texture, params);
+                        break;
+                }
                 params.m_Width >>= 1;
                 params.m_Height >>= 1;
                 if (params.m_Width == 0) params.m_Width = 1;
@@ -119,16 +192,16 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(texture_image);
 
-        if (found_match)
+        if (result == dmResource::RESULT_OK)
         {
             *texture_out = texture;
             return dmResource::RESULT_OK;
         }
-        else
+        if (result == dmResource::RESULT_FORMAT_ERROR)
         {
             dmLogWarning("No matching texture format found");
-            return dmResource::RESULT_FORMAT_ERROR;
         }
+        return result;
     }
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params)
