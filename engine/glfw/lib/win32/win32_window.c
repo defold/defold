@@ -43,7 +43,7 @@
 #define _GLFW_WNDCLASSNAME "GLFW27"
 
 // Resource ID that holds the application icon.
-#define _GLFICON_RES_ID 100
+#define _GLFW_ICON_RES_ID 100
 
 //========================================================================
 // Enable/disable minimize/restore animations
