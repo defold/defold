@@ -39,12 +39,15 @@
   (when-let [t (g/node-type* basis node-id)]
     (:name t)))
 
+(defn- flatten-arcs [arcs]
+  (mapcat (fn [[nid label-arc]] (mapcat second label-arc)) arcs))
+
 (defn- nodes->arcs [basis nodes]
   (let [nodes (set nodes)]
     (seq (into #{} (mapcat (fn [[_ graph]]
                           (->>
-                            (concat (filter (fn [a] (or (nodes (:source a)) (nodes (:target a)))) (mapcat second (:sarcs graph)))
-                                    (filter #(or (nodes (:source %)) (nodes (:target %))) (mapcat second (:tarcs graph))))
+                            (concat (filter (fn [a] (or (nodes (:source a)) (nodes (:target a)))) (flatten-arcs (:sarcs graph)))
+                                    (filter #(or (nodes (:source %)) (nodes (:target %))) (flatten-arcs (:tarcs graph))))
                             (map (fn [a] [(:source a) (:sourceLabel a) (:target a) (:targetLabel a)]))))
                         (:graphs basis))))))
 

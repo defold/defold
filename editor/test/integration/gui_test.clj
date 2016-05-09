@@ -172,6 +172,49 @@
       (is (not= (get-in (g/node-value tmpl-node :scene) path)
                 (get-in (g/node-value original-template :scene) path))))))
 
+(defn- drag-pull-outline! [scene-id node-id i]
+  (g/set-property! node-id :position [i 0 0])
+  (g/node-value scene-id :scene)
+  (g/node-value scene-id :node-outline))
+
+(defn- clock []
+  (/ (System/nanoTime) 1000000.0))
+
+(defmacro measure [binding & body]
+  `(let [start# (clock)]
+     (dotimes ~binding
+       ~@body)
+     (let [end# (clock)]
+       (/ (- end# start#) ~(second binding)))))
+
+(defn- test-load []
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)])))
+
+(deftest gui-template-outline-perf
+  (testing "loading"
+           ;; WARM-UP
+           (dotimes [i 10]
+                      (test-load))
+           (let [elapsed (measure [i 20]
+                                  (test-load))]
+             (is (< elapsed 1200))))
+  (testing "drag-pull-outline"
+           (with-clean-system
+             (let [workspace (test-util/setup-workspace! world)
+                   project (test-util/setup-project! workspace)
+                   app-view (test-util/setup-app-view!)
+                   node-id (test-util/resource-node project "/gui/scene.gui")
+                   box (gui-node node-id "sub_scene/sub_box")]
+               ;; WARM-UP
+               (dotimes [i 20]
+                 (drag-pull-outline! node-id box i))
+               ;; GO!
+               (let [elapsed (measure [i 500]
+                                      (drag-pull-outline! node-id box i))]
+                 (is (< elapsed 33)))))))
+
 (deftest gui-template-ids
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)

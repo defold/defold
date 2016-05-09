@@ -75,12 +75,8 @@
         node               (if (gt/node-id? node-or-node-id) (ig/node-by-id-at basis node-or-node-id) node-or-node-id)
         result             (and node (gt/produce-value node label evaluation-context))]
     (when (and node cache)
-      (let [local             @(:local evaluation-context)
-            local-for-encache (for [[node-id vmap] local
-                                    [output val] vmap]
-                                [[node-id output] val])]
-        (c/cache-hit cache @(:hits evaluation-context))
-        (c/cache-encache cache local-for-encache)))
+      (c/cache-hit cache @(:hits evaluation-context))
+      (c/cache-encache cache @(:local evaluation-context)))
     result))
 
 (defn node-value
@@ -96,7 +92,7 @@
                             :snapshot        (if caching? (c/cache-snapshot cache) {})
                             :hits            (atom [])
                             :basis           basis
-                            :in-production   []
+                            :in-production   #{}
                             :in-transaction? in-transaction?
                             :ignore-errors   ignore-errors
                             :skip-validation skip-validation
@@ -725,13 +721,6 @@
     (has-declared-output? node-type argument)
     `(gt/produce-value ~self-name ~argument ~ctx-name)))
 
-(defn check-local-cache [ctx-name nodeid-sym transform]
-  `(get-in @(:local ~ctx-name) [~nodeid-sym ~transform]))
-
-(defn check-global-cache [ctx-name nodeid-sym transform]
-  `(if-some [cached# (get (:snapshot ~ctx-name) [~nodeid-sym ~transform])]
-     (do (swap! (:hits ~ctx-name) conj [~nodeid-sym ~transform]) cached#)))
-
 (def ^:private jammable? (complement internal-keys))
 
 (defn original-root [basis node-id]
@@ -774,7 +763,7 @@
 
 (defn detect-cycles [ctx-name nodeid-sym transform node-type-name forms]
   `(do
-     (assert (every? #(not= % [~nodeid-sym ~transform]) (:in-production ~ctx-name))
+     (assert (not (contains? (:in-production ~ctx-name) [~nodeid-sym ~transform]))
              (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
      ~forms))
 
@@ -784,10 +773,14 @@
 
 (defn check-caches [ctx-name nodeid-sym node-type transform forms]
   (if ((gt/cached-outputs node-type) transform)
-    (list `or
-          (check-local-cache ctx-name nodeid-sym transform)
-          (check-global-cache ctx-name nodeid-sym transform)
-          forms)
+    `(let [local# @(:local ~ctx-name)
+           global# (:snapshot ~ctx-name)
+           key# [~nodeid-sym ~transform]]
+       (cond
+         (contains? local# key#) (get local# key#)
+         (contains? global# key#) (if-some [cached# (get global# key#)]
+                                           (do (swap! (:hits ~ctx-name) conj key#) cached#))
+         true ~forms))
     forms))
 
 (defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym record-name node-type-name node-type transform production-function forms]
@@ -818,7 +811,7 @@
 (defn cache-output [ctx-name node-type transform nodeid-sym output-sym forms]
   `(do
      ~@(when ((gt/cached-outputs node-type) transform)
-         `[(swap! (:local ~ctx-name) assoc-in [~nodeid-sym ~transform] ~output-sym)])
+         `[(swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)])
      ~forms))
 
 (defn deduce-output-type
@@ -1128,7 +1121,7 @@
   (eval (print-method-forms record-name node-type-name node-type)))
 
 (defn- output-fn [type output]
-  (eval (dollar-name (:name type) output)))
+  (find-var (dollar-name (:name type) output)))
 
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
