@@ -1,51 +1,5 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-
-import javax.persistence.EntityManager;
-import javax.persistence.TypedQuery;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriBuilderException;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.node.ObjectNode;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.InvalidRemoteException;
-import org.eclipse.jgit.api.errors.TransportException;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
@@ -65,6 +19,42 @@ import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ObjectNode;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.InvalidRemoteException;
+import org.eclipse.jgit.api.errors.TransportException;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriBuilderException;
+import java.io.*;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.*;
 
 
 public class ProjectsResourceTest extends AbstractResourceTest {
@@ -620,31 +610,34 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     // but current test, including helper functions for creating projects, resides in ProjectsResourceTest.java
     @Test
     public void getArchive1() throws Exception {
-        ClientResponse response = testGetArchive("", null);
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = testGetArchive("", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
-        response = testGetArchive("", sha1);
+        response = testGetArchive("", sha1, projectInfo);
         assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive2() throws Exception {
-        ClientResponse response = testGetArchive("master", null);
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = testGetArchive("master", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
-        response = testGetArchive("", sha1);
+        response = testGetArchive("", sha1, projectInfo);
         assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive3() throws Exception {
-        ClientResponse response = testGetArchive("HEAD", null);
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = testGetArchive("HEAD", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
-        response = testGetArchive("", sha1);
+        response = testGetArchive("", sha1, projectInfo);
         assertEquals(304, response.getStatus());
     }
 
@@ -734,15 +727,27 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     ClientResponse getArchiveETag(String version) {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
-        String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
+        return getArchiveETag(version, projectInfo.getId());
+    }
+
+    ClientResponse getArchiveETag(String version, long projectId) {
+        String path = String.format("/%d/%d/archive/%s", -1, projectId, version);
         ClientResponse headResponse = joeProjectsWebResource.path(path).head();
         return headResponse;
     }
 
     @Test
-    public void getArchiveHead() {
-        String head = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
-        String _1_0 = getArchiveETag("1.0").getHeaders().getFirst("ETag");
+    public void getArchiveHead() throws IOException, GitAPIException {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        String head = getArchiveETag("HEAD", projectInfo.getId()).getHeaders().getFirst("ETag");
+
+        // Add new tag on latest commit
+        // Note: relies on internal server implementation for project storage
+        File projectPath = getServerProjectPath(projectInfo.getId());
+        Git git = Git.open(projectPath);
+        git.tag().setName("1.0.0").call();
+
+        String _1_0 = getArchiveETag("1.0.0", projectInfo.getId()).getHeaders().getFirst("ETag");
         assertEquals(head, _1_0);
 
         ClientResponse foo = getArchiveETag("foo");
@@ -757,12 +762,26 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void getArchiveByBranch() {
-        String branch1 = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
-        String branch2 = getArchiveETag("testbranch").getHeaders().getFirst("ETag");
-        assertEquals(branch1, branch2);
-        String branch_fail = getArchiveETag("non-existing-branch").getHeaders().getFirst("ETag");
+    public void getArchiveByBranch() throws IOException, GitAPIException {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+
+        // Add new branch on latest commit
+        // Note: relies on internal server implementation for project storage
+        File projectPath = getServerProjectPath(projectInfo.getId());
+        Git git = Git.open(projectPath);
+        Ref branchRef = git.branchCreate().setName("testbranch").call();
+        String branchSha = branchRef.getObjectId().getName();
+
+        String branch2 = getArchiveETag("testbranch", projectInfo.getId()).getHeaders().getFirst("ETag");
+        assertEquals(branchSha, branch2);
+        String branch_fail = getArchiveETag("non-existing-branch", projectInfo.getId()).getHeaders().getFirst("ETag");
         assertEquals(null, branch_fail);
+    }
+
+    private static File getServerProjectPath(long projectId) {
+        String repositoryRoot = server.getConfiguration().getRepositoryRoot();
+        File projectPath = new File(String.format("%s/%d", repositoryRoot, projectId));
+        return projectPath;
     }
 
     private static void alterFile(String cloneDir, String name, String content) throws IOException {
