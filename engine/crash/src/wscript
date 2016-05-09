@@ -23,7 +23,8 @@ def build(bld):
             sig_handler = 'backtrace_execinfo.cpp'
 
     if 'js-web' in bld.env['PLATFORM']:
-        sig_handler = 'backtrace_jsweb.c';
+        sig_handler = 'backtrace_jsweb.cpp';
+        file_handler = 'file_posix.cpp';
 
     if 'darwin' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
