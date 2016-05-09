@@ -420,9 +420,6 @@ public class TextureGeneratorTest {
         textureFormatAlt7.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
         textureFormatAlt7.setCompressionLevel(CompressionLevel.FAST);
         textureFormatAlt7.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
-        textureFormatAlt8.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_ETC1);
-        textureFormatAlt8.setCompressionLevel(CompressionLevel.FAST);
-        textureFormatAlt8.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
 
         platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
         platformProfile.addFormats(textureFormatAlt1.build());
@@ -432,7 +429,6 @@ public class TextureGeneratorTest {
         platformProfile.addFormats(textureFormatAlt5.build());
         platformProfile.addFormats(textureFormatAlt6.build());
         platformProfile.addFormats(textureFormatAlt7.build());
-        platformProfile.addFormats(textureFormatAlt8.build());
         platformProfile.setMipmaps(false);
         platformProfile.setMaxTextureSize(0);
 
@@ -462,9 +458,6 @@ public class TextureGeneratorTest {
         assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(6).getFormat());
         assertTrue(texture.getAlternatives(6).getMipMapSizeCompressed(0) > 0);
         assertTrue(texture.getAlternatives(6).getMipMapSizeCompressed(0) < texture.getAlternatives(6).getMipMapSize(0));
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, texture.getAlternatives(7).getFormat());
-        assertTrue(texture.getAlternatives(7).getMipMapSizeCompressed(0) > 0);
-        assertTrue(texture.getAlternatives(7).getMipMapSizeCompressed(0) < texture.getAlternatives(7).getMipMapSize(0));
 
     }
 
