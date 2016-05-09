@@ -2,20 +2,21 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -24,18 +25,16 @@ import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriBuilderException;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.TransportException;
-import org.eclipse.jgit.transport.Transport;
-import org.eclipse.jgit.transport.TransportHttp;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.junit.After;
 import org.junit.Before;
@@ -852,6 +851,130 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(200, response.getStatus());
         list = response.getEntity(ProjectInfoList.class);
         assertEquals(0, list.getProjectsCount());
+    }
+
+    @Test
+    public void testRunGitGc() throws Exception {
+
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        long projectId = projectInfo.getId();
+
+        WebResource gitWebResource = getJoeGitWebResource();
+
+        File repositoryDir = getRepositoryDir(projectId);
+        File refFile = new File(repositoryDir.getCanonicalPath() + File.separator + "packed-refs");
+        gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
+
+        Thread.sleep(200); // Wait for garbage collect to complete
+        assertTrue(refFile.exists());
+    }
+
+    @Test
+    public void testRemoveGcLockFile() throws Exception {
+
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        long projectId = projectInfo.getId();
+
+        WebResource gitWebResource = getJoeGitWebResource();
+        File repositoryDir = getRepositoryDir(projectId);
+
+        File refFile = new File(repositoryDir.getCanonicalPath() + File.separator + "packed-refs");
+        File lockFile = new File(repositoryDir.getCanonicalPath() + File.separator + "packed-refs.lock");
+        writePackedRefsFile(refFile, false);
+        writePackedRefsFile(lockFile, true);
+
+        gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
+        Thread.sleep(200); // Wait for garbage collect to remove the lockfile
+        assertFalse(lockFile.exists());
+    }
+
+    private File getRepositoryDir(long projectId) {
+        String repositoryRoot = server.getConfiguration().getRepositoryRoot();
+        File repositoryDir = new File(String.format("%s/%d", repositoryRoot, projectId));
+        return repositoryDir;
+    }
+
+    private WebResource getJoeGitWebResource() throws IllegalArgumentException, UriBuilderException {
+        URI uri = UriBuilder.fromUri(String.format("http://localhost/test_data")).port(port).build();
+        ClientConfig cc = new DefaultClientConfig();
+        Client gitClient = Client.create(cc);
+
+        gitClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        WebResource gitWebResource = gitClient.resource(uri);
+        return gitWebResource;
+    }
+
+    private void writePackedRefsFile(File file, boolean isLockFile) throws IOException {
+        String newline = System.getProperty("line.separator");
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            writer.write("# pack-refs with: peeled" + newline);
+            if(isLockFile) {
+                writer.write("7f7b9aff9fd418684d7d414cf14862ac52ea676c refs/heads/master" + newline);
+            } else {
+                writer.write("12bc56a629faa909c21c8e1fd1a63f7305e1923b refs/heads/master" + newline);
+            }
+            writer.write("27c7d125e6d93b6783abafa5dcdc2eafcc21b2f2 refs/heads/testbranch" + newline);
+            writer.write("cd76e8f5a5014b1f39836349688f0a806de8c692 refs/tags/1.0" + newline);
+            writer.write("^27c7d125e6d93b6783abafa5dcdc2eafcc21b2f2" + newline);
+        }
+    }
+
+    class GitPushRunnable implements Runnable {
+        private long projectId;
+        public Throwable exception;
+
+        public GitPushRunnable(long projectId) {
+            this.projectId = projectId;
+        }
+
+        @Override
+        public void run() {
+            File tempDir = Files.createTempDir();
+            try {
+                File repositoryDir = getRepositoryDir(projectId);
+                Git git = Git.cloneRepository()
+                        .setURI(repositoryDir.getAbsolutePath())
+                        .setDirectory(tempDir)
+                        .call();
+
+                File contentDir = new File(tempDir.getAbsolutePath() + "/content");
+
+                for(int i=0; i<60; i++) {
+                    String tempFilename = String.format("testfile_%d.tmp", i);
+                    File newFile = new File(contentDir, tempFilename);
+                    newFile.createNewFile();
+
+                    git.add().addFilepattern(tempFilename).call();
+                    git.commit().setMessage("Added " + tempFilename).call();
+                    git.push().call();
+                }
+                git.close();
+            } catch (Throwable e) {
+                this.exception = e;
+            } finally {
+                FileUtils.deleteQuietly(tempDir);
+            }
+        }
+    }
+
+    @Test
+    public void testGitGcWithPush() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        long projectId = projectInfo.getId();
+
+        GitPushRunnable runnable1 = new GitPushRunnable(projectId);
+
+        Thread t1 = new Thread(runnable1);
+        t1.start();
+        // Trigger 10 garbage collects while git push is running
+        for(int i=0; i<10; i++) {
+            WebResource gitWebResource = getJoeGitWebResource();
+            gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
+        }
+        t1.join(15000);
+        Thread.sleep(200); // wait for the garbage collect to finish
+
+        assertEquals(null, runnable1.exception);
     }
 
 }
