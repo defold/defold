@@ -131,14 +131,20 @@
 
 (defn right [selection select?]
   (let [c (caret selection)
-          doc (text selection)
-          next-pos (adjust-bounds doc (inc c))]
+        doc (text selection)
+        selected-text (text-selection selection)
+        next-pos (if (pos? (count selected-text))
+                   (adjust-bounds doc (+ c (count selected-text)))
+                   (adjust-bounds doc (inc c)))]
       (caret! selection next-pos select?)))
 
 (defn left [selection select?]
   (let [c (caret selection)
         doc (text selection)
-        next-pos (adjust-bounds doc (dec c))]
+        selected-text (text-selection selection)
+        next-pos (if (pos? (count selected-text))
+                   (adjust-bounds doc (- c (count selected-text)))
+                   (adjust-bounds doc (dec c)))]
       (caret! selection next-pos select?)))
 
 (handler/defhandler :right :code-view
