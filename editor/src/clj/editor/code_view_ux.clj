@@ -64,7 +64,8 @@
    :Alt+Delete :delete-next-word
    :Shift+Meta+Delete :delete-to-end-of-line
    :Meta+Delete :delete-to-start-of-line
-   :Meta+F :find-text})
+   :Meta+F :find-text
+   :Meta+K :find-next})
 
 (def tab-size 4)
 
@@ -483,14 +484,16 @@
       (text! selection new-doc)
       (caret! selection line-begin-offset false))))
 
+(defn select-found-text [selection doc found-idx tlen]
+  (when (<= 0 found-idx)
+    (caret! selection (adjust-bounds doc (+ found-idx tlen)) false)
+    (text-selection! selection found-idx tlen)))
+
 (defn find-text [selection find-text]
-  (let [c (caret selection)
-        doc (text selection)
+  (let [doc (text selection)
         found-idx (.indexOf doc find-text)
         tlen (count find-text)]
-    (when (<= 0 found-idx)
-      (caret! selection (adjust-bounds doc (+ found-idx tlen)) false)
-      (text-selection! selection found-idx tlen))))
+    (select-found-text selection doc found-idx tlen)))
 
 (handler/defhandler :find-text :code-view
   (enabled? [selection] selection)
@@ -503,3 +506,14 @@
           find-text-fn (fn [] (when (realized? text)
                                 (find-text selection @text)))]
       (.setOnHidden stage (ui/event-handler e (find-text-fn))))))
+
+(handler/defhandler :find-next :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          search-text (text-selection selection)
+          found-idx (.indexOf doc search-text (int np))
+          tlen (count search-text)]
+      (select-found-text selection doc found-idx tlen))))

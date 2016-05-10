@@ -538,3 +538,23 @@
         (find-text! source-viewer "duck")
         (is (= "duck" (text-selection source-viewer)))
         (is (= \s (get-char-at-caret source-viewer)))))))
+
+(defn- find-next! [source-viewer]
+  (handler/run :find-next [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest find-next-test
+  (with-clean-system
+    (let [code "duck1 duck2 duck3"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "find-next"
+        (find-text! source-viewer "duck")
+        (is (= "duck" (text-selection source-viewer)))
+        (is (= \1 (get-char-at-caret source-viewer)))
+        (find-next! source-viewer)
+        (is (= "duck" (text-selection source-viewer)))
+        (is (= \2 (get-char-at-caret source-viewer)))
+        (find-next! source-viewer)
+        (is (= "duck" (text-selection source-viewer)))
+        (is (= \3 (get-char-at-caret source-viewer)))))))
