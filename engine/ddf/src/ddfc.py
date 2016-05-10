@@ -177,7 +177,13 @@ def to_cxx_struct(context, pp, message_type):
     def p(t, n):
         pp.p("%s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
 
-    pp.begin("struct %s", message_type.name)
+    def p_aligned(t, n):
+        pp.p("DM_ALIGNED(16) %s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
+
+    if (context.should_align_struct(message_type)):
+        pp.begin("struct DM_ALIGNED(16) %s", message_type.name)
+    else:
+        pp.begin("struct %s", message_type.name)
 
     for et in message_type.enum_type:
         to_cxx_enum(context, pp, et)
@@ -208,7 +214,10 @@ def to_cxx_struct(context, pp, message_type):
         elif f.type ==  FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
             p(context.get_field_type_name(f), field_name)
         else:
-            p(type_to_ctype[f.type], field_name)
+            if (context.should_align_field(f)):
+                p_aligned(type_to_ctype[f.type], field_name)
+            else:
+                p(type_to_ctype[f.type], field_name)
     pp.p('')
     pp.p('static dmDDF::Descriptor* m_DDFDescriptor;')
     pp.p('static const uint64_t m_DDFHash;')
@@ -528,7 +537,7 @@ def to_ensure_struct_alias_size(context, file_desc, pp_cpp):
     pp_cpp.begin('void EnsureStructAliasSize_%s()' % m.hexdigest())
 
     for t, at in context.type_alias_messages.iteritems():
-        pp_cpp.p('DDF_STATIC_ASSERT(sizeof(%s) == sizeof(%s), Invalid_Struct_Alias_Size);' % (dot_to_cxx_namespace(t), at))
+        pp_cpp.p('DM_STATIC_ASSERT(sizeof(%s) == sizeof(%s), Invalid_Struct_Alias_Size);' % (dot_to_cxx_namespace(t), at))
 
     pp_cpp.end()
 
@@ -556,6 +565,7 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     for d in file_desc.dependency:
         if not 'ddf_extensions' in d:
             pp_h.p('#include "%s"', d.replace(".proto", ".h"))
+    pp_h.p('#include <dlib/align.h>')
 
     for i in includes:
         pp_h.p('#include "%s"', i)
@@ -578,7 +588,6 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     f_cpp = StringIO()
 
     pp_cpp = PrettyPrinter(f_cpp, 0)
-    pp_cpp.p('#include <dlib/align.h>')
     pp_cpp.p('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
         if not 'ddf_extensions' in d:
@@ -639,6 +648,18 @@ class CompilerContext(object):
 
             for et in message_type.enum_type:
                 self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, et)
+
+    def should_align_field(self, f):
+        for x in f.options.ListFields():
+            if x[0].name == 'field_align':
+                return True
+        return False
+
+    def should_align_struct(self, mt):
+        for x in mt.options.ListFields():
+            if x[0].name == 'struct_align':
+                return True
+        return False
 
     def has_type_alias(self, type_name):
         mt = self.message_types[type_name]

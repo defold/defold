@@ -6,11 +6,13 @@ option java_outer_classname = "DdfExtensions";
 extend google.protobuf.MessageOptions
 {
     optional string alias = 50000;
+    optional bool struct_align = 50003;
 }
 
 extend google.protobuf.FieldOptions
 {
     optional bool resource = 50100;
+    optional bool field_align = 50004;
 }
 
 extend google.protobuf.EnumValueOptions

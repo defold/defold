@@ -13,7 +13,7 @@
 namespace dmMessage
 {
     // Alignment of allocations
-    const uint32_t DM_MESSAGE_ALIGNMENT = 4U;
+    const uint32_t DM_MESSAGE_ALIGNMENT = 16U;
     // Page size must be a multiple of ALIGNMENT. Currently 4 but could be changed to 16.
     // This simplifies the allocation scheme
     const uint32_t DM_MESSAGE_PAGE_SIZE = 4096U;

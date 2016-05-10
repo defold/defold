@@ -170,7 +170,8 @@ namespace dmDDF
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
         int message_buffer_size = load_context.GetMemoryUsage();
-        char* message_buffer = (char*) malloc(message_buffer_size);
+        char* message_buffer = (char*) malloc(message_buffer_size); // TODO Use _aligned_malloc on Windows
+        assert((int)message_buffer % 16 == 0);
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
         Message message = load_context.AllocMessage(desc);
 
