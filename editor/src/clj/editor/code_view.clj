@@ -268,7 +268,7 @@
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
 
-(defn setup-source-viewer [opts]
+(defn setup-source-viewer [opts use-custom-skin?]
   (let [source-viewer (SourceViewer.)
         source-viewer-config (create-viewer-config opts)
         document (Document. "")
@@ -282,15 +282,16 @@
     (.setDocument source-viewer document)
 
     (let [text-area (.getTextWidget source-viewer)
-          styled-text-behavior (new DefoldStyledTextBehavior text-area)
-          skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
-      (.setSkin text-area skin)
+          styled-text-behavior (new DefoldStyledTextBehavior text-area)]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
-      (.addEventHandler  ^ListView (.getListView skin)
-                         MouseEvent/MOUSE_CLICKED
-                          (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))
+     (when use-custom-skin?
+       (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
+         (.setSkin text-area skin)
+         (.addEventHandler  ^ListView (.getListView skin)
+                            MouseEvent/MOUSE_CLICKED
+                            (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
 
       (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
       (ui/user-data! text-area ::programmatic-change (atom nil))
@@ -388,7 +389,7 @@
                    (mapv style-fn style-ranges))))
 
 (defn make-view [graph ^Parent parent code-node opts]
-  (let [source-viewer (setup-source-viewer opts)
+  (let [source-viewer (setup-source-viewer opts true)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
