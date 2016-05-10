@@ -1,34 +1,5 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.FileNotFoundException;
-import java.io.StringReader;
-import java.util.Enumeration;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-
-import java.net.URI;
-import java.net.URL;
-
-import javax.persistence.EntityManager;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriBuilder;
-
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -42,10 +13,29 @@ import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import javax.persistence.EntityManager;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.UriBuilder;
+import java.io.*;
+import java.net.URI;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+import static org.junit.Assert.*;
 
 public class ProjectResourceTest extends AbstractResourceTest {
 
-    private int port = 6500;
+    private static final int PORT = 6500;
 
     private String ownerEmail = "owner@foo.com";
     private String ownerPassword = "secret";
@@ -124,22 +114,22 @@ public class ProjectResourceTest extends AbstractResourceTest {
         URI uri;
         Client client;
 
-        uri = UriBuilder.fromUri("http://localhost/users").port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
         usersResource = client.resource(uri);
         ownerInfo = get(usersResource, String.format("/%s", ownerEmail), UserInfo.class);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d", ownerInfo.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d", ownerInfo.getId())).port(PORT).build();
         ownerProjectsResource = client.resource(uri);
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(PORT).build();
         ownerProjectResource = client.resource(uri);
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(memberEmail, memberPassword));
         memberInfo = get(usersResource, String.format("/%s", memberEmail), UserInfo.class);
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", memberInfo.getId(), proj1.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", memberInfo.getId(), proj1.getId())).port(PORT).build();
         memberProjectsWebResource = client.resource(uri);
 
         // Add member
@@ -149,7 +139,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(nonMemberEmail, nonMemberPassword));
         nonMemberInfo = get(usersResource, String.format("/%s", nonMemberEmail), UserInfo.class);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", nonMemberInfo.getId(), proj1.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", nonMemberInfo.getId(), proj1.getId())).port(PORT).build();
         nonMemberProjectsWebResource = client.resource(uri);
 
         execCommand("scripts/setup_testdata.sh", Long.toString(proj1.getId()));
