@@ -26,9 +26,12 @@ namespace dmCrash
         uint32_t offset = 0;
         for (int i = 0; i < g_AppState.m_PtrCount; ++i)
         {
+            // Write each symbol on a separate line, just like
+            // backgrace_symbols_fd would do.
             memcpy(g_AppState.m_Extra + offset, stacktrace[i], strlen(stacktrace[i]));
             g_AppState.m_Extra[offset + strlen(stacktrace[i])] = '\n';
             offset += strlen(stacktrace[i]) + 1;
+            free(stacktrace[i]); // Allocated by backtrace_symbols.
         }
 
         WriteCrash(g_FilePath, &g_AppState);

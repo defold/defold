@@ -136,9 +136,11 @@ namespace dmCrash
         uint32_t offset = 0;
         for (int i = 0;i < dmMath::Min(g_AppState.m_PtrCount, AppState::PTRS_MAX); ++i)
         {
+            // Write each pointer on a separate line, much like backtrace_symbols_fd.
             char current[128];
             sprintf(current, "#%d %p\n", i, g_AppState.m_Ptr[i]);
             memcpy(g_AppState.m_Extra + offset, current, strlen(current));
+            offset += strlen(current);
         }
 
         WriteCrash(g_FilePath, &g_AppState);

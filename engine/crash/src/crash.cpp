@@ -85,8 +85,7 @@ namespace dmCrash
     {
         AppStateHeader header;
         memset(&header, 0x0, sizeof(AppStateHeader));
-        int rd = fread(&header, 1, sizeof(AppStateHeader), f);
-        if (rd == sizeof(AppStateHeader))
+        if (fread(&header, 1, sizeof(AppStateHeader), f) == sizeof(AppStateHeader))
         {
             memset(&g_PreviousAppState, 0x0, sizeof(AppState));
             if (header.version == AppState::VERSION && header.struct_size == sizeof(AppState))
@@ -226,7 +225,7 @@ namespace dmCrash
     uint32_t GetBacktraceAddrCount(HDump dump)
     {
         AppState* state = Check(dump);
-        if (state)
+        if (state != NULL)
         {
             return dmMath::Min(AppState::PTRS_MAX, state->m_PtrCount);
         }
@@ -237,7 +236,7 @@ namespace dmCrash
     void* GetBacktraceAddr(HDump dump, uint32_t index)
     {
         AppState* state = Check(dump);
-        if (state)
+        if (state != NULL)
         {
             if (index < dmMath::Min(AppState::PTRS_MAX, state->m_PtrCount))
             {
@@ -253,7 +252,7 @@ namespace dmCrash
         if (index < AppState::MODULES_MAX)
         {
             AppState* state = Check(dump);
-            if (state && state->m_ModuleName[index][0])
+            if (state != NULL && state->m_ModuleName[index][0])
             {
                 char* field = state->m_ModuleName[index];
                 field[AppState::MODULE_NAME_SIZE - 1] = 0;
@@ -269,7 +268,7 @@ namespace dmCrash
         if (index < AppState::MODULES_MAX)
         {
             AppState* state = Check(dump);
-            if (state)
+            if (state != NULL)
             {
                 return state->m_ModuleAddr[index];
             }
