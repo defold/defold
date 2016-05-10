@@ -31,9 +31,9 @@ namespace dmCrash
             memcpy(g_AppState.m_Extra + offset, stacktrace[i], strlen(stacktrace[i]));
             g_AppState.m_Extra[offset + strlen(stacktrace[i])] = '\n';
             offset += strlen(stacktrace[i]) + 1;
-            free(stacktrace[i]); // Allocated by backtrace_symbols.
         }
 
+        free(stacktrace);
         WriteCrash(g_FilePath, &g_AppState);
     }
 

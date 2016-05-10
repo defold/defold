@@ -2,6 +2,7 @@
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
