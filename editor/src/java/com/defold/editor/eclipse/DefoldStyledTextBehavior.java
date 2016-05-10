@@ -34,6 +34,37 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
                 super(styledText);
 	}
 
+        private int colx = 0;
+        private int tabSize = 4;
+
+       /**
+        * Fix for keeping track of the horizontal caret position when
+        * changing lines - Defold
+        **/
+
+        public void setPreferredColOffset(int x){
+          colx =x;
+        }
+
+        public int getPreferredColOffset(){
+          return colx;
+        }
+
+        /**
+        *  Call to remember the horizonatal caret position when
+        *  changing lines
+        **/
+        public void rememberCaretCol(int offset){
+          int currentRowIndex = getControl().getContent().getLineAtOffset(offset);
+          int startOffset = getControl().getContent().getOffsetAtLine(currentRowIndex);
+          int offsetLength = offset - startOffset;
+          String offsetText = getControl().getContent().getTextRange(startOffset, offsetLength);
+          int tabCount = (int) offsetText.chars().filter(num -> num == '\t').count();
+          int colOffset = offsetLength + (tabCount * (tabSize - 1));
+
+          setPreferredColOffset(colOffset);
+        }
+
 	/**
 	 * Handle key event
 	 *
@@ -47,6 +78,35 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			defold_keyTyped(arg0);
 		}
 	}
+
+        /**
+	 * handle the mouse pressed
+	 *
+	 * @param arg0
+	 *            the mouse event
+	 */
+	public void mousePressed(MouseEvent arg0) {
+		getControl().requestFocus();
+	}
+
+       	/**
+	 * Send a mouse pressed
+	 *
+	 * @param event
+	 *            the event
+	 * @param visibleCells
+	 *            the visible cells
+	 * @param selection
+	 *            are we in selection mode
+         *  Override for Defold to handle down/up width
+	 */
+	@SuppressWarnings("deprecation")
+        @Override
+	public void updateCursor(MouseEvent event, List<LineCell> visibleCells, boolean selection) {
+            super.updateCursor(event, visibleCells, selection);
+            rememberCaretCol(getControl().getCaretOffset());
+        }
+
 
 
 	@SuppressWarnings("deprecation")
@@ -76,6 +136,8 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		case CONTROL:
 			break;
 		case LEFT: {
+
+                    /**
 			if (event.isAltDown()) {
 				invokeAction(ActionType.WORD_PREVIOUS);
 			} else {
@@ -91,9 +153,15 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				getControl().impl_setCaretOffset(newOffset, event.isShiftDown());
 				event.consume();
 			}
-			break;
+                    **/
+
+                        rememberCaretCol(getControl().getCaretOffset());
+                        event.consume();
+                        break;
+
 		}
 		case RIGHT: {
+                    /**
 			if (event.isAltDown()) {
 				invokeAction(ActionType.WORD_NEXT);
 			} else if (event.isMetaDown()) {
@@ -118,8 +186,14 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				event.consume();
 			}
 			break;
+                    **/
+
+                    rememberCaretCol(getControl().getCaretOffset());
+                    event.consume();
+                    break;
 		}
 		case UP: {
+                    /**
 			int rowIndex = currentRowIndex;
 
 			if (rowIndex == 0) {
@@ -133,11 +207,19 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			int newCaretPosition = lineOffset + colIdx;
 			int maxPosition = lineOffset + getControl().getContent().getLine(rowIndex).length();
 
-			getControl().impl_setCaretOffset(Math.min(newCaretPosition, maxPosition), event.isShiftDown());
+			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
+			maxPosition), event.isShiftDown());
+
+
+                        System.out.println("up");
+                        System.out.println("colx!"  + colx);
+                    **/
 			event.consume();
 			break;
 		}
 		case DOWN: {
+
+                    /**
 			int rowIndex = currentRowIndex;
 			if (rowIndex + 1 == getControl().getContent().getLineCount()) {
 				break;
@@ -150,7 +232,10 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			int newCaretPosition = lineOffset + colIdx;
 			int maxPosition = lineOffset + getControl().getContent().getLine(rowIndex).length();
 
-			getControl().impl_setCaretOffset(Math.min(newCaretPosition, maxPosition), event.isShiftDown());
+			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
+			maxPosition), event.isShiftDown());
+
+                    **/
 			event.consume();
 			break;
 		}
@@ -179,16 +264,19 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			break;
 		case DELETE:
 			if (getControl().getEditable()) {
+                            /** Defold handling ourselves
 				if (event.isMetaDown()) {
 					invokeAction(ActionType.DELETE_WORD_NEXT);
 				} else {
 					getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 1, ""); //$NON-NLS-1$
 					getControl().setCaretOffset(offset);
 				}
+                            **/
 				break;
 			}
 		case BACK_SPACE:
 			if (getControl().getEditable()) {
+                            /** Defold handling oursleves
 				if (event.isMetaDown()) {
 					invokeAction(ActionType.DELETE_WORD_PREVIOUS);
 				} else {
@@ -201,6 +289,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 						getControl().setCaretOffset(offset - 1);
 					}
 				}
+                            **/
 				break;
 			}
 		case TAB:
@@ -219,7 +308,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			if (getControl().getEditable()) {
 				if (event.isShortcutDown()) {
                                     //getControl().paste();
-                                    //we are handling this through the graph
+                                    //Defold we are handling this through the graph
 					event.consume();
 					break;
 				}
@@ -227,7 +316,8 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		case X:
 			if (getControl().getEditable()) {
 				if (event.isShortcutDown()) {
-					getControl().cut();
+                                    //Defold handling ourselves
+                                    //	getControl().cut();
 					event.consume();
 					break;
 				}
@@ -235,7 +325,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		case C: {
 			if (event.isShortcutDown()) {
                             //getControl().copy();
-                            //we are handling this through the graph
+                            //Defold we are handling this through the graph
 				event.consume();
 				break;
 			}
@@ -266,8 +356,12 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 					&& !event.isMetaDown()) {
 				final int offset = getControl().getCaretOffset();
 				getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
-				getControl().setCaretOffset(offset + 1);
-			}
+                                final int newOffset = offset + 1;
+				getControl().setCaretOffset(newOffset);
+                                rememberCaretCol(newOffset);
+                        }
+
 		}
 	}
+
 }
