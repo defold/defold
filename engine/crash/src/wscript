@@ -19,8 +19,8 @@ def build(bld):
         load_addrs = 'load_addrs_proc_smap.cpp'
         file_handler = 'file_posix.cpp'
     elif not ('js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']):
-            file_handler = 'file_posix.cpp'
-            sig_handler = 'backtrace_execinfo.cpp'
+        file_handler = 'file_posix.cpp'
+        sig_handler = 'backtrace_execinfo.cpp'
 
     if 'js-web' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_jsweb.cpp';

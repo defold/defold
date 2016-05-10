@@ -17,16 +17,21 @@ namespace dmCrash
     static const int SIGNAL_MAX = 64;
     static struct sigaction old_signal[SIGNAL_MAX];
 
-    void WriteExtra(int fd)
-    {
-        backtrace_symbols_fd(g_AppState.m_Ptr, g_AppState.m_PtrCount, fd);
-    }
-
     void OnCrash(int signo)
     {
         g_AppState.m_PtrCount = backtrace(g_AppState.m_Ptr, AppState::PTRS_MAX);
         g_AppState.m_Signum = signo;
-        WriteCrash(g_FilePath, &g_AppState, WriteExtra);
+
+        char** stacktrace = backtrace_symbols(g_AppState.m_Ptr, g_AppState.m_PtrCount);
+        uint32_t offset = 0;
+        for (int i = 0; i < g_AppState.m_PtrCount; ++i)
+        {
+            memcpy(g_AppState.m_Extra + offset, stacktrace[i], strlen(stacktrace[i]));
+            g_AppState.m_Extra[offset + strlen(stacktrace[i])] = '\n';
+            offset += strlen(stacktrace[i]) + 1;
+        }
+
+        WriteCrash(g_FilePath, &g_AppState);
     }
 
     void WriteDump()

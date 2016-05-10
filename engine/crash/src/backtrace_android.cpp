@@ -71,19 +71,6 @@ namespace dmCrash
         sigcontext uc_mcontext;
     };
 
-    //
-
-    void WriteExtra(int fd)
-    {
-        // Simple #0 <addr0> #1 <addr1> list.
-        for (uint32_t i=0;i!=g_AppState.m_PtrCount && i < AppState::PTRS_MAX;i++)
-        {
-            char tmp[128];
-            sprintf(tmp, "#%d %p\n", i, g_AppState.m_Ptr[i]);
-            write(fd, tmp, strlen(tmp));
-        }
-    }
-
     void OnCrash(int signo, siginfo_t const *si, const ucontext *uc)
     {
         if (unw_init_local)
@@ -145,7 +132,16 @@ namespace dmCrash
         }
 
         g_AppState.m_Signum = signo;
-        WriteCrash(g_FilePath, &g_AppState, WriteExtra);
+
+        uint32_t offset = 0;
+        for (int i = 0;i < dmMath::Min(g_AppState.m_PtrCount, AppState::PTRS_MAX); ++i)
+        {
+            char current[128];
+            sprintf(current, "#%d %p\n", i, g_AppState.m_Ptr[i]);
+            memcpy(g_AppState.m_Extra + offset, current, strlen(current));
+        }
+
+        WriteCrash(g_FilePath, &g_AppState);
     }
 
     void WriteDump()

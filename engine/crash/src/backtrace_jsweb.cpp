@@ -14,34 +14,23 @@
 
 void dmCrash::WriteDump()
 {
-    // WriteDump is void for js-web, JSWriteDump is used instead.
+    // WriteDump is void for js-web, see JSWriteDump.
 }
 
 void dmCrash::InstallHandler()
 {
-    // Crash handler is installed directly via JavaScript.
-    // window.onerror = crash_handler;
+    // window.onerror is set in dmloader.js.
 }
 
-static char json_buffer[dmCrash::AppState::EXTRA_MAX];
-
-extern "C" void JSWriteExtra(int fd) {
-    write(fd, json_buffer, strlen(json_buffer));
-}
-
-extern "C" void JSWriteDump(char* message, char* json_stacktrace) {
+extern "C" void JSWriteDump(char* json_stacktrace) {
     dmCrash::g_AppState.m_PtrCount = 0;
     dmCrash::g_AppState.m_Signum = 0xDEAD;
-
     dmJson::Document doc = { 0 };
-    memset(json_buffer, 0x0, dmCrash::AppState::EXTRA_MAX);
     if (dmJson::Parse(json_stacktrace, &doc) == dmJson::RESULT_OK)
     {
         uint32_t len = dmMath::Min(dmCrash::AppState::EXTRA_MAX - 1, strlen(json_stacktrace));
-        strncpy(json_buffer, json_stacktrace, len);
-        dmCrash::WriteCrash(dmCrash::g_FilePath, &dmCrash::g_AppState, JSWriteExtra);
-
-        memset(json_buffer, 0x0, dmCrash::AppState::EXTRA_MAX);
+        strncpy(dmCrash::g_AppState.m_Extra, json_stacktrace, len);
+        dmCrash::WriteCrash(dmCrash::g_FilePath, &dmCrash::g_AppState);
         dmJson::Free(&doc);
     }
 }
