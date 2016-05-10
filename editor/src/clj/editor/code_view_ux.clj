@@ -86,12 +86,10 @@
                  (add-modifier info :control? "Control+")
                  (add-modifier info :shift? "Shift+")
                  (keyword))]
-    (println "code" code)
     (get mappings code)))
 
 (defn- click-fn [click-count]
   (let [code (if (= click-count 2) :Double-Click :Single-Click)]
-    (println "code" code)
     (get mappings code)))
 
 (defn handle-key-pressed [e source-viewer]
@@ -458,7 +456,6 @@
 (handler/defhandler :delete-to-end-of-line :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (println "delete-to-end-of-line")
     (let [c (caret selection)
           doc (text selection)
           np (adjust-bounds doc c)
@@ -470,7 +467,6 @@
 (handler/defhandler :delete-to-start-of-line :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (println "delete-to-start-of-line")
     (let [c (caret selection)
           doc (text selection)
           np (adjust-bounds doc c)
