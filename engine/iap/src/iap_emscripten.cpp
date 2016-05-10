@@ -7,6 +7,7 @@
 #include <script/script.h>
 #include <extension/extension.h>
 #include "iap.h"
+#include "iap_common.h"
 
 #define LIB_NAME "iap"
 struct IAP;
@@ -187,20 +188,13 @@ int IAP_List(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
-    luaL_checktype(L, 1, LUA_TTABLE);
-    char buf[1024];
-    buf[0] = '\0';
-    int i = 0;
-    lua_pushnil(L);
-    while (lua_next(L, 1) != 0) {
-        if (i > 0) {
-            dmStrlCat(buf, ",", sizeof(buf));
-        }
-        const char* p = luaL_checkstring(L, -1);
-        dmStrlCat(buf, p, sizeof(buf));
-        lua_pop(L, 1);
-        ++i;
+    char* buf = IAP_List_CreateBuffer(L);
+    if( buf == 0 )
+    {
+        assert(top == lua_gettop(L));
+        return 0;
     }
+
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
     g_IAP.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -209,6 +203,7 @@ int IAP_List(lua_State* L)
     g_IAP.m_L = dmScript::GetMainThread(L);
     dmIAPFBList(buf, (OnIAPFBList)IAPList_Callback, g_IAP.m_L);
 
+    free(buf);
     assert(top == lua_gettop(L));
     return 0;
 }

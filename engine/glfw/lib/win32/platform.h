@@ -232,12 +232,18 @@ typedef const GLubyte * (APIENTRY *PFNGLGETSTRINGIPROC) (GLenum, GLuint);
 //========================================================================
 
 // gdi32.dll function pointer typedefs
+#ifndef _GLFW_NO_DLOAD_USER32
+typedef BOOL (WINAPI * SETPROCESSDPIAWARE_T) (void);
+#endif // _GLFW_NO_DLOAD_USER32
+
+// gdi32.dll function pointer typedefs
 #ifndef _GLFW_NO_DLOAD_GDI32
 typedef int  (WINAPI * CHOOSEPIXELFORMAT_T) (HDC,CONST PIXELFORMATDESCRIPTOR*);
 typedef int  (WINAPI * DESCRIBEPIXELFORMAT_T) (HDC,int,UINT,LPPIXELFORMATDESCRIPTOR);
 typedef int  (WINAPI * GETPIXELFORMAT_T) (HDC);
 typedef BOOL (WINAPI * SETPIXELFORMAT_T) (HDC,int,const PIXELFORMATDESCRIPTOR*);
 typedef BOOL (WINAPI * SWAPBUFFERS_T) (HDC);
+typedef int  (WINAPI * GETDEVICECAPS_T) (HDC,int);
 #endif // _GLFW_NO_DLOAD_GDI32
 
 // winmm.dll function pointer typedefs
@@ -345,6 +351,7 @@ struct _GLFWwin_struct {
     int       has_GL_ARB_texture_non_power_of_two;
     int       glMajor, glMinor, glRevision;
     int       glForward, glDebug, glProfile;
+    int       highDPI;
 
     PFNGLGETSTRINGIPROC GetStringi;
 
@@ -446,6 +453,12 @@ GLFWGLOBAL struct {
 #if !defined(_GLFW_NO_DLOAD_WINMM) || !defined(_GLFW_NO_DLOAD_GDI32)
   // Library handles and function pointers
   struct {
+#ifndef _GLFW_NO_DLOAD_USER32
+      // user32.dll
+      HINSTANCE             user32;
+      SETPROCESSDPIAWARE_T  SetProcessDPIAware;
+#endif // _GLFW_NO_DLOAD_USER32
+
 #ifndef _GLFW_NO_DLOAD_GDI32
       // gdi32.dll
       HINSTANCE             gdi32;
@@ -454,6 +467,7 @@ GLFWGLOBAL struct {
       GETPIXELFORMAT_T      GetPixelFormat;
       SETPIXELFORMAT_T      SetPixelFormat;
       SWAPBUFFERS_T         SwapBuffers;
+      GETDEVICECAPS_T       GetDeviceCaps;
 #endif // _GLFW_NO_DLOAD_GDI32
 
       // winmm.dll

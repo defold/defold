@@ -254,7 +254,7 @@ namespace dmConnectionPool
         return false;
     }
 
-    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, uint64_t timeout, Connection* c, dmSocket::Result* sr)
+    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, int timeout, Connection* c, dmSocket::Result* sr)
     {
         bool use_socks = getenv("DMSOCKS_PROXY") != 0;
         if (use_socks) {
@@ -312,7 +312,7 @@ namespace dmConnectionPool
         return RESULT_OK;
     }
 
-    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, uint64_t timeout, Connection* c, dmSocket::Result* sr)
+    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, int timeout, Connection* c, dmSocket::Result* sr)
     {
         uint64_t connectstart = dmTime::GetTime();
 
@@ -337,7 +337,7 @@ namespace dmConnectionPool
             if (ssl) {
 
                 // Consume the amount of time spent in the connect code
-                uint64_t ssl_handshake_timeout = timeout == 0 ? 0 : timeout - (handshakestart - connectstart);
+                int ssl_handshake_timeout = timeout == 0 ? 0 : timeout - int(handshakestart - connectstart);
 
                 // In order to not have it block (unless timeout == 0)
                 dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
@@ -360,7 +360,7 @@ namespace dmConnectionPool
                         break;
 
                     uint64_t currenttime = dmTime::GetTime();
-                    if( ssl_handshake_timeout > 0 && (currenttime-handshakestart) > (uint64_t)ssl_handshake_timeout )
+                    if( ssl_handshake_timeout > 0 && int(currenttime - handshakestart) > ssl_handshake_timeout )
                     {
                         *sr = dmSocket::RESULT_WOULDBLOCK;
                         break;
