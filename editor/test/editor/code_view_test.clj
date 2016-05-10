@@ -21,7 +21,7 @@
   (with-clean-system
    (let [code ""
          opts lua/lua
-         source-viewer (setup-source-viewer opts)
+         source-viewer (setup-source-viewer opts false)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
      (testing "default style"
        (let [new-code "x="]
@@ -68,7 +68,7 @@
   (with-clean-system
    (let [code ""
          opts (:code shader/glsl-opts)
-         source-viewer (setup-source-viewer opts)
+         source-viewer (setup-source-viewer opts false)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code shader/ShaderNode)]
      (testing "default style"
        (let [new-code "x="]
