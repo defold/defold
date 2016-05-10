@@ -5,4 +5,6 @@
 /src/generated
 /server*.log
 /derby.log
+/*.iml
+/local
 

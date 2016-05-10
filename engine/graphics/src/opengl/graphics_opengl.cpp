@@ -150,7 +150,7 @@ void LogGLError(GLint err)
 
 #define CHECK_GL_ERROR \
     { \
-        if(dLib::IsDebugMode()) { \
+        if(g_Context->m_VerifyGraphicsCalls) { \
             GLint err = glGetError(); \
             if (err != 0) \
             { \
@@ -162,7 +162,7 @@ void LogGLError(GLint err)
 
 #define CLEAR_GL_ERROR \
     { \
-        if(dLib::IsDebugMode()) { \
+        if(g_Context->m_VerifyGraphicsCalls) { \
             glGetError(); \
         } \
     }\
@@ -252,6 +252,7 @@ static void LogFrameBufferError(GLenum status)
     {
         memset(this, 0, sizeof(*this));
         m_ModificationVersion = 1;
+        m_VerifyGraphicsCalls = params.m_VerifyGraphicsCalls;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         // Formats supported on all platforms
@@ -345,6 +346,11 @@ static void LogFrameBufferError(GLenum status)
         assert(params);
 
         if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
+
+        if (params->m_HighDPI) {
+            glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
+        }
+
 
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
         int mode = GLFW_WINDOW;

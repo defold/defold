@@ -13,6 +13,7 @@ namespace dmGraphics
     , m_Title("Dynamo App")
     , m_Fullscreen(false)
     , m_PrintDeviceInfo(false)
+    , m_HighDPI(false)
     {
 
     }
@@ -20,6 +21,7 @@ namespace dmGraphics
     ContextParams::ContextParams()
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
+    , m_VerifyGraphicsCalls(false)
     {
 
     }

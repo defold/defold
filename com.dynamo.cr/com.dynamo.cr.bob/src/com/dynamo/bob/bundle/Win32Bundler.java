@@ -51,12 +51,14 @@ public class Win32Bundler implements IBundler {
         if (icon != null) {
             File iconFile = new File(project.getRootDirectory(), icon);
             if (iconFile.exists()) {
-                String[] args = new String[] { exe, iconFile.getAbsolutePath() };
+                String[] args = new String[] { exeOut.getAbsolutePath(), iconFile.getAbsolutePath() };
                 try {
                     IconExe.main(args);
                 } catch (Exception e) {
                     throw new IOException("Failed to set icon for executable", e);
                 }
+            } else {
+                throw new IOException("The icon does not exist: " + iconFile.getAbsolutePath());
             }
         }
     }

@@ -134,7 +134,8 @@
                                             current-vals (properties/values (property-fn))]
                                         (if v
                                           (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                          (update-ui-fn current-vals (properties/validation-message (property-fn))))))])
+                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                        (properties/read-only? (property-fn))))))])
                                text-fields)]
       (ui/on-action! ^TextField t f)
       (ui/on-focus! t (fn [got-focus] (and (not got-focus) (f nil)))))
@@ -156,7 +157,9 @@
         box          (doto (HBox.)
                        (.setAlignment (Pos/BASELINE_LEFT)))
         update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
+                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values
+                                                                               (map #(get-in % (:path f)) values)))])
+                                                            fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
                        (update-field-message text-fields message))]
@@ -166,7 +169,8 @@
                                     current-vals (properties/values (property-fn))]
                                 (if v
                                   (properties/set-values! (property-fn) (mapv #(assoc-in % (:path f) v) current-vals))
-                                  (update-ui-fn current-vals (properties/validation-message (property-fn))))))])
+                                  (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                (properties/read-only? (property-fn))))))])
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (ui/on-focus! t (fn [got-focus] (and (not got-focus) (f nil)))))

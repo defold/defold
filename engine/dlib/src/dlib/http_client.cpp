@@ -158,7 +158,7 @@ namespace dmHttpClient
         HttpWrite           m_HttpWrite;
         HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
-        uint64_t            m_RequestTimeout;
+        int                 m_RequestTimeout;
         uint64_t            m_RequestStart;
         Statistics          m_Statistics;
 
@@ -275,7 +275,7 @@ namespace dmHttpClient
                 client->m_MaxGetRetries = (int) value;
                 break;
             case OPTION_REQUEST_TIMEOUT:
-                client->m_RequestTimeout = (uint64_t) value;
+                client->m_RequestTimeout = (int) value;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
@@ -299,7 +299,7 @@ namespace dmHttpClient
         if( client->m_RequestTimeout == 0 )
             return false;
         uint64_t currenttime = dmTime::GetTime();
-        return (currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
+        return int(currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
     }
 
     static dmSocket::Result SSLToSocket(int r) {
@@ -383,7 +383,7 @@ namespace dmHttpClient
                 r = ssl_read(response->m_SSLConnection, &buf);
                 uint64_t end = dmTime::GetTime();
 
-                uint64_t timeout = response->m_Client->m_RequestTimeout;
+                int timeout = response->m_Client->m_RequestTimeout;
                 if (timeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
                     return dmSocket::RESULT_WOULDBLOCK;
                 }

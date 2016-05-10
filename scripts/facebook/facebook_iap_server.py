@@ -45,16 +45,16 @@ class MyRequestHandler(BaseHTTPRequestHandler):
             self.send_error(404, "File Not Found %s" % self.path)
 
 
-def do_POST(self):
-    try:
-        if self.headers["Content-type"] == "application/json":
-            self.send_response(200)
-            length = int(self.headers.getheader('content-length'))
-            print 'content-data:', str(self.rfile.read(length))
-            return
-    except:
-        pass
-    self.do_GET()
+    def do_POST(self):
+        try:
+            if self.headers["Content-type"] == "application/json":
+                self.send_response(200)
+                length = int(self.headers.getheader('content-length'))
+                print 'content-data:', str(self.rfile.read(length))
+                return
+        except:
+            pass
+        self.do_GET()
 
 
 def main():
@@ -69,5 +69,5 @@ def main():
 
     server.socket.close()
 
-if name == "main":
+if __name__ == "__main__":
     main()

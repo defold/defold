@@ -347,6 +347,8 @@ namespace dmGraphics
         bool                    m_Fullscreen;
         /// Log info about the graphics device being used, false by default
         bool                    m_PrintDeviceInfo;
+
+        bool                    m_HighDPI;
     };
 
     // Parameters structure for NewContext
@@ -356,6 +358,7 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
+        bool          m_VerifyGraphicsCalls;
     };
 
     /** Creates a graphics context
