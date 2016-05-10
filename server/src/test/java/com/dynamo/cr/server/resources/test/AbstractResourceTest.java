@@ -1,29 +1,5 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
-
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-
-import javax.inject.Singleton;
-import javax.mail.MessagingException;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.ws.rs.core.UriBuilder;
-
-import org.apache.commons.io.FileUtils;
-import org.eclipse.persistence.config.PersistenceUnitProperties;
-import org.eclipse.persistence.jpa.PersistenceProvider;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
@@ -44,22 +20,48 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import org.apache.commons.io.FileUtils;
+import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.eclipse.persistence.jpa.PersistenceProvider;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.inject.Singleton;
+import javax.mail.MessagingException;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.ws.rs.core.UriBuilder;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+import static org.junit.Assert.assertEquals;
 
 public class AbstractResourceTest {
 
-    protected static Logger logger = LoggerFactory.getLogger(AbstractResourceTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractResourceTest.class);
+
+    private static Injector injector;
 
     static Server server;
-    static Module module;
     static TestMailer mailer;
     static EntityManagerFactory emf;
-    static Injector injector;
 
     static class TestMailer implements IMailer {
-        List<EMail> emails = new ArrayList<EMail>();
+        final List<EMail> emails = new ArrayList<>();
+
         @Override
         public void send(EMail email) throws MessagingException {
             emails.add(email);
+        }
+
+        List<EMail> getEmails() {
+            return emails;
         }
     }
 
@@ -77,7 +79,7 @@ public class AbstractResourceTest {
 
         mailer = new TestMailer();
 
-        module = new Module(mailer);
+        Module module = new Module(mailer);
         injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
@@ -86,7 +88,7 @@ public class AbstractResourceTest {
     }
 
     @AfterClass
-    public static void tearDownClass() throws Exception {
+    public static void tearDownClass() {
         server.stop();
     }
 
@@ -97,14 +99,10 @@ public class AbstractResourceTest {
         mailer.emails.clear();
     }
 
-    static class Module extends AbstractModule {
-        IMailer mailer;
+    private static class Module extends AbstractModule {
+        final IMailer mailer;
 
-        public Module() {
-            mailer = mock(IMailer.class);
-        }
-
-        public Module(IMailer mailer) {
+        Module(IMailer mailer) {
             this.mailer = mailer;
         }
 
@@ -149,7 +147,7 @@ public class AbstractResourceTest {
 
         int port = injector.getInstance(Configuration.class).getServicePort();
 
-        URI uri = UriBuilder.fromUri(String.format(baseURI)).port(port).build();
+        URI uri = UriBuilder.fromUri(baseURI).port(port).build();
         return client.resource(uri);
     }
 
@@ -164,12 +162,12 @@ public class AbstractResourceTest {
 
         int port = injector.getInstance(Configuration.class).getServicePort();
 
-        URI uri = UriBuilder.fromUri(String.format(baseURI)).port(port).build();
+        URI uri = UriBuilder.fromUri(baseURI).port(port).build();
         return client.resource(uri);
     }
 
     void execCommand(String command, String arg) throws IOException {
-        TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
+        TestUtil.Result r = TestUtil.execCommand(new String[]{"/bin/bash", command, arg});
         if (r.exitValue != 0) {
             System.err.println(r.stdOut);
             System.err.println(r.stdErr);
@@ -177,21 +175,23 @@ public class AbstractResourceTest {
         assertEquals(0, r.exitValue);
     }
 
-
-    protected static void clearTemporaryFileArea() {
+    static void clearTemporaryFileArea() {
         String cacheDirName = server.getConfiguration().getArchiveCacheRoot();
         File cacheDir = new File(cacheDirName);
 
-        if(!cacheDir.isDirectory()) {
+        if (!cacheDir.isDirectory()) {
             return;
         }
 
-        for (File dirFile : cacheDir.listFiles()) {
-            if(!dirFile.getName().startsWith(".")) {
-                try {
-                    FileUtils.deleteDirectory(dirFile);
-                } catch(IOException | IllegalArgumentException e) {
-                    logger.warn("Could not remove temporary file directory: " + dirFile.getName());
+        File[] files = cacheDir.listFiles();
+        if (files != null) {
+            for (File dirFile : files) {
+                if (!dirFile.getName().startsWith(".")) {
+                    try {
+                        FileUtils.deleteDirectory(dirFile);
+                    } catch (IOException | IllegalArgumentException e) {
+                        LOGGER.warn("Could not remove temporary file directory: " + dirFile.getName());
+                    }
                 }
             }
         }
@@ -199,8 +199,7 @@ public class AbstractResourceTest {
 
     File getRepositoryDir(long projectId) {
         String repositoryRoot = server.getConfiguration().getRepositoryRoot();
-        File repositoryDir = new File(String.format("%s/%d", repositoryRoot, projectId));
-        return repositoryDir;
+        return new File(String.format("%s/%d", repositoryRoot, projectId));
     }
 }
 

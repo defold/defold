@@ -1,17 +1,5 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.junit.Assert.assertEquals;
-
-import java.net.URI;
-import java.util.List;
-
-import javax.persistence.EntityManager;
-import javax.persistence.Query;
-import javax.ws.rs.core.UriBuilder;
-
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.providers.JsonProviders;
@@ -21,11 +9,21 @@ import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
+import org.junit.Before;
+import org.junit.Test;
+
+import javax.persistence.EntityManager;
+import javax.persistence.Query;
+import javax.ws.rs.core.UriBuilder;
+import java.net.URI;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
 
 
 public class ProspectsResourceTest extends AbstractResourceTest {
 
-    static int port = 6500;
+    private static final int PORT = 6500;
 
     private WebResource prospectsWebResource;
 
@@ -55,24 +53,24 @@ public class ProspectsResourceTest extends AbstractResourceTest {
 
         Client client = Client.create(cc);
 
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/prospects")).port(port).build();
+        URI uri = UriBuilder.fromUri("http://localhost/prospects").port(PORT).build();
         prospectsWebResource = client.resource(uri);
     }
 
-    void sleep() throws InterruptedException {
+    private void sleep() throws InterruptedException {
         // Arbitrary sleep for mail processor
         Thread.sleep(200);
     }
 
     @SuppressWarnings("unchecked")
-    List<Invitation> invitations(EntityManager em) {
+    private List<Invitation> invitations(EntityManager em) {
         return em.createQuery("select i from Invitation i").getResultList();
     }
 
     @Test
     public void testNewProspect() throws Exception {
         EntityManager em = emf.createEntityManager();
-        assertEquals(0, mailer.emails.size());
+        assertEquals(0, mailer.getEmails().size());
         final String email = "test@foo.com";
 
         ClientResponse response;
@@ -125,8 +123,8 @@ public class ProspectsResourceTest extends AbstractResourceTest {
             User user = new User();
             user.setPassword("pass");
             user.setEmail(String.format("foo%d@bar.com", userCount));
-            user.setFirstName(String.format("first", userCount));
-            user.setLastName(String.format("last", userCount));
+            user.setFirstName(String.format("first%d", userCount));
+            user.setLastName(String.format("last%d", userCount));
             em.persist(user);
             userCount++;
         }

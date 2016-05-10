@@ -1,36 +1,33 @@
 package com.dynamo.cr.server.auth.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator.Authentication;
 import com.dynamo.cr.server.model.User;
 import com.google.api.client.http.HttpRequestFactory;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class OAuthAuthenticatorTest {
-
+    private static final int MAX_ACTIVE_LOGINS = 1;
     private OAuthAuthenticator authenticator;
-    private final int maxActiveLogins = 1;
 
     @Before
     public void setUp() throws Exception {
-        authenticator = new OAuthAuthenticator(maxActiveLogins);
+        authenticator = new OAuthAuthenticator(MAX_ACTIVE_LOGINS);
     }
 
     @After
     public void tearDown() throws Exception {
     }
-
 
     @Test
     public void testGetAuthToken() throws Exception {
@@ -68,5 +65,4 @@ public class OAuthAuthenticatorTest {
         Authentication authentication = authenticator.exchange(loginToken);
         assertNull(authentication);
     }
-
 }
