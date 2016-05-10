@@ -63,7 +63,8 @@
    :Alt+Backspace :delete-prev-word
    :Alt+Delete :delete-next-word
    :Shift+Meta+Delete :delete-to-end-of-line
-   :Meta+Delete :delete-to-start-of-line})
+   :Meta+Delete :delete-to-start-of-line
+   :Meta+F :find-text})
 
 (def tab-size 4)
 
@@ -481,3 +482,24 @@
                        (subs doc np))]
       (text! selection new-doc)
       (caret! selection line-begin-offset false))))
+
+(defn find-text [selection find-text]
+  (let [c (caret selection)
+        doc (text selection)
+        found-idx (.indexOf doc find-text)
+        tlen (count find-text)]
+    (when (<= 0 found-idx)
+      (caret! selection (adjust-bounds doc (+ found-idx tlen)) false)
+      (text-selection! selection found-idx tlen))))
+
+(handler/defhandler :find-text :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    ;; when using show and wait on the dialog, was getting very
+    ;; strange double events not solved by consume - this is a
+    ;; workaround to let us use show
+    (let [text (promise)
+          stage (dialogs/make-find-text-dialog text)
+          find-text-fn (fn [] (when (realized? text)
+                                (find-text selection @text)))]
+      (.setOnHidden stage (ui/event-handler e (find-text-fn))))))
