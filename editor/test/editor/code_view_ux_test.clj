@@ -65,6 +65,22 @@
         (caret! source-viewer 0 false)
         (left! source-viewer)
         (left! source-viewer)
+        (is (= 0 (caret source-viewer))))
+      (testing "with chunk of selected text, right takes cursor to end of chunk"
+        (caret! source-viewer 0 false)
+        (text-selection! source-viewer 0 5)
+        (is (= 0 (caret source-viewer)))
+        (is (= "hello" (text-selection source-viewer)))
+        (right! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 5 (caret source-viewer))))
+      (testing "with chunk of selected text, left takes cursor to beginning of chunk"
+        (caret! source-viewer 5 false)
+        (text-selection! source-viewer 0 5)
+        (is (= 5 (caret source-viewer)))
+        (is (= "hello" (text-selection source-viewer)))
+        (left! source-viewer)
+        (is (= "" (text-selection source-viewer)))
         (is (= 0 (caret source-viewer)))))))
 
 (defn- select-right! [source-viewer]
@@ -82,15 +98,16 @@
      (testing "selecting right"
        (select-right! source-viewer)
        (select-right! source-viewer)
-       (g/node-value viewer-node :new-content)
        (is (= 2 (caret source-viewer)))
        (is (= 2 (g/node-value code-node :caret-position)))
        (is (= "he" (text-selection source-viewer))))
      (testing "selecting left"
+       (caret! source-viewer 5 false)
        (select-left! source-viewer)
-       (is (= 1 (caret source-viewer)))
-       (is (= 1 (g/node-value code-node :caret-position)))
-       (is (= "h" (text-selection source-viewer))))
+       (select-left! source-viewer)
+       (is (= 3 (caret source-viewer)))
+       (is (= 3 (g/node-value code-node :caret-position)))
+       (is (= "lo" (text-selection source-viewer))))
      (testing "out of bounds right"
        (caret! source-viewer (count code) false)
        (select-right! source-viewer)
