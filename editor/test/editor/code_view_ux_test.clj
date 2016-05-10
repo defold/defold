@@ -520,3 +520,21 @@
         (delete-to-start-of-line! source-viewer)
         (is (= "ck" (text source-viewer)))
         (is (= \c (get-char-at-caret source-viewer)))))))
+
+(defn- find-text! [source-viewer text]
+  ;; bypassing handler for the dialog handling
+  (find-text source-viewer text))
+
+(deftest find-text-test
+  (with-clean-system
+    (let [code "the blue ducks"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "find"
+        (find-text! source-viewer "the")
+        (is (= "the" (text-selection source-viewer)))
+        (is (= \space (get-char-at-caret source-viewer)))
+        (find-text! source-viewer "duck")
+        (is (= "duck" (text-selection source-viewer)))
+        (is (= \s (get-char-at-caret source-viewer)))))))
