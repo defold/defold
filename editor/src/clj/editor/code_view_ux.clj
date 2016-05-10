@@ -68,7 +68,8 @@
    :Meta+K :find-next
    :Meta+G :find-next
    :Shift+Meta+K :find-prev
-   :Shift+Meta+G :find-prev})
+   :Shift+Meta+G :find-prev
+   :Meta+E :replace-text})
 
 (def tab-size 4)
 
@@ -390,9 +391,10 @@
 (defn delete [selection]
   (let [c (caret selection)
         doc (text selection)
-        new-doc (str (subs doc 0 (dec c))
+        np (adjust-bounds doc c)
+        new-doc (str (subs doc 0 (dec np))
                      (subs doc c))
-        next-pos (adjust-bounds new-doc (dec c))]
+        next-pos (adjust-bounds new-doc (dec np))]
     (text! selection new-doc)
     (caret! selection next-pos false)))
 
@@ -531,3 +533,36 @@
           tlen (count search-text)
           found-idx (.lastIndexOf doc search-text (adjust-bounds doc (- np (inc tlen))))]
       (select-found-text selection doc found-idx tlen))))
+
+(defn replace-text [selection result]
+  (let [doc (text selection)
+        find-text (:find-text result)
+        replace-text (:replace-text result)
+        found-idx (.indexOf doc find-text)
+        tlen (count find-text)
+        tlen-new (count replace-text)
+        new-doc (str (subs doc 0 found-idx)
+                     replace-text
+                     (subs doc (+ found-idx tlen)))]
+    (caret! selection 0 false)
+    (text! selection new-doc)
+    (let [new-found-idx (.indexOf new-doc replace-text)]
+      (println :new-found-idx new-found-idx)
+      (text-selection! selection 0 0)
+      (caret! selection (+ tlen-new new-found-idx) false)
+      (text-selection! selection new-found-idx tlen-new)
+      )
+   ; (select-found-text selection doc found-idx tlen)
+    ))
+
+(handler/defhandler :replace-text :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    ;; when using show and wait on the dialog, was getting very
+    ;; strange double events not solved by consume - this is a
+    ;; workaround to let us use show
+    (let [result (promise)
+          stage (dialogs/make-replace-text-dialog result)
+          replace-text-fn (fn [] (when (realized? result)
+                                (replace-text selection @result)))]
+      (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
