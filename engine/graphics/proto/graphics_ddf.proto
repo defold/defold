@@ -24,6 +24,23 @@ message TextureImage
         // Corresponds to GL_TEXTURE_CUBE_MAP
         TYPE_CUBEMAP = 2;
     }
+
+    enum CompressionType
+    {
+        // Compression by format (RAW (none), PVRTC, ETC, DXT)
+        COMPRESSION_TYPE_DEFAULT = 0;
+        // WebP encoded
+        COMPRESSION_TYPE_WEBP = 1;
+        // WebP lossy encoded
+        COMPRESSION_TYPE_WEBP_LOSSY = 2;
+    }
+
+    enum CompressionFlags
+    {
+        // RGB to be cleared when A is zero
+        COMPRESSION_FLAG_ALPHA_CLEAN = 1;
+    }
+
     enum TextureFormat
     {
         TEXTURE_FORMAT_LUMINANCE         = 0;
@@ -59,8 +76,11 @@ message TextureImage
         required uint32 original_height = 4;
         required TextureFormat format   = 5;
         repeated uint32 mip_map_offset  = 6;
-        repeated uint32 mip_map_size    = 7;
+        repeated uint32 mip_map_size    = 7;    // always uncompressed (native) size
         required bytes data             = 8;
+        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
+        optional uint64 compression_flags = 10;
+        repeated uint32 mip_map_size_compressed  = 11;
     }
 
     repeated Image alternatives = 1;
@@ -84,6 +104,7 @@ message TextureFormatAlternative
 
     required TextureImage.TextureFormat format  = 1;
     required CompressionLevel compression_level = 2;
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
 }
 
 message PathSettings
