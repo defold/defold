@@ -71,31 +71,17 @@ import java.io.*;
 import static org.junit.Assert.*;
 import com.sun.jersey.core.util.MultivaluedMapImpl;
 
-
 public class ProjectsResourceTest extends AbstractResourceTest {
-    private static class TestUser {
-        User user;
-        String email;
-        String password;
-        WebResource projectsResource;
 
-        public TestUser(User user, String email, String password, WebResource projectsResource) {
-            this.user = user;
-            this.email = email;
-            this.password = password;
-            this.projectsResource = projectsResource;
-        }
-    }
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProjectsResourceTest.class);
+    private static final int PORT = 6500;
 
-    protected static Logger logger = LoggerFactory.getLogger(ProjectsResourceTest.class);
-
-    static int port = 6500;
-    String joeEmail = "joe@foo.com";
-    String joePasswd = "secret2";
-    String bobEmail = "bob@foo.com";
-    String bobPasswd = "secret3";
-    String adminEmail = "admin@foo.com";
-    String adminPasswd = "secret";
+    private String joeEmail = "joe@foo.com";
+    private String joePasswd = "secret2";
+    private String bobEmail = "bob@foo.com";
+    private String bobPasswd = "secret3";
+    private String adminEmail = "admin@foo.com";
+    private String adminPasswd = "secret";
     private User joeUser;
     private User adminUser;
     private User bobUser;
@@ -124,6 +110,20 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         // Bug ID: 6427251 HttpURLConnection automatically retries non-idempotent method POST
         // http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6427251
         System.setProperty("http.keepAlive", "false");
+    }
+
+    private static class TestUser {
+        User user;
+        String email;
+        String password;
+        WebResource projectsResource;
+
+        TestUser(User user, String email, String password, WebResource projectsResource) {
+            this.user = user;
+            this.email = email;
+            this.password = password;
+            this.projectsResource = projectsResource;
+        }
     }
 
     @Before
@@ -169,25 +169,25 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         adminClient = Client.create(cc);
         adminClient.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
 
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        URI uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
         adminProjectsWebResource = adminClient.resource(uri);
 
         joeClient = Client.create(cc);
         joeClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
         joeProjectsWebResource = joeClient.resource(uri);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
         joeUsersWebResource = joeClient.resource(uri);
 
         bobClient = Client.create(cc);
         bobClient.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
         bobProjectsWebResource = bobClient.resource(uri);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
         bobUsersWebResource = bobClient.resource(uri);
 
         joe = new TestUser(joeUser, joeEmail, joePasswd, joeProjectsWebResource);
@@ -204,12 +204,12 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     @Rule
     public TestRule watcher = new TestWatcher() {
         protected void starting(Description description) {
-            logger.info("Starting test: " + description.getMethodName());
+            LOGGER.info("Starting test: " + description.getMethodName());
         }
 
         @Override
         protected void finished(Description description) {
-            logger.info("Finished test: " + description.getMethodName());
+            LOGGER.info("Finished test: " + description.getMethodName());
         }
     };
 
@@ -252,12 +252,11 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         response.getEntity(ProjectInfo.class);
     }
 
-    class StressRunnable implements Runnable {
-
+    private class StressRunnable implements Runnable {
         private long projectId;
         public Throwable exception;
 
-        public StressRunnable(long projectId) {
+        StressRunnable(long projectId) {
             this.projectId = projectId;
         }
 
@@ -528,7 +527,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (UniformInterfaceException e) {
             assertThat(e.getResponse().getStatus(), is(400));
-            return;
         }
     }
 
@@ -549,7 +547,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         return projectInfo;
     }
 
-    private static String cloneRepoHttpAuth(TestUser testUser, ProjectInfo projectInfo) throws IOException, InvalidRemoteException, TransportException, GitAPIException {
+    private static String cloneRepoHttpAuth(TestUser testUser, ProjectInfo projectInfo) throws IOException, GitAPIException {
         File cloneDir = Files.createTempDir();
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, testUser.password);
         Git.cloneRepository()
@@ -561,7 +559,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         return cloneDir.getAbsolutePath();
     }
 
-    private static String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException, InvalidRemoteException, TransportException, GitAPIException {
+    private static String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException, GitAPIException {
 
         File cloneDir = Files.createTempDir();
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, AuthToken.login(testUser.email));
@@ -598,12 +596,12 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         cloneRepoOpenID(bob, projectInfo);
     }
 
-    ClientResponse testGetArchive(String version, String sha1) throws IOException {
+    private ClientResponse testGetArchive(String version, String sha1) throws IOException {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
         return testGetArchive(version, sha1, projectInfo);
     }
 
-    ClientResponse testGetArchive(String version, String sha1, ProjectInfo projectInfo) throws IOException {
+    private ClientResponse testGetArchive(String version, String sha1, ProjectInfo projectInfo) throws IOException {
         String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
         WebResource resource = joeProjectsWebResource.path(path);
         if (sha1 != null) {
@@ -614,7 +612,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         }
     }
 
-    void verifyArchive(ClientResponse response) throws IOException {
+    private void verifyArchive(ClientResponse response) throws IOException {
         InputStream is = response.getEntityInputStream();
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         IOUtils.copy(is, os);
@@ -627,14 +625,14 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         ZipFile zipFile = new ZipFile(zip);
         assertEquals(etag, zipFile.getComment());
         Enumeration<? extends ZipEntry> entries = zipFile.entries();
-        Set<String> names = new HashSet<String>();
+        Set<String> names = new HashSet<>();
         while (entries.hasMoreElements()) {
             ZipEntry ze = entries.nextElement();
             names.add(ze.getName());
         }
         zipFile.close();
 
-        assertEquals(new HashSet<String>(Arrays.asList("content/test space.txt", "content/file1.txt", "content/file2.txt")), names);
+        assertEquals(new HashSet<>(Arrays.asList("content/test space.txt", "content/file1.txt", "content/file2.txt")), names);
     }
 
     // NOTE:
@@ -714,11 +712,11 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
 
-    class ArchiveStressRunnable implements Runnable {
+    private class ArchiveStressRunnable implements Runnable {
         private long projectId;
         public Throwable exception;
 
-        public ArchiveStressRunnable(long projectId) {
+        ArchiveStressRunnable(long projectId) {
             this.projectId = projectId;
         }
 
@@ -757,15 +755,14 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
 
-    ClientResponse getArchiveETag(String version) {
+    private ClientResponse getArchiveETag(String version) {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
         return getArchiveETag(version, projectInfo.getId());
     }
 
-    ClientResponse getArchiveETag(String version, long projectId) {
+    private ClientResponse getArchiveETag(String version, long projectId) {
         String path = String.format("/%d/%d/archive/%s", -1, projectId, version);
-        ClientResponse headResponse = joeProjectsWebResource.path(path).head();
-        return headResponse;
+        return joeProjectsWebResource.path(path).head();
     }
 
     @Test
@@ -812,8 +809,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     private static File getServerProjectPath(long projectId) {
         String repositoryRoot = server.getConfiguration().getRepositoryRoot();
-        File projectPath = new File(String.format("%s/%d", repositoryRoot, projectId));
-        return projectPath;
+        return new File(String.format("%s/%d", repositoryRoot, projectId));
     }
 
     @Test
@@ -985,20 +981,13 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertFalse(lockFile.exists());
     }
 
-    private File getRepositoryDir(long projectId) {
-        String repositoryRoot = server.getConfiguration().getRepositoryRoot();
-        File repositoryDir = new File(String.format("%s/%d", repositoryRoot, projectId));
-        return repositoryDir;
-    }
-
     private WebResource getJoeGitWebResource() throws IllegalArgumentException, UriBuilderException {
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/test_data")).port(port).build();
+        URI uri = UriBuilder.fromUri("http://localhost/test_data").port(PORT).build();
         ClientConfig cc = new DefaultClientConfig();
         Client gitClient = Client.create(cc);
 
         gitClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-        WebResource gitWebResource = gitClient.resource(uri);
-        return gitWebResource;
+        return gitClient.resource(uri);
     }
 
     private void writePackedRefsFile(File file, boolean isLockFile) throws IOException {
@@ -1016,11 +1005,11 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         }
     }
 
-    class GitPushRunnable implements Runnable {
+    private class GitPushRunnable implements Runnable {
         private long projectId;
         public Throwable exception;
 
-        public GitPushRunnable(long projectId) {
+        GitPushRunnable(long projectId) {
             this.projectId = projectId;
         }
 
