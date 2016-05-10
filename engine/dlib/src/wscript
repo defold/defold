@@ -44,6 +44,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')

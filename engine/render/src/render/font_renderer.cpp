@@ -3,6 +3,8 @@
 #include <float.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dlib/static_assert.h>
+#include <dlib/align.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -109,12 +111,14 @@ namespace dmRender
 
     struct GlyphVertex
     {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations on
         float    m_Position[4];
         float    m_UV[2];
         uint32_t m_FaceColor;
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
+        uint32_t m_Pad[3];
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
@@ -286,6 +290,8 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
     {
+        DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
+
         TextContext& text_context = render_context->m_TextContext;
 
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
@@ -642,8 +648,6 @@ namespace dmRender
                             int16_t descent = (int16_t)g->m_Descent;
                             int16_t ascent = (int16_t)g->m_Ascent;
 
-                            // TODO: 16 bytes alignment and simd (when enabled in vector-math library)
-                            //       Legal cast? (strict aliasing)
                             (Vector4&) v1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
                             (Vector4&) v2.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
                             (Vector4&) v3.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
