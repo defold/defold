@@ -65,7 +65,10 @@
    :Shift+Meta+Delete :delete-to-end-of-line
    :Meta+Delete :delete-to-start-of-line
    :Meta+F :find-text
-   :Meta+K :find-next})
+   :Meta+K :find-next
+   :Meta+G :find-next
+   :Shift+Meta+K :find-prev
+   :Shift+Meta+G :find-prev})
 
 (def tab-size 4)
 
@@ -514,6 +517,17 @@
           doc (text selection)
           np (adjust-bounds doc c)
           search-text (text-selection selection)
-          found-idx (.indexOf doc search-text (int np))
+          found-idx (.indexOf doc search-text np)
           tlen (count search-text)]
+      (select-found-text selection doc found-idx tlen))))
+
+(handler/defhandler :find-prev :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          search-text (text-selection selection)
+          tlen (count search-text)
+          found-idx (.lastIndexOf doc search-text (adjust-bounds doc (- np (inc tlen))))]
       (select-found-text selection doc found-idx tlen))))
