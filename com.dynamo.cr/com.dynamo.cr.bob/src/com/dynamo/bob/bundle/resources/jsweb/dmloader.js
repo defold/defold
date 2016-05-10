@@ -310,13 +310,47 @@ var Module = {
         return webgl_support;
     },
 
-    runApp: function(app_canvas_name, splash_image, archive_location_filter, unsupported_webgl_callback) {
-        app_canvas_name = (typeof app_canvas_name === 'undefined') ?  'canvas' : app_canvas_name;
-        splash_image = (typeof splash_image === 'undefined') ?  'splash_image.png' : splash_image;
-        archive_location_filter = (typeof archive_location_filter === 'undefined') ?  function(path) { return 'split' + path; } : archive_location_filter;
+    /**
+    * Module.runApp - Starts the application given a canvas element id
+    *
+    * 'extra_params' is an optional object that can have the following fields:
+    *
+    *     'splash_image':
+    *         Path to an image that should be used as a background image for
+    *         the canvas element.
+    *
+    *     'archive_location_filter':
+    *         Filter function that will run for each archive path.
+    *
+    *     'unsupported_webgl_callback':
+    *         Function that is called if WebGL is not supported.
+    *
+    *     'engine_arguments':
+    *         List of arguments (strings) that will be passed to the engine.
+    *
+    **/
+    runApp: function(app_canvas_id, extra_params) {
+        app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
 
-        Module.canvas = document.getElementById(app_canvas_name);
-        Module.canvas.style.background = 'no-repeat center url("' + splash_image + '")';
+        var params = {
+            splash_image: undefined,
+            archive_location_filter: function(path) { return 'split' + path; },
+            unsupported_webgl_callback: undefined,
+            engine_arguments: []
+        };
+
+
+        for (var k in extra_params) {
+            if (extra_params.hasOwnProperty(k)) {
+                params[k] = extra_params[k];
+            }
+        }
+
+        Module.canvas = document.getElementById(app_canvas_id);
+        if (typeof params["splash_image"] !== 'undefined') {
+            Module.canvas.style.background = 'no-repeat center url("' + params["splash_image"] + '")';
+        }
+        Module.arguments = params["engine_arguments"];
 
         if (Module.hasWebGLSupport()) {
             // Override game keys
@@ -335,8 +369,8 @@ var Module = {
             Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
             Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
             Combine.addProgressListener(Module.onArchiveLoadProgress);
-            Combine._archiveLocationFilter = archive_location_filter;
-            Combine.process(archive_location_filter('/archive_files.json'));
+            Combine._archiveLocationFilter = params["archive_location_filter"];
+            Combine.process(Combine._archiveLocationFilter('/archive_files.json'));
         } else {
             Progress.addProgress(Module.canvas);
             Progress.updateProgress(100, "Unable to start game, WebGL not supported");
@@ -344,8 +378,8 @@ var Module = {
                 if (text) Module.printErr('[missing WebGL] ' + text);
             };
 
-            if (typeof unsupported_webgl_callback === "function") {
-                unsupported_webgl_callback();
+            if (typeof params["unsupported_webgl_callback"] === "function") {
+                params["unsupported_webgl_callback"]();
             }
         }
     },
@@ -463,7 +497,7 @@ var Module = {
         } else {
             Module.preloadAll();
             Progress.removeProgress();
-            Module.callMain();
+            Module.callMain(Module.arguments);
         }
     },
 

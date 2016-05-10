@@ -515,3 +515,15 @@
                (is (= "n-foo/foo" (g/node-value nid :foo)))
                (g/transact (g/set-property nid :foo "foo2"))
                (is (= "n-foo/foo2" (g/node-value nid :foo)))))))
+
+(g/defnode CachedBoolean
+  (property counter g/Any)
+  (output cached-boolean g/Bool :cached (g/fnk [counter] (swap! counter inc) false)))
+
+(deftest cached-booleans
+  (with-clean-system
+    (let [[nid] (tx-nodes (g/make-nodes world [n [CachedBoolean :counter (atom 0)]]))]
+      (is (false? (g/node-value nid :cached-boolean)))
+      (is (= 1 @(g/node-value nid :counter)))
+      (is (false? (g/node-value nid :cached-boolean)))
+      (is (= 1 @(g/node-value nid :counter))))))
