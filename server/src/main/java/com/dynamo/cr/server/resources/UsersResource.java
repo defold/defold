@@ -1,5 +1,7 @@
 package com.dynamo.cr.server.resources;
 
+import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.security.RolesAllowed;
@@ -24,6 +26,7 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
 
@@ -34,7 +37,7 @@ public class UsersResource extends BaseResource {
     private static Logger logger = LoggerFactory.getLogger(UsersResource.class);
     private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
-    static UserInfo createUserInfo(User u) {
+    private static UserInfo createUserInfo(User u) {
         UserInfo.Builder b = UserInfo.newBuilder();
         b.setId(u.getId())
          .setEmail(u.getEmail())
@@ -43,10 +46,10 @@ public class UsersResource extends BaseResource {
         return b.build();
     }
 
-    static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
+    private static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
         InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
         b.setOriginalCount(a.getOriginalCount())
-.setCurrentCount(a.getCurrentCount());
+            .setCurrentCount(a.getCurrentCount());
         return b.build();
     }
 
@@ -67,7 +70,7 @@ public class UsersResource extends BaseResource {
     public void connect(@PathParam("user2") String user2) {
         User u = getUser();
         User u2 = server.getUser(em, user2);
-        if (u.getId() == u2.getId()) {
+        if (Objects.equals(u.getId(), u2.getId())) {
             throw new ServerException("A user can not be connected to him/herself.", Response.Status.FORBIDDEN);
         }
 
@@ -89,6 +92,49 @@ public class UsersResource extends BaseResource {
         return b.build();
     }
 
+    @GET
+    @Path("/{user}/remove")
+    @Transactional
+    public Response remove(@PathParam("user") String user) {
+        User u = getUser();
+        String userId = Long.toString(u.getId());
+        if(!userId.equals(user)) {
+            throw new ServerException("Deleting other users's accounts is not allowed.", Response.Status.FORBIDDEN);
+        }
+
+        validateProjectMemberCount(u);
+        for(Project p : u.getProjects()) {
+            deleteProject(p);
+        }
+
+        logger.info(String.format("Deleting user with ID %s", userId));
+        ModelUtil.removeUser(em, u);
+
+        return okResponse("User %s deleted", userId);
+    }
+
+    private void validateProjectMemberCount(User u) throws ServerException {
+        for(Project p : u.getProjects()) {
+            for(User member: p.getMembers()) {
+
+                if(!Objects.equals(member.getId(), u.getId())) {
+                    throw new ServerException(String.format("Existing project %s with other members must be deleted or transferred",
+                            p.getName()),
+                            Response.Status.FORBIDDEN);
+                }
+            }
+        }
+    }
+
+    private void deleteProject(Project project) {
+        try {
+            ModelUtil.removeProject(em, project);
+            ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
+        } catch (IOException e) {
+            throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @POST
     @RolesAllowed(value = { "admin" })
     @Transactional
@@ -107,8 +153,7 @@ public class UsersResource extends BaseResource {
         em.persist(user);
         em.flush();
 
-        UserInfo userInfo = createUserInfo(user);
-        return userInfo;
+        return createUserInfo(user);
     }
 
     @PUT
@@ -136,6 +181,5 @@ public class UsersResource extends BaseResource {
         InvitationAccount a = server.getInvitationAccount(em, user);
         return createInvitationAccountInfo(a);
     }
-
 }
 

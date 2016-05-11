@@ -718,7 +718,7 @@ public class SpineScene {
                             scene.loadRegion(attNode, mesh, bone);
                         } else if (type.equals("mesh")) {
                             scene.loadMesh(attNode, mesh, bone, false);
-                        } else if (type.equals("skinnedmesh")) {
+                        } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
                             scene.loadMesh(attNode, mesh, bone, true);
                         } else {
                             mesh = null;

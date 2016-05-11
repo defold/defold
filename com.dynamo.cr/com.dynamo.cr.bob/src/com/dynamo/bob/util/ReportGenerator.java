@@ -84,7 +84,7 @@ public class ReportGenerator {
 
         String rootDir = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
-        for (String output : project.getOutputs()) {
+        for (String output : project.getOutputs().keySet()) {
 
             String filePath = output.substring(rootDir.length());
             File file = new File(output);
