@@ -343,8 +343,9 @@
         _ (.add (.getClasses cc) StringProvider)
         client (Client/create cc)
         platform "x86-osx"
-        resource (.resource ^Client client (URI. server-url))
-        builder (.accept (.path resource (format "/build/%s" platform)) (into-array MediaType []))
+        ^WebResource resource (.resource ^Client client (URI. server-url))
+        ^WebResource build-resource (.path resource (format "/build/%s" platform))
+        ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
         form (FormDataMultiPart.)
 
         resources (g/node-value workspace :resource-list)
@@ -360,7 +361,7 @@
 
       ; NOTE: We need at least one part..
       (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
-      (let [cr (.post (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
             f (io/file "/tmp/e")]
         (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
         (.setExecutable f true)
