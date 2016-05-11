@@ -542,11 +542,10 @@
     (let [new-doc (str (subs doc 0 found-idx)
                        rtext
                        (subs doc (+ found-idx tlen)))
-          new-found-idx (.indexOf new-doc rtext caret-pos)
-          np (adjust-bounds new-doc (+ tlen-new new-found-idx))]
+          np (adjust-bounds new-doc (+ tlen-new found-idx))]
       (text! selection new-doc)
       (caret! selection np false)
-     ;; (text-selection! selection new-found-idx tlen-new)
+     ;; (text-selection! selection found-idx tlen-new)
       ;;Note:  trying to highlight the selection doensn't
       ;; work due to rendering problems in the StyledTextSkin
       )))
