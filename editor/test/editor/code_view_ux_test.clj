@@ -580,3 +580,22 @@
           (find-prev! source-viewer)
           (is (= "duck" (text-selection source-viewer)))
           (is (= \1 (get-char-at-caret source-viewer))))))))
+
+(defn- replace-text! [source-viewer text]
+  ;; bypassing handler for the dialog handling
+  (replace-text source-viewer text))
+
+(deftest replace-text-test
+  (with-clean-system
+    (let [code "the blue ducks"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "replacing match"
+        (replace-text! source-viewer {:find-text "blue" :replace-text "red"})
+        (is (= "the red ducks" (text source-viewer)))
+        (is (= 7 (caret source-viewer))))
+      (testing "replacing no match"
+        (replace-text! source-viewer {:find-text "cake" :replace-text "foo"})
+        (is (= "the red ducks" (text source-viewer)))
+        (is (= 7 (caret source-viewer)))))))
