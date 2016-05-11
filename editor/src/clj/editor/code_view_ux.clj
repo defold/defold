@@ -26,51 +26,89 @@
   (styles [this]))
 
 (def mappings
-  {:Right :right
-   :Left :left
-   :Shift+Right :select-right
-   :Shift+Left :select-left
-   :Up :up
-   :Down :down
-   :Shift+Up :select-up
-   :Shift+Down :select-down
-   :Control+Right :next-word
-   :Alt+Right :next-word
-   :Shift+Control+Right :select-next-word
-   :Shift+Alt+Right :select-next-word
-   :Control+Left :prev-word
-   :Alt+Left :prev-word
-   :Shift+Control+Left :select-prev-word
-   :Shift+Alt+Left :select-prev-word
-   :Meta+Left :line-begin
-   :Control+A :line-begin
-   :Shift+Meta+Left :select-line-begin
-   :Shift+Control+A :select-line-begin
-   :Meta+Right :line-end
-   :Control+E :line-end
-   :Shift+Meta+Right :select-line-end
-   :Shift+Control+E :select-line-end
-   :Meta+Up :file-begin
-   :Meta+Down :file-end
-   :Shift+Meta+Up :select-file-begin
-   :Shift+Meta+Down :select-file-end
-   :Meta+L :goto-line
-   :Double-Click :select-word
-   :Backspace :delete
-   :Delete :delete
-   :Meta+X :cut
-   :Meta+D :cut
-   :Alt+Backspace :delete-prev-word
-   :Alt+Delete :delete-next-word
-   :Shift+Meta+Delete :delete-to-end-of-line
-   :Meta+Delete :delete-to-start-of-line
-   :Meta+F :find-text
-   :Meta+K :find-next
-   :Meta+G :find-next
-   :Shift+Meta+K :find-prev
-   :Shift+Meta+G :find-prev
-   :Meta+E :replace-text
-   :Alt+Meta+E :replace-next})
+  {
+  ;;;movement
+  :Up                    {:command :up}
+  :Down                  {:command :down}
+  :Left                  {:command :left}
+  :Right                 {:command :right}
+
+  :Ctrl+Right            {:command :next-word               :label "Move to Next Word"               :group "Movement" :order 1}
+  :Alt+Right             {:command :next-word}
+  :Ctrl+Left             {:command :prev-word               :label "Move to Prev Word"               :group "Movement" :order 2}
+  :Alt+Left              {:command :prev-word}
+  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 3}
+  :Ctrl+A                {:command :line-begin}
+  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 4}
+  :Ctrl+E                {:command :line-end}
+  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 5}
+  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 6}
+  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 7}
+
+  ;; mouse
+  :Double-Click          {:command :select-word}
+
+  ;;movement with select
+  :Shift+Right           {:command :select-right}
+  :Shift+Left            {:command :select-left}
+  :Shift+Up              {:command :select-up}
+  :Shift+Down            {:command :select-down}
+  :Shift+Alt+Right       {:command :select-next-word}
+  :Shift+Ctrl+Right      {:command :select-next-word}
+  :Shift+Alt+Left        {:command :select-prev-word}
+  :Shift+Ctrl+Left       {:command :select-prev-word}
+  :Shift+Shortcut+Left   {:command :select-line-begin}
+  :Shift+Ctrl+A          {:command :select-line-begin}
+  :Shift+Shortcut+Right  {:command :select-line-end}
+  :Shift+Ctrl+E          {:command :select-line-end}
+  :Shift+Shortcut+Up     {:command :select-file-begin}
+  :Shift+Shortcut+Down   {:command :select-file-end}
+
+
+  ;; find
+  :Shortcut+F            {:command :find-text               :label "Find Text"                       :group "Find" :order 1}
+  :Shortcut+K            {:command :find-next               :label "Find Next"                       :group "Find" :order 2}
+  :Shortcut+G            {:command :find-next}
+  :Shift+Shortcut+K      {:command :find-prev               :label "Find Prev"                       :group "Find" :order 3}
+  :Shift+Shortcut+G      {:command :find-prev}
+
+  ;; Replace
+  :Shortcut+E            {:command :replace-text            :label "Replace"                         :group "Replace" :order 1}
+  :Alt+Shortcut+E        {:command :replace-next            :label "Replace Next"                    :group "Replace" :order 2}
+
+  ;; Delete
+  :Backspace             {:command :delete}
+  :Delete                {:command :delete}
+  :Shortcut+X            {:command :cut}
+  :Shortcut+D            {:command :cut                     :label "Delete Line"                     :group "Delete" :order 1}
+  :Alt+Delete            {:command :delete-next-word        :label "Delete Next Word"                :group "Delete" :order 2}
+  :Alt+Backspace         {:command :delete-prev-word        :label "Delete Prev Word"                :group "Delete" :order 3}
+  :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
+  :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
+
+})
+
+(defn menu-data [item]
+  {:label (:label (val item))
+   :acc (name (key item))
+   :command (:command (val item))
+   :order (:order (val item))})
+
+(defn create-menu-data []
+  (let [movement-commands (filter (fn [[k v]] (= "Movement" (:group v))) mappings)
+        find-commands (filter (fn [[k v]] (= "Find" (:group v))) mappings)
+        replace-commands (filter (fn [[k v]] (= "Replace" (:group v))) mappings)
+        delete-commands (filter (fn [[k v]] (= "Delete" (:group v))) mappings)]
+    [{:label "Text Edit"
+       :id ::text-edit
+       :children (concat
+                  (sort-by :order (map menu-data movement-commands))
+                  [{:label :separator}]
+                  (sort-by :order (map menu-data find-commands))
+                  [{:label :separator}]
+                  (sort-by :order (map menu-data replace-commands))
+                  [{:label :separator}]
+                  (sort-by :order (map menu-data delete-commands)))}]))
 
 (def tab-size 4)
 (def last-find-text (atom ""))
@@ -80,7 +118,7 @@
   {:event e
    :key-code (.getCode ^KeyEvent e)
    :control? (.isControlDown ^KeyEvent e)
-   :meta? (.isMetaDown ^KeyEvent e)
+   :meta? (.isShortcutDown ^KeyEvent e)
    :alt? (.isAltDown ^KeyEvent e)
    :shift? (.isShiftDown ^KeyEvent e)})
 
@@ -90,9 +128,9 @@
 ;; potentially slow with each new keyword that is created
 (defn- key-fn [info code]
   (let [code (->> (.getName code)
-                 (add-modifier info :meta? "Meta+")
+                 (add-modifier info :meta? "Shortcut+")
                  (add-modifier info :alt? "Alt+")
-                 (add-modifier info :control? "Control+")
+                 (add-modifier info :control? "Ctrl+")
                  (add-modifier info :shift? "Shift+")
                  (keyword))]
     (get mappings code)))
