@@ -147,16 +147,16 @@ public class HTML5Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
+        String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String js = Bob.getDmengineExe(Platform.JsWeb, project.hasOption("debug"));
-        String engine = Paths.get(js).getFileName().toString();
-        		
+        String engine = title + '.' + FilenameUtils.getExtension(js);
+
         String jsMemInit = js + ".mem";
 
         File projectRoot = new File(project.getRootDirectory());
         URL html = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template.html");
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
         String version = projectProperties.getStringValue("project", "version", "0.0");
-        String title = projectProperties.getStringValue("project", "title", "Unnamed");
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
