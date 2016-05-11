@@ -692,6 +692,12 @@
          (contains? (into #{} (gt/sources basis tgt tgt-label)) [src src-label])
          (contains? (into #{} (gt/targets basis src src-label)) [tgt tgt-label]))))
 
+(defn- no-conn? [[src src-label tgt tgt-label]]
+  (let [basis (g/now)]
+    (and (not (g/connected? basis src src-label tgt tgt-label))
+         (not (contains? (into #{} (gt/sources basis tgt tgt-label)) [src src-label]))
+         (not (contains? (into #{} (gt/targets basis src src-label)) [tgt tgt-label])))))
+
 (defn- deps [tgts]
   (->> tgts
     (g/dependencies (g/now))
@@ -712,16 +718,16 @@
       (testing "value fnk"
                (is (every? (deps [[main-0 :a-property]]) (outs mains :virt-property))))
       (testing "output"
-               (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
+             (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
       (testing "connections"
                (is (every? conn? (for [[m s] all]
                                    [s :_node-id m :sub-nodes])))
-               (is (not-any? conn? (for [mi (range 3)
-                                         si (range 3)
-                                         :when (not= mi si)
-                                         :let [m (nth mains mi)
-                                               s (nth subs si)]]
-                                     [s :_node-id m :sub-nodes]))))))
+               (is (every? no-conn? (for [mi (range 3)
+                                          si (range 3)
+                                          :when (not= mi si)
+                                          :let [m (nth mains mi)
+                                                s (nth subs si)]]
+                                      [s :_node-id m :sub-nodes]))))))
   (with-clean-system
     (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]
@@ -732,8 +738,8 @@
       (testing "no override deps"
                (is (not-any? (deps [[src-1 :a-property]]) [[tgt :out-value]])))
       (testing "connections"
-               (is (conn? [src :a-property tgt :in-value]))
-               (is (not (conn? [src-1 :a-property tgt :in-value]))))))
+              (is (conn? [src :a-property tgt :in-value]))
+              (is (no-conn? [src-1 :a-property tgt :in-value])))))
   (with-clean-system
     (let [[src tgt tgt-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]

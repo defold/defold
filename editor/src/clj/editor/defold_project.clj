@@ -317,6 +317,13 @@
             (console/append-console-message! msg)
             (recur)))))))
 
+(defn- parent-resource [r]
+  (let [workspace (resource/workspace r)
+        path (resource/proj-path r)
+        parent-path (subs path 0 (dec (- (count path) (count (resource/resource-name r)))))
+        parent (workspace/resolve-workspace-resource workspace parent-path)]
+    parent))
+
 (defn- do-launch-engine [path launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
@@ -325,13 +332,6 @@
     (let [p (.start pb)
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
-
-(defn- parent-resource [r]
-  (let [workspace (resource/workspace r)
-        path (resource/proj-path r)
-        parent-path (subs path 0 (dec (- (count path) (count (resource/resource-name r)))))
-        parent (workspace/resolve-workspace-resource workspace parent-path)]
-    parent))
 
 (defn- launch-engine [workspace launch-dir]
   (let [server-url "http://localhost:9000"

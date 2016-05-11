@@ -22,6 +22,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Query;
 import javax.persistence.TypedQuery;
+import javax.servlet.Filter;
 import javax.servlet.ServletContextEvent;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
@@ -307,6 +308,9 @@ public class Server {
         logger.info("git base-path: {}", basePath);
 
         GitServlet gitServlet = new GitServlet();
+        Filter receiveFilter = new GitGcReceiveFilter(configuration);
+        gitServlet.addReceivePackFilter(receiveFilter);
+
         ServletHandler gitHandler = new ServletHandler(gitServlet);
 
         gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);

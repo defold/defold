@@ -1,6 +1,7 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -13,6 +14,7 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
+import com.dynamo.graphics.proto.Graphics.TextureImage.CompressionType;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -379,6 +381,119 @@ public class TextureGeneratorTest {
         assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
         assertEquals(128*64*1, texture.getAlternatives(0).getData().toByteArray().length);
 
+    }
+
+    @Test
+    public void testWEBP() throws TextureGeneratorException, IOException {
+
+        // Create texture profiles with texture compression for webp lossy and lossless
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt3 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt4 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt5 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt6 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt7 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt8 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt1.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
+        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt2.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
+        textureFormatAlt3.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        textureFormatAlt3.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt3.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
+        textureFormatAlt4.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_ETC1); // for bpp < 8
+        textureFormatAlt4.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt4.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
+
+        textureFormatAlt5.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt5.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt5.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
+        textureFormatAlt6.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt6.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt6.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
+        textureFormatAlt7.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        textureFormatAlt7.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt7.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.addFormats(textureFormatAlt2.build());
+        platformProfile.addFormats(textureFormatAlt3.build());
+        platformProfile.addFormats(textureFormatAlt4.build());
+        platformProfile.addFormats(textureFormatAlt5.build());
+        platformProfile.addFormats(textureFormatAlt6.build());
+        platformProfile.addFormats(textureFormatAlt7.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
+        assertTrue(texture.getAlternatives(0).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(0).getMipMapSizeCompressed(0) < texture.getAlternatives(0).getMipMapSize(0));
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(1).getFormat());
+        assertTrue(texture.getAlternatives(1).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(1).getMipMapSizeCompressed(0) < texture.getAlternatives(1).getMipMapSize(0));
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(2).getFormat());
+        assertTrue(texture.getAlternatives(2).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(2).getMipMapSizeCompressed(0) < texture.getAlternatives(2).getMipMapSize(0));
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, texture.getAlternatives(3).getFormat());
+        assertTrue(texture.getAlternatives(3).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(3).getMipMapSizeCompressed(0) < texture.getAlternatives(3).getMipMapSize(0));
+
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(4).getFormat());
+        assertTrue(texture.getAlternatives(4).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(4).getMipMapSizeCompressed(0) < texture.getAlternatives(4).getMipMapSize(0));
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(5).getFormat());
+        assertTrue(texture.getAlternatives(5).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(5).getMipMapSizeCompressed(0) < texture.getAlternatives(5).getMipMapSize(0));
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(6).getFormat());
+        assertTrue(texture.getAlternatives(6).getMipMapSizeCompressed(0) > 0);
+        assertTrue(texture.getAlternatives(6).getMipMapSizeCompressed(0) < texture.getAlternatives(6).getMipMapSize(0));
+
+    }
+
+    @Test
+    public void testWEBPMipMapped() throws TextureGeneratorException, IOException {
+
+        // Create texture profiles with texture compression for webp lossy, lossless and with mipmaps
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt1.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
+        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt2.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.addFormats(textureFormatAlt2.build());
+        platformProfile.setMipmaps(true);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("btn_next_level.png"), textureProfile.build());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(0).getFormat());
+        assertTrue(texture.getAlternatives(0).getMipMapSizeCompressed(0) > texture.getAlternatives(0).getMipMapSizeCompressed(1));
+        assertTrue(texture.getAlternatives(0).getMipMapSizeCompressed(1) > texture.getAlternatives(0).getMipMapSizeCompressed(2));
+        assertEquals(0, texture.getAlternatives(0).getMipMapSizeCompressed(texture.getAlternatives(0).getMipMapSizeCount()-1)); // ensure small mipmaps aren't compressed
+        assertTrue(texture.getAlternatives(1).getMipMapSizeCompressed(0) > texture.getAlternatives(1).getMipMapSizeCompressed(1));
+        assertTrue(texture.getAlternatives(1).getMipMapSizeCompressed(1) > texture.getAlternatives(1).getMipMapSizeCompressed(2));
+        assertEquals(0, texture.getAlternatives(1).getMipMapSizeCompressed(texture.getAlternatives(1).getMipMapSizeCount()-1));
     }
 
     /*

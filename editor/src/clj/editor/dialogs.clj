@@ -446,3 +446,23 @@
     (ui/show-and-wait! stage)
 
     @return))
+
+(defn make-goto-line-dialog [result]
+  (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["line"])
+        close (fn [v] (do (deliver result v) (.close stage)))]
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Go to line")
+    (.setOnKeyPressed scene
+                      (ui/event-handler e
+                           (let [key (.getCode ^KeyEvent e)]
+                             (when (= key KeyCode/ENTER)
+                               (close (ui/text (:line controls))))
+                             (when (= key KeyCode/ESCAPE)
+                               (close nil)))))
+    (.initModality stage Modality/NONE)
+    (.setScene stage scene)
+    (ui/show! stage)
+    stage))
