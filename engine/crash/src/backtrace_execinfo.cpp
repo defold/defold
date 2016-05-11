@@ -15,7 +15,9 @@
 namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
-    static struct sigaction old_signal[SIGNAL_MAX];
+
+    // This array contains the default behavior for each signal.
+    static struct sigaction sigdfl[SIGNAL_MAX];
 
     void WriteExtra(int fd)
     {
@@ -34,38 +36,32 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
-    static void Handler(const int signo, siginfo_t *const si, void *const sc)
+    static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        if (old_signal[signo].sa_sigaction)
-        {
-            old_signal[signo].sa_sigaction(signo, si, sc);
-        }
-        OnCrash(signo);
+        // The previous (default) behavior is restored for the signal.
+        // Unless this is done first thing in the signal handler we'll
+        // be stuck in a signal-handler loop forever.
+        sigaction(signum, &sigdfl[signum], NULL);
+        OnCrash(signum);
     }
 
     void InstallOnSignal(int signum)
     {
         assert(signum >= 0 && signum < SIGNAL_MAX);
 
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
+        struct sigaction sa = { 0 };
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
-        sigaction(signum, &sa, &old_signal[signum]);
+
+        // The current (default) behavior is stored in sigdfl.
+        sigaction(signum, &sa, &sigdfl[signum]);
     }
 
     static char stack_buffer[SIGSTKSZ];
 
     void InstallHandler()
     {
-        stack_t stack;
-        memset(&stack, 0, sizeof(stack));
-        stack.ss_size = sizeof(stack_buffer);
-        stack.ss_sp = stack_buffer;
-        stack.ss_flags = 0;
-        sigaltstack(&stack, NULL);
-
         InstallOnSignal(SIGSEGV);
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);
