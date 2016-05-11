@@ -1,34 +1,5 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.FileNotFoundException;
-import java.io.StringReader;
-import java.util.Enumeration;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-
-import java.net.URI;
-import java.net.URL;
-
-import javax.persistence.EntityManager;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriBuilder;
-
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -42,26 +13,45 @@ import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import javax.persistence.EntityManager;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.UriBuilder;
+import java.io.*;
+import java.net.URI;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+import static org.junit.Assert.*;
 
 public class ProjectResourceTest extends AbstractResourceTest {
 
-    int port = 6500;
+    private static final int PORT = 6500;
 
-    String ownerEmail = "owner@foo.com";
-    String ownerPassword = "secret";
+    private String ownerEmail = "owner@foo.com";
+    private String ownerPassword = "secret";
     private User owner;
     private UserInfo ownerInfo;
 
     private Project proj1;
 
-    String memberEmail = "member@foo.com";
-    String memberPassword = "secret";
+    private String memberEmail = "member@foo.com";
+    private String memberPassword = "secret";
     private User member;
     private UserInfo memberInfo;
     private WebResource memberProjectsWebResource;
 
-    String nonMemberEmail = "nonmember@foo.com";
-    String nonMemberPassword = "secret";
+    private String nonMemberEmail = "nonmember@foo.com";
+    private String nonMemberPassword = "secret";
     private User nonMember;
     private UserInfo nonMemberInfo;
 
@@ -70,14 +60,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
     private WebResource ownerProjectsResource;
     private WebResource ownerProjectResource;
 
-    private void execCommand(String command, String arg) throws IOException {
-        TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
-        if (r.exitValue != 0) {
-            System.err.println(r.stdOut);
-            System.err.println(r.stdErr);
-        }
-        assertEquals(0, r.exitValue);
-    }
+    private EntityManager em;
 
     private <T> T get(WebResource resource, String path, Class<T> klass)  {
         ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
@@ -98,7 +81,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
     public void setUp() throws Exception {
         setupUpTest();
 
-        EntityManager em = emf.createEntityManager();
+        em = emf.createEntityManager();
         em.getTransaction().begin();
         owner = new User();
         owner.setEmail(ownerEmail);
@@ -131,22 +114,22 @@ public class ProjectResourceTest extends AbstractResourceTest {
         URI uri;
         Client client;
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
         usersResource = client.resource(uri);
         ownerInfo = get(usersResource, String.format("/%s", ownerEmail), UserInfo.class);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d", ownerInfo.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d", ownerInfo.getId())).port(PORT).build();
         ownerProjectsResource = client.resource(uri);
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(PORT).build();
         ownerProjectResource = client.resource(uri);
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(memberEmail, memberPassword));
         memberInfo = get(usersResource, String.format("/%s", memberEmail), UserInfo.class);
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", memberInfo.getId(), proj1.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", memberInfo.getId(), proj1.getId())).port(PORT).build();
         memberProjectsWebResource = client.resource(uri);
 
         // Add member
@@ -156,7 +139,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(nonMemberEmail, nonMemberPassword));
         nonMemberInfo = get(usersResource, String.format("/%s", nonMemberEmail), UserInfo.class);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", nonMemberInfo.getId(), proj1.getId())).port(port).build();
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", nonMemberInfo.getId(), proj1.getId())).port(PORT).build();
         nonMemberProjectsWebResource = client.resource(uri);
 
         execCommand("scripts/setup_testdata.sh", Long.toString(proj1.getId()));
@@ -240,6 +223,54 @@ public class ProjectResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void changeProjectOwner() throws Exception {
+        ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
+                .post();
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(memberInfo.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
+    public void changeProjectOwnerToNonMember() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        UserInfo projectOwner = projectInfo.getOwner();
+
+        ClientResponse response = ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(nonMemberInfo.getId()))
+                .post(ClientResponse.class, null);
+
+        assertEquals(403, response.getStatus());
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
+    public void changeProjectOwnerCapReached() throws Exception {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        UserInfo projectOwner = projectInfo.getOwner();
+
+        // Create maximum amount of projects
+        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
+        em.getTransaction().begin();
+        for (int i = 0; i < maxProjectCount; ++i) {
+            ModelUtil.newProject(em, member, "member_proj" + i, String.format("member_proj%d description", i));
+        }
+        em.getTransaction().commit();
+
+        ClientResponse response = ownerProjectResource
+                .path("change_owner")
+                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
+                .post(ClientResponse.class, null);
+
+        assertEquals(403, response.getStatus());
+        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
+    }
+
+    @Test
     public void deleteProject() throws Exception {
         assertEquals(1, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
 
@@ -255,21 +286,32 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(0, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
     }
 
+    @Test
+    public void deleteMissingProjectFiles() throws Exception {
+        assertEquals(1, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
+
+        // Manually delete git repository
+        File repositoryDir = getRepositoryDir(proj1.getId());
+        FileUtils.deleteDirectory(repositoryDir);
+
+        // Delete project
+        ClientResponse response = ownerProjectResource.path("").delete(ClientResponse.class);
+        assertEquals(204, response.getStatus());
+        assertEquals(0, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
+    }
+
     private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
-        final ZipFile file = new ZipFile( path );
-        try
-        {
+        try (ZipFile file = new ZipFile(path)) {
             final Enumeration<? extends ZipEntry> entries = file.entries();
-            while ( entries.hasMoreElements() )
-            {
+            while (entries.hasMoreElements()) {
                 final ZipEntry entry = entries.nextElement();
                 final String entryName = entry.getName();
-                if( !entryName.endsWith("Info.plist") )
+                if (!entryName.endsWith("Info.plist"))
                     continue;
 
                 try {
                     XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-                    plist.load(file.getInputStream( entry ));
+                    plist.load(file.getInputStream(entry));
                     return plist;
                 } catch (ConfigurationException e) {
                     throw new IOException("Failed to read Info.plist", e);
@@ -278,10 +320,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
             // Info.plist not found
             throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
-        }
-        finally
-        {
-            file.close();
         }
     }
 
@@ -319,6 +357,38 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
         assertArrayEquals(originalbundle, downloaded);
 
+        ClientResponse response = ownerProjectResource
+                .path("/engine")
+                .path("ios")
+                .path("dummy_key.ipa")
+                .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                .get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        response = ownerProjectResource
+                .path("/engine")
+                .path("win32")
+                .path(key+".ipa")
+                .accept(MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                .get(ClientResponse.class);
+        assertEquals(404, response.getStatus());
+
+        response = ownerProjectResource
+                .path("/engine_manifest")
+                .path("ios")
+                .path("dummy_key.ipa")
+                .accept("text/xml")
+                .get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        response = ownerProjectResource
+                .path("/engine_manifest")
+                .path("win32")
+                .path(key)
+                .accept("text/xml")
+                .get(ClientResponse.class);
+        assertEquals(404, response.getStatus());
+
         String manifestString = ownerProjectResource
                 .path("/engine_manifest")
                 .path("ios")
@@ -343,5 +413,4 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
         assertEquals(downloadedmanifest_bundleid, downloadedbundleid);
     }
-
 }

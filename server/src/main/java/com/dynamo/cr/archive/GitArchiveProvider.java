@@ -3,6 +3,7 @@ package com.dynamo.cr.archive;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Collection;
@@ -51,7 +52,6 @@ public class GitArchiveProvider {
             throws IOException, ServerException {
 
         File cloneToDirectory = null;
-        File temporaryZipFile = null;
 
         try {
             cloneToDirectory = Files.createTempDir();
@@ -71,20 +71,16 @@ public class GitArchiveProvider {
                 throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
             }
 
-            temporaryZipFile = File.createTempFile("archive", ".zip");
-            zipFiles(cloneToDirectory, temporaryZipFile, fileKey);
-
-            // Do atomic move of file to prevent serving incomplete files.
-            java.nio.file.Files.move(temporaryZipFile.toPath(), Paths.get(archivePathname), StandardCopyOption.ATOMIC_MOVE);
+            ZipUtil.zipFilesAtomic(cloneToDirectory, Paths.get(archivePathname).toFile(), fileKey);
 
         } catch (IOException e) {
-            // Delete temporary file on error. If successful the file has been moved to an archive.
-            temporaryZipFile.delete();
             throw new IOException("Failed to clone and zip project", e);
         } finally {
-            // Always delete
+            // Always delete the clone-to directory
             try {
-                FileUtils.deleteDirectory(cloneToDirectory);
+                if (cloneToDirectory != null) {
+                    FileUtils.deleteDirectory(cloneToDirectory);
+                }
             } catch (IOException | IllegalArgumentException e) {
                 LOGGER.error("Failed to remove temporary clone directory", e);
             }
@@ -127,35 +123,6 @@ public class GitArchiveProvider {
             if (repo != null) {
                 repo.close();
             }
-        }
-    }
-
-    private static void zipFiles(File directory, File zipFile, String comment) throws IOException {
-        ZipOutputStream zipOut = null;
-
-        try {
-            zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
-            zipOut.setComment(comment);
-            IOFileFilter dirFilter = new AbstractFileFilter() {
-                @Override
-                public boolean accept(File file) {
-                    return !file.getName().equals(".git");
-                }
-            };
-
-            Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
-            int prefixLength = directory.getAbsolutePath().length();
-            for (File file : files) {
-                String p = file.getAbsolutePath().substring(prefixLength);
-                if (p.startsWith("/")) {
-                    p = p.substring(1);
-                }
-                ZipEntry ze = new ZipEntry(p);
-                zipOut.putNextEntry(ze);
-                FileUtils.copyFile(file, zipOut);
-            }
-        } finally {
-            IOUtils.closeQuietly(zipOut);
         }
     }
 }

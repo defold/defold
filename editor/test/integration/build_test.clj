@@ -67,7 +67,7 @@
            ~'project           (test-util/setup-project! ~'workspace)
            ~'path              ~path
            ~'resource-node     (test-util/resource-node ~'project ~path)
-           ~'build-results     (project/build ~'project ~'resource-node)
+           ~'build-results     (project/build ~'project ~'resource-node {})
            ~'content-by-source (into {} (keep #(when-let [~'r (:resource (:resource %))]
                                                  [(resource/proj-path ~'r) (:content %)])
                                               ~'build-results))
@@ -134,7 +134,7 @@
         (doseq [path ["/merge/merge_embed.collection"
                       "/merge/merge_refs.collection"]
                 :let [resource-node (test-util/resource-node project path)
-                      build-results (project/build project resource-node)
+                      build-results (project/build project resource-node {})
                       content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)])
                                                       build-results))
                       content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
@@ -175,7 +175,7 @@
       (let [go-node   (first-source (first-source resource-node :child-scenes) :source)
             comp-node (first-source go-node :child-scenes)]
         (g/transact (g/delete-node comp-node))
-        (let [build-results     (project/build project resource-node)
+        (let [build-results     (project/build project resource-node {})
               content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
                                               build-results))]
           (is (= 1 (count-exts (keys content-by-target) "goc")))
@@ -188,18 +188,18 @@
             project              (test-util/setup-project! workspace)
             path                 "/game.project"
             resource-node        (test-util/resource-node project path)
-            first-build-results  (project/build project resource-node)
-            second-build-results (project/build project resource-node)
+            first-build-results  (project/build project resource-node {})
+            second-build-results (project/build project resource-node {})
             main-collection      (test-util/resource-node project "/main/main.collection")]
         (is (every? #(> (count %) 0) [first-build-results second-build-results]))
         (is (not-any? :cached first-build-results))
         (is (every? :cached second-build-results))
         (g/transact (g/set-property main-collection :name "my-test-name"))
-        (let [build-results (project/build project resource-node)]
+        (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-every? :cached build-results)))
-        (project/clear-build-cache project)
-        (let [build-results (project/build project resource-node)]
+        (reset! (g/node-value project :build-cache) {})
+        (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
 
@@ -210,12 +210,12 @@
             project       (test-util/setup-project! workspace)
             path          "/main/main.collection"
             resource-node (test-util/resource-node project path)
-            _             (project/build project resource-node)
+            _             (project/build project resource-node {})
             cache-count   (count @(g/node-value project :build-cache))]
         (g/transact
          (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
            (g/delete-node node-id)))
-        (project/build project resource-node)
+        (project/build project resource-node {})
         (is (< (count @(g/node-value project :build-cache)) cache-count))))))
 
 (deftest prune-fs-build-cache
@@ -225,12 +225,12 @@
             project       (test-util/setup-project! workspace)
             path          "/main/main.collection"
             resource-node (test-util/resource-node project path)
-            _             (project/build-and-write project resource-node)
+            _             (project/build-and-write project resource-node {})
             cache-count   (count @(g/node-value project :fs-build-cache))]
         (g/transact
          (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
            (g/delete-node node-id)))
-        (project/build-and-write project resource-node)
+        (project/build-and-write project resource-node {})
         (is (< (count @(g/node-value project :fs-build-cache)) cache-count))))))
 
 (deftest build-atlas
@@ -249,7 +249,8 @@
             resource-node     (test-util/resource-node project path)
             _                 (g/set-property! resource-node :margin -42)
             error-message     (atom nil)
-            build-results     (project/build project resource-node progress/null-render-progress! #(reset! error-message %))]
+            build-results     (project/build project resource-node {:render-progress! progress/null-render-progress!
+                                                                    :render-error!    #(reset! error-message %)})]
         (is (nil? build-results))
         (is (= "Build error [background.atlas] 'Margin must be greater than or equal to zero'" @error-message))))))
 
@@ -311,7 +312,7 @@
           project           (test-util/setup-project! workspace)
           path              "/gui/scene.gui"
           resource-node     (test-util/resource-node project path)
-          build-results     (project/build project resource-node)
+          build-results     (project/build project resource-node {})
           content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (:content %)]) build-results))
           content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)]) build-results))
           content           (get content-by-source path)
@@ -347,6 +348,7 @@
           atlas-resource-node (test-util/resource-node project atlas-path)
           _                   (g/set-property! atlas-resource-node :inner-padding -42)
           error-message       (atom nil)
-          build-results       (project/build project resource-node progress/null-render-progress! #(reset! error-message %))]
+          build-results       (project/build project resource-node {:render-progress! progress/null-render-progress!
+                                                                    :render-error!    #(reset! error-message %)})]
       (is (nil? build-results))
       (is (= "Build error [background.atlas] 'Inner padding must be greater than or equal to zero'" @error-message)))))

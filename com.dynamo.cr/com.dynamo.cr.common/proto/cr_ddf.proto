@@ -49,6 +49,11 @@ message Configuration
     // Local archive configuration
     required string archive_cache_root = 38;
     required int32 archive_cache_max_size = 39 [default=1024];
+
+    // Min git garbage collect interval per project, in minutes
+    optional int32 git_gc_interval = 44 [default=1440];
+    // Garbage collect unused object expiration for pruning
+    optional string git_prune_expiration = 45 [default="2 weeks ago"];
 }
 
 message EMailTemplate
