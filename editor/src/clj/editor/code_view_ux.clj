@@ -534,26 +534,22 @@
           found-idx (.lastIndexOf doc search-text (adjust-bounds doc (- np (inc tlen))))]
       (select-found-text selection doc found-idx tlen))))
 
-(defn replace-text [selection result]
-  (let [doc (text selection)
-        find-text (:find-text result)
-        replace-text (:replace-text result)
-        found-idx (.indexOf doc find-text)
-        tlen (count find-text)
-        tlen-new (count replace-text)
-        new-doc (str (subs doc 0 found-idx)
-                     replace-text
-                     (subs doc (+ found-idx tlen)))]
-    (caret! selection 0 false)
-    (text! selection new-doc)
-    (let [new-found-idx (.indexOf new-doc replace-text)]
-      (println :new-found-idx new-found-idx)
-      (text-selection! selection 0 0)
-      (caret! selection (+ tlen-new new-found-idx) false)
-      (text-selection! selection new-found-idx tlen-new)
-      )
-   ; (select-found-text selection doc found-idx tlen)
-    ))
+(defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
+  (when (and ftext rtext)
+    (let [doc (text selection)
+          found-idx (.indexOf doc ftext)
+          tlen (count ftext)
+          tlen-new (count rtext)]
+      (when (<= 0 found-idx)
+            (let [new-doc (str (subs doc 0 found-idx)
+                               rtext
+                               (subs doc (+ found-idx tlen)))
+                  new-found-idx (.indexOf new-doc rtext)]
+              (text! selection new-doc)
+              (caret! selection (+ tlen-new new-found-idx) false)
+              ;;Note:  trying to highlight the selection doensn't
+              ;; work due to rendering problems in the StyledTextSkin
+              )))))
 
 (handler/defhandler :replace-text :code-view
   (enabled? [selection] selection)
