@@ -69,9 +69,12 @@
    :Meta+G :find-next
    :Shift+Meta+K :find-prev
    :Shift+Meta+G :find-prev
-   :Meta+E :replace-text})
+   :Meta+E :replace-text
+   :Alt+Meta+E :replace-next})
 
 (def tab-size 4)
+(def last-find-text (atom ""))
+(def last-replace-text (atom ""))
 
 (defn- info [e]
   {:event e
@@ -534,22 +537,29 @@
           found-idx (.lastIndexOf doc search-text (adjust-bounds doc (- np (inc tlen))))]
       (select-found-text selection doc found-idx tlen))))
 
+(defn do-replace [selection doc found-idx rtext tlen tlen-new caret-pos]
+  (when (<= 0 found-idx)
+    (let [new-doc (str (subs doc 0 found-idx)
+                       rtext
+                       (subs doc (+ found-idx tlen)))
+          new-found-idx (.indexOf new-doc rtext caret-pos)
+          np (adjust-bounds new-doc (+ tlen-new new-found-idx))]
+      (text! selection new-doc)
+      (caret! selection np false)
+     ;; (text-selection! selection new-found-idx tlen-new)
+      ;;Note:  trying to highlight the selection doensn't
+      ;; work due to rendering problems in the StyledTextSkin
+      )))
+
 (defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
   (when (and ftext rtext)
     (let [doc (text selection)
           found-idx (.indexOf doc ftext)
           tlen (count ftext)
           tlen-new (count rtext)]
-      (when (<= 0 found-idx)
-            (let [new-doc (str (subs doc 0 found-idx)
-                               rtext
-                               (subs doc (+ found-idx tlen)))
-                  new-found-idx (.indexOf new-doc rtext)]
-              (text! selection new-doc)
-              (caret! selection (+ tlen-new new-found-idx) false)
-              ;;Note:  trying to highlight the selection doensn't
-              ;; work due to rendering problems in the StyledTextSkin
-              )))))
+      (do-replace selection doc found-idx rtext tlen tlen-new 0)
+      (reset! last-find-text ftext)
+      (reset! last-replace-text rtext))))
 
 (handler/defhandler :replace-text :code-view
   (enabled? [selection] selection)
@@ -562,3 +572,16 @@
           replace-text-fn (fn [] (when (realized? result)
                                 (replace-text selection @result)))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
+
+(handler/defhandler :replace-next :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          ftext @last-find-text
+          found-idx (.indexOf doc ftext np)
+          tlen (count ftext)
+          rtext @last-replace-text
+          tlen-new (count rtext)]
+      (do-replace selection doc found-idx rtext tlen tlen-new np))))

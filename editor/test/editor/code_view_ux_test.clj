@@ -599,3 +599,27 @@
         (replace-text! source-viewer {:find-text "cake" :replace-text "foo"})
         (is (= "the red ducks" (text source-viewer)))
         (is (= 7 (caret source-viewer)))))))
+
+(defn- replace-next! [source-viewer]
+  (handler/run :replace-next [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest replace-text-test
+  (with-clean-system
+    (let [code "the blue blue ducks"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "replacing match"
+        (replace-text! source-viewer {:find-text "blue" :replace-text "red"})
+        (is (= "the red blue ducks" (text source-viewer)))
+        (is (= 7 (caret source-viewer)))
+        (replace-next! source-viewer)
+        (is (= "the red red ducks" (text source-viewer)))
+        (is (= 11 (caret source-viewer))))
+      (testing "when caret is beyond match, will not replace"
+         (g/transact (g/set-property code-node :code code))
+         (g/node-value viewer-node :new-content)
+         (caret! source-viewer 7 false)
+        (replace-next! source-viewer)
+        (is (= "the blue red ducks" (text source-viewer)))
+        (is (= 12 (caret source-viewer)))))))
