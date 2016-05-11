@@ -243,7 +243,7 @@
                                 :selected (some? selected-id)
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene) world-transform)
+                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) world-transform)
                                 :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
