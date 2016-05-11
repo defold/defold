@@ -26,6 +26,9 @@
 
 (set! *warn-on-reflection* true)
 
+(ui/extend-menu ::text-edit :editor.app-view/edit
+                (cvx/create-menu-data))
+
 (defn- opseqs [text-area]
   (ui/user-data text-area ::opseqs))
 
