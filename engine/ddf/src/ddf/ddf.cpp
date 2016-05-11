@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <dlib/align.h>
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -170,8 +171,8 @@ namespace dmDDF
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
         int message_buffer_size = load_context.GetMemoryUsage();
-        char* message_buffer = (char*) malloc(message_buffer_size); // TODO Use _aligned_malloc on Windows
-        assert((int)message_buffer % 16 == 0);
+        char* message_buffer = 0;
+        assert(dmAlign::RESULT_OK == dmAlign::Malloc((void**)&message_buffer, 16, message_buffer_size));
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
         Message message = load_context.AllocMessage(desc);
 
@@ -184,7 +185,7 @@ namespace dmDDF
         }
         else
         {
-            free((void*) message_buffer);
+            dmAlign::Free((void*) message_buffer);
             *out_message = 0;
         }
         return e;
@@ -209,17 +210,18 @@ namespace dmDDF
                 return RESULT_IO_ERROR;
             }
 
-            void* buffer = malloc(size);
+            void* buffer = 0;
+            assert(dmAlign::RESULT_OK == dmAlign::Malloc(&buffer, 16, size));
             if ( fread(buffer, 1, size, f) != (size_t) size )
             {
-                free(buffer);
+                dmAlign::Free(buffer);
                 fclose(f);
                 return RESULT_IO_ERROR;
             }
 
             Result e = LoadMessage(buffer, (uint32_t) size, desc, message);
             fclose(f);
-            free(buffer);
+            dmAlign::Free(buffer);
             return e;
         }
         else
@@ -326,6 +328,6 @@ namespace dmDDF
     void FreeMessage(void* message)
     {
         assert(message);
-        free(message);
+        dmAlign::Free(message);
     }
 }

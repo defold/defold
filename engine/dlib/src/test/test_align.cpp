@@ -25,6 +25,14 @@ TEST(dmAlign, Align)
     ASSERT_EQ(0xaabc0U, (uintptr_t) p);
 }
 
+TEST(dmAlign, AlignedMalloc)
+{
+    void* dummy = 0;
+    ASSERT_EQ(dmAlign::RESULT_OK, dmAlign::Malloc(&dummy, 16, 1024));
+    ASSERT_EQ(0, ((unsigned long)dummy % 16));
+    dmAlign::Free(dummy);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

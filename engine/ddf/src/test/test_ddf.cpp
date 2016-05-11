@@ -722,7 +722,7 @@ TEST(AlignmentTests, AlignStruct)
 TEST(AlignmentTests, AlignField)
 {
     DUMMY::TestDDF::TestFieldAlignment *dummy = new DUMMY::TestDDF::TestFieldAlignment();
-    ASSERT_EQ(((unsigned int)(&dummy->m_NeedsToBeAligned)) % 16, 0);
+    ASSERT_EQ(((unsigned long)(&dummy->m_NeedsToBeAligned)) % 16, 0);
     delete dummy;
 }
 
