@@ -674,12 +674,12 @@
         toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
         first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
         last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
-        new-lines (flatten (remove empty? (conj []
-                                                (butlast lbefore)
-                                                [first-toggled-line]
-                                                toggled-region-lines
-                                                [last-toggled-line]
-                                                (rest lafter))))
+        new-lines (flatten (conj []
+                                 (butlast lbefore)
+                                 [first-toggled-line]
+                                 toggled-region-lines
+                                 [last-toggled-line]
+                                 (rest lafter)))
         new-doc (apply str (interpose "\n" new-lines))]
     (text! selection new-doc)))
 
