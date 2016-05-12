@@ -172,6 +172,8 @@
     :else          nil))
 
 (defn assert-form-kind [place required-kind-label required-kind-pred label form]
+  (assert (not (nil? form))
+          (str place " " label " requires a " required-kind-label " but got nil"))
   (assert (required-kind-pred form)
           (str place " " label " requires a " required-kind-label " not '" form "' of type " (type form))))
 
@@ -179,6 +181,8 @@
   "True if the function has a schema. (I.e., it is a valid production function"
   [f]
   (and (fn? f) (contains? (meta f) :schema)))
+
+(defn pfnksymbol?  [x] (or (pfnk? x) (and (symbol? x) (pfnk? (vgr x)))))
 
 (defn- quoted-var? [x] (and (seq? x) (= 'var (first x))))
 (defn- pfnk-form?  [x] (seq? x))
@@ -234,4 +238,4 @@
 
 (defn update-paths
   [m paths xf]
-  (reduce (fn [m [p v]] (assoc-in m p (xf p v))) m paths))
+  (reduce (fn [m [p v]] (assoc-in m p (xf p v (get-in m p)))) m paths))

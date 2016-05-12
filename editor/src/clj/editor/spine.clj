@@ -583,20 +583,20 @@
   (inherits project/ResourceNode)
 
   (property spine-json resource/Resource
-            (value (gu/passthrough spine-json-resource))
+            (value (g/fnk [spine-json-resource] spine-json-resource))
             (set (project/gen-resource-setter [[:resource :spine-json-resource]
                                                [:content :spine-scene]]))
-            (validate (validation/validate-resource spine-json "Missing spine json"
-                                                    [spine-scene])))
+            (validate (g/fnk [spine-json spine-scene]
+                             (validation/resource spine-json "Missing spine json"))))
 
   (property atlas resource/Resource
-            (value (gu/passthrough atlas-resource))
+            (value (g/fnk [atlas-resource] atlas-resource))
             (set (project/gen-resource-setter [[:resource :atlas-resource]
                                                [:anim-data :anim-data]
                                                [:gpu-texture :gpu-texture]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource atlas "Missing atlas"
-                                                    [anim-data])))
+            (validate (g/fnk [atlas anim-data]
+                             (validation/resource atlas "Missing atlas"))))
 
   (property sample-rate g/Num)
 
@@ -661,7 +661,8 @@
                                                [:aabb :aabb]
                                                [:build-targets :dep-build-targets]])))
   (property blend-mode g/Any (default :blend_mode_alpha)
-            (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
+            (dynamic tip (g/fnk [blend-mode]
+                                (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode)))
             (dynamic edit-type (g/fnk []
                                  (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
                                    {:type :choicebox
@@ -674,11 +675,13 @@
                                                [:sampler-data :sampler-data]
                                                [:build-targets :dep-build-targets]])))
   (property default-animation g/Str
-            #_(validate (validation/validate-animation default-animation anim-data))
+            (validate (g/fnk [default-animation anim-data]
+                             (validation/animation default-animation anim-data)))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property skin g/Str
-            #_(validate (validation/validate-skin default-animation anim-data))
+            (validate (g/fnk [default-animation anim-data]
+                             (validation/animation default-animation anim-data)))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
 

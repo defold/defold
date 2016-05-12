@@ -1,43 +1,13 @@
 (ns internal.graph.types
   (:require [internal.util :as util]
             [internal.graph.error-values :as ie]
-            [schema.core :as s])
-  (:import [internal.graph.error_values ErrorValue]))
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
-
-(defprotocol NodeType
-  (supertypes             [this])
-  (transforms             [this])
-  (transform-types        [this])
-  (declared-properties    [this])
-  (declared-inputs        [this])
-  (injectable-inputs      [this])
-  (declared-outputs       [this])
-  (cached-outputs         [this])
-  (input-dependencies     [this])
-  (substitute-for         [this input])
-  (input-type             [this input])
-  (input-cardinality      [this input])
-  (cascade-deletes        [this])
-  (output-type            [this output])
-  (property-display-order [this]))
-
-(defn node-type? [x] (satisfies? NodeType x))
-
-(defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
-(defn output-labels       [node-type]          (-> node-type transforms keys set))
-(defn property-labels     [node-type]          (-> node-type declared-properties keys set))
-(defn internal-properties [node-type]          (->> node-type declared-properties (util/filter-vals :internal?)))
-(defn public-properties   [node-type]          (->> node-type declared-properties (util/filter-vals (comp not :internal?))))
-(defn externs             [node-type]          (->> node-type declared-properties (util/filter-vals :unjammable?)))
-(defn property-type       [node-type property] (-> node-type declared-properties (get property)))
-
-(defn has-property?       [node-type property] (contains? (property-labels node-type) property))
 
 (def NodeID s/Int)
 (defn node-id? [v] (integer? v))
@@ -82,13 +52,6 @@
 
      Returns a collection of [node-id output-label] pairs.")
   (original-node    [this node-id]))
-
-(def Properties {:properties {s/Keyword {:node-id                              NodeID
-                                         (s/optional-key :validation-problems) s/Any
-                                         :value                                (s/either s/Any ErrorValue)
-                                         :type                                 s/Any
-                                         s/Keyword                             s/Any}}
-                 (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers

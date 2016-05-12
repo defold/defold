@@ -433,27 +433,27 @@
 
   (property tile-source resource/Resource
             (dynamic label (g/fnk [] "Image"))
-            (value (gu/passthrough tile-source-resource))
+            (value (g/fnk [tile-source-resource] tile-source-resource))
             (set (project/gen-resource-setter [[:resource :tile-source-resource]
                                                [:texture-set-data :texture-set-data]
                                                [:gpu-texture :gpu-texture]
                                                [:anim-data :anim-data]]))
-            (validate (validation/validate-resource tile-source "Missing image"
-                                                    [texture-set-data gpu-texture anim-data])))
+            (validate (g/fnk [tile-source texture-set-data gpu-texture anim-data]
+                             (validation/resource tile-source "Missing image"                                                                                                                [texture-set-data gpu-texture anim-data]))))
 
   (property animation g/Str
-            (validate (validation/validate-animation animation anim-data))
+            (validate (g/fnk [animation anim-data] (validation/animation animation anim-data)))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
 
   (property material resource/Resource
-            (value (gu/passthrough material-resource))
+            (value (g/fnk [material-resource] material-resource))
             (set (project/gen-resource-setter [[:resource :material-resource]]))
-            (validate (validation/validate-resource material)))
+            (validate (g/fnk [material] (validation/resource material))))
 
   (property blend-mode g/Keyword
-            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Particle$BlendMode)))
             (dynamic edit-type (g/fnk [] (->choicebox Particle$BlendMode))))
 
   (property particle-orientation g/Keyword (dynamic edit-type (g/fnk [] (->choicebox Particle$ParticleOrientation))))

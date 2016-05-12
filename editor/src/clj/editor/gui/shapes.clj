@@ -3,7 +3,8 @@
             [dynamo.graph :as g]
             [editor.properties :as properties]
             [editor.geom :as geom]
-            [editor.gui.util :as gutil])
+            [editor.gui.util :as gutil]
+            [editor.types :as types])
   (:import [com.dynamo.gui.proto Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]))
 
 

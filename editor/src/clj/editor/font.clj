@@ -320,17 +320,17 @@
   (inherits project/ResourceNode)
 
   (property font resource/Resource
-    (value (gu/passthrough font-resource))
+    (value (g/fnk [font-resource] font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]]))
-    (validate (validation/validate-resource font)))
+    (validate (g/fnk [font] (validation/resource font))))
 
   (property material resource/Resource
-    (value (gu/passthrough material-resource))
+    (value (g/fnk [material-resource] material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:build-targets :dep-build-targets]
                                        [:samplers :material-samplers]
                                        [:shader :material-shader]]))
-    (validate (validation/validate-resource material)))
+    (validate (g/fnk [material] (validation/resource material))))
 
   (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                       (or (= type :defold) (= type :distance-field))))))
