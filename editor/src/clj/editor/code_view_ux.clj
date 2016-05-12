@@ -89,6 +89,9 @@
   :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
   :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
 
+;; Comment
+  :Shortcut+Slash       {:command :toggle-comment}
+
 })
 
 (defn menu-data [item]
@@ -626,3 +629,30 @@
           rtext @last-replace-text
           tlen-new (count rtext)]
       (do-replace selection doc found-idx rtext tlen tlen-new np))))
+
+(defn toggle-comment [text line-comment]
+  (let [pattern (re-pattern (str "^" line-comment))]
+   (if (re-find pattern text)
+     (->> text (drop (count line-comment)) (apply str))
+     (str line-comment text))))
+
+(defn- syntax [source-viewer]
+  (ui/user-data source-viewer :editor.code-view/syntax))
+
+(handler/defhandler :toggle-comment :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [c (caret selection)
+          doc (text selection)
+          np (adjust-bounds doc c)
+          line-comment (:line-comment (syntax selection))
+          lines-before (lines-before doc np)
+          lines-after (lines-after doc np)
+          text-after (first lines-after)
+          text-before (->> (last lines-before) (drop-last) (apply str))
+          toggled-text (toggle-comment (str text-before text-after) line-comment)
+          new-lines (concat (butlast lines-before)
+                            [toggled-text]
+                            (rest lines-after))
+          new-doc (apply str (interpose "\n" new-lines))]
+      (text! selection new-doc))))

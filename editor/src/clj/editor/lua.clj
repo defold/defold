@@ -235,42 +235,44 @@
 
 (def lua {:language "lua"
           :syntax
-          [#_{:partition "__multicomment"
-            :type :multiline
-            :start "--[[" :end "]]"
-            :eof false
-            :rules
-            [{:type :default :class "comment"}]
-              }
-           #_{:partition "__multicomment"
-            :type :custom
-            :scanner match-multi-comment
-            :rules
-            [{:type :default :class "comment"}]
-            }
-           #_{:partition "__singlecomment"
-            :type :singleline
-            :start "--"
-            :rules
-              [{:type :default :class "comment-multi"}]}
-           #_{:partition "__singlecomment"
-            :type :custom
-            :scanner match-single-comment
-            :rules
-            [{:type :default :class "comment-multi"}]}
-           {:partition :default
-            :type :default
-            :rules
-            [{:type :whitespace :space? #{\space \tab \newline \return}}
-             {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
-             {:type :word :start? is-word-start :part? is-word-part :class "default"}
-             {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
-             {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
-             {:type :custom :scanner match-single-comment :class "comment"}
-             {:type :custom :scanner match-multi-comment :class "comment-multi"}
-             {:type :number :class "number"}
-             {:type :default :class "default"}
-             ]}
-           ]
+          {:line-comment "-- "
+           :scanner
+           [#_{:partition "__multicomment"
+               :type :multiline
+               :start "--[[" :end "]]"
+               :eof false
+               :rules
+               [{:type :default :class "comment"}]
+               }
+            #_{:partition "__multicomment"
+               :type :custom
+               :scanner match-multi-comment
+               :rules
+               [{:type :default :class "comment"}]
+               }
+            #_{:partition "__singlecomment"
+               :type :singleline
+               :start "--"
+               :rules
+               [{:type :default :class "comment-multi"}]}
+            #_{:partition "__singlecomment"
+               :type :custom
+               :scanner match-single-comment
+               :rules
+               [{:type :default :class "comment-multi"}]}
+            {:partition :default
+             :type :default
+             :rules
+             [{:type :whitespace :space? #{\space \tab \newline \return}}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+              {:type :word :start? is-word-start :part? is-word-part :class "default"}
+              {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
+              {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
+              {:type :custom :scanner match-single-comment :class "comment"}
+              {:type :custom :scanner match-multi-comment :class "comment-multi"}
+              {:type :number :class "number"}
+              {:type :default :class "default"}
+              ]}
+            ]}
           :assist compute-proposals
           })
