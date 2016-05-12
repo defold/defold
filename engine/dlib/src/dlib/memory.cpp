@@ -1,11 +1,11 @@
-#include "align.h"
+#include "memory.h"
 #include <stdlib.h>
 #include <errno.h>
 
-namespace dmAlign
+namespace dmMemory
 {
 
-    Result Malloc(void **memptr, unsigned alignment, unsigned size)
+    Result AlignedMalloc(void **memptr, unsigned alignment, unsigned size)
     {
         int error = 0;
 #if defined(__GNUC__)
@@ -26,7 +26,7 @@ namespace dmAlign
         return RESULT_OK;
     }
 
-    void Free(void* memptr)
+    void AlignedFree(void* memptr)
     {
 #if defined(__GNUC__)
         free(memptr);
