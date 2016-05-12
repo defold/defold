@@ -4,7 +4,10 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui])
-  (:import  [javafx.scene.input Clipboard KeyEvent MouseEvent]))
+  (:import  [javafx.stage Stage]
+            [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
+
+(set! *warn-on-reflection* true)
 
 (defprotocol TextContainer
   (text! [this s])
@@ -127,7 +130,7 @@
 
 ;; potentially slow with each new keyword that is created
 (defn- key-fn [info code]
-  (let [code (->> (.getName code)
+  (let [code (->> (.getName ^KeyCode code)
                  (add-modifier info :meta? "Shortcut+")
                  (add-modifier info :alt? "Alt+")
                  (add-modifier info :control? "Ctrl+")
@@ -409,7 +412,7 @@
     ;; strange double events not solved by consume - this is a
     ;; workaround to let us use show
     (let [line-number (promise)
-          stage (dialogs/make-goto-line-dialog line-number)
+          ^Stage stage (dialogs/make-goto-line-dialog line-number)
           go-to-line-fn (fn [] (when (realized? line-number)
                                 (go-to-line selection @line-number)))]
       (.setOnHidden stage (ui/event-handler e (go-to-line-fn))))))
