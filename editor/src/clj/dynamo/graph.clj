@@ -1,5 +1,6 @@
 (ns dynamo.graph
   "Main api for graph and node"
+  (:refer-clojure :exclude [deftype])
   (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
@@ -16,23 +17,22 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.types Arc]
+           [internal.graph.error_values ErrorValue]
            [java.io ByteArrayOutputStream StringBufferInputStream]))
 
 (set! *warn-on-reflection* true)
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id produce-value NodeType supertypes  transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
-(namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
+(namespaces/import-vars [internal.node has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types Properties])
-
-(namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc node-by-id-at node-ids pre-traverse])
 
 (namespaces/import-macro schema.core/defn      s-defn)
 (namespaces/import-macro schema.core/defrecord s-defrecord)
@@ -197,10 +197,32 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
+(defmacro deftype
+  [symb & body]
+  (let [fqs           (symbol (str *ns*) (str symb))
+        key           (keyword fqs)]
+    `(do
+       (in/register-value-type '~fqs ~key)
+       (def ~symb (in/register-value-type ~key (in/->ValueTypeImpl ~key ~@body))))))
+
+(deftype Any        s/Any)
+(deftype Str        s/Str)
+(deftype Int        s/Int)
+(deftype Num        s/Num)
+(deftype NodeID     s/Int)
+(deftype KeywordMap {s/Keyword s/Any})
+(deftype Properties
+    {:properties {s/Keyword {:node-id                              gt/NodeID
+                             (s/optional-key :validation-problems) s/Any
+                             :value                                (s/either s/Any ErrorValue)
+                             :type                                 s/Any
+                             s/Keyword                             s/Any}}
+     (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
+
 (def node-intrinsics
-  [(list 'extern '_node-id `s/Int)
-   (list 'output '_properties `dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'extern '_output-jammers `{s/Keyword s/Any})])
+  [(list 'extern '_node-id :dynamo.graph/NodeID)
+   (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
+   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -208,7 +230,7 @@
 (declare become)
 
 (defn construct
-  "Creates an instance of a node. The node-type must have been
+  "Creates an instance of a node. The node type must have been
   previously defined via `defnode`.
 
   The node's properties will all have their default values. The caller
@@ -222,12 +244,8 @@
     (property acceleration Int (default 32))
 
   (construct GravityModifier :acceleration 16)"
-  [node-type & {:as args}]
-  (let [args-without-properties (set/difference (util/key-set args) (externs node-type) (util/key-set (merge (internal-properties node-type) (declared-properties node-type))))]
-    (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
-  (-> (new internal.node.NodeImpl node-type)
-      (merge (in/defaults node-type))
-      (merge args)))
+  [node-type-ref & {:as args}]
+  (in/construct node-type-ref args))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -406,21 +424,23 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms] (ctm/name-with-attributes symb body)
-        node-type-def (in/process-node-type-forms symb (concat node-intrinsics forms))
+  (let [[symb forms]  (ctm/name-with-attributes symb body)
+        fqs           (symbol (str *ns*) (str symb))
+        node-type-def (in/process-node-type-forms fqs (concat node-intrinsics forms))
         fn-paths      (in/extract-functions node-type-def)
         fn-defs       (for [[path func] fn-paths]
                         (list `def (in/dollar-name symb path) func))
         node-type-def (util/update-paths node-type-def fn-paths
-                                         (fn [path func]
-                                           {:fn (quote-it (in/dollar-name symb path))
-                                            :arguments (into #{} (map keyword (second func)))}))
-        derivations   (for [t (:supertypes node-type-def)]
-                        `(derive ~(:hierarchy-name node-type-def) (:hierarchy-name ~t)))
+                                         (fn [path func curr]
+                                           (assoc curr :fn (quote-it (in/dollar-name symb path)))))
+        node-key      (:key node-type-def)
+        derivations   (for [tref (:supertypes node-type-def)]
+                        `(derive ~node-key (:key ~(deref tref))))
         node-type-def (update node-type-def :supertypes #(list `quote %))]
     `(do
+       (declare ~symb)
        ~@fn-defs
-       (def ~symb (in/map->NodeTypeImpl ~node-type-def))
+       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl ~node-type-def)))
        ~@derivations
        (var ~symb))))
 
@@ -724,8 +744,8 @@
    (mark-defective node-id (node-type* node-id) defective-value))
   ([node-id node-type defective-value]
    (assert node-id)
-   (let [outputs   (gt/output-labels node-type)
-         externs   (gt/externs node-type)]
+   (let [outputs   (in/output-labels node-type)
+         externs   (in/externs node-type)]
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)

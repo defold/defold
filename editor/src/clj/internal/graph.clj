@@ -2,8 +2,8 @@
   (:require [clojure.set :as set]
             [internal.util :refer [removev conjv map-vals stackify project]]
             [internal.graph.types :as gt]
-            [schema.core :as s])
-  (:import [schema.core Maybe Either]))
+            [schema.core :as s]
+            [internal.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -127,55 +127,11 @@
   [basis override-id]
   (get-in basis [:graphs (gt/override-id->graph-id override-id) :overrides override-id]))
 
-;; ---------------------------------------------------------------------------
-;; Type checking
-;; ---------------------------------------------------------------------------
-
-(defn- check-single-type
-  [out in]
-  (or
-   (= s/Any in)
-   (= out in)
-   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
-
-(defn type-compatible?
-  [output-schema input-schema]
-  (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= s/Any input-schema)
-     (and out-t-pl? (= [s/Any] input-schema))
-     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
-     (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
-     (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for transactions
 ;; ---------------------------------------------------------------------------
 (declare multigraph-basis)
-
-(defn- assert-type-compatible
-  [basis src-id src-label tgt-id tgt-label]
-  (let [output-type   (gt/node-type (node-by-id-at basis src-id) basis)
-        output-schema (gt/output-type output-type src-label)
-        input-type    (gt/node-type (node-by-id-at basis tgt-id) basis)
-        input-schema  (gt/input-type input-type tgt-label)]
-    (assert output-schema
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
-                    src-id (:name output-type) src-label
-                    tgt-id (:name input-type) tgt-label
-                    (:name output-type) src-label))
-    (assert input-schema
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
-                    src-id (:name output-type) src-label
-                    tgt-id (:name input-type) tgt-label
-                    (:name input-type) tgt-label))
-    (assert (type-compatible? output-schema input-schema)
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s do not have compatible types."
-                    src-id (:name output-type) src-label
-                    tgt-id (:name input-type) tgt-label
-                    output-schema input-schema))))
 
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
@@ -391,8 +347,7 @@
           tgt-node      (node tgt-graph tgt-id)
           tgt-type      (gt/node-type tgt-node this)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
-      (assert-type-compatible this src-id src-label tgt-id tgt-label)
-      (assert (some #{tgt-label} (-> tgt-type gt/input-labels)) (str "No label " tgt-label " exists on node " tgt-node))
+      (assert (some #{tgt-label} (-> tgt-type :input util/key-set)) (str "No label " tgt-label " exists on node " tgt-node))
       (if (= src-gid tgt-gid)
         (update this :graphs assoc
                 src-gid (-> src-graph
@@ -454,7 +409,7 @@
 (defn- input-deps [basis node-id]
   (some-> (node-by-id-at basis node-id)
           (gt/node-type basis)
-          gt/input-dependencies))
+          :input-dependencies))
 
 (defn update-successors
   [basis changes]

@@ -182,17 +182,17 @@
   (property def g/Any (dynamic visible (g/fnk [] false)))
   (property vertex-program resource/Resource
     (dynamic visible (g/fnk [] false))
-    (value (gu/passthrough vertex-resource))
+    (value (g/fnk [vertex-resource] vertex-resource))
     (set (project/gen-resource-setter [[:resource :vertex-resource]
                                        [:full-source :vertex-source]]))
-    (validate (validation/validate-resource vertex-program)))
+    (validate (g/fnk [vertex-program] (validation/resource vertex-program))))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/fnk [] false))
-    (value (gu/passthrough fragment-resource))
+    (value (g/fnk [fragment-resource] fragment-resource))
     (set (project/gen-resource-setter [[:resource :fragment-resource]
                                        [:full-source :fragment-source]]))
-    (validate (validation/validate-resource fragment-program)))
+    (validate (g/fnk [fragment-program] (validation/resource fragment-program))))
 
   (output form-data g/Any :cached produce-form-data)
 

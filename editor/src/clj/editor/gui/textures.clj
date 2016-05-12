@@ -22,13 +22,13 @@
 
   (property name g/Str)
   (property texture resource/Resource
-            (value (gu/passthrough texture-resource))
+            (value (g/fnk [texture-resource] texture-resource))
             (set (project/gen-resource-setter [[:resource :texture-resource]
                                                [:packed-image :image]
                                                [:anim-data :anim-data]
                                                [:anim-ids :anim-ids]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource texture)))
+            (validate (g/fnk [texture] (validation/resource texture))))
 
   (input texture-resource resource/Resource)
   (input image BufferedImage)

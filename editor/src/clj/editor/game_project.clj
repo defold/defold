@@ -146,33 +146,33 @@
 (g/defnode GameProjectRefs
   (property display-profiles resource/Resource
           (dynamic visible false)
-          (value (gu/passthrough display-profiles-resource))
+          (value (g/fnk [display-profiles-resource] display-profiles-resource))
           (set (project/gen-resource-setter [[:resource :display-profiles-resource]
                                              [:build-targets :dep-build-targets]
                                              [:profile-data :display-profiles-data]])))
   (property main-collection resource/Resource
             (dynamic visible false)
-            (value (gu/passthrough main-collection-resource))
+            (value (g/fnk [main-collection-resource] main-collection-resource))
             (set (project/gen-resource-setter [[:resource :main-collection-resource]
                                                [:build-targets :dep-build-targets]])))
   (property render resource/Resource
             (dynamic visible false)
-            (value (gu/passthrough render-resource))
+            (value (g/fnk [render-resource] render-resource))
             (set (project/gen-resource-setter [[:resource :render-resource]
                                                [:build-targets :dep-build-targets]])))
   (property texture-profiles resource/Resource
             (dynamic visible false)
-            (value (gu/passthrough texture-profiles-resource))
+            (value (g/fnk [texture-profiles-resource] texture-profiles-resource))
             (set (project/gen-resource-setter [[:resource :texture-profiles-resource]
                                                [:build-targets :dep-build-targets]])))
   (property gamepads resource/Resource
             (dynamic visible false)
-            (value (gu/passthrough gamepads-resource))
+            (value (g/fnk [gamepads-resource] gamepads-resource))
             (set (project/gen-resource-setter [[:resource :gamepads-resource]
                                                [:build-targets :dep-build-targets]])))
   (property input-binding resource/Resource
             (dynamic visible false)
-            (value (gu/passthrough input-binding-resource))
+            (value (g/fnk [input-binding-resource] input-binding-resource))
             (set (project/gen-resource-setter [[:resource :input-binding-resource]
                                                [:build-targets :dep-build-targets]])))
 

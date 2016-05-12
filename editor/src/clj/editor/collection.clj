@@ -142,7 +142,7 @@
 
   (property path resource/Resource
     (dynamic visible (g/fnk [embedded] (not embedded)))
-    (value (gu/passthrough source-resource))
+    (value (g/fnk [source-resource] source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
@@ -314,13 +314,13 @@
   (inherits InstanceNode)
 
   (property path resource/Resource
-    (value (gu/passthrough source-resource))
+    (value (g/fnk [source-resource] source-resource))
     (set (project/gen-resource-setter [[:_node-id      :source]
                                        [:resource      :source-resource]
                                        [:node-outline  :source-outline]
                                        [:scene         :scene]
                                        [:build-targets :build-targets]]))
-    (validate (validation/validate-resource path "Missing prototype" [scene])))
+    (validate (g/fnk [path scene] (validation/resource path "Missing prototype"))))
 
   (input source g/Any)
   (input source-resource resource/Resource)

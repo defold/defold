@@ -188,19 +188,19 @@
   (inherits project/ResourceNode)
 
   (property script resource/Resource
-            (value (gu/passthrough script-resource))
+            (value (g/fnk [script-resource] script-resource))
             (set (project/gen-resource-setter [[:resource :script-resource]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource script)))
+            (validate (g/fnk [script] (validation/resource script))))
 
 
   (property material resource/Resource
-            (value (gu/passthrough material-resource))
+            (value (g/fnk [material-resource] material-resource))
             (set (project/gen-resource-setter [[:resource :material-resource]
                                                [:shader :material-shader]
                                                [:samplers :samplers]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource material)))
+            (validate (g/fnk [material] (validation/resource material))))
 
   (property adjust-reference g/Keyword (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/fnk [] false)))

@@ -93,7 +93,7 @@
   (property path resource/Resource
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (dynamic enabled (g/fnk [] false))
-    (value (gu/passthrough source-resource))
+    (value (g/fnk [source-resource] source-resource))
     (set (project/gen-resource-setter [[:_node-id :source-id]
                                        [:resource :source-resource]
                                        [:node-outline :source-outline]
