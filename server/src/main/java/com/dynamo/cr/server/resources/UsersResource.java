@@ -18,7 +18,6 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -94,7 +93,8 @@ public class UsersResource extends BaseResource {
             throw new ServerException("Deleting other users's accounts is not allowed.", Response.Status.FORBIDDEN);
         }
 
-        List<Project> ownedProjectsWithOtherMembers = ownedProjectsWithOtherMembers(user);
+        Set<Project> ownedProjects = getOwnedProjects(user);
+        Set<Project> ownedProjectsWithOtherMembers = getProjectsWithOtherMembers(ownedProjects);
 
         if (!ownedProjectsWithOtherMembers.isEmpty()) {
 
@@ -109,7 +109,7 @@ public class UsersResource extends BaseResource {
                     Response.Status.FORBIDDEN);
         }
 
-        user.getProjects().forEach(this::deleteProject);
+        deleteProjects(ownedProjects);
 
         LOGGER.info(String.format("Deleting user with ID %s", userId));
         ModelUtil.removeUser(em, user);
@@ -117,18 +117,23 @@ public class UsersResource extends BaseResource {
         return okResponse("User %s deleted", userId);
     }
 
-    private List<Project> ownedProjectsWithOtherMembers(User user) {
-        return user.getProjects().stream()
-                .filter(project -> project.getOwner().equals(user) && project.getMembers().size() > 1)
-                .collect(Collectors.toList());
+    private Set<Project> getProjectsWithOtherMembers(Set<Project> ownedProjects) {
+        return ownedProjects.stream().filter(project -> project.getMembers().size() > 1).collect(Collectors.toSet());
     }
 
-    private void deleteProject(Project project) {
-        try {
+    private Set<Project> getOwnedProjects(User user) {
+        return user.getProjects().stream().filter(project -> project.getOwner().equals(user)).collect(Collectors.toSet());
+    }
+
+    private void deleteProjects(Set<Project> projects) {
+        for (Project project : projects) {
             ModelUtil.removeProject(em, project);
-            ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
-        } catch (IOException e) {
-            throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
+
+            try {
+                ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
+            } catch (IOException e) {
+                throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
+            }
         }
     }
 
