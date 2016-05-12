@@ -57,14 +57,14 @@
   (inherits MixinNode))
 
 (deftest inheritance
-  (is (= [IRootNode]           (g/supertypes ChildNode)))
-  (is (= ChildNode             (g/node-type (g/construct ChildNode))))
-  (is (= [ChildNode]           (g/supertypes GChild)))
-  (is (= GChild                (g/node-type (g/construct GChild))))
-  (is (= [ChildNode MixinNode] (g/supertypes GGChild)))
-  (is (= GGChild               (g/node-type (g/construct GGChild))))
-  (is (thrown? AssertionError (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
-  (is (thrown? AssertionError (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
+  (is (= #{IRootNode}                      (g/supertypes ChildNode)))
+  (is (= ChildNode                         (g/node-type (g/construct ChildNode))))
+  (is (= #{ChildNode IRootNode}            (g/supertypes GChild)))
+  (is (= GChild                            (g/node-type (g/construct GChild))))
+  (is (= #{ChildNode MixinNode IRootNode}  (g/supertypes GGChild)))
+  (is (= GGChild                           (g/node-type (g/construct GGChild))))
+  (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
+  (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
 
 (g/defnode OneInputNode
   (input an-input g/Str))
@@ -507,14 +507,14 @@
 
 (deftest properties-have-a-display-order
   (testing "The default display order is declaration order"
-    (are [expected type] (= expected (g/property-display-order type))
-      [:position :rotation]                                                    SceneNode
-      [:scale :position :rotation]                                             ScalableSceneNode
-      [:id :path :scale :position :rotation]                                   CollectionInstanceNode
-      [["Material" :specular :ambient] :position :rotation]                    SpecificDisplayOrder
-      [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
-      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
-      [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
+    (are [type expected] (= expected (g/property-display-order type))
+      SceneNode              [:position :rotation]
+      ScalableSceneNode      [:scale :position :rotation]
+      CollectionInstanceNode [:id :path :scale :position :rotation]
+      SpecificDisplayOrder   [["Material" :specular :ambient] :position :rotation]
+      DisplayGroupOrdering   [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation]
+      PartialDisplayOrder    [:overlay ["Material" :specular :ambient] :subtitle :position :rotation]
+      GroupingBySymbol       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha])))
 
 (defprotocol AProtocol
   (path      [this])
@@ -563,12 +563,12 @@
   (output inline-arguments                   g/Any (g/fnk [in1 in2 in3]))
   (output arguments-from-nilary-fnk          g/Any fnk-without-arguments)
   (output arguments-from-fnk                 g/Any fnk-with-arguments)
-#_   (output arguments-from-fnk-as-var          g/Any #'fnk-with-arguments)
+  (output arguments-from-fnk-as-var          g/Any #'fnk-with-arguments)
   (output inline-arguments-with-input-schema g/Any (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])))
 
 (deftest output-function-arguments
   (testing "arguments with inline function definition"
-    (are [o x] (= x (get-in OutputFunctionArgumentsNode [:transforms o :arguments]))
+    (are [o x] (= x (in/output-arguments OutputFunctionArgumentsNode o))
       :inline-arguments                   #{:in1 :in2 :in3}
       :arguments-from-nilary-fnk          #{}
       :arguments-from-fnk                 #{:a :b :c :d}

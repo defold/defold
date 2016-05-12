@@ -39,7 +39,6 @@
 ;;; Node type definition
 (declare node-type-resolve value-type-resolve)
 
-
 (defn has-flag? [flag entry]
   (contains? (:flags entry) flag))
 
@@ -91,6 +90,7 @@
 (defn input-cardinality      [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
 (defn cascade-deletes        [nt]        (util/key-set (filterm #(cascade-deletes? (val %)) (:input (deref nt)))))
 (defn output-type            [nt label]  (get-in (deref nt) [:output label :value-type]))
+(defn output-arguments       [nt label]  (get-in (deref nt) [:output label :arguments]))
 (defn property-labels        [nt]        (util/key-set (declared-properties nt)))
 (defn externs                [nt]        (util/key-set (filterm #(extern? (val %)) (:property (deref nt)))))
 (defn property-type          [nt label]  (get-in (deref nt) [:property label :value-type]))
@@ -109,11 +109,12 @@
       (ref? type-name)    (recur (get reg (ref-key type-name)))
       (named? type-name)  (recur (get reg type-name))
       (symbol? type-name) (recur (util/vgr type-name))
-      :else               type-name)))
+      (type? type-name)   type-name
+      :else               nil)))
 
 (defn register-type
   [reg-ref k type]
-  (assert (and (named? k) (namespace k) (or (type? type) (named? type))))
+  (assert (and (named? k) (namespace k) (or (type? type) (named? type))) (pr-str k))
   (swap! reg-ref assoc k type)
   k)
 
@@ -352,63 +353,115 @@
 ;;; ----------------------------------------
 ;;; Node type implementation
 
+(defn- alias-of [ns s]
+  (get (ns-aliases ns) s))
+
+(defn localize
+  ([ctor s]   (ctor (str *ns*) s))
+  ([ctor n s] (ctor n s)))
+
+(defn canonicalize [x]
+  (cond
+    (and (symbol? x) (namespace x))
+    (do (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) "in this context"))
+        (if-let [n (alias-of *ns* (symbol (namespace x)))]
+          (symbol (str n) (name x))
+          x))
+
+    (and (symbol? x) (not (namespace x)))
+    (do
+      (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) "in this context"))
+      (symbol (str *ns*) (name x)))
+
+    (and (keyword? x) (namespace x))
+    (if-let [n (alias-of *ns* (symbol (namespace x)))]
+      (keyword (str n) (name x))
+      x)
+
+    :else
+    x))
+
 (defn- display-group?
-  [label elem]
-  (and (vector? elem) (= label (first elem))))
+  "Return true if the coll is a display group.
+   A display group is a vector with a string label in the first position."
+  [label coll]
+  (and (vector? coll) (= label (first coll))))
 
 (defn- display-group
+  "Find a display group with the given label in the order."
   [order label]
   (first (filter #(display-group? label %) order)))
 
-(defn- join-display-groups
-  [[label & _ :as elem] order2]
-  (into elem (rest (display-group order2 label))))
-
-(defn- node-type-or-symbol?
-  [x]
-  (when-let [x (if (symbol? x) (util/vgr x) x)]
-    (node-type? x)))
+(defn join-display-groups
+  "Given a display group and an 'order' in the rhs, see if there is a
+  display group with the same label in the rhs. If so, attach its
+  members to the original display group."
+  [[label & _ :as lhs] rhs]
+  (let [group-in-rhs (display-group rhs label)]
+    (vec (into lhs (rest group-in-rhs)))))
 
 (defn- expand-node-types
+  "Replace every symbol that refers to a node type with the display
+  order of that node type. E.g., given node BaseNode with display
+  order [:a :b :c], then the input [:x :y BaseNode :z]
+  becomes [:x :y :a :b :c :z]"
   [coll]
   (flatten
    (map #(cond
-           (node-type? %) (property-display-order %)
-           (symbol? %)       (let [x (util/vgr %)]
-                               (if (node-type? x)
-                                 (property-display-order x)
-                                 %))
-           :else              %)
+           (ref? %)    (property-display-order %)
+           (named? %)  (if-let [nt (node-type-resolve (keyword (canonicalize %)))]
+                         (:property-display-order nt)
+                         %)
+           :else       %)
         coll)))
 
+(defn node-type-name? [x]
+  (node-type-resolve (keyword (and (named? x) (canonicalize x)))))
+
 (defn merge-display-order
+  "Premise: intelligently merge the right-hand display order into the left hand one.
+   Rules for merging are as follows:
+
+   - A keyword on the left is left alone.
+   - Any keywords on the right that do not appear on the left are appended to the end.
+   - A vector with a string in the first position is a display group.
+   - A display group on the left remains in the same relative position.
+   - A display group on the left is recursively merged with a display group on the right that has the same label.
+
+  When more than two display orders are given, each one is merged into the left successively."
   ([order] order)
   ([order1 order2]
    (loop [result []
           left   order1
           right  order2]
+     (println "merge-display-order loop " :left left :right right)
      (if-let [elem (first left)]
-       (let [elem (if (symbol? elem) (util/vgr elem) elem)]
+       (let [elem (if (node-type-name? elem) (canonicalize elem) elem)]
+         (println "merge-display-order elem " elem (type elem))
          (cond
-           (node-type-or-symbol? elem)
+           (node-type-name? elem)
            (recur result (concat (expand-node-types [elem]) (next left)) right)
 
            (keyword? elem)
            (recur (conj result elem) (next left) (remove #{elem} right))
 
            (sequential? elem)
-           (if (some node-type-or-symbol? elem)
-             (recur result (cons (expand-node-types elem) (next left)) right)
-             (let [group-label   (first elem)
-                   group-member? (set (next elem))]
-               (recur (conj result (join-display-groups elem right))
-                      (next left)
-                      (remove #(or (group-member? %) (display-group? group-label %)) right))))))
-       (into result right))))
+           (let [header (first elem)
+                 group  (next elem)]
+             (if (some node-type-name? elem)
+               (do
+                 (println "expanding node types in " elem)
+                 (recur result (cons (expand-node-types elem) (next left)) right))
+               (let [group-label   header
+                     group-member? (set group)]
+                 (recur (conj result (join-display-groups elem right))
+                        (next left)
+                        (remove #(or (group-member? %) (display-group? group-label %)) right)))))))
+       (let [final (into result right)]
+         (println "merge-display-order final " final)
+         final))))
   ([order1 order2 & more]
-   (if more
-     (recur (merge-display-order order1 order2) (first more) (next more))
-     (merge-display-order order1 order2))))
+   (reduce merge-display-order (merge-display-order order1 order2) more)))
 
 (defn setter-for
   [basis node property]
@@ -420,7 +473,6 @@
   [where form]
   (let [pred (fn [f]
                (let [val (if (symbol? f) (util/vgr f) f)]
-                 (println "assert-value-type:pred f " f " val " val)
                  (value-type? (value-type-resolve val))))]
     (util/assert-form-kind "defnode" "registered value type"
                            pred
@@ -439,61 +491,41 @@
 (defn dummy-produce-declared-properties []
   `(fn [] (assert false "This is a dummy function. You're probably looking for declared-properties-function.")))
 
-(defn- warn-missing-arguments
-  [node-type-description property-name dynamic-name missing-args]
-  (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
-       missing-args ", because they are needed by its property '" (name property-name) "'."))
-
-(defn- assert-no-missing-args
-  [node-type-description property dynamic missing-args]
-  (assert (empty? missing-args)
-          (warn-missing-arguments node-type-description (first property) (first dynamic) missing-args)))
-
-(defn- all-inputs-and-properties
-  [node-type-description]
-  (util/key-set
-   (merge
-    {:this :_ :basis :_}
-    (:inputs node-type-description)
-    (:declared-properties node-type-description))))
-
-(defn- all-inputs-and-properties-and-outputs
-  [node-type-description]
-  (set/union
-    (all-inputs-and-properties node-type-description)
-    (util/key-set
-      (:outputs node-type-description))))
-
-(defn missing-inputs-for-dynamic
-  [node-type-description dynamic]
-  (set/difference (:arguments dynamic)
-                  (all-inputs-and-properties node-type-description)))
+(defn- all-available-arguments
+  [description]
+  (set/union #{:this :basis}
+             (util/key-set (:input description))
+             (util/key-set (:property description))
+             (util/key-set (:output description))))
 
 (defn verify-inputs-for-dynamics
-  [node-type-description]
-  (doseq [[property-name property-type] (:declared-properties node-type-description)
-          dynamic  (ip/dynamics property-type)
-          :let     [missing-args (missing-inputs-for-dynamic node-type-description dynamic)]]
-    (assert-no-missing-args node-type-description property-name dynamic missing-args))
-  node-type-description)
+  [description]
+  (let [available-arguments (all-available-arguments description)]
+    (doseq [[property-name property-type]       (:property description)
+            [dynamic-name {:keys [arguments]}]  (:dynamic property-type)
+            :let     [missing-args (set/difference arguments available-arguments)]]
+      (assert (empty? missing-args)
+              (str "Node " (:name description) " must have inputs or properties for the label(s) "
+                   missing-args ", because they are needed by its property '" (name property-name) "'."))))
+  description)
 
 (defn verify-inputs-for-outputs
-  [node-type-description]
-  (doseq [[output xfm] (:transforms node-type-description)
-          :let [available-arguments (all-inputs-and-properties-and-outputs node-type-description)
-                missing-args        (set/difference (:arguments xfm) available-arguments)]]
-    (assert (empty? missing-args)
-            (str "Node " (:name node-type-description) " must have inputs, properties or outputs for the label(s) "
-                 missing-args ", because they are needed by the output '" (name output) "'.")))
-  node-type-description)
+  [description]
+  (let [available-arguments (all-available-arguments description)]
+   (doseq [[output {:keys [arguments]}] (:output description)
+           :let [missing-args (set/difference arguments available-arguments)]]
+     (assert (empty? missing-args)
+             (str "Node " (:name description) " must have inputs, properties or outputs for the label(s) "
+                  missing-args ", because they are needed by the output '" (name output) "'."))))
+  description)
 
 (defn verify-labels
-  [node-type-description]
-  (let [inputs     (set (keys (:inputs node-type-description)))
-        properties (set (keys (:declared-properties node-type-description)))
-        collisions (filter inputs properties)]
+  [description]
+  (let [inputs     (util/key-set (:input description))
+        properties (util/key-set (:property description))
+        collisions (set/intersection inputs properties)]
     (assert (empty? collisions) (str "inputs and properties can not be overloaded (problematic fields: " (str/join "," (map #(str "'" (name %) "'") collisions)) ")")))
-  node-type-description)
+  description)
 
 (defn invert-map
   [m]
@@ -582,10 +614,10 @@
 (defn- abstract-function
   [label type]
   (let [format-string (str "Node %d does not supply a production function for the abstract '" label "' output. Add (output " label " " type " your-function) to the definition")]
-    `(pc/fnk [this#]
+    `(pc/fnk [~'this]
              (throw (AssertionError.
                      (format ~format-string
-                      (gt/node-id this#)))))))
+                      (gt/node-id ~'this)))))))
 
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
@@ -600,36 +632,19 @@
         :else                 [flags options args])
       [flags options args])))
 
-(defn- alias-of [ns s]
-  (get (ns-aliases ns) s))
-
-(defn canonicalize [ctor x]
-  (if-let [n (alias-of *ns* (symbol (namespace x)))]
-    (ctor (str n) (name x))
-    x))
-
-(defn unaliased [x]
-  (cond
-    (and (symbol? x) (namespace x))
-    (canonicalize symbol x)
-
-    (and (keyword? x) (namespace x))
-    (canonicalize keyword x)
-
-    :else
-    x))
-
 (defn parse-type-form
   [where original-form]
   (let [multivalued? (vector? original-form)
         form         (if multivalued? (first original-form) original-form)
         type         (cond
                        (ref? form)     form
-                       (keyword? form) (->ValueTypeRef (unaliased form))
-                       (symbol? form)  (->ValueTypeRef (unaliased (keyword form)))
+                       (named? form)  (->ValueTypeRef (keyword (canonicalize form)))
                        :else           nil)]
-    (assert (not (nil? type)) (str "defnode " where " requires a value type but was supplied with " original-form " which cannot be used as a type"))
-    (util/assert-form-kind "defnode" "registered value type" (some-fn ref? value-type?) where type)
+    (assert (not (nil? type))
+            (str "defnode " where " requires a value type but was supplied with "
+                 original-form " which cannot be used as a type"))
+    (util/assert-form-kind "defnode" "registered value type"
+                           (some-fn ref? value-type?) where type)
     {:value-type type
      :flags (if multivalued? #{:collection} #{})}))
 
@@ -680,7 +695,7 @@
                              evaluator
                              `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
         desc    {:property            {klabel propdef}
-                 :property-order-decl (when (not (contains? internal-keys klabel)) [klabel])
+                 :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
                  :output              {klabel outdef}}]
     desc))
 
@@ -718,34 +733,40 @@
       (merge-with into base {:flags flags :options options})}}))
 
 (defmethod process-as 'inherits [[_ & forms]]
-  #_(assert superval (str "Cannot inherit from " supertype " it cannot be resolved in this context (from namespace " *ns* ".)"))
-  (doseq [t forms]
-    (assert-symbol "inherits" t))
-  (let [trefs (mapv util/vgr forms)]
-    {:supertypes trefs}))
+  {:supertypes
+   (set
+    (for [f forms]
+      (do
+        (assert-symbol "inherits" f)
+        (let [typeref (util/vgr f)]
+          (assert (node-type-resolve typeref)
+                  (str "Cannot inherit from " f " it cannot be resolved in this context (from namespace " *ns* ".)"))
+          typeref))))})
 
 (defmethod process-as 'display-order [[_ & decl]]
   {:display-order-decl (vec (first decl))})
 
 (defn group-node-type-forms
   [forms]
-  (apply merge-with into
-         (for [f forms
-               :when (seq? f)]
-           (process-as f))))
+  (let [parse (for [f forms :when (seq? f)] (process-as f))]
+    (def parse* parse)
+    (apply merge-with into parse)))
 
-(defn- node-type-merge
+(defn node-type-merge
   ([] {})
   ([l] l)
   ([l r]
    {:property            (merge-with merge (:property l)     (:property r))
     :input               (merge-with merge (:input l)        (:input r))
     :output              (merge-with merge (:output l)       (:output r))
-    :display-order-decl  (vec (into (:display-order-decl l)  (:display-order-decl r)))
-    :property-order-decl (vec (into (:property-order-decl l) (:property-order-decl r)))
-    :supertypes          (vec (into (:supertypes l)          (:supertypes r)))})
+    :supertypes          (set (into (:supertypes l)          (:supertypes r)))
+    ;; note special cases for property- and display-order-decl.
+    ;; property-order-decl : new elements should be on the right
+    :property-order-decl (vec (into (:property-order-decl r) (:property-order-decl l)))
+    ;; display-order-decl : last one wins
+    :display-order-decl  (or (:display-order-decl l) (:display-order-decl r))})
   ([l r & more]
-   (apply node-type-merge (node-type-merge l r) more)))
+   (reduce node-type-merge (node-type-merge l r) more)))
 
 (defn merge-left
   [tree selector]
@@ -754,9 +775,12 @@
 
 (defn resolve-display-order
   [tree]
-  (assoc tree :property-display-order
-         (apply merge-display-order (:display-order-decl tree) (:property-order-decl tree)
-                (map :display-order-decl (:supertypes tree)))))
+  (println :display-order-decl (:display-order-decl tree) :property-order-decl (:property-order-decl tree))
+  (-> tree
+      (assoc  :property-display-order
+              (apply merge-display-order (:display-order-decl tree) (:property-order-decl tree)
+                     (map (comp :property-display-order deref) (:supertypes tree))))
+      (dissoc :property-order-decl :display-order-decl)))
 
 (defn- wrap-when
   [tree key-pred val-pred xf]
@@ -821,7 +845,10 @@
       extract-fn-arguments
       merge-property-arguments
       attach-declared-properties
-      attach-input-dependencies))
+      attach-input-dependencies
+      verify-inputs-for-dynamics
+      verify-inputs-for-outputs
+      verify-labels))
 
 (defn map-zipper [m]
   (zip/zipper
