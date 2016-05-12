@@ -167,6 +167,7 @@
   (property auto-grid  g/Bool)
   (property fixed-grid-size g/Int
             (default 0)
-            (validate (validation/validate-positive fixed-grid-size "Grid size must be positive")))
+            (validate (g/fnk [fixed-grid-size]
+                             (validation/pos fixed-grid-size "Grid size must be positive"))))
   (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))

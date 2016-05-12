@@ -251,11 +251,11 @@
   (inherits project/ResourceNode)
 
   (property image resource/Resource
-    (value (gu/passthrough image-resource))
+    (value (g/fnk [image-resource] image-resource))
     (set (project/gen-resource-setter [[:resource :image-resource]
                                        [:content :image-content]]))
-    (validate (validation/validate-resource image-resource "Missing image"
-                                            [image-content])))
+    (validate (g/fnk [image-resource image-content]
+                     (validation/resource image-resource "Missing image"))))
 
   (property tile-width g/Int
             (default 0)
@@ -272,7 +272,7 @@
   (property tile-spacing g/Int (default 0))
 
   (property collision resource/Resource ; optional
-    (value (gu/passthrough collision-resource))
+    (value (g/fnk [collision-resource] collision-resource))
     (set (project/gen-resource-setter [[:resource :collision-resource]
                                        [:content :collision-content]]))
     (validate (g/fnk [collision-resource collision-content]

@@ -19,14 +19,14 @@
   (inherits outline/OutlineNode)
   (property name g/Str)
   (property font resource/Resource
-            (value (gu/passthrough font-resource))
+            (value (g/fnk [font-resource] font-resource))
             (set (project/gen-resource-setter [[:resource :font-resource]
                                                [:font-map :font-map]
                                                [:font-data :font-data]
                                                [:gpu-texture :gpu-texture]
                                                [:material-shader :font-shader]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource font)))
+            (validate (g/fnk [font] (validation/resource font))))
 
   (input font-resource resource/Resource)
   (input font-map g/Any)

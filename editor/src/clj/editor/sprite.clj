@@ -223,26 +223,27 @@
   (inherits project/ResourceNode)
 
   (property image resource/Resource
-            (value (gu/passthrough image-resource))
-            (set (project/gen-resource-setter [[:resource :image-resource]
+            (value (g/fnk [image-resource] image-resource))
+            #_(set (project/gen-resource-setter [[:resource :image-resource]
                                                [:anim-data :anim-data]
                                                [:gpu-texture :gpu-texture]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource image)))
+            (validate (g/fnk [image] (validation/resource image))))
 
   (property default-animation g/Str
-            (validate (validation/validate-animation default-animation anim-data))
+            (validate (g/fnk [default-animation anim-data]
+                             (validation/animation default-animation anim-data)))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/Resource
-            (value (gu/passthrough material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]
+            (value (g/fnk [material-resource] material-resource))
+            #_(set (project/gen-resource-setter [[:resource :material-resource]
                                                [:build-targets :dep-build-targets]]))
-            (validate (validation/validate-resource material)))
+            (validate (g/fnk [material] (validation/resource material))))
 
 
   (property blend-mode g/Any (default :blend_mode_alpha)
-            (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
+            (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode)))
             (dynamic edit-type (g/fnk []
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                   {:type :choicebox
