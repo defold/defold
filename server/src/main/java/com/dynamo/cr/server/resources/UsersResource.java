@@ -1,24 +1,5 @@
 package com.dynamo.cr.server.resources;
 
-import java.io.IOException;
-import java.util.Objects;
-import java.util.Set;
-
-import javax.annotation.security.RolesAllowed;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.Marker;
-import org.slf4j.MarkerFactory;
-
 import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
 import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -29,27 +10,38 @@ import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.security.RolesAllowed;
+import javax.ws.rs.*;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Path("/users")
-@RolesAllowed(value = { "user" })
+@RolesAllowed(value = {"user"})
 public class UsersResource extends BaseResource {
 
-    private static Logger logger = LoggerFactory.getLogger(UsersResource.class);
-    private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
+    private static final Logger LOGGER = LoggerFactory.getLogger(UsersResource.class);
 
     private static UserInfo createUserInfo(User u) {
         UserInfo.Builder b = UserInfo.newBuilder();
         b.setId(u.getId())
-         .setEmail(u.getEmail())
-         .setFirstName(u.getFirstName())
-         .setLastName(u.getLastName());
+                .setEmail(u.getEmail())
+                .setFirstName(u.getFirstName())
+                .setLastName(u.getLastName());
         return b.build();
     }
 
     private static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
         InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
         b.setOriginalCount(a.getOriginalCount())
-            .setCurrentCount(a.getCurrentCount());
+                .setCurrentCount(a.getCurrentCount());
         return b.build();
     }
 
@@ -95,35 +87,40 @@ public class UsersResource extends BaseResource {
     @GET
     @Path("/{user}/remove")
     @Transactional
-    public Response remove(@PathParam("user") String user) {
-        User u = getUser();
-        String userId = Long.toString(u.getId());
-        if(!userId.equals(user)) {
+    public Response remove(@PathParam("user") Long userId) {
+        User user = getUser();
+
+        if (!user.getId().equals(userId)) {
             throw new ServerException("Deleting other users's accounts is not allowed.", Response.Status.FORBIDDEN);
         }
 
-        validateProjectMemberCount(u);
-        for(Project p : u.getProjects()) {
-            deleteProject(p);
+        List<Project> ownedProjectsWithOtherMembers = ownedProjectsWithOtherMembers(user);
+
+        if (!ownedProjectsWithOtherMembers.isEmpty()) {
+
+            String projectNames = ownedProjectsWithOtherMembers.stream()
+                    .map(Project::getName)
+                    .collect(Collectors.joining(", "));
+
+            throw new ServerException(
+                    String.format("User owns projects with other members. The members needs to be deleted from the " +
+                            "project or the project ownership needs to be transferred to another user. Projects " +
+                            "affected: %s", projectNames),
+                    Response.Status.FORBIDDEN);
         }
 
-        logger.info(String.format("Deleting user with ID %s", userId));
-        ModelUtil.removeUser(em, u);
+        user.getProjects().forEach(this::deleteProject);
+
+        LOGGER.info(String.format("Deleting user with ID %s", userId));
+        ModelUtil.removeUser(em, user);
 
         return okResponse("User %s deleted", userId);
     }
 
-    private void validateProjectMemberCount(User u) throws ServerException {
-        for(Project p : u.getProjects()) {
-            for(User member: p.getMembers()) {
-
-                if(!Objects.equals(member.getId(), u.getId())) {
-                    throw new ServerException(String.format("Existing project %s with other members must be deleted or transferred",
-                            p.getName()),
-                            Response.Status.FORBIDDEN);
-                }
-            }
-        }
+    private List<Project> ownedProjectsWithOtherMembers(User user) {
+        return user.getProjects().stream()
+                .filter(project -> project.getOwner().equals(user) && project.getMembers().size() > 1)
+                .collect(Collectors.toList());
     }
 
     private void deleteProject(Project project) {
@@ -136,7 +133,7 @@ public class UsersResource extends BaseResource {
     }
 
     @POST
-    @RolesAllowed(value = { "admin" })
+    @RolesAllowed(value = {"admin"})
     @Transactional
     public UserInfo registerUser(RegisterUser registerUser) {
         /*
