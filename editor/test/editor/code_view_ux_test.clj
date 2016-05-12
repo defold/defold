@@ -603,7 +603,7 @@
 (defn- replace-next! [source-viewer]
   (handler/run :replace-next [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest replace-text-test
+(deftest replace-next-test
   (with-clean-system
     (let [code "the blue blue ducks"
           opts lua/lua
