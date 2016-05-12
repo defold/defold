@@ -1,21 +1,11 @@
 package com.dynamo.cr.server.model;
 
+import com.dynamo.cr.server.model.User.Role;
+
+import javax.persistence.*;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
-
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
-import javax.persistence.Table;
-import javax.persistence.Temporal;
-import javax.persistence.TemporalType;
-
-import com.dynamo.cr.server.model.User.Role;
 
 @Entity
 @Table(name="projects")
@@ -42,6 +32,14 @@ public class Project {
 
     @OneToMany
     private Set<User> members = new HashSet<User>();
+
+    @PreRemove
+    private void preRemove() {
+        // Remove project from members' project lists before removing the project.
+        for (User member : members) {
+            member.getProjects().remove(this);
+        }
+    }
 
     public Long getId() {
         return id;
