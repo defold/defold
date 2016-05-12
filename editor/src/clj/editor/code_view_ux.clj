@@ -143,7 +143,7 @@
   (let [k-info (info e)
         kf (key-fn k-info (.getCode ^KeyEvent e))]
     (when kf (handler/run
-               kf
+               (:command kf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                k-info))))
 
