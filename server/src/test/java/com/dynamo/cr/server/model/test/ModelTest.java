@@ -1,38 +1,22 @@
 package com.dynamo.cr.server.model.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.RollbackException;
-import javax.persistence.TypedQuery;
-
+import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.test.Util;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.PersistenceProvider;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.server.model.Invitation;
-import com.dynamo.cr.server.model.InvitationAccount;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.Prospect;
-import com.dynamo.cr.server.model.User;
-import com.dynamo.cr.server.test.Util;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.RollbackException;
+import javax.persistence.TypedQuery;
+import java.io.File;
+import java.util.*;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.*;
 
 public class ModelTest {
 
@@ -211,27 +195,6 @@ public class ModelTest {
     }
 
     @Test(expected=RollbackException.class)
-    public void testRemoveProjectConstraintViolation() throws Exception {
-        // Test that we can't remove a project that has owners.
-        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
-
-        TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
-        q.setParameter("user", u);
-        List<Project> projects = q.getResultList();
-
-        assertEquals(1, projects.size());
-
-        Project p = projects.get(0);
-
-        em.getTransaction().begin();
-        u.getProjects().remove(p);
-        em.remove(p);
-        em.getTransaction().commit();
-
-        u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
-    }
-
-    @Test(expected=RollbackException.class)
     public void testRemoveUserConstraintViolation() throws Exception {
         // Test that we can't remove a user that is part of projects
         User u = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
@@ -249,6 +212,7 @@ public class ModelTest {
         em.getTransaction().commit();
     }
 
+    @Test
     public void testRemoveUserOwnerOfProjects() throws Exception {
         List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(2, allProjects.size());
