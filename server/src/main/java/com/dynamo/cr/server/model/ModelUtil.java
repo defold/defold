@@ -1,11 +1,9 @@
 package com.dynamo.cr.server.model;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
+import java.util.HashSet;
+import java.util.List;
 
 public class ModelUtil {
 
@@ -35,11 +33,6 @@ public class ModelUtil {
      * @param project project to remove
      */
     public static void removeProject(EntityManager entityManager, Project project) {
-        Set<User> users = project.getMembers();
-        for (User user : users) {
-            user.getProjects().remove(project);
-            entityManager.persist(user);
-        }
         entityManager.remove(project);
     }
 
