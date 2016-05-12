@@ -145,10 +145,11 @@
 (defn handle-key-pressed [e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode ^KeyEvent e))]
-    (when kf (handler/run
-               (:command kf)
-               [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-               k-info))))
+    (when (and (:command kf) (not (:label kf)))
+      (handler/run
+        (:command kf)
+        [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
+        k-info))))
 
 (defn handle-mouse-clicked [e source-viewer]
   (let [click-count (.getClickCount ^MouseEvent e)
@@ -540,7 +541,7 @@
 
 (defn find-text [selection find-text]
   (let [doc (text selection)
-        found-idx (.indexOf doc find-text)
+        found-idx (.indexOf ^String doc ^String find-text)
         tlen (count find-text)]
     (select-found-text selection doc found-idx tlen)))
 
@@ -551,7 +552,7 @@
     ;; strange double events not solved by consume - this is a
     ;; workaround to let us use show
     (let [text (promise)
-          stage (dialogs/make-find-text-dialog text)
+          ^Stage stage (dialogs/make-find-text-dialog text)
           find-text-fn (fn [] (when (realized? text)
                                 (find-text selection @text)))]
       (.setOnHidden stage (ui/event-handler e (find-text-fn))))))
@@ -563,7 +564,7 @@
           doc (text selection)
           np (adjust-bounds doc c)
           search-text (text-selection selection)
-          found-idx (.indexOf doc search-text np)
+          found-idx (.indexOf ^String doc ^String search-text ^int np)
           tlen (count search-text)]
       (select-found-text selection doc found-idx tlen))))
 
@@ -575,7 +576,7 @@
           np (adjust-bounds doc c)
           search-text (text-selection selection)
           tlen (count search-text)
-          found-idx (.lastIndexOf doc search-text (adjust-bounds doc (- np (inc tlen))))]
+          found-idx (.lastIndexOf ^String doc ^String search-text ^int (adjust-bounds doc (- np (inc tlen))))]
       (select-found-text selection doc found-idx tlen))))
 
 (defn do-replace [selection doc found-idx rtext tlen tlen-new caret-pos]
@@ -594,7 +595,7 @@
 (defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
   (when (and ftext rtext)
     (let [doc (text selection)
-          found-idx (.indexOf doc ftext)
+          found-idx (.indexOf ^String doc ^String ftext)
           tlen (count ftext)
           tlen-new (count rtext)]
       (do-replace selection doc found-idx rtext tlen tlen-new 0)
@@ -608,7 +609,7 @@
     ;; strange double events not solved by consume - this is a
     ;; workaround to let us use show
     (let [result (promise)
-          stage (dialogs/make-replace-text-dialog result)
+          ^Stage stage (dialogs/make-replace-text-dialog result)
           replace-text-fn (fn [] (when (realized? result)
                                 (replace-text selection @result)))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
@@ -620,7 +621,7 @@
           doc (text selection)
           np (adjust-bounds doc c)
           ftext @last-find-text
-          found-idx (.indexOf doc ftext np)
+          found-idx (.indexOf ^String doc ^String ftext ^int np)
           tlen (count ftext)
           rtext @last-replace-text
           tlen-new (count rtext)]
