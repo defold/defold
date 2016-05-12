@@ -228,7 +228,10 @@
 (defn lines-before [s pos]
   (let [np (adjust-bounds s pos)]
     ;; an extra char is put in to pick up mult newlines
-    (string/split (str (subs s 0 np) "x") #"\n")))
+    (let [lines (string/split (str (subs s 0 np) "x") #"\n")
+          end (->> lines last drop-last (apply str))]
+      (conj (vec (butlast lines)) end))))
+
 
 (defn lines-after [s pos]
   (let [np (adjust-bounds s pos)]
@@ -236,7 +239,7 @@
 
 (defn up-line [s pos preferred-offset]
   (let [lines-before (lines-before s pos)
-        len-before (-> lines-before last count dec)
+        len-before (-> lines-before last count)
         prev-line-tabs (-> lines-before drop-last last tab-count)
         prev-line-len (-> lines-before drop-last last count)
         preferred-next-pos (min preferred-offset (+ prev-line-len (* prev-line-tabs (dec tab-size))))
@@ -338,7 +341,7 @@
         doc (text selection)
         np (adjust-bounds doc c)
         lines-before (lines-before doc np)
-        len-before (-> lines-before last count dec)]
+        len-before (-> lines-before last count)]
         (- np len-before)))
 
 (defn line-begin [selection select?]
@@ -639,20 +642,50 @@
 (defn- syntax [source-viewer]
   (ui/user-data source-viewer :editor.code-view/syntax))
 
+(defn do-toggle-line [doc lbefore lafter line-comment]
+  (let [text-after (first lafter)
+        text-before (->> (last lbefore) (apply str))]
+    (toggle-comment (str text-before text-after) line-comment)))
+
+(defn toggle-line-comment [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)
+        line-comment (:line-comment (syntax selection))
+        lbefore (lines-before doc np)
+        lafter (lines-after doc np)
+        toggled-text (do-toggle-line doc lbefore lafter line-comment)
+        new-lines (concat (butlast lbefore)
+                          [toggled-text]
+                          (rest lafter))
+        new-doc (apply str (interpose "\n" new-lines))]
+    (text! selection new-doc)))
+
+(defn toggle-region-comment [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        line-comment (:line-comment (syntax selection))
+        region-start (selection-offset selection)
+        region-len (selection-length selection)
+        region-end (+ region-start region-len)
+        lbefore (lines-before doc region-start)
+        lafter (lines-after doc region-end)
+        region-lines (string/split (text-selection selection) #"\n")
+        toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
+        first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
+        last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
+        new-lines (flatten (remove empty? (conj []
+                                                (butlast lbefore)
+                                                [first-toggled-line]
+                                                toggled-region-lines
+                                                [last-toggled-line]
+                                                (rest lafter))))
+        new-doc (apply str (interpose "\n" new-lines))]
+    (text! selection new-doc)))
+
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (let [c (caret selection)
-          doc (text selection)
-          np (adjust-bounds doc c)
-          line-comment (:line-comment (syntax selection))
-          lines-before (lines-before doc np)
-          lines-after (lines-after doc np)
-          text-after (first lines-after)
-          text-before (->> (last lines-before) (drop-last) (apply str))
-          toggled-text (toggle-comment (str text-before text-after) line-comment)
-          new-lines (concat (butlast lines-before)
-                            [toggled-text]
-                            (rest lines-after))
-          new-doc (apply str (interpose "\n" new-lines))]
-      (text! selection new-doc))))
+    (if (pos? (count (text-selection selection)))
+      (toggle-region-comment selection)
+      (toggle-line-comment selection))))
