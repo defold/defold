@@ -434,10 +434,8 @@
    (loop [result []
           left   order1
           right  order2]
-     (println "merge-display-order loop " :left left :right right)
      (if-let [elem (first left)]
        (let [elem (if (node-type-name? elem) (canonicalize elem) elem)]
-         (println "merge-display-order elem " elem (type elem))
          (cond
            (node-type-name? elem)
            (recur result (concat (expand-node-types [elem]) (next left)) right)
@@ -449,17 +447,13 @@
            (let [header (first elem)
                  group  (next elem)]
              (if (some node-type-name? elem)
-               (do
-                 (println "expanding node types in " elem)
-                 (recur result (cons (expand-node-types elem) (next left)) right))
+               (recur result (cons (expand-node-types elem) (next left)) right)
                (let [group-label   header
                      group-member? (set group)]
                  (recur (conj result (join-display-groups elem right))
                         (next left)
                         (remove #(or (group-member? %) (display-group? group-label %)) right)))))))
-       (let [final (into result right)]
-         (println "merge-display-order final " final)
-         final))))
+       (into result right))))
   ([order1 order2 & more]
    (reduce merge-display-order (merge-display-order order1 order2) more)))
 
@@ -775,7 +769,6 @@
 
 (defn resolve-display-order
   [tree]
-  (println :display-order-decl (:display-order-decl tree) :property-order-decl (:property-order-decl tree))
   (-> tree
       (assoc  :property-display-order
               (apply merge-display-order (:display-order-decl tree) (:property-order-decl tree)
