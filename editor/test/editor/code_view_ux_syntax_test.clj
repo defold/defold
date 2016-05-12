@@ -1,4 +1,4 @@
-(ns editor.code-view-syntax-test
+(ns editor.code-view-ux-syntax-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
@@ -13,26 +13,39 @@
 (defn- toggle-comment! [source-viewer]
   (handler/run :toggle-comment [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest toggle-comment-test
+(defn do-toggle-line-comment [node-type opts comment-str]
+  (with-clean-system
+    (let [code "hello world"
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
+      (testing "toggle line comment"
+        (toggle-comment! source-viewer)
+        (is (= (str comment-str "hello world") (text source-viewer)))
+        (toggle-comment! source-viewer)
+        (is (= "hello world" (text source-viewer)))))))
+
+(deftest toggle-comment-line-test
   (testing "lua syntax"
-   (with-clean-system
-     (let [code "hello world"
-           opts lua/lua
-           source-viewer (setup-source-viewer opts false)
-           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-       (testing "toggle line comment"
-         (toggle-comment! source-viewer)
-         (is (= "-- hello world" (text source-viewer)))
-         (toggle-comment! source-viewer)
-         (is (= "hello world" (text source-viewer)))))))
+    (do-toggle-line-comment script/ScriptNode lua/lua "-- "))
   (testing "glsl syntax"
-   (with-clean-system
-     (let [code "hello world"
-           opts (:code shader/glsl-opts)
-           source-viewer (setup-source-viewer opts false)
-           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-       (testing "toggle line comment"
-         (toggle-comment! source-viewer)
-         (is (= "// hello world" (text source-viewer)))
-         (toggle-comment! source-viewer)
-         (is (= "hello world" (text source-viewer))))))))
+    (do-toggle-line-comment shader/ShaderNode (:code shader/glsl-opts) "// ")))
+
+(defn do-toggle-region-comment [node-type opts comment-str]
+  (with-clean-system
+    (let [code "line1\nline2\nline3\nline4"
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
+      (testing "toggle region comment"
+        (text-selection! source-viewer 8 9)
+        (is (= "ne2\nline3" (text-selection source-viewer)))
+        (toggle-comment! source-viewer)
+        (is (= (str "line1\n" comment-str "line2\n" comment-str "line3\nline4") (text source-viewer)))
+        (text-selection! source-viewer 11 12)
+        (toggle-comment! source-viewer)
+        (is (= code (text source-viewer)))))))
+
+(deftest toggle-comment-region-test
+  (testing "lua syntax"
+    (do-toggle-region-comment script/ScriptNode lua/lua "-- "))
+  (testing "glsl syntax"
+    (do-toggle-region-comment shader/ShaderNode (:code shader/glsl-opts) "// ")))
