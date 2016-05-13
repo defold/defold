@@ -1,7 +1,8 @@
 (ns editor.console
   (:require [editor.ui :as ui]
             [clojure.string :as str])
-  (:import [javafx.scene.control Button TextArea TextField]))
+  (:import [javafx.scene.control Button TextArea TextField]
+           [javafx.scene.input KeyCode KeyEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -57,5 +58,10 @@
   (ui/on-action! next next-console!)
   (ui/on-action! prev prev-console!)
   (ui/observe (.textProperty search) search-console)
+  (.addEventFilter search KeyEvent/KEY_PRESSED
+                   (ui/event-handler event
+                                     (let [code (.getCode ^KeyEvent event)]
+                                       (when (= code KeyCode/ENTER)
+                                         (next-console! nil)))))
   (reset! node text)
   (append-console-message! "Welcome to Defold!\n"))
