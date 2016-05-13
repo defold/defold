@@ -101,6 +101,7 @@ public class AtlasNode extends TextureSetNode {
                 AtlasImageNode atlasImageNode = (AtlasImageNode) n;
                 if (!images.contains(atlasImageNode.getImage())) {
                     images.add(atlasImageNode.getImage());
+                    atlasImageNode.setIndex(ids.size());
                     ids.add(atlasImageNode.getId());
                 }
             } else if (n instanceof AtlasAnimationNode) {
