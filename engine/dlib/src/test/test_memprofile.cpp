@@ -17,7 +17,7 @@ void* g_dont_optimize = 0;
 
 TEST(dmMemProfile, TestMalloc)
 {
-    // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
+    // We assume that the memory (actual size) allocated is 1024 <= x <= 1024 + sizeof(size_t)
     // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
@@ -30,9 +30,9 @@ TEST(dmMemProfile, TestMalloc)
     {
         ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1024 + sizeof(size_t));
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024 + sizeof(size_t));
     }
 
     free(p);
@@ -43,13 +43,13 @@ TEST(dmMemProfile, TestMalloc)
         ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024 + sizeof(size_t));
     }
 }
 
 TEST(dmMemProfile, TestCalloc)
 {
-    // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
+    // We assume that the memory (actual size) allocated is 1024 <= x <= 1024 + sizeof(size_t)
     // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
@@ -62,9 +62,9 @@ TEST(dmMemProfile, TestCalloc)
     {
         ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1024 + sizeof(size_t));
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024 + sizeof(size_t));
     }
 
     free(p);
@@ -75,13 +75,13 @@ TEST(dmMemProfile, TestCalloc)
         ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024 + sizeof(size_t));
     }
 }
 
 TEST(dmMemProfile, TestRealloc)
 {
-    // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
+    // We assume that the memory (actual size) allocated is 1024 <= x <= 1024 + sizeof(size_t)
     // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
@@ -98,9 +98,9 @@ TEST(dmMemProfile, TestRealloc)
     {
         ASSERT_EQ(2, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1024 + sizeof(size_t));
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*1024);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*1028);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*(1024 + sizeof(size_t)));
     }
 
     free(p);
@@ -111,7 +111,7 @@ TEST(dmMemProfile, TestRealloc)
         ASSERT_EQ(2, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*1024);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*1028);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*(1024 + sizeof(size_t)));
     }
 }
 
@@ -204,9 +204,9 @@ TEST(dmMemProfile, TestNewDelete1)
     {
         ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, (int) sizeof(int));
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 20);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 16 + sizeof(size_t));
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, (int) sizeof(int));
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 20);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 16 + sizeof(size_t));
     }
 
     delete p;
@@ -217,7 +217,7 @@ TEST(dmMemProfile, TestNewDelete1)
         ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, (int) sizeof(int));
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 20);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 16 + sizeof(size_t));
     }
 }
 

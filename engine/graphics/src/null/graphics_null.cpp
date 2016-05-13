@@ -348,6 +348,7 @@ namespace dmGraphics
     {
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(*vd));
+        vd->m_Count = count;
         for (uint32_t i = 0; i < count; ++i)
         {
             assert(vd->m_Elements[element[i].m_Stream].m_Size == 0);
@@ -393,10 +394,10 @@ namespace dmGraphics
         assert(vertex_buffer);
         VertexBuffer* vb = (VertexBuffer*)vertex_buffer;
         uint16_t stride = 0;
-        for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
+        for (uint32_t i = 0; i < vertex_declaration->m_Count; ++i)
             stride += vertex_declaration->m_Elements[i].m_Size * TYPE_SIZE[vertex_declaration->m_Elements[i].m_Type - dmGraphics::TYPE_BYTE];
         uint32_t offset = 0;
-        for (uint16_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
+        for (uint16_t i = 0; i < vertex_declaration->m_Count; ++i)
         {
             VertexElement& ve = vertex_declaration->m_Elements[i];
             if (ve.m_Size > 0)
@@ -416,7 +417,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_declaration);
-        for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
+        for (uint32_t i = 0; i < vertex_declaration->m_Count; ++i)
             if (vertex_declaration->m_Elements[i].m_Size > 0)
                 DisableVertexStream(context, i);
     }
