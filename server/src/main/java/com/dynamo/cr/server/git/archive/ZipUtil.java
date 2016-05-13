@@ -1,4 +1,4 @@
-package com.dynamo.cr.archive;
+package com.dynamo.cr.server.git.archive;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
