@@ -1360,7 +1360,8 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.tileeditor.nodetypes.atlasImage"
-            node="com.dynamo.cr.tileeditor.scene.AtlasImageNode">
+            node="com.dynamo.cr.tileeditor.scene.AtlasImageNode"
+            renderer="com.dynamo.cr.tileeditor.scene.AtlasImageRenderer">
       </node-type>
    </extension>
    <extension
