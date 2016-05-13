@@ -976,3 +976,9 @@ Line numbers:
 
 .overridden .color-picker-label .text {
   -fx-fill: -defold-light-blue; }
+
+/* Console */
+
+#console {
+    -fx-highlight-fill: -defold-selected-blue;
+}
