@@ -42,10 +42,10 @@ public class User {
     private Date registrationDate = new Date();
 
     @OneToMany(cascade={CascadeType.PERSIST})
-    private Set<Project> projects = new HashSet<Project>();
+    private Set<Project> projects = new HashSet<>();
 
     @OneToMany
-    private Set<User> connections = new HashSet<User>();
+    private Set<User> connections = new HashSet<>();
 
     private static String digest(String password) {
         MessageDigest md;
