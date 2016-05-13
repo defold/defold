@@ -29,7 +29,7 @@ public class GitRepositoryManager {
      * @return Statistics from garbage collection, or empty object of garbage collection not performed.
      * @throws IOException
      */
-    public Properties garbageCollect(String repositoryRoot, String expirationDate) throws IOException {
+    Properties garbageCollect(String repositoryRoot, String expirationDate) throws IOException {
         Git git = null;
 
         try {

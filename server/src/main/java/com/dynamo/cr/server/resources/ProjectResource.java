@@ -1,5 +1,28 @@
 package com.dynamo.cr.server.resources;
 
+import com.dynamo.cr.protocol.proto.Protocol.Log;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
+import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.ServerException;
+import com.dynamo.cr.server.git.archive.ArchiveCache;
+import com.dynamo.cr.server.git.archive.GitArchiveProvider;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
+import com.dynamo.inject.persist.Transactional;
+import com.sun.jersey.api.NotFoundException;
+import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.security.RolesAllowed;
+import javax.inject.Inject;
+import javax.ws.rs.*;
+import javax.ws.rs.core.*;
+import javax.ws.rs.core.Response.Status;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -9,47 +32,6 @@ import java.util.Enumeration;
 import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-
-import javax.annotation.security.RolesAllowed;
-import javax.inject.Inject;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.HEAD;
-import javax.ws.rs.HeaderParam;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.StreamingOutput;
-import javax.ws.rs.core.UriInfo;
-
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.dynamo.cr.archive.ArchiveCache;
-import com.dynamo.cr.archive.GitArchiveProvider;
-import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
-import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.ServerException;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.User;
-import com.dynamo.inject.persist.Transactional;
-import com.sun.jersey.api.NotFoundException;
 
 /*
  * use

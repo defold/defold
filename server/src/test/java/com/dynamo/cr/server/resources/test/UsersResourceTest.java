@@ -713,8 +713,14 @@ public class UsersResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void testRemoveProjectOwner() throws Exception {
-
+    public void removeUserThatIsOwnerOfProjectWithoutMembers() throws Exception {
+        // Add connections to verify that they can be deleted.
+        em.getTransaction().begin();
+        bobUser.getConnections().add(joeUser);
+        joeUser.getConnections().add(bobUser);
+        em.getTransaction().commit();
+        
+        // Remove user.
         ClientResponse deleteResponse = bobUsersWebResource
                 .path(String.format("/%d/remove", bobUser.getId()))
                 .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
@@ -722,8 +728,8 @@ public class UsersResourceTest extends AbstractResourceTest {
 
         assertEquals(200, deleteResponse.getStatus());
 
+        // Verify that user isn't available anymore.
         try {
-            // Should thrown an exception
             UserInfo userInfo = bobUsersWebResource
                     .path(bobEmail)
                     .accept(MediaType.APPLICATION_JSON_TYPE)
@@ -732,12 +738,12 @@ public class UsersResourceTest extends AbstractResourceTest {
 
             assertNull(userInfo);
         } catch(UniformInterfaceException e) {
-            // User not found exception is expected
+            assertEquals(Status.UNAUTHORIZED, e.getResponse().getClientResponseStatus());
         }
     }
 
     @Test
-    public void testRemoveProjectOwnerWithMembers() throws Exception {
+    public void forbiddenToRemoveUserIfOwnerOfProjectWithOtherMembers() throws Exception {
         em.getTransaction().begin();
         bobProject.getMembers().add(joeUser);
         em.getTransaction().commit();
@@ -747,17 +753,17 @@ public class UsersResourceTest extends AbstractResourceTest {
                 .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
                 .get(ClientResponse.class);
 
-        assertEquals(403, deleteResponse.getStatus());
+        assertEquals(Status.FORBIDDEN, deleteResponse.getClientResponseStatus());
     }
 
     @Test
-    public void testRemoveOtherUser() throws Exception {
+    public void forbiddenToRemoveOtherUsers() throws Exception {
         ClientResponse deleteResponse = joeUsersWebResource
                 .path(String.format("/%d/remove", bobUser.getId()))
                 .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
                 .get(ClientResponse.class);
 
-        assertEquals(403, deleteResponse.getStatus());
+        assertEquals(Status.FORBIDDEN, deleteResponse.getClientResponseStatus());
     }
 }
 
