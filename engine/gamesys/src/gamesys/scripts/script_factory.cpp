@@ -88,7 +88,7 @@ namespace dmGameSystem
             rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
         const uint32_t buffer_size = 512;
-        DM_ALIGNED(16) uint8_t buffer[buffer_size];
+        uint8_t DM_ALIGNED(16) buffer[buffer_size];
         uint32_t actual_prop_buffer_size = 0;
         uint8_t* prop_buffer = buffer;
         uint32_t prop_buffer_size = buffer_size;

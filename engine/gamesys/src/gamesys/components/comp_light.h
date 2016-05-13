@@ -23,7 +23,7 @@ namespace dmGameSystem
 
     struct LightWorld
     {
-        DM_ALIGNED(16) dmArray<Light*> m_Lights;
+        dmArray<Light*> DM_ALIGNED(16) m_Lights;
     };
 
     dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params);
