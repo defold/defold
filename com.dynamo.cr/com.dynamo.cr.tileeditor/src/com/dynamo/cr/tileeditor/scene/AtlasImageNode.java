@@ -17,6 +17,7 @@ public class AtlasImageNode extends Node {
     private transient BufferedImage loadedImage;
     private String image;
     private String id;
+    private int index = 0;
 
     public AtlasImageNode(String image) {
         this.image = image;
@@ -46,6 +47,14 @@ public class AtlasImageNode extends Node {
 
     public String getId() {
         return this.id;
+    }
+
+    public void setIndex(int index) {
+        this.index = index;
+    }
+
+    public int getIndex() {
+        return this.index;
     }
 
     @Override
