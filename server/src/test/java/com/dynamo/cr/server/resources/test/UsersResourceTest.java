@@ -714,12 +714,11 @@ public class UsersResourceTest extends AbstractResourceTest {
 
     @Test
     public void removeUserThatIsOwnerOfProjectWithoutMembers() throws Exception {
-        // Add connections to verify that they can be deleted.
+        // Add connection to verify that they can be deleted.
         em.getTransaction().begin();
-        bobUser.getConnections().add(joeUser);
         joeUser.getConnections().add(bobUser);
         em.getTransaction().commit();
-        
+
         // Remove user.
         ClientResponse deleteResponse = bobUsersWebResource
                 .path(String.format("/%d/remove", bobUser.getId()))
