@@ -165,20 +165,27 @@ def to_cxx_struct(context, pp, message_type):
     # Calculate maximum length of "type"
     max_len = 0
     for f in message_type.field:
+        l = 0
+        if context.should_align_field(f):
+            l += len(" DM_ALIGNED(16) ")
+
         if f.label == FieldDescriptor.LABEL_REPEATED:
             pass
         elif f.type  == FieldDescriptor.TYPE_BYTES:
             pass
         elif f.type == FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            max_len = max(len(context.get_field_type_name(f)), max_len)
+            l += len(context.get_field_type_name(f))
         else:
-            max_len = max(len(type_to_ctype[f.type]), max_len)
+            l += len(type_to_ctype[f.type])
+
+        max_len = max(l, max_len)
 
     def p(t, n):
         pp.p("%s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
 
     def p_aligned(t, n):
-        pp.p("DM_ALIGNED(16) %s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
+        t = t + " DM_ALIGNED(16) "
+        pp.p("%s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
 
     if (context.should_align_struct(message_type)):
         pp.begin("struct DM_ALIGNED(16) %s", message_type.name)
@@ -193,8 +200,13 @@ def to_cxx_struct(context, pp, message_type):
 
     for f in message_type.field:
         field_name = to_camel_case(f.name)
+        field_align = context.should_align_field(f)
         if f.label == FieldDescriptor.LABEL_REPEATED or f.type == FieldDescriptor.TYPE_BYTES:
-            pp.begin("struct")
+            if (field_align):
+                pp.begin("struct DM_ALIGNED(16)")
+            else:
+                pp.begin("struct")
+
             if f.type ==  FieldDescriptor.TYPE_MESSAGE:
                 type_name = dot_to_cxx_namespace(f.type_name)
             elif f.type ==  FieldDescriptor.TYPE_BYTES:
@@ -202,7 +214,11 @@ def to_cxx_struct(context, pp, message_type):
             else:
                 type_name = type_to_ctype[f.type]
 
-            pp.p(type_name+"* m_Data;")
+            if (field_align):
+                pp.p(type_name+"* DM_ALIGNED(16) m_Data;")
+            else:
+                pp.p(type_name+"* m_Data;")
+
             if f.type == FieldDescriptor.TYPE_STRING:
                 pp.p("%s operator[](uint32_t i) const { assert(i < m_Count); return m_Data[i]; }", type_name)
             else:
@@ -212,9 +228,12 @@ def to_cxx_struct(context, pp, message_type):
             pp.p("uint32_t " + "m_Count;")
             pp.end(" m_%s", field_name)
         elif f.type ==  FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            p(context.get_field_type_name(f), field_name)
+            if (field_align):
+                p_aligned(context.get_field_type_name(f), field_name)
+            else:
+                p(context.get_field_type_name(f), field_name)
         else:
-            if (context.should_align_field(f)):
+            if (field_align):
                 p_aligned(type_to_ctype[f.type], field_name)
             else:
                 p(type_to_ctype[f.type], field_name)

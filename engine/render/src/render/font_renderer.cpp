@@ -3,6 +3,7 @@
 #include <float.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dlib/align.h>
 #include <dlib/static_assert.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -108,7 +109,7 @@ namespace dmRender
         uint8_t                 m_CacheCellPadding;
     };
 
-    struct GlyphVertex
+    struct DM_ALIGNED(16) GlyphVertex
     {
         // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
         float    m_Position[4];
@@ -117,7 +118,6 @@ namespace dmRender
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
-        uint32_t m_Pad[3];
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
