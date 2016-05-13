@@ -1,7 +1,6 @@
-package com.dynamo.cr.server;
+package com.dynamo.cr.server.git;
 
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.server.git.GitRepositoryManager;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +22,7 @@ public class GitGcReceiveFilter implements Filter {
     private final GitRepositoryManager gitRepositoryManager = new GitRepositoryManager();
     private final Map<String, Instant> repositoryTimestamps = new ConcurrentHashMap<>();
 
-    GitGcReceiveFilter(Configuration configuration) {
+    public GitGcReceiveFilter(Configuration configuration) {
         this.configuration = configuration;
     }
 
