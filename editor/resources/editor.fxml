@@ -118,13 +118,33 @@
                               <TabPane id="tool-tabs" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                 <tabs>
                                   <Tab text="Console">
-                                    <content>
-                                      <AnchorPane prefHeight="180.0" prefWidth="200.0">
-                                             <children>
-                                                <TextArea id="console" editable="false" layoutX="91.0" layoutY="52.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-                                             </children>
+                                      <content>
+                                          <AnchorPane prefHeight="180.0" prefWidth="200.0">
+                                              <children>
+                                                  <GridPane vgap="0.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                      <columnConstraints>
+                                                          <ColumnConstraints hgrow="NEVER" maxWidth="86.0" minWidth="10.0" prefWidth="58.0" />
+                                                          <ColumnConstraints hgrow="SOMETIMES" maxWidth="410.0" minWidth="10.0" prefWidth="370.0" />
+                                                          <ColumnConstraints hgrow="NEVER" maxWidth="104.0" minWidth="8.0" prefWidth="41.0" />
+                                                          <ColumnConstraints hgrow="NEVER" maxWidth="81.0" minWidth="8.0" prefWidth="40.0" />
+                                                          <ColumnConstraints hgrow="NEVER" maxWidth="120.0" minWidth="39.0" prefWidth="102.0" />
+                                                      </columnConstraints>
+                                                      <rowConstraints>
+                                                          <RowConstraints minHeight="20.0" vgrow="NEVER" />
+                                                          <RowConstraints minHeight="20.0" vgrow="SOMETIMES" />
+                                                      </rowConstraints>
+                                                      <children>
+                                                          <Label text="Search" GridPane.columnIndex="0" />
+                                                          <TextField id="search-console" AnchorPane.leftAnchor="120.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="1" />
+                                                          <Button id="prev-console" styleClass="button-small" text="Prev" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="3" />
+                                                          <Button id="next-console" styleClass="button-small" text="Next" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="2" />
+                                                          <Button id="clear-console" styleClass="button-small" text="Clear Console" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="4" />
+                                                          <TextArea id="console" editable="false" layoutX="91.0" layoutY="52.0" prefHeight="120.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="30.0" GridPane.columnSpan="2147483647" GridPane.rowIndex="1" />
+                                                      </children>
+                                                  </GridPane>
+                                              </children>
                                           </AnchorPane>
-                                    </content>
+                                      </content>
                                   </Tab>
                                   <Tab text="Curve Editor">
                                     <content>
