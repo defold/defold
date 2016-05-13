@@ -7,6 +7,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
@@ -19,6 +20,26 @@ public class AtlasImageNode extends Node {
     private String id;
     private int index = 0;
 
+    @Property
+    private int width = 0;
+    @Property
+    private int height = 0;
+
+    public boolean isWidthEditable() {
+        return false;
+    }
+    public boolean isHeightEditable() {
+        return false;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+    public int getHeight() {
+        return height;
+    }
+
+
     public AtlasImageNode(String image) {
         this.image = image;
         this.id = new Path(image).removeFileExtension().lastSegment();
@@ -29,14 +50,22 @@ public class AtlasImageNode extends Node {
         super.setModel(model);
         if (model != null) {
             this.loadedImage = getModel().getImage(image);
+            if(this.loadedImage != null) {
+                width = loadedImage.getWidth();
+                height = loadedImage.getHeight();
+            }
         }
     }
 
     @Override
     protected IStatus validateNode() {
         if (loadedImage != null) {
+            width = loadedImage.getWidth();
+            height = loadedImage.getHeight();
             return Status.OK_STATUS;
         } else {
+            width = 0;
+            height = 0;
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Atlas_UNABLE_TO_LOAD_IMAGE);
         }
     }
