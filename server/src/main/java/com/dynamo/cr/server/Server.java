@@ -3,8 +3,6 @@ package com.dynamo.cr.server;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
-import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
-import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
@@ -13,6 +11,7 @@ import com.dynamo.cr.server.git.archive.ArchiveCache;
 import com.dynamo.cr.server.git.archive.GitArchiveProvider;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
+import com.dynamo.cr.server.managers.ProjectManager;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.resources.*;
@@ -28,10 +27,7 @@ import com.sun.jersey.guice.spi.container.servlet.GuiceContainer;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.http.server.GitServlet;
-import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.glassfish.grizzly.PortRange;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -41,9 +37,6 @@ import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.glassfish.grizzly.ssl.SSLContextConfigurator;
 import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,6 +113,8 @@ public class Server {
                     bind(LoginResource.class);
                     bind(LoginOAuthResource.class);
                     bind(ProspectsResource.class);
+
+                    bind(ProjectManager.class);
 
                     Map<String, String> params = new HashMap<>();
                     params.put("com.sun.jersey.config.property.resourceConfigClass",
@@ -342,14 +337,6 @@ public class Server {
         emf.close();
     }
 
-    public Project getProject(EntityManager em, String id) throws ServerException {
-        Project project = em.find(Project.class, Long.parseLong(id));
-        if (project == null)
-            throw new ServerException(String.format("No such project %s", id));
-
-        return project;
-    }
-
     public User getUser(EntityManager em, String userId) throws ServerException {
         User user = em.find(User.class, Long.parseLong(userId));
         if (user == null)
@@ -373,28 +360,6 @@ public class Server {
             }
         }
         return 0;
-    }
-
-    public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException, GitAPIException {
-        getProject(em, project);
-        String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
-
-        DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z");
-        Log.Builder logBuilder = Log.newBuilder();
-        Git git = Git.open(new File(sourcePath));
-        Iterable<RevCommit> revLog = git.log().setMaxCount(maxCount).call();
-        for (RevCommit revCommit : revLog) {
-            CommitDesc.Builder commit = CommitDesc.newBuilder();
-            commit.setName(revCommit.getCommitterIdent().getName());
-            commit.setId(revCommit.getId().toString());
-            commit.setMessage(revCommit.getShortMessage());
-            commit.setEmail(revCommit.getCommitterIdent().getEmailAddress());
-            long commitTime = revCommit.getCommitTime();
-            commit.setDate(formatter.print(new DateTime(commitTime * 1000)));
-            logBuilder.addCommits(commit);
-        }
-
-        return logBuilder.build();
     }
 
     public EntityManagerFactory getEntityManagerFactory() {
@@ -452,10 +417,6 @@ public class Server {
         return sb.toString();
     }
 
-    private int getOpenRegistrationMaxUsers() {
-        return openRegistrationMaxUsers;
-    }
-
     public void setOpenRegistrationMaxUsers(int openRegistrationMaxUsers) {
         this.openRegistrationMaxUsers = openRegistrationMaxUsers;
     }
@@ -463,7 +424,7 @@ public class Server {
     public boolean openRegistration(EntityManager em) {
         Query query = em.createQuery("select count(u.id) from User u");
         Number count = (Number) query.getSingleResult();
-        int maxUsers = getOpenRegistrationMaxUsers();
+        int maxUsers = openRegistrationMaxUsers;
         return count.intValue() < maxUsers;
     }
 
