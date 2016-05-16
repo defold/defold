@@ -20,6 +20,7 @@ import com.defold.libs.TexcLibrary;
 import com.defold.libs.TexcLibrary.ColorSpace;
 import com.defold.libs.TexcLibrary.CompressionLevel;
 import com.defold.libs.TexcLibrary.PixelFormat;
+import com.defold.libs.TexcLibrary.CompressionType;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -38,6 +39,13 @@ public class TextureGenerator {
         compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.NORMAL, CompressionLevel.CL_NORMAL);
         compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.HIGH, CompressionLevel.CL_HIGH);
         compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.BEST, CompressionLevel.CL_BEST);
+    }
+
+    private static HashMap<TextureImage.CompressionType, Integer> compressionTypeLUT = new HashMap<TextureImage.CompressionType, Integer>();
+    static {
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, CompressionType.CT_DEFAULT);
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP, CompressionType.CT_WEBP);
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY, CompressionType.CT_WEBP_LOSSY);
     }
 
     private static HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<TextureFormat, Integer>();
@@ -61,15 +69,15 @@ public class TextureGenerator {
     }
 
     // Two generate() methods to generate TextureImages without any texture profile.
-    static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
         return generate(origImage, null);
      }
 
-    static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         return generate(inputStream, null);
      }
 
-    static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
         return generate(origImage, texProfile);
@@ -134,26 +142,39 @@ public class TextureGenerator {
         return targetFormat;
     }
 
-    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, boolean generateMipMaps, int maxTextureSize) throws TextureGeneratorException, IOException {
+    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
         int componentCount = colorModel.getNumComponents();
         Integer pixelFormat = PixelFormat.R8G8B8A8;
         int texcCompressionLevel;
+        int texcCompressionType;
 
         int dataSize = width * height * 4;
         ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
-        int[] rasterData = new int[dataSize];
-        image.getRaster().getPixels(0, 0, width, height, rasterData);
-        for (int i = 0; i < rasterData.length; ++i) {
-            buffer.put((byte) (rasterData[i] & 0xff));
+
+        // On Linux we run out of memory while trying to load a 4K texture.
+        // We split the pixel read out into blocks with 512 scan lines per block.
+        for (int y = 0; y < height; y+=512) {
+
+            int count = Math.min(height - y, 512);
+
+            int[] rasterData = new int[count*width*4];
+            image.getRaster().getPixels(0, y, width, count, rasterData);
+            for (int i = 0; i < rasterData.length; ++i) {
+                buffer.put((byte) (rasterData[i] & 0xff));
+            }
         }
+
         buffer.flip();
         Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, buffer);
 
         // convert from protobuf specified compressionlevel to texc int
         texcCompressionLevel = compressionLevelLUT.get(compressionLevel);
+
+        // convert from protobuf specified compressionType to texc int
+        texcCompressionType = compressionTypeLUT.get(compressionType);
 
         // pick a pixel format (for texc) based on the texture format
         pixelFormat = pixelFormatLUT.get(textureFormat);
@@ -172,8 +193,8 @@ public class TextureGenerator {
             // Shrink sides until width & height fit max texture size specified in tex profile
             if (maxTextureSize > 0) {
                 while (newWidth > maxTextureSize || newHeight > maxTextureSize) {
-                    newWidth = newWidth / 2;
-                    newHeight = newHeight / 2;
+                    newWidth = Math.max(newWidth / 2, 1);
+                    newHeight = Math.max(newHeight / 2, 1);
                 }
 
                 assert(newWidth <= maxTextureSize && newHeight <= maxTextureSize);
@@ -193,30 +214,30 @@ public class TextureGenerator {
                 newHeight = newWidth;
             }
 
-            if (width != newWidth || height != newHeight) {
-                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
-                    throw new TextureGeneratorException("could not resize texture to POT");
-                }
-            }
+            // Premultiply before scale so filtering cannot introduce colour artefacts.
             if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
             }
+
+            if (width != newWidth || height != newHeight) {
+                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
+                    throw new TextureGeneratorException("could not resize texture to POT");
+                }
+            }
+
             if (generateMipMaps) {
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
             }
-            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel)) {
+
+            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType)) {
                 throw new TextureGeneratorException("could not transcode");
             }
 
-            int bufferSize = newWidth * newHeight * componentCount;
-
-            if (generateMipMaps)
-                bufferSize *= 2; // twice the size for mip maps
-
+            int bufferSize = TexcLibrary.TEXC_GetTotalDataSize(texture);
             buffer = ByteBuffer.allocateDirect(bufferSize);
             dataSize = TexcLibrary.TEXC_GetData(texture, buffer, bufferSize);
             buffer.limit(dataSize);
@@ -231,9 +252,14 @@ public class TextureGenerator {
             while (w != 0 || h != 0) {
                 w = Math.max(w, 1);
                 h = Math.max(h, 1);
-                int size = TexcLibrary.TEXC_GetDataSize(texture, mipMap);
                 raw.addMipMapOffset(offset);
+                int size = TexcLibrary.TEXC_GetDataSizeUncompressed(texture, mipMap);
                 raw.addMipMapSize(size);
+                int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
+                if(size_compressed != 0) {
+                    size = size_compressed;
+                }
+                raw.addMipMapSizeCompressed(size_compressed);
                 offset += size;
                 w >>= 1;
                 h >>= 1;
@@ -245,6 +271,8 @@ public class TextureGenerator {
 
             raw.setData(ByteString.copyFrom(buffer));
             raw.setFormat(textureFormat);
+            raw.setCompressionType(compressionType);
+            raw.setCompressionFlags(TexcLibrary.TEXC_GetCompressionFlags(texture));
 
             return raw.build();
 
@@ -274,6 +302,7 @@ public class TextureGenerator {
             // Generate an image for each format specified in the profile
             for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
                 for (int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
+                    TextureImage.CompressionType compressionType = platformProfile.getFormats(i).getCompressionType();
                     TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
                     TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
 
@@ -283,7 +312,7 @@ public class TextureGenerator {
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
                     try {
-                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
+                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
                         throw e;
@@ -304,7 +333,7 @@ public class TextureGenerator {
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
 
-            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, true, 0);
+            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0);
             textureBuilder.addAlternatives(raw);
             textureBuilder.setCount(1);
 

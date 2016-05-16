@@ -43,6 +43,19 @@ namespace dmTexc
         CL_NORMAL,
         CL_HIGH,
         CL_BEST,
+        CL_ENUM,
+    };
+
+    enum CompressionType
+    {
+        CT_DEFAULT,
+        CT_WEBP,
+        CT_WEBP_LOSSY,
+    };
+
+    enum CompressionFlags
+    {
+        CF_ALPHA_CLEAN = 1,
     };
 
     struct Header
@@ -79,16 +92,40 @@ namespace dmTexc
     /**
      * Create a texture
      */
-    DM_TEXC_PROTO(HTexture, Create, uint32_t width, uint32_t height, PixelFormat pixel_format,
-            ColorSpace colorSpace, void* data);
+    DM_TEXC_PROTO(HTexture, Create, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, void* data);
     /**
      * Destroy a texture
      */
     DM_TEXC_PROTO(void, Destroy, HTexture texture);
 
+    /**
+     * Get header (info) of a texture
+     */
     DM_TEXC_PROTO(bool, GetHeader, HTexture texture, Header* out_header);
-    DM_TEXC_PROTO(uint32_t, GetDataSize, HTexture texture, uint32_t mip_map);
+
+    /**
+     * Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
+     */
+    DM_TEXC_PROTO(uint32_t, GetDataSizeCompressed, HTexture texture, uint32_t mip_map);
+
+    /**
+     * Get the uncompressed data size in bytes of a mip map in a texture
+     */
+    DM_TEXC_PROTO(uint32_t, GetDataSizeUncompressed, HTexture texture, uint32_t mip_map);
+
+    /**
+     * Get the total data size in bytes including all mip maps in a texture (compressed or not)
+     */
+    DM_TEXC_PROTO(uint32_t, GetTotalDataSize, HTexture texture);
+
+    /**
+     * Get the data pointer to texture (mip maps linear layout in memory)
+     */
     DM_TEXC_PROTO(uint32_t, GetData, HTexture texture, void* out_data, uint32_t out_data_size);
+    /**
+     * Get compression flags
+     */
+    DM_TEXC_PROTO(uint64_t, GetCompressionFlags, HTexture texture);
 
     /**
      * Resize a texture.
@@ -108,7 +145,7 @@ namespace dmTexc
     /**
      * Transcode a texture into another format.
      */
-    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel);
+    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type);
 
 #undef DM_TEXC_PROTO
 

@@ -13,6 +13,7 @@ namespace dmGraphics
     , m_Title("Dynamo App")
     , m_Fullscreen(false)
     , m_PrintDeviceInfo(false)
+    , m_HighDPI(false)
     {
 
     }

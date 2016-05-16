@@ -447,3 +447,64 @@
     (ui/show-and-wait! stage)
 
     @return))
+
+(defn make-goto-line-dialog [result]
+  (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["line"])
+        close (fn [v] (do (deliver result v) (.close stage)))]
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Go to line")
+    (.setOnKeyPressed scene
+                      (ui/event-handler e
+                           (let [key (.getCode ^KeyEvent e)]
+                             (when (= key KeyCode/ENTER)
+                               (close (ui/text (:line controls))))
+                             (when (= key KeyCode/ESCAPE)
+                               (close nil)))))
+    (.initModality stage Modality/NONE)
+    (.setScene stage scene)
+    (ui/show! stage)
+    stage))
+
+(defn make-find-text-dialog [result]
+  (let [root ^Parent (ui/load-fxml "find-text-dialog.fxml")
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["text"])
+        close (fn [v] (do (deliver result v) (.close stage)))]
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Find Text")
+    (.setOnKeyPressed scene
+                      (ui/event-handler e
+                           (let [key (.getCode ^KeyEvent e)]
+                             (when (= key KeyCode/ENTER)
+                               (close (ui/text (:text controls))))
+                             (when (= key KeyCode/ESCAPE)
+                               (close nil)))))
+    (.initModality stage Modality/NONE)
+    (.setScene stage scene)
+    (ui/show! stage)
+    stage))
+
+(defn make-replace-text-dialog [result]
+  (let [root ^Parent (ui/load-fxml "replace-text-dialog.fxml")
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["find-text" "replace-text"])
+        close (fn [v] (do (deliver result v) (.close stage)))]
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Find/Replace Text")
+    (.setOnKeyPressed scene
+                      (ui/event-handler e
+                           (let [key (.getCode ^KeyEvent e)]
+                             (when (= key KeyCode/ENTER)
+                               (close {:find-text (ui/text (:find-text controls))
+                                       :replace-text (ui/text (:replace-text controls))}))
+                             (when (= key KeyCode/ESCAPE)
+                               (close nil)))))
+    (.initModality stage Modality/NONE)
+    (.setScene stage scene)
+    (ui/show! stage)
+    stage))
