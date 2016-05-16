@@ -59,7 +59,6 @@
                        internal.graph.error-values-test
                        internal.node-test
                        internal.paper-tape-test
-                       internal.property-test
                        internal.system-test
                        internal.value-test
                        internal.defnode-test
