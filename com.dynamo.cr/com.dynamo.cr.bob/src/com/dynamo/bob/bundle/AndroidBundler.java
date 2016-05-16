@@ -54,9 +54,9 @@ public class AndroidBundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
+        String exeName = Bob.getDmengineExeName(Platform.Armv7Android, debug);
         String exe = Bob.getDmengineExe(Platform.Armv7Android, debug);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = title.replace(' ', '_');
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
@@ -216,7 +216,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // Copy executable
-            String filename = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + "." + FilenameUtils.getExtension(exe));
+            String filename = FilenameUtils.concat("lib/armeabi-v7a", FilenameUtils.getName(exe));
             filename = FilenameUtils.normalize(filename, true);
             zipOut.putNextEntry(new ZipEntry(filename));
             FileUtils.copyFile(new File(strippedpath), zipOut);
