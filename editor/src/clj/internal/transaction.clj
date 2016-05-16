@@ -140,6 +140,7 @@
 ;; ---------------------------------------------------------------------------
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
 
+
 (defn- mark-activated
   [ctx node-id input-label]
   (let [basis (:basis ctx)
@@ -350,12 +351,12 @@
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
   (let [[new-node tx-data] (in/tx-invoke-setter (:basis ctx) node property old-value new-value)
-        ctx                (update ctx :basis #(first (gt/replace-node % node-id new-node)))]
+        ctx                (cond-> (update ctx :basis #(first (gt/replace-node % node-id new-node)))
+                               (not= old-value new-value)
+                               (mark-activated node-id property))]
     (if (empty? tx-data)
       ctx
-      (-> ctx
-          (mark-activated node-id property)
-          (apply-tx tx-data)))))
+      (apply-tx ctx tx-data))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]

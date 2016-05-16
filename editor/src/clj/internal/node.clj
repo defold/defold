@@ -1217,7 +1217,11 @@
 
 (defn deduce-output-type
   [self-name description transform]
-  (relax-schema `(:schema (value-type-resolve ~(get-in description [:output transform :value-type :k])))))
+  (let [schema (some-> (get-in description [:output transform :value-type :k]) value-type-resolve :schema)
+        schema (if (get-in description [:output transform :flags :collection])
+                 (vector schema)
+                 schema)]
+    (relax-schema schema)))
 
 (defn schema-check-output [self-name ctx-name description transform nodeid-sym output-sym forms]
   `(let [output-schema# ~(deduce-output-type self-name description transform)]
