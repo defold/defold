@@ -10,7 +10,6 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [internal.node :as in]
-            [internal.property :as ip]
             [internal.system :as is]
             [internal.transaction :as it]
             [plumbing.core :as pc]
@@ -349,7 +348,7 @@
                     (mapv node-id to-be-replaced#))))
          (var ~symb)))))
 
-(defn- quote-it [it] (list `quote it))
+(defn- var-it [it] (list `var it))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -432,7 +431,7 @@
                         (list `def (in/dollar-name symb path) func))
         node-type-def (util/update-paths node-type-def fn-paths
                                          (fn [path func curr]
-                                           (assoc curr :fn (quote-it (in/dollar-name symb path)))))
+                                           (assoc curr :fn (var-it (in/dollar-name symb path)))))
         node-key      (:key node-type-def)
         derivations   (for [tref (:supertypes node-type-def)]
                         `(when-not (contains? (descendants (:key ~(deref tref))) ~node-key)
