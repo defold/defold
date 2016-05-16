@@ -460,12 +460,10 @@
                  (is (= "foo-foo" (:visible p))))))))
 
 (g/defnode DynamicGetterNode
-  (property foo g/Str
-            (value (g/fnk [in-foo foo]
-                          (str in-foo "/" foo)))
-            (set (fn [basis self old-value new-value]
-                   (g/set-property self :foo new-value))))
-  (input in-foo g/Str))
+  (property suffixed g/Str
+            (value (g/fnk [prefix suffixed]
+                          (str prefix "/" suffixed))))
+  (input prefix g/Str))
 
 (g/defnode DynamicGetterOutputNode
   (inherits DynamicGetterNode)
@@ -473,22 +471,22 @@
 
 (deftest test-dynamic-getter
   (testing "input collection for dynamic getters"
-           (with-clean-system
-             (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "in-foo"]
-                                                          to [DynamicGetterNode :foo "foo"]]
-                                                   (g/connect from :foo to :in-foo)))]
-               (is (= "in-foo/foo" (g/node-value nid :foo)))
-               (g/transact (g/set-property nid :foo "foo2"))
-               (is (= "in-foo/foo2" (g/node-value nid :foo)))
-               (is (= "in-foo/foo2" (get-in (g/node-value nid :_properties) [:properties :foo :value]))))))
+    (with-clean-system
+      (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "directory"]
+                                                   to [DynamicGetterNode :suffixed "file"]]
+                                            (g/connect from :foo to :prefix)))]
+        (is (= "directory/file" (g/node-value nid :suffixed)))
+        (g/transact (g/set-property nid :suffixed "unnamed"))
+        (is (= "directory/unnamed" (g/node-value nid :suffixed)))
+        (is (= "directory/unnamed" (get-in (g/node-value nid :_properties) [:properties :suffixed :value]))))))
   (testing "input collection for dynamic getters with overloaded outputs"
-           (with-clean-system
-             (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "in-foo"]
-                                                          to [DynamicGetterOutputNode :foo "foo"]]
-                                                   (g/connect from :foo to :in-foo)))]
-               (is (= "n-foo/foo" (g/node-value nid :foo)))
-               (g/transact (g/set-property nid :foo "foo2"))
-               (is (= "n-foo/foo2" (g/node-value nid :foo)))))))
+    (with-clean-system
+      (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "in-foo"]
+                                                   to [DynamicGetterOutputNode :foo "foo"]]
+                                            (g/connect from :foo to :in-foo)))]
+        (is (= "n-foo/foo" (g/node-value nid :foo)))
+        (g/transact (g/set-property nid :foo "foo2"))
+        (is (= "n-foo/foo2" (g/node-value nid :foo)))))))
 
 (deftest property-display-order-merging
   (are [expected _ sources] (= expected (apply g/merge-display-order sources))
