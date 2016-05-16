@@ -3,7 +3,6 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.property :as ip]
             [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.util :as util]
             [schema.core :as s])
