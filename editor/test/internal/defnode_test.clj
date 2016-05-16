@@ -163,6 +163,10 @@
   (property weirdo g/Any
             (value (g/fnk [this a b c] [this a b c]))))
 
+(g/defnode ReflexivePropertyValueFnNode
+  (property zort g/Int
+            (value (g/fnk [zort] zort))))
+
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
@@ -253,6 +257,13 @@
                             (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
         (is (= 1 (g/node-value getter-node :reports-higher))))))
 
+  (testing "getter functions are used when supplying :_declared-properties"
+    (with-clean-system
+      (let [[getter-node] (g/tx-nodes-added
+                           (g/transact
+                            (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
+        (is (= 1 (->  (g/node-value getter-node :_declared-properties) :properties :reports-higher :value))))))
+
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
@@ -268,6 +279,11 @@
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadProperty
                           (property :not-a-symbol dynamo.graph/Keyword))))))
+
+  (testing "property value types must exist when referenced"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadPropertyType
+                          (property a-property java.lang.String))))))
 
   (testing "properties must have values"
     (is (thrown? AssertionError

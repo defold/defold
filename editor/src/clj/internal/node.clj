@@ -4,7 +4,6 @@
             [clojure.string :as str]
             [internal.util :as util]
             [internal.cache :as c]
-            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
@@ -195,7 +194,7 @@
     (get this property))
 
   (set-property [this basis property value]
-    (assert (contains? (property-labels node-type) property)
+    (assert (contains? (-> node-type deref :property util/key-set) property)
             (format "Attempting to use property %s from %s, but it does not exist"
                     property (:name node-type)))
     (assoc this property value))
@@ -276,7 +275,7 @@
   [node-or-node-id label evaluation-context]
   (let [cache              (:cache evaluation-context)
         basis              (:basis evaluation-context)
-        node               (if (gt/node-id? node-or-node-id) (ig/node-by-id-at basis node-or-node-id) node-or-node-id)
+        node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
         result             (and node (gt/produce-value node label evaluation-context))]
     (when (and node cache)
       (let [local             @(:local evaluation-context)
@@ -324,7 +323,12 @@
   (if (= old-value new-value)
     [node []]
     (let [node-type  (gt/node-type node basis)
-          value-type (s/maybe (some-> (property-type node-type property) deref :schema))]
+          value-type (s/maybe (some-> (property-type node-type property) deref :schema))
+          setter-fn  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
+          new-node   (gt/set-property node basis property new-value)
+          tx-data    (if setter-fn
+                       (setter-fn basis (gt/node-id node) old-value new-value)
+                       [])]
       (if-let [validation-error (s/check value-type new-value)]
         (do
           (in/warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
@@ -335,12 +339,7 @@
                            :expected         value-type
                            :actual           new-value
                            :validation-error validation-error})))
-        (let [setter-fn (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
-              new-node  (gt/set-property node basis property new-value)
-              tx-data   (if setter-fn
-                          (setter-fn basis (gt/node-id node) old-value new-value)
-                          [])]
-          [new-node tx-data])))))
+        [new-node tx-data]))))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -366,9 +365,9 @@
 
 (defn assert-type-compatible
   [basis src-id src-label tgt-id tgt-label]
-  (let [output-nodetype (gt/node-type (ig/node-by-id-at basis src-id) basis)
+  (let [output-nodetype (gt/node-type (gt/node-by-id-at basis src-id) basis)
         output-valtype  (output-type output-nodetype src-label)
-        input-nodetype  (gt/node-type (ig/node-by-id-at basis tgt-id) basis)
+        input-nodetype  (gt/node-type (gt/node-by-id-at basis tgt-id) basis)
         input-valtype   (input-type input-nodetype tgt-label)]
     (assert output-valtype
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
@@ -627,9 +626,7 @@
 (defn transform-properties-plumbing-map
   [description]
   (let [result (reduce-kv (fn [m k v]
-                            (if (external-property? v)
-                              (assoc m k {:fn (property-accessor-value-function description k)})
-                              m))
+                            (assoc m k {:fn (property-accessor-value-function description k)}))
                           {}
                           (:property description))]
     result))
@@ -670,6 +667,10 @@
     (assert (not (nil? type))
             (str "defnode " where " requires a value type but was supplied with "
                  original-form " which cannot be used as a type"))
+    (when (ref? type)
+      (assert (not (nil? (deref type)))
+              (str "defnode " where " requires a value type but was supplied with "
+                   original-form " which cannot be used as a type")))
     (util/assert-form-kind "defnode" "registered value type"
                            (some-fn ref? value-type?) where type)
     {:value-type type
@@ -848,6 +849,11 @@
                :arguments  (util/key-set propmap)
                :fn         `(dynamo.graph/fnk ~(vec (vals propmap)) ~propmap)})))
 
+(defn attach-declared-properties-behavior
+  [description]
+  (assoc-in description [:behavior :_declared-properties :fn]
+            (declared-properties-function description)))
+
 (defn merge-property-arguments
   [tree]
   (update tree :property
@@ -875,6 +881,7 @@
       attach-output-behaviors
       attach-input-behaviors
       attach-property-behaviors
+      attach-declared-properties-behavior
       verify-inputs-for-dynamics
       verify-inputs-for-outputs
       verify-labels))
@@ -1017,13 +1024,13 @@
 (defn first-input-value-form
   [self-name ctx-name nodeid-sym input]
   `(let [[upstream-node-id# output-label#] (first (gt/sources (:basis ~ctx-name) ~nodeid-sym ~input))]
-     (when-let [upstream-node# (and upstream-node-id# (ig/node-by-id-at (:basis ~ctx-name) upstream-node-id#))]
+     (when-let [upstream-node# (and upstream-node-id# (gt/node-by-id-at (:basis ~ctx-name) upstream-node-id#))]
        (gt/produce-value upstream-node# output-label# ~ctx-name))))
 
 (defn input-value-forms
   [self-name ctx-name nodeid-sym input]
   `(mapv (fn [[upstream-node-id# output-label#]]
-           (let [upstream-node# (ig/node-by-id-at (:basis ~ctx-name) upstream-node-id#)]
+           (let [upstream-node# (gt/node-by-id-at (:basis ~ctx-name) upstream-node-id#)]
              (gt/produce-value upstream-node# output-label# ~ctx-name)))
          (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input)))
 
@@ -1056,7 +1063,11 @@
   (let [property-definition (get-in description [:property prop-name])]
     (if (not (:value property-definition))
       `(get ~self-name ~prop-name)
-      `((-> ~self-name (gt/node-type (:basis ~ctx-name)) (get-in [:property ~prop-name :value :fn])) ~self-name ~ctx-name))))
+      (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop-name description
+                                              (:arguments (:value property-definition))
+                                              `(let [nt# (deref (gt/node-type ~self-name (:basis ~ctx-name)))
+                                                     fn# (get-in nt# [:property ~prop-name :value :fn])]
+                                                 fn#)))))
 
 (defn collect-property-value
   [self-name ctx-name nodeid-sym description prop]
@@ -1125,7 +1136,7 @@
 (def ^:private jammable? (complement internal-keys))
 
 (defn original-root [basis node-id]
-  (let [node (ig/node-by-id-at basis node-id)
+  (let [node (gt/node-by-id-at basis node-id)
         orig-id (:original node)]
     (if orig-id
       (recur basis orig-id)
@@ -1135,7 +1146,7 @@
   (if (jammable? transform)
     `(let [basis# (:basis ~ctx-name)
            original# (if (:original ~self-name)
-                       (ig/node-by-id-at basis# (original-root basis# ~nodeid-sym))
+                       (gt/node-by-id-at basis# (original-root basis# ~nodeid-sym))
                        ~self-name)]
        (if-let [jammer# (get (:_output-jammers original#) ~transform)]
         (let [jam-value# (jammer#)]
@@ -1270,10 +1281,11 @@
 (defn collect-property-values
   [self-name ctx-name beh-sym description nodeid-sym value-sym forms]
   (let [props (:property description)]
-    `(let [~value-sym ~(apply merge
-                              (for [[p ptype] (filter external-property? props)]
-                                {p `((get ~beh-sym ~p) ~self-name ~ctx-name)}))]
-       ~forms)))
+    `(do (println "collect-property-values " ~beh-sym)
+         (let [~value-sym ~(apply merge
+                                  (for [[p _] (filter external-property? props)]
+                                    {p `((get-in ~beh-sym [~p :fn]) ~self-name ~ctx-name)}))]
+           ~forms))))
 
 (defn- create-validate-argument-form
   [self-name ctx-name nodeid-sym description argument]
@@ -1412,8 +1424,8 @@
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
   (node-id             [this]                      node-id)
-  (node-type           [this basis]                (gt/node-type (ig/node-by-id-at basis original-id) basis))
-  (get-property        [this basis property]       (get properties property (gt/get-property (ig/node-by-id-at basis original-id) basis property)))
+  (node-type           [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
+  (get-property        [this basis property]       (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
   (set-property        [this basis property value] (if (= :_output-jammers property)
                                                      (throw (ex-info "Not possible to mark override nodes as defective" {}))
                                                      (assoc-in this [:properties property] value)))
@@ -1421,7 +1433,7 @@
   gt/Evaluation
   (produce-value       [this output evaluation-context]
     (let [basis    (:basis evaluation-context)
-          original (ig/node-by-id-at basis original-id)
+          original (gt/node-by-id-at basis original-id)
           type     (gt/node-type this basis)]
       (cond
         (= :_node-id output)
