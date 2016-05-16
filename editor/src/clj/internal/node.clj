@@ -528,7 +528,7 @@
   [description]
   (let [available-arguments (all-available-arguments description)]
     (doseq [[property-name property-type]       (:property description)
-            [dynamic-name {:keys [arguments]}]  (:dynamic property-type)
+            [dynamic-name {:keys [arguments]}]  (:dynamics property-type)
             :let     [missing-args (set/difference arguments available-arguments)]]
       (assert (empty? missing-args)
               (str "Node " (:name description) " must have inputs or properties for the label(s) "
@@ -1158,7 +1158,7 @@
 
 (defn property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
 (defn property-has-no-overriding-output? [description label] (not (contains? (:output description) label)))
-(defn has-validation?                    [description label] (get-in description [:property label :validation]))
+(defn has-validation?                    [description label] (get-in description [:property label :validate]))
 
 (defn apply-default-property-shortcut [self-name ctx-name transform description forms]
   (let [property-name transform]
@@ -1269,23 +1269,13 @@
                                   (cache-output ctx-name description transform nodeid-sym output-sym
                                      output-sym)))))))))))))))))
 
-(defn property-dynamics
-  [self-name ctx-name nodeid-sym description property-name property-type value-form]
-  (apply merge
-         (for [[dynamic-label dynamic] (get-in description [:property property-name :dynamics])]
-           (let [args      (:arguments dynamic)
-                 ev        (:fn dynamic)
-                 dyn-exprs (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym dynamic-label description args ev)]
-             {dynamic-label dyn-exprs}))))
-
 (defn collect-property-values
   [self-name ctx-name beh-sym description nodeid-sym value-sym forms]
   (let [props (:property description)]
-    `(do (println "collect-property-values " ~beh-sym)
-         (let [~value-sym ~(apply merge
-                                  (for [[p _] (filter external-property? props)]
-                                    {p `((get-in ~beh-sym [~p :fn]) ~self-name ~ctx-name)}))]
-           ~forms))))
+    `(let [~value-sym ~(apply merge
+                              (for [[p _] (filter external-property? props)]
+                                {p `((get-in ~beh-sym [~p :fn]) ~self-name ~ctx-name)}))]
+       ~forms)))
 
 (defn- create-validate-argument-form
   [self-name ctx-name nodeid-sym description argument]
@@ -1399,12 +1389,18 @@
               (has-singlevalued-input? description input)
               (first-input-value-form self-name ctx-name nodeid-sym input)))))))
 
+(defn property-dynamics
+  [self-name ctx-name nodeid-sym description property-name property-type value-form]
+  (apply merge
+         (for [[dynamic-label {:keys [fn arguments] :as dynamic}] (get property-type :dynamics)]
+           {dynamic-label (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym dynamic-label description arguments fn)})))
+
 (defn property-value-exprs
   [self-name ctx-name nodeid-sym description prop-name prop-type]
-  (let [basic-val `{:type    ~prop-type
+  (let [basic-val `{:type    ~(:value-type prop-type)
                     :value   ~(collect-base-property-value self-name ctx-name nodeid-sym description prop-name)
                     :node-id ~nodeid-sym}]
-    (if (not (empty? (:dynamic prop-type)))
+    (if (not (empty? (:dynamics prop-type)))
       (let [dyn-exprs (property-dynamics self-name ctx-name nodeid-sym description prop-name prop-type basic-val)]
         (merge basic-val dyn-exprs))
       basic-val)))
@@ -1414,7 +1410,7 @@
   (gensyms [self-name ctx-name nodeid-sym]
     `(fn [~self-name ~ctx-name]
         (let [~nodeid-sym (gt/node-id ~self-name)]
-          ~(property-value-exprs self-name ctx-name nodeid-sym description property (get-in description [:property property :value-type]))))))
+          ~(property-value-exprs self-name ctx-name nodeid-sym description property (get-in description [:property property]))))))
 
 
 
