@@ -1,17 +1,16 @@
 package com.dynamo.cr.server.util;
 
-import java.nio.ByteBuffer;
-
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
+import java.nio.ByteBuffer;
 
 public class TrackingID {
     private static final String BLOWFISH = "Blowfish";
     private static final String BLOWFISH_CHIPHER = "Blowfish/ECB/NoPadding";
-    private static byte[] KEY = DatatypeConverter.parseHexBinary("d6ba554f307779f3");
-    private static int PREFIX = 0x00def01d;
+    private static final byte[] KEY = DatatypeConverter.parseHexBinary("d6ba554f307779f3");
+    private static final int PREFIX = 0x00def01d;
 
     private static byte[] encrypt(byte[] plainText) {
         try {
@@ -31,5 +30,4 @@ public class TrackingID {
         byte[] encrypted = encrypt(plain.array());
         return DatatypeConverter.printHexBinary(encrypted);
     }
-
 }
