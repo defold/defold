@@ -937,6 +937,11 @@ Defold Orange       #fd6623             Guides etc
     -fx-background-color: #8f9296;
 }
 
+.styled-text-area .text-caret {
+	-fx-fill: white;
+	-fx-stroke: white;
+}
+
 /*
 
 Line numbers:
@@ -971,3 +976,9 @@ Line numbers:
 
 .overridden .color-picker-label .text {
   -fx-fill: -defold-light-blue; }
+
+/* Console */
+
+#console {
+    -fx-highlight-fill: -defold-selected-blue;
+}

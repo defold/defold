@@ -29,7 +29,9 @@ namespace dmCrash
         return h;
     }
 
-    /*# Perform the same steps as if a crash had just occured, but allow the program to continue.
+    /*# writes crash dump
+     * Performs the same steps as if a crash had just occured but 
+     * allows the program to continue.
      * The generated dump can be read by crash.load_previous
      *
      * @name crash.write_dump
@@ -40,11 +42,12 @@ namespace dmCrash
         return 0;
     }
 
-    /*# Set the location for where crash dumps will be written. Crashes occuring before the path
-     * is set will be stored to a default engine location.
+    /*# sets the file location for crash dumps
+     *
+     * Crashes occuring before the path is set will be stored to a default engine location.
      *
      * @name crash.set_file_path
-     * @param path file path to use
+     * @param path file path to use (string)
      */
     int Crash_SetFilePath(lua_State* L)
     {
@@ -53,11 +56,13 @@ namespace dmCrash
         return 0;
     }
 
-    /*# Load a previously written crash dump. The crash dump will be removed from disk upon a successful
+    /*# loads a previously written crash dump
+     *
+     * The crash dump will be removed from disk upon a successful
      * load, so loading is one-shot.
      *
      * @name crash.load_previous
-     * @return handle to the loaded dump, or nil if no dump was found
+     * @return handle handle to the loaded dump, or nil if no dump was found. (number)
      */
     int Crash_LoadPrevious(lua_State* L)
     {
@@ -74,10 +79,10 @@ namespace dmCrash
         return 1;
     }
 
-    /*# Release a previously loaded crash dump.
+    /*# releases a previously loaded crash dump
      *
      * @name crash.release
-     * @param handle to loaded crash dump
+     * @param handle handle to loaded crash dump (number)
      */
     int Crash_ReleasePrevious(lua_State* L)
     {
@@ -85,13 +90,15 @@ namespace dmCrash
         return 0;
     }
 
-    /*# Store user-defined string value that will get written to a crash dump when
-     * a crash occurs. This can be user id:s, breadcrumb data etc. There are 32 slots
-     * indexed from 0. Each slot stores at most 255 characters.
+    /*# stores user-defined string value
+     *
+     * Store a user value that will get written to a crash dump when
+     * a crash occurs. This can be user id:s, breadcrumb data etc.
+     * There are 32 slots indexed from 0. Each slot stores at most 255 characters.
      *
      * @name crash.set_user_field
-     * @param index Slot index (0-indexed)
-     * @param value Value to store
+     * @param index slot index. 0-indexed. (number)
+     * @param value string value to store (string)
      */
     int Crash_SetUserField(lua_State* L)
     {
@@ -112,12 +119,14 @@ namespace dmCrash
         return 0;
     }
 
-    /*# Get a table of all loaded modules from when the crash occured. The function returns a table
-     * containing entries with sub-tables that have 'name' and 'address' set.
+    /*# get all loaded modules from when the crash occured
+     *
+     * The function returns a table containing entries with sub-tables that
+     * have 'name' and 'address' set for all loaded modules.
      *
      * @name crash.get_modules
-     * @param handle Crash dump handle
-     * @return module table
+     * @param handle crash dump handle (number)
+     * @return modules module table (table)
      */
     int Crash_GetModules(lua_State* L)
     {
@@ -156,12 +165,12 @@ namespace dmCrash
         return 1;
     }
 
-    /*# Read user field from a loaded crash dump
+    /*# reads user field from a loaded crash dump
      *
      * @name crash.get_user_field
-     * @param handle Crash dump handle
-     * @param index User data slot index
-     * @return User data value recorded in the crash dump
+     * @param handle crash dump handle (number)
+     * @param index user data slot index (number)
+     * @return value user data value recorded in the crash dump (string)
      */
     int Crash_GetUserField(lua_State* L)
     {
@@ -185,12 +194,12 @@ namespace dmCrash
         return 1;
     }
 
-    /*# Read a system field from a loaded crash dump
+    /*# reads a system field from a loaded crash dump
      *
      * @name crash.get_sys_field
-     * @param handle Crash dump handle
-     * @param index System field enum
-     * @return Value recorded in the crash dump
+     * @param handle crash dump handle (number)
+     * @param index system field enum (number)
+     * @return value value recorded in the crash dump (string)
      */
     int Crash_GetSysField(lua_State* L)
     {
@@ -214,11 +223,11 @@ namespace dmCrash
         return 1;
     }
 
-    /*# Read signal number from a crash report
+    /*# read signal number from a crash report
      *
      * @name crash.get_signum
-     * @param handle Crash dump handle
-     * @return signal number
+     * @param handle crash dump handle (number)
+     * @return signal signal number (number)
      */
     int Crash_GetSignum(lua_State* L)
     {
@@ -227,12 +236,13 @@ namespace dmCrash
         return 1;
     }
 
-    /*# Read back trace recorded in a loaded crash dump. A table is returned containing
-     * the addresses of the call stack.
+    /*# read backtrace recorded in a loaded crash dump
+     *
+     * A table is returned containing the addresses of the call stack.
      *
      * @name crash.get_backtrace
-     * @param handle Crash dump handle
-     * @return Table containing the backtrace
+     * @param handle crash dump handle (number)
+     * @return backtrace table containing the backtrace (table)
      */
     int Crash_GetBacktrace(lua_State* L)
     {
@@ -253,12 +263,15 @@ namespace dmCrash
         return 1;
     }
 
-    /*# Read platform-specific text blob recorded in a crash dump. Format is not guaranteed
+    /*# read text blob recorded in a crash dump
+     *
+     * The format of read text blob is platform specific
+     * and not guaranteed
      * but can be useful for manual inspection.
      *
      * @name crash.get_extra_data
-     * @param handle Crash dump handle
-     * @return String with the platform specific data
+     * @param handle crash dump handle (number)
+     * @return blob string with the platform specific data (string)
      */
     int Crash_GetExtraData(lua_State* L)
     {

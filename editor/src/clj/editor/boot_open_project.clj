@@ -137,7 +137,11 @@
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^Tab assets          (.lookup root "#assets")
-          ^TextArea console    (.lookup root "#console")
+          console              (.lookup root "#console")
+          prev-console         (.lookup root "#prev-console")
+          next-console         (.lookup root "#next-console")
+          clear-console        (.lookup root "#clear-console")
+          search-console       (.lookup root "#search-console")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -146,8 +150,12 @@
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
-                                 http-server/start!)]
-      (console/setup-console! console)
+                                   http-server/start!)]
+      (console/setup-console! {:text   console
+                               :search search-console
+                               :clear  clear-console
+                               :next   next-console
+                               :prev   prev-console})
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
