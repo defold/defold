@@ -7,7 +7,6 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [internal.node :as in]
-            [internal.property :as ip]
             [internal.system :as is]
             [schema.core :as s]))
 
@@ -350,30 +349,13 @@
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
-  (let [basis      (:basis ctx)
-        value-type (some-> (get (in/public-properties (gt/node-type node basis)) property)
-                           ip/value-type
-                           s/maybe)]
-   (if-let [validation-error (and value-type (s/check value-type new-value))]
-     (let [node-type (gt/node-type node basis)]
-       (in/warn-output-schema node-id node-type property new-value value-type validation-error)
-       (throw (ex-info "SCHEMA-VALIDATION"
-                   {:node-id          node-id
-                    :type             node-type
-                    :property         property
-                    :expected         value-type
-                    :actual           new-value
-                    :validation-error validation-error})))
-     (let [setter-fn (in/setter-for basis node property)]
+  (let [[new-node tx-data] (in/tx-invoke-setter (:basis ctx) node property old-value new-value)
+        ctx                (update ctx :basis #(first (gt/replace-node % node-id new-node)))]
+    (if (empty? tx-data)
+      ctx
       (-> ctx
-        (update :basis ip/property-default-setter node-id property old-value new-value)
-        (cond->
-          (not= old-value new-value)
-          (->
-            (mark-activated node-id property)
-            (cond->
-              (not (nil? setter-fn))
-              (apply-tx (setter-fn (:basis ctx) node-id old-value new-value))))))))))
+          (mark-activated node-id property)
+          (apply-tx tx-data)))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
@@ -416,9 +398,11 @@
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
         old-value (gt/get-property node basis property)]
-    (if-let [setter-fn (in/setter-for basis node property)]
-      (apply-tx ctx (setter-fn basis node-id old-value nil))
-      ctx)))
+    (let [[new-node tx-data] (in/tx-invoke-setter basis node old-value nil)]
+      (cond-> (gt/replace-node ctx node new-node)
+
+        (not (empty? tx-data))
+        (apply-tx tx-data)))))
 
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
   (let [basis (:basis ctx)]
