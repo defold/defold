@@ -347,6 +347,11 @@ static void LogFrameBufferError(GLenum status)
 
         if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
 
+        if (params->m_HighDPI) {
+            glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
+        }
+
+
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)

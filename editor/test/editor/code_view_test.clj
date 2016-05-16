@@ -2,13 +2,14 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
+            [editor.code-view-ux :as cvx :refer :all]
             [editor.handler :as handler]
             [editor.lua :as lua]
             [editor.script :as script]
             [editor.gl.shader :as shader]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
-(defn- setup-code-view-nodes [world source-viewer code code-node-type]
+(defn setup-code-view-nodes [world source-viewer code code-node-type]
   (let [[code-node viewer-node] (tx-nodes (g/make-node world code-node-type)
                                           (g/make-node world CodeView :source-viewer source-viewer))]
     (do (g/transact (g/set-property code-node :code code))
@@ -20,7 +21,7 @@
   (with-clean-system
    (let [code ""
          opts lua/lua
-         source-viewer (setup-source-viewer opts)
+         source-viewer (setup-source-viewer opts false)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
      (testing "default style"
        (let [new-code "x="]
@@ -67,7 +68,7 @@
   (with-clean-system
    (let [code ""
          opts (:code shader/glsl-opts)
-         source-viewer (setup-source-viewer opts)
+         source-viewer (setup-source-viewer opts false)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code shader/ShaderNode)]
      (testing "default style"
        (let [new-code "x="]
@@ -109,32 +110,3 @@
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
          (is (= {:start 0 :length 23 :stylename "comment-multi"} (first (styles source-viewer)))))))))
-
-(defrecord TestClipboard [content]
-  TextContainer
-  (text! [this s] (reset! content s))
-  (text [this] @content))
-
-(defn- copy! [source-viewer code-node clipboard]
-  (handler/run
-    :copy
-    [{:name :code-view :env {:selection source-viewer :code-node code-node :clipboard clipboard}}]
-    {}))
-
-(defn- paste! [source-viewer code-node clipboard]
-  (handler/run :paste
-    [{:name :code-view :env {:selection source-viewer :code-node code-node :clipboard clipboard}}]
-    {}))
-
-(deftest copy-paste-test
-  (with-clean-system
-    (let [clipboard (new TestClipboard (atom ""))
-          code "hello world"
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (text-selection! source-viewer 6 5)
-      (copy! source-viewer code-node clipboard)
-      (paste! source-viewer code-node clipboard)
-      (is (= "world" (text clipboard)))
-      (is (= "worldhello world" (g/node-value code-node :code))))))
