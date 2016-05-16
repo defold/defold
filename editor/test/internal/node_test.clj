@@ -3,7 +3,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.node :as in]
-            [internal.property :as ip]
             [internal.system :as is]
             [internal.util :as util]
             [support.test-support :refer [tx-nodes with-clean-system]])
@@ -22,8 +21,7 @@
 (g/defnode WithDefaults
   (property default-value                 g/Str (default "o rly?"))
   (property overridden-indirect           g/Str (default string-value))
-  (property overridden-indirect-by-var    g/Str (default #'string-value))
-  (property overridden-indirect-by-symbol g/Str (default 'string-value)))
+  (property overridden-indirect-by-var    g/Str (default #'string-value)))
 
 (deftest node-property-defaults
   (are [expected property] (= expected (get (g/construct WithDefaults) property))
@@ -52,8 +50,8 @@
 (g/defnk depends-on-several [this an-input a-property] [this an-input a-property])
 
 (g/defnode DependencyTestNode
-  (input an-input String)
-  (input unused-input String)
+  (input an-input g/Str)
+  (input unused-input g/Str)
 
   (property a-property g/Str)
 
@@ -74,8 +72,8 @@
 (g/defnode EmptyNode)
 
 (g/defnode OverrideOutputNode
-  (property a-property String (default "a-property"))
-  (output overridden String (g/fnk [a-property] a-property)))
+  (property a-property g/Str (default "a-property"))
+  (output overridden g/Str (g/fnk [a-property] a-property)))
 
 (g/defnode SinkNode
   (input a-node-id g/NodeID))
@@ -94,7 +92,8 @@
                (is (= "bar"  foo-override))
                (let [properties (g/node-value n1 :_properties)]
                  (is (not (empty? (:properties properties))))
-                 (is (every? util/schema? (map :type (vals (:properties properties)))))
+
+                 (is (every? util/schema? (map (comp :schema deref :type val) (:properties properties))))
                  (is (empty? (filter (fn [k] (some k #{:_output-jammers :_node-id})) (keys (:properties properties)))))
                  (is (not (empty? (:display-order properties))))))))
 
@@ -238,7 +237,7 @@
 (g/defnode ProductionFunctionInputsNode
   (input in       g/Keyword)
   (input in-multi g/Keyword :array)
-  (property prop g/Keyword)
+  (property prop  g/Keyword)
   (output defnk-this       g/Any       (g/fnk [this] this))
   (output defnk-prop       g/Keyword   (g/fnk [prop] prop))
   (output defnk-in         g/Keyword   (g/fnk [in] in))
@@ -282,13 +281,13 @@
   (testing "the output has the same type as the property"
     (is (= g/Keyword
           (-> ProductionFunctionInputsNode g/transform-types :prop)
-          (-> ProductionFunctionInputsNode g/declared-properties :prop ip/value-type)))))
+          (-> ProductionFunctionInputsNode g/declared-properties :prop :value-type)))))
 
 (g/defnode AKeywordNode
   (property prop g/Keyword))
 
 (g/defnode AStringNode
-  (property prop String))
+  (property prop g/Str))
 
 (g/defnode BOutputNode
   (input keyword-input g/Keyword)
@@ -350,9 +349,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   ip/property-default-value)))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   ip/property-default-value)))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple ip/property-default-value)))))
+      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   )))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   )))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple )))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)

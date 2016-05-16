@@ -209,6 +209,7 @@
 (deftype Int        s/Int)
 (deftype Num        s/Num)
 (deftype NodeID     s/Int)
+(deftype Keyword    s/Keyword)
 (deftype KeywordMap {s/Keyword s/Any})
 (deftype Properties
     {:properties {s/Keyword {:node-id                              gt/NodeID

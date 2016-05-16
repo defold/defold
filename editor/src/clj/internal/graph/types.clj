@@ -28,6 +28,7 @@
   (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
 
 (defprotocol IBasis
+  (node-by-id-at    [this node-id])
   (node-by-property [this label value])
   (arcs-by-head     [this node-id])
   (arcs-by-tail     [this node-id])

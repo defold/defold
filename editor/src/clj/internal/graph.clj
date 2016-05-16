@@ -3,7 +3,8 @@
             [internal.util :refer [removev conjv map-vals stackify project]]
             [internal.graph.types :as gt]
             [schema.core :as s]
-            [internal.util :as util]))
+            [internal.util :as util]
+            [internal.node :as in]))
 
 (set! *warn-on-reflection* true)
 
@@ -119,10 +120,6 @@
 
 (definline node-id->graph  [gs node-id] `(get ~gs (gt/node-id->graph-id ~node-id)))
 
-(defn node-by-id-at
-  [basis node-id]
-  (node (node-id->graph (:graphs basis) node-id) node-id))
-
 (defn override-by-id
   [basis override-id]
   (get-in basis [:graphs (gt/override-id->graph-id override-id) :overrides override-id]))
@@ -214,6 +211,10 @@
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
+  (node-by-id-at
+      [_ node-id]
+    (node (node-id->graph graphs node-id) node-id))
+
   (node-by-property
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
@@ -347,7 +348,7 @@
           tgt-node      (node tgt-graph tgt-id)
           tgt-type      (gt/node-type tgt-node this)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
-      (assert (some #{tgt-label} (-> tgt-type :input util/key-set)) (str "No label " tgt-label " exists on node " tgt-node))
+      (assert (in/has-input? tgt-type tgt-label) (str "No label " tgt-label " exists on node " tgt-node))
       (if (= src-gid tgt-gid)
         (update this :graphs assoc
                 src-gid (-> src-graph
