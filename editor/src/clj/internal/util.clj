@@ -182,7 +182,8 @@
   [f]
   (and (fn? f) (contains? (meta f) :schema)))
 
-(defn pfnksymbol?  [x] (or (pfnk? x) (and (symbol? x) (pfnk? (vgr x)))))
+(defn pfnksymbol? [x] (or (pfnk? x) (and (symbol? x) (pfnk? (vgr x)))))
+(defn pfnkvar?    [x] (or (pfnk? x) (and (var? x) (pfnk? (var-get x)))))
 
 (defn- quoted-var? [x] (and (seq? x) (= 'var (first x))))
 (defn- pfnk-form?  [x] (seq? x))
