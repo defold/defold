@@ -5,7 +5,8 @@
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
-            [support.test-support :refer [tx-nodes with-clean-system]])
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [internal.graph.types :as gt])
   (:import clojure.lang.ExceptionInfo))
 
 (def ^:dynamic *calls*)
@@ -349,9 +350,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   )))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   )))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple )))))
+      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override  )))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override   )))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple )))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
@@ -361,8 +362,9 @@
 
   (testing "transform-types"
     (with-clean-system
-      (is (= [g/Keyword] (-> BasicNode g/transform-types :multi-valued-property)))
-      (is (= [g/Str]     (-> InheritsBasicNode g/transform-types :multi-valued-property)))))
+      (are [nt p vt] (= vt (in/output-type nt p))
+        BasicNode         :multi-valued-property g/Keyword
+        InheritsBasicNode :multi-valued-property g/Str)))
 
   (testing "inputs"
     (is (every? (-> (g/construct BasicNode) g/node-type g/declared-inputs) #{:basic-input}))
@@ -376,10 +378,10 @@
 
 (g/defnode PropertyValidationNode
   (property even-number g/Int
-    (default 0)
-    (validate (g/fnk [even-number]
-                     (when (not (even? even-number))
-                       (g/error-warning "only even numbers are allowed"))))))
+            (default 0)
+            (validate (g/fnk [even-number]
+                             (when (not (even? even-number))
+                               (g/error-warning "only even numbers are allowed"))))))
 
 (deftest validation-errors-delivered-in-properties-output
   (with-clean-system
@@ -437,8 +439,8 @@
             (value (g/fnk [foo] foo))
             (set (fn [basis self old-value new-value]
                    (concat
-                     (g/set-property self :foo new-value)
-                     (g/set-property self :bar new-value)))))
+                    (g/set-property self :foo new-value)
+                    (g/set-property self :bar new-value)))))
   (property multi-prop g/Str
             (value (g/fnk [bar foo] (str bar "-" foo)))
             (dynamic visible (g/fnk [multi-prop] multi-prop))
