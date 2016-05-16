@@ -1,16 +1,4 @@
-package com.dynamo.cr.archive;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-import java.util.zip.ZipFile;
-
-import javax.inject.Inject;
-import javax.ws.rs.core.Response.Status;
-
-import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package com.dynamo.cr.server.git.archive;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ServerException;
@@ -21,6 +9,16 @@ import com.google.common.cache.Weigher;
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.inject.Singleton;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.inject.Inject;
+import javax.ws.rs.core.Response.Status;
+import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import java.util.zip.ZipFile;
 
 /**
  * Guava based cache used to store archive file metadata
