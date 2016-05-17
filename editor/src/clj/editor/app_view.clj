@@ -10,10 +10,11 @@
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.profiler :as profiler]
+            [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [com.defold.editor Profiler]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
@@ -31,7 +32,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
-           [java.io File]
+           [java.io File ByteArrayOutputStream]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -105,7 +106,11 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [] (Platform/exit)))
+  (run [project]
+    (when (or (not (workspace/version-on-disk-outdated? (project/workspace project)))
+              (and (workspace/version-on-disk-outdated? (project/workspace project))
+                   (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?")))
+      (Platform/exit))))
 
 (handler/defhandler :new :global
   (enabled? [] true)
@@ -130,6 +135,17 @@
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
+(defn- collect-resources [{:keys [children] :as resource}]
+  (if (empty? children)
+    #{resource}
+    (set (concat [resource] (mapcat collect-resources children)))))
+
+(defn remove-resource-tab [^TabPane tab-pane resource]
+  (let [tabs      (.getTabs tab-pane)
+        resources (collect-resources resource)]
+    (doseq [tab (filter #(contains? resources (ui/user-data % ::resource)) tabs)]
+      (remove-tab tab-pane tab))))
+
 (defn- get-tabs [app-view]
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
@@ -142,7 +158,7 @@
         (remove-tab tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (> (count (get-tabs app-view)) 1))
+  (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
@@ -171,10 +187,6 @@
 (handler/defhandler :about :global
   (enabled? [] true)
   (run [] (make-about-dialog)))
-
-(handler/defhandler :profile :global
-  (enabled? [] true)
-  (run [] (Profiler/dump "misc/timeseries.csv")))
 
 (handler/defhandler :reload-stylesheet :global
   (enabled? [] true)
@@ -248,16 +260,20 @@
                               :acc "Alt+DOWN"
                               :command :move-down}]}
                  {:label "Help"
-                  :children [{:label "Profile"
-                              :command :profile
-                              :acc "Shift+Shortcut+P"}
+                  :children [{:label "Profiler"
+                              :children [{:label "Measure"
+                                          :command :profile
+                                          :acc "Shortcut+P"}
+                                         {:label "Measure and Show"
+                                          :command :profile-show
+                                          :acc "Shift+Shortcut+P"}]}
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
                              {:label "About"
                               :command :about}]}])
 
-(ui/extend-menu ::tabpane-menu nil
+(ui/extend-menu ::tab-menu nil
                 [{:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
@@ -274,6 +290,20 @@
 (defn- make-title
   ([] "Defold Editor 2.0")
   ([project-title] (str (make-title) " - " project-title)))
+
+(defn- refresh-ui! [^Stage stage project]
+  (ui/refresh (.getScene stage))
+  (let [settings      (g/node-value project :settings)
+        project-title (settings ["project" "title"])
+        new-title     (make-title project-title)]
+    (when (not= (.getTitle stage) new-title)
+      (.setTitle stage new-title))))
+
+(defn- refresh-views! [app-view]
+  (let [auto-pulls (g/node-value app-view :auto-pulls)]
+    (doseq [[node label] auto-pulls]
+      (profiler/profile "view" (:name (g/node-type* node))
+                        (g/node-value node label)))))
 
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
@@ -296,19 +326,9 @@
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
-    (ui/register-context-menu tab-pane ::tabpane-menu)
 
-    (let [refresh-timers [(ui/->timer 2 (fn [dt]
-                                          (ui/refresh (.getScene stage))
-                                          (let [settings      (g/node-value project :settings)
-                                                project-title (settings ["project" "title"])
-                                                new-title     (make-title project-title)]
-                                            (when (not= (.getTitle stage) new-title)
-                                              (.setTitle stage new-title)))))
-                          (ui/->timer 10 (fn [dt]
-                                           (let [auto-pulls (g/node-value app-view :auto-pulls)]
-                                             (doseq [[node label] auto-pulls]
-                                               (g/node-value node label)))))]]
+    (let [refresh-timers [(ui/->timer 2 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
+                          (ui/->timer 10 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-close! stage timer)
         (ui/timer-start! timer)))
@@ -333,6 +353,7 @@
         view       (make-view-fn view-graph parent resource-node opts)]
     (ui/user-data! tab ::view view)
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
+    (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
                          event

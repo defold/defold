@@ -6,6 +6,7 @@ import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
@@ -59,6 +60,16 @@ public class AtlasBuilder extends Builder<Void>  {
             texture = TextureGenerator.generate(result.image, texProfile);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+        }
+
+        for(TextureImage.Image img  : texture.getAlternativesList()) {
+            if(img.getCompressionType() != TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
+                for(IResource res : task.getOutputs()) {
+                    if(res.getPath().endsWith("texturec")) {
+                        this.project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+                    }
+                }
+            }
         }
 
         task.output(0).setContent(textureSet.toByteArray());

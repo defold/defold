@@ -156,7 +156,7 @@
                  (g/transact
                    (g/set-property node :name "new_name"))
                  (is (has-undo? project))
-                 (project/save-all project)
+                 (project/save-all project {})
                  (workspace/resource-sync! workspace)
                  (is (has-undo? project)))))))
 

@@ -1,17 +1,5 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-
-import javax.persistence.EntityManager;
-
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.NewsSubscriberList;
 import com.dynamo.cr.server.model.NewsSubscriber;
@@ -19,6 +7,17 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import org.junit.Before;
+import org.junit.Test;
+
+import javax.persistence.EntityManager;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 
 public class NewsListResourceTest extends AbstractResourceTest {
@@ -31,7 +30,7 @@ public class NewsListResourceTest extends AbstractResourceTest {
     private NewsSubscriber bobSubscription;
     private User joeUser;
 
-    NewsSubscriber createNewsSubscription(User user) {
+    private NewsSubscriber createNewsSubscription(User user) {
         EntityManager em = emf.createEntityManager();
         em.getTransaction().begin();
         NewsSubscriber ns = new NewsSubscriber();
@@ -61,7 +60,7 @@ public class NewsListResourceTest extends AbstractResourceTest {
         bobSubscription = createNewsSubscription(bobUser);
     }
 
-    void unsubscribe(NewsSubscriber subscriber) throws Exception {
+    private void unsubscribe(NewsSubscriber subscriber) throws Exception {
         anonymousResource.path(subscriber.getEmail()).path(subscriber.getUnsubscribeKey()).delete();
     }
 
@@ -70,11 +69,11 @@ public class NewsListResourceTest extends AbstractResourceTest {
         List<Protocol.NewsSubscriber> lst = adminResource.get(NewsSubscriberList.class).getSubscribersList();
         assertThat(lst.size(), is(2));
 
-        HashSet<String> emails = new HashSet<String>();
+        HashSet<String> emails = new HashSet<>();
         emails.add(lst.get(0).getEmail());
         emails.add(lst.get(1).getEmail());
 
-        assertThat(emails, is(new HashSet<String>(Arrays.asList(adminSubscription.getEmail(), bobSubscription.getEmail()))));
+        assertThat(emails, is(new HashSet<>(Arrays.asList(adminSubscription.getEmail(), bobSubscription.getEmail()))));
     }
 
     @Test
@@ -126,6 +125,31 @@ public class NewsListResourceTest extends AbstractResourceTest {
 
         lst = adminResource.get(NewsSubscriberList.class);
         assertThat(lst.getSubscribersList().size(), is(2));
+    }
+
+    @Test
+    public void testAlreadyUnsubscribed() throws Exception {
+        NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").delete();
+        lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+    }
+
+    @Test
+    public void checkSubscriptionStatus() throws Exception {
+        String isSubscribed = joeResource
+                .path(joeUser.getId().toString()).path("subscribe")
+                .get(String.class);
+        assertTrue("false".equalsIgnoreCase(isSubscribed));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").put();
+
+        isSubscribed = joeResource
+                .path(joeUser.getId().toString()).path("subscribe")
+                .get(String.class);
+        assertTrue("true".equalsIgnoreCase(isSubscribed));
     }
 
 }

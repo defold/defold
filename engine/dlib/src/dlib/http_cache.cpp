@@ -23,7 +23,7 @@ namespace dmHttpCache
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 5;
+    const uint32_t VERSION = 6;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;
@@ -62,7 +62,7 @@ namespace dmHttpCache
         // ETag string
         char     m_ETag[MAX_TAG_LEN];
         // Path string
-        char     m_URI[256];
+        char     m_URI[MAX_URI_LEN];
         // The content hash is the hash of URI and ETag.
         uint64_t m_IdentifierHash;
         // Last accessed time

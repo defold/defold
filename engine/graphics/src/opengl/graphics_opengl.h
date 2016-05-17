@@ -31,6 +31,7 @@ namespace dmGraphics
         uint32_t                m_DepthBufferBits;
         uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
+        uint32_t                m_VerifyGraphicsCalls : 1;
     };
 
     static inline void IncreaseModificationVersion(Context* context)

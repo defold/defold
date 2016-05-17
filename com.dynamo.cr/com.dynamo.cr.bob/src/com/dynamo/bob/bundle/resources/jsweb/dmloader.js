@@ -24,8 +24,7 @@ var Combine = {
     _onDownloadProgress: [],    // signature: downloaded, total
 
     _totalDownloadBytes: 0,
-    _archiveLocationPrefix: "split",
-    _archiveLocationSuffix: "",
+    _archiveLocationFilter: function(path) { return "split" + path; },
 
     addProgressListener: function(callback) {
         if (typeof callback !== 'function') {
@@ -106,7 +105,7 @@ var Combine = {
 
         var item = target.pieces[index];
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', this._archiveLocationPrefix + '/' + item.name + this._archiveLocationSuffix, true);
+        xhr.open('GET', this._archiveLocationFilter('/' + item.name), true);
         xhr.responseType = 'arraybuffer';
         xhr.onprogress = function(evt) {
 	    target.progress[item.name] = {};
@@ -238,7 +237,9 @@ var Progress = {
     },
 
     removeProgress: function () {
-        Progress.progress.remove();
+        if (Progress.progress.parentElement !== null) {
+            Progress.progress.parentElement.removeChild(Progress.progress);
+        }
     }
 };
 
@@ -254,7 +255,7 @@ var CanvasInput = {
             default: break; // do not block other keys
         }
     },
-    
+
     onFocusIn : function(e) {
         window.addEventListener("keydown", CanvasInput.arrowKeysHandler, false);
     },
@@ -280,40 +281,107 @@ var Module = {
 
     _filesToPreload: [],
     _archiveLoaded: false,
+    _preLoadDone: false,
+    _waitingForArchive: false,
+
+    // Persistent storage
+    _syncInProgress: false,
+    _syncNeeded: false,
+    _syncInitial: false,
 
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },
 
     setStatus: function(text) { console.log(text); },
 
-    runApp: function(app_canvas_name, splash_image, archive_location_prefix, archive_location_suffix) {
-        app_canvas_name = (typeof app_canvas_name === 'undefined') ?  'canvas' : app_canvas_name;
-        splash_image = (typeof splash_image === 'undefined') ?  'splash_image.png' : splash_image;
-        archive_location_prefix = (typeof archive_location_prefix === 'undefined') ?  'split' : archive_location_prefix;
-        archive_location_suffix = (typeof archive_location_suffix === 'undefined') ?  '' : archive_location_suffix;
+    hasWebGLSupport: function() {
+        var webgl_support = false;
+        try {
+            var canvas = document.createElement("canvas");
+            var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            if (gl && gl instanceof WebGLRenderingContext) {
+                webgl_support = true;
+            }
+        } catch (error) {
+            console.log("An error occurred while detecting WebGL support: " + error);
+            webgl_support = false;
+        }
 
-        Module.canvas = document.getElementById(app_canvas_name);
-        Module.canvas.style.background = 'no-repeat center url("' + splash_image + '")';
+        return webgl_support;
+    },
 
-        // Override game keys
-        CanvasInput.addToCanvas(Module.canvas);
+    /**
+    * Module.runApp - Starts the application given a canvas element id
+    *
+    * 'extra_params' is an optional object that can have the following fields:
+    *
+    *     'splash_image':
+    *         Path to an image that should be used as a background image for
+    *         the canvas element.
+    *
+    *     'archive_location_filter':
+    *         Filter function that will run for each archive path.
+    *
+    *     'unsupported_webgl_callback':
+    *         Function that is called if WebGL is not supported.
+    *
+    *     'engine_arguments':
+    *         List of arguments (strings) that will be passed to the engine.
+    *
+    **/
+    runApp: function(app_canvas_id, extra_params) {
+        app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
 
-        // Load Facebook API
-        var fb = document.createElement('script');
-        fb.type = 'text/javascript';
-        fb.src = '//connect.facebook.net/en_US/sdk.js';
-        document.head.appendChild(fb);
+        var params = {
+            splash_image: undefined,
+            archive_location_filter: function(path) { return 'split' + path; },
+            unsupported_webgl_callback: undefined,
+            engine_arguments: []
+        };
 
-        // Add progress visuals
-        Progress.addProgress(Module.canvas);
 
-        // Load and assemble archive
-        Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
-        Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
-        Combine.addProgressListener(Module.onArchiveLoadProgress);
-        Combine._archiveLocationPrefix = archive_location_prefix;
-        Combine._archiveLocationSuffix = archive_location_suffix;
-        Combine.process(archive_location_prefix + '/archive_files.json' + archive_location_suffix);
+        for (var k in extra_params) {
+            if (extra_params.hasOwnProperty(k)) {
+                params[k] = extra_params[k];
+            }
+        }
+
+        Module.canvas = document.getElementById(app_canvas_id);
+        if (typeof params["splash_image"] !== 'undefined') {
+            Module.canvas.style.background = 'no-repeat center url("' + params["splash_image"] + '")';
+        }
+        Module.arguments = params["engine_arguments"];
+
+        if (Module.hasWebGLSupport()) {
+            // Override game keys
+            CanvasInput.addToCanvas(Module.canvas);
+
+            // Load Facebook API
+            var fb = document.createElement('script');
+            fb.type = 'text/javascript';
+            fb.src = '//connect.facebook.net/en_US/sdk.js';
+            document.head.appendChild(fb);
+
+            // Add progress visuals
+            Progress.addProgress(Module.canvas);
+
+            // Load and assemble archive
+            Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
+            Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
+            Combine.addProgressListener(Module.onArchiveLoadProgress);
+            Combine._archiveLocationFilter = params["archive_location_filter"];
+            Combine.process(Combine._archiveLocationFilter('/archive_files.json'));
+        } else {
+            Progress.addProgress(Module.canvas);
+            Progress.updateProgress(100, "Unable to start game, WebGL not supported");
+            Module.setStatus = function(text) {
+                if (text) Module.printErr('[missing WebGL] ' + text);
+            };
+
+            if (typeof params["unsupported_webgl_callback"] === "function") {
+                params["unsupported_webgl_callback"]();
+            }
+        }
     },
 
     onArchiveLoadProgress: function(downloaded, total) {
@@ -329,20 +397,58 @@ var Module = {
         Module._archiveLoaded = true;
         Progress.updateProgress(100, "Starting...");
 
-        if(typeof Module.run == 'undefined') {
-            /* If we are waiting for engine, let it autostart. */
-            Module.noInitialRun = false;
-        } else {
-            Module.preloadAll();
-            Progress.removeProgress();
-            Module.callMain();
+        if (Module._waitingForArchive) {
+            Module._preloadAndCallMain();
         }
     },
 
+    toggleFullscreen: function() {
+        if (GLFW.isFullscreen) {
+            GLFW.cancelFullScreen();
+        } else {
+            GLFW.requestFullScreen();
+        }
+    },
+
+    preSync: function(done) {
+        // Initial persistent sync before main is called
+        FS.syncfs(true, function(err) {
+            if(err) {
+                console.error("FS syncfs error: " + err);
+                Module.preSync(done);
+            } else {
+                Module._syncInitial = true;
+                if (done !== undefined) {
+                    done();
+                }
+            }
+        });
+    },
+
     preloadAll: function() {
+        if (Module._preLoadDone) {
+            return;
+        }
         for (var i = 0; i < Module._filesToPreload.length; ++i) {
             var item = Module._filesToPreload[i];
             FS.createPreloadedFile("", item.path, item.data, true, true);
+        }
+        Module._preLoadDone = true;
+    },
+
+    // Tries to do a MEM->IDB sync
+    // It will flag that another one is needed if there is already one sync running.
+    persistentSync: function() {
+
+        // Need to wait for the initial sync to finish since it
+        // will call close on all its file streams which will trigger
+        // new persistentSync for each.
+        if (Module._syncInitial) {
+            if (Module._syncInProgress) {
+                Module._syncNeeded = true;
+            } else {
+                Module._startSyncFS();
+            }
         }
     },
 
@@ -351,13 +457,22 @@ var Module = {
         var dir = DMSYS.GetUserPersistentDataRoot();
         FS.mkdir(dir);
 
-        if (window.__indexedDB) {
+        // If IndexedDB is supported we mount the persistent data root as IDBFS,
+        // then try to do a IDB->MEM sync before we start the engine to get
+        // previously saved data before boot.
+        window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+        if (window.indexedDB) {
             FS.mount(IDBFS, {}, dir);
-            FS.syncfs(true, function(err) {
-                if(err) {
-                     throw "FS syncfs error: " + err;
-                }
+
+            // Patch FS.close so it will try to sync MEM->IDB
+            var _close = FS.close; FS.close = function(stream) { var r = _close(stream); Module.persistentSync(); return r; }
+
+            // Sync IDB->MEM before calling main()
+            Module.preSync(function() {
+                Module._preloadAndCallMain();
             });
+        } else {
+            Module._preloadAndCallMain();
         }
     }],
 
@@ -373,6 +488,38 @@ var Module = {
             Progress.removeProgress();
         }
     }],
+
+    _preloadAndCallMain: function() {
+        // If the archive isn't loaded,
+        // we will have to wait with calling main.
+        if (!Module._archiveLoaded) {
+            Module._waitingForArchive = true;
+        } else {
+            Module.preloadAll();
+            Progress.removeProgress();
+            Module.callMain(Module.arguments);
+        }
+    },
+
+    // Wrap IDBFS syncfs call with logic to avoid multiple syncs
+    // running at the same time.
+    _startSyncFS: function() {
+        Module._syncInProgress = true;
+
+        FS.syncfs(false, function(err) {
+            Module._syncInProgress = false;
+
+            if (err) {
+                console.error("Module._startSyncFS error: " + err);
+            }
+
+            if (Module._syncNeeded) {
+                Module._syncNeeded = false;
+                Module._startSyncFS();
+            }
+
+        });
+    },
 };
 
 window.onerror = function() {

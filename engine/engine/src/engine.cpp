@@ -423,6 +423,25 @@ namespace dmEngine
             }
         }
 
+        // Catch engine specific arguments
+        bool verify_graphics_calls = dLib::IsDebugMode();
+        const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
+        for (int i = 0; i < argc; ++i)
+        {
+            const char* arg = argv[i];
+            if (strncmp(verify_graphics_calls_arg, arg, sizeof(verify_graphics_calls_arg)-1) == 0)
+            {
+                const char* eq = strchr(arg, '=');
+                if (strncmp("true", eq+1, sizeof("true")-1) == 0) {
+                    verify_graphics_calls = true;
+                } else if (strncmp("false", eq+1, sizeof("false")-1) == 0) {
+                    verify_graphics_calls = false;
+                } else {
+                    dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
+                }
+            }
+        }
+
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         dmExtension::Result er = dmExtension::AppInitialize(&app_params);
@@ -451,6 +470,8 @@ namespace dmEngine
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
+        graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
+
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -474,6 +495,7 @@ namespace dmEngine
         window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_PrintDeviceInfo = false;
+        window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
         if (window_result != dmGraphics::WINDOW_RESULT_OK)

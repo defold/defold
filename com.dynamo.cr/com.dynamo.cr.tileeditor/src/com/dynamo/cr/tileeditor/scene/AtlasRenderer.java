@@ -177,13 +177,6 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
                     texture.getHeight() * (1.0f - c.y), 1, 1);
         }
         texture.disable(gl);
-
-        shader.setUniforms(gl, "color", new float[] { 1, 1, 1, 0.1f * alpha });
-        for (int tile = 0; tile < tileCount; ++tile) {
-            Vector2f c = runtimeTextureSet.getCenter(tile);
-            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * c.x,
-                    texture.getHeight() * (1.0f - c.y), 1, 1);
-        }
     }
 
     private void renderTile(GL2 gl, RuntimeTextureSet runtimeTextureSet, int tile, float offsetX, float offsetY,

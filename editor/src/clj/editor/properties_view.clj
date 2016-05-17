@@ -134,7 +134,8 @@
                                             current-vals (properties/values (property-fn))]
                                         (if v
                                           (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                          (update-ui-fn current-vals (properties/validation-message (property-fn))))))])
+                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                        (properties/read-only? (property-fn))))))])
                                text-fields)]
       (ui/on-action! ^TextField t f)
       (ui/on-focus! t (fn [got-focus] (and (not got-focus) (f nil)))))
@@ -156,7 +157,9 @@
         box          (doto (HBox.)
                        (.setAlignment (Pos/BASELINE_LEFT)))
         update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
+                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values
+                                                                               (map #(get-in % (:path f)) values)))])
+                                                            fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
                        (update-field-message text-fields message))]
@@ -166,7 +169,8 @@
                                     current-vals (properties/values (property-fn))]
                                 (if v
                                   (properties/set-values! (property-fn) (mapv #(assoc-in % (:path f) v) current-vals))
-                                  (update-ui-fn current-vals (properties/validation-message (property-fn))))))])
+                                  (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                (properties/read-only? (property-fn))))))])
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (ui/on-focus! t (fn [got-focus] (and (not got-focus) (f nil)))))
@@ -214,14 +218,16 @@
                     (fromString [s]
                       (inv-options s)))
         cb (doto (ComboBox.)
-             (-> (.getItems) (.addAll (object-array (map first options))))
              (.setConverter converter)
-             (ui/cell-factory! (fn [val]  {:text (options val)})))
+             (ui/cell-factory! (fn [val]  {:text (options val)}))
+             (-> (.getItems) (.addAll (object-array (map first options)))))
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
                            (if (contains? options value)
-                             (.setValue cb (get options value))
+                             (do
+                               (.setValue cb value)
+                               (.setText (.getEditor cb) (options value)))
                              (do
                                (.setValue cb nil)
                                (.. cb (getSelectionModel) (clearSelection)))))
@@ -366,7 +372,7 @@
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
   (let [label (create-property-label (properties/label property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
-        reset-btn (doto (Button. "x")
+        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (.setVisible (properties/overridden? property))
                     (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_]
@@ -374,23 +380,23 @@
                                      (.requestFocus control))))
         update-ui-fn (fn [property]
                        (let [overridden? (properties/overridden? property)]
-                         (if overridden?
-                           (ui/add-style! control "overridden")
-                           (ui/remove-style! control "overridden"))
+                         (let [f (if overridden? ui/add-style! ui/remove-style!)]
+                           (doseq [c [label control]]
+                             (f c "overridden")))
                          (.setVisible reset-btn overridden?)
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
 
-    (update-ui-fn property)
-
     (GridPane/setConstraints label 1 row)
-    (GridPane/setConstraints control 2 row)
-    (GridPane/setConstraints reset-btn 3 row)
+    (GridPane/setConstraints reset-btn 2 row)
+    (GridPane/setConstraints control 3 row)
 
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
     (.add (.getChildren grid) reset-btn)
+
+    #_(update-ui-fn property)
 
     [key update-ui-fn]))
 
@@ -454,15 +460,13 @@
   (let [properties (properties/coalesce properties)
         template (properties->template properties)
         prev-template (ui/user-data parent ::template)]
-    (if (not= template prev-template)
+    (when (not= template prev-template)
       (let [pane (make-pane parent workspace properties)]
         (ui/user-data! parent ::template template)
-        (g/set-property! id :prev-pane pane)
-        pane)
-      (do
-        (let [pane (g/node-value id :prev-pane)]
-          (refresh-pane parent pane workspace properties)
-          pane)))))
+        (g/set-property! id :prev-pane pane)))
+    (let [pane (g/node-value id :prev-pane)]
+      (refresh-pane parent pane workspace properties)
+      pane)))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
@@ -476,9 +480,6 @@
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
-        stage         (.. parent getScene getWindow)
-        refresh-timer (ui/->timer 10 (fn [now] (g/node-value view-id :pane)))]
+        stage         (.. parent getScene getWindow)]
     (g/connect! project :selected-node-properties view-id :selected-node-properties)
-    (ui/timer-stop-on-close! stage refresh-timer)
-    (ui/timer-start! refresh-timer)
     view-id))

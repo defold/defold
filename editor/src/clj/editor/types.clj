@@ -202,4 +202,4 @@
    :icon     Icon
    :node-ref Long
    :commands [OutlineCommand]
-   :children [(g/recursive #'OutlineItem)]})
+   :children [g/Any]})

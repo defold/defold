@@ -1,0 +1,29 @@
+1. The method ServerHandler#do_GET in facebook_generic_server.py is responsible
+for GET requests. The function can be modified for specific development needs,
+but defaults to printing a dictionary of every GET variable that is received.
+
+2. Start the server by executing facebook_server.sh. The first parameter to the
+script has to be the port. Example /bin/bash facebook_server.sh 8080 (if you
+want to execute another server such as facebook_iap_server.py you have to edit
+the facebook_server.sh script.)
+
+3. Visit http://fbdev.midasplayer.com/setup and setup a new route to your
+machine. The IP can be retrieved via `ifconfig` on OS X, `ipconfig` on Windows
+and `ip addr` or `ifconfig` on Linux. IP addresses on King's internal network
+starts with 172 (172.19.13.173 for example).
+    - Select HTTPS as protocol
+    - Enter <ipv4-addr>:<port> in the text field (172.19.13.173:8080)
+    - Submit and write down the external URL that is returned
+    - The local machine is now reachable through the external URL over HTTPS.
+    - fbdev.midasplayer.com is only reachable through the cable network!
+
+
+NOTE 1: If you wish to use the editor at the same time, choose another port than 8080
+
+NOTE 2: If you are using the DefoldIAPtester app, you need to update the app with the new server address.
+(Search for *.fbdev.midasplayer.com). You'll find it in store.gui_script and also the products (.html).
+On the FB app page, you need to change:
+* Settings: "Facebook Canvas - Secure Canvas URL"
+* Canvas Payments: "Payments Object - Callback URL" (verify with "tokentest") and "Payment Subscriptions Object - Callback URL" (verify with "tokentest")
+Lastly, before starting the local server, you need to copy the resources (products html and product images) from the "Defold IAP Tester" app, to your local server folder:
+E.g. to ~/work/defold/scripts/facebook/DefoldAPItester/...

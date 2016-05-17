@@ -15,7 +15,7 @@
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
+           [javafx.event ActionEvent Event EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene.input Clipboard ClipboardContent]
@@ -181,14 +181,15 @@
           (FileUtils/moveFile srcf dstf))
         (workspace/resource-sync! workspace [[srcf dstf]])))))
 
-(defn- delete [resources]
+(defn- delete [resources on-delete-resource-fn]
   (when (not (empty? resources))
     (let [workspace (resource/workspace (first resources))]
       (doseq [resource resources]
         (let [f (File. (resource/abs-path resource))]
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
-            (.delete (File. (resource/abs-path resource))))))
+            (.delete (File. (resource/abs-path resource))))
+          (on-delete-resource-fn resource)))
       (workspace/resource-sync! workspace))))
 
 (defn- copy [files]
@@ -204,12 +205,12 @@
 
 (handler/defhandler :cut :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
-  (run [selection]
+  (run [selection on-delete-resource-fn]
        (let [tmp (doto (-> (Files/createTempDirectory "asset-cut" (into-array FileAttribute []))
                          (.toFile))
                    (.deleteOnExit))]
          (copy (mapv #(tmp-file tmp %) (roots selection))))
-       (delete selection)))
+    (delete selection on-delete-resource-fn)))
 
 (defn- unique [^File f]
   (if (.exists f)
@@ -260,8 +261,10 @@
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
-  (run [selection]
-       (delete selection)))
+  (run [selection on-delete-resource-fn]
+    (let [names (apply str (interpose ", " (map resource/resource-name selection)))]
+      (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+           (delete selection on-delete-resource-fn)))))
 
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (resource/abs-path (first selection)))) )
@@ -348,7 +351,7 @@
     (sync-selection tree-view new-root selected-paths)
     tree-view))
 
-(g/defnk produce-tree-view [tree-view resource-tree]
+(g/defnk produce-tree-view [_node-id tree-view resource-tree]
   (let [selected-paths (or (ui/user-data tree-view ::pending-selection)
                            (mapv resource/proj-path (workspace/selection tree-view)))]
     (update-tree-view tree-view resource-tree selected-paths)
@@ -363,6 +366,9 @@
                TransferMode/COPY)
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
+    (when (= 1 (count resources))
+      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)) 16)
+                    0 16))
     (.putFiles content files)
     (.setContent db content)
     (.consume e)))
@@ -374,6 +380,17 @@
       (target (.getParent node)))))
 
 (defn- drag-done [^DragEvent e selection])
+
+(defn- drag-entered [^DragEvent e]
+  (when-let [^TreeCell cell (target (.getTarget e))]
+    (let [resource (.getValue (.getTreeItem cell))]
+      (when (and (= :folder (resource/source-type resource))
+                 (not (resource/read-only? resource)))
+        (ui/add-style! cell "drop-target")))))
+
+(defn- drag-exited [^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (ui/remove-style! cell "drop-target")))
 
 (defn- drag-over [^DragEvent e]
   (let [db (.getDragboard e)]
@@ -448,7 +465,9 @@
         over-handler (ui/event-handler e (drag-over e))
         done-handler (ui/event-handler e (drag-done e (workspace/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))
-        detected-handler (ui/event-handler e (drag-detected e (workspace/selection tree-view)))]
+        detected-handler (ui/event-handler e (drag-detected e (workspace/selection tree-view)))
+        entered-handler (ui/event-handler e (drag-entered e))
+        exited-handler (ui/event-handler e (drag-exited e))]
     (.setOnDragDetected tree-view detected-handler)
     (.setOnDragDone tree-view done-handler)
     (.setOnMouseClicked tree-view handler)
@@ -463,7 +482,9 @@
                                                                    (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource) 16)))))]
                                                    (doto cell
                                                      (.setOnDragOver over-handler)
-                                                     (.setOnDragDropped dropped-handler))))))
+                                                     (.setOnDragDropped dropped-handler)
+                                                     (.setOnDragEntered entered-handler)
+                                                     (.setOnDragExited exited-handler))))))
 
     (ui/register-context-menu tree-view ::resource-menu)))
 
@@ -474,13 +495,14 @@
 
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view open-resource-fn]
+(defn make-asset-browser [graph workspace tree-view open-resource-fn on-delete-resource-fn]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :tree-view tree-view]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn} tree-view)
+    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn
+                                           :on-delete-resource-fn on-delete-resource-fn} tree-view)
     (setup-asset-browser workspace tree-view open-resource-fn)
     asset-browser))
