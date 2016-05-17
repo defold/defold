@@ -116,6 +116,8 @@
                                :playback-once-pingpong :playback-loop-forward :playback-loop-backward
                                :playback-loop-pingpong))
 
+(g/deftype AnimationPlaybackType AnimationPlayback)
+
 (g/s-defrecord Animation
   [id              :- g/Str
    images          :- [Image]
@@ -233,3 +235,4 @@
 
 (g/deftype RunnableType Runnable)
 (g/deftype ParentType Parent)
+(g/deftype BufferedImageType BufferedImage)

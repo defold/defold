@@ -145,45 +145,45 @@
     (make-form-data (make-form-ops _node-id meta-settings) meta-info sanitized-settings)))
 
 (g/defnode GameProjectRefs
-  (property display-profiles resource/Resource
+  (property display-profiles resource/ResourceType
           (dynamic visible false)
           (value (g/fnk [display-profiles-resource] display-profiles-resource))
           (set (project/gen-resource-setter [[:resource :display-profiles-resource]
                                              [:build-targets :dep-build-targets]
                                              [:profile-data :display-profiles-data]])))
-  (property main-collection resource/Resource
+  (property main-collection resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [main-collection-resource] main-collection-resource))
             (set (project/gen-resource-setter [[:resource :main-collection-resource]
                                                [:build-targets :dep-build-targets]])))
-  (property render resource/Resource
+  (property render resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [render-resource] render-resource))
             (set (project/gen-resource-setter [[:resource :render-resource]
                                                [:build-targets :dep-build-targets]])))
-  (property texture-profiles resource/Resource
+  (property texture-profiles resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [texture-profiles-resource] texture-profiles-resource))
             (set (project/gen-resource-setter [[:resource :texture-profiles-resource]
                                                [:build-targets :dep-build-targets]])))
-  (property gamepads resource/Resource
+  (property gamepads resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [gamepads-resource] gamepads-resource))
             (set (project/gen-resource-setter [[:resource :gamepads-resource]
                                                [:build-targets :dep-build-targets]])))
-  (property input-binding resource/Resource
+  (property input-binding resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [input-binding-resource] input-binding-resource))
             (set (project/gen-resource-setter [[:resource :input-binding-resource]
                                                [:build-targets :dep-build-targets]])))
 
   (input display-profiles-data g/Any)
-  (input display-profiles-resource resource/Resource)
-  (input main-collection-resource resource/Resource)
-  (input render-resource resource/Resource)
-  (input texture-profiles-resource resource/Resource)
-  (input gamepads-resource resource/Resource)
-  (input input-binding-resource resource/Resource)
+  (input display-profiles-resource resource/ResourceType)
+  (input main-collection-resource resource/ResourceType)
+  (input render-resource resource/ResourceType)
+  (input texture-profiles-resource resource/ResourceType)
+  (input gamepads-resource resource/ResourceType)
+  (input input-binding-resource resource/ResourceType)
 
   (output display-profiles-data g/Any (g/fnk [display-profiles-data] display-profiles-data))
 

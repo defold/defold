@@ -17,7 +17,8 @@
             [editor.resource :as resource]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.types :as types])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -582,14 +583,14 @@
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json resource/Resource
+  (property spine-json resource/ResourceType
             (value (g/fnk [spine-json-resource] spine-json-resource))
             (set (project/gen-resource-setter [[:resource :spine-json-resource]
                                                [:content :spine-scene]]))
             (validate (g/fnk [spine-json spine-scene]
                              (validation/resource spine-json "Missing spine json"))))
 
-  (property atlas resource/Resource
+  (property atlas resource/ResourceType
             (value (g/fnk [atlas-resource] atlas-resource))
             (set (project/gen-resource-setter [[:resource :atlas-resource]
                                                [:anim-data :anim-data]
@@ -600,8 +601,8 @@
 
   (property sample-rate g/Num)
 
-  (input spine-json-resource resource/Resource)
-  (input atlas-resource resource/Resource)
+  (input spine-json-resource resource/ResourceType)
+  (input atlas-resource resource/ResourceType)
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -612,7 +613,7 @@
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
-  (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
+  (output aabb types/AABBType :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
                                                       (reduce mesh->aabb (geom/null-aabb) meshes)))))
 
 (defn load-spine-scene [project self resource]
@@ -654,7 +655,7 @@
 (g/defnode SpineModelNode
   (inherits project/ResourceNode)
 
-  (property spine-scene resource/Resource
+  (property spine-scene resource/ResourceType
             (value (g/fnk [spine-scene-resource] spine-scene-resource))
             (set (project/gen-resource-setter [[:resource :spine-scene-resource]
                                                [:scene :spine-scene-scene]
@@ -668,37 +669,41 @@
                                    {:type :choicebox
                                     :options (zipmap (map first options)
                                                      (map (comp :display-name second) options))}))))
-  (property material resource/Resource
+  (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
             (set (project/gen-resource-setter [[:resource :material-resource]
                                                [:shader :material-shader]
                                                [:sampler-data :sampler-data]
                                                [:build-targets :dep-build-targets]])))
+  ;; MIKE HELP Assert failed: unknown argument :anim-data in call to
+  ;; validate (dynamic was commented out before
   (property default-animation g/Str
-            (validate (g/fnk [default-animation anim-data]
+            #_(validate (g/fnk [default-animation anim-data]
                              (validation/animation default-animation anim-data)))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+  ;; MIKE HELP Assert failed: unknown argument :anim-data in call to
+  ;; validate (dynamic was commented out before
   (property skin g/Str
-            (validate (g/fnk [default-animation anim-data]
+            #_(validate (g/fnk [default-animation anim-data]
                              (validation/animation default-animation anim-data)))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
 
   (input dep-build-targets g/Any :array)
-  (input spine-scene-resource resource/Resource)
+  (input spine-scene-resource resource/ResourceType)
   (input spine-scene-scene g/Any)
-  (input aabb AABB)
-  (input material-resource resource/Resource)
-  (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
-  (input sampler-data {g/Keyword g/Any})
-  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
+  (input aabb types/AABBType)
+  (input material-resource resource/ResourceType)
+  (input material-shader shader/ShaderLifecycleType)
+  (output material-shader shader/ShaderLifecycleType (g/fnk [material-shader] material-shader))
+  (input sampler-data g/KeywordMap)
+  (output sampler-data g/KeywordMap (g/fnk [sampler-data] sampler-data))
   (output scene g/Any :cached (g/fnk [spine-scene-scene] spine-scene-scene))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-data g/Any :cached produce-model-save-data)
   (output build-targets g/Any :cached produce-model-build-targets)
-  (output aabb AABB (g/fnk [aabb] aabb)))
+  (output aabb types/AABBType (g/fnk [aabb] aabb)))
 
 (defn load-spine-model [project self resource]
   (let [resolve-fn (partial workspace/resolve-resource resource)
