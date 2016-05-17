@@ -6,7 +6,8 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.math :as math]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.types :as types])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
            [editor.types Camera AABB Region Rect]
@@ -506,4 +507,4 @@
   (input selected-renderables g/Any)
 
   (output renderables pass/RenderData :cached produce-renderables)
-  (output input-handler Runnable :cached (g/fnk [] handle-input)))
+  (output input-handler types/RunnableType :cached (g/fnk [] handle-input)))

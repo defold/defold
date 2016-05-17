@@ -268,14 +268,14 @@
 (g/defnode SceneRenderer
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
-  (input camera Camera)
+  (input camera types/CameraType)
   (input aux-renderables pass/RenderData :array)
 
-  (output viewport Region :abstract)
+  (output viewport types/RegionType :abstract)
   (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:renderables render-data)))
   (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
-  (output selected-aabb AABB :cached (g/fnk [selected-renderables scene] (if (empty? selected-renderables)
+  (output selected-aabb types/AABBType :cached (g/fnk [selected-renderables scene] (if (empty? selected-renderables)
                                                                            (:aabb scene)
                                                                            (reduce geom/aabb-union (geom/null-aabb) (map :aabb selected-renderables)))))
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
@@ -387,20 +387,25 @@
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
 
+(g/deftype ImageViewType ImageView)
+(g/deftype GLAutoDrawableType GLAutoDrawable)
+(g/deftype AsyncCopierType AsyncCopier)
+(g/deftype IntBufferType IntBuffer)
+
 (g/defnode SceneView
   (inherits SceneRenderer)
 
-  (property image-view ImageView)
-  (property viewport Region (default (g/fnk [] (types/->Region 0 0 0 0))))
+  (property image-view ImageViewType)
+  (property viewport types/RegionType (default (g/fnk [] (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
-  (property drawable GLAutoDrawable)
-  (property async-copier AsyncCopier)
-  (property select-buffer IntBuffer)
-  (property tool-picking-rect Rect)
+  (property drawable GLAutoDrawableType)
+  (property async-copier AsyncCopierType)
+  (property select-buffer IntBufferType)
+  (property tool-picking-rect types/RectType)
 
-  (input input-handlers Runnable :array)
-  (input picking-rect Rect)
+  (input input-handlers types/RunnableType :array)
+  (input picking-rect types/RectType)
   (input tool-renderables pass/RenderData :array)
   (input active-tool g/Keyword)
   (input updatables g/Any)
@@ -626,31 +631,34 @@
         (.release context)
         buf-image))))
 
+(g/deftype BufferedImageType BufferedImage)
+(g/deftype WritableImageType WritableImage)
+
 (g/defnode PreviewView
   (inherits SceneRenderer)
 
   (property width g/Num)
   (property height g/Num)
-  (property tool-picking-rect Rect)
-  (property select-buffer IntBuffer)
-  (property image-view ImageView)
-  (property drawable GLAutoDrawable)
+  (property tool-picking-rect types/RectType)
+  (property select-buffer IntBufferType)
+  (property image-view ImageViewType)
+  (property drawable GLAutoDrawableType)
 
-  (input input-handlers Runnable :array)
+  (input input-handlers types/RunnableType :array)
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
-  (input picking-rect Rect)
+  (input picking-rect types/RectType)
   (input tool-renderables pass/RenderData :array)
 
   (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
-  (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
+  (output viewport types/RegionType (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output selection g/Any (g/fnk [selection] selection))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
-  (output frame BufferedImage :cached produce-frame)
-  (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil)))))
+  (output frame BufferedImageType :cached produce-frame)
+  (output image WritableImageType :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil)))))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height :drawable (make-drawable width height) :select-buffer (make-select-buffer)))
@@ -717,16 +725,19 @@
                                 :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
+(g/deftype Vector3dType Vector3d)
+(g/deftype Quat4dType Quat4d)
+(g/deftype Matrix4dType Matrix4d)
 
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
   (property rotation types/Vec3 (default [0.0 0.0 0.0]))
 
-  (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
-  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
-  (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (Matrix4d. rotation-q4 position-v3 1.0)))
+  (output position-v3 Vector3dType :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
+  (output rotation-q4 Quat4dType :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
+  (output transform Matrix4dType :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (Matrix4d. rotation-q4 position-v3 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/fnk [] (geom/null-aabb))))
+  (output aabb types/AABBType :cached (g/fnk [] (geom/null-aabb))))
 
 (defmethod scene-tools/manip-move SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position :basis basis)))
@@ -756,8 +767,8 @@
 
   (display-order [SceneNode :scale])
 
-  (output scale-v3 Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
-  (output transform Matrix4d :cached produce-transform))
+  (output scale-v3 Vector3dType :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4dType :cached produce-transform))
 
 (defmethod scene-tools/manip-scale ScalableSceneNode [basis node-id delta]
   (let [s (Vector3d. (double-array (g/node-value node-id :scale :basis basis)))

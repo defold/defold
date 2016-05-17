@@ -4,6 +4,7 @@
            [com.dynamo.tile.proto Tile$Playback]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
+           [javafx.scene Parent]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -46,23 +47,23 @@
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
-(def Int32   (g/both g/Int (g/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
+(g/deftype Int32   (g/both g/Int (g/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
 
-(def Icon    g/Str)
+(g/deftype Icon    g/Str)
 
-(def Color   [g/Num])
+(g/deftype Color   [g/Num])
 
-(def Vec2    [(g/one g/Num "x")
-              (g/one g/Num "y")])
+(g/deftype Vec2    [(g/one g/Num "x")
+                    (g/one g/Num "y")])
 
-(def Vec3    [(g/one g/Num "x")
-              (g/one g/Num "y")
-              (g/one g/Num "z")])
+(g/deftype Vec3    [(g/one g/Num "x")
+                    (g/one g/Num "y")
+                    (g/one g/Num "z")])
 
-(def Vec4    [(g/one g/Num "x")
-              (g/one g/Num "y")
-              (g/one g/Num "z")
-              (g/one g/Num "w")])
+(g/deftype Vec4    [(g/one g/Num "x")
+                    (g/one g/Num "y")
+                    (g/one g/Num "z")
+                    (g/one g/Num "w")])
 
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
@@ -81,11 +82,15 @@
   (width [this] width)
   (height [this] height))
 
+(g/deftype RectType Rect)
+
 (g/s-defrecord AABB [min max]
   R3Min
   (min-p [this] (.min this))
   R3Max
   (max-p [this] (.max this)))
+
+(g/deftype AABBType AABB)
 
 (defmethod print-method AABB
   [^AABB v ^java.io.Writer w]
@@ -105,6 +110,8 @@
   ImageHolder
   (contents [this] contents))
 
+(g/deftype ImageType Image)
+
 (def AnimationPlayback (g/enum :playback-none :playback-once-forward :playback-once-backward
                                :playback-once-pingpong :playback-loop-forward :playback-loop-backward
                                :playback-loop-pingpong))
@@ -117,6 +124,8 @@
    flip-vertical   :- g/Bool
    playback        :- AnimationPlayback])
 
+(g/deftype AnimationType Animation)
+
 (g/s-defrecord TexturePacking
   [aabb         :- Rect
    packed-image :- BufferedImage
@@ -124,10 +133,14 @@
    sources      :- [Rect]
    animations   :- [Animation]])
 
+(g/deftype TexturePackingType TexturePacking)
+
 (g/s-defrecord Vertices
   [counts   :- [Int32]
    starts   :- [Int32]
    vertices :- [g/Num]])
+
+(g/deftype VerticesType Vertices)
 
 (g/s-defrecord EngineFormatTexture
   [width           :- Int32
@@ -139,6 +152,8 @@
    mipmap-sizes    :- [Int32]
    mipmap-offsets  :- [Int32]])
 
+(g/deftype EngineFormatTextureType EngineFormatTexture)
+
 (g/s-defrecord TextureSetAnimationFrame
   [image                :- Image ; TODO: is this necessary?
    vertex-start         :- g/Num
@@ -147,6 +162,8 @@
    outline-vertex-count :- g/Num
    tex-coords-start     :- g/Num
    tex-coords-count     :- g/Num])
+
+(g/deftype TextureSetAnimationFrameType TextureSetAnimationFrame)
 
 (g/s-defrecord TextureSetAnimation
   [id              :- g/Str
@@ -158,6 +175,8 @@
    playback        :- AnimationPlayback
    frames          :- [TextureSetAnimationFrame]])
 
+(g/deftype TextureSetAnimationType TextureSetAnimation)
+
 (g/s-defrecord TextureSet
   [animations       :- {g/Str TextureSetAnimation}
    vertices         :- g/Any #_editor.gl.vertex/PersistentVertexBuffer
@@ -168,14 +187,20 @@
   (selection?       [this])
   (model-transform? [this]))
 
+(g/deftype PassType (g/protocol Pass))
+
 (g/s-defrecord Region
   [left   :- g/Num
    right  :- g/Num
    top    :- g/Num
    bottom :- g/Num])
 
+(g/deftype RegionType Region)
+
 (defprotocol Viewport
   (viewport ^Region [this]))
+
+(g/deftype ViewportType (g/protocol Viewport))
 
 (g/s-defrecord Camera
   [type           :- (g/enum :perspective :orthographic)
@@ -191,15 +216,20 @@
   Rotation
   (rotation [this] rotation))
 
-(def OutlineCommand
+(g/deftype CameraType Camera)
+
+(g/deftype OutlineCommand
   {:label      g/Str
    :enabled    g/Bool
    :command-fn g/Any
    :context    g/Any})
 
-(def OutlineItem
+(g/deftype OutlineItem
   {:label    g/Str
    :icon     Icon
    :node-ref Long
-   :commands [OutlineCommand]
+   :commands [(:schema @OutlineCommand)]
    :children [g/Any]})
+
+(g/deftype RunnableType Runnable)
+(g/deftype ParentType Parent)

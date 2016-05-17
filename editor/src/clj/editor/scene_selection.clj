@@ -137,20 +137,22 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
+(g/deftype SelectionMode #{:direct :toggle})
+
 (g/defnode SelectionController
-  (property select-fn Runnable)
+  (property select-fn types/RunnableType)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)
-  (property mode #{:direct :toggle})
+  (property mode SelectionMode)
   (property prev-selection-set g/Any)
 
   (input selection g/Any)
   (input picking-selection g/Any)
   (input root-id g/NodeID)
 
-  (output picking-rect Rect :cached (g/fnk [start current] (calc-picking-rect start current)))
+  (output picking-rect types/RectType :cached (g/fnk [start current] (calc-picking-rect start current)))
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box
                                                                                     :user-data {:start start :current current}}]}))
-  (output input-handler Runnable :cached (g/always handle-selection-input)))
+  (output input-handler types/RunnableType :cached (g/fnk [] handle-selection-input)))

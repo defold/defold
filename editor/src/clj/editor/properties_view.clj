@@ -468,14 +468,17 @@
       (refresh-pane parent pane workspace properties)
       pane)))
 
+(g/deftype ParentType Parent)
+(g/deftype PaneType Pane)
+
 (g/defnode PropertiesView
-  (property parent-view Parent)
+  (property parent-view ParentType)
   (property workspace g/Any)
-  (property prev-pane Pane)
+  (property prev-pane PaneType)
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties]
+  (output pane PaneType :cached (g/fnk [parent-view _node-id workspace selected-node-properties]
                                    (update-pane parent-view _node-id workspace selected-node-properties))))
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
