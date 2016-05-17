@@ -1,6 +1,7 @@
 package com.dynamo.cr.server.resources;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -9,6 +10,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jgit.util.StringUtils;
 
@@ -16,6 +18,7 @@ import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.util.TrackingID;
@@ -104,6 +107,13 @@ public class ResourceUtil {
         }
 
         return b.build();
+    }
+
+    public static void deleteProjectRepo(Project project, Configuration configuration) throws IOException {
+        // Delete git repo
+        String repositoryRoot = configuration.getRepositoryRoot();
+        File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
+        FileUtils.deleteDirectory(projectPath);
     }
 
 }

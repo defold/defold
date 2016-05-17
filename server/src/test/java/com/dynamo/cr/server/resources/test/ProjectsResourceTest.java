@@ -13,9 +13,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -23,6 +21,7 @@ import java.util.zip.ZipFile;
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
@@ -30,12 +29,9 @@ import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.TransportException;
-import org.eclipse.jgit.transport.Transport;
-import org.eclipse.jgit.transport.TransportHttp;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.junit.After;
 import org.junit.Before;
@@ -47,6 +43,7 @@ import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
@@ -66,32 +63,25 @@ import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import org.eclipse.jgit.lib.Ref;
 
+import javax.ws.rs.core.UriBuilderException;
+import java.io.*;
+
+import static org.junit.Assert.*;
+import com.sun.jersey.core.util.MultivaluedMapImpl;
 
 public class ProjectsResourceTest extends AbstractResourceTest {
-    private static class TestUser {
-        User user;
-        String email;
-        String password;
-        WebResource projectsResource;
 
-        public TestUser(User user, String email, String password, WebResource projectsResource) {
-            this.user = user;
-            this.email = email;
-            this.password = password;
-            this.projectsResource = projectsResource;
-        }
-    }
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProjectsResourceTest.class);
+    private static final int PORT = 6500;
 
-    protected static Logger logger = LoggerFactory.getLogger(ProjectsResourceTest.class);
-
-    static int port = 6500;
-    String joeEmail = "joe@foo.com";
-    String joePasswd = "secret2";
-    String bobEmail = "bob@foo.com";
-    String bobPasswd = "secret3";
-    String adminEmail = "admin@foo.com";
-    String adminPasswd = "secret";
+    private String joeEmail = "joe@foo.com";
+    private String joePasswd = "secret2";
+    private String bobEmail = "bob@foo.com";
+    private String bobPasswd = "secret3";
+    private String adminEmail = "admin@foo.com";
+    private String adminPasswd = "secret";
     private User joeUser;
     private User adminUser;
     private User bobUser;
@@ -122,13 +112,18 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         System.setProperty("http.keepAlive", "false");
     }
 
-    void execCommand(String command, String arg) throws IOException {
-        TestUtil.Result r = TestUtil.execCommand(new String[] {"/bin/bash", command, arg});
-        if (r.exitValue != 0) {
-            System.err.println(r.stdOut);
-            System.err.println(r.stdErr);
+    private static class TestUser {
+        User user;
+        String email;
+        String password;
+        WebResource projectsResource;
+
+        TestUser(User user, String email, String password, WebResource projectsResource) {
+            this.user = user;
+            this.email = email;
+            this.password = password;
+            this.projectsResource = projectsResource;
         }
-        assertEquals(0, r.exitValue);
     }
 
     @Before
@@ -174,25 +169,25 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         adminClient = Client.create(cc);
         adminClient.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
 
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        URI uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
         adminProjectsWebResource = adminClient.resource(uri);
 
         joeClient = Client.create(cc);
         joeClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
         joeProjectsWebResource = joeClient.resource(uri);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
         joeUsersWebResource = joeClient.resource(uri);
 
         bobClient = Client.create(cc);
         bobClient.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
         bobProjectsWebResource = bobClient.resource(uri);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
         bobUsersWebResource = bobClient.resource(uri);
 
         joe = new TestUser(joeUser, joeEmail, joePasswd, joeProjectsWebResource);
@@ -209,12 +204,12 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     @Rule
     public TestRule watcher = new TestWatcher() {
         protected void starting(Description description) {
-            logger.info("Starting test: " + description.getMethodName());
+            LOGGER.info("Starting test: " + description.getMethodName());
         }
 
         @Override
         protected void finished(Description description) {
-            logger.info("Finished test: " + description.getMethodName());
+            LOGGER.info("Finished test: " + description.getMethodName());
         }
     };
 
@@ -257,12 +252,11 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         response.getEntity(ProjectInfo.class);
     }
 
-    class StressRunnable implements Runnable {
-
+    private class StressRunnable implements Runnable {
         private long projectId;
         public Throwable exception;
 
-        public StressRunnable(long projectId) {
+        StressRunnable(long projectId) {
             this.projectId = projectId;
         }
 
@@ -463,6 +457,32 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void newProjectFromMissingTemplate() throws Exception {
+
+        ObjectMapper m = new ObjectMapper();
+        ObjectNode project = m.createObjectNode();
+        project.put("name", "test project");
+        project.put("description", "New test project");
+        project.put("templateId", "projX");
+
+        ClientResponse clientResponse = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .post(ClientResponse.class, project.toString());
+
+        assertEquals(500, clientResponse.getStatus());
+
+        ProjectInfoList list = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ProjectInfoList.class);
+
+        assertEquals(0, list.getProjectsList().size());
+    }
+
+    @Test
     public void newProjectCap() throws Exception {
         /*
          * Bob creates one project
@@ -507,7 +527,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (UniformInterfaceException e) {
             assertThat(e.getResponse().getStatus(), is(400));
-            return;
         }
     }
 
@@ -528,7 +547,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         return projectInfo;
     }
 
-    private static String cloneRepoHttpAuth(TestUser testUser, ProjectInfo projectInfo) throws IOException, InvalidRemoteException, TransportException, GitAPIException {
+    private static String cloneRepoHttpAuth(TestUser testUser, ProjectInfo projectInfo) throws IOException, GitAPIException {
         File cloneDir = Files.createTempDir();
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, testUser.password);
         Git.cloneRepository()
@@ -540,7 +559,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         return cloneDir.getAbsolutePath();
     }
 
-    private static String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException, InvalidRemoteException, TransportException, GitAPIException {
+    private static String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException, GitAPIException {
 
         File cloneDir = Files.createTempDir();
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, AuthToken.login(testUser.email));
@@ -577,12 +596,12 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         cloneRepoOpenID(bob, projectInfo);
     }
 
-    ClientResponse testGetArchive(String version, String sha1) throws IOException {
+    private ClientResponse testGetArchive(String version, String sha1) throws IOException {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
         return testGetArchive(version, sha1, projectInfo);
     }
 
-    ClientResponse testGetArchive(String version, String sha1, ProjectInfo projectInfo) throws IOException {
+    private ClientResponse testGetArchive(String version, String sha1, ProjectInfo projectInfo) throws IOException {
         String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
         WebResource resource = joeProjectsWebResource.path(path);
         if (sha1 != null) {
@@ -593,7 +612,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         }
     }
 
-    void verifyArchive(ClientResponse response) throws IOException {
+    private void verifyArchive(ClientResponse response) throws IOException {
         InputStream is = response.getEntityInputStream();
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         IOUtils.copy(is, os);
@@ -606,14 +625,14 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         ZipFile zipFile = new ZipFile(zip);
         assertEquals(etag, zipFile.getComment());
         Enumeration<? extends ZipEntry> entries = zipFile.entries();
-        Set<String> names = new HashSet<String>();
+        Set<String> names = new HashSet<>();
         while (entries.hasMoreElements()) {
             ZipEntry ze = entries.nextElement();
             names.add(ze.getName());
         }
         zipFile.close();
 
-        assertEquals(new HashSet<String>(Arrays.asList("content/test space.txt", "content/file1.txt", "content/file2.txt")), names);
+        assertEquals(new HashSet<>(Arrays.asList("content/test space.txt", "content/file1.txt", "content/file2.txt")), names);
     }
 
     // NOTE:
@@ -621,31 +640,34 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     // but current test, including helper functions for creating projects, resides in ProjectsResourceTest.java
     @Test
     public void getArchive1() throws Exception {
-        ClientResponse response = testGetArchive("", null);
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = testGetArchive("", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
-        response = testGetArchive("", sha1);
+        response = testGetArchive("", sha1, projectInfo);
         assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive2() throws Exception {
-        ClientResponse response = testGetArchive("master", null);
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = testGetArchive("master", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
-        response = testGetArchive("", sha1);
+        response = testGetArchive("", sha1, projectInfo);
         assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive3() throws Exception {
-        ClientResponse response = testGetArchive("HEAD", null);
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = testGetArchive("HEAD", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
-        response = testGetArchive("", sha1);
+        response = testGetArchive("", sha1, projectInfo);
         assertEquals(304, response.getStatus());
     }
 
@@ -690,11 +712,11 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
 
-    class ArchiveStressRunnable implements Runnable {
+    private class ArchiveStressRunnable implements Runnable {
         private long projectId;
         public Throwable exception;
 
-        public ArchiveStressRunnable(long projectId) {
+        ArchiveStressRunnable(long projectId) {
             this.projectId = projectId;
         }
 
@@ -733,17 +755,28 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
 
-    ClientResponse getArchiveETag(String version) {
+    private ClientResponse getArchiveETag(String version) {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
-        String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
-        ClientResponse headResponse = joeProjectsWebResource.path(path).head();
-        return headResponse;
+        return getArchiveETag(version, projectInfo.getId());
+    }
+
+    private ClientResponse getArchiveETag(String version, long projectId) {
+        String path = String.format("/%d/%d/archive/%s", -1, projectId, version);
+        return joeProjectsWebResource.path(path).head();
     }
 
     @Test
-    public void getArchiveHead() {
-        String head = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
-        String _1_0 = getArchiveETag("1.0").getHeaders().getFirst("ETag");
+    public void getArchiveHead() throws IOException, GitAPIException {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        String head = getArchiveETag("HEAD", projectInfo.getId()).getHeaders().getFirst("ETag");
+
+        // Add new tag on latest commit
+        // Note: relies on internal server implementation for project storage
+        File projectPath = getServerProjectPath(projectInfo.getId());
+        Git git = Git.open(projectPath);
+        git.tag().setName("1.0.0").call();
+
+        String _1_0 = getArchiveETag("1.0.0", projectInfo.getId()).getHeaders().getFirst("ETag");
         assertEquals(head, _1_0);
 
         ClientResponse foo = getArchiveETag("foo");
@@ -758,12 +791,71 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void getArchiveByBranch() {
-        String branch1 = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
-        String branch2 = getArchiveETag("testbranch").getHeaders().getFirst("ETag");
-        assertEquals(branch1, branch2);
-        String branch_fail = getArchiveETag("non-existing-branch").getHeaders().getFirst("ETag");
+    public void getArchiveByBranch() throws IOException, GitAPIException {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+
+        // Add new branch on latest commit
+        // Note: relies on internal server implementation for project storage
+        File projectPath = getServerProjectPath(projectInfo.getId());
+        Git git = Git.open(projectPath);
+        Ref branchRef = git.branchCreate().setName("testbranch").call();
+        String branchSha = branchRef.getObjectId().getName();
+
+        String branch2 = getArchiveETag("testbranch", projectInfo.getId()).getHeaders().getFirst("ETag");
+        assertEquals(branchSha, branch2);
+        String branch_fail = getArchiveETag("non-existing-branch", projectInfo.getId()).getHeaders().getFirst("ETag");
         assertEquals(null, branch_fail);
+    }
+
+    private static File getServerProjectPath(long projectId) {
+        String repositoryRoot = server.getConfiguration().getRepositoryRoot();
+        return new File(String.format("%s/%d", repositoryRoot, projectId));
+    }
+
+    @Test
+    public void testLog() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        int maxCount = 5;
+
+        MultivaluedMap<String, String> queryParams = new MultivaluedMapImpl();
+        queryParams.add("max_count", String.valueOf(maxCount));
+
+        Log projectLog = joeProjectsWebResource
+                .path(String.format("%d/%d/log", -1, projectInfo.getId()))
+                .queryParams(queryParams)
+                .get(Log.class);
+
+        int originalCommitsCount = projectLog.getCommitsCount();
+
+        File tempDir = Files.createTempDir();
+        try {
+            File repositoryDir = getRepositoryDir(projectInfo.getId());
+            Git git = Git.cloneRepository()
+                    .setURI(repositoryDir.getAbsolutePath())
+                    .setDirectory(tempDir)
+                    .call();
+
+            File contentDir = new File(tempDir.getAbsolutePath() + "/content");
+            String tempFilename = "testfile.tmp";
+            File newFile = new File(contentDir, tempFilename);
+            newFile.createNewFile();
+
+            git.add().addFilepattern(tempFilename).call();
+            git.commit().setMessage("Added " + tempFilename).call();
+            git.push().call();
+
+            git.close();
+        } finally {
+            FileUtils.deleteQuietly(tempDir);
+        }
+
+        int commitsCount = joeProjectsWebResource
+                .path(String.format("%d/%d/log", -1, projectInfo.getId()))
+                .queryParams(queryParams)
+                .get(Log.class)
+                .getCommitsCount();
+
+        assertTrue(commitsCount == originalCommitsCount + 1);
     }
 
     private static void alterFile(String cloneDir, String name, String content) throws IOException {
@@ -852,6 +944,123 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(200, response.getStatus());
         list = response.getEntity(ProjectInfoList.class);
         assertEquals(0, list.getProjectsCount());
+    }
+
+    @Test
+    public void testRunGitGc() throws Exception {
+
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        long projectId = projectInfo.getId();
+
+        WebResource gitWebResource = getJoeGitWebResource();
+
+        File repositoryDir = getRepositoryDir(projectId);
+        File refFile = new File(repositoryDir.getCanonicalPath() + File.separator + "packed-refs");
+        gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
+
+        Thread.sleep(200); // Wait for garbage collect to complete
+        assertTrue(refFile.exists());
+    }
+
+    @Test
+    public void testRemoveGcLockFile() throws Exception {
+
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        long projectId = projectInfo.getId();
+
+        WebResource gitWebResource = getJoeGitWebResource();
+        File repositoryDir = getRepositoryDir(projectId);
+
+        File refFile = new File(repositoryDir.getCanonicalPath() + File.separator + "packed-refs");
+        File lockFile = new File(repositoryDir.getCanonicalPath() + File.separator + "packed-refs.lock");
+        writePackedRefsFile(refFile, false);
+        writePackedRefsFile(lockFile, true);
+
+        gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
+        Thread.sleep(200); // Wait for garbage collect to remove the lockfile
+        assertFalse(lockFile.exists());
+    }
+
+    private WebResource getJoeGitWebResource() throws IllegalArgumentException, UriBuilderException {
+        URI uri = UriBuilder.fromUri("http://localhost/test_data").port(PORT).build();
+        ClientConfig cc = new DefaultClientConfig();
+        Client gitClient = Client.create(cc);
+
+        gitClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        return gitClient.resource(uri);
+    }
+
+    private void writePackedRefsFile(File file, boolean isLockFile) throws IOException {
+        String newline = System.getProperty("line.separator");
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            writer.write("# pack-refs with: peeled" + newline);
+            if(isLockFile) {
+                writer.write("7f7b9aff9fd418684d7d414cf14862ac52ea676c refs/heads/master" + newline);
+            } else {
+                writer.write("12bc56a629faa909c21c8e1fd1a63f7305e1923b refs/heads/master" + newline);
+            }
+            writer.write("27c7d125e6d93b6783abafa5dcdc2eafcc21b2f2 refs/heads/testbranch" + newline);
+            writer.write("cd76e8f5a5014b1f39836349688f0a806de8c692 refs/tags/1.0" + newline);
+            writer.write("^27c7d125e6d93b6783abafa5dcdc2eafcc21b2f2" + newline);
+        }
+    }
+
+    private class GitPushRunnable implements Runnable {
+        private long projectId;
+        public Throwable exception;
+
+        GitPushRunnable(long projectId) {
+            this.projectId = projectId;
+        }
+
+        @Override
+        public void run() {
+            File tempDir = Files.createTempDir();
+            try {
+                File repositoryDir = getRepositoryDir(projectId);
+                Git git = Git.cloneRepository()
+                        .setURI(repositoryDir.getAbsolutePath())
+                        .setDirectory(tempDir)
+                        .call();
+
+                File contentDir = new File(tempDir.getAbsolutePath() + "/content");
+
+                for(int i=0; i<60; i++) {
+                    String tempFilename = String.format("testfile_%d.tmp", i);
+                    File newFile = new File(contentDir, tempFilename);
+                    newFile.createNewFile();
+
+                    git.add().addFilepattern(tempFilename).call();
+                    git.commit().setMessage("Added " + tempFilename).call();
+                    git.push().call();
+                }
+                git.close();
+            } catch (Throwable e) {
+                this.exception = e;
+            } finally {
+                FileUtils.deleteQuietly(tempDir);
+            }
+        }
+    }
+
+    @Test
+    public void testGitGcWithPush() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        long projectId = projectInfo.getId();
+
+        GitPushRunnable runnable1 = new GitPushRunnable(projectId);
+
+        Thread t1 = new Thread(runnable1);
+        t1.start();
+        // Trigger 10 garbage collects while git push is running
+        for(int i=0; i<10; i++) {
+            WebResource gitWebResource = getJoeGitWebResource();
+            gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
+        }
+        t1.join(15000);
+        Thread.sleep(200); // wait for the garbage collect to finish
+
+        assertEquals(null, runnable1.exception);
     }
 
 }

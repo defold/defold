@@ -1,58 +1,5 @@
 package com.dynamo.cr.server;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
-import javax.servlet.ServletContextEvent;
-import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.UriBuilder;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.NoHeadException;
-import org.eclipse.jgit.http.server.GitServlet;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.persistence.config.PersistenceUnitProperties;
-import org.glassfish.grizzly.PortRange;
-import org.glassfish.grizzly.http.server.HttpHandler;
-import org.glassfish.grizzly.http.server.HttpServer;
-import org.glassfish.grizzly.http.server.NetworkListener;
-import org.glassfish.grizzly.http.server.Response;
-import org.glassfish.grizzly.http.server.ServerConfiguration;
-import org.glassfish.grizzly.http.server.StaticHttpHandler;
-import org.glassfish.grizzly.http.util.Header;
-import org.glassfish.grizzly.servlet.ServletHandler;
-import org.glassfish.grizzly.ssl.SSLContextConfigurator;
-import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.dynamo.cr.archive.ArchiveCache;
-import com.dynamo.cr.archive.GitArchiveProvider;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
@@ -61,24 +8,14 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.git.GitGcReceiveFilter;
+import com.dynamo.cr.server.git.archive.ArchiveCache;
+import com.dynamo.cr.server.git.archive.GitArchiveProvider;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
-import com.dynamo.cr.server.model.Invitation;
-import com.dynamo.cr.server.model.InvitationAccount;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.Prospect;
-import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
-import com.dynamo.cr.server.resources.LoginOAuthResource;
-import com.dynamo.cr.server.resources.LoginResource;
-import com.dynamo.cr.server.resources.NewsListResource;
-import com.dynamo.cr.server.resources.ProjectResource;
-import com.dynamo.cr.server.resources.ProjectsResource;
-import com.dynamo.cr.server.resources.ProspectsResource;
-import com.dynamo.cr.server.resources.RepositoryResource;
-import com.dynamo.cr.server.resources.ResourceUtil;
-import com.dynamo.cr.server.resources.UsersResource;
+import com.dynamo.cr.server.resources.*;
 import com.dynamo.inject.persist.PersistFilter;
 import com.dynamo.inject.persist.jpa.JpaPersistModule;
 import com.google.inject.Guice;
@@ -89,20 +26,57 @@ import com.google.inject.servlet.ServletModule;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.guice.spi.container.servlet.GuiceContainer;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.http.server.GitServlet;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.glassfish.grizzly.PortRange;
+import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.http.server.NetworkListener;
+import org.glassfish.grizzly.http.server.ServerConfiguration;
+import org.glassfish.grizzly.http.server.StaticHttpHandler;
+import org.glassfish.grizzly.servlet.ServletHandler;
+import org.glassfish.grizzly.ssl.SSLContextConfigurator;
+import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.Query;
+import javax.persistence.TypedQuery;
+import javax.servlet.Filter;
+import javax.servlet.ServletContextEvent;
+import javax.ws.rs.core.Response.Status;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Server {
 
-    protected static Logger logger = LoggerFactory.getLogger(Server.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
+    private static final int MAX_ACTIVE_LOGINS = 1024;
 
     private HttpServer httpServer;
-    private String baseUri;
     private Configuration configuration;
     private EntityManagerFactory emf;
-    private static final int MAX_ACTIVE_LOGINS = 1024;
     private SecureRandom secureRandom;
-
     private IMailProcessor mailProcessor;
-
     private ExecutorService executorService;
 
     // Value it retrieved from configuration in order to
@@ -111,7 +85,7 @@ public class Server {
 
     public static class Config extends GuiceServletContextListener {
 
-        private Server server;
+        private final Server server;
 
         public Config(Server server) {
             this.server = server;
@@ -147,7 +121,7 @@ public class Server {
                     bind(LoginOAuthResource.class);
                     bind(ProspectsResource.class);
 
-                    Map<String, String> params = new HashMap<String, String>();
+                    Map<String, String> params = new HashMap<>();
                     params.put("com.sun.jersey.config.property.resourceConfigClass",
                             "com.dynamo.cr.server.ResourceConfig");
 
@@ -187,7 +161,7 @@ public class Server {
         }
     }
 
-    HttpServer createHttpServer() throws IOException {
+    private HttpServer createHttpServer() throws IOException {
         // Manually create server to be able to tweak timeouts
         HttpServer server = new HttpServer();
         ServerConfiguration serverConfig = server.getServerConfiguration();
@@ -274,8 +248,6 @@ public class Server {
 
         bootStrapUsers();
 
-        baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
-
         httpServer = createHttpServer();
 
         // TODO File caches are temporarily disabled to avoid two bugs:
@@ -304,9 +276,12 @@ public class Server {
          */
 
         String basePath = ResourceUtil.getGitBasePath(getConfiguration());
-        logger.info("git base-path: {}", basePath);
+        LOGGER.info("git base-path: {}", basePath);
 
         GitServlet gitServlet = new GitServlet();
+        Filter receiveFilter = new GitGcReceiveFilter(configuration);
+        gitServlet.addReceivePackFilter(receiveFilter);
+
         ServletHandler gitHandler = new ServletHandler(gitServlet);
 
         gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
@@ -315,7 +290,7 @@ public class Server {
         gitHandler.addInitParameter("export-all", "1");
 
         String baseUri = ResourceUtil.getGitBaseUri(getConfiguration());
-        logger.info("git base uri: {}", baseUri);
+        LOGGER.info("git base uri: {}", baseUri);
         httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
 
         this.mailProcessor.start();
@@ -323,36 +298,11 @@ public class Server {
         this.executorService = Executors.newSingleThreadExecutor();
     }
 
-    static class RedirectHandler extends HttpHandler {
-
-        private String redirectHost;
-        private int redirectPort;
-
-        public RedirectHandler(String redirectHost,
-                int redirectPort) {
-            this.redirectHost = redirectHost;
-            this.redirectPort = redirectPort;
-        }
-
-        @Override
-        public void service(org.glassfish.grizzly.http.server.Request request,
-                Response response) throws Exception {
-
-            URI redirectUri = UriBuilder.fromUri(request.getRequestURL().toString())
-                    .host(redirectHost)
-                    .port(redirectPort)
-                    .build();
-            response.setHeader(Header.Location, redirectUri.toString());
-            response.setStatus(org.glassfish.grizzly.http.util.HttpStatus.FOUND_302);
-        }
-
-    }
-
-    public ExecutorService getExecutorService() {
+    private ExecutorService getExecutorService() {
         return executorService;
     }
 
-    public IMailProcessor getMailProcessor() {
+    private IMailProcessor getMailProcessor() {
         return mailProcessor;
     }
 
@@ -395,7 +345,7 @@ public class Server {
     public Project getProject(EntityManager em, String id) throws ServerException {
         Project project = em.find(Project.class, Long.parseLong(id));
         if (project == null)
-            throw new ServerException(String.format("No such project %s", project));
+            throw new ServerException(String.format("No such project %s", id));
 
         return project;
     }
@@ -416,7 +366,7 @@ public class Server {
         return invitationAccount;
     }
 
-    public int getInvitationCount(int originalCount) {
+    private int getInvitationCount(int originalCount) {
         for (InvitationCountEntry entry : this.configuration.getInvitationCountMapList()) {
             if (entry.getKey() == originalCount) {
                 return entry.getValue();
@@ -425,11 +375,7 @@ public class Server {
         return 0;
     }
 
-    public String getBaseURI() {
-        return baseUri;
-    }
-
-    public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException, NoHeadException, GitAPIException {
+    public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException, GitAPIException {
         getProject(em, project);
         String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
 
@@ -480,7 +426,7 @@ public class Server {
     /**
      * Calculate semi secure hash for signed executable
      * This is used for downloading without the requirement to be signed in
-     * @param projectInfo
+     * @param project
      * @return hash
      */
     public static String getEngineDownloadKey(Project project) {
@@ -506,12 +452,7 @@ public class Server {
         return sb.toString();
     }
 
-    public byte[] downloadEngine(String projectId, String platform) throws IOException {
-        File file = getEngineFile(configuration, projectId, platform);
-        return FileUtils.readFileToByteArray(file);
-    }
-
-    public int getOpenRegistrationMaxUsers() {
+    private int getOpenRegistrationMaxUsers() {
         return openRegistrationMaxUsers;
     }
 
@@ -523,8 +464,7 @@ public class Server {
         Query query = em.createQuery("select count(u.id) from User u");
         Number count = (Number) query.getSingleResult();
         int maxUsers = getOpenRegistrationMaxUsers();
-        boolean open = count.intValue() < maxUsers;
-        return open;
+        return count.intValue() < maxUsers;
     }
 
     public void invite(EntityManager em, String email, String inviter, String inviterEmail, int originalInvitationCount) {
@@ -545,7 +485,7 @@ public class Server {
         String key = UUID.randomUUID().toString();
 
         EMailTemplate template = getConfiguration().getInvitationTemplate();
-        Map<String, String> params = new HashMap<String, String>();
+        Map<String, String> params = new HashMap<>();
         params.put("inviter", inviter);
         params.put("key", key);
         EMail emailMessage = EMail.format(template, email, params);
@@ -563,19 +503,13 @@ public class Server {
         // should be invoked *after* the transaction is commited. Commits are
         // however container managed. Thats why we run a bit later.. budget..
         // The mail is eventually sent though as we periodically process the queue
-        getExecutorService().execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) { e.printStackTrace(); }
-                getMailProcessor().process();
-            }
+        getExecutorService().execute(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) { e.printStackTrace(); }
+            getMailProcessor().process();
         });
 
         ModelUtil.subscribeToNewsLetter(em, email, "", "");
-
     }
-
-
 }

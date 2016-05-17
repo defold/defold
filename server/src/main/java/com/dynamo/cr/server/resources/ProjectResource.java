@@ -1,36 +1,16 @@
 package com.dynamo.cr.server.resources;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.URI;
-import java.util.Enumeration;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-
-import javax.annotation.security.RolesAllowed;
-import javax.inject.Inject;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.HEAD;
-import javax.ws.rs.HeaderParam;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.StreamingOutput;
-import javax.ws.rs.core.UriInfo;
-
+import com.dynamo.cr.protocol.proto.Protocol.Log;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
+import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.ServerException;
+import com.dynamo.cr.server.git.archive.ArchiveCache;
+import com.dynamo.cr.server.git.archive.GitArchiveProvider;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
+import com.dynamo.inject.persist.Transactional;
+import com.sun.jersey.api.NotFoundException;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
@@ -38,18 +18,20 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.archive.ArchiveCache;
-import com.dynamo.cr.archive.GitArchiveProvider;
-import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
-import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.ServerException;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.User;
-import com.dynamo.inject.persist.Transactional;
-import com.sun.jersey.api.NotFoundException;
+import javax.annotation.security.RolesAllowed;
+import javax.inject.Inject;
+import javax.ws.rs.*;
+import javax.ws.rs.core.*;
+import javax.ws.rs.core.Response.Status;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.util.Enumeration;
+import java.util.Objects;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /*
  * use
@@ -124,7 +106,7 @@ import com.sun.jersey.api.NotFoundException;
 // NOTE: {member} isn't currently used.
 // See README.md in this project for additional information
 @Path("/projects/{owner}/{project}")
-@RolesAllowed(value = { "member" })
+@RolesAllowed(value = {"member"})
 public class ProjectResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectResource.class);
@@ -138,14 +120,14 @@ public class ProjectResource extends BaseResource {
 
     @HEAD
     @Path("/archive/{version}")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     public Response getArchiveHead(@PathParam("project") String project,
-                                      @PathParam("version") String version) throws IOException {
+                                   @PathParam("version") String version) throws IOException {
 
         String repository = getRepositoryString(project);
         String sha1 = GitArchiveProvider.getSHA1ForName(repository, version);
 
-        if(sha1 == null) {
+        if (sha1 == null) {
             return Response.status(Status.NOT_FOUND).build();
         } else {
             return Response.ok()
@@ -156,25 +138,22 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/archive")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     public Response getArchive(@PathParam("project") String project,
                                @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
         return getArchive(project, "HEAD", ifNoneMatch);
     }
 
     @GET
-    @Path("/archive/{version}")
-    @RolesAllowed(value = { "member" })
+    @Path("/archive/{version: .+}")
+    @RolesAllowed(value = {"member"})
     public Response getArchive(@PathParam("project") String project,
                                @PathParam("version") String version,
                                @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
 
-        // NOTE: Currently neither caching of created zip-files nor appropriate cache-headers (ETag)
-        // Appropriate ETag might be SHA1 of zip-file or even SHA1 from git (head commit)
-
         String repositoryName = getRepositoryString(project);
         String sha1 = GitArchiveProvider.getSHA1ForName(repositoryName, version);
-        if(sha1 == null) {
+        if (sha1 == null) {
             return Response.status(Status.NOT_FOUND).build();
         }
 
@@ -185,12 +164,9 @@ public class ProjectResource extends BaseResource {
         String filePathname = cachedArchives.get(sha1, repositoryName, version);
         final File zipFile = new File(filePathname);
 
-        StreamingOutput output = new StreamingOutput() {
-            @Override
-            public void write(OutputStream os) throws IOException, WebApplicationException {
-                FileUtils.copyFile(zipFile, os);
-                os.close();
-            }
+        StreamingOutput output = os -> {
+            FileUtils.copyFile(zipFile, os);
+            os.close();
         };
 
         return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM_TYPE)
@@ -205,7 +181,7 @@ public class ProjectResource extends BaseResource {
 
     @POST
     @Path("/members")
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     @Transactional
     public void addMember(@PathParam("project") String projectId,
                           String memberEmail) {
@@ -230,7 +206,7 @@ public class ProjectResource extends BaseResource {
     @Path("/members/{id}")
     @Transactional
     public void removeMember(@PathParam("project") String projectId,
-                          @PathParam("id") String memberId) {
+                             @PathParam("id") String memberId) {
         // Ensure user is valid
         User user = getUser();
         User member = server.getUser(em, memberId);
@@ -241,8 +217,8 @@ public class ProjectResource extends BaseResource {
             throw new NotFoundException(String.format("User %s is not a member of project %s", user.getId(), projectId));
         }
         // Only owners can remove other users and only non-owners can remove themselves
-        boolean isOwner = user.getId() == project.getOwner().getId();
-        boolean removeSelf = user.getId() == member.getId();
+        boolean isOwner = Objects.equals(user.getId(), project.getOwner().getId());
+        boolean removeSelf = Objects.equals(user.getId(), member.getId());
         if ((isOwner && removeSelf) || (!isOwner && !removeSelf)) {
             throw new WebApplicationException(403);
         }
@@ -261,40 +237,70 @@ public class ProjectResource extends BaseResource {
     }
 
     @PUT
-    @RolesAllowed(value = { "owner" })
+    @RolesAllowed(value = {"owner"})
     @Transactional
     @Path("/project_info")
-    public void updateProjectInfo(@PathParam("project") String projectId,
-                                  ProjectInfo projectInfo) {
-        /*
-         * Only name and description is updated
-         */
-
+    public void updateProjectInfo(@PathParam("project") String projectId, ProjectInfo projectInfo) {
         Project project = server.getProject(em, projectId);
         project.setName(projectInfo.getName());
         project.setDescription(projectInfo.getDescription());
     }
 
+    @POST
+    @RolesAllowed(value = {"owner"})
+    @Transactional
+    @Path("/change_owner")
+    public void changeOwner(@PathParam("project") String projectId, @QueryParam("newOwnerId") Long newOwnerId) {
+
+        if (newOwnerId == null) {
+            throw new ServerException("Query parameter newOwnerId is missing.", Status.BAD_REQUEST);
+        }
+
+        Project project = server.getProject(em, projectId);
+
+        if (!changeProjectOwner(project, newOwnerId)) {
+            throw new ServerException("Could not change ownership: new owner must be a project member.", Status.FORBIDDEN);
+        }
+
+    }
+
+    private boolean changeProjectOwner(Project project, long newOwnerId) {
+        User newOwner = server.getUser(em, Long.toString(newOwnerId));
+        for (User member : project.getMembers()) {
+            if (Objects.equals(member.getId(), newOwner.getId())) {
+                validateMaxProjectCount(newOwner);
+                logger.debug(String.format("Changing project %d ownership to user %s", project.getId(), newOwnerId));
+                project.setOwner(newOwner);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void validateMaxProjectCount(User newOwner) throws ServerException {
+        long projectCount = ModelUtil.getProjectCount(em, newOwner);
+        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
+
+        if (projectCount >= maxProjectCount) {
+            throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount),
+                    Status.FORBIDDEN);
+        }
+    }
+
     @GET
     @Path("/log")
-    public Log log(@PathParam("project") String project,
-                              @QueryParam("max_count") int maxCount) throws Exception {
-        Log log = server.log(em, project, maxCount);
-        return log;
+    public Log log(@PathParam("project") String project, @QueryParam("max_count") int maxCount) throws Exception {
+        return server.log(em, project, maxCount);
     }
 
     @DELETE
-    @RolesAllowed(value = { "owner" })
+    @RolesAllowed(value = {"owner"})
     @Transactional
-    public void deleteProject(@PathParam("project") String projectId)  {
+    public void deleteProject(@PathParam("project") String projectId) {
         Project project = server.getProject(em, projectId);
-        // Delete git repo
-        Configuration configuration = server.getConfiguration();
-        String repositoryRoot = configuration.getRepositoryRoot();
-        File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
         try {
             ModelUtil.removeProject(em, project);
-            FileUtils.deleteDirectory(projectPath);
+            ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
         } catch (IOException e) {
             throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
         }
@@ -305,7 +311,7 @@ public class ProjectResource extends BaseResource {
      */
     @POST
     @Consumes(MediaType.APPLICATION_OCTET_STREAM)
-    @RolesAllowed(value = { "member" })
+    @RolesAllowed(value = {"member"})
     @Path("/engine/{platform}")
     public Response uploadEngine(@PathParam("project") String projectId,
                                  @PathParam("platform") String platform,
@@ -319,22 +325,18 @@ public class ProjectResource extends BaseResource {
         return Response.ok().build();
     }
 
-
     private XMLPropertyListConfiguration readPlistFromBundle(final String path) throws IOException {
-        final ZipFile file = new ZipFile( path );
-        try
-        {
+        try (ZipFile file = new ZipFile(path)) {
             final Enumeration<? extends ZipEntry> entries = file.entries();
-            while ( entries.hasMoreElements() )
-            {
+            while (entries.hasMoreElements()) {
                 final ZipEntry entry = entries.nextElement();
                 final String entryName = entry.getName();
-                if( !entryName.endsWith("Info.plist") )
+                if (!entryName.endsWith("Info.plist"))
                     continue;
 
                 try {
                     XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-                    plist.load(file.getInputStream( entry ));
+                    plist.load(file.getInputStream(entry));
                     return plist;
                 } catch (ConfigurationException e) {
                     throw new IOException("Failed to read Info.plist", e);
@@ -344,18 +346,14 @@ public class ProjectResource extends BaseResource {
             // Info.plist not found
             throw new FileNotFoundException(String.format("Bundle %s didn't contain Info.plist", path));
         }
-        finally
-        {
-            file.close();
-        }
     }
 
     @GET
-    @RolesAllowed(value = { "anonymous" })
+    @RolesAllowed(value = {"anonymous"})
     @Path("/engine/{platform}/{key}.ipa")
     public Response downloadEngine(@PathParam("project") String projectId,
-                                 @PathParam("key") String key,
-                                 @PathParam("platform") String platform) throws IOException {
+                                   @PathParam("key") String key,
+                                   @PathParam("platform") String platform) throws IOException {
 
         if (!platform.equals("ios")) {
             // Only iOS for now
@@ -371,12 +369,9 @@ public class ProjectResource extends BaseResource {
 
         final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
 
-        StreamingOutput output = new StreamingOutput() {
-            @Override
-            public void write(OutputStream os) throws IOException, WebApplicationException {
-                FileUtils.copyFile(file, os);
-                os.close();
-            }
+        StreamingOutput output = os -> {
+            FileUtils.copyFile(file, os);
+            os.close();
         };
 
         return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM)
@@ -386,7 +381,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @RolesAllowed(value = { "anonymous" })
+    @RolesAllowed(value = {"anonymous"})
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
     public String downloadEngineManifest(@PathParam("owner") String owner,
@@ -415,17 +410,16 @@ public class ProjectResource extends BaseResource {
 
         final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), projectId, platform);
 
-        String bundleid = "unknown";
+        String bundleid;
         try {
-            final XMLPropertyListConfiguration bundleplist = readPlistFromBundle( ipaPath );
+            final XMLPropertyListConfiguration bundleplist = readPlistFromBundle(ipaPath);
             bundleid = bundleplist.getString("CFBundleIdentifier");
         } catch (Exception e) {
             throw new ServerException("Failed to read plist", e, Status.INTERNAL_SERVER_ERROR);
         }
 
-        String manifestPrim = manifest.replace("${URL}", engineUri.toString()+".ipa");
+        String manifestPrim = manifest.replace("${URL}", engineUri.toString() + ".ipa");
         manifestPrim = manifestPrim.replace("${BUNDLEID}", bundleid);
         return manifestPrim;
     }
-
 }
