@@ -205,6 +205,7 @@
        (def ~symb (in/register-value-type ~key (in/->ValueTypeImpl ~key ~@body))))))
 
 (deftype Any        s/Any)
+(deftype Bool       s/Bool)
 (deftype Str        s/Str)
 (deftype Int        s/Int)
 (deftype Num        s/Num)

@@ -8,18 +8,18 @@
 ;;; :no-cache
 
 (g/defnode CacheTestNode
-  (input first-name String)
-  (input last-name  String)
-  (input operand    String)
+  (input first-name g/Str)
+  (input last-name  g/Str)
+  (input operand    g/Str)
 
   (property scalar g/Str)
 
-  (output uncached-value  String         (g/fnk [scalar] scalar))
-  (output expensive-value String :cached (g/fnk [] "this took a long time to produce"))
-  (output nickname        String :cached (g/fnk [first-name] first-name))
-  (output derived-value   String :cached (g/fnk [first-name last-name] (str first-name " " last-name)))
-  (output another-value   String :cached (g/fnk [] "this is distinct from the other outputs"))
-  (output nil-value       String :cached (g/fnk [this] nil)))
+  (output uncached-value  g/Str         (g/fnk [scalar] scalar))
+  (output expensive-value g/Str :cached (g/fnk [] "this took a long time to produce"))
+  (output nickname        g/Str :cached (g/fnk [first-name] first-name))
+  (output derived-value   g/Str :cached (g/fnk [first-name last-name] (str first-name " " last-name)))
+  (output another-value   g/Str :cached (g/fnk [] "this is distinct from the other outputs"))
+  (output nil-value       g/Str :cached (g/fnk [this] nil)))
 
 (defn- cached? [cache node label]
   (contains? @cache [node label]))
