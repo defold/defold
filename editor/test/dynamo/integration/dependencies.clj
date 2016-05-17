@@ -1,7 +1,8 @@
 (ns dynamo.integration.dependencies
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [with-clean-system tx-nodes]]
+            [schema.core :as s]))
 
 (g/defnode ChainedOutputNode
   (property foo g/Str (default "c"))
@@ -41,7 +42,7 @@
         nodes (g/graph-value graph :nodes)]
     (get nodes path)))
 
-(def OutlineData {g/Keyword g/Any})
+(g/deftype OutlineData {s/Keyword s/Any})
 
 (g/defnode OutlineNode
   (input child-outlines OutlineData :array)
@@ -59,7 +60,7 @@
 (g/defnode GameObjectNode
   (inherits ResourceNode)
   (output node-outline OutlineData :cached (g/fnk [_node-id child-outlines]
-                                             {:node-id _node-id :children child-outlines})))
+                                                  {:node-id _node-id :children child-outlines})))
 
 (g/defnode ComponentNode
   (inherits OutlineNode)

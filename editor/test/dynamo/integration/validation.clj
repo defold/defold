@@ -1,7 +1,8 @@
 (ns dynamo.integration.validation
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [with-clean-system tx-nodes]]
+            [schema.core :as s]))
 
 ; TODO - hack since connections are not overwritten
 (defn- disconnect-all [node-id label]
@@ -11,8 +12,10 @@
 (g/defnode ProducerNode
   (property data g/Str))
 
+(g/deftype NodeIDMap {s/Str s/Int})
+
 (g/defnode ConsumerNode
-  (property producer-store {g/Str g/NodeID})
+  (property producer-store NodeIDMap)
   (input data-input g/Str)
   (property data g/Str
             (value (g/fnk [data-input]
@@ -85,9 +88,11 @@
                                           (g/connect a :data b :data)))]
       (is (not (g/error? (prop b :own-data)))))))
 
+(g/deftype NodeIDSet #{s/Int})
+
 ; Simulating a content pipeline build
 (g/defnode ProjectNode
-  (property resource-nodes #{g/NodeID})
+  (property resource-nodes NodeIDSet)
   (input build-data g/Any :array))
 
 (g/defnode ComponentNode
@@ -181,16 +186,16 @@
 (g/defnode CustomSetterNode
   (property plain-prop g/Int
     (validate (g/fnk [plain-prop] (when (< plain-prop 0) (g/error-severe "plain-prop must be positive")))))
-  
+
   (property the-prop g/Int
     (value (g/fnk [] -4711))
     (set (fn [_ _ _ _]))
     (validate (g/fnk [the-prop]
                 (when (< the-prop 0)
                   (g/error-severe "the-prop must be positive")))))
-  
+
   (output output-probe g/Int (g/fnk [the-prop] "this should not be returned as the-prop is an error"))
-  
+
   (property property-probe g/Int (value (g/fnk [the-prop] "this should not be returned as the-prop is an error")))
 
   (property dynamic-probe g/Int
