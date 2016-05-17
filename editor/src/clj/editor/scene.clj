@@ -397,7 +397,7 @@
   (inherits SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (fn [] (types/->Region 0 0 0 0))))
+  (property viewport Region (default (g/fnk [] (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
