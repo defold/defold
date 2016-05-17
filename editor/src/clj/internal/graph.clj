@@ -410,7 +410,7 @@
 (defn- input-deps [basis node-id]
   (some-> (gt/node-by-id-at basis node-id)
           (gt/node-type basis)
-          :input-dependencies))
+          in/input-dependencies))
 
 (defn update-successors
   [basis changes]
