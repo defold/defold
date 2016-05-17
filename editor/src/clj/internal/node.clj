@@ -47,6 +47,7 @@
 (def cascade-deletes?    (partial has-flag? :cascade-delete))
 (def extern?             (partial has-flag? :unjammable))
 (def internal?           (partial has-flag? :internal))
+(def explicit?           (partial has-flag? :explicit))
 (def external-property?  (complement internal?))
 
 (def internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
@@ -82,7 +83,7 @@
 (defn internal-properties    [nt]        (into {} (filter (comp internal? val) (:property (deref nt)))))
 (defn declared-inputs        [nt]        (:input (deref nt)))
 (defn injectable-inputs      [nt]        (util/key-set (filterm #(injectable? (val %)) (:input (deref nt)))))
-(defn declared-outputs       [nt]        (util/key-set (:output (deref nt))))
+(defn declared-outputs       [nt]        (:output (deref nt)))
 (defn cached-outputs         [nt]        (util/key-set (filterm #(cached? (val %)) (:output (deref nt)))))
 (defn input-dependencies     [nt]        (:input-dependencies (deref nt)))
 (defn substitute-for         [nt label]  (get-in (deref nt) [:input label :options :substitute]))
@@ -98,8 +99,8 @@
 (defn has-input?             [nt label]  (contains? (get (deref nt) :input) label))
 (defn has-output?            [nt label]  (contains? (get (deref nt) :output) label))
 (defn has-property?          [nt label]  (contains? (get (deref nt) :property) label))
-(def  input-labels        declared-inputs)
-(def  output-labels       declared-outputs)
+(defn input-labels           [nt]        (util/key-set (declared-inputs nt)))
+(defn output-labels          [nt]        (util/key-set (declared-outputs nt)))
 (def  public-properties   declared-properties)
 
 
@@ -767,7 +768,7 @@
             (format "Output %s seems to have something after the production function: " label (next fn-forms)))
     {:output
      {(keyword label)
-      (merge-with into base {:flags   flags
+      (merge-with into base {:flags   (into #{} (conj flags :explicit))
                              :options options
                              :fn      (if abstract?
                                         (abstract-function label type-form)
@@ -958,6 +959,8 @@
 (defn- desc-has-input?     [description argument] (contains? (:input description) argument))
 (defn- desc-has-property?  [description argument] (contains? (:property description) argument))
 (defn- desc-has-output?    [description argument] (contains? (:output description) argument))
+(defn- desc-has-explicit-output?    [description argument]
+  (contains? (get-in description [:output argument :flags]) :explicit))
 
 (defn has-multivalued-input?  [description input-label]
   (contains? (get-in description [:input input-label :flags]) :array))
@@ -969,7 +972,7 @@
 (defn property-overloads-output? [description argument output]
   (and (= output argument)
        (desc-has-property? description argument)
-       (desc-has-output? description argument)))
+       (desc-has-explicit-output? description argument)))
 
 (defn unoverloaded-output? [description argument output]
   (and (not= output argument)
