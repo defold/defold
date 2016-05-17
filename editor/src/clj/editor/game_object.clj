@@ -190,7 +190,7 @@
                           (g/error-warning "Missing component")))))
 
   (input source-id g/NodeID :cascade-delete)
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/ResourceType)
   (output property-overrides g/Any :cached
           (g/fnk [source-properties]
                  (into {}

@@ -319,12 +319,12 @@
 (g/defnode FontNode
   (inherits project/ResourceNode)
 
-  (property font resource/Resource
+  (property font resource/ResourceType
     (value (g/fnk [font-resource] font-resource))
     (set (project/gen-resource-setter [[:resource :font-resource]]))
     (validate (g/fnk [font] (validation/resource font))))
 
-  (property material resource/Resource
+  (property material resource/ResourceType
     (value (g/fnk [material-resource] material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
                                        [:build-targets :dep-build-targets]
@@ -359,10 +359,10 @@
   (property cache-height g/Int)
 
   (input dep-build-targets g/Any :array)
-  (input font-resource resource/Resource)
-  (input material-resource resource/Resource)
+  (input font-resource resource/ResourceType)
+  (input material-resource resource/ResourceType)
   (input material-samplers [{g/Keyword g/Any}])
-  (input material-shader ShaderLifecycle)
+  (input material-shader shader/ShaderLifecycleType)
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output pb-msg g/Any :cached produce-pb-msg)
@@ -370,7 +370,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
-  (output aabb AABB (g/fnk [font-map preview-text]
+  (output aabb types/AABBType (g/fnk [font-map preview-text]
                            (if font-map
                              (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
                                    h-offset (:max-ascent font-map)]

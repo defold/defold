@@ -365,16 +365,16 @@
 
 (g/defnode CameraController
   (property name g/Keyword (default :local-camera))
-  (property local-camera Camera)
+  (property local-camera types/CameraType)
   (property ui-state g/Any (default (constantly (atom {:movement :idle}))))
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
-  (input viewport Region)
+  (input viewport types/RegionType)
 
-  (output viewport Region (g/fnk [viewport] viewport))
-  (output camera Camera :cached produce-camera)
+  (output viewport types/RegionType (g/fnk [viewport] viewport))
+  (output camera types/CameraType :cached produce-camera)
 
-  (output input-handler Runnable :cached (g/fnk [] handle-input)))
+  (output input-handler types/RunnableType :cached (g/fnk [] handle-input)))
 
 (defn- lerp [a b t]
   (let [d (- b a)]
