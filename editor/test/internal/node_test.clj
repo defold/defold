@@ -17,19 +17,16 @@
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_node-id node) fn-symbol] 0))
 
-(defn string-value [] "uff-da")
+(g/defnk string-value [] "uff-da")
 
 (g/defnode WithDefaults
   (property default-value                 g/Str (default "o rly?"))
-  (property overridden-indirect           g/Str (default string-value))
-  (property overridden-indirect-by-var    g/Str (default #'string-value)))
+  (property overridden-indirect           g/Str (default string-value)))
 
 (deftest node-property-defaults
   (are [expected property] (= expected (get (g/construct WithDefaults) property))
        "o rly?"      :default-value
-       "uff-da"      :overridden-indirect
-       "uff-da"      :overridden-indirect-by-var
-       'string-value :overridden-indirect-by-symbol))
+       "uff-da"      :overridden-indirect))
 
 (g/defnode SimpleTestNode
   (property foo g/Str (default "FOO!")))
@@ -163,15 +160,16 @@
   (expect-modified SimpleTestNode #{}                                        (fn [node-id] (g/set-property    node-id :foo "one")))
   (expect-modified SimpleTestNode #{}                                        (fn [node-id] (g/update-property node-id :foo identity))))
 
-(deftest invalidating-visibility-properties
+
+(deftest invalidation-affects-dynamics
   (with-clean-system
-    (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
-                                  (g/make-node world VisibilityTestNode))]
-      (g/transact (g/connect snode :foo vnode :bar))
-      (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
-            vnode-results (filter #(= (first %) vnode) (:outputs-modified tx-result))
-            modified      (into #{} (map second vnode-results))]
-        (is (= #{:_declared-properties :baz :_properties} modified))))))
+    (let [[source target]               (tx-nodes
+                                         (g/make-nodes world [source SimpleTestNode
+                                                              target VisibilityTestNode]
+                                                       (g/connect source :foo target :bar)))
+          tx-result                     (g/set-property! source :foo "hi")
+          properties-modified-on-target (set (keep #(when (= (first %) target) (second %)) (:outputs-modified tx-result)))]
+      (is (= #{:_declared-properties :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
   (with-clean-system
@@ -190,7 +188,7 @@
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
             modified      (into #{} (map second enode-results))]
-        (is (= #{:_declared-properties :baz :_properties} modified))))))
+        (is (= #{:_declared-properties :_properties} modified))))))
 
 (deftest enablement-properties
   (with-clean-system
