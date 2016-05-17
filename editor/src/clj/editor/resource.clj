@@ -26,6 +26,8 @@
   (workspace [this])
   (resource-hash [this]))
 
+(g/deftype ResourceType (g/protocol Resource))
+
 (defn relative-path [^File f1 ^File f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))
 
@@ -54,6 +56,8 @@
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (io/make-output-stream file opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(g/deftype FileResourceType FileResource)
 
 (core/register-read-handler!
  "file-resource"
@@ -161,7 +165,7 @@
          (mapv (fn [x] (->zip-resources workspace "" x))))))
 
 (g/defnode ResourceNode
-  (extern resource Resource (dynamic visible false)))
+  (extern resource ResourceType (dynamic visible false)))
 
 (defn- seq-children [resource]
   (seq (children resource)))

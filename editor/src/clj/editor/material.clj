@@ -180,14 +180,14 @@
 
   (property pb g/Any (dynamic visible (g/fnk [] false)))
   (property def g/Any (dynamic visible (g/fnk [] false)))
-  (property vertex-program resource/Resource
+  (property vertex-program resource/ResourceType
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [vertex-resource] vertex-resource))
     (set (project/gen-resource-setter [[:resource :vertex-resource]
                                        [:full-source :vertex-source]]))
     (validate (g/fnk [vertex-program] (validation/resource vertex-program))))
 
-  (property fragment-program resource/Resource
+  (property fragment-program resource/ResourceType
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [fragment-resource] fragment-resource))
     (set (project/gen-resource-setter [[:resource :fragment-resource]
@@ -197,18 +197,18 @@
   (output form-data g/Any :cached produce-form-data)
 
   (input dep-build-targets g/Any :array)
-  (input vertex-resource resource/Resource)
+  (input vertex-resource resource/ResourceType)
   (input vertex-source g/Str)
-  (input fragment-resource resource/Resource)
+  (input fragment-resource resource/ResourceType)
   (input fragment-source g/Str)
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/fnk [] {}))
-  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
+  (output shader shader/ShaderLifecycleType :cached (g/fnk [_node-id vertex-source fragment-source pb]
                                            (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
                                              (shader/make-shader _node-id vertex-source fragment-source uniforms))))
-  (output samplers [{g/Keyword g/Any}] :cached (g/fnk [pb] (vec (:samplers pb)))))
+  (output samplers [g/KeywordMap] :cached (g/fnk [pb] (vec (:samplers pb)))))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]

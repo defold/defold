@@ -36,18 +36,18 @@
   icon-selection true false
   overlay-selection false false)
 
-(def RenderData {(g/optional-key background)            g/Any
-                 (g/optional-key opaque)                g/Any
-                 (g/optional-key transparent)           g/Any
-                 (g/optional-key icon-outline)          g/Any
-                 (g/optional-key outline)               g/Any
-                 (g/optional-key manipulator)           g/Any
-                 (g/optional-key overlay)               g/Any
-                 (g/optional-key overlay-selection)     g/Any
-                 (g/optional-key selection)             g/Any
-                 (g/optional-key manipulator-selection) g/Any
-                 (g/optional-key icon)                  g/Any
-                 (g/optional-key icon-selection)        g/Any})
+(g/deftype RenderData {(g/optional-key background)            g/Any
+                       (g/optional-key opaque)                g/Any
+                       (g/optional-key transparent)           g/Any
+                       (g/optional-key icon-outline)          g/Any
+                       (g/optional-key outline)               g/Any
+                       (g/optional-key manipulator)           g/Any
+                       (g/optional-key overlay)               g/Any
+                       (g/optional-key overlay-selection)     g/Any
+                       (g/optional-key selection)             g/Any
+                       (g/optional-key manipulator-selection) g/Any
+                       (g/optional-key icon)                  g/Any
+                       (g/optional-key icon-selection)        g/Any})
 
 (defmulti prepare-gl (fn [pass gl glu] pass))
 
