@@ -14,7 +14,7 @@
 
 (g/defnode SimpleArrayTestNode
   (input my-input g/Str :array)
-  (output passthrough [(g/maybe g/Str)] (g/fnk [my-input] my-input)))
+  (output passthrough [g/Str] (g/fnk [my-input] my-input)))
 
 (deftest test-producing-values-without-substitutes
   (testing "values with no errors"
@@ -135,7 +135,7 @@
 
 (g/defnode SubArrayTestNode
   (input my-input g/Str :array :substitute (fn [_] ["beans"]))
-  (output passthrough [(g/maybe g/Str)] (g/fnk [my-input] my-input)))
+  (output passthrough [g/Str] (g/fnk [my-input] my-input)))
 
 (deftest test-producing-vals-with-nil-substitutes
   (testing "values with nils do not trigger substitutes"
@@ -239,4 +239,3 @@
                                 (g/make-node world NamedSubstFn))]
         (g/transact (g/connect err :my-output sub :the-input))
         (is (= "substitute" (g/node-value sub :the-input)))))))
-
