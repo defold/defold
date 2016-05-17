@@ -1,11 +1,8 @@
 package com.dynamo.cr.server.model;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
+import java.util.List;
 
 public class ModelUtil {
 
@@ -35,11 +32,6 @@ public class ModelUtil {
      * @param project project to remove
      */
     public static void removeProject(EntityManager entityManager, Project project) {
-        Set<User> users = project.getMembers();
-        for (User user : users) {
-            user.getProjects().remove(project);
-            entityManager.persist(user);
-        }
         entityManager.remove(project);
     }
 
@@ -54,12 +46,13 @@ public class ModelUtil {
             p.getMembers().remove(user);
         }
 
-        // Remove connections to this user
-        // We iterate and make updates. Make a copy
-        HashSet<User> connections = new HashSet<User>(user.getConnections());
-        for (User connectedUser : connections) {
+        // Find all users with connections to this user and remove their connection.
+        List<User> connectedUsers = entityManager
+                .createQuery("SELECT u FROM User u WHERE :user MEMBER OF u.connections", User.class)
+                .setParameter("user", user)
+                .getResultList();
+        for (User connectedUser : connectedUsers) {
             connectedUser.getConnections().remove(user);
-            entityManager.persist(connectedUser);
         }
 
         // Remove invitation account if exists
@@ -153,4 +146,14 @@ public class ModelUtil {
         }
     }
 
+    /**
+     * Get the number of projects owned by the user. Please notice: owner must be present in the project members list
+     * @param em {@link EntityManager}
+     * @param user Project owner
+     * @return Number of projects owned by the user
+     */
+    public static long getProjectCount(EntityManager em, User user) {
+        return em.createQuery("select count(p.id) from Project p where p.owner = :user", Long.class)
+                .setParameter("user", user).getSingleResult();
+    }
 }

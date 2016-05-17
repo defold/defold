@@ -130,7 +130,7 @@ namespace dmHttpClient
             m_Socket = 0;
             m_SSLConnection = 0;
         }
-        Result Connect(const char* host, uint16_t port, bool secure, int sslhandshaketimeout);
+        Result Connect(const char* host, uint16_t port, bool secure, int timeout);
         ~Response();
     };
 
@@ -158,7 +158,7 @@ namespace dmHttpClient
         HttpWrite           m_HttpWrite;
         HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
-        uint64_t            m_RequestTimeout;
+        int                 m_RequestTimeout;
         uint64_t            m_RequestStart;
         Statistics          m_Statistics;
 
@@ -171,11 +171,11 @@ namespace dmHttpClient
         char                m_Buffer[BUFFER_SIZE + 1];
     };
 
-    Result Response::Connect(const char* host, uint16_t port, bool secure, int sslhandshaketimeout)
+    Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
     {
         m_Pool = g_PoolCreator.GetPool();
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
 
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, sslhandshaketimeout, &m_Connection, &m_Client->m_SocketResult);
         if (r == dmConnectionPool::RESULT_OK) {
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
@@ -275,12 +275,11 @@ namespace dmHttpClient
                 client->m_MaxGetRetries = (int) value;
                 break;
             case OPTION_REQUEST_TIMEOUT:
-                client->m_RequestTimeout = (uint64_t) value;
+                client->m_RequestTimeout = (int) value;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
         }
-
         return RESULT_OK;
     }
 
@@ -300,7 +299,7 @@ namespace dmHttpClient
         if( client->m_RequestTimeout == 0 )
             return false;
         uint64_t currenttime = dmTime::GetTime();
-        return (currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
+        return int(currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
     }
 
     static dmSocket::Result SSLToSocket(int r) {
@@ -384,7 +383,7 @@ namespace dmHttpClient
                 r = ssl_read(response->m_SSLConnection, &buf);
                 uint64_t end = dmTime::GetTime();
 
-                uint64_t timeout = response->m_Client->m_RequestTimeout;
+                int timeout = response->m_Client->m_RequestTimeout;
                 if (timeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
                     return dmSocket::RESULT_WOULDBLOCK;
                 }
@@ -752,15 +751,31 @@ bail:
         cache_etag[0] = '\0';
         cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, cache_etag, sizeof(cache_etag));
 
-        if (strcmp(cache_etag, response->m_ETag) != 0)
+        if (cache_result != dmHttpCache::RESULT_OK)
         {
-            dmLogFatal("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
+            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no ETag present. Server error?");
             return RESULT_IO_ERROR;
+        }
+
+        if (response->m_ETag[0] != '\0')
+        {
+            // The Entity Tag (ETag) is optional in HTTP 1.1.
+            // It is the servers responsibility to verify the ETag in case it is included. The
+            // ETag is a mechanism to reduce the bandwidth required by the server, not
+            // by the client. There is no guarantee that an ETag will be included in a
+            // 403 response even though it's been sent with a previous 200 response.
+            // Even though it might be possible at times, the client has no formal responsibility
+            // to perform this verification.
+            if (strcmp(cache_etag, response->m_ETag) != 0)
+            {
+                dmLogFatal("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
+                return RESULT_IO_ERROR;
+            }
         }
 
         FILE* file = 0;
         uint64_t checksum;
-        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, response->m_ETag, &file, &checksum);
+        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, cache_etag, &file, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
@@ -772,7 +787,7 @@ bail:
                 client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread);
             }
             while (nread > 0);
-            dmHttpCache::Release(client->m_HttpCache, client->m_URI, response->m_ETag, file);
+            dmHttpCache::Release(client->m_HttpCache, client->m_URI, cache_etag, file);
         }
         else
         {
@@ -975,8 +990,19 @@ bail:
                 return r;
             }
 
+            if( HasRequestTimedOut(client) )
+            {
+                return r;
+            }
+
             r = DoDoRequest(client, response, path, method);
             if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
+
+                if( HasRequestTimedOut(client) )
+                {
+                    return r;
+                }
+
                 response.m_CloseConnection = 1;
                 uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
 

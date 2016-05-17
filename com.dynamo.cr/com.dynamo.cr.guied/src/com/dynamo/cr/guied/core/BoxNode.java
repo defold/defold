@@ -26,9 +26,6 @@ public class BoxNode extends ClippingNode {
     private String texture = "";
 
     @Property
-    private SizeMode sizeMode = SizeMode.SIZE_MODE_AUTO;
-
-    @Property
     private Vector4d slice9 = new Vector4d(0,0,0,0);
 
     private transient GuiTextureNode guiTextureNode = new GuiTextureNode();
@@ -169,23 +166,10 @@ public class BoxNode extends ClippingNode {
         return GuiNodeStateBuilder.isFieldOverridden(this, "Slice9", LoaderUtil.toVector4(this.slice9));
     }
 
-    public SizeMode getSizeMode() {
-        return this.sizeMode;
-    }
-
+    @Override
     public void setSizeMode(SizeMode sizeMode) {
-        this.sizeMode = sizeMode;
-        GuiNodeStateBuilder.setField(this, "SizeMode", sizeMode);
+        super.setSizeMode(sizeMode);
         updateSize();
-    }
-
-    public void resetSizeMode() {
-        this.sizeMode = SizeMode.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "SizeMode"));
-        updateSize();
-    }
-
-    public boolean isSizeModeOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "SizeMode", this.sizeMode);
     }
 
     public boolean isSizeEditable() {

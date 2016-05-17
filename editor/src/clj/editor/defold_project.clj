@@ -3,6 +3,7 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
@@ -138,23 +139,24 @@
 (defn save-data [project]
   (g/node-value project :save-data :skip-validation true))
 
-(defn save-all
-  ([project]
-   (save-all project progress/null-render-progress!))
-  ([project render-progress!]
-   (let [save-data (save-data project)]
-     (if-not (g/error? save-data)
-       (do
-         (progress/progress-mapv
-          (fn [{:keys [resource content]} _]
-            (when-not (resource/read-only? resource)
-              (spit resource content)))
-          save-data
-          render-progress!
-          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-         (workspace/resource-sync! (g/node-value project :workspace) false [] render-progress!))
-       ;; TODO: error message somewhere...
-       (println (validation/error-message save-data))))))
+(defn save-all [project {:keys [render-progress! basis cache]
+                         :or {render-progress! progress/null-render-progress!
+                              basis            (g/now)
+                              cache            (g/cache)}
+                         :as opts}]
+  (let [save-data (g/node-value project :save-data :basis basis :cache cache :skip-validation true)]
+    (if-not (g/error? save-data)
+      (do
+        (progress/progress-mapv
+         (fn [{:keys [resource content]} _]
+           (when-not (resource/read-only? resource)
+             (spit resource content)))
+         save-data
+         render-progress!
+         (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+        (workspace/resource-sync! (g/node-value project :workspace :basis basis :cache cache) false [] render-progress!))
+      ;; TODO: error message somewhere...
+      (println (validation/error-message save-data)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
@@ -179,13 +181,13 @@
           file-exts      (some-> file-extensions-str
                                  (str/replace #" " "")
                                  (str/split #","))
-          file-exts      (->> file-exts
+          file-ext-pats  (->> file-exts
                               (remove empty?)
-                              (map str/lower-case)
-                              set)
-          matching-files (filter #(or (empty? file-exts)
-                                      (contains? file-exts
-                                                 (-> % :resource resource/resource-type :ext)))
+                              (map compile-find-in-files-regex))
+          matching-files (filter (fn [data]
+                                   (let [rext (-> data :resource resource/resource-type :ext)]
+                                     (or (empty? file-ext-pats)
+                                         (some #(re-matches % rext) file-ext-pats))))
                                  save-data)
           pattern        (compile-find-in-files-regex search-str)]
       (->> matching-files
@@ -205,12 +207,36 @@
                               (take 10)))))
            (filter #(seq (:matches %)))))))
 
+(defn workspace [project]
+  (g/node-value project :workspace))
+
+(defonce ongoing-build-save? (atom false))
+
+;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
+;; if the system cache hasn't changed during the build.
+(defn- update-system-cache! [old-cache-val new-cache]
+  (swap! (g/cache) (fn [current-cache-val]
+                     (if (= old-cache-val current-cache-val)
+                       @new-cache
+                       current-cache-val))))
+
 (handler/defhandler :save-all :global
-  (enabled? [] true)
-  (run [project] (future
-                   (ui/with-disabled-ui
-                     (ui/with-progress [render-fn ui/default-render-progress!]
-                       (save-all project render-fn))))))
+  (enabled? [] (not @ongoing-build-save?))
+  (run [project]
+    (when-not @ongoing-build-save?
+      (reset! ongoing-build-save? true)
+      (let [workspace     (workspace project)
+            old-cache-val @(g/cache)
+            cache         (atom old-cache-val)]
+        (future
+          (try
+            (ui/with-progress [render-fn ui/default-render-progress!]
+              (save-all project {:render-progress! render-fn
+                                 :basis            (g/now)
+                                 :cache            cache})
+              (workspace/update-version-on-disk! workspace)
+              (update-system-cache! old-cache-val cache))
+            (finally (reset! ongoing-build-save? false))))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -241,40 +267,38 @@
   (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
     (and resource (resource/resource-name resource))))
 
-(defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
+(defn find-errors [{:keys [user-data causes _node-id] :as error} labels]
   (let [labels (conj labels (get-resource-name _node-id))]
     (if causes
       (recur (first causes) labels)
       [(remove nil? labels) user-data])))
 
-(defn build
-  ([project node]
-   (build project node progress/null-render-progress!))
-  ([project node render-progress!]
-   (build project node progress/null-render-progress! nil))
-  ([project node render-progress! render-error!]
-   (try
-     (let [basis                (g/now)
-           build-cache          (g/node-value project :build-cache)
-           build-targets        (g/node-value node :build-targets)
-           build-targets-by-key (and (not (g/error? build-targets))
-                                     (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
-                                                             (g/node-value node :build-targets))))]
-       (if (g/error? build-targets)
-         (let [[labels cause] (find-errors build-targets [])
-               message        (format "Build error [%s] '%s'" (last labels) cause)]
-           (when render-error! (render-error! message))
-           nil)
-         (do
-           (prune-build-cache! build-cache build-targets-by-key)
-           (progress/progress-mapv
-            (fn [target _]
-              (build-target basis (second target) build-targets-by-key build-cache))
-            build-targets-by-key
-            render-progress!
-            (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))))
-     (catch Throwable e
-       (println e)))))
+(defn build [project node {:keys [render-progress! render-error! basis cache]
+                           :or   {render-progress! progress/null-render-progress!
+                                  basis            (g/now)
+                                  cache            (g/cache)}
+                           :as   opts}]
+  (try
+    (let [build-cache          (g/node-value project :build-cache :basis basis :cache cache)
+          build-targets        (g/node-value node :build-targets :basis basis :cache cache)
+          build-targets-by-key (and (not (g/error? build-targets))
+                                    (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
+                                                            (g/node-value node :build-targets :basis basis :cache cache))))]
+      (if (g/error? build-targets)
+        (let [[labels cause] (find-errors build-targets [])
+              message        (format "Build error [%s] '%s'" (last labels) cause)]
+          (when render-error! (render-error! message))
+          nil)
+        (do
+          (prune-build-cache! build-cache build-targets-by-key)
+          (progress/progress-mapv
+           (fn [target _]
+             (build-target basis (second target) build-targets-by-key build-cache))
+           build-targets-by-key
+           render-progress!
+           (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))))
+    (catch Throwable e
+      (println e))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
@@ -290,20 +314,14 @@
   (let [build-resources (set (map :resource build-results))]
     (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
 
-(defn clear-build-cache [project]
-  (reset! (g/node-value project :build-cache) {}))
-
-(defn clear-fs-build-cache [project]
-  (reset! (g/node-value project :fs-build-cache) {}))
-
 (defn- pump-engine-output [^InputStream stdout]
   (let [buf (byte-array 1024)]
     (loop []
       (let [n (.read stdout buf)]
         (when (> n -1)
-          (print (String. buf 0 n))
-          (flush)
-          (recur))))))
+          (let [msg (String. buf 0 n)]
+            (console/append-console-message! msg)
+            (recur)))))))
 
 (defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
@@ -315,43 +333,43 @@
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
 
-(defn build-and-write
-  ([project node]
-   (build-and-write project node progress/null-render-progress!))
-  ([project node render-progress!]
-   (build-and-write project node render-progress! nil))
-  ([project node render-progress! render-error!]
-   (clear-build-cache project)
-   (clear-fs-build-cache project)
-   (let [files-on-disk  (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
-         build-results  (build project node render-progress! render-error!)
-         fs-build-cache (g/node-value project :fs-build-cache)]
-     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
-     (prune-fs-build-cache! fs-build-cache build-results)
-     (progress/progress-mapv
-      (fn [result _]
-        (let [{:keys [resource content key]} result
-              abs-path (resource/abs-path resource)
-              mtime (let [f (File. abs-path)]
-                      (if (.exists f)
-                        (.lastModified f)
-                        0))
-              build-key [key mtime]
-              cached? (= (get @fs-build-cache resource) build-key)]
-          (when (not cached?)
-            (let [parent (-> (File. (resource/abs-path resource))
-                             (.getParentFile))]
-              ;; Create underlying directories
-              (when (not (.exists parent))
-                (.mkdirs parent))
-              ;; Write bytes
-              (with-open [out (io/output-stream resource)]
-                (.write out ^bytes content))
-              (let [f (File. abs-path)]
-                (swap! fs-build-cache assoc resource [key (.lastModified f)]))))))
-      build-results
-      render-progress!
-      (fn [{:keys [resource]}] (str "Writing " (resource/resource->proj-path resource)))))))
+(defn build-and-write [project node {:keys [render-progress! basis cache]
+                                     :or {render-progress! progress/null-render-progress!
+                                          basis            (g/now)
+                                          cache            (g/cache)}
+                                     :as opts}]
+  (reset! (g/node-value project :build-cache :basis basis :cache cache) {})
+  (reset! (g/node-value project :fs-build-cache :basis basis :cache cache) {})
+  (let [files-on-disk  (file-seq (io/file (workspace/build-path
+                                           (g/node-value project :workspace :basis basis :cache cache))))
+        fs-build-cache (g/node-value project :fs-build-cache :basis basis :cache cache)
+        build-results  (build project node opts)]
+    (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
+    (prune-fs-build-cache! fs-build-cache build-results)
+    (progress/progress-mapv
+     (fn [result _]
+       (let [{:keys [resource content key]} result
+             abs-path (resource/abs-path resource)
+             mtime (let [f (File. abs-path)]
+                     (if (.exists f)
+                       (.lastModified f)
+                       0))
+             build-key [key mtime]
+             cached? (= (get @fs-build-cache resource) build-key)]
+         (when (not cached?)
+           (let [parent (-> (File. (resource/abs-path resource))
+                            (.getParentFile))]
+             ;; Create underlying directories
+             (when (not (.exists parent))
+               (.mkdirs parent))
+             ;; Write bytes
+             (with-open [out (io/output-stream resource)]
+               (.write out ^bytes content))
+             (let [f (File. abs-path)]
+               (swap! fs-build-cache assoc resource [key (.lastModified f)]))))))
+     build-results
+     render-progress!
+     (fn [{:keys [resource]}] (str "Writing " (resource/resource->proj-path resource))))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -489,13 +507,15 @@
   (input save-data g/Any :array)
   (input node-resources g/Any :array)
   (input settings g/Any)
+  (input display-profiles g/Any)
 
   (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
   (output selected-nodes g/Any :cached (g/fnk [selected-nodes] selected-nodes))
   (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
-  (output settings g/Any :cached (g/fnk [settings] settings)))
+  (output settings g/Any :cached (g/fnk [settings] settings))
+  (output display-profiles g/Any :cached (g/fnk [display-profiles] display-profiles)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -514,19 +534,26 @@
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
 (handler/defhandler :build :global
-  (enabled? [] true)
-  (run [project] (let [workspace    (g/node-value project :workspace)
-                       game-project (get-resource-node project "/game.project")
-                       launch-path  (workspace/project-path (g/node-value project :workspace))]
-                     (future
-                       (ui/with-disabled-ui
-                         (ui/with-progress [render-fn ui/default-render-progress!]
-                           (when (not-empty (build-and-write project game-project render-fn
-                                                             #(ui/run-later (dialogs/make-alert-dialog %))))
-                             (launch-engine (io/file launch-path)))))))))
-
-(defn workspace [project]
-  (g/node-value project :workspace))
+  (enabled? [] (not @ongoing-build-save?))
+  (run [project]
+    (when-not @ongoing-build-save?
+      (reset! ongoing-build-save? true)
+      (let [workspace     (workspace project)
+            game-project  (get-resource-node project "/game.project")
+            launch-path   (workspace/project-path (g/node-value project :workspace))
+            old-cache-val @(g/cache)
+            cache         (atom old-cache-val)]
+        (future
+          (try
+            (ui/with-progress [render-fn ui/default-render-progress!]
+              (when-not (empty? (build-and-write project game-project
+                                                 {:render-progress! render-fn
+                                                  :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
+                                                  :basis            (g/now)
+                                                  :cache            cache}))
+                (update-system-cache! old-cache-val cache)
+                (launch-engine (io/file launch-path))))
+            (finally (reset! ongoing-build-save? false))))))))
 
 (defn settings [project]
   (g/node-value project :settings))

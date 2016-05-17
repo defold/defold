@@ -4,7 +4,8 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.profiler :as profiler])
   (:import [com.defold.control LongField]
            [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
@@ -360,9 +361,9 @@
     (updateItem [object empty]
       (let [^ListCell this this
             render-data (and object (render-fn object))]
-        (proxy-super updateItem (and object (:text render-data)) empty)
+        (proxy-super updateItem object empty)
         (update-list-cell-style! this)
-        (if empty
+        (if (or (nil? object) empty)
           (do
             (proxy-super setText nil)
             (proxy-super setGraphic nil))
@@ -565,16 +566,20 @@
     context-menu))
 
 (defn register-context-menu [^Control control menu-id]
-  (let [desc (make-desc control menu-id)]
-    (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
-      (event-handler event
-                     (when-not (.isConsumed event)
-                       (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
-                         ; Required for autohide to work when the event originates from the anchor/source control
-                         ; See RT-15160 and Control.java
-                         (.setImpl_showRelativeToWindow cm true)
-                         (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
-                         (.consume event)))))))
+  (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
+    (event-handler event
+                   (when-not (.isConsumed event)
+                     (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+                       ;; Required for autohide to work when the event originates from the anchor/source control
+                       ;; See RT-15160 and Control.java
+                       (.setImpl_showRelativeToWindow cm true)
+                       (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
+                       (.consume event))))))
+
+(defn register-tab-context-menu [^Tab tab menu-id]
+  (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+    (.setImpl_showRelativeToWindow cm true)
+    (.setContextMenu tab cm)))
 
 (defn register-menubar [^Scene scene  menubar-id menu-id ]
   ; TODO: See comment below about top-level items. Should be enforced here
@@ -831,25 +836,30 @@ return value."
       (.play))))
 
 (defn ->timer
-  ([tick-fn]
-    (->timer nil tick-fn))
-  ([fps tick-fn]
-    (let [last (atom (System/nanoTime))
-          interval (when fps
-                     (long (* 1e9 (/ 1 (double fps)))))]
-      {:last last
-       :timer (proxy [AnimationTimer] []
-                (handle [now]
-                  (let [delta (- now @last)]
-                    (when (or (nil? interval) (> delta interval))
-                      (try
-                        (tick-fn (* delta 1e-9))
-                        (reset! last (- now (if interval
-                                              (- delta interval)
-                                              0)))
-                        (catch Exception e
-                          (.stop ^AnimationTimer this)
-                          (throw e)))))))})))
+  ([name tick-fn]
+    (->timer nil name tick-fn))
+  ([fps name tick-fn]
+   (let [last       (atom (System/nanoTime))
+         interval   (when fps
+                      (long (* 1e9 (/ 1 (double fps)))))
+         last-error (atom nil)]
+     {:last  last
+      :timer (proxy [AnimationTimer] []
+               (handle [now]
+                 (profiler/profile "timer" name
+                                   (let [delta (- now @last)]
+                                     (when (or (nil? interval) (> delta interval))
+                                       (try
+                                         (tick-fn (* delta 1e-9))
+                                         (reset! last-error nil)
+                                         (reset! last (- now (if interval
+                                                               (- delta interval)
+                                                               0)))
+                                         (catch Exception e
+                                           (let [clj-ex (Throwable->map e)]
+                                             (when (not= @last-error clj-ex)
+                                               (println clj-ex)
+                                               (reset! last-error clj-ex))))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -857,24 +867,27 @@ return value."
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
-(defn anim!
-  ([duration anim-fn end-fn]
-    (let [duration (long (* 1e9 duration))
-          start (System/nanoTime)
-          end (+ start (long duration))]
-      (doto (proxy [AnimationTimer] []
-             (handle [now]
-               (if (< now end)
-                 (let [t (/ (double (- now start)) duration)]
-                   (try
-                     (anim-fn t)
-                     (catch Exception e
-                       (.stop ^AnimationTimer this)
-                       (throw e))))
-                 (do
-                   (end-fn)
-                   (.stop ^AnimationTimer this)))))
-        (.start)))))
+(defn anim! [duration anim-fn end-fn]
+  (let [duration   (long (* 1e9 duration))
+        start      (System/nanoTime)
+        end        (+ start (long duration))
+        last-error (atom nil)]
+    (doto (proxy [AnimationTimer] []
+            (handle [now]
+              (if (< now end)
+                (let [t (/ (double (- now start)) duration)]
+                  (try
+                    (anim-fn t)
+                    (reset! last-error nil)
+                    (catch Exception e
+                      (let [clj-ex (Throwable->map e)]
+                        (when (not= @last-error clj-ex)
+                          (println clj-ex)
+                          (reset! last-error clj-ex))))))
+                (do
+                  (end-fn)
+                  (.stop ^AnimationTimer this)))))
+      (.start))))
 
 (defn anim-stop! [^AnimationTimer anim]
   (.stop anim))

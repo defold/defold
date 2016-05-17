@@ -22,6 +22,7 @@
 ;; Internal state
 ;; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
+(def ^:dynamic *in-transaction?* nil)
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
@@ -140,12 +141,15 @@
 ;; ---------------------------------------------------------------------------
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
 
-
-(defn- mark-activated
+(defn- mark-input-activated
   [ctx node-id input-label]
   (let [basis (:basis ctx)
         dirty-deps (-> (gt/node-by-id-at basis node-id) (gt/node-type basis) in/input-dependencies (get input-label))]
     (update-in ctx [:nodes-affected node-id] into dirty-deps)))
+
+(defn- mark-output-activated
+  [ctx node-id output-label]
+  (update ctx :outputs-modified conj [node-id output-label]))
 
 (defn- next-node-id [ctx gid]
   (is/next-node-id* (:node-id-generators ctx) gid))
@@ -276,11 +280,16 @@
 (defn- ctx-override-node [ctx original-id override-id]
   (let [basis (:basis ctx)
         original (gt/node-by-id-at basis original-id)
+        all-originals (take-while some? (iterate (fn [nid] (some->> (gt/node-by-id-at basis nid)
+                                                             gt/original)) original-id))
         all-outputs (-> original (gt/node-type basis) in/output-labels)]
     (-> ctx
       (update :basis gt/override-node original-id override-id)
-      (update :successors-changed into (concat (map vector (repeat original-id) all-outputs)
-                                               (gt/sources basis original-id))))))
+      (update :successors-changed into (set (concat
+                                              (for [nid all-originals
+                                                    output all-outputs]
+                                                [nid output])
+                                              (mapcat #(gt/sources basis %) all-originals)))))))
 
 (defmethod perform :override-node
   [ctx {:keys [original-node-id override-node-id]}]
@@ -345,18 +354,15 @@
         override-nodes)
       (populate-overrides to-node-id))))
 
-(defn- node-value [basis node-id property]
-  (in/node-value node-id property {:basis basis :cache nil :skip-validation true}))
-
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
-  (let [[new-node tx-data] (in/tx-invoke-setter (:basis ctx) node property old-value new-value)
+  (let [[new-node deferred] (in/tx-invoke-setter (:basis ctx) node property old-value new-value)
         ctx                (cond-> (update ctx :basis #(first (gt/replace-node % node-id new-node)))
                                (not= old-value new-value)
-                               (mark-activated node-id property))]
-    (if (empty? tx-data)
+                               (mark-output-activated node-id property))]
+    (if (empty? deferred)
       ctx
-      (apply-tx ctx tx-data))))
+      (update ctx :deferred-setters conj deferred))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
@@ -410,7 +416,7 @@
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (do
         (-> ctx
-          (mark-activated node-id property)
+          (mark-output-activated node-id property)
           (update :basis replace-node node-id (gt/clear-property node basis property))
           (ctx-set-property-to-nil node-id node property)))
       ctx)))
@@ -445,7 +451,7 @@
       (-> ctx
         ; If the input has :one cardinality, disconnect existing connections first
         (ctx-disconnect-single target target-id target-label)
-        (mark-activated target-id target-label)
+        (mark-input-activated target-id target-label)
         (update :basis gt/connect source-id source-label target-id target-label)
         (update :successors-changed conj [source-id source-label])
         (ctx-add-overrides source-id source source-label target target-label))
@@ -481,7 +487,7 @@
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
       (-> ctx
-        (mark-activated target-id target-label)
+        (mark-input-activated target-id target-label)
         (update :basis gt/disconnect source-id source-label target-id target-label)
         (update :successors-changed conj [source-id source-label])
         (ctx-remove-overrides source source-label target target-label))
@@ -529,19 +535,13 @@
             :completed conj action) (next actions)))
       ctx)))
 
-(defn- last-seen-node
-  [{:keys [basis nodes-deleted]} node-id]
-  (or
-    (gt/node-by-id-at basis node-id)
-    (get nodes-deleted node-id)))
-
 (defn- mark-outputs-modified
   [{:keys [nodes-affected] :as ctx}]
   (update-in ctx [:outputs-modified] #(set/union % (pairs nodes-affected))))
 
 (defn- mark-nodes-modified
-  [{:keys [nodes-affected properties-affected] :as ctx}]
-  (update ctx :nodes-modified #(set/union % (keys nodes-affected) (keys properties-affected))))
+  [{:keys [nodes-affected outputs-modified] :as ctx}]
+  (update ctx :nodes-modified #(set/union % (keys nodes-affected) (map first outputs-modified))))
 
 (defn map-vals-bargs
   [m f]
@@ -570,12 +570,13 @@
    :nodes-added         []
    :nodes-modified      #{}
    :nodes-deleted       {}
-   :outputs-modified    []
+   :outputs-modified    #{}
    :graphs-modified     #{}
    :successors-changed  #{}
    :node-id-generators node-id-generators
    :completed           []
-   :txid                (new-txid)})
+   :txid                (new-txid)
+   :deferred-setters    []})
 
 (defn update-successors
   [{:keys [successors-changed] :as ctx}]
@@ -588,15 +589,31 @@
   ;; reachable from the original collection.
   (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
 
+(defn apply-setters [ctx]
+  (let [setters (:deferred-setters ctx)
+        ctx (assoc ctx :deferred-setters [])]
+    (if (empty? setters)
+      ctx
+      (-> (reduce (fn [ctx [f node-id old-value new-value]]
+                    (if (gt/node-by-id-at (:basis ctx) node-id)
+                      (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
+                      ctx)) ctx setters)
+        recur))))
+
 (defn transact*
   [ctx actions]
   (when *tx-debug*
     (println (txerrstr ctx "actions" (seq actions))))
-  (-> ctx
+  (with-bindings {#'*in-transaction?* true}
+    (-> ctx
       (apply-tx actions)
+      apply-setters
       mark-outputs-modified
       mark-nodes-modified
       update-successors
       trace-dependencies
       apply-tx-label
-      finalize-update))
+      finalize-update)))
+
+(defn in-transaction? []
+  *in-transaction?*)

@@ -8,14 +8,14 @@ def build(bld):
     texc = bld.new_task_gen(features = 'cxx cstaticlib',
                                 includes = ['.'],
                                 target = 'texc',
-                                uselib = 'PVRTEXLIB DLIB',
-                                source = 'texc.cpp')
+                                uselib = 'PVRTEXLIB WEBP DLIB',
+                                source = ['texc.cpp', 'texc_webp.cpp'])
 
     texc_shared = bld.new_task_gen(features = 'cxx cshlib',
                                        includes = ['.'],
                                        target = 'texc_shared',
-                                       uselib = 'PVRTEXLIB DLIB',
-                                       source = 'texc.cpp')
+                                       uselib = 'PVRTEXLIB WEBP DLIB',
+                                       source = ['texc.cpp', 'texc_webp.cpp'])
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 

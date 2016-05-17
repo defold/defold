@@ -59,6 +59,10 @@ public class TemplateNode extends GuiNode {
         return false;
     }
 
+    public boolean isSizeModeVisible() {
+        return false;
+    }
+
     @Override
     public void setId(String id) {
         if(!isTemplateNodeChild() && !this.getId().equals(id)) {

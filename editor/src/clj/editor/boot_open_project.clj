@@ -13,6 +13,7 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.console :as console]
             [editor.cubemap :as cubemap]
             [editor.image :as image]
             [editor.workspace :as workspace]
@@ -38,7 +39,9 @@
             [editor.graph-view :as graph-view]
             [editor.core :as core]
             [dynamo.graph :as g]
-            [editor.display-profiles :as display-profiles])
+            [editor.display-profiles :as display-profiles]
+            [editor.web-profiler :as web-profiler]
+            [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
@@ -109,11 +112,6 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-
-(defn- setup-console [^VBox root]
-  (let [^TextArea node (.lookup root "#console")]
-   (.appendText node "Hello Console")))
-
 (defn load-stage [workspace project prefs]
 
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -134,24 +132,38 @@
                                           (g/transact
                                            (g/delete-node project)))]
       (.setOnCloseRequest stage close-handler))
-    (setup-console root)
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^Tab assets          (.lookup root "#assets")
+          console              (.lookup root "#console")
+          prev-console         (.lookup root "#prev-console")
+          next-console         (.lookup root "#next-console")
+          clear-console        (.lookup root "#clear-console")
+          search-console       (.lookup root "#search-console")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))]
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {})))
+                                                                 (partial app-view/remove-resource-tab editor-tabs))
+          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
+                                   http-server/start!)]
+      (console/setup-console! {:text   console
+                               :search search-console
+                               :clear  clear-console
+                               :next   next-console
+                               :prev   prev-console})
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
                          :project-graph (project/graph project)
                          :prefs         prefs
                          :workspace     (g/node-value project :workspace)
-                         :outline-view  outline-view}]
+                         :outline-view  outline-view
+                         :web-server    web-server}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project)))
       (g/transact
        (concat
@@ -160,14 +172,14 @@
           (g/connect app-view label outline-view label))
         (for [view [outline-view asset-browser]]
           (g/update-property app-view :auto-pulls conj [view :tree-view]))
-        (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
+        (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
     (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
 
 (defn- create-view [game-project ^VBox root place node-type]
   (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (curve-editor-post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
+   (curve-editor-post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
 (defn open-project
   [^File game-project-file prefs render-progress!]
@@ -189,7 +201,6 @@
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace
-                                                                 (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph*
-                                                                       (.lookup root "#properties")))]
+                                                                 (.lookup root "#changes-container")))]
+    (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))

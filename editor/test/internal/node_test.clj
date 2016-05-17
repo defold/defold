@@ -524,3 +524,15 @@
 
       (is (contains? (:properties final-props) :a-property))
       (is (= adoptor (get-in final-props [:properties :a-property :node-id]))))))
+
+(g/defnode CachedBoolean
+  (property counter g/Any)
+  (output cached-boolean g/Bool :cached (g/fnk [counter] (swap! counter inc) false)))
+
+(deftest cached-booleans
+  (with-clean-system
+    (let [[nid] (tx-nodes (g/make-nodes world [n [CachedBoolean :counter (atom 0)]]))]
+      (is (false? (g/node-value nid :cached-boolean)))
+      (is (= 1 @(g/node-value nid :counter)))
+      (is (false? (g/node-value nid :cached-boolean)))
+      (is (= 1 @(g/node-value nid :counter))))))

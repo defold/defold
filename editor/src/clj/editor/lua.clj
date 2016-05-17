@@ -3,7 +3,9 @@
             [clojure.java.io :as io]
             [editor.code :as code])
   
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element]))
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)")
 (def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)")
@@ -54,11 +56,11 @@
   (try 
     (with-open [in (io/input-stream (io/resource path))]
       (let [doc (-> (ScriptDoc$Document/newBuilder)
-                    (.mergeFrom in)
-                    (.build))
-            elements (.getElementsList doc)]
+                  (.mergeFrom in)
+                  (.build))
+            elements (.getElementsList ^ScriptDoc$Document doc)]
         (reduce
-         (fn [ns-elements element]
+         (fn [ns-elements ^ScriptDoc$Element element]
            (let [qname (.getName element)
                  dot (.indexOf qname ".")
                  ns (if (= dot -1) "" (subs qname 0 dot))]
@@ -104,17 +106,17 @@
   @the-documentation)
 
 (defn filter-elements [elements prefix]
-  (filter #(.startsWith (str/lower-case (.getName %)) prefix) elements))
+  (filter #(.startsWith (str/lower-case (.getName ^ScriptDoc$Element %)) prefix) elements))
 
 (defn get-documentation [{:keys [namespace function]}]
   (let [namespace (str/lower-case namespace)
         function (str/lower-case function)
         qualified (if (str/blank? namespace) function (format "%s.%s" namespace function))
         elements (filter-elements (get (documentation) namespace) qualified)
-        sorted-elements (sort #(compare (str/lower-case (.getName %1)) (str/lower-case (.getName %2))) elements)]
+        sorted-elements (sort #(compare (str/lower-case (.getName ^ScriptDoc$Element %1)) (str/lower-case (.getName ^ScriptDoc$Element %2))) elements)]
     (into-array ScriptDoc$Element sorted-elements)))
 
-(defn- element-additional-info [element]
+(defn- element-additional-info [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (str/join
      (concat
@@ -122,7 +124,7 @@
       ["<br><br>"]
       ["<b>Parameters:</b>"]
       ["<br>"]
-      (for [parameter (.getParametersList element)]
+      (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
         (concat
          ["&#160;&#160;&#160;&#160;<b>"]
          [(.getName parameter)]
@@ -136,14 +138,14 @@
          ["&#160;&#160;&#160;&#160;<b>"]
          [(.getReturn element)]))))))
 
-(defn- element-display-string [element]
+(defn- element-display-string [^ScriptDoc$Element element]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
                (str/join
                 (concat
                  ["("
                   (str/join ", "
-                            (for [parameter (.getParametersList element)]
+                            (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                               [(.getName parameter)]))
                   ")"])))]
     (str/join [base rest])))
@@ -250,12 +252,12 @@
             :type :singleline
             :start "--"
             :rules
-              [{:type :default :class "comment2"}]}
+              [{:type :default :class "comment-multi"}]}
            #_{:partition "__singlecomment"
             :type :custom
             :scanner match-single-comment
             :rules
-            [{:type :default :class "comment2"}]}
+            [{:type :default :class "comment-multi"}]}
            {:partition :default
             :type :default
             :rules
@@ -265,7 +267,7 @@
              {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
              {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
              {:type :custom :scanner match-single-comment :class "comment"}
-             {:type :custom :scanner match-multi-comment :class "comment"}
+             {:type :custom :scanner match-multi-comment :class "comment-multi"}
              {:type :number :class "number"}
              {:type :default :class "default"}
              ]}
