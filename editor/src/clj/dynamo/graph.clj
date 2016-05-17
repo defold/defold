@@ -23,7 +23,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
@@ -31,7 +31,7 @@
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph arc node-by-id-at node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
 (namespaces/import-macro schema.core/defn      s-defn)
 (namespaces/import-macro schema.core/defrecord s-defrecord)
@@ -64,14 +64,14 @@
    (let [graph-id (node-id->graph-id node-id)]
      (ig/node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
-   (ig/node-by-id-at basis node-id)))
+   (gt/node-by-id-at basis node-id)))
 
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
    (node-type* (now) node-id))
   ([basis node-id]
-   (when-let [n (ig/node-by-id-at basis node-id)]
+   (when-let [n (gt/node-by-id-at basis node-id)]
      (gt/node-type n basis))))
 
 (defn node-type
@@ -899,7 +899,7 @@
   ([type node-id]
     (node-instance? (now) type node-id))
   ([basis type node-id]
-    (node-instance*? basis type (ig/node-by-id-at basis node-id))))
+    (node-instance*? basis type (gt/node-by-id-at basis node-id))))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for property getters & setters
@@ -1051,7 +1051,7 @@
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
     (validate opts-schema opts)
-   (let [serializer     #(assoc (serializer basis (ig/node-by-id-at basis %2)) :serial-id %1)
+   (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids     (util/map-vals :serial-id replacements)
@@ -1095,7 +1095,7 @@
   ([basis graph-id fragment {:keys [deserializer] :or {deserializer default-node-deserializer} :as opts}]
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
-         new-nodes     (remove #(ig/node-by-id-at basis (gt/node-id %)) nodes)
+         new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
          node-txs      (vec (mapcat it/new-node new-nodes))
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)

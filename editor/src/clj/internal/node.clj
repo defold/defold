@@ -309,6 +309,31 @@
         evaluation-context (make-evaluation-context cache basis ignore-errors skip-validation caching?)]
     (node-value* node-or-node-id label evaluation-context)))
 
+(def ^:dynamic *suppress-schema-warnings* false)
+
+(defn warn-input-schema [node-id node-type label value input-schema error]
+  (when-not *suppress-schema-warnings*
+    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
+    (println "There were " (count (vals error)) " problems")
+    (let [explanation (s/explain input-schema)]
+      (doseq [[key val] error]
+        (println "Argument " key " which is")
+        (pp/pprint value)
+        (println "should match")
+        (pp/pprint (get explanation key))
+        (println "but it failed because ")
+        (pp/pprint val)
+        (println)))))
+
+(defn warn-output-schema [node-id node-type label value output-schema error]
+  (when-not *suppress-schema-warnings*
+    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
+    (println "Output:" value)
+    (println "Should match:" (s/explain output-schema))
+    (println "But:" error)))
+
+
+
 (defn tx-invoke-setter
   "Internal plumbing for assigning values to properties. Returns a
   vector of [node tx-data].
@@ -331,7 +356,7 @@
                        [])]
       (if-let [validation-error (s/check value-type new-value)]
         (do
-          (in/warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
+          (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
           (throw (ex-info "SCHEMA-VALIDATION"
                           {:node-id          (gt/node-id node)
                            :type             node-type
@@ -928,29 +953,6 @@
        ~@forms)))
 
 (declare fnk-argument-forms property-validation-exprs)
-
-(def ^:dynamic *suppress-schema-warnings* false)
-
-(defn warn-input-schema [node-id node-type label value input-schema error]
-  (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
-    (println "There were " (count (vals error)) " problems")
-    (let [explanation (s/explain input-schema)]
-      (doseq [[key val] error]
-        (println "Argument " key " which is")
-        (pp/pprint value)
-        (println "should match")
-        (pp/pprint (get explanation key))
-        (println "but it failed because ")
-        (pp/pprint val)
-        (println)))))
-
-(defn warn-output-schema [node-id node-type label value output-schema error]
-  (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
-    (println "Output:" value)
-    (println "Should match:" (s/explain output-schema))
-    (println "But:" error)))
 
 ;; TODO - check if these receive a map or a ref.
 (defn- desc-has-input?     [description argument] (contains? (:input description) argument))
