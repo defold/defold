@@ -467,7 +467,7 @@
 
 (g/defnode DynamicGetterOutputNode
   (inherits DynamicGetterNode)
-  (output foo g/Str (g/fnk [foo] (subs foo 1))))
+  (output suffixed g/Str (g/fnk [suffixed] (subs suffixed 1))))
 
 (deftest test-dynamic-getter
   (testing "input collection for dynamic getters"
@@ -481,12 +481,12 @@
         (is (= "directory/unnamed" (get-in (g/node-value nid :_properties) [:properties :suffixed :value]))))))
   (testing "input collection for dynamic getters with overloaded outputs"
     (with-clean-system
-      (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "in-foo"]
-                                                   to [DynamicGetterOutputNode :foo "foo"]]
-                                            (g/connect from :foo to :in-foo)))]
-        (is (= "n-foo/foo" (g/node-value nid :foo)))
-        (g/transact (g/set-property nid :foo "foo2"))
-        (is (= "n-foo/foo2" (g/node-value nid :foo)))))))
+      (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "directory"]
+                                                   to [DynamicGetterOutputNode :suffixed "file"]]
+                                            (g/connect from :foo to :prefix)))]
+        (is (= "irectory/file" (g/node-value nid :suffixed)))
+        (g/transact (g/set-property nid :suffixed "unnamed"))
+        (is (= "irectory/unnamed" (g/node-value nid :suffixed)))))))
 
 (deftest property-display-order-merging
   (are [expected _ sources] (= expected (apply g/merge-display-order sources))
