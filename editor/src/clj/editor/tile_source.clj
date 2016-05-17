@@ -130,7 +130,7 @@
   (property id g/Str)
   (property start-tile g/Int)
   (property end-tile g/Int)
-  (property playback types/AnimationPlayback
+  (property playback types/AnimationPlaybackType
             (default :playback-once-forward)
             (dynamic edit-type (g/fnk []
                                 (let [options (protobuf/enum-values Tile$Playback)]
@@ -252,7 +252,7 @@
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
 
-  (property image resource/Resource
+  (property image resource/ResourceType
     (value (g/fnk [image-resource] image-resource))
     (set (project/gen-resource-setter [[:resource :image-resource]
                                        [:content :image-content]]))
@@ -273,7 +273,7 @@
 
   (property tile-spacing g/Int (default 0))
 
-  (property collision resource/Resource ; optional
+  (property collision resource/ResourceType ; optional
     (value (g/fnk [collision-resource] collision-resource))
     (set (project/gen-resource-setter [[:resource :collision-resource]
                                        [:content :collision-content]]))
@@ -290,18 +290,18 @@
   (input collision-groups g/Str :array)
   (input animation-ddfs g/Any :array)
   (input animation-ids g/Str :array)
-  (input image-resource resource/Resource)
-  (input image-content BufferedImage)
-  (input collision-resource resource/Resource)
-  (input collision-content BufferedImage)
+  (input image-resource resource/ResourceType)
+  (input image-content types/BufferedImageType)
+  (input collision-resource resource/ResourceType)
+  (input collision-content types/BufferedImageType)
 
-  (output aabb AABB :cached produce-aabb)
+  (output aabb types/AABBType :cached produce-aabb)
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-tile-source-outline)
   (output pb g/Any :cached produce-pb)
   (output save-data g/Any :cached produce-save-data)
   (output texture-set-data g/Any :cached produce-texture-set-data)
-  (output packed-image BufferedImage (g/fnk [texture-set-data] (:image texture-set-data)))
+  (output packed-image types/BufferedImageType (g/fnk [texture-set-data] (:image texture-set-data)))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output anim-data g/Any :cached produce-anim-data)

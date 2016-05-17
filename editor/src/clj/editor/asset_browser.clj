@@ -488,12 +488,15 @@
 
     (ui/register-context-menu tree-view ::resource-menu)))
 
+(g/deftype TreeViewType TreeView)
+(g/deftype FileResourceType FileResource)
+
 (g/defnode AssetBrowser
-  (property tree-view TreeView)
+  (property tree-view TreeViewType)
 
-  (input resource-tree FileResource)
+  (input resource-tree FileResourceType)
 
-  (output tree-view TreeView :cached produce-tree-view))
+  (output tree-view TreeViewType :cached produce-tree-view))
 
 (defn make-asset-browser [graph workspace tree-view open-resource-fn on-delete-resource-fn]
   (let [asset-browser (first

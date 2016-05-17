@@ -18,7 +18,8 @@
             [editor.properties :as properties]
             [editor.material :as material]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.types :as types])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [editor.gl.shader ShaderLifecycle]
@@ -147,6 +148,8 @@
 (def FontData {:type g/Keyword
                :font-map g/Any
                :texture g/Any})
+
+(g/deftype FontDataType FontData)
 
 (defn- cell->coords [cell font-map]
   (let [cw (:cache-cell-width font-map)
@@ -327,9 +330,9 @@
   (property material resource/ResourceType
     (value (g/fnk [material-resource] material-resource))
     (set (project/gen-resource-setter [[:resource :material-resource]
-                                       [:build-targets :dep-build-targets]
-                                       [:samplers :material-samplers]
-                                       [:shader :material-shader]]))
+                                             [:build-targets :dep-build-targets]
+                                             [:samplers :material-samplers]
+                                             [:shader :material-shader]]))
     (validate (g/fnk [material] (validation/resource material))))
 
   (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
@@ -361,7 +364,7 @@
   (input dep-build-targets g/Any :array)
   (input font-resource resource/ResourceType)
   (input material-resource resource/ResourceType)
-  (input material-samplers [{g/Keyword g/Any}])
+  (input material-samplers [g/KeywordMap])
   (input material-shader shader/ShaderLifecycleType)
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
@@ -384,9 +387,9 @@
                                                  channels (:glyph-channels font-map)]
                                              (texture/empty-texture _node-id w h channels
                                                                    (material/sampler->tex-params (first material-samplers)) 0))))
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (output material-shader shader/ShaderLifecycleType (g/fnk [material-shader] material-shader))
   (output type g/Keyword produce-font-type)
-  (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
+  (output font-data FontDataType :cached (g/fnk [type gpu-texture font-map]
                                             {:type type
                                              :texture gpu-texture
                                              :font-map font-map}))

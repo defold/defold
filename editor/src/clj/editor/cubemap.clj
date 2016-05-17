@@ -95,6 +95,7 @@
                                  (render-cubemap gl render-args camera gpu-texture vertex-binding)))
                   :passes [pass/transparent]}}))
 
+
 (g/defnode CubemapNode
   (inherits project/ResourceNode)
   (inherits scene/SceneNode)
@@ -106,16 +107,16 @@
   (property front  g/Str)
   (property back   g/Str)
 
-  (input right-img  BufferedImage)
-  (input left-img   BufferedImage)
-  (input top-img    BufferedImage)
-  (input bottom-img BufferedImage)
-  (input front-img  BufferedImage)
-  (input back-img   BufferedImage)
+  (input right-img  types/BufferedImageType)
+  (input left-img   types/BufferedImageType)
+  (input top-img    types/BufferedImageType)
+  (input bottom-img types/BufferedImageType)
+  (input front-img  types/BufferedImageType)
+  (input back-img   types/BufferedImageType)
 
   (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-data   g/Any :cached produce-save-data)
-  (output aabb        AABB  :cached (g/fnk [] geom/unit-bounding-box))
+  (output aabb        types/AABBType  :cached (g/fnk [] geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))
 
 (defn load-cubemap [project self resource]
