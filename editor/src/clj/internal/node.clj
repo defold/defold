@@ -279,12 +279,8 @@
         node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
         result             (and node (gt/produce-value node label evaluation-context))]
     (when (and node cache)
-      (let [local             @(:local evaluation-context)
-            local-for-encache (for [[node-id vmap] local
-                                    [output val] vmap]
-                                [[node-id output] val])]
-        (c/cache-hit cache @(:hits evaluation-context))
-        (c/cache-encache cache local-for-encache)))
+      (c/cache-hit cache @(:hits evaluation-context))
+      (c/cache-encache cache @(:local evaluation-context)))
     result))
 
 (defn make-evaluation-context
@@ -305,7 +301,7 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation] :or {ignore-errors 0} :as options}]
+  [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation in-transaction?] :or {ignore-errors 0} :as options}]
   (let [caching?           (and (not (:no-cache options)) cache)
         evaluation-context (make-evaluation-context cache basis ignore-errors skip-validation caching?)]
     (node-value* node-or-node-id label evaluation-context)))
@@ -352,8 +348,8 @@
           value-type (s/maybe (some-> (property-type node-type property) deref :schema))
           setter-fn  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
           new-node   (gt/set-property node basis property new-value)
-          tx-data    (if setter-fn
-                       (setter-fn basis (gt/node-id node) old-value new-value)
+          deferred   (if setter-fn
+                       [setter-fn (gt/node-id node) old-value new-value]
                        [])]
       (if-let [validation-error (s/check value-type new-value)]
         (do
@@ -365,7 +361,7 @@
                            :expected         value-type
                            :actual           new-value
                            :validation-error validation-error})))
-        [new-node tx-data]))))
+        [new-node deferred]))))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -1080,10 +1076,12 @@
         default?            (not (:value property-definition))
         validation          (:validation property-definition)
         get-expr            (if default?
-                              `(get ~self-name ~prop)
-                              (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop description
-                                                                      (get-in property-definition [:value :arguments])
-                                                                      `(-> ~self-name (gt/node-type (:basis ~ctx-name)) declared-properties ~prop :value :fn)))
+                              `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
+                              `(if (:in-transaction? ~ctx-name)
+                                 (gt/get-property ~self-name (:basis ~ctx-name) ~prop)
+                                 ~(call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop description
+                                                                         (get-in property-definition [:value :arguments])
+                                                                         `(-> ~self-name (gt/node-type (:basis ~ctx-name)) declared-properties ~prop :value :fn))))
         validate-expr       (property-validation-exprs self-name ctx-name nodeid-sym description prop)]
     (if validation
       `(let [v# ~get-expr]
@@ -1131,13 +1129,6 @@
     :else
     (assert false (str "A function needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
 
-(defn check-local-cache [ctx-name nodeid-sym transform]
-  `(get-in @(:local ~ctx-name) [~nodeid-sym ~transform]))
-
-(defn check-global-cache [ctx-name nodeid-sym transform]
-  `(if-some [cached# (get (:snapshot ~ctx-name) [~nodeid-sym ~transform])]
-     (do (swap! (:hits ~ctx-name) conj [~nodeid-sym ~transform]) cached#)))
-
 (def ^:private jammable? (complement internal-keys))
 
 (defn original-root [basis node-id]
@@ -1165,18 +1156,22 @@
 (defn property-has-no-overriding-output? [description label] (not (contains? (:output description) label)))
 (defn has-validation?                    [description label] (get-in description [:property label :validate]))
 
-(defn apply-default-property-shortcut [self-name ctx-name transform description forms]
-  (let [property-name transform]
-    (if (and (desc-has-property? description property-name)
-            (property-has-default-getter? description property-name)
-            (property-has-no-overriding-output? description property-name)
-            (not (has-validation? description property-name)))
-      `(get ~self-name ~transform)
-     forms)))
+(defn apply-default-property-shortcut [self-name ctx-name property-name description forms]
+  (let [property? (and (desc-has-property? description property-name) (property-has-no-overriding-output? description property-name))
+        default?  (and (property-has-default-getter? description property-name)
+                       (property-has-no-overriding-output? description property-name)
+                       (not (has-validation? description property-name)))]
+    (if default?
+      `(gt/get-property ~self-name (:basis ~ctx-name) ~property-name)
+      (if property?
+        `(if (:in-transaction? ~ctx-name)
+           (gt/get-property ~self-name (:basis ~ctx-name) ~property-name)
+           ~forms)
+        forms))))
 
 (defn detect-cycles [ctx-name nodeid-sym transform description forms]
   `(do
-     (assert (every? #(not= % [~nodeid-sym ~transform]) (:in-production ~ctx-name))
+     (assert (not (contains? (:in-production ~ctx-name) [~nodeid-sym ~transform]))
              (format "Cycle Detected on node type %s and output %s" ~(:name description) ~transform))
      ~forms))
 
@@ -1186,10 +1181,14 @@
 
 (defn check-caches [ctx-name nodeid-sym description transform forms]
   (if (get (:cached-outputs description) transform)
-    (list `or
-          (check-local-cache ctx-name nodeid-sym transform)
-          (check-global-cache ctx-name nodeid-sym transform)
-          forms)
+    `(let [local# @(:local ~ctx-name)
+           global# (:snapshot ~ctx-name)
+           key# [~nodeid-sym ~transform]]
+       (cond
+         (contains? local# key#) (get local# key#)
+         (contains? global# key#) (if-some [cached# (get global# key#)]
+                                           (do (swap! (:hits ~ctx-name) conj key#) cached#))
+         true ~forms))
     forms))
 
 (defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function forms]
@@ -1217,7 +1216,7 @@
 (defn cache-output [ctx-name description transform nodeid-sym output-sym forms]
   `(do
      ~@(when (get (:cached-outputs description) transform)
-         `[(swap! (:local ~ctx-name) assoc-in [~nodeid-sym ~transform] ~output-sym)])
+         `[(swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)])
      ~forms))
 
 (defn deduce-output-type

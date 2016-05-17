@@ -16,7 +16,7 @@ namespace dmSocket
 #else
     #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
 #endif
-    static Result NativeToResult(int r)
+    static Result NativeToResult(const char* filename, int line, int r)
     {
         switch (r)
         {
@@ -55,13 +55,16 @@ namespace dmSocket
             DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNREFUSED);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(ADDRINUSE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNABORTED);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(INPROGRESS);
         }
 
         // TODO: Add log-domain support
-        dmLogError("SOCKET: Unknown result code %d\n", r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
+
+    #define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)
 
     // Use this function for BSD socket compatibility
     // However, don't use it blindly as we return code ETIMEDOUT is "lost".
@@ -69,7 +72,7 @@ namespace dmSocket
     // on socket timeout.
     static Result NativeToResultCompat(int r)
     {
-        Result res = NativeToResult(r);
+        Result res = NativeToResult(__FILE__, __LINE__, r);
         if (res == RESULT_TIMEDOUT) {
             res = RESULT_WOULDBLOCK;
         }
@@ -77,7 +80,7 @@ namespace dmSocket
     }
 
     #define DM_SOCKET_HNATIVE_TO_RESULT_CASE(x) case x: return RESULT_##x
-    static Result HNativeToResult(int r)
+    static Result HNativeToResult(const char* filename, int line, int r)
     {
         switch (r)
         {
@@ -88,11 +91,12 @@ namespace dmSocket
         }
 
         // TODO: Add log-domain support
-        dmLogError("SOCKET: Unknown result code %d\n", r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_HNATIVE_TO_RESULT_CASE
 
+    #define HNATIVETORESULT(_R_) HNativeToResult(__FILE__, __LINE__, _R_)
 }
 
 #endif // #ifndef DM_SOCKET_PRIVATE_H

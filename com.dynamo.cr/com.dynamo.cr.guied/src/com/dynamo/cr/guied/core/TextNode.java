@@ -62,6 +62,10 @@ public class TextNode extends GuiNode {
     private transient FontNode fontNode = null;
     private transient FontRendererHandle fontRendererHandle = null;
 
+    public boolean isSizeModeVisible() {
+        return false;
+    }
+
     public TextNode() {
         super();
         updateFont();

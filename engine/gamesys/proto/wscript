@@ -1,0 +1,27 @@
+#! /usr/bin/env python
+
+import waf_dynamo
+
+def init():
+    pass
+
+def set_options(opt):
+    pass
+
+def configure(conf):
+    pass
+
+def build(bld):
+    bld.new_task_gen(source = 'gui_ddf.proto',
+                     target = 'gui_ddf_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = 'gui_ddf.proto',
+                     target = 'gui_ddf_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'gui_ddf_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'gui_ddf_doc.json')
+
+def shutdown():
+    pass

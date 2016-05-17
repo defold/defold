@@ -318,3 +318,33 @@
   (with-clean-system
     (is (thrown? AssertionError
                  (g/construct MyNode :_node-id 1 :no-such-property 1)))))
+
+(g/defnode PropSource
+  (output label g/Keyword (g/fnk [] :label)))
+
+(g/defnode PropTarget
+  (property target g/Keyword
+            (value (g/fnk [label] label))
+            (set (fn [basis self _ new-value]
+                   (when-let [src (g/node-value self :source-id :basis basis)]
+                     (g/connect src new-value self :label)))))
+  (property second g/Keyword
+            (set (fn [basis self old-value new-value]
+                   (when-let [t (g/node-value self :target :basis basis)]
+                     (g/set-property self :second t)))))
+  (property third g/Keyword
+            (set (fn [basis self old-value new-value]
+                   (when-let [t (g/node-value self :implicit-target :basis basis)]
+                     (g/set-property self :third t)))))
+  (input source-id g/NodeID)
+  (input label g/Keyword)
+  (output implicit-target g/Keyword (g/fnk [target] target)))
+
+(deftest property-dependencies
+  (with-clean-system
+    (let [[source target] (tx-nodes (g/make-nodes world [source PropSource
+                                                         target [PropTarget :target :label :second :ignored :third :ignored]]
+                                                  (g/connect source :_node-id target :source-id)))]
+      (is (= :label (g/node-value target :target)))
+      (is (= :label (g/node-value target :second)))
+      (is (= :label (g/node-value target :third))))))

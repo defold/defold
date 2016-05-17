@@ -28,8 +28,8 @@
     (is (nil? (ig/node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
-(defn targets [g n l] (map gt/tail (filter #(= (.sourceLabel %) l) (get-in g [:sarcs n]))))
-(defn sources [g n l] (map gt/head (filter #(= (.targetLabel %) l) (get-in g [:tarcs n]))))
+(defn targets [g n l] (map gt/tail (get-in g [:sarcs n l])))
+(defn sources [g n l] (map gt/head (get-in g [:tarcs n l])))
 
 (defn- source-arcs-without-targets
   [g]
@@ -108,3 +108,10 @@
       (let [basis (is/basis system)]
         (is (empty? (ig/overrides basis original)))
         (is (empty? (get-in basis [:graphs world :overrides])))))))
+
+(deftest graph-values
+  (with-clean-system
+    (g/set-graph-value! world :things {})
+    (is (= {} (g/graph-value world :things)))
+    (g/transact (g/update-graph-value world :things assoc :a 1))
+    (is (= {:a 1} (g/graph-value world :things)))))

@@ -18,7 +18,8 @@
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [clojure.string :as str])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
@@ -60,8 +61,11 @@
       (assoc new-scene :children (map #(assoc-deep % keyword new-value) (:children scene)))
       new-scene)))
 
+(defn- label-sort-by-fn [v]
+  (when-let [label (:label v)] (str/lower-case label)))
+
 (defn- outline-sort-by-fn [v]
-  [(:name (g/node-type* (:node-id v))) (:label v)])
+  [(:name (g/node-type* (:node-id v))) (label-sort-by-fn v)])
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
@@ -112,7 +116,7 @@
                        {:node-id _node-id
                         :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path source-resource)))
                         :icon game-object/game-object-icon
-                        :children (vec (sort-by :label (:children source-outline)))})
+                        :children (vec (sort-by label-sort-by-fn (:children source-outline)))})
                 {:children child-outlines
                  :child-reqs [{:node-type GameObjectInstanceNode
                                :values {:embedded (comp not true?)}

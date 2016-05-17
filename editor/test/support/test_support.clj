@@ -4,7 +4,7 @@
 
 (defmacro with-clean-system
   [& forms]
-  (let [configuration  (if (map? (first forms)) (first forms) {})
+  (let [configuration  (if (map? (first forms)) (first forms) {:cache-size 1000})
         forms          (if (map? (first forms)) (next forms)  forms)]
     `(let [~'system      (is/make-system ~configuration)
            ~'cache       (:cache ~'system)

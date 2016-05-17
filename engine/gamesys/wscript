@@ -71,6 +71,7 @@ def build(bld):
     bld.add_subdirs('content')
     bld.add_group()
     bld.add_subdirs('src')
+    bld.add_subdirs('proto')
 
     bld.install_files('${PREFIX}/bin', 'tools/meshc.py', chmod=493)
 

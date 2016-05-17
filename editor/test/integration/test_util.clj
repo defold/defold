@@ -115,7 +115,7 @@
     (fake-input! view type x y []))
   ([view type x y modifiers]
     (let [pos [x y 0.0]]
-      (g/transact (g/set-property view :tool-picking-rect (scene/calc-picking-rect pos pos))))
+      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
     (let [handlers  (g/sources-of view :input-handlers)
           user-data (g/node-value view :selected-tool-renderables)
           action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
@@ -159,5 +159,14 @@
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
+(defn prop-node-id [node-id label]
+  (get-in (g/node-value node-id :_properties) [:properties label :node-id]))
+
 (defn prop! [node-id label val]
   (g/transact (g/set-property node-id label val)))
+
+(defn prop-clear! [node-id label]
+  (g/transact (g/clear-property node-id label)))
+
+(defn prop-read-only? [node-id label]
+  (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))

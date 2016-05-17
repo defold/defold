@@ -1,47 +1,33 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-
-import java.io.ByteArrayInputStream;
-import java.net.URI;
-import java.util.List;
-
-import javax.persistence.EntityManager;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.NewCookie;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-
+import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
+import com.dynamo.cr.server.auth.Base64;
+import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.model.User.Role;
+import com.dynamo.cr.server.providers.JsonProviders;
+import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.google.api.client.auth.oauth2.AuthorizationCodeRequestUrl;
+import com.sun.jersey.api.client.*;
+import com.sun.jersey.api.client.ClientResponse.Status;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
+import com.sun.jersey.api.client.filter.ClientFilter;
+import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
-import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
-import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
-import com.dynamo.cr.server.model.Invitation;
-import com.dynamo.cr.server.model.InvitationAccount;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.NewUser;
-import com.dynamo.cr.server.model.User;
-import com.dynamo.cr.server.model.User.Role;
-import com.dynamo.cr.server.providers.JsonProviders;
-import com.dynamo.cr.server.providers.ProtobufProviders;
-import com.sun.jersey.api.client.Client;
-import com.sun.jersey.api.client.ClientHandlerException;
-import com.sun.jersey.api.client.ClientRequest;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.ClientResponse.Status;
-import com.sun.jersey.api.client.WebResource;
-import com.sun.jersey.api.client.config.DefaultClientConfig;
-import com.sun.jersey.api.client.filter.ClientFilter;
-import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import javax.persistence.EntityManager;
+import javax.ws.rs.core.*;
+import java.io.ByteArrayInputStream;
+import java.net.URI;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.*;
 
 class DefoldAuthFilter extends ClientFilter {
 
@@ -49,7 +35,7 @@ class DefoldAuthFilter extends ClientFilter {
     private String email;
     private String password;
 
-    public DefoldAuthFilter(String email, String authToken, String password) {
+    DefoldAuthFilter(String email, String authToken, String password) {
         this.email = email;
         this.authToken = authToken;
         this.password = password;
@@ -79,15 +65,6 @@ class DefoldAuthFilter extends ClientFilter {
         }
         return response;
     }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public void setAuthToken(String authToken) {
-        this.authToken = authToken;
-    }
-
 }
 
 public class UsersResourceTest extends AbstractResourceTest {
@@ -102,18 +79,20 @@ public class UsersResourceTest extends AbstractResourceTest {
     User joeUser;
     User adminUser;
     User bobUser;
+    Project bobProject;
     WebResource adminUsersWebResource;
     WebResource joeUsersWebResource;
     WebResource bobUsersWebResource;
     WebResource joeDefoldAuthUsersWebResource;
     DefaultClientConfig clientConfig;
     WebResource anonymousResource;
+    EntityManager em;
 
     @Before
     public void setUp() throws Exception {
         setupUpTest();
 
-        EntityManager em = emf.createEntityManager();
+        em = emf.createEntityManager();
         em.getTransaction().begin();
         adminUser = new User();
         adminUser.setEmail(adminEmail);
@@ -144,6 +123,8 @@ public class UsersResourceTest extends AbstractResourceTest {
         bobUser.setRole(Role.USER);
         em.persist(bobUser);
 
+        bobProject = ModelUtil.newProject(em, bobUser, "bobs_project", "bobs_project description");
+
         em.getTransaction().commit();
 
         clientConfig = new DefaultClientConfig();
@@ -155,25 +136,25 @@ public class UsersResourceTest extends AbstractResourceTest {
         Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
 
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        URI uri = UriBuilder.fromUri("http://localhost/users").port(port).build();
         adminUsersWebResource = client.resource(uri);
 
         client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(port).build();
         joeUsersWebResource = client.resource(uri);
 
         client = Client.create(clientConfig);
         client.addFilter(new DefoldAuthFilter(joeEmail, null, joePasswd));
-        uri = UriBuilder.fromUri(String.format("http://localhost")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost").port(port).build();
         joeDefoldAuthUsersWebResource = client.resource(uri);
 
         client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(port).build();
         bobUsersWebResource = client.resource(uri);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost")).port(port).build();
+        uri = UriBuilder.fromUri("http://localhost").port(port).build();
         anonymousResource = client.resource(uri);
 
     }
@@ -443,12 +424,12 @@ public class UsersResourceTest extends AbstractResourceTest {
     }
 
     @SuppressWarnings("unchecked")
-    List<NewUser> newUsers(EntityManager em) {
+    private List<NewUser> newUsers(EntityManager em) {
         return em.createQuery("select u from NewUser u").getResultList();
     }
 
     @SuppressWarnings("unchecked")
-    List<Invitation> invitations(EntityManager em) {
+    private List<Invitation> invitations(EntityManager em) {
         return em.createQuery("select i from Invitation i").getResultList();
     }
 
@@ -499,6 +480,62 @@ public class UsersResourceTest extends AbstractResourceTest {
 
         assertThat(0, is(newUsers(em).size()));
         assertThat(0, is(invitations(em).size()));
+    }
+
+    @Test
+    public void testOath() throws Exception {
+        String redirectUrl = "/redirect";
+
+        ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1")
+                .queryParam("redirect_to", redirectUrl)
+                .get(ClientResponse.class);
+
+        String locationUrl = serverResponse.getHeaders().get("Location").get(0);
+        AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
+        String authState = Base64.base64Decode(codeRequestUrl.getState());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(authState);
+
+        assertEquals(307, serverResponse.getClientResponseStatus().getStatusCode());
+        assertNotNull(node.get("login_token").getTextValue());
+        assertEquals(redirectUrl, node.get("redirect_to").getTextValue());
+    }
+
+    @Test
+    public void testOathDefaultRedirect() throws Exception {
+
+        ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1")
+                .get(ClientResponse.class);
+
+        String locationUrl = serverResponse.getHeaders().get("Location").get(0);
+        AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
+        String authState = Base64.base64Decode(codeRequestUrl.getState());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(authState);
+
+        assertEquals(307, serverResponse.getClientResponseStatus().getStatusCode());
+        assertNotNull(node.get("login_token").getTextValue());
+        assertEquals("/", node.get("redirect_to").getTextValue());
+    }
+
+    @Test
+    public void testOathAccessDenied() throws Exception {
+        String redirectUrl = "/redirect";
+
+        ClientResponse oathResponse = anonymousResource.path("/login/oauth/-1")
+                .queryParam("redirect_to", redirectUrl)
+                .get(ClientResponse.class);
+
+        String locationUrl = oathResponse.getHeaders().get("Location").get(0);
+        AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
+
+        ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1/response")
+                .queryParam("error", "access_denied")
+//                .queryParam("code", "SplxlOBeZQQYbYS6WxSbIa")  // Invalid grant
+                .queryParam("state", codeRequestUrl.getState())
+                .get(ClientResponse.class);
+
+        assertEquals(404, serverResponse.getStatus());
     }
 
     @Test
@@ -643,5 +680,89 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(1, is(invitations(em).size()));
     }
 
+    @Test
+    public void testServerOkStatus() throws Exception {
+        WebResource statusResource = createAnonymousResource("http://localhost/status");
+
+        String statusResponse = statusResource.get(String.class);
+
+        assertEquals("OK", statusResponse);
+    }
+
+    @Test
+    public void testRemoveUser() throws Exception {
+        ClientResponse deleteResponse = joeUsersWebResource
+                .path(String.format("/%d/remove", joeUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(200, deleteResponse.getStatus());
+
+        try {
+            // Should thrown an exception
+            UserInfo userInfo = joeUsersWebResource
+                    .path(joeEmail)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .get(UserInfo.class);
+
+            assertNull(userInfo);
+        } catch(UniformInterfaceException e) {
+            // User not found exception is expected
+        }
+    }
+
+    @Test
+    public void removeUserThatIsOwnerOfProjectWithoutMembers() throws Exception {
+        // Add connection to verify that they can be deleted.
+        em.getTransaction().begin();
+        joeUser.getConnections().add(bobUser);
+        em.getTransaction().commit();
+
+        // Remove user.
+        ClientResponse deleteResponse = bobUsersWebResource
+                .path(String.format("/%d/remove", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(200, deleteResponse.getStatus());
+
+        // Verify that user isn't available anymore.
+        try {
+            UserInfo userInfo = bobUsersWebResource
+                    .path(bobEmail)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .get(UserInfo.class);
+
+            assertNull(userInfo);
+        } catch(UniformInterfaceException e) {
+            assertEquals(Status.UNAUTHORIZED, e.getResponse().getClientResponseStatus());
+        }
+    }
+
+    @Test
+    public void forbiddenToRemoveUserIfOwnerOfProjectWithOtherMembers() throws Exception {
+        em.getTransaction().begin();
+        bobProject.getMembers().add(joeUser);
+        em.getTransaction().commit();
+
+        ClientResponse deleteResponse = bobUsersWebResource
+                .path(String.format("/%d/remove", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(Status.FORBIDDEN, deleteResponse.getClientResponseStatus());
+    }
+
+    @Test
+    public void forbiddenToRemoveOtherUsers() throws Exception {
+        ClientResponse deleteResponse = joeUsersWebResource
+                .path(String.format("/%d/remove", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+
+        assertEquals(Status.FORBIDDEN, deleteResponse.getClientResponseStatus());
+    }
 }
 

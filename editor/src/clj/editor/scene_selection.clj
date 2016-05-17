@@ -11,13 +11,10 @@
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.defold-project :as project]
-            [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
-            [service.log :as log]
-            [editor.scene :as scene])
+            [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -127,6 +124,19 @@
                      action)
       action)))
 
+(def ^Integer min-pick-size 10)
+
+(defn- imin [^Integer v1 ^Integer v2] (Math/min v1 v2))
+(defn- imax [^Integer v1 ^Integer v2] (Math/max v1 v2))
+
+(defn calc-picking-rect [start current]
+  (let [ps [start current]
+        min-p (Point2i. (reduce imin (map first ps)) (reduce imin (map second ps)))
+        max-p (Point2i. (reduce imax (map first ps)) (reduce imax (map second ps)))
+        dims (doto (Point2i. max-p) (.sub min-p))
+        center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
+    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
+
 (g/defnode SelectionController
   (property select-fn Runnable)
   (property start types/Vec3)
@@ -139,21 +149,8 @@
   (input picking-selection g/Any)
   (input root-id g/NodeID)
 
-  (output picking-rect Rect :cached (g/fnk [start current] (scene/calc-picking-rect start current)))
+  (output picking-rect Rect :cached (g/fnk [start current] (calc-picking-rect start current)))
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box
                                                                                     :user-data {:start start :current current}}]}))
-  (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
-
-(scene/defcontroller :selection
-  (make [project resource-node view]
-        (let [view-graph  (g/node-id->graph-id view)]
-          (g/make-nodes view-graph
-                  [selection  [SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]]
-
-                  (g/connect resource-node        :_node-id                  selection        :root-id)
-                  (g/connect selection            :renderable                view             :tool-renderables)
-                  (g/connect selection            :input-handler             view             :input-handlers)
-                  (g/connect selection            :picking-rect              view             :picking-rect)
-                  (g/connect view                 :picking-selection         selection        :picking-selection)
-                  (g/connect view                 :selection                 selection        :selection)))))
+  (output input-handler Runnable :cached (g/always handle-selection-input)))

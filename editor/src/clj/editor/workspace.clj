@@ -16,6 +16,14 @@ ordinary paths."
 
 (set! *warn-on-reflection* true)
 
+(def version-on-disk (atom nil))
+
+(defn update-version-on-disk! [workspace]
+  (reset! version-on-disk (g/graph-version workspace)))
+
+(defn version-on-disk-outdated? [workspace]
+  (not= @version-on-disk (g/graph-version workspace)))
+
 (defprotocol SelectionProvider
   (selection [this]))
 
@@ -56,10 +64,20 @@ ordinary paths."
   ([resource]
     (make-build-resource resource nil))
   ([resource prefix]
-    (BuildResource. resource prefix)))
+   (BuildResource. resource prefix)))
+
+(defn sort-resource-tree [{:keys [children] :as tree}]
+  (let [sorted-children (sort-by (fn [r]
+                                   [(not (resource/read-only? r))
+                                    ({:folder 0 :file 1} (resource/source-type r))
+                                    (when-let [node-name (resource/resource-name r)]
+                                      (string/lower-case node-name))])
+                                 (map sort-resource-tree children))]
+    (assoc tree :children (vec sorted-children))))
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
-  (FileResource. _node-id (io/as-file root) (:resources resource-snapshot)))
+  (sort-resource-tree
+   (FileResource. _node-id (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
   (resource/resource-seq resource-tree))
@@ -124,7 +142,12 @@ ordinary paths."
 (def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 
 (defn resource-icon [resource]
-  (and resource (or (:icon (resource/resource-type resource)) (get default-icons (resource/source-type resource)))))
+  (when resource
+    (if (and (resource/read-only? resource)
+             (= (resource/path resource) (resource/resource-name resource)))
+      "icons/32/Icons_03-Builtins.png"
+      (or (:icon (resource/resource-type resource))
+          (get default-icons (resource/source-type resource))))))
 
 (defn file-resource [workspace path]
   (FileResource. workspace (File. (str (g/node-value workspace :root) path)) []))

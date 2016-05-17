@@ -6,9 +6,12 @@
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.gui :as gui]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.handler :as handler]
+            [editor.types :as types])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
+           [javax.vecmath Point3d Matrix4d Vector3d]
            [org.apache.commons.io FilenameUtils FileUtils]))
 
 (defn- prop [node-id label]
@@ -42,6 +45,25 @@
          node-id   (test-util/resource-node project "/logic/main.gui")
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
+
+(deftest gui-box-auto-size
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/logic/main.gui")
+          box (gui-node node-id "left")
+          size [150.0 50.0 0.0]
+          sizes {:ball [64.0 32.0 0.0]
+                 :left-hud [200.0 640.0 0.0]}]
+      (is (= size (g/node-value box :size)))
+      (g/set-property! box :texture "atlas_texture/left_hud")
+      (is (= size (g/node-value box :size)))
+      (g/set-property! box :texture "atlas_texture/ball")
+      (is (= size (g/node-value box :size)))
+      (g/set-property! box :size-mode :size-mode-auto)
+      (is (= (:ball sizes) (g/node-value box :size)))
+      (g/set-property! box :texture "atlas_texture/left_hud")
+      (is (= (:left-hud sizes) (g/node-value box :size))))))
 
 (deftest gui-scene-pie
   (with-clean-system
@@ -132,7 +154,7 @@
           view (test-util/open-scene-view! project app-view node-id 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
-      (is (= ["pie" "box1" "box" "text"] (render-order view)))
+      (is (= ["box1" "box" "pie" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "")
       (is (= ["box" "pie" "box1" "text"] (render-order view))))))
 
@@ -150,6 +172,49 @@
       (is (not= (get-in (g/node-value tmpl-node :scene) path)
                 (get-in (g/node-value original-template :scene) path))))))
 
+(defn- drag-pull-outline! [scene-id node-id i]
+  (g/set-property! node-id :position [i 0 0])
+  (g/node-value scene-id :scene)
+  (g/node-value scene-id :node-outline))
+
+(defn- clock []
+  (/ (System/nanoTime) 1000000.0))
+
+(defmacro measure [binding & body]
+  `(let [start# (clock)]
+     (dotimes ~binding
+       ~@body)
+     (let [end# (clock)]
+       (/ (- end# start#) ~(second binding)))))
+
+(defn- test-load []
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)])))
+
+(deftest gui-template-outline-perf
+  (testing "loading"
+           ;; WARM-UP
+           (dotimes [i 10]
+                      (test-load))
+           (let [elapsed (measure [i 20]
+                                  (test-load))]
+             (is (< elapsed 1200))))
+  (testing "drag-pull-outline"
+           (with-clean-system
+             (let [workspace (test-util/setup-workspace! world)
+                   project (test-util/setup-project! workspace)
+                   app-view (test-util/setup-app-view!)
+                   node-id (test-util/resource-node project "/gui/scene.gui")
+                   box (gui-node node-id "sub_scene/sub_box")]
+               ;; WARM-UP
+               (dotimes [i 20]
+                 (drag-pull-outline! node-id box i))
+               ;; GO!
+               (let [elapsed (measure [i 500]
+                                      (drag-pull-outline! node-id box i))]
+                 (is (< elapsed 33)))))))
+
 (deftest gui-template-ids
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
@@ -165,13 +230,14 @@
       (g/transact (g/set-property tmpl-node :id "sub_scene2"))
       (is (not (nil? (gui-node node-id new-name))))
       (is (nil? (gui-node node-id old-name)))
-      (is (false? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :id :read-only?])))
+      (is (true? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :id :visible])))
+      (is (false? (get-in (g/node-value tmpl-node :_declared-properties) [:properties :generated-id :visible])))
       (let [sub-node (gui-node node-id new-name)
             props (get (g/node-value sub-node :_declared-properties) :properties)]
-        (is (= new-name (prop sub-node :id)))
-        (is (= (g/node-value sub-node :id)
-               (get-in props [:id :value])))
-        (is (true? (get-in props [:id :read-only?])))))))
+        (is (= new-name (prop sub-node :generated-id)))
+        (is (= (g/node-value sub-node :generated-id)
+               (get-in props [:generated-id :value])))
+        (is (false? (get-in props [:id :visible])))))))
 
 (deftest gui-templates-complex-property
  (with-clean-system
@@ -291,9 +357,78 @@
           node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          [new-tmpl] (g/tx-nodes-added (gui/add-gui-node! project node-id parent :type-template))
+          new-tmpl (gui/add-gui-node! project node-id parent :type-template)
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
       (prop! new-tmpl :template {:resource (workspace/resolve-workspace-resource workspace "/gui/sub_scene.gui") :overrides {}})
       (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))
+
+(deftest gui-layout
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/scene.gui")]
+      (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
+
+(defn- max-x [scene]
+  (.getX ^Point3d (:max (:aabb scene))))
+
+(defn- add-layout! [project scene name]
+  (let [parent (g/node-value scene :layouts-node)
+        user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
+    (handler/run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+
+(defn- set-visible-layout! [scene layout]
+  (g/transact (g/set-property scene :visible-layout layout)))
+
+(deftest gui-layout-active
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/layouts.gui")
+          box (gui-node node-id "box")
+          dims (g/node-value node-id :scene-dims)
+          scene (g/node-value node-id :scene)]
+      (set-visible-layout! node-id "Landscape")
+      (let [new-box (gui-node node-id "box")]
+        (is (and new-box (not= box new-box))))
+      (let [new-dims (g/node-value node-id :scene-dims)]
+        (is (and new-dims (not= dims new-dims))))
+      (let [new-scene (g/node-value node-id :scene)]
+        (is (not= (max-x scene) (max-x new-scene)))))))
+
+(deftest gui-layout-add
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/layouts.gui")
+          box (gui-node node-id "box")]
+      (add-layout! project node-id "Portrait")
+      (set-visible-layout! node-id "Portrait")
+      (is (not= box (gui-node node-id "box"))))))
+
+(defn- gui-text [scene id]
+  (-> (gui-node scene id)
+    (g/node-value :text)))
+
+(defn- trans-x [root-id target-id]
+  (let [s (tree-seq (constantly true) :children (g/node-value root-id :scene))]
+    (when-let [^Matrix4d m (some #(and (= (:node-id %) target-id) (:transform %)) s)]
+      (let [t (Vector3d.)]
+        (.get m t)
+        (.getX t)))))
+
+(deftest gui-layout-template
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/gui/super_scene.gui")]
+      (testing "regular layout override, through templates"
+               (is (= "Test" (gui-text node-id "scene/text")))
+               (set-visible-layout! node-id "Landscape")
+               (is (= "Testing Text" (gui-text node-id "scene/text"))))
+      (testing "scene generation"
+               (is (= 1280.0 (max-x (g/node-value node-id :scene))))
+               (set-visible-layout! node-id "Portrait")
+               (is (= 720.0 (max-x (g/node-value node-id :scene))))))))

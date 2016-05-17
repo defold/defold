@@ -15,14 +15,14 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5 openal-1.1".split()
-PACKAGES_LINUX="PVRTexLib-4.5".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -570,8 +570,8 @@ class Configuration(object):
 
         p2 = """
 instructions.configure=\
-  addRepository(type:0,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
-  addRepository(type:1,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
+  addRepository(type:0,location:http${#58}//d.defold.com/%(channel)s/update/);\
+  addRepository(type:1,location:http${#58}//d.defold.com/%(channel)s/update/);
 """
 
         with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
@@ -581,7 +581,7 @@ instructions.configure=\
 
     def _archive_cr(self, product, build_dir):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/') + '/'
+        full_archive_path = join(self.archive_path, sha1, self.channel, product).replace('\\', '/') + '/'
         host, path = full_archive_path.split(':', 1)
         for p in glob(join(build_dir, 'target/products/*.zip')):
             self.upload_file(p, full_archive_path)
@@ -833,7 +833,7 @@ instructions.configure=\
     type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
     version='1.0.0'>
   <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
   </children>
 </repository>"""
 
@@ -843,7 +843,7 @@ instructions.configure=\
     type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
     version='1.0.0'>
   <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
   </children>
 </repository>
 """
@@ -857,7 +857,7 @@ instructions.configure=\
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-        host = bucket.get_website_endpoint()
+        host = 'd.defold.com'
 
         model = {'releases': [],
                  'has_releases': False}
@@ -869,13 +869,12 @@ instructions.configure=\
 
         # NOTE
         # - The stable channel is based on the latest tag
-        # - The beta channel is based on the latest commit in the dev-branch, i.e. origin/dev
+        # - The beta and alpha channels are based on the latest
+        #   commit in their branches, i.e. origin/dev for alpha
         if self.channel == 'stable':
             release_sha1 = model['releases'][0]['sha1']
-        elif self.channel == 'beta':
-            release_sha1 = self._git_sha1()
         else:
-            raise Exception('Unknown channel %s' % self.channel)
+            release_sha1 = self._git_sha1()
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
@@ -885,7 +884,8 @@ instructions.configure=\
 
         model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
+                                       dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel),
+                                       dict(name='Linux (32-bit)', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -902,9 +902,9 @@ instructions.configure=\
                                                  'sha1' : release_sha1}))
 
         # Create redirection keys for editor
-        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
+        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
             key_name = '%s/%s' % (self.channel, name)
-            redirect = '/archive/%s/editor/%s' % (release_sha1, name)
+            redirect = '/archive/%s/%s/editor/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
@@ -915,7 +915,8 @@ instructions.configure=\
             key = bucket.new_key(full_name)
             key.content_type = 'text/xml'
             key.set_contents_from_string(template % {'host': host,
-                                                     'sha1': release_sha1})
+                                                     'sha1': release_sha1,
+                                                     'channel': self.channel})
 
     def _get_s3_archive_prefix(self):
         u = urlparse.urlparse(self.archive_path)
@@ -944,7 +945,12 @@ instructions.configure=\
         prefix = self._get_s3_archive_prefix()
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
-            if rel.split('/')[0] != 'editor':
+
+            # Download everything, except the editors.
+            # We check if the relative path includes '/editor/'
+            # since the path looks like this:
+            # archive_path/{channel}/editor/...
+            if '/editor/' not in rel:
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
                 self._log('s3://%s/%s -> %s' % (bucket_name, key.name, p))

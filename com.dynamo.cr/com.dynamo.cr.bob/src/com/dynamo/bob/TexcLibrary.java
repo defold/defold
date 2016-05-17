@@ -48,15 +48,24 @@ public class TexcLibrary {
         public static int CL_BEST    = 3;
     }
 
+    public interface CompressionType {
+        public static int CT_DEFAULT    = 0;
+        public static int CT_WEBP       = 1;
+        public static int CT_WEBP_LOSSY = 2;
+    }
+
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
-    public static native int TEXC_GetDataSize(Pointer texture, int minMap);
+    public static native int TEXC_GetDataSizeCompressed(Pointer texture, int minMap);
+    public static native int TEXC_GetDataSizeUncompressed(Pointer texture, int minMap);
+    public static native int TEXC_GetTotalDataSize(Pointer texture);
     public static native int TEXC_GetData(Pointer texture, Buffer outData, int maxOutDataSize);
+    public static native int TEXC_GetCompressionFlags(Pointer texture);
 
     public static native boolean TEXC_Resize(Pointer texture, int width, int height);
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
-    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel);
+    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType);
 
 }
