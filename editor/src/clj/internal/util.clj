@@ -172,7 +172,7 @@
 (defn pfnkvar?    [x] (or (pfnk? x) (and (var? x) (pfnk? (var-get x)))))
 
 (defn- quoted-var? [x] (and (seq? x) (= 'var (first x))))
-(defn- pfnk-form?  [x] (seq? x))
+(defn- pfnk-form?  [x] (and (seq? x) (symbol? (first x)) (= "fnk" (name (first x)))))
 
 (defn- maybe-expand-macros
   [[call & _ :as body]]

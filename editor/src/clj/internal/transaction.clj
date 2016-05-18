@@ -222,7 +222,7 @@
 (defmethod perform :become
   [ctx {:keys [node-id to-node]}]
   (if-let [old-node (gt/node-by-id-at (:basis ctx) node-id)] ; nil if node was deleted in this transaction
-    (let [new-node (merge to-node old-node)]
+    (let [new-node (merge to-node (dissoc old-node :node-type))]
       (-> ctx
         (disconnect-stale-inputs node-id old-node new-node)
         (disconnect-stale-outputs node-id old-node new-node)
