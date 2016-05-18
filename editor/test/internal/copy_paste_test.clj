@@ -147,8 +147,7 @@
                  (is (= 3 (count new-nodes-added))))
 
         (testing "paste preserves cycle noodles and connections"
-          (is (= #{"internal.copy-paste-test/ConsumeAndProduceNode"}
-                 (into #{} (map #(:name (g/node-type %)) [newleaf1 newleaf2]))))
+          (is (= #{ConsumeAndProduceNode} (set (map g/node-type [newleaf1 newleaf2]))))
           (is (g/connected? (g/now) (g/node-id newleaf1) :produces-value (g/node-id newleaf2) :consumes-value))
           (is (g/connected? (g/now) (g/node-id newleaf2) :produces-value (g/node-id newleaf1) :consumes-value)))))))
 

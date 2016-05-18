@@ -859,12 +859,10 @@
 
 (defn attach-declared-properties
   [description]
-  (let [publics (apply dissoc (:property description) internal-keys)
-        publics (reduce into #{} (map prop+args publics))
-        propmap (zipmap publics (map (comp symbol name) publics))]
+  (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) internal-keys)]
     (assoc-in description [:output :_declared-properties]
               {:value-type (->ValueTypeRef :dynamo.graph/Properties)
-               :arguments  (util/key-set propmap)})))
+               :arguments  publics})))
 
 (defn attach-declared-properties-behavior
   [description]
@@ -1275,7 +1273,7 @@
   [self-name ctx-name beh-sym description nodeid-sym value-sym forms]
   (let [props (:property description)]
     `(let [~value-sym ~(apply merge
-                              (for [[p _] (filter external-property? props)]
+                              (for [[p _] (filter (comp external-property? val) props)]
                                 {p `((get-in ~beh-sym [~p :fn]) ~self-name ~ctx-name)}))]
        ~forms)))
 
