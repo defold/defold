@@ -98,7 +98,7 @@
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
   (output path g/Str (g/fnk [src-resource] (resource/proj-path src-resource)))
   (output id g/Str (g/fnk [path] (path->id path)))
-  (output image types/ImageType (g/fnk [path ^BufferedImageType src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
+  (output image types/ImageType (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation types/AnimationType (g/fnk [image id] (image->animation image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id path order] {:node-id _node-id
                                                                                  :label (format "%s - %s" (path->id path) path)

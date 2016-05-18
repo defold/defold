@@ -418,7 +418,7 @@
         (g/connect modifier-id from parent-id to)))))
 
 ;; OMG MIKE HELP   java.lang.RuntimeException: Can't specify more than 20 params
-#_(g/defnode EmitterNode
+(g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
   (inherits EmitterProperties)
@@ -480,26 +480,26 @@
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id id child-outlines]
-      (let [pfx-id (core/scope _node-id)]
-        {:node-id _node-id
-         :label id
-         :icon emitter-icon
-         :children child-outlines
-         :child-reqs [{:node-type ModifierNode
-                       :tx-attach-fn (fn [self-id child-id]
-                                       (attach-modifier pfx-id self-id child-id))}]})))
+          (g/fnk [_node-id id child-outlines]
+                 (let [pfx-id (core/scope _node-id)]
+                   {:node-id _node-id
+                    :label id
+                    :icon emitter-icon
+                    :children child-outlines
+                    :child-reqs [{:node-type ModifierNode
+                                  :tx-attach-fn (fn [self-id child-id]
+                                                  (attach-modifier pfx-id self-id child-id))}]})))
   (output aabb types/AABBType (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
-                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
-                                 [w h d] (case type
-                                           :emitter-type-circle [x x x]
-                                           :emitter-type-box [x y z]
-                                           :emitter-type-sphere [x x x]
-                                           :emitter-type-cone [x y x]
-                                           :emitter-type-2dcone [x y x])]
-                             (-> (geom/null-aabb)
-                               (geom/aabb-incorporate (- w) (- h) (- d))
-                               (geom/aabb-incorporate w h d)))))
+                                     (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
+                                           [w h d] (case type
+                                                     :emitter-type-circle [x x x]
+                                                     :emitter-type-box [x y z]
+                                                     :emitter-type-sphere [x x x]
+                                                     :emitter-type-cone [x y x]
+                                                     :emitter-type-2dcone [x y x])]
+                                       (-> (geom/null-aabb)
+                                           (geom/aabb-incorporate (- w) (- h) (- d))
+                                           (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set-data gpu-texture]
                  (let [tex-set (:texture-set texture-set-data)
