@@ -1180,7 +1180,7 @@
      ~forms))
 
 (defn check-caches [ctx-name nodeid-sym description transform forms]
-  (if (get (:cached-outputs description) transform)
+  (if (get-in description [:output transform :flags :cached])
     `(let [local# @(:local ~ctx-name)
            global# (:snapshot ~ctx-name)
            key# [~nodeid-sym ~transform]]
@@ -1215,7 +1215,7 @@
 
 (defn cache-output [ctx-name description transform nodeid-sym output-sym forms]
   `(do
-     ~@(when (get (:cached-outputs description) transform)
+     ~@(when (get-in description [:output transform :flags :cached])
          `[(swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)])
      ~forms))
 
