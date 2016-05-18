@@ -311,7 +311,7 @@
 
 (defn warn-input-schema [node-id node-type label value input-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
+    (println "Schema validation failed for node " node-id "(" node-type " ) label " label)
     (println "There were " (count (vals error)) " problems")
     (let [explanation (s/explain input-schema)]
       (doseq [[key val] error]
@@ -325,8 +325,8 @@
 
 (defn warn-output-schema [node-id node-type label value output-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
-    (println "Output:" value)
+    (println "Schema validation failed for node " node-id "(" node-type " ) label " label)
+    (println "Output value:" value)
     (println "Should match:" (s/explain output-schema))
     (println "But:" error)))
 
@@ -352,17 +352,20 @@
           deferred   (if setter-fn
                        [setter-fn (gt/node-id node) old-value new-value]
                        [])]
-      (if-let [validation-error (s/check value-type new-value)]
-        (do
-          (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
-          (throw (ex-info "SCHEMA-VALIDATION"
-                          {:node-id          (gt/node-id node)
-                           :type             node-type
-                           :property         property
-                           :expected         value-type
-                           :actual           new-value
-                           :validation-error validation-error})))
-        [new-node deferred]))))
+      (try
+        (if-let [validation-error (s/check value-type new-value)]
+          (do
+            (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
+            (throw (ex-info "SCHEMA-VALIDATION"
+                            {:node-id          (gt/node-id node)
+                             :type             node-type
+                             :property         property
+                             :expected         value-type
+                             :actual           new-value
+                             :validation-error validation-error})))
+          [new-node deferred])
+        (catch IllegalArgumentException iae
+          (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {})))))))
 
 ;;; ----------------------------------------
 ;; Type checking
