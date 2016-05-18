@@ -1031,12 +1031,11 @@
          (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input)))
 
 (defn maybe-use-substitute [description input forms]
-  (if (and (:substitutes description) (get-in description [:substitutes input]))
-   (do
-    `(let [input# ~forms]
-       (if (ie/error? input#)
-         (util/apply-if-fn ~(get-in description [:substitues input]) input#)
-         input#)))
+  (if-let [sub (get-in description [:input input :options :substitute])]
+   `(let [input# ~forms]
+      (if (ie/error? input#)
+        (util/apply-if-fn ~sub input#)
+        input#))
     forms))
 
 (defn call-with-error-checked-fnky-arguments
