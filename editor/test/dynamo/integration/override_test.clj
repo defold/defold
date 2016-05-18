@@ -4,6 +4,7 @@
             [internal.graph.types :as gt]
             [support.test-support :refer :all]
             [internal.util :refer :all]
+            [editor.resource :as resource]
             [dynamo.integration.override-test-support :as support])
   (:import  [javax.vecmath Vector3d]))
 
@@ -302,7 +303,7 @@
                  (g/transact (g/clear-property or-res :reference))
                  (is (= :node-a2 (g/node-value or-res :reference))))))))
 
-(def ^:private IDMap {g/Str g/NodeID})
+(g/deftype ^:private IDMap {g/Str g/NodeID})
 
 (defprotocol Resource
   (path [this]))
@@ -329,7 +330,7 @@
   (property value g/Str))
 
 (g/defnode SceneResourceNode
-  (extern resource Resource))
+  (extern resource resource/ResourceType))
 
 (g/defnode NodeTree
   (input nodes g/NodeID :array :cascade-delete)
@@ -392,7 +393,7 @@
                                  (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
-  (input template-resource (g/protocol Resource) :cascade-delete)
+  (input template-resource resource/ResourceType :cascade-delete)
   (input node-ids IDMap)
   (input instance g/NodeID)
   (input source-overrides g/Any)
@@ -639,10 +640,18 @@
 
 ;; Overloaded outputs with different types
 
+(def XYZ [(g/one g/Num "x") (g/one g/Num "y") (g/one g/Num "z")])
+(g/deftype XYZType XYZ)
+
+(def Complex {g/Keyword Vector3d})
+(g/deftype ComplexType Complex)
+
+(g/deftype Vector3dType Vector3d)
+
 (g/defnode TypedOutputNode
-  (property value [(g/one g/Num "x") (g/one g/Num "y") (g/one g/Num "z")])
-  (output value Vector3d (g/fnk [value] (let [[x y z] value] (Vector3d. x y z))))
-  (output complex {g/Keyword Vector3d} (g/fnk [value] {:value value})))
+  (property value XYZType)
+  (output value Vector3dType (g/fnk [value] (let [[x y z] value] (Vector3d. x y z))))
+  (output complex ComplexType (g/fnk [value] {:value value})))
 
 (deftest overloaded-outputs-and-types
   (with-clean-system
