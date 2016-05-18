@@ -417,7 +417,6 @@
       (for [[from to] conns]
         (g/connect modifier-id from parent-id to)))))
 
-;; OMG MIKE HELP   java.lang.RuntimeException: Can't specify more than 20 params
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
