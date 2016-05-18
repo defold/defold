@@ -55,36 +55,6 @@
     "More Than Two Words" :more-than-two-words
     "More Than 2words"    :more-than2words))
 
-(def non-schema-var "this is not a schema")
-
-(deftest resolving-schemas
-  (are [x] (= java.lang.String (resolve-schema x))
-    #'dynamo.graph/Str
-    'dynamo.graph/Str
-    dynamo.graph/Str
-    'g/Str
-    g/Str
-    'String)
-
-  (are [x] (= [java.lang.String] (resolve-schema x))
-    [#'dynamo.graph/Str]
-    '[dynamo.graph/Str]
-    [dynamo.graph/Str]
-    '[g/Str]
-    [g/Str]
-    '[String])
-
-   (are [x] (= {:foo g/Str} (resolve-schema x))
-    {:foo g/Str})
-
-  (are [x] (nil? (resolve-schema x))
-    #'non-schema-var
-    'non-schema-var
-    non-schema-var
-    'j.random/symbol
-    :keyword
-    nil))
-
 (g/defnk external-fnk [a b c d])
 
 (deftest determining-inputs-required
@@ -97,27 +67,3 @@
       '(g/fnk [one two three])                                                #{:one :two :three}
       (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])  #{:commands :roles :blah}
       '(g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}]) #{:commands :roles :blah})))
-
-(defprotocol MyProtocol)
-
-(def var-to-str s/Str)
-(def var-to-str-vec [s/Str])
-
-(deftest resolve-value-type-tests
-  (are [x] (= java.lang.String (resolve-value-type x))
-    's/Str
-    var-to-str
-    #'var-to-str
-    String)
-
-  (are [x] (= [java.lang.String] (resolve-value-type x))
-    '[s/Str]
-    #'var-to-str-vec
-    var-to-str-vec)
-
-  (are [x] (= MyProtocol (resolve-value-type x))
-    MyProtocol
-    `MyProtocol)
-
-  (are [x] (= '[MyProtocol] (resolve-value-type x))
-    '[MyProtocol]))

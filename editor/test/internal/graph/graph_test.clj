@@ -5,6 +5,7 @@
             [internal.system :as is]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [schema.core :as s]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
@@ -34,7 +35,7 @@
 (defn- source-arcs-without-targets
   [g]
   (for [source                (ig/node-ids g)
-        source-label          (-> (ig/node g source) g/node-type gt/output-labels)
+        source-label          (-> (ig/node g source) g/node-type in/output-labels)
         [target target-label] (targets g source source-label)
         :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
     [source source-label]))
@@ -42,7 +43,7 @@
 (defn- target-arcs-without-sources
   [g]
   (for [target                (ig/node-ids g)
-        target-label          (-> (ig/node g target) g/node-type gt/input-labels)
+        target-label          (-> (ig/node g target) g/node-type in/input-labels)
         [source source-label] (sources g target target-label)
         :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
     [target target-label]))
