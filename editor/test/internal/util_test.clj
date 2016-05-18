@@ -61,7 +61,6 @@
   (testing "fnks"
     (are [f i] (= i (inputs-needed f))
       external-fnk                                                            #{:a :b :c :d}
-      'external-fnk                                                           #{:a :b :c :d}
       #'external-fnk                                                          #{:a :b :c :d}
       (g/fnk [one two three])                                                 #{:one :two :three}
       '(g/fnk [one two three])                                                #{:one :two :three}
