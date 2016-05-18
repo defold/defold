@@ -675,15 +675,11 @@
                                                [:shader :material-shader]
                                                [:sampler-data :sampler-data]
                                                [:build-targets :dep-build-targets]])))
-  ;; MIKE HELP Assert failed: unknown argument :anim-data in call to
-  ;; validate (dynamic was commented out before
   (property default-animation g/Str
             #_(validate (g/fnk [default-animation anim-data]
                              (validation/animation default-animation anim-data)))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
-  ;; MIKE HELP Assert failed: unknown argument :anim-data in call to
-  ;; validate (dynamic was commented out before
   (property skin g/Str
             #_(validate (g/fnk [default-animation anim-data]
                              (validation/animation default-animation anim-data)))
