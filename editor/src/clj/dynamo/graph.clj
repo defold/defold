@@ -754,7 +754,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)
-                            (repeat (fnk [] defective-value))))
+                            (repeat (constantly defective-value))))
       (invalidate node-id)))))
 
 (defn mark-defective!
