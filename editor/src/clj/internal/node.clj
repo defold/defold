@@ -290,7 +290,7 @@
    :snapshot        (if caching? (c/cache-snapshot cache) {})
    :hits            (atom [])
    :basis           basis
-   :in-production   []
+   :in-production   #{}
    :ignore-errors   ignore-errors
    :skip-validation skip-validation
    :caching?        caching?})
