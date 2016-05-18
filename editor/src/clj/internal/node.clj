@@ -10,8 +10,7 @@
             [plumbing.fnk.pfnk :as pf]
             [schema.core :as s]
             [clojure.walk :as walk]
-            [clojure.zip :as zip]
-            [internal.node :as in])
+            [clojure.zip :as zip])
   (:import [internal.graph.types IBasis]
            [internal.graph.error_values ErrorValue]
            [clojure.lang Named]
