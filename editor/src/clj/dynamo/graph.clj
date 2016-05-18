@@ -956,15 +956,8 @@
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
-(def ^:private write-handlers
-  {internal.node.NodeTypeImpl (transit/write-handler
-                               (constantly "node-type")
-                               (fn [t] (select-keys t [:name])))})
-
-(def ^:private read-handlers
-  {"node-type"                (transit/read-handler
-                               (fn [{:keys [name]}]
-                                 (var-get (resolve (symbol name)))))})
+(def ^:private write-handlers (transit/record-write-handlers internal.node.NodeTypeRef internal.node.ValueTypeRef))
+(def ^:private read-handlers  (transit/record-read-handlers  internal.node.NodeTypeRef internal.node.ValueTypeRef))
 
 (defn read-graph
   "Read a graph fragment from a string. Returns a fragment suitable
@@ -1012,9 +1005,9 @@
 
 (defn default-node-serializer
   [basis node]
-  (let [node-id (gt/node-id node)
-        all-node-properties (into {} (map (fn [[key value]] [key (:value value)])
-                                          (:properties (node-value node-id :_declared-properties))))
+  (let [node-id                (gt/node-id node)
+        all-node-properties    (into {} (map (fn [[key value]] [key (:value value)])
+                                             (:properties (node-value node-id :_declared-properties))))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:node-type  (node-type basis node)
      :properties properties-without-fns}))
