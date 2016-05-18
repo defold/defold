@@ -376,8 +376,8 @@
 
 (defn type-compatible?
   [output-typeref input-typeref]
-  (let [output-schema (:schema output-typeref)
-        input-schema  (:schema input-typeref)
+  (let [output-schema (:schema @output-typeref)
+        input-schema  (:schema @input-typeref)
         out-t-pl? (coll? output-schema)
         in-t-pl?  (coll? input-schema)]
     (or
