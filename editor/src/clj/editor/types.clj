@@ -44,6 +44,8 @@
   (^String           local-path        [this]         "Returns a string representation of the path and extension.")
   (^String           local-name        [this]         "Returns the last segment of the path"))
 
+(g/deftype PathManipulationType (g/protocol PathManipulation))
+
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
