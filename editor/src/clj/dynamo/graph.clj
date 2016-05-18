@@ -436,8 +436,8 @@
                                            (assoc curr :fn (var-it (in/dollar-name symb path)))))
         node-key      (:key node-type-def)
         derivations   (for [tref (:supertypes node-type-def)]
-                        `(when-not (contains? (descendants (:key ~(deref tref))) ~node-key)
-                           (derive ~node-key (:key ~(deref tref)))))
+                        `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                           (derive ~node-key ~(:key (deref tref)))))
         node-type-def (update node-type-def :supertypes #(list `quote %))]
     `(do
        (declare ~symb)
