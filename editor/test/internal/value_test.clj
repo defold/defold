@@ -164,7 +164,7 @@
   (with-clean-system
     (let [[override jane] (build-override-project world)]
       (testing "requesting a non-existent label throws"
-        (is (thrown? clojure.lang.ExceptionInfo (g/node-value override :aint-no-thang)))))))
+        (is (thrown? AssertionError (g/node-value override :aint-no-thang)))))))
 
 (deftest update-sees-in-transaction-value
   (with-clean-system
