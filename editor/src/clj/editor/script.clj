@@ -28,10 +28,11 @@
 
 (def ^:private lua-code-opts {:code lua/lua})
 ;; MIKE HELP
-(def ^:private go-prop-type->property-types {}  #_(->> properties/go-prop-type->clj-type
-                                                      (map (fn [[type clj-type]]
-                                                             [type (g/make-property-type (name type) clj-type)]))
-                                                      (into {})))
+;; MTN: I think we can just use properties/go-prop-type->clj-type
+;; directly here. We'll need to look downstream in the properties-view
+;; to see how the property types are used there. In general, I think
+;; using ValueTypeRefs will make this easier.
+(def ^:private go-prop-type->property-types properties/go-prop-type->clj-type)
 
 (def script-defs [{:ext "script"
                    :label "Script"
