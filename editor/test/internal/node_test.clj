@@ -5,6 +5,7 @@
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
+            [schema.core :as s]
             [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.graph.types :as gt])
   (:import clojure.lang.ExceptionInfo))
@@ -549,3 +550,17 @@
   (with-clean-system
     (is (thrown? AssertionError
                  (g/construct MyNode :_node-id 1 :no-such-property 1)))))
+
+(g/defnode ResourceNode
+  (property resource g/Str (default "Hello")))
+
+(g/defnode IntermediateResourceNode
+  (inherits ResourceNode))
+
+(g/defnode PlaceholderNode
+  (inherits IntermediateResourceNode))
+
+(deftest grandchild-property-inheritance
+  (with-clean-system
+    (let [[resource-node] (tx-nodes (g/make-node world PlaceholderNode))]
+      (is (= "Hello" (g/node-value resource-node :resource))))))
