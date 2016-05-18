@@ -374,8 +374,10 @@
    (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
 
 (defn type-compatible?
-  [output-schema input-schema]
-  (let [out-t-pl? (coll? output-schema)
+  [output-typeref input-typeref]
+  (let [output-schema (:schema output-typeref)
+        input-schema  (:schema input-typeref)
+        out-t-pl? (coll? output-schema)
         in-t-pl?  (coll? input-schema)]
     (or
      (= s/Any input-schema)
@@ -402,10 +404,10 @@
                     tgt-id (:name input-nodetype) tgt-label
                     (:name input-nodetype) tgt-label))
     (assert (type-compatible? output-valtype input-valtype)
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s do not have compatible types."
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
                     src-id (:name output-nodetype) src-label
                     tgt-id (:name input-nodetype) tgt-label
-                    output-valtype input-valtype))))
+                    (:k output-valtype) (:k input-valtype)))))
 
 
 ;;; ----------------------------------------

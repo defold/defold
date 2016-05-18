@@ -6,15 +6,15 @@
             [editor.core :as core]))
 
 (g/defnode Receiver
-  (input surname String :inject)
+  (input surname g/Str :inject)
   (input samples g/Num :inject :array)
   (input label g/Any :inject))
 
 (g/defnode Sender1
-  (output surname String (g/fnk [] "nachname")))
+  (output surname g/Str (g/fnk [] "nachname")))
 
 (g/defnode Sampler
-  (output sample Integer (g/fnk [] 42)))
+  (output sample g/Int (g/fnk [] 42)))
 
 (g/defnode Labeler
   (output label g/Keyword (g/fnk [] :a-keyword)))
