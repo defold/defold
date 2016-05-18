@@ -138,25 +138,6 @@
        (let [x' (vgr x)]
          (and (map? x') (contains? x' :on-interface)))))
 
-(defn resolve-value-type
-  [x]
-  (cond
-    (symbol? x)                     (resolve-value-type (resolve x))
-    (var? x)                        (resolve-value-type (var-get x))
-    (vector? x)                     (mapv resolve-value-type x)
-    :else                           x))
-
-(defn resolve-schema [x]
-  (cond
-    (symbol? x)    (resolve-schema (resolve x))
-    (var? x)       (resolve-schema (var-get x))
-    (predicate? x) x
-    (vector? x)    (mapv resolve-schema x)
-    (class? x)     x
-    (protocol? x)  x
-    (map? x)       x
-    :else          nil))
-
 (defn assert-form-kind [place required-kind-label required-kind-pred label form]
   (assert (not (nil? form))
           (str place " " label " requires a " required-kind-label " but got nil"))
@@ -212,16 +193,6 @@
     (do (println tp-form)
       (list `s/enum tp-form))
     tp-form))
-
-(defn preprocess-schema
-  [tp-form]
-  (let [multi?    (vector? tp-form)
-        schema    (if multi? (first tp-form) tp-form)
-        tp        (resolve-value-type schema)
-        processed (wrap-enum (wrap-protocol tp schema) schema)]
-    (if multi?
-      (vector processed)
-      processed)))
 
 (defn update-paths
   [m paths xf]

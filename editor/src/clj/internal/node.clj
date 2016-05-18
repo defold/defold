@@ -235,12 +235,13 @@
   [node-type-ref args]
   (let [args-without-properties (set/difference
                                  (util/key-set args)
-                                 (util/key-set (public-properties node-type-ref)))]
+                                 (util/key-set (:property (deref node-type-ref))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type-ref)))))
 
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
+  (assert-no-extra-args node-type-ref args)
   (-> (new internal.node.NodeImpl node-type-ref)
       (merge (defaults node-type-ref))
       (merge args)))
@@ -527,13 +528,6 @@
     (util/assert-form-kind "defnode" "registered value type"
                            pred
                            where form)))
-
-(defn assert-schema
-  [kind label form]
-  (if-not (util/schema? form)
-    (let [resolved-schema (util/resolve-schema form)]
-      (assert (util/schema? resolved-schema)
-              (str "The " kind " '" label "' requires a schema.  '" form "' cannot be resolved to a schema in this context.")))))
 
 ;;; ----------------------------------------
 ;;; Parsing defnode forms
@@ -870,8 +864,7 @@
         propmap (zipmap publics (map (comp symbol name) publics))]
     (assoc-in description [:output :_declared-properties]
               {:value-type (->ValueTypeRef :dynamo.graph/Properties)
-               :arguments  (util/key-set propmap)
-               :fn         `(dynamo.graph/fnk ~(vec (vals propmap)) ~propmap)})))
+               :arguments  (util/key-set propmap)})))
 
 (defn attach-declared-properties-behavior
   [description]

@@ -536,3 +536,16 @@
       (is (= 1 @(g/node-value nid :counter)))
       (is (false? (g/node-value nid :cached-boolean)))
       (is (= 1 @(g/node-value nid :counter))))))
+
+(g/defnode MyNode
+  (property a-property g/Str))
+
+(deftest make-nodes-complains-about-missing-properties
+  (with-clean-system
+    (is (thrown? AssertionError
+                 (eval `(dynamo.graph/make-nodes ~world [new-node# [MyNode :no-such-property 1]]))))))
+
+(deftest construct-complains-about-missing-properties
+  (with-clean-system
+    (is (thrown? AssertionError
+                 (g/construct MyNode :_node-id 1 :no-such-property 1)))))
