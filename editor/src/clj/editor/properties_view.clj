@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.core :as core]
+            [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.jfx :as jfx]
@@ -238,7 +239,7 @@
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol resource/Resource) [edit-type workspace property-fn]
+(defmethod create-property-control! (s/protocol resource/Resource) [edit-type workspace property-fn]
   (let [box (HBox.)
         button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)

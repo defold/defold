@@ -29,8 +29,6 @@
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
-(namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
-
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
 (namespaces/import-macro schema.core/defn      s-defn)
@@ -1012,8 +1010,8 @@
     {:node-type  (node-type basis node)
      :properties properties-without-fns}))
 
-(def opts-schema {(optional-key :traverse?) Runnable
-                  (optional-key :serializer) Runnable})
+(def opts-schema {(s/optional-key :traverse?) Runnable
+                  (s/optional-key :serializer) Runnable})
 
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
@@ -1048,7 +1046,7 @@
   ([root-ids opts]
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
-    (validate opts-schema opts)
+    (s/validate opts-schema opts)
    (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
