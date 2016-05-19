@@ -148,34 +148,46 @@
   (property display-profiles resource/ResourceType
           (dynamic visible false)
           (value (g/fnk [display-profiles-resource] display-profiles-resource))
-          (set (project/gen-resource-setter [[:resource :display-profiles-resource]
-                                             [:build-targets :dep-build-targets]
-                                             [:profile-data :display-profiles-data]])))
+          (set (fn [basis self old-value new-value]
+                 (project/gen-resource-setter basis self old-value new-value
+                                              [:resource :display-profiles-resource]
+                                              [:build-targets :dep-build-targets]
+                                              [:profile-data :display-profiles-data]))))
   (property main-collection resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [main-collection-resource] main-collection-resource))
-            (set (project/gen-resource-setter [[:resource :main-collection-resource]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :main-collection-resource]
+                                                [:build-targets :dep-build-targets]))))
   (property render resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [render-resource] render-resource))
-            (set (project/gen-resource-setter [[:resource :render-resource]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :render-resource]
+                                                [:build-targets :dep-build-targets]))))
   (property texture-profiles resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [texture-profiles-resource] texture-profiles-resource))
-            (set (project/gen-resource-setter [[:resource :texture-profiles-resource]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :texture-profiles-resource]
+                                                [:build-targets :dep-build-targets]))))
   (property gamepads resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [gamepads-resource] gamepads-resource))
-            (set (project/gen-resource-setter [[:resource :gamepads-resource]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :gamepads-resource]
+                                                [:build-targets :dep-build-targets]))))
   (property input-binding resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [input-binding-resource] input-binding-resource))
-            (set (project/gen-resource-setter [[:resource :input-binding-resource]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :input-binding-resource]
+                                                [:build-targets :dep-build-targets]))))
 
   (input display-profiles-data g/Any)
   (input display-profiles-resource resource/ResourceType)

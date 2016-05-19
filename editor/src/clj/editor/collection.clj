@@ -147,11 +147,14 @@
   (property path resource/ResourceType
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (value (g/fnk [source-resource] source-resource))
-    (set (project/gen-resource-setter [[:_node-id      :source]
-                                       [:resource      :source-resource]
-                                       [:node-outline  :source-outline]
-                                       [:build-targets :build-targets]
-                                       [:scene         :scene]]))
+    (set (fn [basis self old-value new-value]
+           (project/gen-resource-setter
+            basis self old-value new-value
+            [:_node-id      :source]
+            [:resource      :source-resource]
+            [:node-outline  :source-outline]
+            [:build-targets :build-targets]
+            [:scene         :scene])))
     (validate (g/fnk [embedded path scene]
                 (when (and (not embedded) (nil? path))
                   (g/error-warning "Missing prototype")))))
@@ -319,11 +322,13 @@
 
   (property path resource/ResourceType
     (value (g/fnk [source-resource] source-resource))
-    (set (project/gen-resource-setter [[:_node-id      :source]
-                                       [:resource      :source-resource]
-                                       [:node-outline  :source-outline]
-                                       [:scene         :scene]
-                                       [:build-targets :build-targets]]))
+    (set (fn [basis self old-value new-value]
+           (project/gen-resource-setter basis self old-value new-value
+                                        [:_node-id      :source]
+                                        [:resource      :source-resource]
+                                        [:node-outline  :source-outline]
+                                        [:scene         :scene]
+                                        [:build-targets :build-targets])))
     (validate (g/fnk [path scene] (validation/resource path "Missing prototype"))))
 
   (input source g/Any)

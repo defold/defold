@@ -183,15 +183,19 @@
   (property vertex-program resource/ResourceType
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [vertex-resource] vertex-resource))
-    (set (project/gen-resource-setter [[:resource :vertex-resource]
-                                       [:full-source :vertex-source]]))
+    (set (fn [basis self old-value new-value]
+           (project/gen-resource-setter basis self old-value new-value
+                                        [:resource :vertex-resource]
+                                        [:full-source :vertex-source])))
     (validate (g/fnk [vertex-program] (validation/resource vertex-program))))
 
   (property fragment-program resource/ResourceType
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [fragment-resource] fragment-resource))
-    (set (project/gen-resource-setter [[:resource :fragment-resource]
-                                       [:full-source :fragment-source]]))
+    (set (fn [basis self old-value new-value]
+           (project/gen-resource-setter basis self old-value new-value
+                                        [:resource :fragment-resource]
+                                        [:full-source :fragment-source])))
     (validate (g/fnk [fragment-program] (validation/resource fragment-program))))
 
   (output form-data g/Any :cached produce-form-data)
