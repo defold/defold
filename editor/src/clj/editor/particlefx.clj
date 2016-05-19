@@ -436,7 +436,7 @@
             (dynamic label (g/fnk [] "Image"))
             (value (g/fnk [tile-source-resource] tile-source-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :tile-source-resource
                                                  [:texture-set-data :texture-set-data]
                                                  [:gpu-texture :gpu-texture]
@@ -453,7 +453,7 @@
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
             (validate (fn [material] (validation/resource material))))
 

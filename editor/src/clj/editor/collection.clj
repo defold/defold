@@ -148,7 +148,7 @@
     (dynamic visible (g/fnk [embedded] (not embedded)))
     (value (g/fnk [source-resource] source-resource))
     (set (fn [basis self old-value new-value]
-           (project/gen-resource-setter
+           (project/resource-setter
             basis self old-value new-value
             [:_node-id      :source]
             [:resource      :source-resource]
@@ -323,7 +323,7 @@
   (property path resource/ResourceType
     (value (g/fnk [source-resource] source-resource))
     (set (fn [basis self old-value new-value]
-           (project/gen-resource-setter basis self old-value new-value
+           (project/resource-setter basis self old-value new-value
                                         [:_node-id      :source]
                                         [:resource      :source-resource]
                                         [:node-outline  :source-outline]
