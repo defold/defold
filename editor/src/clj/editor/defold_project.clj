@@ -398,7 +398,7 @@
   (when-let [resource (cond
                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace) path-or-resource)
                         (satisfies? resource/Resource path-or-resource) path-or-resource
-                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource")))]
+                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
     (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
       (get nodes-by-resource-path (resource/proj-path resource)))))
 
@@ -654,8 +654,8 @@
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
 
-(defmacro gen-resource-setter [basis self old-value new-value & connections]
-  `(let [project# (get-project ~self)]
-     (concat
-      (when ~old-value (disconnect-resource-node project# ~old-value ~self ~(vec connections)))
-      (when ~new-value (connect-resource-node project# ~new-value ~self ~(vec connections))))))
+(defn resource-setter [basis self old-value new-value & connections]
+  (let [project (get-project self)]
+    (concat
+     (when old-value (disconnect-resource-node project old-value self connections))
+     (when new-value (connect-resource-node project new-value self connections)))))

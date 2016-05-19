@@ -226,7 +226,7 @@
   (property image resource/ResourceType
             (value (g/fnk [image-resource] image-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :image-resource]
                                                 [:anim-data :anim-data]
                                                 [:gpu-texture :gpu-texture]
@@ -241,7 +241,7 @@
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource
                                                  [:build-targets :dep-build-targets]])))
             (validate (fn [material] (validation/resource material))))

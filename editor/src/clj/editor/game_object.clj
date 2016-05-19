@@ -180,13 +180,12 @@
                                                                   (g/connect or-node from self to)))
                                                               (for [[label value] (:overrides new-value)]
                                                                 (g/set-property or-node label value)))))))
-                        (let [f (project/gen-resource-setter basis self old-value new-value
-                                                             [:resource :source-resource]
-                                                             [:node-outline :source-outline]
-                                                             [:user-properties :user-properties]
-                                                             [:scene :scene]
-                                                             [:build-targets :build-targets])]
-                          (f basis self (:resource old-value) (:resource new-value))))))))
+                        (project/resource-setter basis self (:resource old-value) (:resource new-value)
+                                                 [:resource :source-resource]
+                                                 [:node-outline :source-outline]
+                                                 [:user-properties :user-properties]
+                                                 [:scene :scene]
+                                                 [:build-targets :build-targets]))))))
             (validate (g/fnk [path]
                              (when (nil? path)
                                (g/error-warning "Missing component")))))

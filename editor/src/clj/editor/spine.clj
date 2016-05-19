@@ -586,7 +586,7 @@
   (property spine-json resource/ResourceType
             (value (g/fnk [spine-json-resource] spine-json-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :spine-json-resource]
                                                 [:content :spine-scene])))
             (validate (g/fnk [spine-json spine-scene]
@@ -595,7 +595,7 @@
   (property atlas resource/ResourceType
             (value (g/fnk [atlas-resource] atlas-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :atlas-resource]
                                                 [:anim-data :anim-data]
                                                 [:gpu-texture :gpu-texture]
@@ -662,7 +662,7 @@
   (property spine-scene resource/ResourceType
             (value (g/fnk [spine-scene-resource] spine-scene-resource))
             (set (fn [basis self old-value new-value]
-                     (project/gen-resource-setter basis self old-value new-value
+                     (project/resource-setter basis self old-value new-value
                                                   [:resource :spine-scene-resource]
                                                   [:scene :spine-scene-scene]
                                                   [:aabb :aabb]
@@ -678,7 +678,8 @@
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter [:resource :material-resource]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :material-resource]
                                                 [:shader :material-shader]
                                                 [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets]))))

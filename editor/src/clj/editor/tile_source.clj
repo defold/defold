@@ -255,7 +255,7 @@
   (property image resource/ResourceType
     (value (g/fnk [image-resource] image-resource))
     (set (fn [basis self old-value new-value]
-           (project/gen-resource-setter basis self old-value new-value
+           (project/resource-setter basis self old-value new-value
                                         [:resource :image-resource]
                                         [:content :image-content])))
     (validate (g/fnk [image-resource image-content]
@@ -278,7 +278,7 @@
   (property collision resource/ResourceType ; optional
     (value (g/fnk [collision-resource] collision-resource))
     (set (fn [basis self old-value new-value]
-           (project/gen-resource-setter basis self old-value new-value
+           (project/resource-setter basis self old-value new-value
                                         [:resource :collision-resource]
                                         [:content :collision-content])))
     (validate (g/fnk [collision-resource collision-content]
