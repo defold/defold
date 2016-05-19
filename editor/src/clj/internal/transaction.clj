@@ -594,12 +594,11 @@
         ctx (assoc ctx :deferred-setters [])]
     (if (empty? setters)
       ctx
-      (do (println :deferred-setters setters)    (-> (reduce (fn [ctx [f node-id old-value new-value]]
-                                                               (println :deferred-setter f node-id old-value new-value)
-                                                               (if (gt/node-by-id-at (:basis ctx) node-id)
-                                                                 (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
-                                                                 ctx)) ctx setters)
-                                                     recur)))))
+      (-> (reduce (fn [ctx [f node-id old-value new-value]]
+                    (if (gt/node-by-id-at (:basis ctx) node-id)
+                      (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
+                      ctx)) ctx setters)
+          recur))))
 
 (defn transact*
   [ctx actions]
