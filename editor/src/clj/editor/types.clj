@@ -77,7 +77,7 @@
 
 (def Registry {s/Any s/Any})
 
-(g/s-defrecord Rect
+(s/defrecord Rect
   [path     :- s/Any
    x        :- Int32
    y        :- Int32
@@ -89,7 +89,7 @@
 
 (g/deftype RectType Rect)
 
-(g/s-defrecord AABB [min max]
+(s/defrecord AABB [min max]
   R3Min
   (min-p [this] (.min this))
   R3Max
@@ -101,13 +101,13 @@
   [^AABB v ^java.io.Writer w]
   (.write w (str "<AABB \"min: " (.min v) ", max: " (.max v) "\">")))
 
-(g/s-defn ^:always-validate rect :- Rect
+(s/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
     (rect "" (int  x) (int y) (int width) (int height)))
   ([path :- s/Any x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
     (Rect. path (int x) (int y) (int width) (int height))))
 
-(g/s-defrecord Image
+(s/defrecord Image
   [path     :- s/Any
    contents :- BufferedImage
    width    :- Int32
@@ -123,7 +123,7 @@
 
 (g/deftype AnimationPlaybackType AnimationPlayback)
 
-(g/s-defrecord Animation
+(s/defrecord Animation
   [id              :- s/Str
    images          :- [Image]
    fps             :- Int32
@@ -133,7 +133,7 @@
 
 (g/deftype AnimationType Animation)
 
-(g/s-defrecord TexturePacking
+(s/defrecord TexturePacking
   [aabb         :- Rect
    packed-image :- BufferedImage
    coords       :- [Rect]
@@ -142,14 +142,14 @@
 
 (g/deftype TexturePackingType TexturePacking)
 
-(g/s-defrecord Vertices
+(s/defrecord Vertices
   [counts   :- [Int32]
    starts   :- [Int32]
    vertices :- [s/Num]])
 
 (g/deftype VerticesType Vertices)
 
-(g/s-defrecord EngineFormatTexture
+(s/defrecord EngineFormatTexture
   [width           :- Int32
    height          :- Int32
    original-width  :- Int32
@@ -161,7 +161,7 @@
 
 (g/deftype EngineFormatTextureType EngineFormatTexture)
 
-(g/s-defrecord TextureSetAnimationFrame
+(s/defrecord TextureSetAnimationFrame
   [image                :- Image ; TODO: is this necessary?
    vertex-start         :- s/Num
    vertex-count         :- s/Num
@@ -172,7 +172,7 @@
 
 (g/deftype TextureSetAnimationFrameType TextureSetAnimationFrame)
 
-(g/s-defrecord TextureSetAnimation
+(s/defrecord TextureSetAnimation
   [id              :- s/Str
    width           :- Int32
    height          :- Int32
@@ -184,7 +184,7 @@
 
 (g/deftype TextureSetAnimationType TextureSetAnimation)
 
-(g/s-defrecord TextureSet
+(s/defrecord TextureSet
   [animations       :- {s/Str TextureSetAnimation}
    vertices         :- s/Any #_editor.gl.vertex/PersistentVertexBuffer
    outline-vertices :- s/Any #_editor.gl.vertex/PersistentVertexBuffer
@@ -196,7 +196,7 @@
 
 (g/deftype PassType (s/protocol Pass))
 
-(g/s-defrecord Region
+(s/defrecord Region
   [left   :- s/Num
    right  :- s/Num
    top    :- s/Num
@@ -209,7 +209,7 @@
 
 (g/deftype ViewportType (s/protocol Viewport))
 
-(g/s-defrecord Camera
+(s/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)
    position       :- Point3d
    rotation       :- Quat4d
