@@ -726,7 +726,7 @@
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
 (g/deftype Vector3dType Vector3d)
-(g/deftype Quat4dType Quat4d)
+(g/deftype Quat4dType   Quat4d)
 (g/deftype Matrix4dType Matrix4d)
 
 (g/defnode SceneNode

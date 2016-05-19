@@ -654,9 +654,8 @@
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
 
-(defn gen-resource-setter [connections]
-  (fn [basis self old-value new-value]
-    (let [project (get-project self)]
-      (concat
-       (when old-value (disconnect-resource-node project old-value self connections))
-       (when new-value (connect-resource-node project new-value self connections))))))
+(defmacro gen-resource-setter [basis self old-value new-value & connections]
+  `(let [project# (get-project ~self)]
+     (concat
+      (when ~old-value (disconnect-resource-node project# ~old-value ~self ~(vec connections)))
+      (when ~new-value (connect-resource-node project# ~new-value ~self ~(vec connections))))))
