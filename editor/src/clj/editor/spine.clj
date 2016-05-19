@@ -585,17 +585,21 @@
 
   (property spine-json resource/ResourceType
             (value (g/fnk [spine-json-resource] spine-json-resource))
-            (set (project/gen-resource-setter [[:resource :spine-json-resource]
-                                               [:content :spine-scene]]))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :spine-json-resource]
+                                                [:content :spine-scene])))
             (validate (g/fnk [spine-json spine-scene]
                              (validation/resource spine-json "Missing spine json"))))
 
   (property atlas resource/ResourceType
             (value (g/fnk [atlas-resource] atlas-resource))
-            (set (project/gen-resource-setter [[:resource :atlas-resource]
-                                               [:anim-data :anim-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :atlas-resource]
+                                                [:anim-data :anim-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:build-targets :dep-build-targets])))
             (validate (g/fnk [atlas anim-data]
                              (validation/resource atlas "Missing atlas"))))
 
@@ -657,10 +661,12 @@
 
   (property spine-scene resource/ResourceType
             (value (g/fnk [spine-scene-resource] spine-scene-resource))
-            (set (project/gen-resource-setter [[:resource :spine-scene-resource]
-                                               [:scene :spine-scene-scene]
-                                               [:aabb :aabb]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                     (project/gen-resource-setter basis self old-value new-value
+                                                  [:resource :spine-scene-resource]
+                                                  [:scene :spine-scene-scene]
+                                                  [:aabb :aabb]
+                                                  [:build-targets :dep-build-targets]))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (g/fnk [blend-mode]
                                 (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode)))
@@ -671,10 +677,11 @@
                                                      (map (comp :display-name second) options))}))))
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]
-                                               [:shader :material-shader]
-                                               [:sampler-data :sampler-data]
-                                               [:build-targets :dep-build-targets]])))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter [:resource :material-resource]
+                                                [:shader :material-shader]
+                                                [:sampler-data :sampler-data]
+                                                [:build-targets :dep-build-targets]))))
   (property default-animation g/Str
             #_(validate (g/fnk [default-animation anim-data]
                              (validation/animation default-animation anim-data)))

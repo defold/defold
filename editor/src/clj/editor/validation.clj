@@ -27,7 +27,7 @@
   ([field] (positive field (str "Property " (name field) " must be positive")))
   ([field message]
    `(when (neg? ~field)
-      (g/error-severe ~message)))))
+      (g/error-severe ~message))))
 
 (defn pos [fld msg] (when (neg? fld) (g/error-severe msg)))
 
@@ -40,7 +40,9 @@
 
 (defmacro resource
   ([field]
-   (resource field (str "Missing " (str/replace (name field) "-" " "))))
+   (let [msg# (str "Missing " (str/replace (name field) "-" " "))]
+     `(when (nil? ~field)
+        (g/error-warning ~msg#))))
   ([field message]
    `(when (nil? ~field)
       (g/error-warning ~message))))

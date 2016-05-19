@@ -435,12 +435,14 @@
   (property tile-source resource/ResourceType
             (dynamic label (g/fnk [] "Image"))
             (value (g/fnk [tile-source-resource] tile-source-resource))
-            (set (project/gen-resource-setter [[:resource :tile-source-resource]
-                                               [:texture-set-data :texture-set-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:anim-data :anim-data]]))
-            (validate (g/fnk [tile-source texture-set-data gpu-texture anim-data]
-                             (validation/resource tile-source "Missing image"                                                                                                                [texture-set-data gpu-texture anim-data]))))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :tile-source-resource
+                                                 [:texture-set-data :texture-set-data]
+                                                 [:gpu-texture :gpu-texture]
+                                                 [:anim-data :anim-data]])))
+            (validate (fn [tile-source texture-set-data gpu-texture anim-data]
+                        (validation/resource tile-source (str "Missing image"[texture-set-data gpu-texture anim-data])))))
 
   (property animation g/Str
             (validate (g/fnk [animation anim-data] (validation/animation animation anim-data)))
@@ -450,8 +452,10 @@
 
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]]))
-            (validate (g/fnk [material] (validation/resource material))))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :material-resource])))
+            (validate (fn [material] (validation/resource material))))
 
   (property blend-mode g/Keyword
             (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Particle$BlendMode)))
