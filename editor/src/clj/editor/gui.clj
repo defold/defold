@@ -675,7 +675,6 @@
 
 ;; Text nodes
 
-;;;HELP MIKE! java.lang.RuntimeException: Can't specify more than 20 params
 (g/defnode TextNode
   (inherits VisualNode)
 
@@ -1053,8 +1052,6 @@
                       (vec (sort-by :index child-outlines))
                       child-outlines)}))
 
-;;; HELP MIKE ! Assert failed: A function needs an argument this node can't supply.
-  ;; There is no input, output, or property called nil false
 (g/defnode NodeTree
   (property id g/Str (default (g/fnk [] ""))
             (dynamic visible (g/fnk [] false)))
@@ -1095,23 +1092,19 @@
 )
 
 
-;; HELP MIKE commenting out this
 (g/defnode TexturesNode
   (inherits outline/OutlineNode)
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Textures" 1 false [])))
 
-;; HELP MIKE commenting out this
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Fonts" 2 false [])))
 
-;; HELP MIKE commenting out this
 (g/defnode LayersNode
   (inherits outline/OutlineNode)
   (input child-indices g/Int :array)
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" 3 true [])))
 
-;; HELP MIKE commenting out this
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" 4 false [])))

@@ -225,31 +225,35 @@
 
   (property image resource/ResourceType
             (value (g/fnk [image-resource] image-resource))
-            #_(set (project/gen-resource-setter [[:resource :image-resource]
-                                               [:anim-data :anim-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:build-targets :dep-build-targets]]))
-            (validate (g/fnk [image] (validation/resource image))))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :image-resource]
+                                                [:anim-data :anim-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:build-targets :dep-build-targets])))
+            (validate (fn [image] (validation/resource image))))
 
   (property default-animation g/Str
-            (validate (g/fnk [default-animation anim-data]
+            (validate (fn [default-animation anim-data]
                              (validation/animation default-animation anim-data)))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
-            #_(set (project/gen-resource-setter [[:resource :material-resource]
-                                               [:build-targets :dep-build-targets]]))
-            (validate (g/fnk [material] (validation/resource material))))
+            (set (fn [basis self old-value new-value]
+                   (project/gen-resource-setter basis self old-value new-value
+                                                [:resource :material-resource
+                                                 [:build-targets :dep-build-targets]])))
+            (validate (fn [material] (validation/resource material))))
 
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode)))
             (dynamic edit-type (g/fnk []
-                                (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+                                      (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
+                                        {:type :choicebox
+                                         :options (zipmap (map first options)
+                                                          (map (comp :display-name second) options))}))))
 
   (input image-resource resource/ResourceType)
   (input anim-data g/Any)
@@ -260,12 +264,12 @@
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb types/AABBType (g/fnk [animation] (if animation
-                                         (let [hw (* 0.5 (:width animation))
-                                               hh (* 0.5 (:height animation))]
-                                           (-> (geom/null-aabb)
-                                             (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                             (geom/aabb-incorporate (Point3d. hw hh 0))))
-                                         (geom/null-aabb))))
+                                                   (let [hw (* 0.5 (:width animation))
+                                                         hh (* 0.5 (:height animation))]
+                                                     (-> (geom/null-aabb)
+                                                         (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
+                                                         (geom/aabb-incorporate (Point3d. hw hh 0))))
+                                                   (geom/null-aabb))))
   (output save-data g/Any :cached produce-save-data)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
