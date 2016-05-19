@@ -184,7 +184,7 @@
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [vertex-resource] vertex-resource))
     (set (fn [basis self old-value new-value]
-           (project/gen-resource-setter basis self old-value new-value
+           (project/resource-setter basis self old-value new-value
                                         [:resource :vertex-resource]
                                         [:full-source :vertex-source])))
     (validate (g/fnk [vertex-program] (validation/resource vertex-program))))
@@ -193,7 +193,7 @@
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [fragment-resource] fragment-resource))
     (set (fn [basis self old-value new-value]
-           (project/gen-resource-setter basis self old-value new-value
+           (project/resource-setter basis self old-value new-value
                                         [:resource :fragment-resource]
                                         [:full-source :fragment-source])))
     (validate (g/fnk [fragment-program] (validation/resource fragment-program))))

@@ -149,7 +149,7 @@
           (dynamic visible false)
           (value (g/fnk [display-profiles-resource] display-profiles-resource))
           (set (fn [basis self old-value new-value]
-                 (project/gen-resource-setter basis self old-value new-value
+                 (project/resource-setter basis self old-value new-value
                                               [:resource :display-profiles-resource]
                                               [:build-targets :dep-build-targets]
                                               [:profile-data :display-profiles-data]))))
@@ -157,35 +157,35 @@
             (dynamic visible false)
             (value (g/fnk [main-collection-resource] main-collection-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :main-collection-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property render resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [render-resource] render-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :render-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property texture-profiles resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [texture-profiles-resource] texture-profiles-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-profiles-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property gamepads resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [gamepads-resource] gamepads-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :gamepads-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property input-binding resource/ResourceType
             (dynamic visible false)
             (value (g/fnk [input-binding-resource] input-binding-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :input-binding-resource]
                                                 [:build-targets :dep-build-targets]))))
 

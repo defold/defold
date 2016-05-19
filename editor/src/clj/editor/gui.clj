@@ -893,7 +893,7 @@
   (property texture resource/ResourceType
             (value (g/fnk [texture-resource] texture-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter basis self old-value new-value
+                   (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-resource]
                                                 [:packed-image :image]
                                                 [:anim-data :anim-data]
@@ -935,7 +935,7 @@
   (property font resource/ResourceType
             (value (g/fnk [font-resource] font-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter
+                   (project/resource-setter
                     basis self old-value new-value
                     [:resource :font-resource]
                     [:font-map :font-map]
@@ -1228,7 +1228,7 @@
   (property script resource/ResourceType
             (value (g/fnk [script-resource] script-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter
+                   (project/resource-setter
                     basis self old-value new-value
                     [:resource :script-resource]
                     [:build-targets :dep-build-targets])))
@@ -1238,7 +1238,7 @@
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
-                   (project/gen-resource-setter
+                   (project/resource-setter
                     basis self old-value new-value
                     [:resource :material-resource]
                     [:shader :material-shader]
