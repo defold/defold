@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [internal.util :as util]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (g/defnode SuperType
@@ -20,9 +21,10 @@
   (inherits SubType))
 
 (deftest type-fns
-  (is (= #{:super-out :sub-out :_properties :_declared-properties} (g/declared-outputs SubType)))
-  (is (= #{:super-in :sub-in} (g/declared-inputs SubType)))
-  (is (= #{:super-prop :sub-prop :_output-jammers :_node-id} (set (keys (g/declared-properties SubType))))))
+  (is (= #{:_declared-properties :sub-out :sub-prop :_output-jammers :_properties :super-out :super-prop :_node-id}
+         (util/key-set (g/declared-outputs SubType))))
+  (is (= #{:super-in :sub-in} (util/key-set (g/declared-inputs SubType))))
+  (is (= #{:super-prop :sub-prop} (util/key-set (g/declared-properties SubType)))))
 
 (deftest input-prop-collision
   (is (thrown? AssertionError (eval '(g/defnode InputPropertyCollision
@@ -44,8 +46,11 @@
   (inherits SuperType)
   (inherits SimpleNode))
 
+(defn node-type [val-ref]
+  (:key @val-ref))
+
 (deftest isa-node-types
-  (is (isa? SubSubType SubType))
-  (is (isa? SubSubType SuperType))
-  (is (isa? MultiInheritance SimpleNode))
-  (is (isa? MultiInheritance SuperType)))
+  (is (isa? (node-type SubSubType) (node-type SubType)))
+  (is (isa? (node-type SubSubType) (node-type SuperType)))
+  (is (isa? (node-type MultiInheritance) (node-type SimpleNode)))
+  (is (isa? (node-type MultiInheritance) (node-type SuperType))))
