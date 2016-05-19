@@ -896,7 +896,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (isa? (node-type basis node) type)))
+    (isa? (:key @(node-type basis node)) (:key @type))))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
