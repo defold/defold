@@ -625,3 +625,15 @@
   (output overloading-single-valued g/Any :cached (g/fnk [overloading-single-valued] overloading-single-valued))
   (property valid-on-overloading-single-valued g/Any
             (validate (g/fnk [single-valued overloading-single-valued] overloading-single-valued))))
+
+(g/defnode PropertyWithSetter
+  (property string-property g/Str
+            (set (fn [basis self old-value new-value]))))
+
+(g/defnode InheritingSetter
+  (inherits PropertyWithSetter))
+
+(deftest inherited-property-setters-work
+  (with-clean-system
+    (let [[nid] (tx-nodes (g/make-node world InheritingSetter))]
+      (g/set-property! nid :string-property "bang!"))))
