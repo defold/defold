@@ -364,6 +364,7 @@
                              :validation-error validation-error})))
           [new-node deferred])
         (catch IllegalArgumentException iae
+          (def vt* value-type)
           (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {})))))))
 
 ;;; ----------------------------------------
@@ -398,18 +399,18 @@
         input-valtype   (input-type input-nodetype tgt-label)]
     (assert output-valtype
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
-                    src-id (:name output-nodetype) src-label
-                    tgt-id (:name input-nodetype) tgt-label
-                    (:name output-nodetype) src-label))
+                    src-id (:name @output-nodetype) src-label
+                    tgt-id (:name @input-nodetype) tgt-label
+                    (:name @output-nodetype) src-label))
     (assert input-valtype
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
-                    src-id (:name output-nodetype) src-label
-                    tgt-id (:name input-nodetype) tgt-label
-                    (:name input-nodetype) tgt-label))
+                    src-id (:name @output-nodetype) src-label
+                    tgt-id (:name @input-nodetype) tgt-label
+                    (:name @input-nodetype) tgt-label))
     (assert (type-compatible? output-valtype input-valtype)
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
-                    src-id (:name output-nodetype) src-label
-                    tgt-id (:name input-nodetype) tgt-label
+                    src-id (:name @output-nodetype) src-label
+                    tgt-id (:name @input-nodetype) tgt-label
                     (:k output-valtype) (:k input-valtype)))))
 
 
