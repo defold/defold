@@ -362,7 +362,7 @@
                                (mark-output-activated node-id property))]
     (if (empty? deferred)
       ctx
-      (update ctx :deferred-setters conj deferred))))
+      (update ctx :deferred-setters conj (with-meta deferred {:original-property property :original-node node-id})))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
@@ -594,10 +594,16 @@
         ctx (assoc ctx :deferred-setters [])]
     (if (empty? setters)
       ctx
-      (-> (reduce (fn [ctx [f node-id old-value new-value]]
-                    (if (gt/node-by-id-at (:basis ctx) node-id)
-                      (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
-                      ctx)) ctx setters)
+      (-> (reduce (fn [ctx [f node-id old-value new-value :as deferred]]
+                    (try
+                      (if (gt/node-by-id-at (:basis ctx) node-id)
+                        (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
+                        ctx)
+                      (catch clojure.lang.ArityException ae
+                        (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
+                                 (:node-type (gt/node-by-id-at (:basis ctx) node-id)))
+                        (throw ae))))
+                  ctx setters)
           recur))))
 
 (defn transact*
