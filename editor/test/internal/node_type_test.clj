@@ -27,13 +27,15 @@
   (is (= #{:super-prop :sub-prop} (util/key-set (g/declared-properties SubType)))))
 
 (deftest input-prop-collision
-  (is (thrown? AssertionError (eval '(g/defnode InputPropertyCollision
-                                      (input value g/Str)
-                                      (property value g/Str))))))
+  (is (thrown? AssertionError (eval '(do (require '[dynamo.graph :as g])
+                                         (g/defnode InputPropertyCollision
+                                           (input value g/Str)
+                                           (property value g/Str)))))))
 
 (deftest output-arg-missing
-  (is (thrown? AssertionError (eval '(g/defnode OutputArgMissing
-                                        (output out-value g/Str (g/fnk [missing-arg] nil)))))))
+  (is (thrown? AssertionError (eval '(do (require '[dynamo.graph :as g])
+                                         (g/defnode OutputArgMissing
+                                           (output out-value g/Str (g/fnk [missing-arg] nil))))))))
 
 (deftest deep-inheritance
   (with-clean-system
