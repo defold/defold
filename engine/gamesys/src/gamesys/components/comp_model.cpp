@@ -51,7 +51,7 @@ namespace dmGameSystem
         ModelWorld* model_world = new ModelWorld();
         // TODO: Expose model count in game.project
         // https://defold.fogbugz.com/default.asp?2115
-        const uint32_t max_component_count = 128;
+        const uint32_t max_component_count = 256;
         model_world->m_Components.SetCapacity(max_component_count);
         memset(model_world->m_Components.m_Objects.Begin(), 0, sizeof(ModelComponent) * max_component_count);
         *params.m_World = model_world;

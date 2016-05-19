@@ -142,6 +142,9 @@ namespace dmSound
 
         dmhash_t        m_Group;
 
+        void*			m_UserData;
+        FillSound		m_FillSound;
+
         uint32_t        m_Looping : 1;
         uint32_t        m_EndOfStream : 1;
         uint32_t        m_Playing : 1;
@@ -458,6 +461,38 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result NewStreamingSoundInstance(void* user_data, FillSound fill_sound, HSoundInstance* sound_instance)
+    {
+        SoundSystem* ss = g_SoundSystem;
+
+        if (ss->m_InstancesPool.Remaining() == 0)
+        {
+            *sound_instance = 0;
+            return RESULT_OUT_OF_INSTANCES;
+        }
+
+        uint16_t index = ss->m_InstancesPool.Pop();
+        SoundInstance* si = &ss->m_Instances[index];
+        assert(si->m_Index == 0xffff);
+
+        si->m_SoundDataIndex = 0xffff;
+        si->m_Index = index;
+        si->m_Gain.Reset(1.0f);
+        si->m_Looping = 0;
+        si->m_EndOfStream = 0;
+        si->m_Playing = 0;
+        si->m_Decoder = 0;
+        si->m_Group = MASTER_GROUP_HASH;
+        si->m_UserData = user_data;
+        si->m_FillSound = fill_sound;
+
+        *sound_instance = si;
+
+        return RESULT_OK;
+
+    }
+
+
     Result DeleteSoundInstance(HSoundInstance sound_instance)
     {
         SoundSystem* sound = g_SoundSystem;
@@ -473,6 +508,8 @@ namespace dmSound
         dmSoundCodec::DeleteDecoder(sound->m_CodecContext, sound_instance->m_Decoder);
         sound_instance->m_Decoder = 0;
         sound_instance->m_FrameCount = 0;
+        sound_instance->m_UserData = 0;
+        sound_instance->m_FillSound = 0;
 
         return RESULT_OK;
     }
@@ -866,7 +903,13 @@ namespace dmSound
         uint32_t decoded = 0;
 
         dmSoundCodec::Info info;
-        dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
+        if (instance->m_Decoder) {
+            dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
+        } else {
+        	info.m_BitsPerSample = 16;
+        	info.m_Channels = 1;
+        	info.m_Rate = 44100;
+        }
         if (info.m_BitsPerSample == 16 && info.m_Channels > SOUND_MAX_MIX_CHANNELS ) {
             dmLogError("Only mono/stereo with 16 bits per sample is supported");
             return;
@@ -896,11 +939,16 @@ namespace dmSound
 
             if (!is_muted)
             {
-                r = dmSoundCodec::Decode(sound->m_CodecContext,
-                                         instance->m_Decoder,
-                                         ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
-                                         n * stride,
-                                         &decoded);
+            	if (instance->m_FillSound) {
+            		instance->m_FillSound(instance->m_UserData, ((char*) instance->m_Frames) + instance->m_FrameCount * stride, n * stride, &decoded);
+            		r = dmSoundCodec::RESULT_OK;
+            	} else {
+                    r = dmSoundCodec::Decode(sound->m_CodecContext,
+                                             instance->m_Decoder,
+                                             ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
+                                             n * stride,
+                                             &decoded);
+            	}
             }
             else
             {
@@ -935,7 +983,8 @@ namespace dmSound
                     instance->m_FrameCount += decoded / stride;
 
                 } else {
-                    instance->m_EndOfStream = 1;
+                	if (!instance->m_FillSound)
+                		instance->m_EndOfStream = 1;
                 }
             }
         }

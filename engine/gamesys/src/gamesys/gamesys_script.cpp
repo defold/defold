@@ -15,6 +15,8 @@
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
 #include "scripts/script_spine_model.h"
+#include "scripts/script_gfx.h"
+#include "scripts/script_mesh.h"
 
 extern "C"
 {
@@ -47,6 +49,8 @@ namespace dmGameSystem
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptSpineModelRegister(context);
+        ScriptGfxRegister(context);
+        ScriptMeshRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -55,6 +59,8 @@ namespace dmGameSystem
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
         ScriptPhysicsFinalize(context);
+        ScriptGfxFinalize(context);
+        ScriptMeshFinalize(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {

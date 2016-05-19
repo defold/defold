@@ -2,3 +2,5 @@ server:
     port: 9000
 extender:
     config-url: file:examples/config.yml
+multipart.maxFileSize: 50Mb
+multipart.maxRequestSize: 50Mb

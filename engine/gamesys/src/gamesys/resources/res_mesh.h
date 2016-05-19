@@ -9,6 +9,14 @@
 
 namespace dmGameSystem
 {
+	// TODO: will be replaced when we have a proper mesh compiler
+	struct MeshVertex
+	{
+		float x, y, z;
+		float nx, ny, nz;
+		float u, v;
+	};
+
     struct Mesh
     {
         dmGraphics::HVertexBuffer m_VertexBuffer;

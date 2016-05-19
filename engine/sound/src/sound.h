@@ -11,6 +11,7 @@ namespace dmSound
 {
     typedef struct SoundData* HSoundData;
     typedef struct SoundInstance* HSoundInstance;
+    typedef void (*FillSound)(void* user_data, char* buffer, uint32_t buffer_size, uint32_t* decoded);
 
     enum SoundDataType
     {
@@ -80,6 +81,7 @@ namespace dmSound
     Result DeleteSoundData(HSoundData sound_data);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);
+    Result NewStreamingSoundInstance(void* user_data, FillSound fill_sound, HSoundInstance* sound_instance);
     Result DeleteSoundInstance(HSoundInstance sound_instance);
 
     Result SetInstanceGroup(HSoundInstance instance, const char* group);

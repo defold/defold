@@ -7,14 +7,6 @@
 
 namespace dmGameSystem
 {
-    // TODO: will be replaced when we have a proper mesh compiler
-    struct MeshVertex
-    {
-        float x, y, z;
-        float nx, ny, nz;
-        float u, v;
-    };
-
     void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, MeshVertex* vertex_buffer);
 
     dmResource::Result ResCreateMesh(const dmResource::ResourceCreateParams& params)
