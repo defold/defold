@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -144,7 +145,7 @@
 
   (property path g/Any
             (dynamic edit-type (g/fnk [source-resource]
-                                      {:type (g/protocol resource/Resource)
+                                      {:type (s/protocol resource/Resource)
                                        :ext (some-> source-resource resource/resource-type :ext)
                                        :to-type (fn [v] (:resource v))
                                        :from-type (fn [r] {:resource r :overrides {}})}))

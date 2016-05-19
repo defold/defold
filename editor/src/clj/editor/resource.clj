@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.core :as core])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
@@ -26,7 +27,7 @@
   (workspace [this])
   (resource-hash [this]))
 
-(g/deftype ResourceType (g/protocol Resource))
+(g/deftype ResourceType (s/protocol Resource))
 
 (defn relative-path [^File f1 ^File f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))

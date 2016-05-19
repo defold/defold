@@ -463,9 +463,9 @@
       InheritedPropertyDynamicsNode :another-property)))
 
 ;;; example taken from editor/collection.clj
-(g/deftype Vec3 [(g/one g/Num "x")
-                 (g/one g/Num "y")
-                 (g/one g/Num "z")])
+(g/deftype Vec3 [(s/one g/Num "x")
+                 (s/one g/Num "y")
+                 (s/one g/Num "z")])
 
 (g/defnode SceneNode
   (property position Vec3)

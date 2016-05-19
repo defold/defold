@@ -345,14 +345,14 @@
   (if (= old-value new-value)
     [node []]
     (let [node-type  (gt/node-type node basis)
-          value-type (s/maybe (some-> (property-type node-type property) deref :schema))
+          value-type (some-> (property-type node-type property) deref :schema s/maybe)
           setter-fn  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
           new-node   (gt/set-property node basis property new-value)
           deferred   (if setter-fn
                        [setter-fn (gt/node-id node) old-value new-value]
                        [])]
       (try
-        (if-let [validation-error (s/check value-type new-value)]
+        (if-let [validation-error (and value-type (s/check value-type new-value))]
           (do
             (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
             (throw (ex-info "SCHEMA-VALIDATION"

@@ -5,6 +5,7 @@
             [support.test-support :refer :all]
             [internal.util :refer :all]
             [editor.resource :as resource]
+            [schema.core :as s]
             [dynamo.integration.override-test-support :as support])
   (:import  [javax.vecmath Vector3d]))
 
@@ -640,7 +641,7 @@
 
 ;; Overloaded outputs with different types
 
-(def XYZ [(g/one g/Num "x") (g/one g/Num "y") (g/one g/Num "z")])
+(def XYZ [(s/one g/Num "x") (s/one g/Num "y") (s/one g/Num "z")])
 (g/deftype XYZType XYZ)
 
 (def Complex {g/Keyword Vector3d})
