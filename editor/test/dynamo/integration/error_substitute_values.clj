@@ -2,8 +2,10 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.node :as in]
+            [schema.core :as s]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
+(g/deftype StrArray [(s/maybe s/Str)])
 
 (g/defnode SimpleOutputNode
   (output my-output g/Str (g/fnk [] "scones")))
@@ -14,7 +16,7 @@
 
 (g/defnode SimpleArrayTestNode
   (input my-input g/Str :array)
-  (output passthrough [g/Str] (g/fnk [my-input] my-input)))
+  (output passthrough StrArray (g/fnk [my-input] my-input)))
 
 (deftest test-producing-values-without-substitutes
   (testing "values with no errors"
@@ -135,7 +137,7 @@
 
 (g/defnode SubArrayTestNode
   (input my-input g/Str :array :substitute (fn [_] ["beans"]))
-  (output passthrough [g/Str] (g/fnk [my-input] my-input)))
+  (output passthrough StrArray (g/fnk [my-input] my-input)))
 
 (deftest test-producing-vals-with-nil-substitutes
   (testing "values with nils do not trigger substitutes"
