@@ -47,6 +47,6 @@
    `(when (nil? ~field)
       (g/error-warning ~message))))
 
-(defmacro animation [animation anim-data]
-  `(when (not (contains? ~anim-data ~animation))
-     (g/error-severe (format "The animation \"%s\" could not be found in the specified image" ~animation))))
+(defn animation [animation anim-data]
+  (when (not (contains? anim-data animation))
+    (g/error-severe (format "The animation \"%s\" could not be found in the specified image" animation))))
