@@ -227,23 +227,23 @@
             (value (g/fnk [image-resource] image-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :image-resource]
-                                                [:anim-data :anim-data]
-                                                [:gpu-texture :gpu-texture]
-                                                [:build-targets :dep-build-targets])))
+                                            [:resource :image-resource]
+                                            [:anim-data :anim-data]
+                                            [:gpu-texture :gpu-texture]
+                                            [:build-targets :dep-build-targets])))
             (validate (fn [image] (validation/resource image))))
 
   (property default-animation g/Str
-            (validate (fn [default-animation anim-data]
-                             (validation/animation default-animation anim-data)))
+            (validate (g/fnk [default-animation anim-data]
+                        (validation/animation default-animation anim-data)))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :material-resource
-                                                 [:build-targets :dep-build-targets]])))
+                                            [:resource :material-resource
+                                             [:build-targets :dep-build-targets]])))
             (validate (fn [material] (validation/resource material))))
 
 
