@@ -511,21 +511,20 @@
                   :index index
                   :layer-index layer-index})))
 
-;;; Mike Help java.lang.RuntimeException: Can't specify more than 20 params
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  #_(property size types/Vec3 (default [0 0 0])
+  (property size types/Vec3 (default [0 0 0])
             (value (g/fnk [size size-mode texture-size]
                           (if (= :size-mode-auto size-mode)
                             (or texture-size size)
                             size)))
             (dynamic read-only? (g/fnk [size-mode type] (and (or (= type :type-box) (= type :type-pie))
                                                              (= :size-mode-auto size-mode)))))
-  #_(property size-mode g/Keyword (default :size-mode-auto)
+  (property size-mode g/Keyword (default :size-mode-auto)
             (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
             (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
-  #_(property texture g/Str
+  (property texture g/Str
             (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (keys texture-ids)))))
             (value (g/fnk [texture-input animation]
                      (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
@@ -545,33 +544,32 @@
                              (g/connect tex-node :anim-data self :anim-data)))
                          []))))))
 
-  #_(property clipping-mode g/Keyword (default :clipping-mode-none)
+  (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
-  #_(property clipping-visible g/Bool (default true))
-  #_(property clipping-inverted g/Bool (default false))
+  (property clipping-visible g/Bool (default true))
+  (property clipping-inverted g/Bool (default false))
 
   _(input texture-input g/Str)
   _(input anim-data g/Any)
   (input textures IDMap)
   (input texture-ids IDMap)
-  #_(output texture-size g/Any :cached (g/fnk [anim-data texture]
+  (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
                                               [(double (:width anim)) (double (:height anim)) 0.0]))))
 
 ;; Box nodes
 
-;;; Mike Help java.lang.RuntimeException: Can't specify more than 20 params
 (g/defnode BoxNode
   (inherits ShapeNode)
 
-  #_(property slice9 types/Vec4 (default [0 0 0 0]))
+  (property slice9 types/Vec4 (default [0 0 0 0]))
 
-  #_(display-order (into base-display-order
+  (display-order (into base-display-order
                        [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
-  #_(output scene-renderable-user-data g/Any :cached
+  (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color slice9 texture anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
                        offset (pivot-offset pivot size)
@@ -603,27 +601,26 @@
 
 ;; Pie nodes
 
-;;; Mike Help java.lang.RuntimeException: Can't specify more than 20 params
 (g/defnode PieNode
   (inherits ShapeNode)
 
-  #_(property outer-bounds g/Keyword (default :piebounds-ellipse)
+  (property outer-bounds g/Keyword (default :piebounds-ellipse)
             (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
-  #_(property inner-radius g/Num (default 0.0))
-  #_(property perimeter-vertices g/Num (default 10.0))
-  #_(property pie-fill-angle g/Num (default 360.0))
+  (property inner-radius g/Num (default 0.0))
+  (property perimeter-vertices g/Num (default 10.0))
+  (property pie-fill-angle g/Num (default 360.0))
 
-  #_(display-order (into base-display-order
+  (display-order (into base-display-order
                        [:size-mode :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  #_(output pie-data g/KeywordMap (g/fnk [outer-bounds inner-radius perimeter-vertices pie-fill-angle]
+  (output pie-data g/KeywordMap (g/fnk [outer-bounds inner-radius perimeter-vertices pie-fill-angle]
                                             {:outer-bounds outer-bounds :inner-radius inner-radius
                                              :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle}))
 
   ;; Overloaded outputs
-  #_(output scene-renderable-user-data g/Any :cached
+  (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color pie-data texture anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])

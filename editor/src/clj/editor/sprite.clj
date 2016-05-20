@@ -231,7 +231,7 @@
                                             [:anim-data :anim-data]
                                             [:gpu-texture :gpu-texture]
                                             [:build-targets :dep-build-targets])))
-            (validate (fn [image] (validation/resource image))))
+            (validate (g/fnk [image] (validation/resource image))))
 
   (property default-animation g/Str
             (validate (g/fnk [default-animation anim-data]
@@ -244,7 +244,7 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource
                                              [:build-targets :dep-build-targets]])))
-            (validate (fn [material] (validation/resource material))))
+            (validate (g/fnk [material] (validation/resource material))))
 
 
   (property blend-mode g/Any (default :blend_mode_alpha)
