@@ -150,7 +150,7 @@
   (and (fn? f) (contains? (meta f) :schema)))
 
 (defn pfnksymbol? [x] (or (pfnk? x) (and (symbol? x) (pfnk? (vgr x)))))
-(defn pfnkvar?    [x] (or (pfnk? x) (and (var? x) (pfnk? (var-get-recursive x)))))
+(defn pfnkvar?    [x] (or (pfnk? x) (and (var? x) (fn? (var-get-recursive x)))))
 
 (defn- quoted-var? [x] (and (seq? x) (= 'var (first x))))
 (defn- pfnk-form?  [x] (and (seq? x) (symbol? (first x)) (= "fnk" (name (first x)))))
