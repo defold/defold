@@ -405,11 +405,8 @@
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
         old-value (gt/get-property node basis property)]
-    (let [[new-node tx-data] (in/tx-invoke-setter basis node old-value nil)]
-      (cond-> (gt/replace-node ctx node new-node)
-
-        (not (empty? tx-data))
-        (apply-tx tx-data)))))
+    (invoke-setter ctx node-id node property old-value nil)
+    ctx))
 
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
   (let [basis (:basis ctx)]
