@@ -877,17 +877,31 @@ Defold Orange       #fd6623             Guides etc
 #toolbar {
   -fx-background-color: #484d54;
   -fx-border-color: #484d54;
-  -fx-border-width: 0 1;
+  -fx-border-width: 1 1;
   -fx-padding: 0;
   -fx-spacing: 1; }
 
-#toolbar > .toggle-button {
+#toolbar .separator {
+  -fx-background-color: #484d54;
+  -fx-border-width: 0 1;
+  -fx-padding: 2;
+  -fx-spacing: 1; }
+
+#toolbar .separator .line {
+  -fx-background-color: #484d54;
+  -fx-border-color: #484d54; }
+
+#toolbar > .cell {
+  -fx-alignment: center; }
+
+#toolbar > .toggle-button, #toolbar > .cell {
   -fx-background-color: #222426, #272b30;
   -fx-background-insets: 0, 0 0 2 0;
   -fx-background-radius: 0;
   -fx-border-radius: 0;
   -fx-border-width: 0;
-  -fx-padding: 5px; }
+  -fx-padding: 5px;
+  -fx-spacing: 5px; }
 
 #toolbar > .toggle-button:hover {
   -fx-background-color: #1e2021; }
