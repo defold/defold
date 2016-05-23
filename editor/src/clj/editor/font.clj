@@ -19,7 +19,8 @@
             [editor.material :as material]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [editor.types :as types])
+            [editor.types :as types]
+            [schema.core :as schema])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [editor.gl.shader ShaderLifecycle]
@@ -145,9 +146,9 @@
             max-width (reduce max 0 line-widths)]
         [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
-(def FontData {:type g/Keyword
-               :font-map g/Any
-               :texture g/Any})
+(def FontData {:type schema/Keyword
+               :font-map schema/Any
+               :texture schema/Any})
 
 (g/deftype FontDataType FontData)
 
