@@ -1077,7 +1077,7 @@
                                  ~(call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop description
                                                                          (get-in property-definition [:value :arguments])
                                                                          `(-> ~self-name (gt/node-type (:basis ~ctx-name)) declared-properties ~prop :value :fn))))
-        validate-expr       (property-validation-exprs self-name ctx-name nodeid-sym description prop)]
+        validate-expr       (property-validation-exprs self-name ctx-name description nodeid-sym prop)]
     (if validation
       `(let [v# ~get-expr]
          (if (:skip-validation ~ctx-name)
@@ -1148,7 +1148,7 @@
     forms))
 
 (defn property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
-(defn property-has-no-overriding-output? [description label] (not (contains? (:output description) label)))
+(defn property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
 (defn has-validation?                    [description label] (get-in description [:property label :validate]))
 
 (defn apply-default-property-shortcut [self-name ctx-name property-name description forms]
@@ -1240,7 +1240,7 @@
   (if (and (desc-has-property? description transform)
            (property-has-no-overriding-output? description transform)
            (has-validation? description transform))
-    (let [validate-expr (property-validation-exprs self-name ctx-name nodeid-sym description transform)]
+    (let [validate-expr (property-validation-exprs self-name ctx-name description nodeid-sym transform)]
       `(if (or (:skip-validation ~ctx-name) (ie/error? ~output-sym))
          ~forms
          (let [error# ~validate-expr
