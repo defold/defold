@@ -213,28 +213,6 @@ public class ModelTest {
     }
 
     @Test
-    public void testRemoveUserOwnerOfProjects() throws Exception {
-        List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
-        assertEquals(2, allProjects.size());
-
-        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
-        Set<Project> projects = u.getProjects();
-        em.getTransaction().begin();
-        // First remove all projects the user owns
-        for (Project p : projects) {
-            if (p.getOwner().equals(u)) {
-                ModelUtil.removeProject(em, p);
-            }
-        }
-        // Then remove user
-        ModelUtil.removeUser(em, u);
-        em.getTransaction().commit();
-
-        allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
-        assertEquals(1, allProjects.size());
-    }
-
-    @Test
     public void testRemoveUserNotOwnerOfProjects() throws Exception {
         // User doesn't owns any projects
         User u = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);

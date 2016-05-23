@@ -1,10 +1,9 @@
 package com.dynamo.cr.server.archive.test;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.zip.ZipOutputStream;
-
+import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.server.ConfigurationProvider;
+import com.dynamo.cr.server.git.archive.ArchiveCache;
+import com.dynamo.cr.server.git.archive.GitArchiveProvider;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.After;
@@ -13,10 +12,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.dynamo.cr.archive.ArchiveCache;
-import com.dynamo.cr.archive.GitArchiveProvider;
-import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.server.ConfigurationProvider;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.zip.ZipOutputStream;
 
 public class ArchiveCacheTest {
     Configuration configuration;
