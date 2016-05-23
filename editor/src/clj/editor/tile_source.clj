@@ -259,7 +259,7 @@
                                         [:resource :image-resource]
                                         [:content :image-content])))
     (validate (g/fnk [image-resource image-content]
-                     (validation/resource image-resource "Missing image"))))
+                     (validation/resource :image-resource image-resource "Missing image"))))
 
   (property tile-width g/Int
             (default 0)

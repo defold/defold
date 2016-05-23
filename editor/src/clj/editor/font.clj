@@ -327,7 +327,7 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :font-resource])))
-            (validate (g/fnk [font] (validation/resource font))))
+            (validate (g/fnk [font] (validation/resource :font font))))
 
   (property material resource/ResourceType
             (value (g/fnk [material-resource] material-resource))
@@ -337,7 +337,7 @@
                                             [:build-targets :dep-build-targets]
                                             [:samplers :material-samplers]
                                             [:shader :material-shader])))
-            (validate (g/fnk [material] (validation/resource material))))
+            (validate (g/fnk [material] (validation/resource :material material))))
 
   (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                       (or (= type :defold) (= type :distance-field))))))
