@@ -39,13 +39,13 @@
                (get options :blend-mode-add-alpha) (get options :blend-mode-add)))))
 
 (defn resource
-  ([field]
-   (let [msg# (str "Missing " (str/replace (name field) "-" " "))]
-     `(when (nil? ~field)
-        (g/error-warning ~msg#))))
-  ([field message]
-   `(when (nil? ~field)
-      (g/error-warning ~message))))
+  ([field-name field]
+   (let [msg (str "Missing " (str/replace (name field-name) "-" " "))]
+     (when (nil? field)
+       (g/error-warning msg))))
+  ([field-name field message]
+   (when (nil? field)
+     (g/error-warning message))))
 
 (defn animation [animation anim-data]
   (when (not (contains? anim-data animation))
