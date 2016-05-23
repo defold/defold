@@ -149,7 +149,7 @@ public class HTML5Bundler implements IBundler {
 
         String js = Bob.getDmengineExe(Platform.JsWeb, project.hasOption("debug"));
         String engine = Paths.get(js).getFileName().toString();
-        		
+
         String jsMemInit = js + ".mem";
 
         File projectRoot = new File(project.getRootDirectory());
@@ -167,6 +167,9 @@ public class HTML5Bundler implements IBundler {
                 customHeapSize = size.intValue();
             }
         }
+        if (customHeapSize < 0) {
+            customHeapSize = 256*1024*1024; // Same value as engine is compiled with; 268435456
+        }
 
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("DEFOLD_ENGINE", engine);
@@ -174,11 +177,7 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
         infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
-        if (0 < customHeapSize) {
-            infoData.put("DEFOLD_STACK_SIZE", String.format("TOTAL_MEMORY: %d, \n", customHeapSize));
-        } else {
-            infoData.put("DEFOLD_STACK_SIZE", "");
-        }
+        infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
 
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 
