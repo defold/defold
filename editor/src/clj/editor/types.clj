@@ -226,17 +226,17 @@
 (g/deftype CameraType Camera)
 
 (g/deftype OutlineCommand
-  {:label      s/Str
-   :enabled    s/Bool
-   :command-fn s/Any
-   :context    s/Any})
+    {:label      (s/maybe s/Str)
+     :enabled    (s/maybe  s/Bool)
+     :command-fn  (s/maybe  s/Any)
+     :context    (s/maybe  s/Any)})
 
 (g/deftype OutlineItem
-  {:label    s/Str
-   :icon     Icon
-   :node-ref Long
-   :commands [(:schema @OutlineCommand)]
-   :children [s/Any]})
+    {:label    (s/maybe s/Str)
+     :icon     (s/maybe Icon)
+     :node-ref (s/maybe Long)
+     :commands [(s/maybe (:schema @OutlineCommand))]
+     :children [(s/maybe s/Any)]})
 
 (g/deftype RunnableType Runnable)
 (g/deftype ParentType Parent)
