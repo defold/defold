@@ -268,6 +268,8 @@
       (is (= :out (-> (g/node-value c :poll-validate-prop-or-out-kw)
                     :causes
                     first
+                    :causes
+                    first
                     :user-data
                     :value)))
       (let [props (g/node-value c :_properties)]
