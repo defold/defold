@@ -38,7 +38,7 @@
        (format "\"%s\" has been replaced by \"%s\"",
                (get options :blend-mode-add-alpha) (get options :blend-mode-add)))))
 
-(defmacro resource
+(defn resource
   ([field]
    (let [msg# (str "Missing " (str/replace (name field) "-" " "))]
      `(when (nil? ~field)

@@ -455,7 +455,7 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
-            (validate (fn [material] (validation/resource material))))
+            (validate (g/fnk [material] (validation/resource material))))
 
   (property blend-mode g/Keyword
             (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Particle$BlendMode)))
