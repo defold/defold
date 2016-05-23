@@ -590,7 +590,7 @@
                                                 [:resource :spine-json-resource]
                                                 [:content :spine-scene])))
             (validate (g/fnk [spine-json spine-scene]
-                             (validation/resource spine-json "Missing spine json"))))
+                             (validation/resource :spine-json spine-json "Missing spine json"))))
 
   (property atlas resource/ResourceType
             (value (g/fnk [atlas-resource] atlas-resource))
@@ -601,7 +601,7 @@
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
             (validate (g/fnk [atlas anim-data]
-                             (validation/resource atlas "Missing atlas"))))
+                             (validation/resource :atlas atlas "Missing atlas"))))
 
   (property sample-rate g/Num)
 

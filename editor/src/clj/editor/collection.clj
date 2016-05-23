@@ -329,7 +329,7 @@
                                         [:node-outline  :source-outline]
                                         [:scene         :scene]
                                         [:build-targets :build-targets])))
-    (validate (g/fnk [path scene] (validation/resource path "Missing prototype"))))
+    (validate (g/fnk [path scene] (validation/resource :path path "Missing prototype"))))
 
   (input source g/Any)
   (input source-resource resource/ResourceType)

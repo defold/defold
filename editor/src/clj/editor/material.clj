@@ -196,7 +196,7 @@
            (project/resource-setter basis self old-value new-value
                                         [:resource :fragment-resource]
                                         [:full-source :fragment-source])))
-    (validate (g/fnk [fragment-program] (validation/resource fragment-program))))
+    (validate (g/fnk [fragment-program] (validation/resource :fragment-program fragment-program))))
 
   (output form-data g/Any :cached produce-form-data)
 
