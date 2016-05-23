@@ -1,6 +1,6 @@
 package com.dynamo.cr.server.archive.test;
 
-import com.dynamo.cr.archive.ZipUtil;
+import com.dynamo.cr.server.git.archive.ZipUtil;
 import org.junit.Test;
 
 import java.io.IOException;

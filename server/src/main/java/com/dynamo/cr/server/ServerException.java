@@ -7,7 +7,7 @@ import javax.ws.rs.core.Response.Status;
  * as transactions are only rollbacked by default for RuntimeExceptions
  */
 public class ServerException extends RuntimeException {
-
+    private static final long serialVersionUID = 6946638416446500335L;
     private Status status = Status.BAD_REQUEST;
 
     public ServerException(String msg) {
@@ -31,10 +31,4 @@ public class ServerException extends RuntimeException {
     public Status getStatus() {
         return status;
     }
-
-    /**
-     *
-     */
-    private static final long serialVersionUID = 6946638416446500335L;
-
 }
