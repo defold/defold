@@ -175,7 +175,7 @@ def to_cxx_struct(context, pp, message_type):
         elif f.type  == FieldDescriptor.TYPE_BYTES:
             pass
         elif f.type == FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            l += len(context.get_field_type_name(f))
+            l += len(align_str + context.get_field_type_name(f))
         else:
             l += len(align_str + type_to_ctype[f.type])
 
