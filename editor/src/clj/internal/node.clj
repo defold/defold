@@ -329,8 +329,6 @@
     (println "Should match:" (s/explain output-schema))
     (println "But:" error)))
 
-
-
 (defn tx-invoke-setter
   "Internal plumbing for assigning values to properties. Returns a
   vector of [node tx-data].
@@ -1423,10 +1421,14 @@
   gt/Node
   (node-id             [this]                      node-id)
   (node-type           [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
-  (get-property        [this basis property]       (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
-  (set-property        [this basis property value] (if (= :_output-jammers property)
-                                                     (throw (ex-info "Not possible to mark override nodes as defective" {}))
-                                                     (assoc-in this [:properties property] value)))
+  (get-property        [this basis property]
+    (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
+  (set-property        [this basis property value]
+    (if (= :_output-jammers property)
+      (throw (ex-info "Not possible to mark override nodes as defective" {}))
+      (if (nil? value)
+        (update this :properties dissoc property)
+        (assoc-in this [:properties property] value))))
 
   gt/Evaluation
   (produce-value       [this output evaluation-context]
