@@ -228,7 +228,7 @@ namespace dmHttpClient
             return 0;
 
         char* socks_proxy = getenv("DMSOCKS_PROXY");
-        dmSocket::Address proxy_address = 0;
+        dmSocket::Address proxy_address;
         if (socks_proxy)
         {
             r = dmSocket::GetHostByName(socks_proxy, &proxy_address);

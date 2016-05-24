@@ -22,6 +22,89 @@
 #include "log.h"
 #include "socket_private.h"
 
+// Helper and utility functions
+namespace dmSocket
+{
+
+    bool IsIPv4(dmSocket::Socket socket)
+    {
+        struct sockaddr_storage ss = { 0 };
+        socklen_t sslen = 0;
+        int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
+
+        return (result == 0) && (ss.ss_family == AF_INET);
+    }
+
+    bool IsIPv4(dmSocket::Address address)
+    {
+        return address.m_family == AF_INET;
+    }
+
+    bool IsIPv6(dmSocket::Socket socket)
+    {
+        struct sockaddr_storage ss = { 0 };
+        socklen_t sslen = 0;
+        int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
+
+        return (result == 0) && (ss.ss_family == AF_INET6);
+    }
+
+    bool IsIPv6(dmSocket::Address address)
+    {
+        return address.m_family == AF_INET6;
+    }
+
+    void Htonl(dmSocket::Address src, dmSocket::Address* dst)
+    {
+        for (int i = 0; i < (sizeof(src.m_address) / sizeof(uint32_t)); ++i)
+        {
+            dst->m_address[i] = htonl(src.m_address[i]);
+        }
+    }
+
+    void Htonl(uint32_t src, dmSocket::Address* dst)
+    {
+        dst->m_address[0] = 0x00000000;
+        dst->m_address[1] = 0x00000000;
+        dst->m_address[2] = 0x0000ffff;
+        dst->m_address[3] = htonl(src);
+    }
+
+    void Ntohl(dmSocket::Address src, dmSocket::Address* dst)
+    {
+        for (int i = 0; i < (sizeof(src.m_address) / sizeof(uint32_t)); ++i)
+        {
+            dst->m_address[i] = ntohl(src.m_address[i]);
+        }
+    }
+
+    void Ntohl(uint32_t src, dmSocket::Address* dst)
+    {
+        dst->m_address[0] = 0x00000000;
+        dst->m_address[1] = 0x00000000;
+        dst->m_address[2] = 0xffff0000;
+        dst->m_address[3] = ntohl(src);
+    }
+
+    uint32_t BitDifference(dmSocket::Address a, dmSocket::Address b)
+    {
+        uint32_t difference = 0;
+        for (int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
+        {
+            uint32_t current = a.m_address[i] ^ b.m_address[i];
+            while (current != 0)
+            {
+                difference += current % 2;
+                current = current >> 1;
+            }
+        }
+
+        return difference;
+    }
+
+};
+
+
 namespace dmSocket
 {
 
@@ -55,7 +138,7 @@ namespace dmSocket
 
     Result New(Type type, Protocol protocol, Socket* socket)
     {
-        int s = ::socket(PF_INET, type, protocol);
+        int s = ::socket(PF_INET6, type, protocol);
         if (s < 0)
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -104,9 +187,9 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
-        struct ip_mreq group;
-        group.imr_multiaddr.s_addr = htonl(multi_addr);
-        group.imr_interface.s_addr = htonl(interface_addr);
+        struct ipv6_mreq group;
+        Htonl(multi_addr, &multi_addr);
+        memcpy(&group.ipv6mr_multiaddr, multi_addr.m_address, sizeof(struct in6_addr));
 
         int ret = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
         if (ret < 0)
@@ -122,8 +205,10 @@ namespace dmSocket
 
     Result SetMulticastIf(Socket socket, Address address)
     {
-        struct in_addr if_addr;
-        if_addr.s_addr = htonl(address);
+        struct in6_addr if_addr;
+        Htonl(address, &address);
+        memcpy(&if_addr.s6_addr, address.m_address, sizeof(struct in6_addr));
+
         int ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *)&if_addr, sizeof(if_addr));
         if (ret != 0)
             return NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -154,12 +239,8 @@ namespace dmSocket
 
     Result Accept(Socket socket, Address* address, Socket* accept_socket)
     {
-        struct sockaddr_in sock_addr;
-#ifdef _WIN32
-        int sock_addr_len = sizeof(sock_addr);
-#else
+        struct sockaddr_in6 sock_addr;
         socklen_t sock_addr_len = sizeof(sock_addr);
-#endif
         int s = accept(socket, (struct sockaddr *) &sock_addr, &sock_addr_len);
 
         if (s < 0)
@@ -170,17 +251,19 @@ namespace dmSocket
         else
         {
             *accept_socket = s;
-            *address = ntohl(sock_addr.sin_addr.s_addr);
+            memcpy(address->m_address, &sock_addr.sin6_addr, sizeof(struct in6_addr));
+            Ntohl(*address, address);
             return RESULT_OK;
         }
     }
 
     Result Bind(Socket socket, Address address, int port)
     {
-        struct sockaddr_in sock_addr;
-        sock_addr.sin_family = AF_INET;
-        sock_addr.sin_addr.s_addr = htonl(address);
-        sock_addr.sin_port  = htons(port);
+        struct sockaddr_in6 sock_addr;
+        sock_addr.sin6_family = AF_INET6;
+        memcpy(&sock_addr.sin6_addr, address.m_address, sizeof(struct in6_addr));
+        sock_addr.sin6_port = htons(port);
+
         int ret = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
 
         if (ret < 0)
@@ -195,10 +278,10 @@ namespace dmSocket
 
     Result Connect(Socket socket, Address address, int port)
     {
-        struct sockaddr_in sock_addr;
-        sock_addr.sin_family = AF_INET;
-        sock_addr.sin_addr.s_addr = htonl(address);
-        sock_addr.sin_port  = htons(port);
+        struct sockaddr_in6 sock_addr;
+        sock_addr.sin6_family = AF_INET6;
+        memcpy(&sock_addr.sin6_addr, address.m_address, sizeof(struct in6_addr));
+        sock_addr.sin6_port = htons(port);
 
         int ret = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
 
@@ -259,16 +342,16 @@ namespace dmSocket
 
     Result SendTo(Socket socket, const void* buffer, int length, int* sent_bytes, Address to_addr, uint16_t to_port)
     {
-        struct sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl(to_addr);
-        addr.sin_port = htons(to_port);
+        struct sockaddr_in6 sock_addr;
+        sock_addr.sin6_family = AF_INET6;
+        memcpy(&sock_addr.sin6_addr, to_addr.m_address, sizeof(struct in6_addr));
+        sock_addr.sin6_port = htons(to_port);
 
         *sent_bytes = 0;
 #if defined(_WIN32)
-        int s = sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &addr, sizeof(addr));
+        int s = sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #else
-        ssize_t s = sendto(socket, buffer, length, 0, (const sockaddr*) &addr, sizeof(addr));
+        ssize_t s = sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #endif
         if (s < 0)
         {
@@ -304,15 +387,15 @@ namespace dmSocket
     Result ReceiveFrom(Socket socket, void* buffer, int length, int* received_bytes,
                        Address* from_addr, uint16_t* from_port)
     {
-        struct sockaddr_in from;
+        struct sockaddr_in6 sock_addr;
 
         *received_bytes = 0;
 #ifdef _WIN32
-        int fromlen = sizeof(from);
-        int r = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &from, &fromlen);
+        int sock_addr_len = sizeof(sock_addr);
+        int r = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &sock_addr, &sock_addr_len);
 #else
-        socklen_t fromlen = sizeof(from);
-        int r = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &from, &fromlen);
+        socklen_t sock_addr_len = sizeof(sock_addr);
+        int r = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &sock_addr_len);
 #endif
 
         if (r < 0)
@@ -322,8 +405,9 @@ namespace dmSocket
         else
         {
             *received_bytes = r;
-            *from_addr = ntohl(from.sin_addr.s_addr);
-            *from_port = ntohs(from.sin_port);
+            memcpy(from_addr->m_address, &sock_addr.sin6_addr, sizeof(struct in6_addr));
+            Ntohl(*from_addr, from_addr);
+            *from_port = ntohs(sock_addr.sin6_port);
             return RESULT_OK;
         }
     }
@@ -380,21 +464,18 @@ namespace dmSocket
 
     Result GetName(Socket socket, Address* address, uint16_t* port)
     {
-        struct sockaddr_in addr;
-#ifdef _WIN32
-        int addr_len = sizeof(addr);
-#else
-        socklen_t addr_len = sizeof(addr);
-#endif
-        int r = getsockname(socket, (sockaddr *) &addr, &addr_len);
+        struct sockaddr_in6 sock_addr;
+        socklen_t addr_len = sizeof(sock_addr);
+        int r = getsockname(socket, (sockaddr *) &sock_addr, &addr_len);
         if (r < 0)
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
         }
         else
         {
-            *address = ntohl(addr.sin_addr.s_addr);
-            *port = ntohs(addr.sin_port);
+            memcpy(address->m_address, &sock_addr.sin6_addr, sizeof(struct in6_addr));
+            Ntohl(*address, address);
+            *port = ntohs(sock_addr.sin6_port);
             return RESULT_OK;
         }
     }
@@ -421,7 +502,7 @@ namespace dmSocket
 #ifdef __ANDROID__
         // NOTE: This method should probably be used on Linux as well
         // fall-back to 127.0.0.1
-        *address = AddressFromIPString("127.0.0.1");
+        dmSocket::GetHostByName("localhost", address);
 
         struct ifreq *ifr;
         struct ifconf ifc;
@@ -445,11 +526,12 @@ namespace dmSocket
         // equivalent size for all items
         int numif = ifc.ifc_len / sizeof(struct ifreq);
         for (int i = 0; i < numif; i++) {
-          struct ifreq *r = &ifr[i];
-          struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
-          if (strcmp(r->ifr_name, "lo") != 0) {
-              *address = ntohl(sin->sin_addr.s_addr);
-          }
+            struct ifreq *r = &ifr[i];
+            struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
+            if (strcmp(r->ifr_name, "lo") != 0)
+            {
+                Ntohl(sin->sin_addr.s_addr, address);
+            }
         }
 
         close(s);
@@ -469,7 +551,7 @@ namespace dmSocket
         r = dmSocket::GetHostByName(hostname, address);
         if (r != RESULT_OK)
         {
-            *address = AddressFromIPString("127.0.0.1");
+            dmSocket::GetHostByName("localhost", address);
             static bool warning_emitted = false;
             if (!warning_emitted)
             {
@@ -572,47 +654,69 @@ namespace dmSocket
         return SetSockoptTime(socket, SOL_SOCKET, SO_RCVTIMEO, timeout);
     }
 
-    Address AddressFromIPString(const char* address)
+    Address AddressFromIPString(const char* hostname)
     {
-        return ntohl(inet_addr(address));
+        Address address;
+        GetHostByName(hostname, &address);
+        return address;
     }
 
     char* AddressToIPString(Address address)
     {
-        struct in_addr a;
-        a.s_addr = htonl(address);
-        return strdup(inet_ntoa(a));
+        // Maximum (theoretical) length of an IPv6 address is 45 characters.
+        // ffff:ffff:ffff:ffff:ffff:ffff:192.168.144.120
+        char addrstr[46] = { 0 };
+        inet_ntop(AF_INET6, address.m_address, addrstr, sizeof(addrstr));
+        return strdup(addrstr);
     }
 
     Result GetHostByName(const char* name, Address* address)
     {
-#ifdef __linux__
-        // gethostbyname is *not* reentrant on linux
+        Result result = RESULT_UNKNOWN;
 
-        struct hostent hbuf, *host;
-        char tmp[1024];
-        int gh_errno;
-        int r = gethostbyname_r(name, &hbuf, tmp, sizeof(tmp), &host, &gh_errno);
-        if (r == 0) {
-            if (host) {
-                *address = ntohl(*((unsigned long *) host->h_addr_list[0]));
-                return RESULT_OK;
-            } else {
-                // gethostbyname_r is strange. Might return ok but with no host
-                return RESULT_HOST_NOT_FOUND;
+        memset(address, 0x0, sizeof(Address));
+        struct addrinfo hints;
+        struct addrinfo* res;
+
+        memset(&hints, 0x0, sizeof(hints));
+        hints.ai_family = PF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags |= AI_CANONNAME;
+
+        // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.
+        if (getaddrinfo(name, NULL, &hints, &res) == 0)
+        {
+            struct addrinfo* iterator = res;
+            while (iterator && result == RESULT_UNKNOWN)
+            {
+                // There could be (and probably are) multiple results for the same
+                // address. The correct way to handle this would be to return a
+                // list of addresses and then try each of them until one succeeds.
+                if (iterator->ai_family == AF_INET)
+                {
+                    sockaddr_in* saddr = (struct sockaddr_in *) iterator->ai_addr;
+                    Htonl(saddr->sin_addr.s_addr, address);
+                    result = RESULT_OK;
+                }
+                else if (iterator->ai_family == AF_INET6)
+                {
+                    sockaddr_in6* saddr = (struct sockaddr_in6 *) iterator->ai_addr;
+                    memcpy(address->m_address, &saddr->sin6_addr, sizeof(struct in6_addr));
+                    Htonl(*address, address);
+                    result = RESULT_OK;
+                }
+
+                iterator = iterator->ai_next;
             }
-        } else {
-            return HNATIVETORESULT(gh_errno);
+
+            freeaddrinfo(res); // Free the head of the linked list
         }
-#else
-        struct hostent* host = gethostbyname(name);
-        if (host) {
-            *address = ntohl(*((unsigned long *) host->h_addr_list[0]));
-            return RESULT_OK;
-        } else {
-            return HNATIVETORESULT(DM_SOCKET_HERRNO);
+        else
+        {
+            return RESULT_HOST_NOT_FOUND;
         }
-#endif
+
+        return result;
     }
 
     #define DM_SOCKET_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;

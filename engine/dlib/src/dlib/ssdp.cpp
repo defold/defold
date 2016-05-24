@@ -254,13 +254,12 @@ namespace dmSSDP
 
     static const char* ReplaceIfAddrVar(void *user_data, const char *key)
     {
-        static char tmp[32];
         dmSocket::Address saddr = *((dmSocket::Address*) user_data);
         if (strcmp(key, "HOSTNAME") == 0)
         {
-            DM_SNPRINTF(tmp, sizeof(tmp), "%u.%u.%u.%u", (saddr >> 24) & 0xff, (saddr >> 16) & 0xff, (saddr >> 8) & 0xff, (saddr >> 0) & 0xff);
-            return tmp;
+            return dmSocket::AddressToIPString(saddr);
         }
+
         return 0;
     }
 
@@ -357,8 +356,9 @@ bail:
     {
         if (ssdp->m_LocalAddrSocket[slot] != dmSocket::INVALID_SOCKET_HANDLE)
         {
-            const uint32_t la = ssdp->m_LocalAddr[slot].m_Address;
-            dmLogInfo("SSDP: Done on address %u.%u.%u.%u", (la >> 24) & 0xff, (la >> 16) & 0xff, (la >> 8) & 0xff, (la >> 0) & 0xff);
+            const char* straddr = dmSocket::AddressToIPString(ssdp->m_LocalAddr[slot].m_Address);
+            dmLogInfo("SSDP: Done on address %s", straddr);
+            free((void*) straddr);
             dmSocket::Delete(ssdp->m_LocalAddrSocket[slot]);
         }
     }
@@ -411,8 +411,9 @@ bail:
                     continue;
                 }
 
-                uint32_t la = addr;
-                dmLogInfo("SSDP: Started on address %u.%u.%u.%u", (la >> 24) & 0xff, (la >> 16) & 0xff, (la >> 8) & 0xff, (la >> 0) & 0xff);
+                const char* straddr = dmSocket::AddressToIPString(addr);
+                dmLogInfo("SSDP: Started on address %s", straddr);
+                free((void*) straddr);
                 new_socket[i] = s;
             }
         }
@@ -504,11 +505,11 @@ bail:
 
         mcast_sock = NewSocket();
         if (mcast_sock == dmSocket::INVALID_SOCKET_HANDLE) goto bail;
-        sr = dmSocket::Bind(mcast_sock, 0, SSDP_MCAST_PORT);
+        sr = dmSocket::Bind(mcast_sock, dmSocket::AddressFromIPString("::"), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK) goto bail;
         sr = dmSocket::AddMembership(mcast_sock,
                                      dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
-                                     0,
+                                     dmSocket::AddressFromIPString("::"),
                                      SSDP_MCAST_TTL);
 
         if (sr != dmSocket::RESULT_OK)
@@ -533,6 +534,7 @@ bail:
         dmHttpServer::HServer http_server = 0;
         dmHttpServer::NewParams http_params;
         dmHttpServer::Result hsr;
+        dmSocket::Address http_address;
 
         if(params->m_AnnounceInterval > params->m_MaxAge)
         {
@@ -560,7 +562,6 @@ bail:
 
         ssdp->m_HttpServer = http_server;
 
-        dmSocket::Address http_address;
         uint16_t http_port;
         dmHttpServer::GetName(http_server, &http_address, &http_port);
 
@@ -795,12 +796,13 @@ bail:
         // To know which socket to use for the response, pick the one with the highest
         // number of matching bits. Ideally, netmask would be available to make a correct
         // decision, but it is unfortunately not so easy to read out on all platforms.
-        dmSocket::Address local_address = 0;
+        dmSocket::Address local_address;
         dmSocket::Socket output_socket = dmSocket::INVALID_SOCKET_HANDLE;
         uint32_t best_match_value = ~0;
         for (uint32_t i=0;i!=ssdp->m_LocalAddrCount;i++)
         {
-            uint32_t non_matching_bits = ssdp->m_LocalAddr[i].m_Address ^ ctx->m_FromAddress;
+
+            uint32_t non_matching_bits = BitDifference(ssdp->m_LocalAddr[i].m_Address, ctx->m_FromAddress);
             if (i == 0 || non_matching_bits < best_match_value)
             {
                 best_match_value = non_matching_bits;
@@ -897,10 +899,8 @@ bail:
             }
         }
 
-        uint8_t comps[4];
-        comps[0] = (from_addr >> 24) & 0xff; comps[1] = (from_addr >> 16) & 0xff;
-        comps[2] = (from_addr >> 8) & 0xff; comps[3] = (from_addr >> 0) & 0xff;
-        dmLogDebug("Multicast SSDP message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
+        const char* straddr = dmSocket::AddressToIPString(from_addr);
+        dmLogDebug("Multicast SSDP message from %s:%d", straddr, from_port);
 
         RequestParseState state(ssdp);
         bool ok = false;
@@ -930,7 +930,7 @@ bail:
                     }
                     else
                     {
-                        dmLogWarning("Malformed message from %u.%u.%u.%u:%d. Missing USN header.", comps[0],comps[1],comps[2],comps[3], from_port);
+                        dmLogWarning("Malformed message from %s:%d. Missing USN header.", straddr, from_port);
                     }
                 }
             }
@@ -951,7 +951,7 @@ bail:
                     }
                     else
                     {
-                        dmLogWarning("Malformed message from %u.%u.%u.%u:%d. Missing USN header.", comps[0],comps[1],comps[2],comps[3], from_port);
+                        dmLogWarning("Malformed message from %s:%d. Missing USN header.", straddr, from_port);
                     }
                 }
                 else if (state.m_RequestType == RT_M_SEARCH)
@@ -962,10 +962,11 @@ bail:
         }
         else
         {
-            dmLogWarning("Malformed message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
+            dmLogWarning("Malformed message from %s:%d", straddr, from_port);
         }
 
-       return true;
+        free((void*) straddr);
+        return true;
     }
 
     static void VisitDiscoveredExpireDevice(ExpireContext* context, const dmhash_t* key, Device* device)
@@ -1068,8 +1069,11 @@ bail:
             // Remove zeroes which are all at the starts
             dmSocket::IfAddr *begin = &if_addr[0];
             dmSocket::IfAddr *end = begin + if_addr_count;
-            while (begin < end && !begin->m_Address)
+            dmSocket::Address emtpyaddr;
+            while (begin < end && begin->m_Address != emtpyaddr)
+            {
                 ++begin;
+            }
 
             UpdateListeningSockets(ssdp, begin, end - begin);
         }

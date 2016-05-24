@@ -2,6 +2,8 @@
 #define DM_SOCKET_H
 
 #include <stdint.h>
+#include <string.h>
+#include <ostream>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <sys/socket.h>
@@ -11,6 +13,7 @@
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#define socklen_t int
 #else
 #error "Unsupported platform"
 #endif
@@ -82,7 +85,57 @@ namespace dmSocket
     /**
      * Network address
      */
-    typedef uint32_t Address;
+    struct Address
+    {
+
+        Address() { memset(this, 0x0, sizeof(*this)); }
+
+        int32_t m_family;
+        uint32_t m_address[4];
+    };
+
+    inline bool operator==(const Address& lhs, const Address& rhs)
+    {
+        int result = memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr));
+        return result == 0;
+    }
+
+    inline bool operator!=(const Address& lhs, const Address& rhs)
+    {
+        return !operator==(lhs,rhs);
+    }
+
+    inline bool operator< (const Address& lhs, const Address& rhs)
+    {
+        int result = memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr));
+        return result < 0;
+    }
+
+    inline bool operator> (const Address& lhs, const Address& rhs)
+    {
+        return  operator< (rhs,lhs);
+    }
+
+    inline bool operator<=(const Address& lhs, const Address& rhs)
+    {
+        return !operator> (lhs,rhs);
+    }
+
+    inline bool operator>=(const Address& lhs, const Address& rhs)
+    {
+        return !operator< (lhs,rhs);
+    }
+
+    inline std::ostream & operator<<(std::ostream &os, const dmSocket::Address& address) {
+        char buffer[39 + 1] = { 0 };
+        snprintf(buffer, sizeof(buffer), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+            address.m_address[0] & 0xff00, address.m_address[0] & 0x00ff,
+            address.m_address[1] & 0xff00, address.m_address[1] & 0x00ff,
+            address.m_address[2] & 0xff00, address.m_address[2] & 0x00ff,
+            address.m_address[3] & 0xff00, address.m_address[3] & 0x00ff);
+        return os << buffer;
+    }
+
 
     enum SelectorKind
     {
@@ -465,6 +518,16 @@ namespace dmSocket
      * @return Result as string
      */
     const char* ResultToString(Result result);
+
+    bool IsIPv4(dmSocket::Socket socket);
+    bool IsIPv4(dmSocket::Address address);
+    bool IsIPv6(dmSocket::Socket socket);
+    bool IsIPv6(dmSocket::Address address);
+    void Htonl(dmSocket::Address src, dmSocket::Address* dst);
+    void Htonl(uint32_t src, dmSocket::Address* dst);
+    void Ntohl(dmSocket::Address src, dmSocket::Address* dst);
+    void Ntohl(uint32_t src, dmSocket::Address* dst);
+    uint32_t BitDifference(dmSocket::Address a, dmSocket::Address b);
 
 }
 

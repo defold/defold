@@ -60,7 +60,9 @@ namespace dmSocksProxy
             return RESULT_SOCKET_ERROR;
         }
 
-        Request request = { 0x04, 0x01, htons(port), htonl(address), 0 };
+        dmSocket::Address htonlAddress;
+        dmSocket::Htonl(address, &htonlAddress);
+        Request request = { 0x04, 0x01, htons(port), htonlAddress, 0 }; // TODO: Fix this, it doesn't work!
         // NOTE: Due to alignment calculate size. Do *not* use sizeof(.)
         int request_size = 1 + 1 + 2 + 4 + 1;
 

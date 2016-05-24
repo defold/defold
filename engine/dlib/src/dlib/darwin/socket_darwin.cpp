@@ -95,7 +95,9 @@ namespace dmSocket
             } else if (family == AF_INET) {
                 sockaddr_in* ia = (sockaddr_in*) ifa->ifa_addr;
                 a->m_Flags |= FLAGS_INET;
-                a->m_Address = ntohl(ia->sin_addr.s_addr);
+                dmSocket::Ntohl(ia->sin_addr.s_addr, &(a->m_Address));
+            } else if (family == AF_INET6) {
+                // TODO: This has to support IPv6 as well
             }
         }
         freeifaddrs(ifaddr);
