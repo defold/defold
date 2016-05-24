@@ -102,7 +102,7 @@ namespace dmHttpServer
         dmSocket::Socket socket;
 
         Disconnect(server);
-        dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
+        dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket); // Here we have to listen on both IPv4 and IPv6, how?
         if (r != dmSocket::RESULT_OK)
             return RESULT_UNKNOWN;
 

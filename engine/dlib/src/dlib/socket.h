@@ -82,15 +82,100 @@ namespace dmSocket
      */
     typedef int Socket;
 
+    enum SelectorKind
+    {
+        SELECTOR_KIND_READ   = 0,
+        SELECTOR_KIND_WRITE  = 1,
+        SELECTOR_KIND_EXCEPT = 2,
+    };
+
+    enum Flags
+    {
+        FLAGS_UP = (1 << 0),
+        FLAGS_RUNNING = (1 << 1),
+        FLAGS_INET = (1 << 2),
+        FLAGS_LINK = (1 << 3),
+    };
+
+    struct Selector;
+    void SelectorZero(Selector* selector);
+
+    /**
+     * Selector. Do not use directly. Use access functions related to Select()
+     */
+    struct Selector
+    {
+        fd_set m_FdSets[3];
+        int    m_Nfds;
+
+        Selector()
+        {
+            SelectorZero(this);
+        }
+    };
+
+    /**
+     * Invalid socket handle
+     */
+    const Socket INVALID_SOCKET_HANDLE = 0xffffffff;
+
+    /**
+     * Domain type
+     */
+    enum Domain
+    {
+        DOMAIN_MISSING = 0x0,     //!< DOMAIN_MISSING
+        DOMAIN_IPV4 = AF_INET,    //!< DOMAIN_IPV4
+        DOMAIN_IPV6 = AF_INET6,   //!< DOMAIN_IPV6
+        DOMAIN_UNKNOWN = 0xff,    //!< DOMAIN_UNKNOWN
+    };
+
+    /**
+     * Socket type
+     */
+    enum Type
+    {
+        TYPE_STREAM = SOCK_STREAM,//!< TYPE_STREAM
+        TYPE_DGRAM = SOCK_DGRAM,  //!< TYPE_DGRAM
+    };
+
+    /**
+     * Network protocol
+     */
+    enum Protocol
+    {
+        PROTOCOL_TCP = IPPROTO_TCP,//!< PROTOCOL_TCP
+        PROTOCOL_UDP = IPPROTO_UDP,//!< PROTOCOL_UDP
+    };
+
+    /**
+     * Socket shutdown type
+     */
+    enum ShutdownType
+    {
+#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
+        SHUTDOWNTYPE_READ      = SHUT_RD,
+        SHUTDOWNTYPE_WRITE     = SHUT_WR,
+        SHUTDOWNTYPE_READWRITE = SHUT_RDWR,
+#else
+        SHUTDOWNTYPE_READ      = SD_RECEIVE,//!< SHUTDOWNTYPE_READ
+        SHUTDOWNTYPE_WRITE     = SD_SEND,   //!< SHUTDOWNTYPE_WRITE
+        SHUTDOWNTYPE_READWRITE = SD_BOTH,   //!< SHUTDOWNTYPE_READWRITE
+#endif
+    };
+
     /**
      * Network address
      */
     struct Address
     {
 
-        Address() { memset(this, 0x0, sizeof(*this)); }
+        Address() {
+            m_family = dmSocket::DOMAIN_MISSING;
+            memset(m_address, 0x0, sizeof(m_address));
+        }
 
-        int32_t m_family;
+        Domain m_family;
         uint32_t m_address[4];
     };
 
@@ -136,84 +221,12 @@ namespace dmSocket
         return os << buffer;
     }
 
-
-    enum SelectorKind
-    {
-        SELECTOR_KIND_READ   = 0,
-        SELECTOR_KIND_WRITE  = 1,
-        SELECTOR_KIND_EXCEPT = 2,
-    };
-
-    enum Flags
-    {
-        FLAGS_UP = (1 << 0),
-        FLAGS_RUNNING = (1 << 1),
-        FLAGS_INET = (1 << 2),
-        FLAGS_LINK = (1 << 3),
-    };
-
     struct IfAddr
     {
         char     m_Name[128];
         uint32_t m_Flags;
         Address  m_Address;
         uint8_t  m_MacAddress[6];
-    };
-
-    struct Selector;
-    void SelectorZero(Selector* selector);
-
-    /**
-     * Selector. Do not use directly. Use access functions related to Select()
-     */
-    struct Selector
-    {
-        fd_set m_FdSets[3];
-        int    m_Nfds;
-
-        Selector()
-        {
-            SelectorZero(this);
-        }
-    };
-
-    /**
-     * Invalid socket handle
-     */
-    const Socket INVALID_SOCKET_HANDLE = 0xffffffff;
-
-    /**
-     * Socket type
-     */
-    enum Type
-    {
-        TYPE_STREAM = SOCK_STREAM,//!< TYPE_STREAM
-        TYPE_DGRAM = SOCK_DGRAM,  //!< TYPE_DGRAM
-    };
-
-    /**
-     * Network protocol
-     */
-    enum Protocol
-    {
-        PROTOCOL_TCP = IPPROTO_TCP,//!< PROTOCOL_TCP
-        PROTOCOL_UDP = IPPROTO_UDP,//!< PROTOCOL_UDP
-    };
-
-    /**
-     * Socket shutdown type
-     */
-    enum ShutdownType
-    {
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
-        SHUTDOWNTYPE_READ      = SHUT_RD,
-        SHUTDOWNTYPE_WRITE     = SHUT_WR,
-        SHUTDOWNTYPE_READWRITE = SHUT_RDWR,
-#else
-        SHUTDOWNTYPE_READ      = SD_RECEIVE,//!< SHUTDOWNTYPE_READ
-        SHUTDOWNTYPE_WRITE     = SD_SEND,   //!< SHUTDOWNTYPE_WRITE
-        SHUTDOWNTYPE_READWRITE = SD_BOTH,   //!< SHUTDOWNTYPE_READWRITE
-#endif
     };
 
     /**
@@ -237,7 +250,7 @@ namespace dmSocket
      * @param socket Pointer to created socket
      * @return RESULT_OK on succcess
      */
-    Result New(Type type, enum Protocol protocol, Socket* socket);
+    Result New(Domain domain, Type type, enum Protocol protocol, Socket* socket);
 
     /**
      * Delete a socket. Corresponds to BSD socket function close()
@@ -498,9 +511,11 @@ namespace dmSocket
      * Get host by name.
      * @param name  Hostname to resolve
      * @param address Host address result
+     * @param ipv4 Whether or not to search for IPv4 addresses
+     * @param ipv6 Whether or not to search for IPv6 addresses
      * @return RESULT_OK on success
      */
-    Result GetHostByName(const char* name, Address* address);
+    Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
 
     /**
      * Get information about network adapters (loopback devices are not included)
@@ -519,15 +534,15 @@ namespace dmSocket
      */
     const char* ResultToString(Result result);
 
-    bool IsIPv4(dmSocket::Socket socket);
-    bool IsIPv4(dmSocket::Address address);
-    bool IsIPv6(dmSocket::Socket socket);
-    bool IsIPv6(dmSocket::Address address);
-    void Htonl(dmSocket::Address src, dmSocket::Address* dst);
-    void Htonl(uint32_t src, dmSocket::Address* dst);
-    void Ntohl(dmSocket::Address src, dmSocket::Address* dst);
-    void Ntohl(uint32_t src, dmSocket::Address* dst);
-    uint32_t BitDifference(dmSocket::Address a, dmSocket::Address b);
+    uint32_t* IPv4(Address* address);
+    uint32_t* IPv6(Address* address);
+    bool IsSocketIPv4(Socket socket);
+    bool IsSocketIPv6(Socket socket);
+    void Htonl(Address src, Address* dst);
+    void Htonl(uint32_t src, Address* dst);
+    void Ntohl(Address src, Address* dst);
+    void Ntohl(uint32_t src, Address* dst);
+    uint32_t BitDifference(Address a, Address b);
 
 }
 

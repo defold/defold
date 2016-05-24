@@ -2,6 +2,7 @@
 #include "math.h"
 #include "dstrings.h"
 #include "log.h"
+#include <assert.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -26,35 +27,49 @@
 namespace dmSocket
 {
 
-    bool IsIPv4(dmSocket::Socket socket)
+    uint32_t* IPv4(Address* address)
+    {
+        assert(address->m_family == dmSocket::DOMAIN_IPV4);
+        return &address->m_address[3];
+    }
+
+    uint32_t* IPv6(Address* address)
+    {
+        assert(address->m_family == dmSocket::DOMAIN_IPV6);
+        return &address->m_address[0];
+    }
+
+    bool IsSocketIPv4(Socket socket)
     {
         struct sockaddr_storage ss = { 0 };
-        socklen_t sslen = 0;
+        socklen_t sslen = sizeof(ss);
         int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
+        if (result == 0)
+        {
+            return ss.ss_family == AF_INET;
+        }
 
-        return (result == 0) && (ss.ss_family == AF_INET);
+        dmLogError("Failed to retrieve family information from socket #%d: %s (%d)",
+            socket, ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)), DM_SOCKET_ERRNO);
+        return false;
     }
 
-    bool IsIPv4(dmSocket::Address address)
-    {
-        return address.m_family == AF_INET;
-    }
-
-    bool IsIPv6(dmSocket::Socket socket)
+    bool IsSocketIPv6(Socket socket)
     {
         struct sockaddr_storage ss = { 0 };
-        socklen_t sslen = 0;
+        socklen_t sslen = sizeof(ss);
         int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
+        if (result == 0)
+        {
+            return ss.ss_family == AF_INET6;
+        }
 
-        return (result == 0) && (ss.ss_family == AF_INET6);
+        dmLogError("Failed to retrieve family information from socket #%d: %s (%d)",
+            socket, ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)), DM_SOCKET_ERRNO);
+        return false;
     }
 
-    bool IsIPv6(dmSocket::Address address)
-    {
-        return address.m_family == AF_INET6;
-    }
-
-    void Htonl(dmSocket::Address src, dmSocket::Address* dst)
+    void Htonl(Address src, Address* dst)
     {
         for (int i = 0; i < (sizeof(src.m_address) / sizeof(uint32_t)); ++i)
         {
@@ -62,15 +77,15 @@ namespace dmSocket
         }
     }
 
-    void Htonl(uint32_t src, dmSocket::Address* dst)
+    void Htonl(uint32_t src, Address* dst)
     {
         dst->m_address[0] = 0x00000000;
         dst->m_address[1] = 0x00000000;
-        dst->m_address[2] = 0x0000ffff;
+        dst->m_address[2] = 0xffff0000;
         dst->m_address[3] = htonl(src);
     }
 
-    void Ntohl(dmSocket::Address src, dmSocket::Address* dst)
+    void Ntohl(Address src, Address* dst)
     {
         for (int i = 0; i < (sizeof(src.m_address) / sizeof(uint32_t)); ++i)
         {
@@ -78,15 +93,15 @@ namespace dmSocket
         }
     }
 
-    void Ntohl(uint32_t src, dmSocket::Address* dst)
+    void Ntohl(uint32_t src, Address* dst)
     {
         dst->m_address[0] = 0x00000000;
         dst->m_address[1] = 0x00000000;
-        dst->m_address[2] = 0xffff0000;
+        dst->m_address[2] = 0x0000ffff;
         dst->m_address[3] = ntohl(src);
     }
 
-    uint32_t BitDifference(dmSocket::Address a, dmSocket::Address b)
+    uint32_t BitDifference(Address a, dmSocket::Address b)
     {
         uint32_t difference = 0;
         for (int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
@@ -136,37 +151,29 @@ namespace dmSocket
         return RESULT_OK;
     }
 
-    Result New(Type type, Protocol protocol, Socket* socket)
+    Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
-        int s = ::socket(PF_INET6, type, protocol);
-        if (s < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else
+        Socket sock = ::socket(domain, type, protocol);
+        
+        *socket = sock;
+        if (sock >= 0)
         {
 #if defined(__MACH__)
             int set = 1;
             // Disable SIGPIPE on socket. On Linux MSG_NOSIGNAL is passed on send(.)
-            setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &set, sizeof(set));
+            setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &set, sizeof(set));
 #endif
-            *socket = s;
             return RESULT_OK;
         }
+
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     static Result SetSockoptBool(Socket socket, int level, int name, bool option)
     {
         int on = (int) option;
         int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
-        if (ret < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else
-        {
-            return RESULT_OK;
-        }
+        return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result SetReuseAddress(Socket socket, bool reuse)
@@ -187,6 +194,7 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
+        // TODO: Implement IPv6 support
         struct ipv6_mreq group;
         Htonl(multi_addr, &multi_addr);
         memcpy(&group.ipv6mr_multiaddr, multi_addr.m_address, sizeof(struct in6_addr));
@@ -205,6 +213,7 @@ namespace dmSocket
 
     Result SetMulticastIf(Socket socket, Address address)
     {
+        // TODO: Implement IPv6 support
         struct in6_addr if_addr;
         Htonl(address, &address);
         memcpy(&if_addr.s6_addr, address.m_address, sizeof(struct in6_addr));
@@ -218,18 +227,11 @@ namespace dmSocket
     Result Delete(Socket socket)
     {
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
-        int ret = close(socket);
+        int result = close(socket);
 #else
-        int ret = closesocket(socket);
+        int result = closesocket(socket);
 #endif
-        if (ret < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else
-        {
-            return RESULT_OK;
-        }
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     int GetFD(Socket socket)
@@ -239,71 +241,90 @@ namespace dmSocket
 
     Result Accept(Socket socket, Address* address, Socket* accept_socket)
     {
-        struct sockaddr_in6 sock_addr;
-        socklen_t sock_addr_len = sizeof(sock_addr);
-        int s = accept(socket, (struct sockaddr *) &sock_addr, &sock_addr_len);
-
-        if (s < 0)
+        int result = 0;
+        if (IsSocketIPv4(socket))
         {
-            *accept_socket = s;
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            struct sockaddr_in sock_addr = { 0 };
+            socklen_t addr_len = sizeof(sock_addr);
+            result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct sockaddr_in6 sock_addr = { 0 };
+            socklen_t addr_len = sizeof(sock_addr);
+            result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
         }
         else
         {
-            *accept_socket = s;
-            memcpy(address->m_address, &sock_addr.sin6_addr, sizeof(struct in6_addr));
-            Ntohl(*address, address);
-            return RESULT_OK;
+            dmLogError("(Accept) Socket #%d has unknown address family!", socket);
         }
+
+        *accept_socket = result;
+        return result >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result Bind(Socket socket, Address address, int port)
     {
-        struct sockaddr_in6 sock_addr;
-        sock_addr.sin6_family = AF_INET6;
-        memcpy(&sock_addr.sin6_addr, address.m_address, sizeof(struct in6_addr));
-        sock_addr.sin6_port = htons(port);
-
-        int ret = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
-
-        if (ret < 0)
+        int result = 0;
+        if (IsSocketIPv4(socket))
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            struct sockaddr_in sock_addr = { 0 };
+            sock_addr.sin_family = AF_INET;
+            sock_addr.sin_addr.s_addr = *IPv4(&address);
+            sock_addr.sin_port = port; // Might have to htons this?
+            result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct sockaddr_in6 sock_addr = { 0 };
+            sock_addr.sin6_family = AF_INET6;
+            memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
+            sock_addr.sin6_port = port; // Might have to htons this?
+            result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
         else
         {
-            return RESULT_OK;
+            dmLogError("(Bind) Socket #%d has unknown address family!", socket);
         }
+
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result Connect(Socket socket, Address address, int port)
     {
-        struct sockaddr_in6 sock_addr;
-        sock_addr.sin6_family = AF_INET6;
-        memcpy(&sock_addr.sin6_addr, address.m_address, sizeof(struct in6_addr));
-        sock_addr.sin6_port = htons(port);
+        int result = 0;
+        if (IsSocketIPv4(socket))
+        {
+            struct sockaddr_in sock_addr = { 0 };
+            sock_addr.sin_family = AF_INET;
+            sock_addr.sin_addr.s_addr = *IPv4(&address);
+            sock_addr.sin_port = htons(port);
+            result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct sockaddr_in6 sock_addr = { 0 };
+            sock_addr.sin6_family = AF_INET6;
+            memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
+            sock_addr.sin6_port = htons(port);
+            result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+        }
+        else
+        {
+            dmLogError("(Connect) Socket #%d has unknown address family!", socket);
+        }
 
-        int ret = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
-
-        if (ret == -1 && !( (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_WOULDBLOCK) ) )
+        printf("(%d): %s\n", errno, strerror(errno));
+        if (result == -1 && !((NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_WOULDBLOCK)))
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
         }
-
-        return RESULT_OK;
     }
 
     Result Listen(Socket socket, int backlog)
     {
-        int ret = listen(socket, backlog);
-        if (ret < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else
-        {
-            return RESULT_OK;
-        }
+        int result = listen(socket, backlog);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result Shutdown(Socket socket, ShutdownType how)
@@ -342,26 +363,40 @@ namespace dmSocket
 
     Result SendTo(Socket socket, const void* buffer, int length, int* sent_bytes, Address to_addr, uint16_t to_port)
     {
-        struct sockaddr_in6 sock_addr;
-        sock_addr.sin6_family = AF_INET6;
-        memcpy(&sock_addr.sin6_addr, to_addr.m_address, sizeof(struct in6_addr));
-        sock_addr.sin6_port = htons(to_port);
-
-        *sent_bytes = 0;
-#if defined(_WIN32)
-        int s = sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
-#else
-        ssize_t s = sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
-#endif
-        if (s < 0)
+        int result = 0;
+        if (IsSocketIPv4(socket))
         {
-            return NativeToResultCompat(DM_SOCKET_ERRNO);
+            struct sockaddr_in sock_addr = { 0 };
+            sock_addr.sin_family = AF_INET;
+            sock_addr.sin_addr.s_addr = *IPv4(&to_addr);
+            sock_addr.sin_port = to_port; // Might have to htons this?
+
+#ifdef _WIN32
+            result = (int) sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
+#else
+            result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
+#endif
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct sockaddr_in6 sock_addr = { 0 };
+            sock_addr.sin6_family = AF_INET6;
+            memcpy(&sock_addr.sin6_addr, IPv6(&to_addr), sizeof(struct in6_addr));
+            sock_addr.sin6_port = to_port; // Might have to htons this?
+
+#ifdef _WIN32
+            result = (int) sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
+#else
+            result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
+#endif
         }
         else
         {
-            *sent_bytes = s;
-            return RESULT_OK;
+            dmLogError("(SendTo) Socket #%d has unknown address family!", socket);
         }
+
+        *sent_bytes = result >= 0 ? result : 0;
+        return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
     }
 
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes)
@@ -387,29 +422,51 @@ namespace dmSocket
     Result ReceiveFrom(Socket socket, void* buffer, int length, int* received_bytes,
                        Address* from_addr, uint16_t* from_port)
     {
-        struct sockaddr_in6 sock_addr;
-
+        int result = 0;
         *received_bytes = 0;
-#ifdef _WIN32
-        int sock_addr_len = sizeof(sock_addr);
-        int r = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &sock_addr, &sock_addr_len);
-#else
-        socklen_t sock_addr_len = sizeof(sock_addr);
-        int r = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &sock_addr_len);
-#endif
 
-        if (r < 0)
+        if (IsSocketIPv4(socket))
         {
-            return NativeToResultCompat(DM_SOCKET_ERRNO);
+            struct sockaddr_in sock_addr = { 0 };
+            socklen_t addr_len = sizeof(sock_addr);
+
+#ifdef _WIN32
+            result = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
+#else
+            result = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
+#endif
+            if (result >= 0)
+            {
+                from_addr->m_family = dmSocket::DOMAIN_IPV4;
+                *IPv4(from_addr) = sock_addr.sin_addr.s_addr;
+                *from_port = sock_addr.sin_port;
+                *received_bytes = result;
+            }
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct sockaddr_in6 sock_addr = { 0 };
+            socklen_t addr_len = sizeof(sock_addr);
+
+#ifdef _WIN32
+            result = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
+#else
+            result = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
+#endif
+            if (result >= 0)
+            {
+                from_addr->m_family = dmSocket::DOMAIN_IPV6;
+                memcpy(IPv6(from_addr), &sock_addr.sin6_addr, sizeof(struct in6_addr));
+                *from_port = sock_addr.sin6_port;
+                *received_bytes = result;
+            }
         }
         else
         {
-            *received_bytes = r;
-            memcpy(from_addr->m_address, &sock_addr.sin6_addr, sizeof(struct in6_addr));
-            Ntohl(*from_addr, from_addr);
-            *from_port = ntohs(sock_addr.sin6_port);
-            return RESULT_OK;
+            dmLogError("(ReceiveFrom) Socket #%d has unknown address family!", socket);
         }
+
+        return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
     }
 
     void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
@@ -464,41 +521,50 @@ namespace dmSocket
 
     Result GetName(Socket socket, Address* address, uint16_t* port)
     {
-        struct sockaddr_in6 sock_addr;
-        socklen_t addr_len = sizeof(sock_addr);
-        int r = getsockname(socket, (sockaddr *) &sock_addr, &addr_len);
-        if (r < 0)
+        int result = 0;
+        if (IsSocketIPv4(socket))
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            struct sockaddr_in sock_addr = { 0 };
+            socklen_t addr_len = sizeof(sock_addr);
+            result = getsockname(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            if (result == 0)
+            {
+                address->m_family = dmSocket::DOMAIN_IPV4;
+                *IPv4(address) = sock_addr.sin_addr.s_addr;
+                *port = sock_addr.sin_port;
+            }
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct sockaddr_in6 sock_addr = { 0 };
+            socklen_t addr_len = sizeof(sock_addr);
+            result = getsockname(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            if (result == 0)
+            {
+                address->m_family = dmSocket::DOMAIN_IPV6;
+                memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
+                *port = sock_addr.sin6_port;
+            }
         }
         else
         {
-            memcpy(address->m_address, &sock_addr.sin6_addr, sizeof(struct in6_addr));
-            Ntohl(*address, address);
-            *port = ntohs(sock_addr.sin6_port);
-            return RESULT_OK;
+            dmLogError("(GetName) Socket #%d has unknown address family!", socket);
         }
+
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result GetHostname(char* hostname, int hostname_length)
     {
         int r = gethostname(hostname, hostname_length);
         if (hostname_length > 0)
-            hostname[hostname_length-1] = '\0';
-
-        if (r < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else
-        {
-            return RESULT_OK;
-        }
+            hostname[hostname_length - 1] = '\0';
+        return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
 #if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__)))
     Result GetLocalAddress(Address* address)
-    {
+    { // TODO: This has to be rewritten!
 #ifdef __ANDROID__
         // NOTE: This method should probably be used on Linux as well
         // fall-back to 127.0.0.1
@@ -555,7 +621,7 @@ namespace dmSocket
             static bool warning_emitted = false;
             if (!warning_emitted)
             {
-                dmLogWarning("No IP found for local hostname %s. Fallbacks to 127.0.0.1", hostname);
+                dmLogWarning("No IP found for local hostname %s. Fallbacks to localhost", hostname);
             }
             warning_emitted = true;
         }
@@ -663,14 +729,32 @@ namespace dmSocket
 
     char* AddressToIPString(Address address)
     {
-        // Maximum (theoretical) length of an IPv6 address is 45 characters.
-        // ffff:ffff:ffff:ffff:ffff:ffff:192.168.144.120
-        char addrstr[46] = { 0 };
-        inet_ntop(AF_INET6, address.m_address, addrstr, sizeof(addrstr));
-        return strdup(addrstr);
+        if (address.m_family == dmSocket::DOMAIN_IPV4)
+        {
+            // Maximum length of an IPv4 address is 15 characters.
+            // 255.255.255.255
+            char addrstr[15 + 1] = { 0 };
+            inet_ntop(AF_INET, IPv4(&address), addrstr, sizeof(addrstr));
+            return strdup(addrstr);
+        }
+        else if (address.m_family == dmSocket::DOMAIN_IPV6)
+        {
+            // Maximum (theoretical) length of an IPv6 address is 45 characters.
+            // ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255
+            char addrstr[45 + 1] = { 0 };
+            inet_ntop(AF_INET6, IPv6(&address), addrstr, sizeof(addrstr));
+            return strdup(addrstr);
+        }
+        else if (address.m_family == dmSocket::DOMAIN_MISSING)
+        {
+            dmLogError("Address family is missing from the address.");
+            return 0x0;
+        }
+
+        assert(false && "Unknown address family");
     }
 
-    Result GetHostByName(const char* name, Address* address)
+    Result GetHostByName(const char* name, Address* address, bool ipv4, bool ipv6)
     {
         Result result = RESULT_UNKNOWN;
 
@@ -692,17 +776,18 @@ namespace dmSocket
                 // There could be (and probably are) multiple results for the same
                 // address. The correct way to handle this would be to return a
                 // list of addresses and then try each of them until one succeeds.
-                if (iterator->ai_family == AF_INET)
+                if (ipv4 && iterator->ai_family == AF_INET)
                 {
                     sockaddr_in* saddr = (struct sockaddr_in *) iterator->ai_addr;
-                    Htonl(saddr->sin_addr.s_addr, address);
+                    address->m_family = dmSocket::DOMAIN_IPV4;
+                    *IPv4(address) = saddr->sin_addr.s_addr;
                     result = RESULT_OK;
                 }
-                else if (iterator->ai_family == AF_INET6)
+                else if (ipv6 && iterator->ai_family == AF_INET6)
                 {
                     sockaddr_in6* saddr = (struct sockaddr_in6 *) iterator->ai_addr;
-                    memcpy(address->m_address, &saddr->sin6_addr, sizeof(struct in6_addr));
-                    Htonl(*address, address);
+                    address->m_family = dmSocket::DOMAIN_IPV6;
+                    memcpy(IPv6(address), &saddr->sin6_addr, sizeof(struct in6_addr));
                     result = RESULT_OK;
                 }
 

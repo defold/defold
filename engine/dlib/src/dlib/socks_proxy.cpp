@@ -41,7 +41,7 @@ namespace dmSocksProxy
             return RESULT_SOCKET_ERROR;
         }
 
-        sock_res = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, socket);
+        sock_res = dmSocket::New(proxy_address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, socket);
         if (sock_res != dmSocket::RESULT_OK)
         {
             if (socket_result)

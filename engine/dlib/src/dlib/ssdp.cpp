@@ -325,7 +325,7 @@ namespace dmSSDP
     static dmSocket::Socket NewSocket()
     {
         dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
-        dmSocket::Result sr = dmSocket::New(dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
+        dmSocket::Result sr = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
         if (sr != dmSocket::RESULT_OK)
             goto bail;
 

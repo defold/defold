@@ -92,7 +92,7 @@ static void dmLogInitSocket( dmSocket::Socket& server_socket )
         }
     }
 
-    r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
+    r = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
     if (r != dmSocket::RESULT_OK)
     {
         error_msg = "Unable to create log socket";

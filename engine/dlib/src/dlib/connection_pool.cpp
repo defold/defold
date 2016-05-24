@@ -263,7 +263,7 @@ namespace dmConnectionPool
                 return RESULT_SOCKET_ERROR;
             }
         } else {
-            *sr = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &c->m_Socket);
+            *sr = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &c->m_Socket);
             if (*sr != dmSocket::RESULT_OK) {
                 return RESULT_SOCKET_ERROR;
             }
