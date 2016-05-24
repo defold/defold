@@ -6,7 +6,6 @@
 TEST(dmMemory, AlignedMalloc)
 {
     void* dummy = 0;
-
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 8, 1024));
     ASSERT_EQ(0, ((unsigned long)dummy % 8));
     dmMemory::AlignedFree(dummy);
