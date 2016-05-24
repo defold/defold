@@ -253,6 +253,7 @@ message TestMessageAlignment
 message TestFieldAlignment
 {
     required string pad = 1;
-    required string needs_to_be_aligned = 2 [(field_align)=true];
+    required string needs_to_be_aligned1 = 2 [(field_align)=true];
+    required string needs_to_be_aligned2 = 3 [(field_align)=true];
 }
 
