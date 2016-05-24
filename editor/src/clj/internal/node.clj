@@ -362,10 +362,9 @@
                              :expected         value-type
                              :actual           new-value
                              :validation-error validation-error})))
-          [new-node deferred])
+          (with-meta [new-node deferred] {:node-id (gt/node-id node) :property property}))
         (catch IllegalArgumentException iae
-          (def vt* value-type)
-          (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {})))))))
+          (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {} iae)))))))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -1044,7 +1043,7 @@
   (let [base-args      {:_node-id `(gt/node-id ~self-name) :basis `(:basis ~ctx-name)}
         arglist        (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
-                                                                `(get ~self-name ~label)
+                                                                `(gt/get-property ~self-name (:basis ~ctx-name) ~label)
                                                                 (fnk-argument-forms self-name ctx-name nodeid-sym label description %)))
                                             arglist))
         argument-forms (merge argument-forms supplied-arguments)]
@@ -1058,7 +1057,7 @@
   [self-name ctx-name nodeid-sym description prop-name]
   (let [property-definition (get-in description [:property prop-name])]
     (if (not (:value property-definition))
-      `(get ~self-name ~prop-name)
+      `(gt/get-property ~self-name (:basis ~ctx-name) ~prop-name)
       (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop-name description
                                               (:arguments (:value property-definition))
                                               `(let [nt# (deref (gt/node-type ~self-name (:basis ~ctx-name)))
@@ -1105,7 +1104,7 @@
 
     (desc-has-property? description argument)
     (if (= output argument)
-      `(get ~self-name ~argument)
+      `(gt/get-property  ~self-name (:basis ~ctx-name) ~argument)
       (collect-property-value self-name ctx-name nodeid-sym description argument))
 
     (has-multivalued-input? description argument)
