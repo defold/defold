@@ -1127,7 +1127,7 @@
 
 (defn original-root [basis node-id]
   (let [node (gt/node-by-id-at basis node-id)
-        orig-id (:original node)]
+        orig-id (:original-id node)]
     (if orig-id
       (recur basis orig-id)
       node-id)))
@@ -1135,7 +1135,7 @@
 (defn jam [self-name ctx-name nodeid-sym transform forms]
   (if (jammable? transform)
     `(let [basis# (:basis ~ctx-name)
-           original# (if (:original ~self-name)
+           original# (if (:original-id ~self-name)
                        (gt/node-by-id-at basis# (original-root basis# ~nodeid-sym))
                        ~self-name)]
        (if-let [jammer# (get (:_output-jammers original#) ~transform)]
