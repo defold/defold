@@ -68,7 +68,7 @@ namespace dmGameSystem
     {
         LightWorld* light_world = (LightWorld*) params.m_World;
         const uint32_t data_size = sizeof(dmGameSystemDDF::SetLight) + 9;
-        char buf[data_size];
+        char DM_ALIGNED(16) buf[data_size];
         dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*)buf;
 
         dmMessage::URL receiver;
