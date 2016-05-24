@@ -424,14 +424,14 @@
 (defn canonicalize [x]
   (cond
     (and (symbol? x) (namespace x))
-    (do (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) "in this context"))
+    (do (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
         (if-let [n (alias-of *ns* (symbol (namespace x)))]
           (symbol (str n) (name x))
           x))
 
     (and (symbol? x) (not (namespace x)))
     (do
-      (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) "in this context"))
+      (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
       (symbol (str *ns*) (name x)))
 
     (and (keyword? x) (namespace x))
