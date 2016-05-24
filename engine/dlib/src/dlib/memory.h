@@ -15,9 +15,10 @@ namespace dmMemory
 
     /**
      * Allocate size bytes of uninitialized storage whose alignment is specified by alignment.
-     * @param memptr Pointer to a void* where the
+     * @param memptr Pointer to a void* where the allocated pointer address should be stored.
      * @param alignment The alignment value, which must be an integer power of 2.
      * @param size Size of the requested memory allocation.
+     * @return Returns RESULT_OK on success, RESULT_INVAL if alignment is not a power of 2 and RESULT_NOMEM if out of memory.
      */
     Result AlignedMalloc(void **memptr, unsigned int alignment,  unsigned int size);
 
