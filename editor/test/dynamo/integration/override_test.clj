@@ -304,7 +304,7 @@
                  (g/transact (g/clear-property or-res :reference))
                  (is (= :node-a2 (g/node-value or-res :reference))))))))
 
-(g/deftype ^:private IDMap {g/Str g/NodeID})
+(g/deftype ^:private IDMap {s/Str s/Int})
 
 (defprotocol Resource
   (path [this]))
@@ -330,8 +330,11 @@
   (inherits Node)
   (property value g/Str))
 
+
+(g/deftype ResourceType (s/protocol Resource))
+
 (g/defnode SceneResourceNode
-  (extern resource resource/ResourceType))
+  (extern resource ResourceType))
 
 (g/defnode NodeTree
   (input nodes g/NodeID :array :cascade-delete)
@@ -394,7 +397,7 @@
                                  (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
-  (input template-resource resource/ResourceType :cascade-delete)
+  (input template-resource ResourceType :cascade-delete)
   (input node-ids IDMap)
   (input instance g/NodeID)
   (input source-overrides g/Any)
@@ -641,10 +644,10 @@
 
 ;; Overloaded outputs with different types
 
-(def XYZ [(s/one g/Num "x") (s/one g/Num "y") (s/one g/Num "z")])
+(def XYZ [(s/one s/Num "x") (s/one s/Num "y") (s/one s/Num "z")])
 (g/deftype XYZType XYZ)
 
-(def Complex {g/Keyword Vector3d})
+(def Complex {s/Keyword Vector3d})
 (g/deftype ComplexType Complex)
 
 (g/deftype Vector3dType Vector3d)
