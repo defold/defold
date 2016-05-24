@@ -1,6 +1,9 @@
 #include "memory.h"
 #include <stdlib.h>
 #include <errno.h>
+#if defined(__ANDROID__)
+#include <malloc.h>
+#endif
 
 namespace dmMemory
 {
@@ -8,7 +11,12 @@ namespace dmMemory
     Result AlignedMalloc(void **memptr, unsigned alignment, unsigned size)
     {
         int error = 0;
-#if defined(__GNUC__)
+#if defined(__ANDROID__)
+        *(memptr) = memalign(alignment, size);
+        if (*(memptr) == 0) {
+            error = errno;
+        }
+#elif defined(__GNUC__)
         error = posix_memalign(memptr, alignment, size);
 #elif defined(_MSC_VER)
         *(memptr) = _aligned_malloc(size, alignment);
