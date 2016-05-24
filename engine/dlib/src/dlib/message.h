@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <dlib/hash.h>
 #include <string.h>
+#include <dlib/align.h>
 
 namespace dmMessage
 {
@@ -74,14 +75,14 @@ namespace dmMessage
      */
     struct Message
     {
-        URL             m_Sender;       //! Sender uri
-        URL             m_Receiver;     //! Receiver uri
-        dmhash_t        m_Id;           //! Unique id of message
-        uintptr_t       m_UserData;     //! User data pointer
-        uintptr_t       m_Descriptor;   //! User specified descriptor of the message data
-        uint32_t        m_DataSize;     //! Size of userdata in bytes
-        struct Message* m_Next;         //! Ptr to next message (or 0 if last)
-        uint8_t         m_Data[0];      //! Payload
+        URL                    m_Sender;       //! Sender uri
+        URL                    m_Receiver;     //! Receiver uri
+        dmhash_t               m_Id;           //! Unique id of message
+        uintptr_t              m_UserData;     //! User data pointer
+        uintptr_t              m_Descriptor;   //! User specified descriptor of the message data
+        uint32_t               m_DataSize;     //! Size of userdata in bytes
+        struct Message*        m_Next;         //! Ptr to next message (or 0 if last)
+        uint8_t DM_ALIGNED(16) m_Data[0];      //! Payload
     };
 
     /**

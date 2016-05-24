@@ -2,6 +2,7 @@
 #define DM_DDF_H
 
 #include <stdint.h>
+#include <dlib/static_assert.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
 
@@ -111,12 +112,6 @@ namespace dmDDF
         WIRETYPE_END_GROUP        = 4,
         WIRETYPE_FIXED32          = 5,
     };
-
-    #define DDF_STATIC_ASSERT(x, error) \
-    do { \
-        static const char error[(x)?1:-1] = {0};\
-        (void) error;\
-    } while(0)
 
     /// Store strings as offset from base address. Useful when serializing the entire messages.
     const uint32_t OPTION_OFFSET_STRINGS = (1 << 0);
