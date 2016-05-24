@@ -714,6 +714,18 @@ TEST(StringOffset, Load)
     dmDDF::FreeMessage(message);
 }
 
+TEST(AlignmentTests, AlignStruct)
+{
+    DM_STATIC_ASSERT(sizeof(DUMMY::TestDDF::TestMessageAlignment) % 16 == 0, Invalid_Struct_Size);
+}
+
+TEST(AlignmentTests, AlignField)
+{
+    DUMMY::TestDDF::TestFieldAlignment *dummy = new DUMMY::TestDDF::TestFieldAlignment();
+    ASSERT_EQ(((unsigned long)(&dummy->m_NeedsToBeAligned)) % 16, 0);
+    delete dummy;
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
