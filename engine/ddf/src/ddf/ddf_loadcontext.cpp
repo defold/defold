@@ -20,7 +20,7 @@ namespace dmDDF
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
     {
-        m_Current = (char*) DM_ALIGN(m_Current, 4);
+        m_Current = (char*) DM_ALIGN(m_Current, 16);
         char* b = m_Current;
         m_Current += desc->m_Size;
         assert(m_DryRun || m_Current <= m_End);
@@ -32,7 +32,7 @@ namespace dmDDF
     {
         Type type = (Type) field_desc->m_Type;
 
-        m_Current = (char*) DM_ALIGN(m_Current, 4);
+        m_Current = (char*) DM_ALIGN(m_Current, 16);
         int element_size = 0;
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
@@ -64,7 +64,7 @@ namespace dmDDF
 
     char* LoadContext::AllocBytes(int length)
     {
-        m_Current = (char*) DM_ALIGN(m_Current, 4);
+        m_Current = (char*) DM_ALIGN(m_Current, 16);
         char* b = m_Current;
         m_Current += length;
         assert(m_DryRun || m_Current <= m_End);
