@@ -7,6 +7,7 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [editor.sync :as sync]
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
@@ -52,6 +53,21 @@
              new (slurp (io/file work-tree new-name))]
          (diff-view/make-diff-viewer old-name old new-name new))))
 
+(handler/defhandler :synchronize :global
+  (enabled? [changes-view]
+            (let [^Git git (g/node-value changes-view :git)
+                  status (git/unified-status git)]
+              (boolean (not-empty status))))
+  (run [changes-view]
+       (let [^Git git (g/node-value changes-view :git)]
+         (sync/open-sync-dialog (sync/make-flow git "test2")))))
+
+(ui/extend-menu ::menubar :editor.app-view/open
+                [{:label "Synchronize"
+                  :id ::synchronize
+                  :acc "Shortcut+U"
+                  :command :synchronize}])
+
 (g/defnode ChangesView
   (inherits core/Scope)
   (property parent-view g/Any)
@@ -72,12 +88,13 @@
      (refresh! git list-view))))
 
 (defn make-changes-view [view-graph workspace parent]
-  (let [view-id (g/make-node! view-graph ChangesView :parent-view parent)
+  (let [git     (Git/open (io/file (g/node-value workspace :root)))
+        view-id (g/make-node! view-graph ChangesView :parent-view parent :git git)
         view    (g/node-by-id view-id)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (core/post-create view (g/now) {:parent parent :git (Git/open (io/file (g/node-value workspace :root))) :workspace workspace})
+      (core/post-create view (g/now) {:parent parent :git git :workspace workspace})
       view-id
       (catch Exception e
         (log/error :exception e)))))
