@@ -229,15 +229,3 @@ set :status to :done?"
     (ad)
     (dialogs/show! dialog {:on-ok ad
                            :ready? (fn [] true)})))
-
-(ui/run-later
- (open-sync-dialog (make-flow (Git/open (io/file "/tmp/1")) "TODO REMOVE")))
-
-#_(git/unified-status (Git/open (io/file "/tmp/1")))
-
-#_(make-flow (Git/open (io/file "/tmp/1")) "foo")
-
-#_(let [git (Git/open (io/file "/tmp/1"))]
-  (-> git
-      .getRepository
-      .getBranch))
