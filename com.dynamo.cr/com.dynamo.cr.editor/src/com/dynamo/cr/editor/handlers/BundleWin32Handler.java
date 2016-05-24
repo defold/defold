@@ -12,7 +12,7 @@ public class BundleWin32Handler extends BundleGenericHandler {
 
     @Override
     protected boolean openBundleDialog() {
-        setTitle("Package Linux Application");
+        setTitle("Package Windows Application");
         return super.openBundleDialog();
     }
 
