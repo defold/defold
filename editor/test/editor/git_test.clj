@@ -4,7 +4,7 @@
             [editor.git :as git])
   (:import [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]
-           [org.eclipse.jgit.api Git]
+           [org.eclipse.jgit.api Git MergeResult$MergeStatus]
            [org.apache.commons.io FileUtils]))
 
 (defn- create-file [git path content]
@@ -273,67 +273,30 @@
 
 (deftest merge-test
   ; merge conflict
-  (let [remote-git (new-git)]
-    (create-file remote-git "/src/main.cpp" "void main() {}")
+  (let [remote-git (new-git)
+        base-src "void main() {}"]
+    (create-file remote-git "/src/main.cpp" base-src)
     (commit-src remote-git)
-    (let [git (clone remote-git)]
-      (create-file remote-git "/src/main.cpp" "void main1() {}")
-      (create-file git "/src/main.cpp" "void main2() {}")
+    (let [git (clone remote-git)
+          their-src "void main1() {}"
+          our-src "void main2() {}"]
+      (create-file remote-git "/src/main.cpp" their-src)
       (commit-src remote-git)
+      (create-file git "/src/main.cpp" our-src)
       (commit-src git)
-
-      (println "!!!" git)
-      (println
-       (-> (.pull git)
-           (.call)
-           (.getMergeResult)
-           (.getMergeStatus)
-           (str)
-           ))
-
-      #_(println "->"
-       (-> (.pull git)
-           (.call)
-           (.getMergeResult)
-           (.getCheckoutConflicts)
-           #_(.getConflicts)
-           ))
-
-      (println "A" (slurp-file git "src/main.cpp"))
+      (let [status (-> git
+                     .pull
+                     .call
+                     .getMergeResult
+                     .getMergeStatus)]
+        (is (= status MergeResult$MergeStatus/CONFLICTING)))
 
       (-> (.checkout git)
           (.addPath "src/main.cpp")
-          (.setStage org.eclipse.jgit.api.CheckoutCommand$Stage/BASE)
-          (.call)
-          )
+          (.setStage org.eclipse.jgit.api.CheckoutCommand$Stage/OURS)
+          (.call))
 
-      (println "B" (slurp-file git "src/main.cpp"))
+      (is (= our-src (slurp-file git "src/main.cpp")))
 
-
-
-      #_(println "status a" (:conflicting (git/status git)))
-      #_(commit-src git)
-      #_(println "status b" (:conflicting (git/status git)))
-      #_(println "status b" (git/status git))
-      #_(println "status" (-> (.status git)
-                            (.call)
-                            (.getConflictingStageState)))
-
-
-      (println git)
-      ;(delete-git git)
-      )
-
-    #_(is (= #{"src/main.cpp"} (:untracked (git/status remote-git))))
-    #_(git/revert remote-git ["src/main.cpp"])
-    #_(is (= #{} (all-files (git/status remote-git))))
+      (delete-git git))
     (delete-git remote-git)))
-
-
-
-(clojure.test/test-vars [#'editor.git-test/merge-test])
-
-;(println (keyword (.toLowerCase (str org.eclipse.jgit.api.MergeResult$MergeStatus/CONFLICTING))))
-
-
-;(run-tests)

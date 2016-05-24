@@ -54,8 +54,6 @@
 (defn- all-files [status]
   (reduce (fn [acc [k v]] (clojure.set/union acc v)) #{} (dissoc status :untracked-folders)))
 
-(deftest unified-status-test)
-
 (deftest sync-test
   (testing "cancel"
     (let [[git remote] (setup-repos)]
@@ -172,22 +170,3 @@
           (if (= resolution :ours)
             (is (= "a" (slurp-file git "src/new.cpp")))
             (is (= "b" (slurp-file git "src/new.cpp")))))))))
-
-(run-tests)
-
-#_(let [git (Git/open (io/file "/var/folders/3c/v90zsd9x5bzfbbddqp5ym6x40000gr/T/foo3289790038167270088")) ]
-  (-> (.status git)
-      .call
-      .getConflictingStageState))
-
-#_(let [git (Git/open (io/file "/var/folders/3c/v90zsd9x5bzfbbddqp5ym6x40000gr/T/foo3289790038167270088")) ]
-  (-> (.commit git)
-      .call))
-
-;
-
-#_(let [git (new-git)]
-  (create-file git "foobar" "hej")
-  (let [flow (sync/make-flow git "test")]
-    flow
-    #_(-> git .getRepository .getBranch)))

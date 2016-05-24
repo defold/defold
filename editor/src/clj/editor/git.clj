@@ -127,23 +127,23 @@ There's there different functions in this namespace
       (when (contains? (:untracked s) f)
         (io/delete-file (str (.getWorkTree (.getRepository git)) "/" f))))))
 
-(defn delete-branch [git name]
+(defn delete-branch [^Git git name]
   (-> (.branchDelete git)
       (.setBranchNames (into-array String [name]))
       (.call)))
 
-(defn checkout-branch [git name create]
+(defn checkout-branch [^Git git name create]
   (-> (.checkout git)
       (.setCreateBranch create)
       (.setName name)
       (.call)))
 
-(defn stash [git]
+(defn stash [^Git git]
   (-> (.stashCreate git)
       (.setIncludeUntracked true)
       (.call)))
 
-(defn branch-name [git]
+(defn branch-name [^Git git]
   (-> git .getRepository .getBranch))
 
 (defn autostage [^Git git]
