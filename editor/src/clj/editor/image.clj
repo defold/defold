@@ -64,15 +64,15 @@
     (java.awt.Color. r g b a)))
 
 (s/defn make-image :- Image
-  [nm :- g/Any contents :- BufferedImage]
+  [nm :- s/Any contents :- BufferedImage]
   (Image. nm contents (.getWidth contents) (.getHeight contents)))
 
 (s/defn blank-image :- BufferedImage
   ([space :- Rect]
     (blank-image (.width space) (.height space)))
-  ([width :- g/Int height :- g/Int]
+  ([width :- s/Int height :- s/Int]
     (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
-  ([width :- g/Int height :- g/Int t :- g/Int]
+  ([width :- s/Int height :- s/Int t :- s/Int]
     (BufferedImage. width height t)))
 
 (s/defn flood :- BufferedImage
