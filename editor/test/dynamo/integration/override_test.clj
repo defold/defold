@@ -419,7 +419,7 @@
                              node-tree (g/node-value scene :node-tree)
                              {:keys [id-mapping tx-data]} (g/override node-tree {})
                              node-tree-or (id-mapping node-tree)]
-                         (into tx-data
+                         (concat tx-data
                            (for [[from to] [[:_node-id :node-tree]]]
                              (g/connect node-tree-or from self to)))))))))
   (input node-tree g/NodeID :cascade-delete)
