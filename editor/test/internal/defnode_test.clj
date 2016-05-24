@@ -17,7 +17,6 @@
   (testing "aliases for the same type ref"
     (are [x] (= {:value-type int-ref :flags #{}}
                 (in/parse-type-form "test" x))
-      'Int
       `Int
       :internal.defnode-test/Int
       'internal.defnode-test/Int))
@@ -25,7 +24,6 @@
   (testing "multivalued cases"
     (are [x] (= {:value-type int-ref :flags #{:collection}}
                 (in/parse-type-form "test" x))
-      '[Int]
       `[Int]
       [:internal.defnode-test/Int]
       '[internal.defnode-test/Int]))
