@@ -28,9 +28,18 @@ namespace dmCrash
         {
             // Write each symbol on a separate line, just like
             // backgrace_symbols_fd would do.
-            memcpy(g_AppState.m_Extra + offset, stacktrace[i], strlen(stacktrace[i]));
-            g_AppState.m_Extra[offset + strlen(stacktrace[i])] = '\n';
-            offset += strlen(stacktrace[i]) + 1;
+            uint32_t stacktrace_length = strnlen(stacktrace[i], dmCrash::AppState::EXTRA_MAX - 1);
+            if ((offset + stacktrace_length) < (dmCrash::AppState::EXTRA_MAX - 1))
+            {
+                memcpy(g_AppState.m_Extra + offset, stacktrace[i], stacktrace_length);
+                g_AppState.m_Extra[offset + stacktrace_length] = '\n';
+                offset += stacktrace_length + 1;
+            }
+            else
+            {
+                dmLogError("Not enough space to write entire stacktrace!");
+                break;
+            }
         }
 
         free(stacktrace);

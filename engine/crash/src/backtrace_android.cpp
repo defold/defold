@@ -138,10 +138,25 @@ namespace dmCrash
         for (int i = 0;i < dmMath::Min(g_AppState.m_PtrCount, AppState::PTRS_MAX); ++i)
         {
             // Write each pointer on a separate line, much like backtrace_symbols_fd.
-            char current[128];
-            sprintf(current, "#%d %p\n", i, g_AppState.m_Ptr[i]);
-            memcpy(g_AppState.m_Extra + offset, current, strlen(current));
-            offset += strlen(current);
+            char stacktrace[128] = { 0 };
+            int written = snprintf(stacktrace, sizeof(stacktrace), "#%d %p\n", i, g_AppState.m_Ptr[i]);
+            if (written > 0 && written < sizeof(stacktrace))
+            {
+                uint32_t stacktrace_length = strnlen(stacktrace, sizeof(stacktrace));
+                if (offset + stacktrace_length < dmCrash::AppState::EXTRA_MAX - 1)
+                {
+                    memcpy(g_AppState.m_Extra + offset, stacktrace, stacktrace_length);
+                    offset += stacktrace_length;
+                }
+                else
+                {
+                    dmLogError("Not enough space to write entire stacktrace!");
+                }
+            }
+            else
+            {
+                dmLogError("Buffer too short (%d) to write stacktrace (%d)!", sizeof(current), written);
+            }
         }
 
         WriteCrash(g_FilePath, &g_AppState);
