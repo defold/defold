@@ -155,7 +155,7 @@ namespace dmCrash
             }
             else
             {
-                dmLogError("Buffer too short (%d) to write stacktrace (%d)!", sizeof(current), written);
+                dmLogError("Buffer too short (%d) to write stacktrace (%d)!", sizeof(stacktrace), written);
             }
         }
 
