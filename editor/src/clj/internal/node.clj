@@ -20,6 +20,13 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:dynamic *node-value-debug* nil)
+(def ^:dynamic ^:private *node-value-nesting* 0)
+
+(defn nodevalstr [this node-type label & t]
+  (apply str *node-value-nesting* "\t" (:_node-id this) "\t"  (:name @node-type) label "\t" t))
+
+(prefer-method clojure.pprint/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method clojure.pprint/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 
 (defprotocol Ref
@@ -206,7 +213,10 @@
                             " exists for node " (gt/node-id this)
                             " of type " (:name node-type)
                             "\nIn production: " (get evaluation-context :in-production)))
-      ((:fn beh) this evaluation-context)))
+      (when *node-value-debug*
+        (println (nodevalstr this node-type label)))
+      (binding [*node-value-nesting* (inc *node-value-nesting*)]
+        ((:fn beh) this evaluation-context))))
 
   gt/OverrideNode
   (clear-property [this basis property]
@@ -1435,37 +1445,40 @@
     (let [basis    (:basis evaluation-context)
           original (gt/node-by-id-at basis original-id)
           type     (gt/node-type this basis)]
-      (cond
-        (= :_node-id output)
-        node-id
+      (when *node-value-debug*
+        (println (nodevalstr this type output " (override node)")))
+      (binding [*node-value-nesting* (inc *node-value-nesting*)]
+        (cond
+          (= :_node-id output)
+          node-id
 
-        (or (= :_declared-properties output)
-            (= :_properties output))
-        (let [beh             (behavior type output)
-              props         ((:fn beh) this evaluation-context)
-              orig-props    (:properties ((:fn beh) original evaluation-context))
-              dynamic-props (without (set (keys properties)) (set (keys (public-properties type))))]
-          (reduce (fn [props [k v]]
-                    (cond-> props
-                      (and (= :_properties output)
-                           (dynamic-props k))
-                      (assoc-in [:properties k :value] v)
+          (or (= :_declared-properties output)
+              (= :_properties output))
+          (let [beh             (behavior type output)
+                props         ((:fn beh) this evaluation-context)
+                orig-props    (:properties ((:fn beh) original evaluation-context))
+                dynamic-props (without (set (keys properties)) (set (keys (public-properties type))))]
+            (reduce (fn [props [k v]]
+                      (cond-> props
+                        (and (= :_properties output)
+                             (dynamic-props k))
+                        (assoc-in [:properties k :value] v)
 
-                      (contains? orig-props k)
-                      (assoc-in [:properties k :original-value]
-                                (get-in orig-props [k :value]))))
-                  props properties))
+                        (contains? orig-props k)
+                        (assoc-in [:properties k :original-value]
+                                  (get-in orig-props [k :value]))))
+                    props properties))
 
-        (or (has-output? type output)
-            (has-input? type output))
-        (let [beh (behavior type output)]
-          ((:fn beh) this evaluation-context))
+          (or (has-output? type output)
+              (has-input? type output))
+          (let [beh (behavior type output)]
+            ((:fn beh) this evaluation-context))
 
-        true
-        (let [dyn-properties (node-value* original :_properties evaluation-context)]
-          (if (contains? (:properties dyn-properties) output)
-            (get properties output)
-            (node-value* original output evaluation-context))))))
+          true
+          (let [dyn-properties (node-value* original :_properties evaluation-context)]
+            (if (contains? (:properties dyn-properties) output)
+              (get properties output)
+              (node-value* original output evaluation-context)))))))
 
   gt/OverrideNode
   (clear-property [this basis property] (update this :properties dissoc property))
