@@ -74,30 +74,30 @@
 
 ;;; accessors for node type information
 
-(defn supertypes             [nt]        (:supertypes (deref nt)))
-(defn property-display-order [nt]        (:property-display-order (deref nt)))
-(defn transforms             [nt]        (:output (deref nt)))     ;; deprecated
-(defn transform-types        [nt]        (util/map-vals :value-type (get-in (deref nt) [:output]))) ;; deprecated
-(defn declared-properties    [nt]        (into {} (remove (comp internal? val) (:property (deref nt))))) ;; deprecated
-(defn internal-properties    [nt]        (into {} (filter (comp internal? val) (:property (deref nt)))))
-(defn declared-inputs        [nt]        (:input (deref nt)))
-(defn injectable-inputs      [nt]        (util/key-set (filterm #(injectable? (val %)) (:input (deref nt)))))
-(defn declared-outputs       [nt]        (:output (deref nt)))
-(defn cached-outputs         [nt]        (util/key-set (filterm #(cached? (val %)) (:output (deref nt)))))
-(defn input-dependencies     [nt]        (:input-dependencies (deref nt)))
-(defn substitute-for         [nt label]  (get-in (deref nt) [:input label :options :substitute]))
-(defn input-type             [nt label]  (get-in (deref nt) [:input label :value-type]))
+(defn supertypes             [nt]        (some-> nt deref :supertypes))
+(defn property-display-order [nt]        (some-> nt deref :property-display-order))
+(defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
+(defn transform-types        [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
+(defn declared-properties    [nt]        (some-> nt deref :property (->> (remove (comp internal? val)) (into {})))) ;; deprecated
+(defn internal-properties    [nt]        (some-> nt deref :property (->> (filter (comp internal? val)) (into {}))))
+(defn declared-inputs        [nt]        (some-> nt deref :input))
+(defn injectable-inputs      [nt]        (some-> nt deref :input (->> (filterm #(injectable? (val %))) util/key-set)))
+(defn declared-outputs       [nt]        (some-> nt deref :output))
+(defn cached-outputs         [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
+(defn input-dependencies     [nt]        (some-> nt deref :input-dependencies))
+(defn substitute-for         [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
+(defn input-type             [nt label]  (some-> nt deref (get-in [:input label :value-type])))
 (defn input-cardinality      [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
-(defn behavior               [nt label]  (get-in (deref nt) [:behavior label]))
-(defn cascade-deletes        [nt]        (util/key-set (filterm #(cascade-deletes? (val %)) (:input (deref nt)))))
-(defn output-type            [nt label]  (get-in (deref nt) [:output label :value-type]))
-(defn output-arguments       [nt label]  (get-in (deref nt) [:output label :arguments]))
+(defn behavior               [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn cascade-deletes        [nt]        (some-> nt deref :input (->> (filterm #(cascade-deletes? (val %))) util/key-set)))
+(defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
+(defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
+(defn externs                [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
+(defn property-type          [nt label]  (some-> nt deref (get-in [:property label :value-type])))
+(defn has-input?             [nt label]  (some-> nt deref (get :input) (contains? label)))
+(defn has-output?            [nt label]  (some-> nt deref (get :output) (contains? label)))
+(defn has-property?          [nt label]  (some-> nt deref (get :property) (contains? label)))
 (defn property-labels        [nt]        (util/key-set (declared-properties nt)))
-(defn externs                [nt]        (util/key-set (filterm #(extern? (val %)) (:property (deref nt)))))
-(defn property-type          [nt label]  (get-in (deref nt) [:property label :value-type]))
-(defn has-input?             [nt label]  (contains? (get (deref nt) :input) label))
-(defn has-output?            [nt label]  (contains? (get (deref nt) :output) label))
-(defn has-property?          [nt label]  (contains? (get (deref nt) :property) label))
 (defn input-labels           [nt]        (util/key-set (declared-inputs nt)))
 (defn output-labels          [nt]        (util/key-set (declared-outputs nt)))
 (def  public-properties   declared-properties)
