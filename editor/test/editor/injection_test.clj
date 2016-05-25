@@ -14,7 +14,7 @@
   (output surname g/Str (g/fnk [] "nachname")))
 
 (g/defnode Sampler
-  (output sample g/Int (g/fnk [] 42)))
+  (output sample g/Num (g/fnk [] 42)))
 
 (g/defnode Labeler
   (output label g/Keyword (g/fnk [] :a-keyword)))
