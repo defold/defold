@@ -589,8 +589,8 @@
 (defn apply-setters [ctx]
   (let [setters (:deferred-setters ctx)
         ctx (assoc ctx :deferred-setters [])]
-    (when *tx-debug*
-      (println (txerrstr ctx "deferred setters" setters "\n meta" (pr-str (map meta setters)))))
+    (when (and *tx-debug* (not (empty? setters)))
+      (println (txerrstr ctx "deferred setters" setters " with meta" (pr-str (map meta setters)))))
     (if (empty? setters)
       ctx
       (-> (reduce (fn [ctx [f node-id old-value new-value :as deferred]]
