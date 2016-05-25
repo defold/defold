@@ -328,6 +328,9 @@ var Module = {
     *     'engine_arguments':
     *         List of arguments (strings) that will be passed to the engine.
     *
+    *     'custom_heap_size':
+    *         Number of bytes specifying the memory heap size.
+    *
     **/
     runApp: function(app_canvas_id, extra_params) {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
@@ -336,9 +339,9 @@ var Module = {
             splash_image: undefined,
             archive_location_filter: function(path) { return 'split' + path; },
             unsupported_webgl_callback: undefined,
-            engine_arguments: []
+            engine_arguments: [],
+            custom_heap_size: undefined
         };
-
 
         for (var k in extra_params) {
             if (extra_params.hasOwnProperty(k)) {
@@ -351,6 +354,7 @@ var Module = {
             Module.canvas.style.background = 'no-repeat center url("' + params["splash_image"] + '")';
         }
         Module.arguments = params["engine_arguments"];
+        Module["TOTAL_MEMORY"] = params["custom_heap_size"];
 
         if (Module.hasWebGLSupport()) {
             // Override game keys
@@ -495,6 +499,10 @@ var Module = {
         if (!Module._archiveLoaded) {
             Module._waitingForArchive = true;
         } else {
+
+            // Need to set heap size before calling main
+            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
+
             Module.preloadAll();
             Progress.removeProgress();
             Module.callMain(Module.arguments);
