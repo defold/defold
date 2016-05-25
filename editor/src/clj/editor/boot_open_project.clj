@@ -58,8 +58,7 @@
 
 ;; inovked to control the timing of when the namepsaces load
 (defn load-namespaces []
-  (println "loaded namespaces")
-  (System/exit 0))
+  (println "loaded namespaces"))
 
 (defn initialize-project []
   (when (nil? @the-root)
