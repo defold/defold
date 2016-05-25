@@ -100,7 +100,7 @@ message SetConstantParticleFX
 {
     required uint64         emitter_id  = 1;
     required uint64         name_hash   = 2;
-    required dmMath.Vector4 value       = 3;
+    required dmMath.Vector4 value       = 3 [(field_align)=true];
 }
 message ResetConstantParticleFX
 {
