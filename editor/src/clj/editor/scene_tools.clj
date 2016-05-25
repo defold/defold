@@ -32,9 +32,9 @@
 
 (set! *warn-on-reflection* true)
 
-(defmulti manip-move (fn [basis node-id ^Vector3d delta] (g/node-type* basis node-id)))
-(defmulti manip-rotate (fn [basis node-id ^Quat4d delta] (g/node-type* basis node-id)))
-(defmulti manip-scale (fn [basis node-id ^Vector3d delta] (g/node-type* basis node-id)))
+(defmulti manip-move (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
+(defmulti manip-rotate (fn [basis node-id ^Quat4d delta] (:key @(g/node-type* basis node-id))))
+(defmulti manip-scale (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
 
 ; Render assets
 
@@ -335,13 +335,13 @@
         scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform]]
     {:move {:manips move-manips
             :label "Move"
-            :filter-fn (fn [n] (get-method manip-move (g/node-type* n)))}
+            :filter-fn (fn [n] (get-method manip-move (:key @(g/node-type* n))))}
      :rotate {:manips rot-manips
               :label "Rotate"
-              :filter-fn (fn [n] (get-method manip-rotate (g/node-type* n)))}
+              :filter-fn (fn [n] (get-method manip-rotate (:key @(g/node-type* n))))}
      :scale {:manips scale-manips
              :label "Scale"
-             :filter-fn (fn [n] (get-method manip-scale (g/node-type* n)))}}))
+             :filter-fn (fn [n] (get-method manip-scale (:key @(g/node-type* n))))}}))
 
 (defn- transform->translation
   [^Matrix4d m]
