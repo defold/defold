@@ -40,10 +40,10 @@ public class GuiNode extends Node implements Identifiable {
     // Fields of the render key
     private enum RenderKeyRange {
         SUB_INDEX(10),
-        SUB_LAYER(3),
+        SUB_LAYER(4),
         INV_CLIPPER_ID(8),
         INDEX(10),
-        LAYER(3);
+        LAYER(4);
 
         private final long bitRange;
 
