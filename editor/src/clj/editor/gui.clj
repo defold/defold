@@ -549,8 +549,8 @@
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
 
-  _(input texture-input g/Str)
-  _(input anim-data g/Any)
+  (input texture-input g/Str)
+  (input anim-data g/Any)
   (input textures IDMap)
   (input texture-ids IDMap)
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
@@ -1061,15 +1061,16 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id child-outlines]
                  (let [data (gen-outline-fnk-data "Nodes" 0 true [{:node-type BoxNode
-                                                              :tx-attach-fn (gen-gui-node-attach-fn :type-box)}
-                                                             {:node-type PieNode
-                                                              :tx-attach-fn (gen-gui-node-attach-fn :type-pie)}
-                                                             {:node-type TextNode
-                                                              :tx-attach-fn (gen-gui-node-attach-fn :type-text)}
-                                                             {:node-type TemplateNode
-                                                              :tx-attach-fn (gen-gui-node-attach-fn :type-template)}]
+                                                                   :tx-attach-fn (gen-gui-node-attach-fn :type-box)}
+                                                                  {:node-type PieNode
+                                                                   :tx-attach-fn (gen-gui-node-attach-fn :type-pie)}
+                                                                  {:node-type TextNode
+                                                                   :tx-attach-fn (gen-gui-node-attach-fn :type-text)}
+                                                                  {:node-type TemplateNode
+                                                                   :tx-attach-fn (gen-gui-node-attach-fn :type-template)}]
                                                   _node-id
-                                                  child-outlines)])))
+                                                  child-outlines)]
+                   data)))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
