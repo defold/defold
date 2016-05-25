@@ -14,6 +14,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
+            [schema.core :as s]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
@@ -137,7 +138,7 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
-(g/deftype SelectionMode #{:direct :toggle})
+(g/deftype SelectionMode (s/enum :direct :toggle))
 
 (g/defnode SelectionController
   (property select-fn types/RunnableType)
