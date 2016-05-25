@@ -767,6 +767,13 @@ static void LogFrameBufferError(GLenum status)
         return size;
     }
 
+    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    {
+        HVertexDeclaration vd = NewVertexDeclaration(context, element, count);
+        vd->m_Stride = stride;
+        return vd;
+    }
+
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration;
