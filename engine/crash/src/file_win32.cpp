@@ -10,6 +10,7 @@ namespace dmCrash
         HANDLE fhandle = CreateFileA(file_name, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (fhandle != NULL)
         {
+            DWORD written;
             AppStateHeader header;
             header.version = AppState::VERSION;
             header.struct_size = sizeof(AppState);
