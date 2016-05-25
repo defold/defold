@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <dlib/log.h>
 
 namespace dmCrash
 {
