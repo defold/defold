@@ -10,7 +10,7 @@ namespace dmCrash
     void OnCrash()
     {
         // The API only accepts 62 or less
-        uint32_t max = dmMath::Min(AppState::PTRS_MAX, 62);
+        uint32_t max = dmMath::Min(AppState::PTRS_MAX, (uint32_t)62);
         g_AppState.m_PtrCount = CaptureStackBackTrace(0, max, &g_AppState.m_Ptr[0], 0);
         WriteCrash(g_FilePath, &g_AppState);
     }
