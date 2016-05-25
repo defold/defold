@@ -2,6 +2,7 @@
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -71,19 +72,6 @@ namespace dmCrash
         sigcontext uc_mcontext;
     };
 
-    //
-
-    void WriteExtra(int fd)
-    {
-        // Simple #0 <addr0> #1 <addr1> list.
-        for (uint32_t i=0;i!=g_AppState.m_PtrCount && i < AppState::PTRS_MAX;i++)
-        {
-            char tmp[128];
-            sprintf(tmp, "#%d %p\n", i, g_AppState.m_Ptr[i]);
-            write(fd, tmp, strlen(tmp));
-        }
-    }
-
     void OnCrash(int signo, siginfo_t const *si, const ucontext *uc)
     {
         if (unw_init_local)
@@ -145,7 +133,33 @@ namespace dmCrash
         }
 
         g_AppState.m_Signum = signo;
-        WriteCrash(g_FilePath, &g_AppState, WriteExtra);
+
+        uint32_t offset = 0;
+        for (int i = 0;i < dmMath::Min(g_AppState.m_PtrCount, AppState::PTRS_MAX); ++i)
+        {
+            // Write each pointer on a separate line, much like backtrace_symbols_fd.
+            char stacktrace[128] = { 0 };
+            int written = snprintf(stacktrace, sizeof(stacktrace), "#%d %p\n", i, g_AppState.m_Ptr[i]);
+            if (written > 0 && written < sizeof(stacktrace))
+            {
+                uint32_t stacktrace_length = strnlen(stacktrace, sizeof(stacktrace));
+                if (offset + stacktrace_length < dmCrash::AppState::EXTRA_MAX - 1)
+                {
+                    memcpy(g_AppState.m_Extra + offset, stacktrace, stacktrace_length);
+                    offset += stacktrace_length;
+                }
+                else
+                {
+                    dmLogError("Not enough space to write entire stacktrace!");
+                }
+            }
+            else
+            {
+                dmLogError("Buffer too short (%d) to write stacktrace (%d)!", sizeof(current), written);
+            }
+        }
+
+        WriteCrash(g_FilePath, &g_AppState);
     }
 
     void WriteDump()
