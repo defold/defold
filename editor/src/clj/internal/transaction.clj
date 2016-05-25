@@ -262,10 +262,14 @@
     source-id))
 
 (defn- ctx-delete-node [ctx node-id]
+  (when *tx-debug*
+    (println (txerrstr ctx "deleting " node-id)))
   (let [basis (:basis ctx)
         overrides-deep (comp reverse (partial tree-seq (constantly true) (partial ig/overrides basis)))
         to-delete    (->> (ig/pre-traverse basis [node-id] cascade-delete-sources)
-                       (mapcat overrides-deep))]
+                          (mapcat overrides-deep))]
+    (when (and *tx-debug* (not (empty? to-delete)))
+      (println (txerrstr ctx "cascading delete of " (pr-str to-delete))))
     (reduce delete-single ctx to-delete)))
 
 (defmethod perform :delete-node
@@ -445,19 +449,20 @@
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
-      (-> ctx
-        ; If the input has :one cardinality, disconnect existing connections first
-        (ctx-disconnect-single target target-id target-label)
-        (mark-input-activated target-id target-label)
-        (update :basis gt/connect source-id source-label target-id target-label)
-        (update :successors-changed conj [source-id source-label])
-        (ctx-add-overrides source-id source source-label target target-label))
+      (do
+        (in/assert-type-compatible (:basis ctx) source-id source-label target-id target-label)
+        (-> ctx
+                                        ; If the input has :one cardinality, disconnect existing connections first
+            (ctx-disconnect-single target target-id target-label)
+            (mark-input-activated target-id target-label)
+            (update :basis gt/connect source-id source-label target-id target-label)
+            (update :successors-changed conj [source-id source-label])
+            (ctx-add-overrides source-id source source-label target target-label)))
       ctx)
     ctx))
 
 (defmethod perform :connect
   [ctx {:keys [source-id source-label target-id target-label] :as tx-data}]
-  (in/assert-type-compatible (:basis ctx) source-id source-label target-id target-label)
   (ctx-connect ctx source-id source-label target-id target-label))
 
 (defn- ctx-remove-overrides [ctx source source-label target target-label]
