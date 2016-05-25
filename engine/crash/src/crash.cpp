@@ -2,6 +2,7 @@
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -14,225 +15,205 @@
 
 namespace dmCrash
 {
-    // Currently running app's crash data.
     AppState g_AppState;
-
-    // Data from previously generated crashes.
-    bool g_PreviousStateV1Loaded = false;
-    AppStateV1 g_PreviousStateV1;
-    char g_PreviousExtra[32768];
-
-    static bool g_IsInitialized = false;
+    AppState g_PreviousAppState;
 
     // The default path is where the dumps are stored before the application configures a different path.
-    static char g_FilePathDefault[FILEPATH_MAX];
-    char g_FilePath[FILEPATH_MAX];
-    static const char* g_FileName = "_crash";
+    static char g_FilePathDefault[AppState::FILEPATH_MAX];
+    char g_FilePath[AppState::FILEPATH_MAX];
 
     bool IsInitialized()
     {
-        return g_IsInitialized;
+        return g_AppState.m_EngineVersion[0] != 0x0;
     }
 
     void Init(const char *version, const char *hash)
     {
-        memset(g_FilePath, 0x00, sizeof(g_FilePath));
+        memset(g_FilePath, 0x0, sizeof(g_FilePath));
+        memset(&g_AppState, 0x0, sizeof(g_AppState));
 
         // Construct a file path with the app name 'Defold' until it is modified by the application;
         // this also means crash files can be stored in two different places. At the default path or in the
         // application-specific location. So need to look for both when loading.
         dmSys::Result r = dmSys::GetApplicationSupportPath("Defold", g_FilePathDefault, sizeof(g_FilePathDefault));
-        if (r != dmSys::RESULT_OK)
+        if (r == dmSys::RESULT_OK)
         {
-            return;
+            dmStrlCat(g_FilePathDefault, "/", sizeof(g_FilePathDefault));
+            dmStrlCat(g_FilePathDefault, "_crash", sizeof(g_FilePathDefault));
+
+            dmStrlCpy(g_FilePath, g_FilePathDefault, sizeof(g_FilePath));
+
+            dmSys::SystemInfo info;
+            dmSys::GetSystemInfo(&info);
+
+            #define COPY_FIELD(x) dmStrlCpy(g_AppState.x, info.x, sizeof(g_AppState.x))
+            COPY_FIELD(m_DeviceModel);
+            COPY_FIELD(m_Manufacturer);
+            COPY_FIELD(m_SystemName);
+            COPY_FIELD(m_SystemVersion);
+            COPY_FIELD(m_Language);
+            COPY_FIELD(m_DeviceLanguage);
+            COPY_FIELD(m_Territory);
+            #undef COPY_FIELD
+
+            dmStrlCpy(g_AppState.m_EngineVersion, version, sizeof(g_AppState.m_EngineVersion));
+            dmStrlCpy(g_AppState.m_EngineHash, hash, sizeof(g_AppState.m_EngineHash));
+
+            SetLoadAddrs(&g_AppState);
+
+            InstallHandler();
         }
-
-        dmStrlCat(g_FilePathDefault, "/", sizeof(g_FilePathDefault));
-        dmStrlCat(g_FilePathDefault, g_FileName, sizeof(g_FilePathDefault));
-
-        dmStrlCpy(g_FilePath, g_FilePathDefault, sizeof(g_FilePath));
-
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-
-        #define COPY_FIELD(x) dmStrlCpy(g_AppState.x, info.x, sizeof(g_AppState.x))
-        COPY_FIELD(m_DeviceModel);
-        COPY_FIELD(m_Manufacturer);
-        COPY_FIELD(m_SystemName);
-        COPY_FIELD(m_SystemVersion);
-        COPY_FIELD(m_Language);
-        COPY_FIELD(m_DeviceLanguage);
-        COPY_FIELD(m_Territory);
-        #undef COPY_FIELD
-
-        dmStrlCpy(g_AppState.m_EngineVersion, version, sizeof(g_AppState.m_EngineVersion));
-        dmStrlCpy(g_AppState.m_EngineHash, hash, sizeof(g_AppState.m_EngineHash));
-
-        SetLoadAddrs(&g_AppState);
-
-        InstallHandler();
-
-        g_IsInitialized = true;
     }
 
-    void SetFilePath(const char *fn)
+    void SetFilePath(const char *filepath)
     {
-        dmStrlCpy(g_FilePath, fn, sizeof(g_FilePath));
+        dmStrlCpy(g_FilePath, filepath, sizeof(g_FilePath));
     }
 
     Result SetUserField(uint32_t index, const char *value)
     {
         if (index < AppState::USERDATA_SLOTS)
         {
-            dmStrlCpy(g_AppState.m_UserData[index], value, sizeof(g_AppState.m_UserData[0]));
+            dmStrlCpy(g_AppState.m_UserData[index], value, sizeof(g_AppState.m_UserData[index]));
             return RESULT_OK;
         }
+
         return RESULT_INVALID_PARAM;
     }
 
     HDump LoadPrevious(FILE *f)
     {
-        struct hdr
+        AppStateHeader header;
+        memset(&header, 0x0, sizeof(AppStateHeader));
+        if (fread(&header, 1, sizeof(AppStateHeader), f) == sizeof(AppStateHeader))
         {
-            uint32_t version;
-            uint32_t struct_size;
-        } h;
-
-        int rd = fread(&h, 1, sizeof(hdr), f);
-        if (rd != sizeof(hdr))
-        {
-            dmLogWarning("Dump file does not contain header");
-            return 0;
-        }
-
-        memset(&g_PreviousStateV1, 0x00, sizeof(g_PreviousStateV1));
-        if (h.version == 1 && h.struct_size == sizeof(g_PreviousStateV1))
-        {
-            if (fread(&g_PreviousStateV1, 1, sizeof(g_PreviousStateV1), f) != sizeof(g_PreviousStateV1))
+            memset(&g_PreviousAppState, 0x0, sizeof(AppState));
+            if (header.version == AppState::VERSION && header.struct_size == sizeof(AppState))
             {
-                dmLogWarning("Dump not complete");
-                return 0;
+                if (fread(&g_PreviousAppState, 1, sizeof(AppState), f) == sizeof(AppState))
+                {
+                    return 1;
+                }
+                else
+                {
+                    dmLogError("Crashdump is incomplete.");
+                }
             }
-
-            // Bonus platform specifically formatted data that is just treated as a null terminated
-            // text blob; therefore do not read all the way.
-            memset(g_PreviousExtra, 0x0, sizeof(g_PreviousExtra));
-            fread(&g_PreviousExtra, 1, sizeof(g_PreviousExtra)-1, f);
-            g_PreviousStateV1Loaded = true;
-            return 1; // See Check()
+            else
+            {
+                dmLogWarning("Crashdump version or format does not match.");
+            }
         }
         else
         {
-            dmLogWarning("Version and size unknown %d %d", h.version, h.struct_size);
-            return 0;
+            dmLogError("Crashdump does not contain a valid header.");
         }
+
+        return 0;
     }
 
     void Release(HDump dump)
     {
         if (dump == 1)
         {
-            g_PreviousStateV1Loaded = false;
+            memset(&g_PreviousAppState, 0x0, sizeof(AppState));
         }
     }
 
-    AppStateV1 *Check(HDump dump)
+    AppState* Check(HDump dump)
     {
-        if (dump == 1 && g_PreviousStateV1Loaded)
+        if (dump == 1 && g_PreviousAppState.m_EngineVersion[0] != 0x0)
         {
-            return &g_PreviousStateV1;
+            return &g_PreviousAppState;
         }
-        return 0;
+
+        return NULL;
     }
 
     bool IsValidHandle(HDump dump)
     {
-        return Check(dump) != 0;
+        return Check(dump) != NULL;
     }
 
     const char* GetExtraData(HDump dump)
     {
-        // Not stored in this struct, but check so argument is valid.
-        AppStateV1 *v1 = Check(dump);
-        return v1 ? g_PreviousExtra : 0;
+        AppState* state = Check(dump);
+        return state ? state->m_Extra : 0;
     }
 
     int GetSignum(HDump dump)
     {
-        AppStateV1 *v1 = Check(dump);
-        return v1 ? v1->m_Signum : 0;
+        AppState* state = Check(dump);
+        return state ? state->m_Signum : 0;
     }
 
     const char* GetSysField(HDump dump, SysField fld)
     {
-        AppStateV1 *v1 = Check(dump);
-        if (v1)
+        AppState* state = Check(dump);
+        if (state != NULL)
         {
             // Cannot trust anything in the dump so terminate before returning.
-            #define TERM_RET(x) \
-                x[sizeof(x)-1] = 0; \
-                return x;
+            #define TERM_RET(x) x[sizeof(x)-1] = 0; return x;
 
             switch (fld)
             {
-                case SYSFIELD_ENGINE_VERSION:  TERM_RET(v1->m_EngineVersion);
-                case SYSFIELD_ENGINE_HASH:     TERM_RET(v1->m_EngineHash);
-                case SYSFIELD_DEVICE_MODEL:    TERM_RET(v1->m_DeviceModel);
-                case SYSFIELD_MANUFACTURER:    TERM_RET(v1->m_Manufacturer);
-                case SYSFIELD_SYSTEM_NAME:     TERM_RET(v1->m_SystemName);
-                case SYSFIELD_SYSTEM_VERSION:  TERM_RET(v1->m_SystemVersion);
-                case SYSFIELD_LANGUAGE:        TERM_RET(v1->m_Language);
-                case SYSFIELD_DEVICE_LANGUAGE: TERM_RET(v1->m_DeviceLanguage);
-                case SYSFIELD_TERRITORY:       TERM_RET(v1->m_Territory);
-                case SYSFIELD_ANDROID_BUILD_FINGERPRINT: TERM_RET(v1->m_AndroidBuildFingerprint);
-                default:
-                    return 0;
+                case SYSFIELD_ENGINE_VERSION:            TERM_RET(state->m_EngineVersion);
+                case SYSFIELD_ENGINE_HASH:               TERM_RET(state->m_EngineHash);
+                case SYSFIELD_DEVICE_MODEL:              TERM_RET(state->m_DeviceModel);
+                case SYSFIELD_MANUFACTURER:              TERM_RET(state->m_Manufacturer);
+                case SYSFIELD_SYSTEM_NAME:               TERM_RET(state->m_SystemName);
+                case SYSFIELD_SYSTEM_VERSION:            TERM_RET(state->m_SystemVersion);
+                case SYSFIELD_LANGUAGE:                  TERM_RET(state->m_Language);
+                case SYSFIELD_DEVICE_LANGUAGE:           TERM_RET(state->m_DeviceLanguage);
+                case SYSFIELD_TERRITORY:                 TERM_RET(state->m_Territory);
+                case SYSFIELD_ANDROID_BUILD_FINGERPRINT: TERM_RET(state->m_AndroidBuildFingerprint);
+                default:                                 return 0;
             }
 
             #undef TERM_RET
         }
+
         return 0;
     }
 
     const char* GetUserField(HDump dump, uint32_t index)
     {
-        AppStateV1 *v1 = Check(dump);
-        if (v1)
+        AppState* state = Check(dump);
+        if (state != NULL)
         {
-            if (index < AppStateV1::USERDATA_SLOTS)
+            if (index < AppState::USERDATA_SLOTS)
             {
-                v1->m_UserData[index][AppStateV1::USERDATA_SIZE-1] = 0;
-                return v1->m_UserData[index];
+                state->m_UserData[index][AppState::USERDATA_SIZE - 1] = 0;
+                return state->m_UserData[index];
             }
         }
+
         return 0;
     }
 
     HDump LoadPreviousFn(const char *where)
     {
         HDump ret = 0;
-        FILE *f = fopen(where, "rb");
-        if (f)
+        FILE* fhandle = fopen(where, "rb");
+        if (fhandle)
         {
-            ret = LoadPrevious(f);
-            fclose(f);
+            ret = LoadPrevious(fhandle);
+            fclose(fhandle);
         }
+
         return ret;
     }
 
     // Load previous dump (if exists)
     HDump LoadPrevious()
     {
-        HDump d;
-        if ((d = LoadPreviousFn(g_FilePathDefault)) != 0)
+        HDump dump = 0;
+        if ((dump = LoadPreviousFn(g_FilePathDefault)) != 0)
         {
-            return d;
+            return dump;
         }
-        if ((d = LoadPreviousFn(g_FilePath)) != 0)
-        {
-            return d;
-        }
-        return 0;
+
+        return LoadPreviousFn(g_FilePath);
     }
 
     void Purge()
@@ -243,49 +224,56 @@ namespace dmCrash
 
     uint32_t GetBacktraceAddrCount(HDump dump)
     {
-        AppStateV1 *v1 = Check(dump);
-        if (v1)
+        AppState* state = Check(dump);
+        if (state != NULL)
         {
-            return (v1->m_PtrCount < AppStateV1::PTRS_MAX) ? v1->m_PtrCount : AppStateV1::PTRS_MAX;
+            return dmMath::Min(AppState::PTRS_MAX, state->m_PtrCount);
         }
+
         return 0;
     }
 
     void* GetBacktraceAddr(HDump dump, uint32_t index)
     {
-        AppStateV1 *v1 = Check(dump);
-        if (v1)
+        AppState* state = Check(dump);
+        if (state != NULL)
         {
-            return v1->m_Ptr[index];
+            if (index < dmMath::Min(AppState::PTRS_MAX, state->m_PtrCount))
+            {
+                return state->m_Ptr[index];
+            }
         }
+
         return 0;
     }
 
     const char *GetModuleName(HDump dump, uint32_t index)
     {
-        if (index < AppStateV1::MODULES_MAX)
+        if (index < AppState::MODULES_MAX)
         {
-            AppStateV1 *v1 = Check(dump);
-            if (v1 && v1->m_ModuleName[index][0])
+            AppState* state = Check(dump);
+            if (state != NULL && state->m_ModuleName[index][0])
             {
-                char *fld = v1->m_ModuleName[index];
-                fld[AppStateV1::MODULE_NAME_SIZE-1] = 0;
-                return fld;
+                char* field = state->m_ModuleName[index];
+                field[AppState::MODULE_NAME_SIZE - 1] = 0;
+                return field;
             }
         }
+
         return 0;
     }
 
     void* GetModuleAddr(HDump dump, uint32_t index)
     {
-        if (index < AppStateV1::MODULES_MAX)
+        if (index < AppState::MODULES_MAX)
         {
-            AppStateV1 *v1 = Check(dump);
-            if (v1)
+            AppState* state = Check(dump);
+            if (state != NULL)
             {
-                return v1->m_ModuleAddr[index];
+                return state->m_ModuleAddr[index];
             }
         }
+
         return 0;
     }
 }

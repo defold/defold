@@ -2,7 +2,7 @@
 
 namespace dmCrash
 {
-    void WriteCrash(const char* file_name, AppState *data, void (*write_extra)(int))
+    void WriteCrash(const char* file_name, AppState* data)
     {
 
     }
