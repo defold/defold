@@ -154,7 +154,7 @@ namespace dmSocket
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
         Socket sock = ::socket(domain, type, protocol);
-        
+
         *socket = sock;
         if (sock >= 0)
         {
@@ -247,12 +247,16 @@ namespace dmSocket
             struct sockaddr_in sock_addr = { 0 };
             socklen_t addr_len = sizeof(sock_addr);
             result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            address->m_family = DOMAIN_IPV4;
+            *IPv4(from_addr) = sock_addr.sin_addr.s_addr;
         }
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
             socklen_t addr_len = sizeof(sock_addr);
             result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            address->m_family = DOMAIN_IPV6;
+            memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
         }
         else
         {
@@ -271,7 +275,7 @@ namespace dmSocket
             struct sockaddr_in sock_addr = { 0 };
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&address);
-            sock_addr.sin_port = port; // Might have to htons this?
+            sock_addr.sin_port = htons(port);
             result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
         else if (IsSocketIPv6(socket))
@@ -279,7 +283,7 @@ namespace dmSocket
             struct sockaddr_in6 sock_addr = { 0 };
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
-            sock_addr.sin6_port = port; // Might have to htons this?
+            sock_addr.sin6_port = htons(port);
             result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
         else
@@ -314,11 +318,12 @@ namespace dmSocket
             dmLogError("(Connect) Socket #%d has unknown address family!", socket);
         }
 
-        printf("(%d): %s\n", errno, strerror(errno));
         if (result == -1 && !((NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_WOULDBLOCK)))
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
         }
+
+        return RESULT_OK;
     }
 
     Result Listen(Socket socket, int backlog)
@@ -369,10 +374,10 @@ namespace dmSocket
             struct sockaddr_in sock_addr = { 0 };
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&to_addr);
-            sock_addr.sin_port = to_port; // Might have to htons this?
+            sock_addr.sin_port = htons(to_port);
 
 #ifdef _WIN32
-            result = (int) sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
+            result = (int) sendto(socket, (const char*) buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #else
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #endif
@@ -382,7 +387,7 @@ namespace dmSocket
             struct sockaddr_in6 sock_addr = { 0 };
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&to_addr), sizeof(struct in6_addr));
-            sock_addr.sin6_port = to_port; // Might have to htons this?
+            sock_addr.sin6_port = htons(to_port);
 
 #ifdef _WIN32
             result = (int) sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
@@ -439,7 +444,7 @@ namespace dmSocket
             {
                 from_addr->m_family = dmSocket::DOMAIN_IPV4;
                 *IPv4(from_addr) = sock_addr.sin_addr.s_addr;
-                *from_port = sock_addr.sin_port;
+                *from_port = ntohs(sock_addr.sin_port);
                 *received_bytes = result;
             }
         }
@@ -457,7 +462,7 @@ namespace dmSocket
             {
                 from_addr->m_family = dmSocket::DOMAIN_IPV6;
                 memcpy(IPv6(from_addr), &sock_addr.sin6_addr, sizeof(struct in6_addr));
-                *from_port = sock_addr.sin6_port;
+                *from_port = ntohs(sock_addr.sin6_port);
                 *received_bytes = result;
             }
         }
@@ -531,7 +536,7 @@ namespace dmSocket
             {
                 address->m_family = dmSocket::DOMAIN_IPV4;
                 *IPv4(address) = sock_addr.sin_addr.s_addr;
-                *port = sock_addr.sin_port;
+                *port = ntohs(sock_addr.sin_port);
             }
         }
         else if (IsSocketIPv6(socket))
@@ -543,7 +548,7 @@ namespace dmSocket
             {
                 address->m_family = dmSocket::DOMAIN_IPV6;
                 memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
-                *port = sock_addr.sin6_port;
+                *port = ntohs(sock_addr.sin6_port);
             }
         }
         else
