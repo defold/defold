@@ -43,7 +43,7 @@ namespace dmGameSystem
      * end
      * </pre>
      */
-    
+
     /*# sprite scale (vector3)
      *
      * The non-uniform scale of the sprite. The type of the property is vector3.
@@ -194,7 +194,7 @@ namespace dmGameSystem
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
 
         const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
+        DM_ALIGNED(16) uint8_t buffer[buffer_size];
         dmGameSystemDDF::SetConstant* request = (dmGameSystemDDF::SetConstant*)buffer;
 
         uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstant);

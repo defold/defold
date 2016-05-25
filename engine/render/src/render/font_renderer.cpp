@@ -4,6 +4,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/align.h>
+#include <dlib/memory.h>
 #include <dlib/static_assert.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -295,11 +296,16 @@ namespace dmRender
 
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
         uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_MaxVertexCount;
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        text_context.m_ClientBuffer = new char[buffer_size];
+        text_context.m_ClientBuffer = 0x0;
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
         text_context.m_Frame = 0;
+
+        dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
+        if (r != dmMemory::RESULT_OK) {
+            dmLogError("Could not allocate text vertex buffer (%d).", r);
+            return;
+        }
 
         dmGraphics::VertexElement ve[] =
         {
@@ -311,7 +317,8 @@ namespace dmRender
                 {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
         };
 
-        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         // Arbitrary number
         const uint32_t max_batches = 128;
@@ -340,7 +347,7 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
-        delete [] (char*)text_context.m_ClientBuffer;
+        dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
