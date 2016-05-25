@@ -1,5 +1,6 @@
 #include "crash.h"
 #include "crash_private.h"
+#include <dlib/math.h>
 
 #include <windows.h>
 
@@ -8,18 +9,12 @@ namespace dmCrash
 
     void OnCrash()
     {
-        uint32_t max = AppState::PTRS_MAX;
-
         // The API only accepts 62 or less
-        if (max > 62)
-        {
-            max = 62;
-        }
-
+        uint32_t max = dmMath::Min(AppState::PTRS_MAX, 62);
         g_AppState.m_PtrCount = CaptureStackBackTrace(0, max, &g_AppState.m_Ptr[0], 0);
-        WriteCrash(g_FilePath, &g_AppState, 0);
+        WriteCrash(g_FilePath, &g_AppState);
     }
-    
+
     void WriteDump()
     {
         // The test write signum
