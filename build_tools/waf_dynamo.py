@@ -69,7 +69,7 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
@@ -140,7 +140,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['-g'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+            self.env.append_value(f, ['/O2', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
 

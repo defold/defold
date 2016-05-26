@@ -1252,6 +1252,7 @@
   (property def g/Any (dynamic visible (g/fnk [] false)))
   (property background-color types/Color (dynamic visible (g/fnk [] false)) (default [1 1 1 1]))
   (property visible-layout g/Str (default (g/fnk [] ""))
+            (dynamic visible (g/fnk [] false))
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
 
@@ -1743,3 +1744,37 @@
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected 1))))
+
+(defn- resource->gui-scene [project resource]
+  (let [res-node (some->> resource
+                   (project/get-resource-node project))]
+    (when (and res-node (g/node-instance? GuiSceneNode res-node))
+      res-node)))
+
+(handler/defhandler :set-gui-layout :global
+  (active? [project active-resource] (boolean (resource->gui-scene project active-resource)))
+  (enabled? [project active-resource] (boolean (resource->gui-scene project active-resource)))
+  (run [project active-resource user-data] (when user-data
+                                             (when-let [scene (resource->gui-scene project active-resource)]
+                                               (g/transact (g/set-property scene :visible-layout user-data)))))
+  (state [project active-resource]
+         (when-let [scene (resource->gui-scene project active-resource)]
+           (let [visible (g/node-value scene :visible-layout)]
+             {:label (if (empty? visible) "Default" visible)
+              :command :set-gui-layout
+              :user-data visible})))
+  (options [project active-resource user-data]
+           (when-not user-data
+             (when-let [scene (resource->gui-scene project active-resource)]
+               (let [layout-msgs (g/node-value scene :layout-msgs)
+                     layouts (cons "" (map :name layout-msgs))]
+                 (for [l layouts]
+                   {:label (if (empty? l) "Default" l)
+                    :command :set-gui-layout
+                    :user-data l}))))))
+
+(ui/extend-menu :toolbar :scale
+                [{:label :separator}
+                 {:icon layout-icon
+                  :command :set-gui-layout
+                  :label "Test"}])

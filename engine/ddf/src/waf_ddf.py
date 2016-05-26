@@ -161,7 +161,7 @@ def compile_java_file(self, java_node, outdir):
     javac.set_outputs(java_node_out)
 
 def get_protoc_flags(self):
-    protoc_includes = [self.env['DYNAMO_HOME'] + '/ext/include', self.env['DYNAMO_HOME'] + '/share/proto']
+    protoc_includes = [self.env['DYNAMO_HOME'] + '/share/proto', self.env['DYNAMO_HOME'] + '/ext/include']
     if hasattr(self, "protoc_includes"):
         protoc_includes.extend(Utils.to_list(self.protoc_includes))
 
