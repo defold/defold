@@ -472,27 +472,29 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 
 (def glsl-opts {:code {:language "glsl"
                        :syntax
-                       ;; see note in lua.clj on why we put multiline comments in the default partition
-                       [#_{:partition "__multicomment"
-                         :type :multiline
-                         :start "/*" :end "*/"
-                         :eof true
-                         :rules
-                         [{:type :default :class "comment"}]
-                         }
-                        {:partition :default
-                         :type :default
-                         :rules
-                         [{:type :multiline :start "\"" :end "\"" :eof false :class "string"}
-                          {:type :custom :scanner match-multi-comment :class "comment-multi"}
-                          {:type :custom :scanner match-single-comment :class "comment"}
-                          {:type :whitespace}
-                          {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
-                          {:type :word :start? is-word-start :part? is-word-part :class "default"}
-                          {:type :number :class "number"}
-                          {:type :default :class "default"}]
-                         }
-                        ]
+                       {:line-comment "// "
+                        :scanner
+                        ;; see note in lua.clj on why we put multiline comments in the default partition
+                        [#_{:partition "__multicomment"
+                            :type :multiline
+                            :start "/*" :end "*/"
+                            :eof true
+                            :rules
+                            [{:type :default :class "comment"}]
+                            }
+                         {:partition :default
+                          :type :default
+                          :rules
+                          [{:type :multiline :start "\"" :end "\"" :eof false :class "string"}
+                           {:type :custom :scanner match-multi-comment :class "comment-multi"}
+                           {:type :custom :scanner match-single-comment :class "comment"}
+                           {:type :whitespace}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+                           {:type :word :start? is-word-start :part? is-word-part :class "default"}
+                           {:type :number :class "number"}
+                           {:type :default :class "default"}]
+                          }
+                         ]}
                        }})
 
 (def shader-defs [{:ext "vp"

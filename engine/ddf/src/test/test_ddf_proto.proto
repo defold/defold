@@ -243,3 +243,17 @@ message StringOffset
     repeated string str_arr = 2;
 }
 
+message TestMessageAlignment
+{
+    option (struct_align) = true;
+    required string dummy = 1;
+    required int32 pad = 2;
+}
+
+message TestFieldAlignment
+{
+    required string pad = 1;
+    required string needs_to_be_aligned1 = 2 [(field_align)=true];
+    required string needs_to_be_aligned2 = 3 [(field_align)=true];
+}
+

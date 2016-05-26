@@ -200,7 +200,7 @@ namespace dmScript
             }
 
             n = lua_objlen(L, -1);
-            *data_start = (char*)DM_ALIGN(*data_start, 8);
+            *data_start = (char*)DM_ALIGN(*data_start, 16);
             if (*data_start + n * sz > *data_end)
             {
                 luaL_error(L, "Message too large.");
