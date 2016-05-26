@@ -131,114 +131,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 		final int offset = getControl().getCaretOffset();
 
 		switch (event.getCode()) {
-		case SHIFT:
-		case ALT:
-		case CONTROL:
-			break;
-		case LEFT: {
-
-                    /**
-			if (event.isAltDown()) {
-				invokeAction(ActionType.WORD_PREVIOUS);
-			} else {
-				if (offset == 0) {
-					event.consume();
-					break;
-				}
-				int newOffset = offset - 1;
-				@SuppressWarnings("unused")
-				int currentLine = getControl().getContent().getLineAtOffset(offset);
-				@SuppressWarnings("unused")
-				int newLine = getControl().getContent().getLineAtOffset(newOffset);
-				getControl().impl_setCaretOffset(newOffset, event.isShiftDown());
-				event.consume();
-			}
-                    **/
-
-                        rememberCaretCol(getControl().getCaretOffset());
-                        event.consume();
-                        break;
-
-		}
-		case RIGHT: {
-                    /**
-			if (event.isAltDown()) {
-				invokeAction(ActionType.WORD_NEXT);
-			} else if (event.isMetaDown()) {
-				int currentLine = getControl().getContent().getLineAtOffset(offset);
-				int lineOffset = getControl().getContent().getOffsetAtLine(currentLine);
-				String lineContent = getControl().getContent().getLine(currentLine);
-
-				getControl().impl_setCaretOffset(lineOffset + lineContent.length(), event.isShiftDown());
-				event.consume();
-			} else {
-				if (offset + 1 > getControl().getContent().getCharCount()) {
-					break;
-				}
-				int newOffset = offset + 1;
-				// @SuppressWarnings("unused")
-				// int currentLine =
-				// getControl().getContent().getLineAtOffset(offset);
-				// @SuppressWarnings("unused")
-				// int newLine =
-				// getControl().getContent().getLineAtOffset(newOffset);
-				getControl().impl_setCaretOffset(newOffset, event.isShiftDown());
-				event.consume();
-			}
-			break;
-                    **/
-
-                    rememberCaretCol(getControl().getCaretOffset());
-                    event.consume();
-                    break;
-		}
-		case UP: {
-                    /**
-			int rowIndex = currentRowIndex;
-
-			if (rowIndex == 0) {
-				break;
-			}
-
-			int colIdx = offset - getControl().getContent().getOffsetAtLine(rowIndex);
-			rowIndex -= 1;
-
-			int lineOffset = getControl().getContent().getOffsetAtLine(rowIndex);
-			int newCaretPosition = lineOffset + colIdx;
-			int maxPosition = lineOffset + getControl().getContent().getLine(rowIndex).length();
-
-			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
-			maxPosition), event.isShiftDown());
-
-
-                        System.out.println("up");
-                        System.out.println("colx!"  + colx);
-                    **/
-			event.consume();
-			break;
-		}
-		case DOWN: {
-
-                    /**
-			int rowIndex = currentRowIndex;
-			if (rowIndex + 1 == getControl().getContent().getLineCount()) {
-				break;
-			}
-
-			int colIdx = offset - getControl().getContent().getOffsetAtLine(rowIndex);
-			rowIndex += 1;
-
-			int lineOffset = getControl().getContent().getOffsetAtLine(rowIndex);
-			int newCaretPosition = lineOffset + colIdx;
-			int maxPosition = lineOffset + getControl().getContent().getLine(rowIndex).length();
-
-			getControl().impl_setCaretOffset(Math.min(newCaretPosition,
-			maxPosition), event.isShiftDown());
-
-                    **/
-			event.consume();
-			break;
-		}
 		case ENTER:
 			if (getControl().getEditable()) {
 				int line = getControl().getContent().getLineAtOffset(getControl().getCaretOffset());
@@ -262,36 +154,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				getControl().setCaretOffset(offset + newLine.length() + prefix.length());
 			}
 			break;
-		case DELETE:
-			if (getControl().getEditable()) {
-                            /** Defold handling ourselves
-				if (event.isMetaDown()) {
-					invokeAction(ActionType.DELETE_WORD_NEXT);
-				} else {
-					getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 1, ""); //$NON-NLS-1$
-					getControl().setCaretOffset(offset);
-				}
-                            **/
-				break;
-			}
-		case BACK_SPACE:
-			if (getControl().getEditable()) {
-                            /** Defold handling oursleves
-				if (event.isMetaDown()) {
-					invokeAction(ActionType.DELETE_WORD_PREVIOUS);
-				} else {
-					TextSelection selection = getControl().getSelection();
-					if (selection.length > 0) {
-						getControl().getContent().replaceTextRange(selection.offset, selection.length, ""); //$NON-NLS-1$
-						getControl().setCaretOffset(selection.offset);
-					} else {
-						getControl().getContent().replaceTextRange(getControl().getCaretOffset() - 1, 1, ""); //$NON-NLS-1$
-						getControl().setCaretOffset(offset - 1);
-					}
-				}
-                            **/
-				break;
-			}
 		case TAB:
 			if (getControl().getEditable()) {
 				event.consume();
@@ -304,75 +166,13 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 					break;
 				}
 			}
-		case V:
-			if (getControl().getEditable()) {
-				if (event.isShortcutDown()) {
-                                    //getControl().paste();
-                                    //Defold we are handling this through the graph
-					event.consume();
-					break;
-				}
-			}
-		case X:
-			if (getControl().getEditable()) {
-				if (event.isShortcutDown()) {
-                                    //Defold handling ourselves
-                                    //	getControl().cut();
-					event.consume();
-					break;
-				}
-			}
-		case C: {
-			if (event.isShortcutDown()) {
-                            //getControl().copy();
-                            //Defold we are handling this through the graph
-				event.consume();
-				break;
-			}
-		}
 		default:
 			break;
 		}
 	}
 
         private void defold_keyTyped(KeyEvent event) {
-		if (getControl().getEditable()) {
-
-                    //Defold we are handling this
-
-			// String character = event.getCharacter();
-			// if (character.length() == 0) {
-			// 	return;
-			// }
-
-			// // check the modifiers
-			// // - OS-X: ALT+L ==> @
-			// // - win32/linux: ALTGR+Q ==> @
-			// if (event.isControlDown() || event.isAltDown() || (Util.isMacOS() && event.isMetaDown())) {
-			// 	if (!((event.isControlDown() || Util.isMacOS()) && event.isAltDown()))
-			// 		return;
-			// }
-
-			// if (character.charAt(0) > 31 // No ascii control chars
-			// 		&& character.charAt(0) != 127 // no delete key
-			// 		&& !event.isMetaDown()) {
-                            //final int offset = getControl().getCaretOffset();
-                                // int newOffset = offset + 1;
-                                // if (getControl().getSelection().length > 0) {
-                                //     getControl().getContent().replaceTextRange(getControl().getSelection().offset,
-                                //                                                getControl().getSelection().length,
-                                //                                                character);
-                                //     newOffset = getControl().getSelection().offset;
-                                //     getControl().setSelectionRange(newOffset , 0);
-                                // }
-                                // else{
-                                //     getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
-                                // }
-                                // getControl().setCaretOffset(newOffset);
-                    //rememberCaretCol(newOffset);
-                    //    }
-
-		}
+            //we are handling this ourselves
 	}
 
 }

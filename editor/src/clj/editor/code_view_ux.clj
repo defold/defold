@@ -24,7 +24,9 @@
   (selection-offset [this])
   (selection-length [this])
   (caret [this])
-  (caret! [this offset select?]))
+  (caret! [this offset select?])
+  (editable? [this])
+  (editable! [this val]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -214,7 +216,7 @@
     (text! clipboard (text-selection selection))))
 
 (handler/defhandler :paste :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection clipboard]
     (when-let [clipboard-text (text clipboard)]
       (let [code (text selection)
@@ -230,7 +232,8 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (+ c (count selected-text)))
                    (adjust-bounds doc (inc c)))]
-      (caret! selection next-pos select?)))
+      (caret! selection next-pos select?)
+      (remember-caret-col selection next-pos)))
 
 (defn left [selection select?]
   (let [c (caret selection)
@@ -239,7 +242,8 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
-      (caret! selection next-pos select?)))
+      (caret! selection next-pos select?)
+      (remember-caret-col selection next-pos)))
 
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
@@ -477,9 +481,10 @@
        (replace-text-and-caret selection (dec np) 1 "" (dec np))))))
 
 (handler/defhandler :delete :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
-    (delete selection)))
+    (when (editable? selection)
+      (delete selection))))
 
 (defn cut-selection [selection clipboard]
   (text! clipboard (text-selection selection))
@@ -500,14 +505,14 @@
     (caret! selection (adjust-bounds new-doc line-begin-offset) false)))
 
 (handler/defhandler :cut :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection clipboard]
     (if (pos? (selection-length selection))
       (cut-selection selection clipboard)
       (cut-line selection))))
 
 (handler/defhandler :delete-prev-word :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     (let [c (caret selection)
           doc (text selection)
@@ -520,7 +525,7 @@
       (caret! selection new-pos false))))
 
 (handler/defhandler :delete-next-word :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     (let [c (caret selection)
           doc (text selection)
@@ -532,7 +537,7 @@
       (text! selection new-doc))))
 
 (handler/defhandler :delete-to-end-of-line :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     (let [c (caret selection)
           doc (text selection)
@@ -543,7 +548,7 @@
       (text! selection new-doc))))
 
 (handler/defhandler :delete-to-start-of-line :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     (let [c (caret selection)
           doc (text selection)
@@ -619,7 +624,7 @@
       (reset! last-replace-text rtext))))
 
 (handler/defhandler :replace-text :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     ;; when using show and wait on the dialog, was getting very
     ;; strange double events not solved by consume - this is a
@@ -631,7 +636,7 @@
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :replace-next :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     (let [c (caret selection)
           doc (text selection)
@@ -694,7 +699,7 @@
     (text! selection new-doc)))
 
 (handler/defhandler :toggle-comment :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection]
     (if (pos? (count (text-selection selection)))
       (toggle-region-comment selection)
@@ -707,13 +712,14 @@
     (and (> (int n) 31) (not= (int n) 127))))
 
 (handler/defhandler :key-typed :code-view
-  (enabled? [selection] selection)
+  (enabled? [selection] (editable? selection))
   (run [selection key-typed]
-    (when (and (pos? (count key-typed))
-               (not-ascii-or-delete key-typed))
-      (let [c (caret selection)
-            doc (text selection)
-            np (adjust-bounds doc c)]
-        (if (pos? (selection-length selection))
-          (replace-text-selection selection key-typed)
-          (replace-text-and-caret selection np 0 key-typed (inc np)))))))
+    (when (editable? selection)
+      (when (and (pos? (count key-typed))
+                 (not-ascii-or-delete key-typed))
+        (let [c (caret selection)
+              doc (text selection)
+              np (adjust-bounds doc c)]
+          (if (pos? (selection-length selection))
+            (replace-text-selection selection key-typed)
+            (replace-text-and-caret selection np 0 key-typed (inc np))))))))
