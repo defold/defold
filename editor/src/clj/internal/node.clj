@@ -125,9 +125,13 @@
 
 (defn register-type
   [reg-ref k type]
-  (assert (and (named? k) (namespace k) (or (type? type) (named? type))) (pr-str k))
+  (assert (and (named? k) (or (type? type) (named? type))) (pr-str k type))
   (swap! reg-ref assoc k type)
   k)
+
+(defn unregister-type
+  [reg-ref k]
+  (swap! reg-ref dissoc k))
 
 (defonce ^:private node-type-registry-ref (atom {}))
 
@@ -156,6 +160,11 @@
   Type
   (describe* [this] (s/explain schema)))
 
+(extend-protocol ValueType java.lang.Class)
+(extend-protocol Type
+  java.lang.Class
+  (describe* [this] (.getName this)))
+
 (defn value-type? [x] (satisfies? ValueType x))
 
 ;;; ----------------------------------------
@@ -165,7 +174,20 @@
 
 (defn value-type-registry [] @value-type-registry-ref)
 
-(defn value-type-resolve [k] (type-resolve (value-type-registry) k))
+(defn register-value-type
+  [k value-type]
+  (assert (or (value-type? value-type) (named? value-type)))
+  (->ValueTypeRef (register-type value-type-registry-ref k value-type)))
+
+(defn unregister-value-type
+  [k]
+  (unregister-type value-type-registry-ref k))
+
+(defn value-type-resolve [k]
+  (or
+   (type-resolve (value-type-registry) k)
+   (if-let [cls (resolve (symbol (name k)))]
+     (deref (register-value-type k cls)))))
 
 (defrecord ValueTypeRef [k]
   Ref
@@ -175,16 +197,25 @@
   (deref [this]
     (value-type-resolve k)))
 
-(defn value-type [x]
-  (cond
-    (type? x)  x
-    (named? x) (or (value-type-resolve x) (throw (Exception. (str "Unable to resolve value type: " (pr-str x)))))
-    :else      (throw (Exception. (str (pr-str x) " is not a value type")))))
+(ns-unmap *ns* 'value-type)
+(comment (defn value-type [x]
+           (cond
+             (type? x)  x
+             (named? x) (or (value-type-resolve x) (throw (Exception. (str "Unable to resolve value type: " (pr-str x)))))
+             :else      (throw (Exception. (str (pr-str x) " is not a value type"))))))
 
-(defn register-value-type
-  [k value-type]
-  (assert (or (value-type? value-type) (named? value-type)))
-  (->ValueTypeRef (register-type value-type-registry-ref k value-type)))
+(defn- vt->s [vt]
+  (if (class? vt) vt (:schema vt)))
+
+(defn value-type-schema
+  [vtr]
+  (cond
+    (class? vtr)   vtr
+    (ref? vtr)     (vt->s @vtr)
+    (keyword? vtr) (vt->s (value-type-resolve vtr))))
+
+(comment
+  (:schema @input-typeref))
 
 ;;; ----------------------------------------
 ;;; Construction support
@@ -389,8 +420,8 @@
 
 (defn type-compatible?
   [output-typeref input-typeref]
-  (let [output-schema (:schema @output-typeref)
-        input-schema  (:schema @input-typeref)
+  (let [output-schema (value-type-schema output-typeref)
+        input-schema  (value-type-schema input-typeref)
         out-t-pl? (coll? output-schema)
         in-t-pl?  (coll? input-schema)]
     (or
@@ -687,21 +718,32 @@
         :else                 [flags options args])
       [flags options args])))
 
+(defn- class-symbol->vtr
+  [sym]
+  (let [cls (resolve sym)]
+    (register-value-type (keyword (.getName ^Class cls)) cls)))
+
+(defn- clj-symbol->vtr
+  [sym]
+  (->ValueTypeRef (keyword (canonicalize sym))))
+
 (defn parse-type-form
   [where original-form]
   (let [multivalued? (vector? original-form)
         form         (if multivalued? (first original-form) original-form)
         type         (cond
-                       (ref? form)     form
-                       (named? form)  (->ValueTypeRef (keyword (canonicalize form)))
-                       :else           nil)]
+                       (ref? form)                   form
+                       (and (symbol? form)
+                            (class? (resolve form))) (class-symbol->vtr form)
+                       (named? form)                 (clj-symbol->vtr form)
+                       :else                         nil)]
     (assert (not (nil? type))
-            (str "defnode " where " requires a value type but was supplied with "
-                 original-form " which cannot be used as a type"))
+            (str "defnode " where " requires a value type but was supplied with '"
+                 original-form "' which cannot be used as a type"))
     (when (ref? type)
       (assert (not (nil? (deref type)))
-              (str "defnode " where " requires a value type but was supplied with "
-                   original-form " which cannot be used as a type")))
+              (str "defnode " where " requires a value type but was supplied with '"
+                   original-form "' which cannot be used as a type")))
     (util/assert-form-kind "defnode" "registered value type"
                            (some-fn ref? value-type?) where type)
     {:value-type type

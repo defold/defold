@@ -33,6 +33,17 @@
       'NoSuchSymbol
       `NoSuchSymbol)))
 
+(deftest java-classes-are-types
+  (testing "classes can appear as type forms"
+    (is (= (in/->ValueTypeRef :java.lang.String)
+           (:value-type (in/parse-type-form (str 'java-classes-are-types) 'java.lang.String)))))
+  (testing "classes are registered after parsing"
+    (in/unregister-value-type :java.util.concurrent.BlockingDeque)
+    (let [tp (in/parse-type-form (str 'java-classes-are-types) 'java.util.concurrent.BlockingDeque)]
+      (is (= java.util.concurrent.BlockingDeque (in/value-type-resolve :java.util.concurrent.BlockingDeque)))))
+  (testing "classes are registered automatically by resolving"
+    (in/unregister-value-type :java.util.concurrent.BlockingDeque)
+    (is (= java.util.concurrent.BlockingDeque (in/value-type-resolve :java.util.concurrent.BlockingDeque)))))
 
 (defn substitute-value-fn [& _] "substitute value")
 
@@ -78,7 +89,7 @@
   (input inline-literal g/Str :substitute "inline literal"))
 
 (g/defnode CardinalityInputNode
-  (input single-scalar-value        g/Str)
+  (input single-scalar-value        String)
   (input single-collection-value    [g/Str])
   (input multiple-scalar-values     g/Str :array)
   (input multiple-collection-values [g/Str] :array))
@@ -281,7 +292,7 @@
   (testing "property value types must exist when referenced"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadPropertyType
-                          (property a-property java.lang.String))))))
+                          (property a-property (in/->ValueTypeRef :foo.bar/baz)))))))
 
   (testing "properties must have values"
     (is (thrown? AssertionError
