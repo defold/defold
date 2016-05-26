@@ -89,7 +89,7 @@
   :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
 
 ;; Comment
-  :Shortcut+Slash       {:command :toggle-comment}
+  :Shortcut+Slash       {:command :toggle-comment           :label "Toggle Comment"                  :group "Comment" :order 1}
 
 })
 
@@ -103,7 +103,8 @@
   (let [movement-commands (filter (fn [[k v]] (= "Movement" (:group v))) mappings)
         find-commands (filter (fn [[k v]] (= "Find" (:group v))) mappings)
         replace-commands (filter (fn [[k v]] (= "Replace" (:group v))) mappings)
-        delete-commands (filter (fn [[k v]] (= "Delete" (:group v))) mappings)]
+        delete-commands (filter (fn [[k v]] (= "Delete" (:group v))) mappings)
+        comment-commands (filter (fn [[k v]] (= "Comment" (:group v))) mappings)]
     [{:label "Text Edit"
        :id ::text-edit
        :children (concat
@@ -113,7 +114,9 @@
                   [{:label :separator}]
                   (sort-by :order (map menu-data replace-commands))
                   [{:label :separator}]
-                  (sort-by :order (map menu-data delete-commands)))}]))
+                  (sort-by :order (map menu-data delete-commands))
+                  [{:label :separator}]
+                  (sort-by :order (map menu-data comment-commands)))}]))
 
 (def tab-size 4)
 (def last-find-text (atom ""))
