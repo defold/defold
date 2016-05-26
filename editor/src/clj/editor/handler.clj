@@ -41,7 +41,8 @@
 
 (defn state [command command-contexts user-data]
   (when-let [[handler command-context] (get-active command command-contexts user-data)]
-    (invoke-fnk (get-fnk handler :state) command-context)))
+    (when-let [state-fn (get-fnk handler :state)]
+      (invoke-fnk state-fn command-context))))
 
 (defn enabled? [command command-contexts user-data]
   (when-let [[handler command-context] (get-active command command-contexts user-data)]

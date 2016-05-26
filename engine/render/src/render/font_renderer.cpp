@@ -3,6 +3,9 @@
 #include <float.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dlib/align.h>
+#include <dlib/memory.h>
+#include <dlib/static_assert.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -107,8 +110,9 @@ namespace dmRender
         uint8_t                 m_CacheCellPadding;
     };
 
-    struct GlyphVertex
+    struct DM_ALIGNED(16) GlyphVertex
     {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
         float    m_Position[4];
         float    m_UV[2];
         uint32_t m_FaceColor;
@@ -286,15 +290,22 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
     {
+        DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
+
         TextContext& text_context = render_context->m_TextContext;
 
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
         uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_MaxVertexCount;
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        text_context.m_ClientBuffer = new char[buffer_size];
+        text_context.m_ClientBuffer = 0x0;
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
         text_context.m_Frame = 0;
+
+        dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
+        if (r != dmMemory::RESULT_OK) {
+            dmLogError("Could not allocate text vertex buffer (%d).", r);
+            return;
+        }
 
         dmGraphics::VertexElement ve[] =
         {
@@ -306,7 +317,8 @@ namespace dmRender
                 {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
         };
 
-        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         // Arbitrary number
         const uint32_t max_batches = 128;
@@ -335,7 +347,7 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
-        delete [] (char*)text_context.m_ClientBuffer;
+        dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
@@ -642,8 +654,6 @@ namespace dmRender
                             int16_t descent = (int16_t)g->m_Descent;
                             int16_t ascent = (int16_t)g->m_Ascent;
 
-                            // TODO: 16 bytes alignment and simd (when enabled in vector-math library)
-                            //       Legal cast? (strict aliasing)
                             (Vector4&) v1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
                             (Vector4&) v2.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
                             (Vector4&) v3.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);

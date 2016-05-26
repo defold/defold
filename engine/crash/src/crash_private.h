@@ -6,15 +6,28 @@
 
 namespace dmCrash
 {
-    // Version 1 of the dump file format
-    struct AppStateV1
+
+    struct AppStateHeader
     {
-        static const uint32_t MODULES_MAX = 128;
+        uint32_t version;
+        uint32_t struct_size;
+
+        AppStateHeader()
+        {
+            memset(this, 0x0, sizeof(*this));
+        }
+    };
+
+    struct AppState
+    {
+        static const uint32_t VERSION          = 2;
+        static const uint32_t MODULES_MAX      = 128;
         static const uint32_t MODULE_NAME_SIZE = 64;
-        static const uint32_t PTRS_MAX = 64;
-        static const uint32_t USERDATA_SLOTS = 32;
-        static const uint32_t USERDATA_SIZE = 256;
-        static const uint32_t EXTRA_MAX = 4096;
+        static const uint32_t PTRS_MAX         = 64;
+        static const uint32_t USERDATA_SLOTS   = 32;
+        static const uint32_t USERDATA_SIZE    = 256;
+        static const uint32_t EXTRA_MAX        = 32768;
+        static const uint32_t FILEPATH_MAX     = 1024;
 
         // Version of app (defold)
         char m_EngineVersion[32];
@@ -38,22 +51,18 @@ namespace dmCrash
         void* m_Ptr[PTRS_MAX];
         char m_Extra[EXTRA_MAX];
 
-        AppStateV1()
+        AppState()
         {
-            memset(this, 0x00, sizeof(*this));
+            memset(this, 0x0, sizeof(*this));
         }
     };
 
-    typedef AppStateV1 AppState;
-
     void InstallHandler();
-    void WriteCrash(const char* file_name, AppState *data, void (*fn)(int));
+    void WriteCrash(const char* file_name, AppState* data);
     void SetLoadAddrs(AppState *state);
+
     extern AppState g_AppState;
-
-
-    static const uint32_t FILEPATH_MAX = 1024;
-    extern char g_FilePath[FILEPATH_MAX];
+    extern char g_FilePath[AppState::FILEPATH_MAX];
 }
 
 #endif

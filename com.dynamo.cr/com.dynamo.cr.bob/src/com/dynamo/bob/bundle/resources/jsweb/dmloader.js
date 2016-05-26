@@ -297,6 +297,43 @@ var Module = {
 
     setStatus: function(text) { console.log(text); },
 
+    prepareErrorObject: function (err, url, line, column, errObj) {
+        line = typeof line == "undefined" ? 0 : line;
+        column = typeof column == "undefined" ? 0 : column;
+        url = typeof url == "undefined" ? "" : url;
+        var errorLine = url + ":" + line + ":" + column;
+
+        var error = errObj || (typeof window.event != "undefined" ? window.event.error : "" ) || err || "Undefined Error";
+        var message = "";
+        var stack = "";
+        var backtrace = "";
+
+        if (typeof error == "object" && typeof error.stack != "undefined" && typeof error.message != "undefined") {
+            stack = String(error.stack);
+            message = String(error.message);
+        } else {
+            stack = String(error).split("\n");
+            message = stack.shift();
+            stack = stack.join("\n");
+        }
+        stack = stack || errorLine;
+
+        var callLine = /at (\S+:\d*$)/.exec(message);
+        if (callLine) {
+            message = message.replace(/(at \S+:\d*$)/, "");
+            stack = callLine[1] + "\n" + stack;
+        }
+
+        message = message.replace(/(abort\(.+\)) at .+/, "$1");
+        stack = stack.replace(/\?{1}\S+(:\d+:\d+)/g, "$1");
+        stack = stack.replace(/ *at (\S+)$/gm, "@$1");
+        stack = stack.replace(/ *at (\S+)(?: \[as \S+\])? +\((.+)\)/g, "$1@$2");
+        stack = stack.replace(/^((?:Object|Array)\.)/gm, "");
+        stack = stack.split("\n");
+
+        return { stack:stack, message:message };
+    },
+
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
@@ -331,6 +368,9 @@ var Module = {
     *     'engine_arguments':
     *         List of arguments (strings) that will be passed to the engine.
     *
+    *     'custom_heap_size':
+    *         Number of bytes specifying the memory heap size.
+    *
     **/
     runApp: function(app_canvas_id, extra_params) {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
@@ -340,9 +380,9 @@ var Module = {
             archive_location_filter: function(path) { return 'split' + path; },
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
-            persistent_storage: true
+            persistent_storage: true,
+            custom_heap_size: undefined
         };
-
 
         for (var k in extra_params) {
             if (extra_params.hasOwnProperty(k)) {
@@ -356,6 +396,7 @@ var Module = {
         }
         Module.arguments = params["engine_arguments"];
         Module.persistentStorage = params["persistent_storage"];
+        Module["TOTAL_MEMORY"] = params["custom_heap_size"];
 
         if (Module.hasWebGLSupport()) {
             // Override game keys
@@ -506,6 +547,10 @@ var Module = {
         if (!Module._archiveLoaded) {
             Module._waitingForArchive = true;
         } else {
+
+            // Need to set heap size before calling main
+            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
+
             Module.preloadAll();
             Progress.removeProgress();
             Module.callMain(Module.arguments);
@@ -536,7 +581,9 @@ var Module = {
     },
 };
 
-window.onerror = function() {
+window.onerror = function(err, url, line, column, errObj) {
+    var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
+    Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);

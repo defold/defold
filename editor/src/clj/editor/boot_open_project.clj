@@ -164,7 +164,7 @@
                          :workspace     (g/node-value project :workspace)
                          :outline-view  outline-view
                          :web-server    web-server}]
-        (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project)))
+        (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
        (concat
         (g/connect project :selected-node-ids outline-view :selection)
