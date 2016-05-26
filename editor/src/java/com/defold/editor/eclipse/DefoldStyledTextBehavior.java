@@ -95,18 +95,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 				getControl().setCaretOffset(offset + newLine.length() + prefix.length());
 			}
 			break;
-		case TAB:
-			if (getControl().getEditable()) {
-				event.consume();
-				if (event.isShiftDown()) {
-					// TODO Remove first 4 white space chars???
-					break;
-				} else {
-					getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, "\t"); //$NON-NLS-1$
-					getControl().setCaretOffset(offset + 1);
-					break;
-				}
-			}
 		default:
 			break;
 		}
