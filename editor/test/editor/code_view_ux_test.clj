@@ -14,6 +14,23 @@
   (text! [this s] (reset! content s))
   (text [this] @content))
 
+(defn- key-typed! [source-viewer key-typed]
+  (handler/run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+
+(deftest key-typed-test
+  (with-clean-system
+    (let [code "hello"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "typing without text selected"
+        (key-typed! source-viewer "a")
+        (is (= "ahello" (text source-viewer))))
+      (testing "typing without text selected replaces the selected text"
+        (text-selection! source-viewer 0 1)
+        (key-typed! source-viewer "b")
+        (is (= "bhello" (text source-viewer)))))))
+
 (defn- copy! [source-viewer clipboard]
   (handler/run :copy [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}] {}))
 
