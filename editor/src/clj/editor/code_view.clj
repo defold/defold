@@ -232,27 +232,28 @@
     (getDamageRegion [p e chg]
       p)))
 
-(defn- make-reconciler [^SourceViewerConfiguration configuration ^SourceViewer source-viewer syntax]
+(defn- make-reconciler [^SourceViewerConfiguration configuration ^SourceViewer source-viewer scanner-syntax]
   (let [pr (PresentationReconciler.)]
     (.setDocumentPartitioning pr (.getConfiguredDocumentPartitioning configuration source-viewer))
-    (doseq [{:keys [partition rules]} syntax]
+    (doseq [{:keys [partition rules]} scanner-syntax]
       (let [partition (get default-content-type-map partition partition)]
         (let [damager-repairer (make-multiline-dr (make-scanner rules))] ;;_(DefaultDamagerRepairer. (make-scanner rules))]
           (.setDamager pr damager-repairer partition)
           (.setRepairer pr damager-repairer partition))))
     pr))
 
-(defn- ^SourceViewerConfiguration create-viewer-config [language]
-  (let [{:keys [language syntax assist]} language]
+(defn- ^SourceViewerConfiguration create-viewer-config [opts]
+  (let [{:keys [language syntax assist]} opts
+        scanner-syntax (:scanner syntax)]
     (proxy [SourceViewerConfiguration] []
       (getStyleclassName [] language)
       (getPresentationReconciler [source-viewer]
-        (make-reconciler this source-viewer syntax))
+        (make-reconciler this source-viewer scanner-syntax))
       (getContentAssist []
         (when assist
           (ContentAssistant. (to-function (make-proposal-fn assist)))))
       (getConfiguredContentTypes [source-viewer]
-        (into-array String (replace default-content-type-map (map :partition syntax)))))))
+        (into-array String (replace default-content-type-map (map :partition scanner-syntax)))))))
 
 (defn- default-partition? [partition]
   (= (:type partition) :default))
@@ -265,8 +266,8 @@
     (doto (RuleBasedPartitionScanner.)
       (.setPredicateRules (into-array IPredicateRule rules)))))
 
-(defn- ^IDocumentPartitioner make-partitioner [language]
-  (when-let [partitions (:syntax language)]
+(defn- ^IDocumentPartitioner make-partitioner [opts]
+  (when-let [partitions (get-in opts [:syntax :scanner])]
     (let [legal-content-types (map :partition (remove default-partition? partitions))]
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
@@ -299,6 +300,7 @@
       (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
       (ui/user-data! text-area ::programmatic-change (atom nil))
       (ui/user-data! text-area ::behavior styled-text-behavior)
+      (ui/user-data! source-viewer ::syntax (:syntax opts))
 
       (.addDocumentListener document
                             (reify IDocumentListener

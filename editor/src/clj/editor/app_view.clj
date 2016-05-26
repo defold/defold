@@ -98,14 +98,18 @@
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
 
-(ui/extend-menu ::toolbar nil
-                [{:icon "icons/Icons_T_01_Select.png"
+(ui/extend-menu :toolbar nil
+                [{:id :select
+                  :icon "icons/Icons_T_01_Select.png"
                   :command :select-tool}
-                 {:icon "icons/Icons_T_02_Move.png"
+                 {:id :move
+                  :icon "icons/Icons_T_02_Move.png"
                   :command :move-tool}
-                 {:icon "icons/Icons_T_03_Rotate.png"
+                 {:id :rotate
+                  :icon "icons/Icons_T_03_Rotate.png"
                   :command :rotate-tool}
-                 {:icon "icons/Icons_T_04_Scale.png"
+                 {:id :scale
+                  :icon "icons/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
 (handler/defhandler :quit :global
@@ -328,7 +332,7 @@
             (ui/restyle-tabs! tab-pane)
             (on-tabs-changed app-view)))))
 
-    (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
+    (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
     (let [refresh-timers [(ui/->timer 2 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
