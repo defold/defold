@@ -350,29 +350,29 @@
   Applies schema checking to new-value. Will throw with ex-info on a
   schema validation failure."
   [basis node property old-value new-value]
-  (if (= old-value new-value)
-    [node []]
-    (let [node-type  (gt/node-type node basis)
-          value-type (some-> (property-type node-type property) deref :schema s/maybe)
-          setter-fn  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
-          new-node   (gt/set-property node basis property new-value)
-          deferred   (if setter-fn
-                       [setter-fn (gt/node-id node) old-value new-value]
-                       [])]
-      (try
-        (if-let [validation-error (and value-type (s/check value-type new-value))]
-          (do
-            (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
-            (throw (ex-info "SCHEMA-VALIDATION"
-                            {:node-id          (gt/node-id node)
-                             :type             node-type
-                             :property         property
-                             :expected         value-type
-                             :actual           new-value
-                             :validation-error validation-error})))
-          (with-meta [new-node deferred] {:node-id (gt/node-id node) :property property}))
-        (catch IllegalArgumentException iae
-          (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {} iae)))))))
+  (let [new-node (gt/set-property node basis property new-value)]
+    (if (= old-value new-value)
+      [new-node []]
+      (let [node-type  (gt/node-type node basis)
+            value-type (some-> (property-type node-type property) deref :schema s/maybe)
+            setter-fn  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
+            deferred   (if setter-fn
+                         [setter-fn (gt/node-id node) old-value new-value]
+                         [])]
+        (try
+          (if-let [validation-error (and value-type (s/check value-type new-value))]
+            (do
+              (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
+              (throw (ex-info "SCHEMA-VALIDATION"
+                              {:node-id          (gt/node-id node)
+                               :type             node-type
+                               :property         property
+                               :expected         value-type
+                               :actual           new-value
+                               :validation-error validation-error})))
+            (with-meta [new-node deferred] {:node-id (gt/node-id node) :property property}))
+          (catch IllegalArgumentException iae
+            (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {} iae))))))))
 
 ;;; ----------------------------------------
 ;; Type checking
