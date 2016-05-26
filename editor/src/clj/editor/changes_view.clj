@@ -54,13 +54,11 @@
          (diff-view/make-diff-viewer old-name old new-name new))))
 
 (handler/defhandler :synchronize :global
-  (enabled? [changes-view]
-            (let [^Git git (g/node-value changes-view :git)
-                  status (git/unified-status git)]
-              (boolean (not-empty status))))
+  (enabled? [changes-view] true)
   (run [changes-view]
-       (let [^Git git (g/node-value changes-view :git)]
-         (sync/open-sync-dialog (sync/make-flow git "test2")))))
+    (let [git   (g/node-value changes-view :git)
+          prefs (g/node-value changes-view :prefs)]
+      (sync/open-sync-dialog (sync/make-flow git prefs)))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize"
@@ -72,6 +70,7 @@
   (inherits core/Scope)
   (property parent-view g/Any)
   (property git g/Any)
+  (property prefs g/Any)
 
   core/ICreate
   (post-create
@@ -87,9 +86,9 @@
      (ui/on-action! refresh (fn [_] (refresh! git list-view)))
      (refresh! git list-view))))
 
-(defn make-changes-view [view-graph workspace parent]
+(defn make-changes-view [view-graph workspace prefs parent]
   (let [git     (Git/open (io/file (g/node-value workspace :root)))
-        view-id (g/make-node! view-graph ChangesView :parent-view parent :git git)
+        view-id (g/make-node! view-graph ChangesView :parent-view parent :git git :prefs prefs)
         view    (g/node-by-id view-id)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?

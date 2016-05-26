@@ -58,7 +58,7 @@
   (testing "cancel"
     (let [[git remote] (setup-repos)]
       (create-file git "foobar" "hej")
-      (let [flow (sync/make-flow git "test")]
+      (let [flow (sync/make-flow git)]
         (sync/cancel-flow flow)
         (is (= "master" (git/branch-name git)))
         (is (= #{"foobar"} (:untracked (git/status git))))
@@ -67,7 +67,7 @@
   (testing "new file"
     (let [[git remote] (setup-repos)]
       (create-file git "foobar" "hej")
-      (let [flow (sync/make-flow git "test")
+      (let [flow (sync/make-flow git)
             flow (sync/push-flow flow ["foobar"])]
         (is (= :success (:status flow)))
         (is (= #{} (:untracked (git/status git))))
@@ -76,7 +76,7 @@
   (testing "alter file"
     (let [[git remote] (setup-repos)]
       (create-file git "/src/main.cpp" "void main2() {}")
-      (let [flow (sync/make-flow git "test")
+      (let [flow (sync/make-flow git)
             flow (sync/push-flow flow ["src/main.cpp"])]
         (is (= :success (:status flow)))
         (is (= #{} (:untracked (git/status git))))
@@ -87,7 +87,7 @@
       (create-file git "/src/main.cpp" "void main1() {}")
       (create-file remote "/src/main.cpp" "void main2() {}")
       (commit-src remote)
-      (let [flow (sync/make-flow git "test")
+      (let [flow (sync/make-flow git)
             flow (sync/push-flow flow [])
             status (git/status git)]
         (is (= :checkout-conflict (:status flow)))
@@ -100,7 +100,7 @@
         (create-file git "/src/main.cpp" "void main1() {}")
         (create-file remote "/src/main.cpp" "void main2() {}")
         (commit-src remote)
-        (let [flow (sync/make-flow git "test")
+        (let [flow (sync/make-flow git)
               flow (sync/push-flow flow ["src/main.cpp"])
               status (git/status git)]
           (is (= {"src/main.cpp" :both-modified} (:conflicting-stage-state status)))
@@ -120,7 +120,7 @@
        (io/delete-file (ws-file git "/src/main.cpp"))
        (create-file remote "/src/main.cpp" "void main2() {}")
        (commit-src remote)
-       (let [flow (sync/make-flow git "test")
+       (let [flow (sync/make-flow git)
              flow (sync/push-flow flow ["src/main.cpp"])
              status (git/status git)]
          (is (= {"src/main.cpp" :deleted-by-us} (:conflicting-stage-state status)))
@@ -139,7 +139,7 @@
         (-> (.rm remote) (.addFilepattern "src/main.cpp") (.call))
         (commit-src remote)
         (create-file git "/src/main.cpp" "void main1() {}")
-        (let [flow (sync/make-flow git "test")
+        (let [flow (sync/make-flow git)
               flow (sync/push-flow flow ["src/main.cpp"])
               status (git/status git)]
           (is (= {"src/main.cpp" :deleted-by-them} (:conflicting-stage-state status)))
@@ -158,7 +158,7 @@
         (create-file git "/src/new.cpp" "a")
         (create-file remote "/src/new.cpp" "b")
         (commit-src remote)
-        (let [flow (sync/make-flow git "test")
+        (let [flow (sync/make-flow git)
               flow (sync/push-flow flow ["src/new.cpp"])
               status (git/status git)]
           (is (= {"src/new.cpp" :both-added} (:conflicting-stage-state status)))
