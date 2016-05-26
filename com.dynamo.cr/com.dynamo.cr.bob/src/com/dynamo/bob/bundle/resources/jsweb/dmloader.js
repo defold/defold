@@ -368,6 +368,9 @@ var Module = {
     *     'engine_arguments':
     *         List of arguments (strings) that will be passed to the engine.
     *
+    *     'persistent_storage':
+    *         Boolean toggling the usage of persistent storage.
+    *
     *     'custom_heap_size':
     *         Number of bytes specifying the memory heap size.
     *
