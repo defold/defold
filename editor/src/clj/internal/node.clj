@@ -339,6 +339,9 @@
     (println "Should match:" (s/explain output-schema))
     (println "But:" error)))
 
+(defn setter-for [node-type property]
+  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive))
+
 (defn tx-invoke-setter
   "Internal plumbing for assigning values to properties. Returns a
   vector of [node tx-data].
@@ -355,7 +358,7 @@
       [new-node []]
       (let [node-type  (gt/node-type node basis)
             value-type (some-> (property-type node-type property) deref :schema s/maybe)
-            setter-fn  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive)
+            setter-fn  (setter-for node-type property)
             deferred   (if setter-fn
                          [setter-fn (gt/node-id node) old-value new-value]
                          [])]
@@ -1436,9 +1439,7 @@
   (set-property        [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
-      (if (nil? value)
-        (update this :properties dissoc property)
-        (assoc-in this [:properties property] value))))
+      (assoc-in this [:properties property] value)))
 
   gt/Evaluation
   (produce-value       [this output evaluation-context]
