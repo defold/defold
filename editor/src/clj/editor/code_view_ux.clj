@@ -88,8 +88,11 @@
   :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
   :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
 
-;; Comment
-  :Shortcut+Slash       {:command :toggle-comment           :label "Toggle Comment"                  :group "Comment" :order 1}
+  ;; Comment
+  :Shortcut+Slash        {:command :toggle-comment           :label "Toggle Comment"                  :group "Comment" :order 1}
+
+  ;; Editing
+  :Tab                   {:command :tab}
 
 })
 
@@ -717,15 +720,24 @@
   (let [n (.charAt ^String key-typed 0)]
     (and (> (int n) 31) (not= (int n) 127))))
 
+(defn enter-key-text [selection key-typed]
+  (let [c (caret selection)
+        doc (text selection)
+        np (adjust-bounds doc c)]
+    (if (pos? (selection-length selection))
+      (replace-text-selection selection key-typed)
+      (replace-text-and-caret selection np 0 key-typed (inc np)))))
+
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
+    (when (and (editable? selection)
+           (pos? (count key-typed))
+           (not-ascii-or-delete key-typed))
+      (enter-key-text selection key-typed))))
+
+(handler/defhandler :tab :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection]
     (when (editable? selection)
-      (when (and (pos? (count key-typed))
-                 (not-ascii-or-delete key-typed))
-        (let [c (caret selection)
-              doc (text selection)
-              np (adjust-bounds doc c)]
-          (if (pos? (selection-length selection))
-            (replace-text-selection selection key-typed)
-            (replace-text-and-caret selection np 0 key-typed (inc np))))))))
+      (enter-key-text selection "\t"))))
