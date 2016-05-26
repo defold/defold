@@ -668,7 +668,7 @@
 (defn- enter! [source-viewer]
   (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest tab-test
+(deftest enter-test
   (with-clean-system
     (let [code "hi"
           opts lua/lua
