@@ -1,95 +1,147 @@
 (ns editor.sync
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
-            [clojure.set :as set]
-            [editor.dialogs :as dialogs]
-            [editor.diff-view :as diff-view]
-            [editor.git :as git]
-            [editor.ui :as ui])
-  (:import [org.eclipse.jgit.api Git]
-           [org.eclipse.jgit.api ResetCommand$ResetType CheckoutCommand$Stage]
-           [org.eclipse.jgit.api.errors CheckoutConflictException]
-           [javafx.geometry Pos]
+  (:require [clojure
+             [set :as set]
+             [string :as string]]
+            [clojure.java.io :as io]
+            [editor
+             [console :as console]
+             [dialogs :as dialogs]
+             [diff-view :as diff-view]
+             [git :as git]
+             [handler :as handler]
+             [ui :as ui]]
+            [editor.progress :as progress])
+  (:import javafx.geometry.Pos
+           [org.eclipse.jgit.api Git PullResult]
+           [org.eclipse.jgit.api.errors StashApplyFailureException]
+           [javafx.scene Parent Scene Node]
+           [javafx.scene.control ContentDisplay Label MenuButton]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.control CheckBox Label MenuButton ContentDisplay]
-           [javafx.scene.layout AnchorPane HBox BorderPane Pane Priority]))
+           javafx.scene.layout.BorderPane
+           [javafx.stage Modality Stage]
+           [org.eclipse.jgit.api ResetCommand$ResetType CheckoutCommand$Stage]
+           org.eclipse.jgit.api.errors.CheckoutConflictException))
 
-"
-TODO
-* cancel must do a git reset --hard XYZ and where XYZ is the last commit prior to starting the sync process
-*
-"
+(set! *warn-on-reflection* true)
 
-"
+;; =================================================================================
 
-Flow functions
+;; Flow state-diagram
 
-* stage
-* unstage
-* commit
-* resolve
-* commit-merge
-* push
+;; 1. Pull
+;;
+;;    :start -> :pulling -> ---------> :done
+;;                    \          /
+;;                     -> :resolve
+;;                               \
+;;                                -> :cancel
 
-Typical flow
+;; 2. Push
+;;
+;;    <PULL-FLOW> -> :start -> :staging -> :committing -> :pushing -> :done
+;;         \                                                /  \
+;;          <-----------------------------------------------    -> :cancel
 
-* Stash current
-* Select files to commit
-* git commit
-* git pull
-* merge
-* git push
-* back to git pull if someone has pushed while merging
-* drop stash
 
-Cancel
-* Reset hard
-* Drop stash
+(defn make-flow [^Git git prefs]
+  (let [start-ref (git/get-current-commit-ref git)
+        stash-ref (git/stash git)]
+    {:state     :pull/start
+     :git       git
+     :creds     (git/credentials prefs)
+     :start-ref start-ref
+     :stash-ref stash-ref
+     :progress  (progress/make "pull" 5)
+     :staged    #{}
+     :conflicts #{}
+     }))
 
-Misc
-* Ensure that we test a variety of combinations with files
-- U + U
-- U + D
-- etc
-* What about stashed files?
-- Tests?
+(defn cancel-flow [{:keys [git start-ref stash-ref] :as flow}]
+  (git/hard-reset git start-ref)
+  (when stash-ref
+    (git/stash-apply git stash-ref)
+    (git/stash-drop git stash-ref)))
 
-Questions
-* Change files immediately or postpone while merging?
-* Show U, D, etc?
+(defmacro with-error-in-console [& body]
+  `(try
+     ~@body
+     (catch Exception e#
+       (console/append-console-message! (.toString e#)))))
 
-"
+(defn- tick [flow new-state]
+  (-> flow
+      (assoc :state new-state)
+      (update :progress progress/advance)))
 
-"TODO: stash-rev can be null when nothing to stash
-set :status to :done?"
-(defn make-flow [git message]
-  (let [stash-rev (git/stash git)]
-    (-> (.stashApply git) .call)
-    {:git git
-     :unified-status (git/unified-status git)
-     :staged #{}
-     :message message
-     :status :start
-     :state :start
-     :stash-rev stash-rev}))
+(defn advance-flow [{:keys [git state progress creds conflicts stash-ref] :as flow} render-progress]
+  (println "advance" :pull state)
+  (render-progress progress)
+  (condp = state
+    :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
+    :pull/pulling   (let [^PullResult pull-res (with-error-in-console (git/pull git creds))]
+                      (if (and pull-res (.isSuccessful pull-res))
+                        (advance-flow (tick flow :pull/applying) render-progress)
+                        (advance-flow (tick flow :pull/error))))
+    :pull/applying  (let [stash-res (with-error-in-console
+                                      (try (git/stash-apply git stash-ref)
+                                           (catch StashApplyFailureException e
+                                             :conflict)))
+                          status    (git/status git)]
+                      (cond
+                        (= :conflict stash-res) (advance-flow (-> flow
+                                                                  (tick :pull/conflicts)
+                                                                  (assoc :conflicts (:conflicting-stage-state status)))
+                                                              render-progress)
+                        stash-res (advance-flow (tick flow :pull/done) render-progress)
+                        :else (advance-flow (tick flow :pull/error))))
+    :pull/conflicts (if (empty? conflicts)
+                      (advance-flow (tick flow :pull/done) render-progress)
+                      flow)
+    :pull/done      flow
+    :pull/error     flow
 
-(defn stage [flow entry]
-  (update-in flow [:staged] conj entry))
+    :push/start     :push/staging
+    :push/staging   :push/comitting
+    :push/comitting :push/pushing
+    :push/pushing   (rand-nth [:pull/start :push/done])
+    :push/done      :push/done))
 
-(defn unstage [flow entry]
-  (update-in flow [:staged] disj entry))
+(defn resolve-file [{:keys [^Git git conflicts] :as flow} file resolution]
+  (let [action (condp = [(get conflicts file) resolution]
+                 [:both-added :ours]        :checkout
+                 [:both-added :theirs]      :checkout
 
-(defn cancel-flow [flow]
-  (let [git (:git flow)]
-    (-> (.reset git)
-        (.setMode ResetCommand$ResetType/HARD)
-        .call)
-    (when (:stash-rev flow)
-      (-> (.stashApply git) .call))))
+                 [:both-modified :theirs]   :checkout
+                 [:both-modified :ours]     :checkout
 
-(defn push-flow [flow to-commit]
-  (let [git (:git flow)
-        simple-status (git/simple-status git)]
+                 [:deleted-by-them :ours]   :checkout
+                 [:deleted-by-them :theirs] :rm
+
+                 [:deleted-by-us :ours]     :rm
+                 [:deleted-by-us :theirs]   :checkout)]
+    (if (= action :rm)
+      (-> (.rm git)
+          (.addFilepattern file)
+          (.call))
+      (do
+        (-> (.checkout git)
+            (.addPath file)
+            (.setStage (CheckoutCommand$Stage/valueOf (string/upper-case (name resolution))))
+            (.call))
+        (-> (.add git)
+            (.addFilepattern file)
+            (.call))))))
+
+(defn- stage-file [flow entry]
+  (update flow :staged conj entry))
+
+(defn- unstage-file [flow entry]
+  (update flow :staged disj entry))
+
+;; =================================================================================
+
+(defn push-flow [{:keys [^Git git] :as flow} to-commit]
+  (let [simple-status (git/simple-status git)]
     (when (seq to-commit)
       (doseq [f to-commit]
         (if (= :deleted (get simple-status f))
@@ -109,53 +161,8 @@ set :status to :done?"
     ; TODO: push here?
     #_(-> git (.push) (.call))))
 
-(defn commit-merge [flow]
-  (let [git (:git flow)]
-    (-> git (.commit) (.call))))
-
-(defn resolve-file [flow file resolution]
-  (let [git (:git flow)
-        status (git/status git)
-        state (:conflicting-stage-state status)]
-    (let [action (condp = [(get state file) resolution]
-                   [:both-added :ours] :checkout
-                   [:both-added :theirs] :checkout
-
-                   [:both-modified :theirs] :checkout
-                   [:both-modified :ours] :checkout
-
-                   [:deleted-by-them :ours] :checkout
-                   [:deleted-by-them :theirs] :rm
-
-                   [:deleted-by-us :ours] :rm
-                   [:deleted-by-us :theirs] :checkout)]
-      (if (= action :rm)
-        (-> (.rm git)
-            (.addFilepattern file)
-            (.call))
-        (do
-          (-> (.checkout git)
-              (.addPath file)
-              (.setStage (CheckoutCommand$Stage/valueOf (string/upper-case (name resolution))))
-              (.call))
-          (-> (.add git)
-              (.addFilepattern file)
-              (.call)))))))
-
-(defn advance [flow]
-  (let [git (:git flow)]
-    (case (:state flow)
-      :start (assoc flow
-                    :state :commit
-                    :action :commit
-                    :value (git/simple-status git))
-      :commit (do (throw (Exception. "foo")) flow )
-      :done flow
-      :checkout-conflict (assoc flow
-                                :action :show-message
-                                :value (str "Can't synchronize. Conflict with unselected files %s" (string/join "," (:checkout-conficts flow))))
-      :merging 0
-      :rejected 0)))
+(defn commit-merge [{:keys [^Git git] :as flow}]
+  (-> git (.commit) (.call)))
 
 (defn- make-cell [text]
   (let [pane (BorderPane.)
@@ -173,13 +180,7 @@ set :status to :done?"
   (ui/items! (:changed controls) (set/difference (set (:unified-status @flow-atom)) (:staged @flow-atom)))
   (ui/items! (:staged controls) (:staged @flow-atom)))
 
-(defn advance-dialog [flow-atom controls]
-  (let [flow (swap! flow-atom advance)]
-    (prn "advance" flow)
-    (case (:state flow)
-      :commit (refresh-stage flow-atom controls))))
-
-(defn- show-diff [git status]
+(defn- show-diff [^Git git status]
   (let [old-name (or (:old-path status) (:new-path status) )
         new-name (or (:new-path status) (:old-path status) )
         work-tree (.getWorkTree (.getRepository git))
@@ -192,40 +193,97 @@ set :status to :done?"
 (defn- status-render [status]
   {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
 
+(ui/extend-menu ::conflicts-menu nil
+                [{:label "Show diff"
+                  :command :show-diff}
+                 {:label "Use ours"
+                  :command :use-ours}
+                 {:label "Use theirs"
+                  :command :use-theirs}])
+
+(handler/defhandler :show-diff :sync
+  (enabled? [selection] (= 1 (count selection)))
+  (run []))
+
+(handler/defhandler :use-ours :sync
+  (enabled? [selection] (pos? (count selection)))
+  (run [selection]))
+
+(handler/defhandler :use-theirs :sync
+  (enabled? [selection] (pos? (count selection)))
+  (run [selection]))
+
 (defn open-sync-dialog [flow]
-  (let [dialog (dialogs/make-task-dialog "sync.fxml"
-                                         {:title "Synchronize Project"
-                                          :ok-label "Sync"})
-        ^Parent root (dialogs/dialog-root dialog)
-        controls (ui/collect-controls root ["conflicting" "changed" "staged"])
-        flow-atom (atom flow)
-        ad (fn [] (try
-                    (advance-dialog flow-atom controls)
-                    (catch Throwable e
-                      (dialogs/error! dialog (.getMessage e)))))]
-    (ui/cell-factory! (:changed controls) (fn [e] (status-render e)))
-    (ui/cell-factory! (:staged controls) (fn [e] (status-render e)))
-    (ui/cell-factory! (:conflicting controls) (fn [p] {:text (str p)
-                                                       :content-display ContentDisplay/GRAPHIC_ONLY
-                                                       :gfx (make-cell (str p))}))
+  (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
+        pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
+        push-root       ^Parent (ui/load-fxml "sync-push.fxml")
+        stage           (Stage.)
+        scene           (Scene. root)
+        dialog-controls (ui/collect-controls root [ "ok" "cancel" "dialog-area" "progress-bar"])
+        pull-controls   (ui/collect-controls pull-root ["conflicting" "conflict-box"])
+        push-controls   (ui/collect-controls push-root [])
+        !flow           (atom flow)
+        render-progress (fn [progress]
+                          (ui/run-later
+                           (ui/update-progress-controls! progress (:progress-bar dialog-controls) nil)))
+        update-controls (fn [{:keys [state conflicts] :as flow}]
+                          (condp = state
+                            :pull/conflicts (do
+                                              (println "* conflicts" conflicts)
+                                              (.setVisible ^Node (:conflict-box pull-controls) true)
+                                              (ui/items! (:conflicting pull-controls) (sort (keys conflicts))))
+                            nil))]
+    (add-watch !flow :updater (fn [_ _ _ flow]
+                                (update-controls flow)))
+    (def flw !flow)
+    (ui/title! stage "Sync")
+    (ui/text! (:ok dialog-controls) "Pull")
+    (ui/children! (:dialog-area dialog-controls) [pull-root])
+    (ui/fill-control pull-root)
+    (ui/on-action! (:cancel dialog-controls) (fn [_]
+                                               (cancel-flow @!flow)
+                                               (.close stage)))
+    (ui/on-action! (:ok dialog-controls) (fn [_]
+                                           (swap! !flow advance-flow render-progress)))
 
-    (ui/on-double! (:changed controls) (fn [evt]
-                                         (when-let [e (first (ui/selection (:changed controls)))]
-                                           (swap! flow-atom stage e)
-                                           (refresh-stage flow-atom controls))))
+    (ui/register-context-menu (:conflicting pull-controls) ::conflicts-menu)
+    (ui/cell-factory! (:conflicting pull-controls) (fn [e] {:text e}))
 
-    (ui/on-double! (:staged controls) (fn [evt]
-                                        (when-let [e (first (ui/selection (:staged controls)))]
-                                          (swap! flow-atom unstage e)
-                                          (prn @flow-atom)
-                                          (refresh-stage flow-atom controls))))
+    (comment
+      (ui/cell-factory! (:changed controls) (fn [e] (status-render e)))
+      (ui/cell-factory! (:staged controls) (fn [e] (status-render e)))
+      (ui/cell-factory! (:conflicting controls) (fn [p] {:text            (str p)
+                                                         :content-display ContentDisplay/GRAPHIC_ONLY
+                                                         :gfx             (make-cell (str p))}))
 
-    (ui/on-key-pressed! (:changed controls) (fn [e]
-                                              (when (= (.getCode ^KeyEvent e) KeyCode/ENTER)
-                                                (when-let [status (first (ui/selection (:changed controls)))]
-                                                  (show-diff (:git flow) status)))))
+      (ui/on-double! (:changed controls) (fn [evt]
+                                           (when-let [e (first (ui/selection (:changed controls)))]
+                                             (swap! flow-atom git-stage e)
+                                             (refresh-stage flow-atom controls))))
 
-    (refresh-stage flow-atom controls)
-    (ad)
-    (dialogs/show! dialog {:on-ok ad
-                           :ready? (fn [] true)})))
+      (ui/on-double! (:staged controls) (fn [evt]
+                                          (when-let [e (first (ui/selection (:staged controls)))]
+                                            (swap! flow-atom git-unstage e)
+                                            (prn @flow-atom)
+                                            (refresh-stage flow-atom controls))))
+
+      (ui/on-key-pressed! (:changed controls) (fn [e]
+                                                (when (= (.getCode ^KeyEvent e) KeyCode/ENTER)
+                                                  (when-let [status (first (ui/selection (:changed controls)))]
+                                                    (show-diff (:git flow) status)))))
+
+      (refresh-stage flow-atom controls)
+      (ad))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (when (= code KeyCode/ESCAPE) true
+                                               (cancel-flow @!flow)
+                                               (.close stage)))))
+
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+    (println "opening")
+    (ui/show-and-wait! stage))
+  (println "closing"))

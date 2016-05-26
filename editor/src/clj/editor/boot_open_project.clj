@@ -152,6 +152,7 @@
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace
+                                                               prefs
                                                                (.lookup root "#changes-container"))]
       (console/setup-console! {:text   console
                                :search search-console

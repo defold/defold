@@ -1,30 +1,67 @@
 (ns editor.git
-"
-Status API notes:
-There's there different functions in this namespace
-
-(status) \"Raw\" api very similar to \"git status\", index and work tree, but without rename detection support
-(simple-status) Simplifcation of status where work tree and index are merged
-(unified-status) Status based on actual content on disk and does not take index into account. Primary purpose is for the changes view. Rename detection is supported.
-
-"
-(:require [clojure.java.io :as io]
-          [clojure.set :as set]
-          [editor.prefs :as prefs]
-          [camel-snake-kebab :as camel]
-          [editor.ui :as ui])
-(:import [javafx.scene.control ProgressBar]
-         [org.eclipse.jgit.api Git]
-         [org.eclipse.jgit.diff DiffEntry RenameDetector]
-         [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
-         [org.eclipse.jgit.revwalk RevCommit RevWalk]
-         [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
-         [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
-         [org.eclipse.jgit.treewalk.filter PathFilter NotIgnoredFilter]))
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [editor.prefs :as prefs]
+            [camel-snake-kebab :as camel]
+            [editor.ui :as ui])
+  (:import [javafx.scene.control ProgressBar]
+           [org.eclipse.jgit.api Git]
+           [org.eclipse.jgit.diff DiffEntry RenameDetector]
+           [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
+           [org.eclipse.jgit.revwalk RevCommit RevWalk]
+           [org.eclipse.jgit.api ResetCommand$ResetType CheckoutCommand$Stage]
+           [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
+           [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
+           [org.eclipse.jgit.treewalk.filter PathFilter NotIgnoredFilter]))
 
 (set! *warn-on-reflection* true)
 
-;; TODO: Renamed, modified but not staged is broken (missing blob)
+;; =================================================================================
+
+(defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
+  (println "* pull")
+  (-> (.pull git)
+      (.setCredentialsProvider creds)
+      (.call)))
+
+(defn hard-reset [^Git git ^RevCommit start-ref]
+  (println "* hard-reset")
+  (-> (.reset git)
+      (.setMode ResetCommand$ResetType/HARD)
+      (.setRef (.name start-ref))
+      (.call)))
+
+(defn stash [^Git git]
+  (println "* stash")
+  (-> (.stashCreate git)
+      (.setIncludeUntracked true)
+      (.call)))
+
+(defn stash-apply [^Git git ^RevCommit stash-ref]
+  (println "* stash-apply")
+  (when stash-ref
+    (-> (.stashApply git)
+        (.setStashRef (.name stash-ref))
+        (.call))))
+
+(defn stash-drop [^Git git ^RevCommit stash-ref]
+  (println "* stash-drop")
+  (let [stashes (map-indexed vector (.call (.stashList git)))
+        matching-stash (first (filter #(= stash-ref (second %)) stashes))]
+    (when matching-stash
+      (-> (.stashDrop git)
+          (.setStashRef (first matching-stash))
+          (.call)))))
+
+(defn- get-commit [^Repository repository revision]
+  (let [walk (RevWalk. repository)]
+    (.setRetainBody walk true)
+    (.parseCommit walk (.resolve repository revision))))
+
+(defn get-current-commit-ref [^Git git]
+  (get-commit (.getRepository git) "HEAD"))
+
+;; =================================================================================
 
 (defn show-file [^Git git name]
   (let [repo (.getRepository git)
@@ -43,11 +80,6 @@ There's there different functions in this namespace
       (.dispose rw)
       (.close repo)
       ret)))
-
-(defn- get-commit [^Repository repository revision]
-  (let [walk (RevWalk. repository)]
-    (.setRetainBody walk true)
-    (.parseCommit walk (.resolve repository revision))))
 
 (defn- diff-entry->map [^DiffEntry de]
   ; NOTE: We convert /dev/null to nil.
@@ -69,7 +101,9 @@ There's there different functions in this namespace
      :uncommited-changes (.getUncommittedChanges s)
      :untracked (.getUntracked s)
      :untracked-folders (.getUntrackedFolders s)
-     :conflicting-stage-state (apply hash-map (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)]) (.getConflictingStageState s)))}))
+     :conflicting-stage-state (apply hash-map
+                                     (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
+                                             (.getConflictingStageState s)))}))
 
 (defn simple-status [^Git git]
   (let [s (status git)
@@ -136,11 +170,6 @@ There's there different functions in this namespace
   (-> (.checkout git)
       (.setCreateBranch create)
       (.setName name)
-      (.call)))
-
-(defn stash [^Git git]
-  (-> (.stashCreate git)
-      (.setIncludeUntracked true)
       (.call)))
 
 (defn branch-name [^Git git]

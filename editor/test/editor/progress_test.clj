@@ -17,7 +17,11 @@
          (advance (make "mess"))))
 
   (is (= {:message "mess2" :size 2 :pos 2}
-         (advance (make "mess" 2) 2 "mess2"))))
+         (advance (make "mess" 2) 2 "mess2")))
+
+  (testing "advancing beyond size"
+    (is (= {:message "mess2" :size 2 :pos 2}
+           (advance (make "mess" 2) 3 "mess2")))))
 
 (deftest precentage-test
   (is (= 0 (percentage (make "mess"))))

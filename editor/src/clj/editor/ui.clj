@@ -710,7 +710,8 @@
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
     (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
-    (.setText label (progress/description progress))))
+    (when label
+      (.setText label (progress/description progress)))))
 
 (defn default-render-progress! [progress]
   (run-later
