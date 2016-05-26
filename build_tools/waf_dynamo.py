@@ -70,6 +70,13 @@ def default_flags(self):
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            if 'linux' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
+                # On x86 Linux, the floating point registers are 80bits but when stored on the stack
+                # it stores in 64bit floating point (called computation with excess precision).
+                # The default behaviour caused the ReloadInstanceLoop test in test_particle to fail
+                # due to floating point precision error (compared to other platforms), thus the reason
+                # to use -float-store on Linux 32bit.
+                self.env.append_value(f, ['-ffloat-store'])
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
