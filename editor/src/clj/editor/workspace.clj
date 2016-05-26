@@ -245,7 +245,7 @@ ordinary paths."
   (property view-types g/Any)
   (property resource-types g/Any)
 
-  (output resource-tree resource/FileResourceType :cached produce-resource-tree)
+  (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map)
   (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))

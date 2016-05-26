@@ -39,19 +39,15 @@
 
 (set! *warn-on-reflection* true)
 
-(g/deftype StageType Stage)
-(g/deftype TabType Tab)
-(g/deftype TabPaneType TabPane)
-
 (g/defnode AppView
-  (property stage StageType)
-  (property tab-pane TabPaneType)
+  (property stage Stage)
+  (property tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
 
   (input outline g/Any)
 
-  (output active-tab TabType (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
+  (output active-tab Tab (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any :cached (g/fnk [outline] outline))
   (output active-resource resource/ResourceType (g/fnk [^Tab active-tab]
                                                                  (when active-tab

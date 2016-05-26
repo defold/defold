@@ -485,7 +485,7 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
-  (input material-shader shader/ShaderLifecycleType)
+  (input material-shader ShaderLifecycle)
   (input gpu-texture g/Any)
 
   (output aabb-size g/Any (g/fnk [size] size))
@@ -716,7 +716,7 @@
 
   (input font-input g/Str)
   (input font-map g/Any)
-  (input font-data font/FontDataType)
+  (input font-data font/FontData)
 
   (input font-ids IDMap)
 
@@ -875,8 +875,8 @@
                                                  :user-data {:color color :inherit-alpha inherit-alpha}})))
 
 (g/defnode ImageTextureNode
-  (input image types/BufferedImageType)
-  (output packed-image types/BufferedImageType (g/fnk [image] image))
+  (input image BufferedImage)
+  (output packed-image BufferedImage (g/fnk [image] image))
   (output anim-data g/Any (g/fnk [^BufferedImage image]
                             {nil {:width (.getWidth image)
                                   :height (.getHeight image)
@@ -899,7 +899,7 @@
             (validate (g/fnk [texture] (validation/resource :texture texture))))
 
   (input texture-resource resource/ResourceType)
-  (input image types/BufferedImageType)
+  (input image BufferedImage)
   (input anim-data g/Any)
   (input anim-ids g/Any)
   (input image-texture g/NodeID :cascade-delete)
@@ -944,8 +944,8 @@
 
   (input font-resource resource/ResourceType)
   (input font-map g/Any)
-  (input font-data font/FontDataType)
-  (input font-shader shader/ShaderLifecycleType)
+  (input font-data font/FontData)
+  (input font-shader ShaderLifecycle)
   (input gpu-texture g/Any)
 
   (input dep-build-targets g/Any)
@@ -959,9 +959,9 @@
                               {:name name
                                :font (proj-path font-resource)}))
   (output font-map g/Any (g/fnk [font-map] font-map))
-  (output font-data font/FontDataType (g/fnk [font-data] font-data))
+  (output font-data font/FontData (g/fnk [font-data] font-data))
   (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
-  (output font-shader shader/ShaderLifecycleType (g/fnk [font-shader] font-shader))
+  (output font-shader ShaderLifecycle (g/fnk [font-shader] font-shader))
   (output font-id IDMap (g/fnk [_node-id name] {name _node-id})))
 
 (g/defnode LayerNode
@@ -1292,11 +1292,11 @@
   (input layer-ids IDMap :array)
 
   (input material-resource resource/ResourceType)
-  (input material-shader shader/ShaderLifecycleType)
-  (output material-shader shader/ShaderLifecycleType (g/fnk [material-shader] material-shader))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (g/fnk [samplers] samplers))
-  (output aabb types/AABBType :cached (g/fnk [scene-dims child-scenes]
+  (output aabb AABB :cached (g/fnk [scene-dims child-scenes]
                                              (let [w (:width scene-dims)
                                                    h (:height scene-dims)
                                                    scene-aabb (-> (geom/null-aabb)

@@ -617,7 +617,7 @@
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
-  (output aabb types/AABBType :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
                                                       (reduce mesh->aabb (geom/null-aabb) meshes)))))
 
 (defn load-spine-scene [project self resource]
@@ -697,17 +697,17 @@
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/ResourceType)
   (input spine-scene-scene g/Any)
-  (input aabb types/AABBType)
+  (input aabb AABB)
   (input material-resource resource/ResourceType)
-  (input material-shader shader/ShaderLifecycleType)
-  (output material-shader shader/ShaderLifecycleType (g/fnk [material-shader] material-shader))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (input sampler-data g/KeywordMap)
   (output sampler-data g/KeywordMap (g/fnk [sampler-data] sampler-data))
   (output scene g/Any :cached (g/fnk [spine-scene-scene] spine-scene-scene))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-data g/Any :cached produce-model-save-data)
   (output build-targets g/Any :cached produce-model-build-targets)
-  (output aabb types/AABBType (g/fnk [aabb] aabb)))
+  (output aabb AABB (g/fnk [aabb] aabb)))
 
 (defn load-spine-model [project self resource]
   (let [resolve-fn (partial workspace/resolve-resource resource)

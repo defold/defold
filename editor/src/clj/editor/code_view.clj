@@ -327,10 +327,8 @@
 
   source-viewer))
 
-(g/deftype SourceViewerType SourceViewer)
-
 (g/defnode CodeView
-  (property source-viewer SourceViewerType)
+  (property source-viewer SourceViewer)
   (input code-node g/Int)
   (input code g/Str)
   (input caret-position g/Int)

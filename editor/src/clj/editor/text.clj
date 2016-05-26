@@ -9,12 +9,10 @@
 
 (set! *warn-on-reflection* true)
 
-(g/deftype TextAreaType TextArea)
-
 (g/defnode TextView
   (inherits core/ResourceNode)
 
-  (property text-area TextAreaType))
+  (property text-area TextArea))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [text-area (TextArea.)]
