@@ -158,9 +158,14 @@
 (defrecord ValueTypeImpl [name schema]
   ValueType
   Type
-  (describe* [this] (s/explain schema)))
+  (describe* [this] (s/explain schema))
+
+  schema.core/Schema
+  (spec [this] (s/spec schema))
+  (explain [this] (s/explain schema)))
 
 (extend-protocol ValueType java.lang.Class)
+
 (extend-protocol Type
   java.lang.Class
   (describe* [this] (.getName this)))
@@ -173,6 +178,18 @@
 (defonce ^:private value-type-registry-ref (atom {}))
 
 (defn value-type-registry [] @value-type-registry-ref)
+
+(defrecord ValueTypeRef [k]
+  Ref
+  (ref-key [this] k)
+
+  schema.core/Schema
+  (spec [this] (s/spec (deref this)))
+  (explain [this] (s/explain (deref this)))
+
+  clojure.lang.IDeref
+  (deref [this]
+    (value-type-resolve k)))
 
 (defn register-value-type
   [k value-type]
@@ -188,21 +205,6 @@
    (type-resolve (value-type-registry) k)
    (if-let [cls (resolve (symbol (name k)))]
      (deref (register-value-type k cls)))))
-
-(defrecord ValueTypeRef [k]
-  Ref
-  (ref-key [this] k)
-
-  clojure.lang.IDeref
-  (deref [this]
-    (value-type-resolve k)))
-
-(ns-unmap *ns* 'value-type)
-(comment (defn value-type [x]
-           (cond
-             (type? x)  x
-             (named? x) (or (value-type-resolve x) (throw (Exception. (str "Unable to resolve value type: " (pr-str x)))))
-             :else      (throw (Exception. (str (pr-str x) " is not a value type"))))))
 
 (defn- vt->s [vt]
   (if (class? vt) vt (:schema vt)))
@@ -1268,7 +1270,7 @@
 
 (defn deduce-output-type
   [self-name description transform]
-  (let [schema (some-> (get-in description [:output transform :value-type :k]) value-type-resolve :schema)
+  (let [schema (some-> (get-in description [:output transform :value-type]) value-type-schema)
         schema (if (get-in description [:output transform :flags :collection])
                  (vector schema)
                  schema)]
