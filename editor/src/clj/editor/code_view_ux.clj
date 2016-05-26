@@ -155,6 +155,21 @@
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
         k-info))))
 
+(defn- is-mac-os? []
+  (= "Mac OS X" (System/getProperty "os.name")))
+
+(defn is-not-typable-modifier? [e]
+  (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
+    (not (or (.isControlDown ^KeyEvent e) (and (is-mac-os?) (.isAltDown ^KeyEvent e))))))
+
+(defn handle-key-typed [e source-viewer]
+  (let [key-typed (.getCharacter ^KeyEvent e)]
+    (when-not (is-not-typable-modifier? e)
+      (handler/run
+        :key-typed
+        [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
+        e))))
+
 (defn handle-mouse-clicked [e source-viewer]
   (let [click-count (.getClickCount ^MouseEvent e)
         cf (click-fn click-count)]
@@ -163,13 +178,35 @@
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                e))))
 
+(defn- adjust-bounds [s pos]
+  (if (neg? pos) 0 (min (count s) pos)))
+
+(defn tab-count [s]
+  (let [tab-count (count (filter #(= \tab %) s))]
+    tab-count))
+
+(defn lines-before [s pos]
+  (let [np (adjust-bounds s pos)]
+    ;; an extra char is put in to pick up mult newlines
+    (let [lines (string/split (str (subs s 0 np) "x") #"\n")
+          end (->> lines last drop-last (apply str))]
+      (conj (vec (butlast lines)) end))))
+
+(defn remember-caret-col [selection np]
+  (let [lbefore (lines-before (text selection) np)
+        text-before (->> (last lbefore) (apply str))
+        tab-count (tab-count text-before)
+        caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
+    (preferred-offset! selection caret-col)))
+
 (defn- replace-text-selection [selection s]
   (replace! selection (selection-offset selection) (selection-length selection) s)
   (caret! selection (adjust-bounds (text selection) (selection-offset selection)) false))
 
 (defn- replace-text-and-caret [selection offset length s new-caret-pos]
   (replace! selection (adjust-bounds (text selection) offset) length s)
-  (caret! selection (adjust-bounds (text selection) new-caret-pos) false))
+  (caret! selection (adjust-bounds (text selection) new-caret-pos) false)
+  (remember-caret-col selection new-caret-pos))
 
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
@@ -185,9 +222,6 @@
         (if (pos? (selection-length selection))
           (replace-text-selection selection clipboard-text)
           (replace-text-and-caret selection caret 0 clipboard-text (+ caret (count clipboard-text))))))))
-
-(defn- adjust-bounds [s pos]
-  (if (neg? pos) 0 (min (count s) pos)))
 
 (defn right [selection select?]
   (let [c (caret selection)
@@ -226,18 +260,6 @@
   (enabled? [selection] selection)
   (run [selection]
     (left selection true)))
-
-(defn tab-count [s]
-  (let [tab-count (count (filter #(= \tab %) s))]
-    tab-count))
-
-(defn lines-before [s pos]
-  (let [np (adjust-bounds s pos)]
-    ;; an extra char is put in to pick up mult newlines
-    (let [lines (string/split (str (subs s 0 np) "x") #"\n")
-          end (->> lines last drop-last (apply str))]
-      (conj (vec (butlast lines)) end))))
-
 
 (defn lines-after [s pos]
   (let [np (adjust-bounds s pos)]
@@ -451,7 +473,8 @@
         np (adjust-bounds doc c)]
     (if (pos? (selection-length selection))
       (replace-text-selection selection "")
-      (replace-text-and-caret selection (dec np) 1 "" (dec np)))))
+      (when-not (zero? np)
+       (replace-text-and-caret selection (dec np) 1 "" (dec np))))))
 
 (handler/defhandler :delete :code-view
   (enabled? [selection] selection)
@@ -676,3 +699,21 @@
     (if (pos? (count (text-selection selection)))
       (toggle-region-comment selection)
       (toggle-line-comment selection))))
+
+(defn- not-ascii-or-delete [key-typed]
+ ;; ascii control chars like Enter are all below 32
+  ;; delete is an exception and is 127
+  (let [n (.charAt ^String key-typed 0)]
+    (and (> (int n) 31) (not= (int n) 127))))
+
+(handler/defhandler :key-typed :code-view
+  (enabled? [selection] selection)
+  (run [selection key-typed]
+    (when (and (pos? (count key-typed))
+               (not-ascii-or-delete key-typed))
+      (let [c (caret selection)
+            doc (text selection)
+            np (adjust-bounds doc c)]
+        (if (pos? (selection-length selection))
+          (replace-text-selection selection key-typed)
+          (replace-text-and-caret selection np 0 key-typed (inc np)))))))

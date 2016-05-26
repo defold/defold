@@ -290,6 +290,9 @@
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
+      (.addEventHandler ^StyledTextArea text-area
+                        KeyEvent/KEY_TYPED
+                        (ui/event-handler e (cvx/handle-key-typed e source-viewer)))
      (when use-custom-skin?
        (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
          (.setSkin text-area skin)
