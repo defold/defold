@@ -93,6 +93,7 @@
 
   ;; Editing
   :Tab                   {:command :tab}
+  :Enter                 {:command :enter}
 
 })
 
@@ -741,3 +742,10 @@
   (run [selection]
     (when (editable? selection)
       (enter-key-text selection "\t"))))
+
+(handler/defhandler :enter :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection]
+    (when (editable? selection)
+      (let [line-seperator (System/getProperty "line.separator")]
+        (enter-key-text selection line-seperator)))))
