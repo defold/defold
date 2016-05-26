@@ -11,7 +11,8 @@
 
 (defprotocol TextContainer
   (text! [this s])
-  (text [this]))
+  (text [this])
+  (replace! [this offset length s]))
 
 (defprotocol TextScroller
   (preferred-offset [this])
@@ -162,6 +163,14 @@
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                e))))
 
+(defn- replace-text-selection [selection s]
+  (replace! selection (selection-offset selection) (selection-length selection) s)
+  (caret! selection (adjust-bounds (text selection) (selection-offset selection)) false))
+
+(defn- replace-text-and-caret [selection offset length s new-caret-pos]
+  (replace! selection (adjust-bounds (text selection) offset) length s)
+  (caret! selection (adjust-bounds (text selection) new-caret-pos) false))
+
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
   (run [selection clipboard]
@@ -172,13 +181,10 @@
   (run [selection clipboard]
     (when-let [clipboard-text (text clipboard)]
       (let [code (text selection)
-            caret (caret selection)
-            new-code (str (subs code 0 caret)
-                          clipboard-text
-                          (subs code caret (count code)))
-            new-caret (+ caret (count clipboard-text))]
-        (text! selection new-code)
-        (caret! selection new-caret false)))))
+            caret (caret selection)]
+        (if (pos? (selection-length selection))
+          (replace-text-selection selection clipboard-text)
+          (replace-text-and-caret selection caret 0 clipboard-text (+ caret (count clipboard-text))))))))
 
 (defn- adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
@@ -442,34 +448,19 @@
 (defn delete [selection]
   (let [c (caret selection)
         doc (text selection)
-        np (adjust-bounds doc c)
-        new-doc (str (subs doc 0 (dec np))
-                     (subs doc c))
-        next-pos (adjust-bounds new-doc (dec np))]
-    (text! selection new-doc)
-    (caret! selection next-pos false)))
-
-(defn delete-selected [selection]
-  (let [c (caret selection)
-        doc (text selection)
-        selection-offset (selection-offset selection)
-        selection-length (selection-length selection)
-        new-doc (str (subs doc 0 selection-offset)
-                     (subs doc (+ selection-offset selection-length)))
-        next-pos (adjust-bounds doc selection-offset)]
-    (text! selection new-doc)
-    (caret! selection next-pos false)))
+        np (adjust-bounds doc c)]
+    (if (pos? (selection-length selection))
+      (replace-text-selection selection "")
+      (replace-text-and-caret selection (dec np) 1 "" (dec np)))))
 
 (handler/defhandler :delete :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (if (pos? (selection-length selection))
-      (delete-selected selection)
-      (delete selection))))
+    (delete selection)))
 
 (defn cut-selection [selection clipboard]
   (text! clipboard (text-selection selection))
-  (delete-selected selection))
+  (replace-text-selection selection ""))
 
 (defn cut-line [selection]
   (let [c (caret selection)
@@ -587,16 +578,12 @@
 
 (defn do-replace [selection doc found-idx rtext tlen tlen-new caret-pos]
   (when (<= 0 found-idx)
-    (let [new-doc (str (subs doc 0 found-idx)
-                       rtext
-                       (subs doc (+ found-idx tlen)))
-          np (adjust-bounds new-doc (+ tlen-new found-idx))]
-      (text! selection new-doc)
-      (caret! selection np false)
-     ;; (text-selection! selection found-idx tlen-new)
-      ;;Note:  trying to highlight the selection doensn't
-      ;; work due to rendering problems in the StyledTextSkin
-      )))
+    (replace! selection found-idx tlen rtext)
+    (caret! selection (adjust-bounds (text selection) (+ tlen-new found-idx)) false)
+    ;; (text-selection! selection found-idx tlen-new)
+    ;;Note:  trying to highlight the selection doensn't
+    ;; work due to rendering problems in the StyledTextSkin
+    ))
 
 (defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
   (when (and ftext rtext)

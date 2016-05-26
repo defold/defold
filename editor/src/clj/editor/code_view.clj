@@ -364,6 +364,8 @@
     (.set (.getDocument this) s))
   (text [this]
     (.get (.getDocument this)))
+  (replace! [this offset length s]
+    (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s)))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
