@@ -29,9 +29,15 @@
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (text-selection! source-viewer 6 5)
       (copy! source-viewer clipboard)
-      (paste! source-viewer clipboard)
-      (is (= "world" (text clipboard)))
-      (is (= "worldhello world" (g/node-value code-node :code))))))
+      (testing "pasting without text selected"
+        (text-selection! source-viewer 0 0)
+        (paste! source-viewer clipboard)
+        (is (= "world" (text clipboard)))
+        (is (= "worldhello world" (text source-viewer))))
+      (testing "pasting with text selected"
+        (text-selection! source-viewer 0 10)
+        (paste! source-viewer clipboard)
+        (is (= "world world" (text source-viewer)))))))
 
 (defn- right! [source-viewer]
   (handler/run :right [{:name :code-view :env {:selection source-viewer}}]{}))
