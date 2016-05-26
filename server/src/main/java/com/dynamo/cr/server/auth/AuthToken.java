@@ -3,6 +3,7 @@ package com.dynamo.cr.server.auth;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+@Deprecated
 public class AuthToken {
 
     private static final String secret = "^!pe45Q9bj$wTb4lkbzSCM3jY5O9BDIxmDW";

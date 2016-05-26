@@ -3,6 +3,8 @@ package com.dynamo.cr.server.resources.test;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
+import com.dynamo.cr.server.auth.AccessTokenStore;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
@@ -113,11 +115,14 @@ public class AbstractResourceTest {
             bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
             bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
             bind(IMailer.class).toInstance(mailer);
+            bind(AccessTokenStore.class);
+            bind(AccessTokenAuthenticator.class);
 
             Properties props = new Properties();
             props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
             EntityManagerFactory emf = new PersistenceProvider().createEntityManagerFactory("unit-test", props);
             bind(EntityManagerFactory.class).toInstance(emf);
+            bind(EntityManager.class).toInstance(emf.createEntityManager());
         }
     }
 
