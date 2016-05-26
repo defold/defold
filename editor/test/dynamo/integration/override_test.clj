@@ -647,15 +647,12 @@
 (def XYZ [(s/one s/Num "x") (s/one s/Num "y") (s/one s/Num "z")])
 (g/deftype XYZType XYZ)
 
-(def Complex {s/Keyword Vector3d})
-(g/deftype ComplexType Complex)
-
-(g/deftype Vector3dType Vector3d)
+(g/deftype Complex {s/Keyword Vector3d})
 
 (g/defnode TypedOutputNode
   (property value XYZType)
-  (output value Vector3dType (g/fnk [value] (let [[x y z] value] (Vector3d. x y z))))
-  (output complex ComplexType (g/fnk [value] {:value value})))
+  (output value Vector3d (g/fnk [value] (let [[x y z] value] (Vector3d. x y z))))
+  (output complex Complex (g/fnk [value] {:value value})))
 
 (deftest overloaded-outputs-and-types
   (with-clean-system

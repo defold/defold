@@ -58,8 +58,6 @@
   (io/make-output-stream [this opts] (io/make-output-stream file opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
-(g/deftype FileResourceType FileResource)
-
 (core/register-read-handler!
  "file-resource"
  (transit/read-handler

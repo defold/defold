@@ -87,15 +87,11 @@
   (width [this] width)
   (height [this] height))
 
-(g/deftype RectType Rect)
-
 (s/defrecord AABB [min max]
   R3Min
   (min-p [this] (.min this))
   R3Max
   (max-p [this] (.max this)))
-
-(g/deftype AABBType AABB)
 
 (defmethod print-method AABB
   [^AABB v ^java.io.Writer w]
@@ -115,13 +111,9 @@
   ImageHolder
   (contents [this] contents))
 
-(g/deftype ImageType Image)
-
-(def AnimationPlayback (s/enum :playback-none :playback-once-forward :playback-once-backward
-                               :playback-once-pingpong :playback-loop-forward :playback-loop-backward
-                               :playback-loop-pingpong))
-
-(g/deftype AnimationPlaybackType AnimationPlayback)
+(g/deftype AnimationPlayback (s/enum :playback-none :playback-once-forward :playback-once-backward
+                                     :playback-once-pingpong :playback-loop-forward :playback-loop-backward
+                                     :playback-loop-pingpong))
 
 (s/defrecord Animation
   [id              :- s/Str
@@ -131,8 +123,6 @@
    flip-vertical   :- s/Bool
    playback        :- AnimationPlayback])
 
-(g/deftype AnimationType Animation)
-
 (s/defrecord TexturePacking
   [aabb         :- Rect
    packed-image :- BufferedImage
@@ -140,14 +130,10 @@
    sources      :- [Rect]
    animations   :- [Animation]])
 
-(g/deftype TexturePackingType TexturePacking)
-
 (s/defrecord Vertices
   [counts   :- [Int32]
    starts   :- [Int32]
    vertices :- [s/Num]])
-
-(g/deftype VerticesType Vertices)
 
 (s/defrecord EngineFormatTexture
   [width           :- Int32
@@ -159,8 +145,6 @@
    mipmap-sizes    :- [Int32]
    mipmap-offsets  :- [Int32]])
 
-(g/deftype EngineFormatTextureType EngineFormatTexture)
-
 (s/defrecord TextureSetAnimationFrame
   [image                :- Image ; TODO: is this necessary?
    vertex-start         :- s/Num
@@ -169,8 +153,6 @@
    outline-vertex-count :- s/Num
    tex-coords-start     :- s/Num
    tex-coords-count     :- s/Num])
-
-(g/deftype TextureSetAnimationFrameType TextureSetAnimationFrame)
 
 (s/defrecord TextureSetAnimation
   [id              :- s/Str
@@ -181,8 +163,6 @@
    flip-vertical   :- s/Int
    playback        :- AnimationPlayback
    frames          :- [TextureSetAnimationFrame]])
-
-(g/deftype TextureSetAnimationType TextureSetAnimation)
 
 (s/defrecord TextureSet
   [animations       :- {s/Str TextureSetAnimation}
@@ -201,8 +181,6 @@
    right  :- s/Num
    top    :- s/Num
    bottom :- s/Num])
-
-(g/deftype RegionType Region)
 
 (defprotocol Viewport
   (viewport ^Region [this]))
@@ -223,8 +201,6 @@
   Rotation
   (rotation [this] rotation))
 
-(g/deftype CameraType Camera)
-
 (g/deftype OutlineCommand
     {:label      (s/maybe s/Str)
      :enabled    (s/maybe  s/Bool)
@@ -237,7 +213,3 @@
      :node-ref (s/maybe Long)
      :commands [(s/maybe (:schema @OutlineCommand))]
      :children [(s/maybe s/Any)]})
-
-(g/deftype RunnableType Runnable)
-(g/deftype ParentType Parent)
-(g/deftype BufferedImageType BufferedImage)

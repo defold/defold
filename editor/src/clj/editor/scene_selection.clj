@@ -141,7 +141,7 @@
 (g/deftype SelectionMode (s/enum :direct :toggle))
 
 (g/defnode SelectionController
-  (property select-fn types/RunnableType)
+  (property select-fn Runnable)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)
@@ -152,8 +152,8 @@
   (input picking-selection g/Any)
   (input root-id g/NodeID)
 
-  (output picking-rect types/RectType :cached (g/fnk [start current] (calc-picking-rect start current)))
+  (output picking-rect Rect :cached (g/fnk [start current] (calc-picking-rect start current)))
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box
                                                                                     :user-data {:start start :current current}}]}))
-  (output input-handler types/RunnableType :cached (g/fnk [] handle-selection-input)))
+  (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))

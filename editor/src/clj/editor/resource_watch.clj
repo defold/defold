@@ -58,7 +58,7 @@
 
 (defn- make-file-tree [workspace ^File root]
   (let [children (if (.isFile root) [] (mapv #(make-file-tree workspace %) (filter file-resource-filter (.listFiles root))))]
-    (resource/FileResource. workspace root children)))
+    (FileResource. workspace root children)))
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)

@@ -128,9 +128,9 @@
 
   (input source g/Any)
   (input camera g/Any)
-  (input viewport types/RegionType)
+  (input viewport Region)
 
-  (output input-handler types/RunnableType (g/fnk [] handle-input)))
+  (output input-handler Runnable (g/fnk [] handle-input)))
 
 (g/defnk produce-save-data [resource control-points base-texture]
   {:resource resource
@@ -162,7 +162,7 @@
   (property control-points  [g/Any] (dynamic visible (g/fnk [] false)))
   (property base-texture g/Str)
 
-  (input base-texture-img types/BufferedImageType)
+  (input base-texture-img BufferedImage)
 
   (output base-texture-tex g/Any  :cached (g/fnk [_node-id base-texture-img] (texture/image-texture
                                                                               _node-id
@@ -171,7 +171,7 @@
                                                                                :mag-filter gl/linear
                                                                                :wrap-s     gl/repeat
                                                                                :wrap-t     gl/repeat})))
-  (output aabb          types/AABBType  :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points)))
+  (output aabb          AABB  :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points)))
   (output save-data     g/Any :cached produce-save-data)
   (output scene         g/Any :cached produce-scene))
 

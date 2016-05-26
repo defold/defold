@@ -235,7 +235,7 @@
 
   (property default-animation g/Str
             (validate (g/fnk [default-animation anim-data]
-                        (validation/animation default-animation anim-data)))
+                             (validation/animation default-animation anim-data)))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/ResourceType
@@ -263,13 +263,13 @@
   (input material-resource resource/ResourceType)
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
-  (output aabb types/AABBType (g/fnk [animation] (if animation
-                                                   (let [hw (* 0.5 (:width animation))
-                                                         hh (* 0.5 (:height animation))]
-                                                     (-> (geom/null-aabb)
-                                                         (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                                         (geom/aabb-incorporate (Point3d. hw hh 0))))
-                                                   (geom/null-aabb))))
+  (output aabb AABB (g/fnk [animation] (if animation
+                                         (let [hw (* 0.5 (:width animation))
+                                               hh (* 0.5 (:height animation))]
+                                           (-> (geom/null-aabb)
+                                               (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
+                                               (geom/aabb-incorporate (Point3d. hw hh 0))))
+                                         (geom/null-aabb))))
   (output save-data g/Any :cached produce-save-data)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))

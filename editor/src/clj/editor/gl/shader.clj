@@ -398,8 +398,6 @@ This must be submitted to the driver for compilation before you can use it. See
       (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
         (set-uniform-at-index gl program loc val)))))
 
-(g/deftype ShaderLifecycleType ShaderLifecycle)
-
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
 of GLSL strings and returns an object that satisfies GlBind and GlEnable."

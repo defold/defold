@@ -209,7 +209,7 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/fnk [] {}))
-  (output shader shader/ShaderLifecycleType :cached (g/fnk [_node-id vertex-source fragment-source pb]
+  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
                                            (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
                                              (shader/make-shader _node-id vertex-source fragment-source uniforms))))
   (output samplers [g/KeywordMap] :cached (g/fnk [pb] (vec (:samplers pb)))))
