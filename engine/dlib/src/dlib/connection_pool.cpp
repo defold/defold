@@ -353,7 +353,7 @@ namespace dmConnectionPool
 
                 // Since the socket is non blocking (and the way axtls is implemented)
                 // we need do the hand shake ourselves
-                while( ssl_handshake_status(ssl) != SSL_OK )
+                while( ssl_handshake_status(ssl) == SSL_NOT_OK )
                 {
                     int ret = ssl_read(ssl, 0);
                     if( ret < 0 )

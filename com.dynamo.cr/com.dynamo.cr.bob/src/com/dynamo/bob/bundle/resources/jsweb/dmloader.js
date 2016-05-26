@@ -15,7 +15,7 @@ var Combine = {
     //  lastRequestedPiece: index of last data file requested (strictly ascending)
     //  totalLoadedPieces: counts the number of data files received
 
-    //MAX_CONCURRENT_XHR: 6,   // remove comment if throttling of XHR is desired.
+    //MAX_CONCURRENT_XHR: 6,    // remove comment if throttling of XHR is desired.
 
     isCompleted: false,       // status of process
 
@@ -108,7 +108,7 @@ var Combine = {
         xhr.open('GET', this._archiveLocationFilter('/' + item.name), true);
         xhr.responseType = 'arraybuffer';
         xhr.onprogress = function(evt) {
-        target.progress[item.name] = {};
+           target.progress[item.name] = {total: 0, downloaded: 0};
             if (evt.total && evt.lengthComputable) {
                 target.progress[item.name].total = evt.total;
             }
@@ -120,8 +120,11 @@ var Combine = {
         xhr.onload = function(evt) {
             item.data = new Uint8Array(xhr.response);
             item.dataLength = item.data.length;
+            target.progress[item.name].total = item.dataLength;
+            target.progress[item.name].downloaded = item.dataLength;
             Combine.copyData(target, item);
             Combine.onPieceLoaded(target, item);
+            Combine.updateProgress(target);
             item.data = undefined;
         };
         xhr.send(null);
