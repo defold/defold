@@ -1,20 +1,26 @@
 package com.dynamo.cr.server.resources;
 
+import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.git.archive.ArchiveCache;
 import com.dynamo.cr.server.git.archive.GitArchiveProvider;
+import com.dynamo.cr.server.managers.ProjectManager;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
-import com.sun.jersey.api.NotFoundException;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,83 +39,14 @@ import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/*
- * use
- * # curl -X METHOD URI
- * to test. More about curl-testing: http://blogs.sun.com/enterprisetechtips/entry/consuming_restful_web_services_with
- *
- * Root URI:
- *
- * http://host/.../project/user/branch
- *
- *
- * (( NOT VALID ANYMORE?!?
- * NOTE: In order avoid ambiguity service names are reserved words, ie
- * no branch names must not contain any of the reserved words (TODO: unit-test reminder for this)))
- *
- * NOTE: Directories are created using resources-put below with directory=true. TODO: Better solution?
- * NOTE: Service name in upper-case below for clarity
- *
- * Branches:
- *   ProjectConfiguration:
- *       GET http://host/project
- *   Get application info:
- *       TODO: application_info should be changed to application/info. Same for application_data below.
- *       Currently we get a clash with branch resources. Prepend /branch to all branch resources?
- *       GET http://host/project/application_info?platform=(win32|linux|...)
- *   Get application data:
- *       GET http://host/project/application_data?platform=(win32|linux|...)
- *   List:
- *       GET http://host/project/user
- *   Info:
- *       GET http://host/project/user/branch
- *   Create:
- *       PUT http://host/project/user/branch
- *   Delete:
- *       DELETE http://host/project/user/branch
- *   Update:
- *       POST http://host/project/user/branch/UPDATE
- *   Commit:
- *       POST http://host/project/user/branch/COMMIT?all=(true|false)
- *   Publish:
- *       POST http://host/project/user/branch/PUBLISH
- *   Resolve merge conflict:
- *       PUT http://host/project/user/branch/RESOLVE?stage=(base|yours|theirs)&path=resource_path
- *
- * Resources:
- *   Info:
- *       GET http://host/project/user/branch/RESOURCES/INFO?path=resource_path
- *   Content:
- *       GET http://host/project/user/branch/RESOURCES/DATA?path=resource_path
- *       PUT http://host/project/user/branch/RESOURCES/DATA?path=resource_path?directory=(true|false)
- *       POST http://host/project/user/branch/RESOURCES/DATA?source=resource_path?destination=resource_path (rename)
- *       DELETE http://host/project/user/branch/RESOURCES/DATA?path=resource_path
- *
- *   NOTE: Resource path above is rooted
- *
- * Builds:
- *   NOTE: Builds-URI:s seems to be ambiguous to branch-info above. Read the spec to ensure that
- *   this is not the case (jax-rs spec).
- *
- *   Build:
- *       POST http://host/project/user/branch/BUILDS?rebuild=(true|false)
- *   Build info:
- *       GET http://host/project/user/branch/BUILDS?id=integer
- *
- *  Extensions:
- *  Commits:
- *    Log:
- *       GET http://host/project/user/branch/commits?max=integer
- *
- */
-
-// NOTE: {member} isn't currently used.
-// See README.md in this project for additional information
 @Path("/projects/{owner}/{project}")
 @RolesAllowed(value = {"member"})
 public class ProjectResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectResource.class);
+
+    @Inject
+    private ProjectManager projectManager;
 
     private ArchiveCache cachedArchives;
 
@@ -183,56 +120,25 @@ public class ProjectResource extends BaseResource {
     @Path("/members")
     @RolesAllowed(value = {"member"})
     @Transactional
-    public void addMember(@PathParam("project") String projectId,
-                          String memberEmail) {
-        User user = getUser();
-        User member = ModelUtil.findUserByEmail(em, memberEmail);
-        if (member == null) {
-            throw new ServerException("User not found", Status.NOT_FOUND);
-        }
-
-        // Connect new member to owner (used in e.g. auto-completion)
-        user.getConnections().add(member);
-
-        Project project = server.getProject(em, projectId);
-        project.getMembers().add(member);
-        member.getProjects().add(project);
-        em.persist(project);
-        em.persist(user);
-        em.persist(member);
+    public void addMember(@PathParam("project") Long projectId, String memberEmail) {
+        projectManager.addMember(projectId, memberEmail, getUser());
     }
 
     @DELETE
     @Path("/members/{id}")
     @Transactional
-    public void removeMember(@PathParam("project") String projectId,
-                             @PathParam("id") String memberId) {
-        // Ensure user is valid
-        User user = getUser();
+    public void removeMember(@PathParam("project") String projectId, @PathParam("id") String memberId) {
+        User administrator = getUser();
         User member = server.getUser(em, memberId);
-
-        Project project = server.getProject(em, projectId);
-
-        if (!project.getMembers().contains(member)) {
-            throw new NotFoundException(String.format("User %s is not a member of project %s", user.getId(), projectId));
-        }
-        // Only owners can remove other users and only non-owners can remove themselves
-        boolean isOwner = Objects.equals(user.getId(), project.getOwner().getId());
-        boolean removeSelf = Objects.equals(user.getId(), member.getId());
-        if ((isOwner && removeSelf) || (!isOwner && !removeSelf)) {
-            throw new WebApplicationException(403);
-        }
-
-        ModelUtil.removeMember(project, member);
-        em.persist(project);
-        em.persist(member);
+        projectManager.removeMember(Long.valueOf(projectId), member, administrator);
     }
 
     @GET
     @Path("/project_info")
-    public ProjectInfo getProjectInfo(@PathParam("project") String projectId) {
+    public ProjectInfo getProjectInfo(@PathParam("project") Long projectId) {
         User user = getUser();
-        Project project = server.getProject(em, projectId);
+        Project project = projectManager.getProject(projectId)
+                .orElseThrow(() -> new ServerException("Project not found.", Status.NOT_FOUND));
         return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
     }
 
@@ -241,7 +147,8 @@ public class ProjectResource extends BaseResource {
     @Transactional
     @Path("/project_info")
     public void updateProjectInfo(@PathParam("project") String projectId, ProjectInfo projectInfo) {
-        Project project = server.getProject(em, projectId);
+        Project project = projectManager.getProject(Long.valueOf(projectId))
+                .orElseThrow(() -> new ServerException("Project not found.", Status.NOT_FOUND));
         project.setName(projectInfo.getName());
         project.setDescription(projectInfo.getDescription());
     }
@@ -250,18 +157,18 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = {"owner"})
     @Transactional
     @Path("/change_owner")
-    public void changeOwner(@PathParam("project") String projectId, @QueryParam("newOwnerId") Long newOwnerId) {
+    public void changeOwner(@PathParam("project") Long projectId, @QueryParam("newOwnerId") Long newOwnerId) {
 
         if (newOwnerId == null) {
             throw new ServerException("Query parameter newOwnerId is missing.", Status.BAD_REQUEST);
         }
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectManager.getProject(projectId)
+                .orElseThrow(() -> new ServerException("Project not found.", Status.NOT_FOUND));
 
         if (!changeProjectOwner(project, newOwnerId)) {
             throw new ServerException("Could not change ownership: new owner must be a project member.", Status.FORBIDDEN);
         }
-
     }
 
     private boolean changeProjectOwner(Project project, long newOwnerId) {
@@ -290,20 +197,31 @@ public class ProjectResource extends BaseResource {
     @GET
     @Path("/log")
     public Log log(@PathParam("project") String project, @QueryParam("max_count") int maxCount) throws Exception {
-        return server.log(em, project, maxCount);
+        String sourcePath = String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
+
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z");
+        Log.Builder logBuilder = Log.newBuilder();
+        Git git = Git.open(new File(sourcePath));
+        Iterable<RevCommit> revLog = git.log().setMaxCount(maxCount).call();
+        for (RevCommit revCommit : revLog) {
+            Protocol.CommitDesc.Builder commit = Protocol.CommitDesc.newBuilder();
+            commit.setName(revCommit.getCommitterIdent().getName());
+            commit.setId(revCommit.getId().toString());
+            commit.setMessage(revCommit.getShortMessage());
+            commit.setEmail(revCommit.getCommitterIdent().getEmailAddress());
+            long commitTime = revCommit.getCommitTime();
+            commit.setDate(formatter.print(new DateTime(commitTime * 1000)));
+            logBuilder.addCommits(commit);
+        }
+
+        return logBuilder.build();
     }
 
     @DELETE
     @RolesAllowed(value = {"owner"})
     @Transactional
-    public void deleteProject(@PathParam("project") String projectId) {
-        Project project = server.getProject(em, projectId);
-        try {
-            ModelUtil.removeProject(em, project);
-            ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
-        } catch (IOException e) {
-            throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
-        }
+    public void deleteProject(@PathParam("project") Long projectId) {
+        projectManager.removeProject(projectId, server.getConfiguration().getRepositoryRoot());
     }
 
     /*
@@ -351,7 +269,7 @@ public class ProjectResource extends BaseResource {
     @GET
     @RolesAllowed(value = {"anonymous"})
     @Path("/engine/{platform}/{key}.ipa")
-    public Response downloadEngine(@PathParam("project") String projectId,
+    public Response downloadEngine(@PathParam("project") Long projectId,
                                    @PathParam("key") String key,
                                    @PathParam("platform") String platform) throws IOException {
 
@@ -360,14 +278,16 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
         }
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectManager.getProject(projectId)
+                .orElseThrow(() -> new ServerException("Project not found.", Status.NOT_FOUND));
+
         String actualKey = Server.getEngineDownloadKey(project);
 
         if (!key.equals(actualKey)) {
             throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
         }
 
-        final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
+        final File file = Server.getEngineFile(server.getConfiguration(), projectId.toString(), platform);
 
         StreamingOutput output = os -> {
             FileUtils.copyFile(file, os);
@@ -385,7 +305,7 @@ public class ProjectResource extends BaseResource {
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
     public String downloadEngineManifest(@PathParam("owner") String owner,
-                                         @PathParam("project") String projectId,
+                                         @PathParam("project") Long projectId,
                                          @PathParam("key") String key,
                                          @PathParam("platform") String platform,
                                          @Context UriInfo uriInfo) throws IOException {
@@ -395,7 +315,9 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
         }
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectManager.getProject(projectId)
+                .orElseThrow(() -> new ServerException("Project not found.", Status.NOT_FOUND));
+
         String actualKey = Server.getEngineDownloadKey(project);
 
         if (!key.equals(actualKey)) {
@@ -406,9 +328,9 @@ public class ProjectResource extends BaseResource {
         String manifest = IOUtils.toString(stream);
         stream.close();
 
-        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
+        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId.toString()).path("engine").path(platform).path(key).build();
 
-        final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), projectId, platform);
+        final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), projectId.toString(), platform);
 
         String bundleid;
         try {

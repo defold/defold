@@ -130,7 +130,7 @@ public class UsersResource extends BaseResource {
             ModelUtil.removeProject(em, project);
 
             try {
-                ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
+                ResourceUtil.deleteProjectRepo(project.getId(), server.getConfiguration().getRepositoryRoot());
             } catch (IOException e) {
                 throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
             }
