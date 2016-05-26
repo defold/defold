@@ -310,7 +310,7 @@
 (defn- refresh-views! [app-view]
   (let [auto-pulls (g/node-value app-view :auto-pulls)]
     (doseq [[node label] auto-pulls]
-      (profiler/profile "view" (:name (g/node-type* node))
+      (profiler/profile "view" (:name @(g/node-type* node))
                         (g/node-value node label)))))
 
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
