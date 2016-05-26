@@ -34,37 +34,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
                 super(styledText);
 	}
 
-        private int colx = 0;
-        private int tabSize = 4;
-
-       /**
-        * Fix for keeping track of the horizontal caret position when
-        * changing lines - Defold
-        **/
-
-        public void setPreferredColOffset(int x){
-          colx =x;
-        }
-
-        public int getPreferredColOffset(){
-          return colx;
-        }
-
-        /**
-        *  Call to remember the horizonatal caret position when
-        *  changing lines
-        **/
-        public void rememberCaretCol(int offset){
-          int currentRowIndex = getControl().getContent().getLineAtOffset(offset);
-          int startOffset = getControl().getContent().getOffsetAtLine(currentRowIndex);
-          int offsetLength = offset - startOffset;
-          String offsetText = getControl().getContent().getTextRange(startOffset, offsetLength);
-          int tabCount = (int) offsetText.chars().filter(num -> num == '\t').count();
-          int colOffset = offsetLength + (tabCount * (tabSize - 1));
-
-          setPreferredColOffset(colOffset);
-        }
-
 	/**
 	 * Handle key event
 	 *
@@ -78,34 +47,6 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 			defold_keyTyped(arg0);
 		}
 	}
-
-        /**
-	 * handle the mouse pressed
-	 *
-	 * @param arg0
-	 *            the mouse event
-	 */
-	public void mousePressed(MouseEvent arg0) {
-		getControl().requestFocus();
-	}
-
-       	/**
-	 * Send a mouse pressed
-	 *
-	 * @param event
-	 *            the event
-	 * @param visibleCells
-	 *            the visible cells
-	 * @param selection
-	 *            are we in selection mode
-         *  Override for Defold to handle down/up width
-	 */
-	@SuppressWarnings("deprecation")
-        @Override
-	public void updateCursor(MouseEvent event, List<LineCell> visibleCells, boolean selection) {
-            super.updateCursor(event, visibleCells, selection);
-            rememberCaretCol(getControl().getCaretOffset());
-        }
 
 
 

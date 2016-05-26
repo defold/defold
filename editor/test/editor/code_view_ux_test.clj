@@ -163,7 +163,7 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
-      (preferred-offset! source-viewer 4)
+      (preferred-offset! 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "moving down"
         (down! source-viewer)
@@ -195,7 +195,7 @@
           (g/transact (g/set-property code-node :code new-code))
           (g/node-value viewer-node :new-content)
           (caret! source-viewer 3 false)
-          (preferred-offset! source-viewer 4)
+          (preferred-offset! 4)
           (is (= \e (get-char-at-caret source-viewer)))
           (down! source-viewer)
           (is (= \2 (get-char-at-caret source-viewer)))
@@ -215,7 +215,7 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
-      (preferred-offset! source-viewer 4)
+      (preferred-offset! 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "select moving down"
         (select-down! source-viewer)
