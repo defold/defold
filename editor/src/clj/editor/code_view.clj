@@ -381,6 +381,10 @@
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
     (.setSelectionRange (.getTextWidget this) offset length))
+  (editable? [this]
+    (-> this (.getTextWidget) (.getEditable)))
+  (editable! [this val]
+    (-> this (.getTextWidget) (.setEditable val)))
   cvx/TextScroller
   (preferred-offset [this]
     (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]

@@ -12,7 +12,8 @@
 (defrecord TestClipboard [content]
   TextContainer
   (text! [this s] (reset! content s))
-  (text [this] @content))
+  (text [this] @content)
+  (replace! [this offset length s]))
 
 (defn- key-typed! [source-viewer key-typed]
   (handler/run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
@@ -29,6 +30,10 @@
       (testing "typing without text selected replaces the selected text"
         (text-selection! source-viewer 0 1)
         (key-typed! source-viewer "b")
+        (is (= "bhello" (text source-viewer))))
+      (testing "making the text view non-editable prevents typing"
+        (editable! source-viewer false)
+        (key-typed! source-viewer "x")
         (is (= "bhello" (text source-viewer)))))))
 
 (defn- copy! [source-viewer clipboard]
