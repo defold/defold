@@ -338,37 +338,39 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
         private void defold_keyTyped(KeyEvent event) {
 		if (getControl().getEditable()) {
 
-			String character = event.getCharacter();
-			if (character.length() == 0) {
-				return;
-			}
+                    //Defold we are handling this
 
-			// check the modifiers
-			// - OS-X: ALT+L ==> @
-			// - win32/linux: ALTGR+Q ==> @
-			if (event.isControlDown() || event.isAltDown() || (Util.isMacOS() && event.isMetaDown())) {
-				if (!((event.isControlDown() || Util.isMacOS()) && event.isAltDown()))
-					return;
-			}
+			// String character = event.getCharacter();
+			// if (character.length() == 0) {
+			// 	return;
+			// }
 
-			if (character.charAt(0) > 31 // No ascii control chars
-					&& character.charAt(0) != 127 // no delete key
-					&& !event.isMetaDown()) {
-				final int offset = getControl().getCaretOffset();
-                                int newOffset = offset + 1;
-                                if (getControl().getSelection().length > 0) {
-                                    getControl().getContent().replaceTextRange(getControl().getSelection().offset,
-                                                                               getControl().getSelection().length,
-                                                                               character);
-                                    newOffset = getControl().getSelection().offset;
-                                    getControl().setSelectionRange(newOffset , 0);
-                                }
-                                else{
-                                    getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
-                                }
-                                getControl().setCaretOffset(newOffset);
-                                rememberCaretCol(newOffset);
-                        }
+			// // check the modifiers
+			// // - OS-X: ALT+L ==> @
+			// // - win32/linux: ALTGR+Q ==> @
+			// if (event.isControlDown() || event.isAltDown() || (Util.isMacOS() && event.isMetaDown())) {
+			// 	if (!((event.isControlDown() || Util.isMacOS()) && event.isAltDown()))
+			// 		return;
+			// }
+
+			// if (character.charAt(0) > 31 // No ascii control chars
+			// 		&& character.charAt(0) != 127 // no delete key
+			// 		&& !event.isMetaDown()) {
+                            //final int offset = getControl().getCaretOffset();
+                                // int newOffset = offset + 1;
+                                // if (getControl().getSelection().length > 0) {
+                                //     getControl().getContent().replaceTextRange(getControl().getSelection().offset,
+                                //                                                getControl().getSelection().length,
+                                //                                                character);
+                                //     newOffset = getControl().getSelection().offset;
+                                //     getControl().setSelectionRange(newOffset , 0);
+                                // }
+                                // else{
+                                //     getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
+                                // }
+                                // getControl().setCaretOffset(newOffset);
+                    //rememberCaretCol(newOffset);
+                    //    }
 
 		}
 	}
