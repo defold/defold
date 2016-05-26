@@ -288,9 +288,12 @@ var Module = {
     _waitingForArchive: false,
 
     // Persistent storage
+    persistentStorage: true,
     _syncInProgress: false,
     _syncNeeded: false,
     _syncInitial: false,
+    _syncMaxTries: 3,
+    _syncTries: 0,
 
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },
@@ -368,6 +371,9 @@ var Module = {
     *     'engine_arguments':
     *         List of arguments (strings) that will be passed to the engine.
     *
+    *     'persistent_storage':
+    *         Boolean toggling the usage of persistent storage.
+    *
     *     'custom_heap_size':
     *         Number of bytes specifying the memory heap size.
     *
@@ -380,6 +386,7 @@ var Module = {
             archive_location_filter: function(path) { return 'split' + path; },
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
+            persistent_storage: true,
             custom_heap_size: undefined
         };
 
@@ -394,6 +401,7 @@ var Module = {
             Module.canvas.style.background = 'no-repeat center url("' + params["splash_image"] + '")';
         }
         Module.arguments = params["engine_arguments"];
+        Module.persistentStorage = params["persistent_storage"];
         Module["TOTAL_MEMORY"] = params["custom_heap_size"];
 
         if (Module.hasWebGLSupport()) {
@@ -458,8 +466,14 @@ var Module = {
         // Initial persistent sync before main is called
         FS.syncfs(true, function(err) {
             if(err) {
+                Module._syncTries += 1;
                 console.error("FS syncfs error: " + err);
-                Module.preSync(done);
+                if (Module._syncMaxTries > Module._syncTries) {
+                    Module.preSync(done);
+                } else {
+                    Module._syncInitial = true;
+                    done();
+                }
             } else {
                 Module._syncInitial = true;
                 if (done !== undefined) {
@@ -505,7 +519,7 @@ var Module = {
         // then try to do a IDB->MEM sync before we start the engine to get
         // previously saved data before boot.
         window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
-        if (window.indexedDB) {
+        if (Module.persistentStorage && window.indexedDB) {
             FS.mount(IDBFS, {}, dir);
 
             // Patch FS.close so it will try to sync MEM->IDB
@@ -554,19 +568,22 @@ var Module = {
     _startSyncFS: function() {
         Module._syncInProgress = true;
 
-        FS.syncfs(false, function(err) {
-            Module._syncInProgress = false;
+        if (Module._syncMaxTries > Module._syncTries) {
+            FS.syncfs(false, function(err) {
+                Module._syncInProgress = false;
 
-            if (err) {
-                console.error("Module._startSyncFS error: " + err);
-            }
+                if (err) {
+                    console.error("Module._startSyncFS error: " + err);
+                    Module._syncTries += 1;
+                }
 
-            if (Module._syncNeeded) {
-                Module._syncNeeded = false;
-                Module._startSyncFS();
-            }
+                if (Module._syncNeeded) {
+                    Module._syncNeeded = false;
+                    Module._startSyncFS();
+                }
 
-        });
+            });
+        }
     },
 };
 
