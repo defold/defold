@@ -437,10 +437,10 @@
             (value (g/fnk [tile-source-resource] tile-source-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :tile-source-resource
-                                                 [:texture-set-data :texture-set-data]
-                                                 [:gpu-texture :gpu-texture]
-                                                 [:anim-data :anim-data]])))
+                                                [:resource :tile-source-resource]
+                                                [:texture-set-data :texture-set-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:anim-data :anim-data])))
             (validate (g/fnk [tile-source texture-set-data gpu-texture anim-data]
                         (validation/resource :tile-source tile-source (str "Missing image"[texture-set-data gpu-texture anim-data])))))
 
