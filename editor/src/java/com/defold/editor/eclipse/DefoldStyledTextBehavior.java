@@ -355,9 +355,18 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior{
 					&& character.charAt(0) != 127 // no delete key
 					&& !event.isMetaDown()) {
 				final int offset = getControl().getCaretOffset();
-				getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
-                                final int newOffset = offset + 1;
-				getControl().setCaretOffset(newOffset);
+                                int newOffset = offset + 1;
+                                if (getControl().getSelection().length > 0) {
+                                    getControl().getContent().replaceTextRange(getControl().getSelection().offset,
+                                                                               getControl().getSelection().length,
+                                                                               character);
+                                    newOffset = getControl().getSelection().offset;
+                                    getControl().setSelectionRange(newOffset , 0);
+                                }
+                                else{
+                                    getControl().getContent().replaceTextRange(getControl().getCaretOffset(), 0, character);
+                                }
+                                getControl().setCaretOffset(newOffset);
                                 rememberCaretCol(newOffset);
                         }
 
