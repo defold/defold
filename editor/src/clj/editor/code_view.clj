@@ -6,7 +6,7 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextBehavior DefoldStyledTextSkin]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
@@ -286,7 +286,11 @@
     (.setDocument source-viewer document)
 
     (let [text-area (.getTextWidget source-viewer)
-          styled-text-behavior (new DefoldStyledTextBehavior text-area)]
+          styled-text-behavior  (proxy [StyledTextBehavior] [text-area]
+                                  (callActionForEvent [key-event]
+                                    ;;do nothing we are handling all
+                                    ;;the events
+                                    ))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
