@@ -275,15 +275,15 @@
   (inherits outline/OutlineNode)
 
   (property type g/Keyword (dynamic visible (g/fnk [] false)))
-  (property magnitude props/CurveSpreadType)
-  (property max-distance props/CurveType (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
+  (property magnitude CurveSpread)
+  (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
   (output pb-msg g/Any :cached produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
       (let [mod-type (mod-types type)]
         {:node-id _node-id :label (:label mod-type) :icon modifier-icon})))
-  (output aabb types/AABBType (g/fnk [] (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+  (output aabb AABB (g/fnk [] (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -360,26 +360,26 @@
      :children child-scenes}))
 
 (g/defnode EmitterProperties
-  (property emitter-key-spawn-rate props/CurveSpreadType (dynamic label (g/fnk [] "Spawn Rate")))
-  (property emitter-key-size-x props/CurveSpreadType (dynamic label (g/fnk [] "Emitter Size X")))
-  (property emitter-key-size-y props/CurveSpreadType (dynamic label (g/fnk [] "Emitter Size Y")))
-  (property emitter-key-size-z props/CurveSpreadType (dynamic label (g/fnk [] "Emitter Size Z")))
-  (property emitter-key-particle-life-time props/CurveSpreadType (dynamic label (g/fnk [] "Particle Life Time")))
-  (property emitter-key-particle-speed props/CurveSpreadType (dynamic label (g/fnk [] "Initial Speed")))
-  (property emitter-key-particle-size props/CurveSpreadType (dynamic label (g/fnk [] "Initial Size")))
-  (property emitter-key-particle-red props/CurveSpreadType (dynamic label (g/fnk [] "Initial Red")))
-  (property emitter-key-particle-green props/CurveSpreadType (dynamic label (g/fnk [] "Initial Green")))
-  (property emitter-key-particle-blue props/CurveSpreadType (dynamic label (g/fnk [] "Initial Blue")))
-  (property emitter-key-particle-alpha props/CurveSpreadType (dynamic label (g/fnk [] "Initial Alpha")))
-  (property emitter-key-particle-rotation props/CurveSpreadType (dynamic label (g/fnk [] "Initial Rotation"))))
+  (property emitter-key-spawn-rate CurveSpread (dynamic label (g/fnk [] "Spawn Rate")))
+  (property emitter-key-size-x CurveSpread (dynamic label (g/fnk [] "Emitter Size X")))
+  (property emitter-key-size-y CurveSpread (dynamic label (g/fnk [] "Emitter Size Y")))
+  (property emitter-key-size-z CurveSpread (dynamic label (g/fnk [] "Emitter Size Z")))
+  (property emitter-key-particle-life-time CurveSpread (dynamic label (g/fnk [] "Particle Life Time")))
+  (property emitter-key-particle-speed CurveSpread (dynamic label (g/fnk [] "Initial Speed")))
+  (property emitter-key-particle-size CurveSpread (dynamic label (g/fnk [] "Initial Size")))
+  (property emitter-key-particle-red CurveSpread (dynamic label (g/fnk [] "Initial Red")))
+  (property emitter-key-particle-green CurveSpread (dynamic label (g/fnk [] "Initial Green")))
+  (property emitter-key-particle-blue CurveSpread (dynamic label (g/fnk [] "Initial Blue")))
+  (property emitter-key-particle-alpha CurveSpread (dynamic label (g/fnk [] "Initial Alpha")))
+  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/fnk [] "Initial Rotation"))))
 
 (g/defnode ParticleProperties
-  (property particle-key-scale props/CurveType (dynamic label (g/fnk [] "Life Scale")))
-  (property particle-key-red props/CurveType (dynamic label (g/fnk [] "Life Red")))
-  (property particle-key-green props/CurveType (dynamic label (g/fnk [] "Life Green")))
-  (property particle-key-blue props/CurveType (dynamic label (g/fnk [] "Life Blue")))
-  (property particle-key-alpha props/CurveType (dynamic label (g/fnk [] "Life Alpha")))
-  (property particle-key-rotation props/CurveType (dynamic label (g/fnk [] "Life Rotation"))))
+  (property particle-key-scale Curve (dynamic label (g/fnk [] "Life Scale")))
+  (property particle-key-red Curve (dynamic label (g/fnk [] "Life Red")))
+  (property particle-key-green Curve (dynamic label (g/fnk [] "Life Green")))
+  (property particle-key-blue Curve (dynamic label (g/fnk [] "Life Blue")))
+  (property particle-key-alpha Curve (dynamic label (g/fnk [] "Life Alpha")))
+  (property particle-key-rotation Curve (dynamic label (g/fnk [] "Life Rotation"))))
 
 (defn- get-property [properties kw]
   (let [v (get-in properties [kw :value])]
@@ -492,7 +492,7 @@
                     :child-reqs [{:node-type ModifierNode
                                   :tx-attach-fn (fn [self-id child-id]
                                                   (attach-modifier pfx-id self-id child-id))}]})))
-  (output aabb types/AABBType (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
+  (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
                                      (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
                                            [w h d] (case type
                                                      :emitter-type-circle [x x x]
@@ -633,8 +633,8 @@
                                                                    {:node-type ModifierNode
                                                                     :tx-attach-fn (fn [self-id child-id]
                                                                                     (attach-modifier self-id self-id child-id))}]}))
-  (output fetch-anim-fn types/RunnableType :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
-  (output render-emitter-fn types/RunnableType :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
+  (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
+  (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
 
 (defn- emitter? [node-id]
   (when (g/node-instance? EmitterNode node-id)

@@ -94,12 +94,12 @@
 
   (property order g/Int (dynamic visible (g/fnk [] false)) (default 0))
   (input src-resource resource/ResourceType)
-  (input src-image types/BufferedImageType)
+  (input src-image BufferedImage)
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
   (output path g/Str (g/fnk [src-resource] (resource/proj-path src-resource)))
   (output id g/Str (g/fnk [path] (path->id path)))
-  (output image types/ImageType (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
-  (output animation types/AnimationType (g/fnk [image id] (image->animation image id)))
+  (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
+  (output animation Animation (g/fnk [image id] (image->animation image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id path order] {:node-id _node-id
                                                                                  :label (format "%s - %s" (path->id path) path)
                                                                                  :order order
@@ -156,19 +156,19 @@
             (validate (g/fnk [fps] (validation/pos fps "FPS must be greater than or equal to zero"))))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
-  (property playback        types/AnimationPlaybackType
+  (property playback        types/AnimationPlayback
             (dynamic edit-type (g/fnk []
                                  (let [options (protobuf/enum-values Tile$Playback)]
                                    {:type :choicebox
                                     :options (zipmap (map first options)
                                                      (map (comp :display-name second) options))}))))
 
-  (input frames types/ImageType :array)
+  (input frames Image :array)
   (input img-ddf g/Any :array)
 
   (input image-order g/Any :array)
 
-  (output animation types/AnimationType (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
+  (output animation Animation (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
                                      (types/->Animation id frames fps flip-horizontal flip-vertical playback)))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id child-outlines] {:node-id _node-id
@@ -281,8 +281,6 @@
 (defn- atlas-outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v)))])
 
-(g/deftype BufferedImageType BufferedImage)
-
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
@@ -296,18 +294,18 @@
             (default 0)
             (validate (g/fnk [extrude-borders] (validation/pos extrude-borders "Extrude borders must be greater than or equal to zero"))))
 
-  (input animations types/AnimationType :array)
+  (input animations Animation :array)
   (input animation-ids g/Str :array)
   (input img-ddf g/Any :array)
   (input anim-ddf g/Any :array)
 
   (input image-order g/Any :array)
 
-  (output images           [types/ImageType]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb             types/AABBType                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
+  (output images           [Image]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
+  (output aabb             AABB                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output texture-set-data g/Any               :cached produce-texture-set-data)
-  (output packed-image     BufferedImageType       (g/fnk [texture-set-data] (:image texture-set-data)))
+  (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
   (output anim-data        g/Any               :cached produce-anim-data)
   (output anim-ids         g/Any               :cached (g/fnk [animation-ids] animation-ids))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id

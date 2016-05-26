@@ -33,12 +33,10 @@
     :build-fn build-texture
     :user-data {:image content}}])
 
-(g/deftype BufferedImageType BufferedImage)
-
 (g/defnode ImageNode
   (inherits project/ResourceNode)
 
-  (output content BufferedImageType :cached (g/fnk [resource] (try
+  (output content BufferedImage :cached (g/fnk [resource] (try
                                                             (if-let [img (ImageIO/read (io/input-stream resource))]
                                                               img
                                                               (g/error-severe {:type :invalid-content
@@ -95,7 +93,7 @@
 (g/defnode ImageSource
   (inherits core/ResourceNode)
 
-  (output content types/ImageType :cached (g/fnk [filename] (load-image filename (types/local-path filename)))))
+  (output content Image :cached (g/fnk [filename] (load-image filename (types/local-path filename)))))
 
 (s/defn image-color-components :- long
   [src :- BufferedImage]

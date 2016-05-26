@@ -146,11 +146,9 @@
             max-width (reduce max 0 line-widths)]
         [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
-(def FontData {:type schema/Keyword
-               :font-map schema/Any
-               :texture schema/Any})
-
-(g/deftype FontDataType FontData)
+(g/deftype FontData {:type     schema/Keyword
+                     :font-map schema/Any
+                     :texture  schema/Any})
 
 (defn- cell->coords [cell font-map]
   (let [cw (:cache-cell-width font-map)
@@ -370,7 +368,7 @@
   (input font-resource resource/ResourceType)
   (input material-resource resource/ResourceType)
   (input material-samplers [g/KeywordMap])
-  (input material-shader shader/ShaderLifecycleType)
+  (input material-shader ShaderLifecycle)
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output pb-msg g/Any :cached produce-pb-msg)
@@ -378,7 +376,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
-  (output aabb types/AABBType (g/fnk [font-map preview-text]
+  (output aabb AABB (g/fnk [font-map preview-text]
                            (if font-map
                              (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
                                    h-offset (:max-ascent font-map)]
@@ -392,9 +390,9 @@
                                                  channels (:glyph-channels font-map)]
                                              (texture/empty-texture _node-id w h channels
                                                                    (material/sampler->tex-params (first material-samplers)) 0))))
-  (output material-shader shader/ShaderLifecycleType (g/fnk [material-shader] material-shader))
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (output type g/Keyword produce-font-type)
-  (output font-data FontDataType :cached (g/fnk [type gpu-texture font-map]
+  (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
                                             {:type type
                                              :texture gpu-texture
                                              :font-map font-map}))

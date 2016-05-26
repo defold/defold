@@ -129,20 +129,17 @@
       (g/transact (g/set-property _node-id :root-cache new-cache))
       tree-view)))
 
-(g/deftype TreeViewType TreeView)
-(g/deftype ListChangeListenerType ListChangeListener)
-
 (g/defnode OutlineView
-  (property tree-view TreeViewType)
+  (property tree-view TreeView)
   (property root-cache g/Any)
-  (property selection-listener ListChangeListenerType)
+  (property selection-listener ListChangeListener)
 
   (input active-outline g/Any :substitute {})
   (input active-resource resource/ResourceType :substitute nil)
   (input open-resources g/Any :substitute [])
   (input selection g/Any :substitute [])
 
-  (output tree-view TreeViewType :cached update-tree-view))
+  (output tree-view TreeView :cached update-tree-view))
 
 (ui/extend-menu ::outline-menu nil
                 [{:label "Add"

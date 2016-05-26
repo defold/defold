@@ -676,14 +676,12 @@
         (g/set-property! _node-id :prev-form form)
         form))))
 
-(g/deftype ScrollPaneType ScrollPane)
-
 (g/defnode FormView
-  (property parent-view types/ParentType)
+  (property parent-view Parent)
   (property workspace g/Any)
-  (property prev-form ScrollPaneType)
+  (property prev-form ScrollPane)
   (input form-data g/Any :substitute {})
-  (output form ScrollPaneType :cached produce-update-form))
+  (output form ScrollPane :cached produce-update-form))
 
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
   (let [workspace (:workspace opts)

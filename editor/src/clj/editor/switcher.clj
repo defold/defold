@@ -270,7 +270,7 @@
   (input gpu-texture g/Any)
 
   (output level g/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
-  (output aabb types/AABBType (g/fnk [width height]
+  (output aabb  AABB (g/fnk [width height]
                            (let [half-width (* 0.5 cell-size width)
                                  half-height (* 0.5 cell-size height)]
                              (types/->AABB (Point3d. (- half-width) (- half-height) 0)

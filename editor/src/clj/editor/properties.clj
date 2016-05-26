@@ -22,13 +22,9 @@
   Sampler
   (sample [this] (:y (first points))))
 
-(g/deftype CurveType Curve)
-
 (defrecord CurveSpread [points spread]
   Sampler
   (sample [this] (:y (first points))))
-
-(g/deftype CurveSpreadType CurveSpread)
 
 (core/register-read-handler!
  "curve"

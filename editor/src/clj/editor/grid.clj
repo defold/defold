@@ -162,7 +162,7 @@
      :aabbs  [(snap-out-to-grid aabb grid-size-small) (snap-out-to-grid aabb grid-size-large)]}))
 
 (g/defnode Grid
-  (input camera types/CameraType)
+  (input camera Camera)
   (property grid-color types/Color)
   (property auto-grid  g/Bool)
   (property fixed-grid-size g/Int
