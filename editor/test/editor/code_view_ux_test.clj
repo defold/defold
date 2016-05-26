@@ -651,3 +651,29 @@
         (replace-next! source-viewer)
         (is (= "the blue red ducks" (text source-viewer)))
         (is (= 12 (caret source-viewer)))))))
+
+(defn- tab! [source-viewer]
+  (handler/run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest tab-test
+  (with-clean-system
+    (let [code "hi"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "basic tab"
+        (tab! source-viewer)
+        (is (= "\thi" (text source-viewer)))))))
+
+(defn- enter! [source-viewer]
+  (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest tab-test
+  (with-clean-system
+    (let [code "hi"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "basic enter"
+        (enter! source-viewer)
+        (is (= "\nhi" (text source-viewer)))))))
