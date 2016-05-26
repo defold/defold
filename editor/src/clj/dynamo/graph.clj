@@ -204,7 +204,7 @@
 
 (deftype Any        s/Any)
 (deftype Bool       s/Bool)
-(deftype Str        s/Str)
+(deftype Str        String)
 (deftype Int        s/Int)
 (deftype Num        s/Num)
 (deftype NodeID     s/Int)
