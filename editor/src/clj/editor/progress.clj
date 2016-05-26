@@ -19,8 +19,7 @@
   ([p]
    (advance p 1))
   ([p n]
-   {:post [(<= (:pos %) (:size %))]}
-   (update p :pos + n))
+   (update p :pos #(min (:size p) (+ % n))))
   ([p n msg]
    (message (advance p n) msg)))
 
