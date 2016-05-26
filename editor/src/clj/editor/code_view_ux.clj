@@ -14,10 +14,6 @@
   (text [this])
   (replace! [this offset length s]))
 
-(defprotocol TextScroller
-  (preferred-offset [this])
-  (preferred-offset! [this offset]))
-
 (defprotocol TextView
   (text-selection [this])
   (text-selection! [this offset length])
@@ -122,6 +118,10 @@
 (def tab-size 4)
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
+(def prefer-offset (atom 0))
+
+(defn preferred-offset [] @prefer-offset)
+(defn preferred-offset! [val] (reset! prefer-offset val))
 
 (defn- info [e]
   {:event e
@@ -172,13 +172,6 @@
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
         e))))
 
-(defn handle-mouse-clicked [e source-viewer]
-  (let [click-count (.getClickCount ^MouseEvent e)
-        cf (click-fn click-count)]
-    (when cf (handler/run
-               cf
-               [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-               e))))
 
 (defn- adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
@@ -199,7 +192,17 @@
         text-before (->> (last lbefore) (apply str))
         tab-count (tab-count text-before)
         caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
-    (preferred-offset! selection caret-col)))
+    (preferred-offset! caret-col)))
+
+(defn handle-mouse-clicked [e source-viewer]
+  (let [click-count (.getClickCount ^MouseEvent e)
+        cf (click-fn click-count)
+        pos (caret source-viewer)]
+    (remember-caret-col source-viewer pos)
+    (when cf (handler/run
+               cf
+               [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
+               e))))
 
 (defn- replace-text-selection [selection s]
   (replace! selection (selection-offset selection) (selection-length selection) s)
@@ -293,14 +296,14 @@
 (defn up [selection select?]
   (let [c (caret selection)
         doc (text selection)
-        preferred-offset (preferred-offset selection)
+        preferred-offset (preferred-offset)
         next-pos (up-line doc c preferred-offset)]
     (caret! selection next-pos select?)))
 
 (defn down [selection select?]
   (let [c (caret selection)
         doc (text selection)
-        preferred-offset (preferred-offset selection)
+        preferred-offset (preferred-offset)
         next-pos (down-line doc c preferred-offset)]
       (caret! selection next-pos select?)))
 
