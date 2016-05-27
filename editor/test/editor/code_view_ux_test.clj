@@ -12,7 +12,29 @@
 (defrecord TestClipboard [content]
   TextContainer
   (text! [this s] (reset! content s))
-  (text [this] @content))
+  (text [this] @content)
+  (replace! [this offset length s]))
+
+(defn- key-typed! [source-viewer key-typed]
+  (handler/run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+
+(deftest key-typed-test
+  (with-clean-system
+    (let [code "hello"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "typing without text selected"
+        (key-typed! source-viewer "a")
+        (is (= "ahello" (text source-viewer))))
+      (testing "typing without text selected replaces the selected text"
+        (text-selection! source-viewer 0 1)
+        (key-typed! source-viewer "b")
+        (is (= "bhello" (text source-viewer))))
+      (testing "making the text view non-editable prevents typing"
+        (editable! source-viewer false)
+        (key-typed! source-viewer "x")
+        (is (= "bhello" (text source-viewer)))))))
 
 (defn- copy! [source-viewer clipboard]
   (handler/run :copy [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}] {}))
@@ -29,9 +51,15 @@
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (text-selection! source-viewer 6 5)
       (copy! source-viewer clipboard)
-      (paste! source-viewer clipboard)
-      (is (= "world" (text clipboard)))
-      (is (= "worldhello world" (g/node-value code-node :code))))))
+      (testing "pasting without text selected"
+        (text-selection! source-viewer 0 0)
+        (paste! source-viewer clipboard)
+        (is (= "world" (text clipboard)))
+        (is (= "worldhello world" (text source-viewer))))
+      (testing "pasting with text selected"
+        (text-selection! source-viewer 0 10)
+        (paste! source-viewer clipboard)
+        (is (= "world world" (text source-viewer)))))))
 
 (defn- right! [source-viewer]
   (handler/run :right [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -135,7 +163,7 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
-      (preferred-offset! source-viewer 4)
+      (preferred-offset! 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "moving down"
         (down! source-viewer)
@@ -167,7 +195,7 @@
           (g/transact (g/set-property code-node :code new-code))
           (g/node-value viewer-node :new-content)
           (caret! source-viewer 3 false)
-          (preferred-offset! source-viewer 4)
+          (preferred-offset! 4)
           (is (= \e (get-char-at-caret source-viewer)))
           (down! source-viewer)
           (is (= \2 (get-char-at-caret source-viewer)))
@@ -187,7 +215,7 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
-      (preferred-offset! source-viewer 4)
+      (preferred-offset! 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "select moving down"
         (select-down! source-viewer)
@@ -623,3 +651,29 @@
         (replace-next! source-viewer)
         (is (= "the blue red ducks" (text source-viewer)))
         (is (= 12 (caret source-viewer)))))))
+
+(defn- tab! [source-viewer]
+  (handler/run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest tab-test
+  (with-clean-system
+    (let [code "hi"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "basic tab"
+        (tab! source-viewer)
+        (is (= "\thi" (text source-viewer)))))))
+
+(defn- enter! [source-viewer]
+  (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest enter-test
+  (with-clean-system
+    (let [code "hi"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "basic enter"
+        (enter! source-viewer)
+        (is (= "\nhi" (text source-viewer)))))))
