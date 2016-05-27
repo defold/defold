@@ -17,11 +17,11 @@
 #include "http_server_private.h"
 #include "http_client_private.h"
 #include "http_server.h"
+#include "network_constants.h"
 
 namespace dmSSDP
 {
     const char * SSDP_MCAST_ADDR_IPV4              = "239.255.255.250";
-    const char * CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
     const uint16_t SSDP_MCAST_PORT                 = 1900U;
     const uint32_t SSDP_MCAST_TTL                  = 4U;
 

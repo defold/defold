@@ -13,12 +13,12 @@
 #include "time.h"
 #include "path.h"
 #include "sys.h"
+#include "network_constants.h"
 
 #ifdef ANDROID
 #include <android/log.h>
 #endif
 
-const char * CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
 const int DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection

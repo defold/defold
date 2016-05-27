@@ -6,10 +6,8 @@
 #include "../dlib/time.h"
 #include <arpa/inet.h>
 
-const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
-const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV6 = "::";
-const char*    CONST_LOOPBACK_ADDRESS_IPV4       = "127.0.0.1";
-const char*    CONST_LOOPBACK_ADDRESS_IPV6       = "::1";
+#include "../dlib/network_constants.h"
+
 const uint16_t CONST_TEST_PORT = 8008;
 
 struct ServerThreadInfo

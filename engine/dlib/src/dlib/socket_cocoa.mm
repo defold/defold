@@ -6,9 +6,7 @@
 #include <arpa/inet.h>
 #include "log.h"
 #include "socket.h"
-
-const char*    CONST_LOOPBACK_ADDRESS_IPV4       = "127.0.0.1";
-const char*    CONST_LOOPBACK_ADDRESS_IPV6       = "::1";
+#include "network_constants.h"
 
 namespace dmSocket
 {

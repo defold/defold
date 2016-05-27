@@ -2,11 +2,9 @@
 #include <stdlib.h>
 #include <gtest/gtest.h>
 #include "../src/dlib/socks_proxy.h"
+#include "../src/dlib/network_constants.h"
 
 #ifndef _WIN32
-
-const char*    CONST_LOOPBACK_ADDRESS_IPV4       = "127.0.0.1";
-const char*    CONST_LOOPBACK_ADDRESS_IPV6       = "::1";
 
 // unsetenv and setenv is missing on win32
 // tests temporarily disabled

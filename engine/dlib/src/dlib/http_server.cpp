@@ -9,9 +9,7 @@
 #include "dstrings.h"
 #include "http_server.h"
 #include "http_server_private.h"
-
-const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
-const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV6 = "::";
+#include "network_constants.h"
 
 namespace dmHttpServer
 {
@@ -105,7 +103,7 @@ namespace dmHttpServer
         dmSocket::Socket socket;
 
         Disconnect(server);
-        dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket); // Here we have to listen on both IPv4 and IPv6, how?
+        dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
         if (r != dmSocket::RESULT_OK)
             return RESULT_UNKNOWN;
 
