@@ -24,6 +24,16 @@
       (.setCredentialsProvider creds)
       (.call)))
 
+(defn stage-file [^Git git file]
+  (-> (.add git)
+      (.addFilepattern file)
+      (.call)))
+
+(defn unstage-file [^Git git file]
+  (-> (.reset git)
+      (.addPath file)
+      (.call)))
+
 (defn hard-reset [^Git git ^RevCommit start-ref]
   (println "* hard-reset")
   (-> (.reset git)
@@ -53,6 +63,9 @@
           (.setStashRef (first matching-stash))
           (.call)))))
 
+(defn worktree [^Git git]
+  (.getWorkTree (.getRepository git)))
+
 (defn- get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
     (.setRetainBody walk true)
@@ -63,23 +76,26 @@
 
 ;; =================================================================================
 
-(defn show-file [^Git git name]
-  (let [repo (.getRepository git)
-        lastCommitId (.resolve repo "HEAD")
-        rw (RevWalk. repo)
-        commit (.parseCommit rw lastCommitId)
-        tree (.getTree commit)
-        tw (TreeWalk. repo)]
-    (.addTree tw tree)
-    (.setRecursive tw true)
-    (.setFilter tw (PathFilter/create name))
-    (.next tw)
-    (let [id (.getObjectId tw 0)
-          loader (.open repo id)
-          ret (.getBytes loader)]
-      (.dispose rw)
-      (.close repo)
-      ret)))
+(defn show-file
+  ([^Git git name]
+   (show-file git name "HEAD"))
+  ([^Git git name ref]
+   (let [repo         (.getRepository git)
+         lastCommitId (.resolve repo ref)
+         rw           (RevWalk. repo)
+         commit       (.parseCommit rw lastCommitId)
+         tree         (.getTree commit)
+         tw           (TreeWalk. repo)]
+     (.addTree tw tree)
+     (.setRecursive tw true)
+     (.setFilter tw (PathFilter/create name))
+     (.next tw)
+     (let [id     (.getObjectId tw 0)
+           loader (.open repo id)
+           ret    (.getBytes loader)]
+       (.dispose rw)
+       (.close repo)
+       ret))))
 
 (defn- diff-entry->map [^DiffEntry de]
   ; NOTE: We convert /dev/null to nil.
