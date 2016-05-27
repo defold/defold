@@ -20,7 +20,7 @@
       <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />
    </padding>
    <top>
-      <Label text="Get Remote Changes" BorderPane.alignment="CENTER">
+      <Label id="main-label" text="Get Remote Changes" BorderPane.alignment="CENTER">
          <font>
             <Font size="18.0" />
          </font>

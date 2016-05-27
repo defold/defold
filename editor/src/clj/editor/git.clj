@@ -24,12 +24,20 @@
       (.setCredentialsProvider creds)
       (.call)))
 
+(defn push [^Git git ^UsernamePasswordCredentialsProvider creds]
+  (println "* push")
+  (-> (.push git)
+      (.setCredentialsProvider creds)
+      (.call)))
+
 (defn stage-file [^Git git file]
+  (println "* stage" file)
   (-> (.add git)
       (.addFilepattern file)
       (.call)))
 
 (defn unstage-file [^Git git file]
+  (println "* unstage" file)
   (-> (.reset git)
       (.addPath file)
       (.call)))
@@ -63,6 +71,12 @@
           (.setStashRef (first matching-stash))
           (.call)))))
 
+(defn commit [^Git git ^String message]
+  (println "* commit")
+  (-> (.commit git)
+      (.setMessage message)
+      (.call)))
+
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
 
@@ -74,12 +88,30 @@
 (defn get-current-commit-ref [^Git git]
   (get-commit (.getRepository git) "HEAD"))
 
+(defn status [^Git git]
+  (println "* status")
+  (let [s (-> git (.status) (.call))]
+    {:added                   (set (.getAdded s))
+     :changed                 (set (.getChanged s))
+     :conflicting             (set (.getConflicting s))
+     :ignored-not-in-index    (set (.getIgnoredNotInIndex s))
+     :missing                 (set (.getMissing s))
+     :modified                (set (.getModified s))
+     :removed                 (set (.getRemoved s))
+     :uncommited-changes      (set (.getUncommittedChanges s))
+     :untracked               (set (.getUntracked s))
+     :untracked-folders       (set (.getUntrackedFolders s))
+     :conflicting-stage-state (apply hash-map
+                                     (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
+                                             (.getConflictingStageState s)))}))
+
 ;; =================================================================================
 
 (defn show-file
   ([^Git git name]
    (show-file git name "HEAD"))
   ([^Git git name ref]
+   (println "* show-file" name)
    (let [repo         (.getRepository git)
          lastCommitId (.resolve repo ref)
          rw           (RevWalk. repo)
@@ -104,22 +136,6 @@
      :change-type (-> (.getChangeType de) str .toLowerCase keyword)
      :old-path (f (.getOldPath de))
      :new-path (f (.getNewPath de))}))
-
-(defn status [^Git git]
-  (let [s (-> git (.status) (.call))]
-    {:added (.getAdded s)
-     :changed (.getChanged s)
-     :conflicting (.getConflicting s)
-     :ignored-not-in-index (.getIgnoredNotInIndex s)
-     :missing (.getMissing s)
-     :modified (.getModified s)
-     :removed (.getRemoved s)
-     :uncommited-changes (.getUncommittedChanges s)
-     :untracked (.getUntracked s)
-     :untracked-folders (.getUntrackedFolders s)
-     :conflicting-stage-state (apply hash-map
-                                     (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
-                                             (.getConflictingStageState s)))}))
 
 (defn simple-status [^Git git]
   (let [s (status git)
