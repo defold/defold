@@ -13,6 +13,7 @@
             [editor.progress :as progress])
   (:import javafx.geometry.Pos
            [org.eclipse.jgit.api Git PullResult]
+           [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [javafx.scene Parent Scene Node]
            [javafx.scene.control ContentDisplay Label MenuButton]
@@ -51,9 +52,10 @@
      :creds     (git/credentials prefs)
      :start-ref start-ref
      :stash-ref stash-ref
-     :progress  (progress/make "pull" 5)
+     :progress  (progress/make "pull" 4)
      :staged    #{}
-     :conflicts #{}
+     :conflicts {}
+     :resolved  {}
      }))
 
 (defn cancel-flow [{:keys [git start-ref stash-ref] :as flow}]
@@ -68,10 +70,13 @@
      (catch Exception e#
        (console/append-console-message! (.toString e#)))))
 
-(defn- tick [flow new-state]
-  (-> flow
-      (assoc :state new-state)
-      (update :progress progress/advance)))
+(defn- tick
+  ([flow new-state]
+   (tick flow new-state 1))
+  ([flow new-state n]
+   (-> flow
+       (assoc :state new-state)
+       (update :progress #(progress/advance % n)))))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref] :as flow} render-progress]
   (println "advance" :pull state)
@@ -89,12 +94,12 @@
                                                :conflict))))
                           status    (git/status git)]
                       (cond
-                        (nil? stash-ref) (advance-flow (tick flow :pull/done) render-progress)
+                        (nil? stash-ref) (advance-flow (tick flow :pull/done 2) render-progress)
                         (= :conflict stash-res) (advance-flow (-> flow
                                                                   (tick :pull/conflicts)
                                                                   (assoc :conflicts (:conflicting-stage-state status)))
                                                               render-progress)
-                        stash-res (advance-flow (tick flow :pull/done) render-progress)
+                        stash-res (advance-flow (tick flow :pull/done 2) render-progress)
                         :else (advance-flow (tick flow :pull/error) render-progress)))
     :pull/conflicts (if (empty? conflicts)
                       (advance-flow (tick flow :pull/done) render-progress)
@@ -108,31 +113,54 @@
     :push/pushing   (rand-nth [:pull/start :push/done])
     :push/done      :push/done))
 
-(defn resolve-file [{:keys [^Git git conflicts] :as flow} file resolution]
-  (let [action (condp = [(get conflicts file) resolution]
-                 [:both-added :ours]        :checkout
-                 [:both-added :theirs]      :checkout
+(ui/extend-menu ::conflicts-menu nil
+                [{:label "Show diff"
+                  :command :show-diff}
+                 {:label "Use ours"
+                  :command :use-ours}
+                 {:label "Use theirs"
+                  :command :use-theirs}])
 
-                 [:both-modified :theirs]   :checkout
-                 [:both-modified :ours]     :checkout
+(defn- get-theirs [{:keys [git] :as flow} file]
+  (String. ^bytes (git/show-file git file)))
 
-                 [:deleted-by-them :ours]   :checkout
-                 [:deleted-by-them :theirs] :rm
+(defn- get-ours [{:keys [git ^RevCommit stash-ref] :as flow} file]
+  (when stash-ref
+    (String. ^bytes (git/show-file git file (.name stash-ref)))))
 
-                 [:deleted-by-us :ours]     :rm
-                 [:deleted-by-us :theirs]   :checkout)]
-    (if (= action :rm)
-      (-> (.rm git)
-          (.addFilepattern file)
-          (.call))
-      (do
-        (-> (.checkout git)
-            (.addPath file)
-            (.setStage (CheckoutCommand$Stage/valueOf (string/upper-case (name resolution))))
-            (.call))
-        (-> (.add git)
-            (.addFilepattern file)
-            (.call))))))
+(defn- resolve-file [!flow file]
+  (when-let [entry (get (:conflicts @!flow) file)]
+    (git/stage-file (:git @!flow) file)
+    (swap! !flow #(-> %
+                      (update :conflicts dissoc file)
+                      (update :resolved assoc file entry)
+                      (update :staged conj file)))))
+
+(handler/defhandler :show-diff :sync
+  (enabled? [selection] (= 1 (count selection)))
+  (run [selection !flow]
+    (let [file   (first selection)
+          ours   (get-ours @!flow file)
+          theirs (get-theirs @!flow file)]
+      (when (and ours theirs)
+        (diff-view/make-diff-viewer (str "Theirs '" file "'") theirs
+                                    (str "Ours '" file "'") ours)))))
+
+(handler/defhandler :use-ours :sync
+  (enabled? [selection] (pos? (count selection)))
+  (run [selection !flow]
+    (doseq [f selection]
+      (when-let [ours (get-ours @!flow f)]
+        (spit (io/file (git/worktree (:git @!flow)) f) ours)
+        (resolve-file !flow f)))))
+
+(handler/defhandler :use-theirs :sync
+  (enabled? [selection] (pos? (count selection)))
+  (run [selection !flow]
+    (doseq [f selection]
+      (when-let [ours (get-theirs @!flow f)]
+        (spit (io/file (git/worktree (:git @!flow)) f) ours)
+        (resolve-file !flow f)))))
 
 (defn- stage-file [flow entry]
   (update flow :staged conj entry))
@@ -195,26 +223,6 @@
 (defn- status-render [status]
   {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
 
-(ui/extend-menu ::conflicts-menu nil
-                [{:label "Show diff"
-                  :command :show-diff}
-                 {:label "Use ours"
-                  :command :use-ours}
-                 {:label "Use theirs"
-                  :command :use-theirs}])
-
-(handler/defhandler :show-diff :sync
-  (enabled? [selection] (= 1 (count selection)))
-  (run []))
-
-(handler/defhandler :use-ours :sync
-  (enabled? [selection] (pos? (count selection)))
-  (run [selection]))
-
-(handler/defhandler :use-theirs :sync
-  (enabled? [selection] (pos? (count selection)))
-  (run [selection]))
-
 (defn open-sync-dialog [flow]
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
@@ -223,20 +231,29 @@
         old-stage       (ui/main-stage)
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root [ "ok" "cancel" "dialog-area" "progress-bar"])
-        pull-controls   (ui/collect-controls pull-root ["conflicting" "conflict-box"])
+        pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box"])
         push-controls   (ui/collect-controls push-root [])
         !flow           (atom flow)
         render-progress (fn [progress]
                           (ui/run-later
                            (ui/update-progress-controls! progress (:progress-bar dialog-controls) nil)))
-        update-controls (fn [{:keys [state conflicts] :as flow}]
+        update-controls (fn [{:keys [state conflicts resolved] :as flow}]
                           (condp = state
-                            :pull/conflicts (do
-                                              (println "* conflicts" conflicts)
-                                              (.setVisible ^Node (:conflict-box pull-controls) true)
-                                              (ui/items! (:conflicting pull-controls) (sort (keys conflicts))))
+                            :pull/conflicts (ui/run-later
+                                             (println "* conflicts" conflicts)
+                                             (ui/visible! (:conflict-box pull-controls) true)
+                                             (ui/items! (:conflicting pull-controls) (sort (keys conflicts)))
+                                             (ui/items! (:resolved pull-controls) (sort (keys resolved)))
+
+                                             (let [button (:ok dialog-controls)]
+                                               (ui/text! button "Apply")
+                                               (ui/disable! button (boolean (not-empty conflicts)))))
+                            :pull/done      (ui/run-later
+                                             (ui/visible! (:conflict-box pull-controls) false)
+                                             (ui/text! (:ok dialog-controls) "Done"))
                             nil))]
     (def flw !flow)
+    (println pull-controls)
     (ui/set-main-stage stage)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
@@ -248,10 +265,12 @@
                                                (cancel-flow @!flow)
                                                (.close stage)))
     (ui/on-action! (:ok dialog-controls) (fn [_]
-                                           (swap! !flow advance-flow render-progress)))
+                                           (if (= "done" (name (:state @!flow)))
+                                             (.close stage)
+                                             (swap! !flow advance-flow render-progress))))
 
     (let [list-view (:conflicting pull-controls)]
-      (ui/context! list-view :sync {:list-view list-view} list-view)
+      (ui/context! list-view :sync {:!flow !flow} list-view)
       (ui/register-context-menu list-view ::conflicts-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
 

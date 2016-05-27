@@ -38,7 +38,7 @@
                         <Insets top="16.0" />
                      </padding>
                   </Label>
-                  <ListView prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+                  <ListView id="resolved" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
                </children>
             </VBox>
          </children>
