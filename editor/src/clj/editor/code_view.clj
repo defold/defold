@@ -6,7 +6,7 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextBehavior DefoldStyledTextSkin]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
@@ -286,10 +286,17 @@
     (.setDocument source-viewer document)
 
     (let [text-area (.getTextWidget source-viewer)
-          styled-text-behavior (new DefoldStyledTextBehavior text-area)]
+          styled-text-behavior  (proxy [StyledTextBehavior] [text-area]
+                                  (callActionForEvent [key-event]
+                                    ;;do nothing we are handling all
+                                    ;;the events
+                                    ))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
+      (.addEventHandler ^StyledTextArea text-area
+                        KeyEvent/KEY_TYPED
+                        (ui/event-handler e (cvx/handle-key-typed e source-viewer)))
      (when use-custom-skin?
        (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
          (.setSkin text-area skin)
@@ -364,6 +371,8 @@
     (.set (.getDocument this) s))
   (text [this]
     (.get (.getDocument this)))
+  (replace! [this offset length s]
+    (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s)))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
@@ -376,13 +385,10 @@
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
     (.setSelectionRange (.getTextWidget this) offset length))
-  cvx/TextScroller
-  (preferred-offset [this]
-    (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
-      (.getPreferredColOffset b)))
-  (preferred-offset! [this offset]
-    (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
-      (.setPreferredColOffset b offset)))
+  (editable? [this]
+    (-> this (.getTextWidget) (.getEditable)))
+  (editable! [this val]
+    (-> this (.getTextWidget) (.setEditable val)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
