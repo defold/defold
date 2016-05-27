@@ -29,7 +29,10 @@ protected:
 
     virtual void TearDown()
     {
-        dmResource::DeleteFactory(factory);
+        if (factory != NULL)
+        {
+            dmResource::DeleteFactory(factory);
+        }
     }
 
     dmResource::HFactory factory;
@@ -149,7 +152,10 @@ protected:
 
     virtual void TearDown()
     {
-        dmResource::DeleteFactory(m_Factory);
+        if (m_Factory != NULL)
+        {
+            dmResource::DeleteFactory(m_Factory);
+        }
     }
 
     // dmResource::Get API but with preloader instead
@@ -389,7 +395,7 @@ TEST_P(GetResourceTest, Loop)
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://localhost:6123", "arc:build/default/src/test/test_resource.arc"));
+                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "arc:build/default/src/test/test_resource.arc"));
 
 TEST_P(GetResourceTest, GetReference1)
 {
