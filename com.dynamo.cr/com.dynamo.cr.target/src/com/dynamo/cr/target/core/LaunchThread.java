@@ -129,8 +129,6 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
 
             // Dump env and exe args when debugging
             if (System.getProperty("osgi.dev") != null) {
-                stream.println("DMSOCKS_PROXY=" + socksProxy);
-                stream.println("DMSOCKS_PROXY_PORT=" + socksProxyPort);
                 for (String s : args) {
                     stream.print(s + " ");
                 }
