@@ -56,7 +56,7 @@ namespace dmSocket
         }
 
         dmLogError("Failed to retrieve address family (%d): %s",
-            NATIVETORESULT(DM_SOCKET_ERRNO)), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+            NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
         return false;
     }
 
@@ -71,7 +71,7 @@ namespace dmSocket
         }
 
         dmLogError("Failed to retrieve address family (%d): %s",
-            NATIVETORESULT(DM_SOCKET_ERRNO)), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+            NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
         return false;
     }
 
