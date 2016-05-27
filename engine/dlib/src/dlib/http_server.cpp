@@ -10,6 +10,9 @@
 #include "http_server.h"
 #include "http_server_private.h"
 
+const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
+const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV6 = "::";
+
 namespace dmHttpServer
 {
     const uint32_t BUFFER_SIZE = 64 * 1024;
@@ -109,7 +112,7 @@ namespace dmHttpServer
         dmSocket::SetReuseAddress(socket, true);
 
         dmSocket::Address bind_address;
-        r = dmSocket::GetHostByName("::", &bind_address);
+        r = dmSocket::GetHostByName(CONST_UNIVERSAL_BIND_ADDRESS_IPV4, &bind_address);
         if (r != dmSocket::RESULT_OK)
         {
             dmSocket::Delete(socket);

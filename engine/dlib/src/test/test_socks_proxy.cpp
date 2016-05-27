@@ -5,13 +5,16 @@
 
 #ifndef _WIN32
 
+const char*    CONST_LOOPBACK_ADDRESS_IPV4       = "127.0.0.1";
+const char*    CONST_LOOPBACK_ADDRESS_IPV6       = "::1";
+
 // unsetenv and setenv is missing on win32
 // tests temporarily disabled
 
 TEST(dmSocksProxy, NoSocksProxySet)
 {
     unsetenv("DMSOCKS_PROXY");
-    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
@@ -24,7 +27,7 @@ TEST(dmSocksProxy, ConnectionRefused)
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1079", 1);
 
-    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
@@ -38,7 +41,7 @@ TEST(dmSocksProxy, ClientNotReachable)
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1081", 1);
 
-    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;

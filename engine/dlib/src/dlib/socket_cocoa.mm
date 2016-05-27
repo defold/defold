@@ -7,6 +7,9 @@
 #include "log.h"
 #include "socket.h"
 
+const char*    CONST_LOOPBACK_ADDRESS_IPV4       = "127.0.0.1";
+const char*    CONST_LOOPBACK_ADDRESS_IPV6       = "::1";
+
 namespace dmSocket
 {
 #if defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
@@ -52,7 +55,7 @@ namespace dmSocket
         else
         {
             // We fallback to loopback address
-            *address = AddressFromIPString("127.0.0.1");
+            *address = AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
             return RESULT_OK;
         }
     }

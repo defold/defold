@@ -20,10 +20,10 @@
 
 namespace dmSSDP
 {
-    const char * SSDP_MCAST_ADDR = "239.255.255.250";
-    const char * SSDP_MCAST_LISTEN = "0.0.0.0";
-    const uint16_t SSDP_MCAST_PORT = 1900U;
-    const uint32_t SSDP_MCAST_TTL = 4U;
+    const char * SSDP_MCAST_ADDR_IPV4              = "239.255.255.250";
+    const char * CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
+    const uint16_t SSDP_MCAST_PORT                 = 1900U;
+    const uint32_t SSDP_MCAST_TTL                  = 4U;
 
     static const char* SSDP_ALIVE_TMPL =
         "NOTIFY * HTTP/1.1\r\n"
@@ -515,10 +515,10 @@ bail:
         dmSocket::Address listen_address;
         dmSocket::Address multicast_address;
 
-        sr = dmSocket::GetHostByName(SSDP_MCAST_LISTEN, &listen_address);
+        sr = dmSocket::GetHostByName(CONST_UNIVERSAL_BIND_ADDRESS_IPV4, &listen_address);
         if (sr != dmSocket::RESULT_OK)
         {
-            dmLogError("Unable to resolve listening address '%s' for ssdp (%d)", SSDP_MCAST_LISTEN, sr);
+            dmLogError("Unable to resolve listening address '%s' for ssdp (%d)", CONST_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
             goto bail;
         }
 
@@ -532,14 +532,14 @@ bail:
         sr = dmSocket::Bind(mcast_sock, listen_address, SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
-            dmLogError("Unable to bind ssdp socket to listening listen_address '%s' (%d)", SSDP_MCAST_LISTEN, sr);
+            dmLogError("Unable to bind ssdp socket to listening listen_address '%s' (%d)", CONST_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
             goto bail;
         }
 
-        sr = dmSocket::GetHostByName(SSDP_MCAST_ADDR, &multicast_address);
+        sr = dmSocket::GetHostByName(SSDP_MCAST_ADDR_IPV4, &multicast_address);
         if (sr != dmSocket::RESULT_OK)
         {
-            dmLogError("Unable to resolve multicast address '%s' for ssdp (%d)", SSDP_MCAST_ADDR, sr);
+            dmLogError("Unable to resolve multicast address '%s' for ssdp (%d)", SSDP_MCAST_ADDR_IPV4, sr);
             goto bail;
         }
 
@@ -638,7 +638,7 @@ bail:
         }
 
         int sent_bytes;
-        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
+        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send announce message (%d)", sr);
@@ -656,7 +656,7 @@ bail:
         }
 
         int sent_bytes;
-        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
+        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send unannounce message (%d)", sr);
@@ -1177,7 +1177,7 @@ bail:
                                  M_SEARCH_FMT,
                                  strlen(M_SEARCH_FMT),
                                  &sent_bytes,
-                                 dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
+                                 dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4),
                                  SSDP_MCAST_PORT);
 
                 dmLogDebug("SSDP M-SEARCH");

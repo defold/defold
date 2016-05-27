@@ -18,6 +18,7 @@
 #include <android/log.h>
 #endif
 
+const char * CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
 const int DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
@@ -98,7 +99,7 @@ static void dmLogInitSocket( dmSocket::Socket& server_socket )
     }
     else
     {
-        r = dmSocket::GetHostByName("0.0.0.0", &address);
+        r = dmSocket::GetHostByName(CONST_UNIVERSAL_BIND_ADDRESS_IPV4, &address);
         if (r != dmSocket::RESULT_OK)
         {
             snprintf(error_msg, sizeof(error_msg), "Unable to get listening address for log socket (%d): %s", r, dmSocket::ResultToString(r));
