@@ -19,6 +19,7 @@
                <children>
                   <Button id="cancel" alignment="CENTER" defaultButton="false" layoutY="2.0" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="Cancel" />
                </children></Pane>
+            <Button id="push" visible="false" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="Push" />
             <Button id="ok" defaultButton="true" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="OK" />
          </children>
          <padding>

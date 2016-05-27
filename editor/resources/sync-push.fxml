@@ -20,7 +20,7 @@
       <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />
    </padding>
    <top>
-      <Label text="Synchronize Project" BorderPane.alignment="CENTER">
+      <Label id="main-label" text="Stage Local Changes" BorderPane.alignment="CENTER">
          <font>
             <Font size="18.0" />
          </font>
@@ -29,7 +29,7 @@
    <center>
       <StackPane BorderPane.alignment="CENTER">
          <children>
-            <VBox prefHeight="200.0" prefWidth="100.0">
+            <VBox id="content-box" prefHeight="200.0" prefWidth="100.0">
                <children>
                   <Label id="changed-files" text="Changed Files" />
                   <ListView id="changed" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
@@ -44,19 +44,7 @@
                         <Insets top="16.0" />
                      </padding>
                   </Label>
-                  <TextArea prefHeight="200.0" prefWidth="200.0" />
-               </children>
-            </VBox>
-            <VBox prefHeight="200.0" prefWidth="100.0" visible="false">
-               <children>
-                  <Label text="Conflicting" />
-                  <ListView id="conflicting" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
-                  <Label text="Resolved">
-                     <padding>
-                        <Insets top="16.0" />
-                     </padding>
-                  </Label>
-                  <ListView prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+                  <TextArea id="message" prefHeight="200.0" prefWidth="200.0" />
                </children>
             </VBox>
          </children>
