@@ -62,7 +62,6 @@ def build(bld):
     create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socks_proxy', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
     bld.new_task_gen(rule = 'echo generated data > ${TGT}',

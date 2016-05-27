@@ -108,7 +108,15 @@ namespace dmHttpServer
 
         dmSocket::SetReuseAddress(socket, true);
 
-        r = dmSocket::Bind(socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+        dmSocket::Address bind_address;
+        r = dmSocket::GetHostByName("::", &bind_address);
+        if (r != dmSocket::RESULT_OK)
+        {
+            dmSocket::Delete(socket);
+            return RESULT_SOCKET_ERROR;
+        }
+
+        r = dmSocket::Bind(socket, bind_address, port);
         if (r != dmSocket::RESULT_OK)
         {
             dmSocket::Delete(socket);

@@ -5,7 +5,6 @@
 #include "array.h"
 #include "time.h"
 #include "log.h"
-#include "socks_proxy.h"
 #include "mutex.h"
 #include "hash.h"
 #include "../axtls/ssl/os_port.h"
@@ -168,16 +167,6 @@ namespace dmConnectionPool
         dmHashUpdateBuffer64(&hs, &port, sizeof(port));
         dmHashUpdateBuffer64(&hs, &ssl, sizeof(ssl));
 
-        char* socks_proxy = getenv("DMSOCKS_PROXY");
-        if (socks_proxy != 0) {
-            dmHashUpdateBuffer64(&hs, socks_proxy, strlen(socks_proxy));
-        }
-
-        char* socks_proxy_port = getenv("DMSOCKS_PROXY_PORT");
-        if (socks_proxy_port != 0) {
-            dmHashUpdateBuffer64(&hs, socks_proxy_port, strlen(socks_proxy_port));
-        }
-
         return dmHashFinal64(&hs);
     }
 
@@ -206,12 +195,19 @@ namespace dmConnectionPool
         for (uint32_t i = 0; i < n; ++i) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_CONNECTED && c->m_ID == id) {
-                c->m_State = STATE_INUSE;
-                c->m_ReuseCount++;
-                *connection = MakeHandle(pool, i, c);
-                return true;
+                // We have to return a socket with the correct address family
+                bool ipv4_match = address.m_family == dmSocket::DOMAIN_IPV4 && dmSocket::IsSocketIPv4(c->m_Socket);
+                bool ipv6_match = address.m_family == dmSocket::DOMAIN_IPV6 && dmSocket::IsSocketIPv6(c->m_Socket);
+                if (ipv4_match || ipv6_match)
+                {
+                    c->m_State = STATE_INUSE;
+                    c->m_ReuseCount++;
+                    *connection = MakeHandle(pool, i, c);
+                    return true;
+                }
             }
         }
+
         return false;
     }
 
@@ -256,56 +252,48 @@ namespace dmConnectionPool
 
     static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, int timeout, Connection* c, dmSocket::Result* sr)
     {
-        bool use_socks = getenv("DMSOCKS_PROXY") != 0;
-        if (use_socks) {
-            dmSocksProxy::Result socks_result = dmSocksProxy::Connect(address, port, &c->m_Socket, sr);
-            if (socks_result != dmSocksProxy::RESULT_OK) {
-                return RESULT_SOCKET_ERROR;
-            }
-        } else {
-            *sr = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &c->m_Socket);
+        *sr = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &c->m_Socket);
+        if (*sr != dmSocket::RESULT_OK) {
+            return RESULT_SOCKET_ERROR;
+        }
+
+        if( timeout > 0 )
+        {
+            *sr = dmSocket::SetBlocking(c->m_Socket, false);
             if (*sr != dmSocket::RESULT_OK) {
+                dmSocket::Delete(c->m_Socket);
                 return RESULT_SOCKET_ERROR;
             }
 
-            if( timeout > 0 )
-            {
-                *sr = dmSocket::SetBlocking(c->m_Socket, false);
-                if (*sr != dmSocket::RESULT_OK) {
-                    dmSocket::Delete(c->m_Socket);
-                    return RESULT_SOCKET_ERROR;
-                }
-
-                *sr = dmSocket::Connect(c->m_Socket, address, port);
-                if (*sr != dmSocket::RESULT_OK) {
-                    dmSocket::Delete(c->m_Socket);
-                    return RESULT_SOCKET_ERROR;
-                }
-
-                dmSocket::Selector selector;
-                dmSocket::SelectorZero(&selector);
-                dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, c->m_Socket);
-
-                *sr = dmSocket::Select(&selector, timeout);
-                if( *sr == dmSocket::RESULT_WOULDBLOCK )
-                {
-                    dmSocket::Delete(c->m_Socket);
-                    return RESULT_SOCKET_ERROR;
-                }
-
-                *sr = dmSocket::SetBlocking(c->m_Socket, true);
-                if (*sr != dmSocket::RESULT_OK) {
-                    dmSocket::Delete(c->m_Socket);
-                    return RESULT_SOCKET_ERROR;
-                }
+            *sr = dmSocket::Connect(c->m_Socket, address, port);
+            if (*sr != dmSocket::RESULT_OK) {
+                dmSocket::Delete(c->m_Socket);
+                return RESULT_SOCKET_ERROR;
             }
-            else
+
+            dmSocket::Selector selector;
+            dmSocket::SelectorZero(&selector);
+            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, c->m_Socket);
+
+            *sr = dmSocket::Select(&selector, timeout);
+            if( *sr == dmSocket::RESULT_WOULDBLOCK )
             {
-                *sr = dmSocket::Connect(c->m_Socket, address, port);
-                if (*sr != dmSocket::RESULT_OK) {
-                    dmSocket::Delete(c->m_Socket);
-                    return RESULT_SOCKET_ERROR;
-                }
+                dmSocket::Delete(c->m_Socket);
+                return RESULT_SOCKET_ERROR;
+            }
+
+            *sr = dmSocket::SetBlocking(c->m_Socket, true);
+            if (*sr != dmSocket::RESULT_OK) {
+                dmSocket::Delete(c->m_Socket);
+                return RESULT_SOCKET_ERROR;
+            }
+        }
+        else
+        {
+            *sr = dmSocket::Connect(c->m_Socket, address, port);
+            if (*sr != dmSocket::RESULT_OK) {
+                dmSocket::Delete(c->m_Socket);
+                return RESULT_SOCKET_ERROR;
             }
         }
 

@@ -213,15 +213,26 @@ namespace dmSocket
 
     Result SetMulticastIf(Socket socket, Address address)
     {
-        // TODO: Implement IPv6 support
-        struct in6_addr if_addr;
-        Htonl(address, &address);
-        memcpy(&if_addr.s6_addr, address.m_address, sizeof(struct in6_addr));
+        int result = -1;
+        if (IsSocketIPv4(socket))
+        {
+            struct in_addr inaddr = { 0 };
+            inaddr.s_addr = *IPv4(&address);
+            result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
+        }
+        else if (IsSocketIPv6(socket))
+        {
+            struct in6_addr inaddr = { 0 };
+            memcpy(&inaddr, IPv6(&address), sizeof(struct in6_addr));
+            result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
+        }
+        else
+        {
+            dmLogError("Socket #%d has an unknown address family!", socket);
+            return RESULT_AFNOSUPPORT;
+        }
 
-        int ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *)&if_addr, sizeof(if_addr));
-        if (ret != 0)
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        return RESULT_OK;
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result Delete(Socket socket)
@@ -248,7 +259,9 @@ namespace dmSocket
             socklen_t addr_len = sizeof(sock_addr);
             result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
             address->m_family = DOMAIN_IPV4;
-            *IPv4(from_addr) = sock_addr.sin_addr.s_addr;
+            *IPv4(address) = sock_addr.sin_addr.s_addr;
+
+            assert(IsSocketIPv4(result) && address->m_family == DOMAIN_IPV4);
         }
         else if (IsSocketIPv6(socket))
         {
@@ -257,6 +270,8 @@ namespace dmSocket
             result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
             address->m_family = DOMAIN_IPV6;
             memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
+
+            assert(IsSocketIPv6(result) && address->m_family == DOMAIN_IPV6);
         }
         else
         {
@@ -272,6 +287,8 @@ namespace dmSocket
         int result = 0;
         if (IsSocketIPv4(socket))
         {
+            assert(address.m_family == DOMAIN_IPV4);
+
             struct sockaddr_in sock_addr = { 0 };
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&address);
@@ -280,6 +297,8 @@ namespace dmSocket
         }
         else if (IsSocketIPv6(socket))
         {
+            assert(address.m_family == DOMAIN_IPV6);
+
             struct sockaddr_in6 sock_addr = { 0 };
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
@@ -299,6 +318,8 @@ namespace dmSocket
         int result = 0;
         if (IsSocketIPv4(socket))
         {
+            assert(address.m_family == DOMAIN_IPV4);
+
             struct sockaddr_in sock_addr = { 0 };
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&address);
@@ -307,6 +328,8 @@ namespace dmSocket
         }
         else if (IsSocketIPv6(socket))
         {
+            assert(address.m_family == DOMAIN_IPV6);
+
             struct sockaddr_in6 sock_addr = { 0 };
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
@@ -371,6 +394,8 @@ namespace dmSocket
         int result = 0;
         if (IsSocketIPv4(socket))
         {
+            assert(to_addr.m_family == DOMAIN_IPV4);
+
             struct sockaddr_in sock_addr = { 0 };
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&to_addr);
@@ -384,6 +409,8 @@ namespace dmSocket
         }
         else if (IsSocketIPv6(socket))
         {
+            assert(to_addr.m_family == DOMAIN_IPV6);
+
             struct sockaddr_in6 sock_addr = { 0 };
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&to_addr), sizeof(struct in6_addr));
@@ -601,7 +628,7 @@ namespace dmSocket
             struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
             if (strcmp(r->ifr_name, "lo") != 0)
             {
-                Ntohl(sin->sin_addr.s_addr, address);
+                *IPv4(address) = sin->sin_addr.s_addr;
             }
         }
 

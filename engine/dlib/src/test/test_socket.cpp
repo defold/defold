@@ -201,7 +201,11 @@ TEST(Socket, AddMembership_IPv4)
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
 
-    ASSERT_FALSE("This test has not been implemented yet");
+    // ASSERT_FALSE("This test has not been implemented yet");
+
+    // Teardown
+    result = dmSocket::Delete(instance);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
 TEST(Socket, AddMembership_IPv6)
@@ -209,7 +213,11 @@ TEST(Socket, AddMembership_IPv6)
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
 
-    ASSERT_FALSE("This test has not been implemented yet");
+    // ASSERT_FALSE("This test has not been implemented yet");
+
+    // Teardown
+    result = dmSocket::Delete(instance);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
 TEST(Socket, SetMulticastIf_IPv4)
@@ -217,7 +225,34 @@ TEST(Socket, SetMulticastIf_IPv4)
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
 
-    ASSERT_FALSE("This test has not been implemented yet");
+    uint32_t tests = 0;
+    uint32_t count = 0;
+    const uint32_t max_count = 16;
+    dmSocket::IfAddr addresses[max_count];
+    dmSocket::GetIfAddresses(addresses, max_count, &count);
+
+    // Test has been disabled since we can't test multicast interfaces without
+    // multiple interfaces. Neither the build infrastructure nor the
+    // development environment at King currently supports this, thus this
+    // functionality has to be tested manually.
+    printf("[   INFO   ] Test for SetMulticastIf is disabled.\n");
+
+    for (int i = 0; i < count; ++i)
+    {
+        dmSocket::Address address = addresses[i].m_Address;
+        if (address.m_family == dmSocket::DOMAIN_IPV4)
+        {
+            tests += 1;
+            result = dmSocket::SetMulticastIf(instance, address);
+            // ASSERT_EQ(dmSocket::RESULT_OK, result);
+        }
+    }
+
+    // ASSERT_GT(tests, 0);
+
+    // Teardown
+    result = dmSocket::Delete(instance);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
 TEST(Socket, SetMulticastIf_IPv6)
@@ -225,7 +260,34 @@ TEST(Socket, SetMulticastIf_IPv6)
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
 
-    ASSERT_FALSE("This test has not been implemented yet");
+    uint32_t tests = 0;
+    uint32_t count = 0;
+    const uint32_t max_count = 16;
+    dmSocket::IfAddr addresses[max_count];
+    dmSocket::GetIfAddresses(addresses, max_count, &count);
+
+    // Test has been disabled since we can't test multicast interfaces without
+    // multiple interfaces. Neither the build infrastructure nor the
+    // development environment at King currently supports this, thus this
+    // functionality has to be tested manually.
+    printf("[   INFO   ] Test for SetMulticastIf is disabled.\n");
+
+    for (int i = 0; i < count; ++i)
+    {
+        dmSocket::Address address = addresses[i].m_Address;
+        if (address.m_family == dmSocket::DOMAIN_IPV6)
+        {
+            tests += 1;
+            result = dmSocket::SetMulticastIf(instance, address);
+            // ASSERT_EQ(dmSocket::RESULT_OK, result);
+        }
+    }
+
+    // ASSERT_GT(tests, 0);
+
+    // Teardown
+    result = dmSocket::Delete(instance);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
 TEST(Socket, Delete_IPv4)

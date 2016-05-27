@@ -257,6 +257,7 @@ namespace dmSSDP
         dmSocket::Address saddr = *((dmSocket::Address*) user_data);
         if (strcmp(key, "HOSTNAME") == 0)
         {
+            assert(saddr.m_family == dmSocket::DOMAIN_IPV4 || saddr.m_family == dmSocket::DOMAIN_IPV6);
             return dmSocket::AddressToIPString(saddr);
         }
 
@@ -322,10 +323,10 @@ namespace dmSSDP
         return 0;
     }
 
-    static dmSocket::Socket NewSocket()
+    static dmSocket::Socket NewSocket(dmSocket::Domain domain)
     {
         dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
-        dmSocket::Result sr = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
+        dmSocket::Result sr = dmSocket::New(domain, dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
         if (sr != dmSocket::RESULT_OK)
             goto bail;
 
@@ -395,7 +396,12 @@ bail:
             {
                 new_socket[i] = dmSocket::INVALID_SOCKET_HANDLE;
 
-                dmSocket::Socket s = NewSocket();
+                if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
+                {
+                    continue;
+                }
+
+                dmSocket::Socket s = NewSocket(addr.m_family);
                 if (s == dmSocket::INVALID_SOCKET_HANDLE)
                     continue;
 
@@ -503,13 +509,21 @@ bail:
         dmSocket::Socket mcast_sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Result sr;
 
-        mcast_sock = NewSocket();
+        dmSocket::Address address;
+        sr = dmSocket::GetHostByName("::", &address);
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to get broadcast address for ssdp socket (%d)", sr);
+            goto bail;
+        }
+
+        mcast_sock = NewSocket(address.m_family);
         if (mcast_sock == dmSocket::INVALID_SOCKET_HANDLE) goto bail;
-        sr = dmSocket::Bind(mcast_sock, dmSocket::AddressFromIPString("::"), SSDP_MCAST_PORT);
+        sr = dmSocket::Bind(mcast_sock, address, SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK) goto bail;
         sr = dmSocket::AddMembership(mcast_sock,
                                      dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
-                                     dmSocket::AddressFromIPString("::"),
+                                     address,
                                      SSDP_MCAST_TTL);
 
         if (sr != dmSocket::RESULT_OK)
@@ -1030,7 +1044,11 @@ bail:
             dst->m_Address = ssdp->m_LocalAddr[i].m_Address;
             if (new_expires[i] <= now)
             {
-                SendAnnounce(ssdp, dev, i);
+                if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
+                {
+                    SendAnnounce(ssdp, dev, i);
+                }
+
                 dst->m_Expires = next;
             }
             else
