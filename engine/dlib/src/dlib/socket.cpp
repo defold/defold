@@ -575,7 +575,7 @@ namespace dmSocket
 
 #if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__)))
     Result GetLocalAddress(Address* address)
-    { // TODO: This has to be rewritten!
+    {
 #ifdef __ANDROID__
         // NOTE: This method should probably be used on Linux as well
         // fall-back to 127.0.0.1

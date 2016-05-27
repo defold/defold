@@ -255,12 +255,17 @@ namespace dmSSDP
 
     static const char* ReplaceIfAddrVar(void *user_data, const char *key)
     {
+        static char tmp[45 + 1] = { 0 };
         dmSocket::Address saddr = *((dmSocket::Address*) user_data);
         if (strcmp(key, "HOSTNAME") == 0)
         {
             assert(saddr.m_family == dmSocket::DOMAIN_IPV4 || saddr.m_family == dmSocket::DOMAIN_IPV6);
-            // TODO: There's a memory leak here
-            return dmSocket::AddressToIPString(saddr);
+            char* straddr = dmSocket::AddressToIPString(saddr);
+            memset(tmp, 0x0, sizeof(tmp));
+            snprintf(tmp, sizeof(tmp), "%s", straddr);
+            free(straddr);
+
+            return tmp;
         }
 
         return 0;
