@@ -3,7 +3,7 @@ emitters: {
     space:              EMISSION_SPACE_WORLD
     position:           { x: 0 y: 0 z: 0 }
     rotation:           { x: 0 y: 0 z: 0 w: 1 }
-    duration:           0.2
+    duration:           0.25
 
     tile_source:        ""
     animation:          ""
