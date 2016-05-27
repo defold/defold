@@ -6,7 +6,9 @@
 #include "../dlib/time.h"
 #include <arpa/inet.h>
 
-uint16_t CONST_TEST_PORT = 8008;
+const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV4 = "0.0.0.0";
+const char*    CONST_UNIVERSAL_BIND_ADDRESS_IPV6 = "::0";
+const uint16_t CONST_TEST_PORT = 8008;
 
 struct ServerThreadInfo
 {
@@ -93,6 +95,28 @@ inline dmSocket::Socket GetSocket(dmSocket::Domain domain)
     if (result != dmSocket::RESULT_OK) return -1;
 
     return instance;
+}
+
+TEST(Socket, BitDifference_Difference)
+{
+    dmSocket::Address instance1;
+    dmSocket::Address instance2;
+
+    instance1.m_address[3] = 0b001001110;
+    instance2.m_address[3] = 0b011100110;
+
+    ASSERT_EQ(3, dmSocket::BitDifference(instance1, instance2));
+}
+
+TEST(Socket, BitDifference_Equal)
+{
+    dmSocket::Address instance1;
+    dmSocket::Address instance2;
+
+    instance1.m_address[3] = 0b001001110;
+    instance2.m_address[3] = 0b001001110;
+
+    ASSERT_EQ(0, dmSocket::BitDifference(instance1, instance2));
 }
 
 TEST(Socket, NetworkOrder)
@@ -840,7 +864,7 @@ TEST(Socket, ServerSocketIPv4)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString(CONST_UNIVERSAL_BIND_ADDRESS_IPV4), port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -888,11 +912,11 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket1, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    r = dmSocket::Bind(socket1, dmSocket::AddressFromIPString(CONST_UNIVERSAL_BIND_ADDRESS_IPV4), port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
-    r = dmSocket::Bind(socket2, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    r = dmSocket::Bind(socket2, dmSocket::AddressFromIPString(CONST_UNIVERSAL_BIND_ADDRESS_IPV4), port);
     ASSERT_EQ(dmSocket::RESULT_ADDRINUSE, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_ADDRINUSE) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -948,7 +972,7 @@ TEST(Socket, ServerSocketIPv4_Accept)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString(CONST_UNIVERSAL_BIND_ADDRESS_IPV4), port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 

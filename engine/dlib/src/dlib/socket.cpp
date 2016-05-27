@@ -27,6 +27,12 @@
 namespace dmSocket
 {
 
+    bool Empty(Address address)
+    {
+        return address.m_address[0] == 0x0 && address.m_address[1] == 0x0
+            && address.m_address[2] == 0x0 && address.m_address[3] == 0x0;
+    }
+
     uint32_t* IPv4(Address* address)
     {
         assert(address->m_family == dmSocket::DOMAIN_IPV4);
@@ -49,8 +55,8 @@ namespace dmSocket
             return ss.ss_family == AF_INET;
         }
 
-        dmLogError("Failed to retrieve family information from socket #%d: %s (%d)",
-            socket, ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)), DM_SOCKET_ERRNO);
+        dmLogError("Failed to retrieve address family (%d): %s",
+            NATIVETORESULT(DM_SOCKET_ERRNO)), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
         return false;
     }
 
@@ -64,41 +70,9 @@ namespace dmSocket
             return ss.ss_family == AF_INET6;
         }
 
-        dmLogError("Failed to retrieve family information from socket #%d: %s (%d)",
-            socket, ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)), DM_SOCKET_ERRNO);
+        dmLogError("Failed to retrieve address family (%d): %s",
+            NATIVETORESULT(DM_SOCKET_ERRNO)), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
         return false;
-    }
-
-    void Htonl(Address src, Address* dst)
-    {
-        for (int i = 0; i < (sizeof(src.m_address) / sizeof(uint32_t)); ++i)
-        {
-            dst->m_address[i] = htonl(src.m_address[i]);
-        }
-    }
-
-    void Htonl(uint32_t src, Address* dst)
-    {
-        dst->m_address[0] = 0x00000000;
-        dst->m_address[1] = 0x00000000;
-        dst->m_address[2] = 0xffff0000;
-        dst->m_address[3] = htonl(src);
-    }
-
-    void Ntohl(Address src, Address* dst)
-    {
-        for (int i = 0; i < (sizeof(src.m_address) / sizeof(uint32_t)); ++i)
-        {
-            dst->m_address[i] = ntohl(src.m_address[i]);
-        }
-    }
-
-    void Ntohl(uint32_t src, Address* dst)
-    {
-        dst->m_address[0] = 0x00000000;
-        dst->m_address[1] = 0x00000000;
-        dst->m_address[2] = 0x0000ffff;
-        dst->m_address[3] = ntohl(src);
     }
 
     uint32_t BitDifference(Address a, dmSocket::Address b)
@@ -129,15 +103,8 @@ namespace dmSocket
 #ifdef _WIN32
         WORD version_requested = MAKEWORD(2, 2);
         WSADATA wsa_data;
-        int err = WSAStartup(version_requested, &wsa_data);
-        if (err != 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else
-        {
-            return RESULT_OK;
-        }
+        int result = WSAStartup(version_requested, &wsa_data);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
 #else
         return RESULT_OK;
 #endif
@@ -194,21 +161,31 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
-        // TODO: Implement IPv6 support
-        struct ipv6_mreq group;
-        Htonl(multi_addr, &multi_addr);
-        memcpy(&group.ipv6mr_multiaddr, multi_addr.m_address, sizeof(struct in6_addr));
+        int result = -1;
+        if (IsSocketIPv4(socket))
+        {
+            assert(multi_addr.m_family == DOMAIN_IPV4 && interface_addr.m_family == DOMAIN_IPV4);
+            struct ip_mreq group;
+            group.imr_multiaddr.s_addr = *IPv4(&multi_addr);
+            group.imr_interface.s_addr = *IPv4(&interface_addr);
+            result = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
+            if (result == 0)
+            {
+                uint8_t ttl_byte = (uint8_t) ttl;
+                result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl_byte, sizeof(ttl_byte));
+            }
+        } else if (IsSocketIPv6(socket))
+        {
+            assert(multi_addr.m_family == DOMAIN_IPV6 && interface_addr.m_family == DOMAIN_IPV6);
+            assert(false && "Interface membership not implemented for IPv6");
+        }
+        else
+        {
+            dmLogError("Failed to add interface membership, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
+        }
 
-        int ret = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
-        if (ret < 0)
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-
-        uint8_t ttl_byte = (uint8_t) ttl;
-        ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl_byte, sizeof(ttl_byte));
-        if (ret < 0)
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-
-        return RESULT_OK;
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
     Result SetMulticastIf(Socket socket, Address address)
@@ -228,7 +205,7 @@ namespace dmSocket
         }
         else
         {
-            dmLogError("Socket #%d has an unknown address family!", socket);
+            dmLogError("Failed to enable multicast interface, unsupported address family!");
             return RESULT_AFNOSUPPORT;
         }
 
@@ -260,8 +237,6 @@ namespace dmSocket
             result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
             address->m_family = DOMAIN_IPV4;
             *IPv4(address) = sock_addr.sin_addr.s_addr;
-
-            assert(IsSocketIPv4(result) && address->m_family == DOMAIN_IPV4);
         }
         else if (IsSocketIPv6(socket))
         {
@@ -270,12 +245,11 @@ namespace dmSocket
             result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
             address->m_family = DOMAIN_IPV6;
             memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
-
-            assert(IsSocketIPv6(result) && address->m_family == DOMAIN_IPV6);
         }
         else
         {
-            dmLogError("(Accept) Socket #%d has unknown address family!", socket);
+            dmLogError("Failed to accept connections, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
         }
 
         *accept_socket = result;
@@ -307,7 +281,8 @@ namespace dmSocket
         }
         else
         {
-            dmLogError("(Bind) Socket #%d has unknown address family!", socket);
+            dmLogError("Failed to bind socket, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -338,7 +313,8 @@ namespace dmSocket
         }
         else
         {
-            dmLogError("(Connect) Socket #%d has unknown address family!", socket);
+            dmLogError("Failed to connect to remote host, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
         }
 
         if (result == -1 && !((NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_WOULDBLOCK)))
@@ -424,7 +400,8 @@ namespace dmSocket
         }
         else
         {
-            dmLogError("(SendTo) Socket #%d has unknown address family!", socket);
+            dmLogError("Failed to send to remote host, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
         }
 
         *sent_bytes = result >= 0 ? result : 0;
@@ -495,7 +472,8 @@ namespace dmSocket
         }
         else
         {
-            dmLogError("(ReceiveFrom) Socket #%d has unknown address family!", socket);
+            dmLogError("Failed to receive from remote host, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
         }
 
         return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
@@ -553,7 +531,7 @@ namespace dmSocket
 
     Result GetName(Socket socket, Address* address, uint16_t* port)
     {
-        int result = 0;
+        int result = -1;
         if (IsSocketIPv4(socket))
         {
             struct sockaddr_in sock_addr = { 0 };
@@ -580,7 +558,8 @@ namespace dmSocket
         }
         else
         {
-            dmLogError("(GetName) Socket #%d has unknown address family!", socket);
+            dmLogError("Failed to retrieve socket information, unsupported address family!");
+            return RESULT_AFNOSUPPORT;
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -777,13 +756,11 @@ namespace dmSocket
             inet_ntop(AF_INET6, IPv6(&address), addrstr, sizeof(addrstr));
             return strdup(addrstr);
         }
-        else if (address.m_family == dmSocket::DOMAIN_MISSING)
+        else
         {
-            dmLogError("Address family is missing from the address.");
+            dmLogError("Failed to convert address from binary, unsupported address family!");
             return 0x0;
         }
-
-        assert(false && "Unknown address family");
     }
 
     Result GetHostByName(const char* name, Address* address, bool ipv4, bool ipv6)

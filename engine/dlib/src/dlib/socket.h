@@ -534,14 +534,11 @@ namespace dmSocket
      */
     const char* ResultToString(Result result);
 
+    bool Empty(Address address);
     uint32_t* IPv4(Address* address);
     uint32_t* IPv6(Address* address);
     bool IsSocketIPv4(Socket socket);
     bool IsSocketIPv6(Socket socket);
-    void Htonl(Address src, Address* dst);
-    void Htonl(uint32_t src, Address* dst);
-    void Ntohl(Address src, Address* dst);
-    void Ntohl(uint32_t src, Address* dst);
     uint32_t BitDifference(Address a, Address b);
 
 }

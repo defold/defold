@@ -77,17 +77,31 @@ static void dmLogInitSocket( dmSocket::Socket& server_socket )
     dmSocket::Result r;
     dmSocket::Address address;
     uint16_t port = 0;
-    const char* error_msg = 0;
+    char error_msg[1024] = { 0 };
 
     if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
     {
-        dmSocket::GetName(server_socket, &address, &port); // need to reuse the port
-        r = dmSocket::Delete(server_socket);
-        server_socket = dmSocket::INVALID_SOCKET_HANDLE;
-
+        r = dmSocket::GetName(server_socket, &address, &port); // need to reuse the port
         if (r != dmSocket::RESULT_OK)
         {
-            error_msg = "Unable to delete old log socket";
+            snprintf(error_msg, sizeof(error_msg), "Unable to retrieve socket information (%d): %s", r, dmSocket::ResultToString(r));
+            goto bail;
+        }
+
+        r = dmSocket::Delete(server_socket);
+        server_socket = dmSocket::INVALID_SOCKET_HANDLE;
+        if (r != dmSocket::RESULT_OK)
+        {
+            snprintf(error_msg, sizeof(error_msg), "Unable to delete old log socket (%d): %s", r, dmSocket::ResultToString(r));
+            goto bail;
+        }
+    }
+    else
+    {
+        r = dmSocket::GetHostByName("0.0.0.0", &address);
+        if (r != dmSocket::RESULT_OK)
+        {
+            snprintf(error_msg, sizeof(error_msg), "Unable to get listening address for log socket (%d): %s", r, dmSocket::ResultToString(r));
             goto bail;
         }
     }
@@ -95,23 +109,22 @@ static void dmLogInitSocket( dmSocket::Socket& server_socket )
     r = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
     if (r != dmSocket::RESULT_OK)
     {
-        error_msg = "Unable to create log socket";
+        snprintf(error_msg, sizeof(error_msg), "Unable to create log socket (%d): %s", r, dmSocket::ResultToString(r));
         goto bail;
     }
 
     dmSocket::SetReuseAddress(server_socket, true);
-
-    r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    r = dmSocket::Bind(server_socket, address, port);
     if (r != dmSocket::RESULT_OK)
     {
-        error_msg = "Unable to bind to log socket";
+        snprintf(error_msg, sizeof(error_msg), "Unable to bind to log socket (%d): %s", r, dmSocket::ResultToString(r));
         goto bail;
     }
 
     r = dmSocket::Listen(server_socket, 32);
     if (r != dmSocket::RESULT_OK)
     {
-        error_msg = "Unable to listen on log socket";
+        snprintf(error_msg, sizeof(error_msg), "Unable to listen on log socket (%d): %s", r, dmSocket::ResultToString(r));
         goto bail;
     }
 

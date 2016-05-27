@@ -21,6 +21,7 @@
 namespace dmSSDP
 {
     const char * SSDP_MCAST_ADDR = "239.255.255.250";
+    const char * SSDP_MCAST_LISTEN = "0.0.0.0";
     const uint16_t SSDP_MCAST_PORT = 1900U;
     const uint32_t SSDP_MCAST_TTL = 4U;
 
@@ -258,6 +259,7 @@ namespace dmSSDP
         if (strcmp(key, "HOSTNAME") == 0)
         {
             assert(saddr.m_family == dmSocket::DOMAIN_IPV4 || saddr.m_family == dmSocket::DOMAIN_IPV6);
+            // TODO: There's a memory leak here
             return dmSocket::AddressToIPString(saddr);
         }
 
@@ -398,6 +400,7 @@ bail:
 
                 if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
                 {
+                    // This is an interesting change in control flow
                     continue;
                 }
 
@@ -509,26 +512,42 @@ bail:
         dmSocket::Socket mcast_sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Result sr;
 
-        dmSocket::Address address;
-        sr = dmSocket::GetHostByName("::", &address);
+        dmSocket::Address listen_address;
+        dmSocket::Address multicast_address;
+
+        sr = dmSocket::GetHostByName(SSDP_MCAST_LISTEN, &listen_address);
         if (sr != dmSocket::RESULT_OK)
         {
-            dmLogError("Unable to get broadcast address for ssdp socket (%d)", sr);
+            dmLogError("Unable to resolve listening address '%s' for ssdp (%d)", SSDP_MCAST_LISTEN, sr);
             goto bail;
         }
 
-        mcast_sock = NewSocket(address.m_family);
-        if (mcast_sock == dmSocket::INVALID_SOCKET_HANDLE) goto bail;
-        sr = dmSocket::Bind(mcast_sock, address, SSDP_MCAST_PORT);
-        if (sr != dmSocket::RESULT_OK) goto bail;
-        sr = dmSocket::AddMembership(mcast_sock,
-                                     dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
-                                     address,
-                                     SSDP_MCAST_TTL);
+        mcast_sock = NewSocket(listen_address.m_family);
+        if (mcast_sock == dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmLogError("Unable to create socket for ssdp");
+            goto bail;
+        }
 
+        sr = dmSocket::Bind(mcast_sock, listen_address, SSDP_MCAST_PORT);
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to bind ssdp socket to listening listen_address '%s' (%d)", SSDP_MCAST_LISTEN, sr);
+            goto bail;
+        }
+
+        sr = dmSocket::GetHostByName(SSDP_MCAST_ADDR, &multicast_address);
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to resolve multicast address '%s' for ssdp (%d)", SSDP_MCAST_ADDR, sr);
+            goto bail;
+        }
+
+        sr = dmSocket::AddMembership(mcast_sock, multicast_address, listen_address, SSDP_MCAST_TTL);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogError("Unable to add broadcast membership for ssdp socket. No network connection? (%d)", sr);
+            goto bail; // This changes the control flow slightly, but seems like the correct thing to do?
         }
 
         ssdp->m_MCastSocket = mcast_sock;
@@ -1046,6 +1065,7 @@ bail:
             {
                 if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
                 {
+                    dmLogInfo("Sending an announcement on %s ...", dmSocket::AddressToIPString(ssdp->m_LocalAddr[i].m_Address));
                     SendAnnounce(ssdp, dev, i);
                 }
 
@@ -1087,8 +1107,8 @@ bail:
             // Remove zeroes which are all at the starts
             dmSocket::IfAddr *begin = &if_addr[0];
             dmSocket::IfAddr *end = begin + if_addr_count;
-            dmSocket::Address emtpyaddr;
-            while (begin < end && begin->m_Address != emtpyaddr)
+
+            while (begin < end && dmSocket::Empty(begin->m_Address))
             {
                 ++begin;
             }
