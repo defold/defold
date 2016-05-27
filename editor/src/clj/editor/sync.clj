@@ -82,18 +82,20 @@
                       (if (and pull-res (.isSuccessful pull-res))
                         (advance-flow (tick flow :pull/applying) render-progress)
                         (advance-flow (tick flow :pull/error))))
-    :pull/applying  (let [stash-res (with-error-in-console
-                                      (try (git/stash-apply git stash-ref)
-                                           (catch StashApplyFailureException e
-                                             :conflict)))
+    :pull/applying  (let [stash-res (when stash-ref
+                                      (with-error-in-console
+                                        (try (git/stash-apply git stash-ref)
+                                             (catch StashApplyFailureException e
+                                               :conflict))))
                           status    (git/status git)]
                       (cond
+                        (nil? stash-ref) (advance-flow (tick flow :pull/done) render-progress)
                         (= :conflict stash-res) (advance-flow (-> flow
                                                                   (tick :pull/conflicts)
                                                                   (assoc :conflicts (:conflicting-stage-state status)))
                                                               render-progress)
                         stash-res (advance-flow (tick flow :pull/done) render-progress)
-                        :else (advance-flow (tick flow :pull/error))))
+                        :else (advance-flow (tick flow :pull/error) render-progress)))
     :pull/conflicts (if (empty? conflicts)
                       (advance-flow (tick flow :pull/done) render-progress)
                       flow)
@@ -218,6 +220,7 @@
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
         stage           (Stage.)
+        old-stage       (ui/main-stage)
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root [ "ok" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "conflict-box"])
@@ -233,9 +236,10 @@
                                               (.setVisible ^Node (:conflict-box pull-controls) true)
                                               (ui/items! (:conflicting pull-controls) (sort (keys conflicts))))
                             nil))]
+    (def flw !flow)
+    (ui/set-main-stage stage)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
-    (def flw !flow)
     (ui/title! stage "Sync")
     (ui/text! (:ok dialog-controls) "Pull")
     (ui/children! (:dialog-area dialog-controls) [pull-root])
@@ -246,8 +250,10 @@
     (ui/on-action! (:ok dialog-controls) (fn [_]
                                            (swap! !flow advance-flow render-progress)))
 
-    (ui/register-context-menu (:conflicting pull-controls) ::conflicts-menu)
-    (ui/cell-factory! (:conflicting pull-controls) (fn [e] {:text e}))
+    (let [list-view (:conflicting pull-controls)]
+      (ui/context! list-view :sync {:list-view list-view} list-view)
+      (ui/register-context-menu list-view ::conflicts-menu)
+      (ui/cell-factory! list-view (fn [e] {:text e})))
 
     (comment
       (ui/cell-factory! (:changed controls) (fn [e] (status-render e)))
@@ -285,5 +291,6 @@
     (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
     (println "opening")
-    (ui/show-and-wait! stage))
+    (ui/show-and-wait! stage)
+    (ui/set-main-stage old-stage))
   (println "closing"))
