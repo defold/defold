@@ -106,7 +106,7 @@ namespace dmHttpServer
 
         Disconnect(server);
 
-        r = dmSocket::GetHostByName(CONST_UNIVERSAL_BIND_ADDRESS_IPV4, &bind_address);
+        r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bind_address);
         if (r != dmSocket::RESULT_OK)
         {
             return RESULT_SOCKET_ERROR;

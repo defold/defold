@@ -520,10 +520,10 @@ bail:
         dmSocket::Address listen_address;
         dmSocket::Address multicast_address;
 
-        sr = dmSocket::GetHostByName(CONST_UNIVERSAL_BIND_ADDRESS_IPV4, &listen_address);
+        sr = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &listen_address);
         if (sr != dmSocket::RESULT_OK)
         {
-            dmLogError("Unable to resolve listening address '%s' for ssdp (%d)", CONST_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
+            dmLogError("Unable to resolve listening address '%s' for ssdp (%d)", DM_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
             goto bail;
         }
 
@@ -537,7 +537,7 @@ bail:
         sr = dmSocket::Bind(mcast_sock, listen_address, SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
-            dmLogError("Unable to bind ssdp socket to listening listen_address '%s' (%d)", CONST_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
+            dmLogError("Unable to bind ssdp socket to listening listen_address '%s' (%d)", DM_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
             goto bail;
         }
 
@@ -1070,7 +1070,6 @@ bail:
             {
                 if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
                 {
-                    dmLogInfo("Sending an announcement on %s ...", dmSocket::AddressToIPString(ssdp->m_LocalAddr[i].m_Address));
                     SendAnnounce(ssdp, dev, i);
                 }
 
@@ -1178,12 +1177,8 @@ bail:
 
                 int sent_bytes;
                 dmSocket::Result sr;
-                sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[i],
-                                 M_SEARCH_FMT,
-                                 strlen(M_SEARCH_FMT),
-                                 &sent_bytes,
-                                 dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4),
-                                 SSDP_MCAST_PORT);
+                sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[i], M_SEARCH_FMT, strlen(M_SEARCH_FMT), &sent_bytes,
+                    dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
 
                 dmLogDebug("SSDP M-SEARCH");
                 if (sr != dmSocket::RESULT_OK)

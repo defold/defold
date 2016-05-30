@@ -99,7 +99,7 @@ static void dmLogInitSocket( dmSocket::Socket& server_socket )
     }
     else
     {
-        r = dmSocket::GetHostByName(CONST_UNIVERSAL_BIND_ADDRESS_IPV4, &address);
+        r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &address);
         if (r != dmSocket::RESULT_OK)
         {
             snprintf(error_msg, sizeof(error_msg), "Unable to get listening address for log socket (%d): %s", r, dmSocket::ResultToString(r));

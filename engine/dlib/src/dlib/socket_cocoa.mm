@@ -53,7 +53,7 @@ namespace dmSocket
         else
         {
             // We fallback to loopback address
-            *address = AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
+            *address = AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
             return RESULT_OK;
         }
     }

@@ -12,7 +12,7 @@
 TEST(dmSocksProxy, NoSocksProxySet)
 {
     unsetenv("DMSOCKS_PROXY");
-    dmSocket::Address local_address = dmSocket::AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
@@ -25,7 +25,7 @@ TEST(dmSocksProxy, ConnectionRefused)
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1079", 1);
 
-    dmSocket::Address local_address = dmSocket::AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
@@ -39,7 +39,7 @@ TEST(dmSocksProxy, ClientNotReachable)
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1081", 1);
 
-    dmSocket::Address local_address = dmSocket::AddressFromIPString(CONST_LOOPBACK_ADDRESS_IPV4);
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;

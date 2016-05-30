@@ -35,13 +35,13 @@ namespace dmSocket
 
     uint32_t* IPv4(Address* address)
     {
-        assert(address->m_family == dmSocket::DOMAIN_IPV4);
+        assert(address->m_family == DOMAIN_IPV4);
         return &address->m_address[3];
     }
 
     uint32_t* IPv6(Address* address)
     {
-        assert(address->m_family == dmSocket::DOMAIN_IPV6);
+        assert(address->m_family == DOMAIN_IPV6);
         return &address->m_address[0];
     }
 
@@ -75,8 +75,10 @@ namespace dmSocket
         return false;
     }
 
-    uint32_t BitDifference(Address a, dmSocket::Address b)
+    uint32_t BitDifference(Address a, Address b)
     {
+        // Implements the Hamming Distance algorithm.
+        // https://en.wikipedia.org/wiki/Hamming_distance
         uint32_t difference = 0;
         for (int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
         {

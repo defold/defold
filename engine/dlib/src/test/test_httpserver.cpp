@@ -282,7 +282,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
-    dmHttpClient::HClient client = dmHttpClient::New(&client_params, CONST_LOOPBACK_ADDRESS_IPV4, 8500);
+    dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
 
     dmHttpClient::Result r;
     m_ClientData = "";

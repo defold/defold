@@ -13,7 +13,7 @@
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#define socklen_t int
+#typedef int socklen_t;
 #else
 #error "Unsupported platform"
 #endif
@@ -166,6 +166,9 @@ namespace dmSocket
 
     /**
      * Network address
+     * Network addresses were previously represented as an uint32_t, but in
+     * order to support IPv6 the internal representation was changed to a
+     * struct.
      */
     struct Address
     {
@@ -179,38 +182,33 @@ namespace dmSocket
         uint32_t m_address[4];
     };
 
+    /**
+     * Comparison operators for dmSocket::Address (network address).
+     * These operators are required since network code was initially designed
+     * with the assumption that addresses were stored as uint32_t (IPv4), and
+     * thus sortable.
+     */
     inline bool operator==(const Address& lhs, const Address& rhs)
     {
-        int result = memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr));
-        return result == 0;
-    }
-
-    inline bool operator!=(const Address& lhs, const Address& rhs)
-    {
-        return !operator==(lhs,rhs);
+        return memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr)) == 0;
     }
 
     inline bool operator< (const Address& lhs, const Address& rhs)
     {
-        int result = memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr));
-        return result < 0;
+        return memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr)) < 0;
     }
 
-    inline bool operator> (const Address& lhs, const Address& rhs)
-    {
-        return  operator< (rhs,lhs);
-    }
+    inline bool operator!=(const Address& lhs, const Address& rhs) { return !operator==(lhs,rhs); }
+    inline bool operator> (const Address& lhs, const Address& rhs) { return  operator< (rhs,lhs); }
+    inline bool operator<=(const Address& lhs, const Address& rhs) { return !operator> (lhs,rhs); }
+    inline bool operator>=(const Address& lhs, const Address& rhs) { return !operator< (lhs,rhs); }
 
-    inline bool operator<=(const Address& lhs, const Address& rhs)
-    {
-        return !operator> (lhs,rhs);
-    }
-
-    inline bool operator>=(const Address& lhs, const Address& rhs)
-    {
-        return !operator< (lhs,rhs);
-    }
-
+    /**
+     * Stream operator for dmSocket::Address (network address).
+     * This operator is required so that a GTest failure can print out relevant
+     * information. The operator is not, and should never, be used in production
+     * code.
+     */
     inline std::ostream & operator<<(std::ostream &os, const dmSocket::Address& address) {
         char buffer[39 + 1] = { 0 };
         snprintf(buffer, sizeof(buffer), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
@@ -534,11 +532,52 @@ namespace dmSocket
      */
     const char* ResultToString(Result result);
 
+    /**
+     * Check if a network address is empty (all zeroes).
+     * @param address The address to check
+     * @return True if the address is empty, false otherwise
+     */
     bool Empty(Address address);
+
+    /**
+     * Return a pointer to the IPv4 buffer of address.
+     * @note Make sure the address family of address is actually AF_INET before
+     * attempting to retrieve the IPv4 buffer, otherwise an assert will trigger.
+     * @param address Pointer to the address containing the buffer
+     * @return Pointer to the buffer that holds the IPv4 address
+     */
     uint32_t* IPv4(Address* address);
+
+    /**
+     * Return a pointer to the IPv6 buffer of address.
+     * @note Make sure the address family of address is actually AF_INET6 before
+     * attempting to retrieve the IPv6 buffer, otherwise an assert will trigger.
+     * @param address Pointer to the address containing the buffer
+     * @return Pointer to the buffer that holds the IPv6 address
+     */
     uint32_t* IPv6(Address* address);
+
+    /**
+     * Checks if a socket was created for IPv4 (AF_INET).
+     * @param socket The socket to check
+     * @return True if the socket was created for IPv4 communication, false otherwise
+     */
     bool IsSocketIPv4(Socket socket);
+
+    /**
+     * Checks if a socket was created for IPv6 (AF_INET6).
+     * @param socket The socket to check
+     * @return True if the socket was created for IPv6 communication, false otherwise
+     */
     bool IsSocketIPv6(Socket socket);
+
+    /**
+     * Calculate the number of bits that differs between address a and b.
+     * @note This is used for the Hamming Distance.
+     * @param a The first address to compare
+     * @param b The second address to compare
+     * @return Number of bits that differs between a and b
+     */
     uint32_t BitDifference(Address a, Address b);
 
 }
