@@ -115,13 +115,12 @@ namespace dmRender
         float match_area = width_f * height_f;
         float match_ratio = width_f / height_f;
         float match_dpi = (float)dpi;
-        float match_distance[2] = { FLT_MAX, FLT_MAX };
+        double match_distance[2] = { DBL_MAX, DBL_MAX };
         dmhash_t match_id[2] = { 0, 0 };
 
         for(uint32_t i = 0; i < profiles->m_Profiles.Size(); ++i)
         {
             DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
-
             uint32_t ci;
             if(id_choices)
             {
@@ -141,8 +140,7 @@ namespace dmRender
                 int category = IsPortrait(qualifier.m_Width, qualifier.m_Height);
                 float area = qualifier.m_Width * qualifier.m_Height;
                 float ratio = qualifier.m_Width / qualifier.m_Height;
-                float distance = dmMath::Abs(1.0f - (match_area / area)) + dmMath::Abs(1.0f - (match_ratio / ratio)) + (dpi == 0 ? 0.0f : dmMath::Abs(1.0f - (qualifier.m_Dpi / match_dpi)));
-
+                double distance = dmMath::Abs(1.0 - (match_area / area)) + dmMath::Abs(1.0 - (match_ratio / ratio)) + (dpi == 0 ? 0.0 : dmMath::Abs(1.0 - (qualifier.m_Dpi / match_dpi)));
                 if(distance < match_distance[category])
                 {
                     match_distance[category] = distance;
