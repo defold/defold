@@ -70,6 +70,13 @@ def default_flags(self):
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
+            # some tests after we switched to -02 optimisations. We should refine these tests so that they
+            # don't rely on equal-compare floating point values, and/or verify that underlaying engine
+            # code don't rely on floats being of a certain precision level. When this is done, we can
+            # remove -ffloat-store. Jira Issue: DEF-1891
+            if 'linux' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
+                self.env.append_value(f, ['-ffloat-store'])
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
