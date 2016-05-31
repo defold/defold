@@ -295,7 +295,10 @@
     (ui/on-action! (:ok dialog-controls) (fn [_]
                                            (cond
                                              (= "done" (name (:state @!flow)))
-                                             (.close stage)
+                                             (do
+                                               (when-let [stash-ref (:stash-ref @!flow)]
+                                                 (git/stash-drop (:git @!flow) stash-ref))
+                                               (.close stage))
 
                                              (= :push/staging (:state @!flow))
                                              (swap! !flow #(advance-flow
