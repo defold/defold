@@ -4,7 +4,6 @@
              [string :as string]]
             [clojure.java.io :as io]
             [editor
-             [console :as console]
              [dialogs :as dialogs]
              [diff-view :as diff-view]
              [git :as git]
@@ -87,15 +86,18 @@
   (render-progress progress)
   (condp = state
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
-    :pull/pulling   (let [^PullResult pull-res (console/with-error-in-console (git/pull git creds))]
+    :pull/pulling   (let [^PullResult pull-res (try (git/pull git creds)
+                                                    (catch Exception e
+                                                      (println e)))]
                       (if (and pull-res (.isSuccessful pull-res))
                         (advance-flow (tick flow :pull/applying) render-progress)
                         (advance-flow (tick flow :pull/error) render-progress)))
     :pull/applying  (let [stash-res (when stash-ref
-                                      (console/with-error-in-console
-                                        (try (git/stash-apply git stash-ref)
-                                             (catch StashApplyFailureException e
-                                               :conflict))))
+                                      (try (git/stash-apply git stash-ref)
+                                           (catch StashApplyFailureException e
+                                             :conflict)
+                                           (catch Exception e
+                                             (println e))))
                           status    (git/status git)]
                       (cond
                         (nil? stash-ref)        (advance-flow (tick flow :pull/done 2) render-progress)
@@ -121,7 +123,7 @@
                         (git/push git creds)
                         (advance-flow (tick flow :push/done) render-progress)
                         (catch Exception e
-                          (console/append-console-message! (str e))
+                          (println e)
                           (advance-flow (tick flow :pull/start) render-progress))))
     :push/done      flow))
 

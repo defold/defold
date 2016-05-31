@@ -65,9 +65,3 @@
                                          (next-console! nil)))))
   (reset! node text)
   (append-console-message! "Welcome to Defold!\n"))
-
-(defmacro with-error-in-console [& body]
-  `(try
-     ~@body
-     (catch Exception e#
-       (append-console-message! (.toString e#)))))
