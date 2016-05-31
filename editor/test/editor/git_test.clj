@@ -20,7 +20,7 @@
 (defn new-git []
   (let [f (temp-dir)
         git (-> (Git/init) (.setDirectory f) (.call))]
-    ; We must have a HEAD in general
+    ;; We must have a HEAD in general
     (create-file git "/dummy" "")
     (-> git (.add) (.addFilepattern "dummy") (.call))
     (-> git (.commit) (.setMessage "message") (.call))
@@ -164,11 +164,11 @@
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
-                                        ; stage delete for src/main.cpp
+      ;; stage delete for src/main.cpp
       (-> git (.rm) (.addFilepattern "src/main.cpp") (.call))
       (is (= [{:score 0, :change-type :delete, :old-path "src/main.cpp", :new-path nil}] (git/unified-status git)))
 
-                                        ; recreate src/main.cpp and expect in modified state
+      ;; recreate src/main.cpp and expect in modified state
       (create-file git "/src/main.cpp" "void main2() {}")
       (is (= [{:score 0, :change-type :modify, :old-path "src/main.cpp", :new-path "src/main.cpp"}] (git/unified-status git)))
 
