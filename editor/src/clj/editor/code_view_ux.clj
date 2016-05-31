@@ -27,6 +27,9 @@
 (defprotocol TextStyles
   (styles [this]))
 
+(defprotocol TextUndo
+  (changes! [this]))
+
 (def mappings
   {
   ;;;movement
@@ -162,7 +165,8 @@
       (handler/run
         (:command kf)
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-        k-info))))
+        k-info)
+      (changes! source-viewer))))
 
 (defn- is-mac-os? []
   (= "Mac OS X" (System/getProperty "os.name")))
@@ -177,7 +181,8 @@
       (handler/run
         :key-typed
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
-        e))))
+        e)
+      (changes! source-viewer))))
 
 
 (defn- adjust-bounds [s pos]
@@ -206,8 +211,9 @@
         cf (click-fn click-count)
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
+    (changes! source-viewer)
     (when cf (handler/run
-               cf
+               (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                e))))
 
@@ -753,3 +759,15 @@
     (when (editable? selection)
       (let [line-seperator (System/getProperty "line.separator")]
         (enter-key-text selection line-seperator)))))
+
+(handler/defhandler :undo :code-view
+  (enabled? [selection] selection)
+  (run [view-node code-node]
+    (g/undo! (g/node-id->graph-id code-node))
+    (g/node-value view-node :new-content)))
+
+(handler/defhandler :redo :code-view
+  (enabled? [selection] selection)
+  (run [view-node code-node]
+    (g/redo! (g/node-id->graph-id code-node))
+    (g/node-value view-node :new-content)))
