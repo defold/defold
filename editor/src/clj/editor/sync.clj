@@ -64,12 +64,6 @@
     (git/stash-apply git stash-ref)
     (git/stash-drop git stash-ref)))
 
-(defmacro with-error-in-console [& body]
-  `(try
-     ~@body
-     (catch Exception e#
-       (console/append-console-message! (.toString e#)))))
-
 (defn- tick
   ([flow new-state]
    (tick flow new-state 1))
@@ -80,7 +74,6 @@
 
 (defn- refresh-git-state [{:keys [git] :as flow}]
   (let [st (git/status git)]
-    (def st st)
     (merge flow
            {:staged   (set/union (:added st)
                                  (:deleted st)
@@ -94,12 +87,12 @@
   (render-progress progress)
   (condp = state
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
-    :pull/pulling   (let [^PullResult pull-res (with-error-in-console (git/pull git creds))]
+    :pull/pulling   (let [^PullResult pull-res (console/with-error-in-console (git/pull git creds))]
                       (if (and pull-res (.isSuccessful pull-res))
                         (advance-flow (tick flow :pull/applying) render-progress)
-                        (advance-flow (tick flow :pull/error))))
+                        (advance-flow (tick flow :pull/error) render-progress)))
     :pull/applying  (let [stash-res (when stash-ref
-                                      (with-error-in-console
+                                      (console/with-error-in-console
                                         (try (git/stash-apply git stash-ref)
                                              (catch StashApplyFailureException e
                                                :conflict))))
@@ -124,8 +117,12 @@
                       (git/commit git message)
                       (advance-flow (tick flow :push/pushing) render-progress))
     :push/pushing   (do
-                      (git/push git creds)
-                      (advance-flow (tick flow :push/done) render-progress))
+                      (try
+                        (git/push git creds)
+                        (advance-flow (tick flow :push/done) render-progress)
+                        (catch Exception e
+                          (console/append-console-message! (str e))
+                          (advance-flow (tick flow :pull/start) render-progress))))
     :push/done      flow))
 
 (ui/extend-menu ::conflicts-menu nil
@@ -203,7 +200,6 @@
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (println "$ stage" f)
       (git/stage-file (:git @!flow) f))
     (swap! !flow refresh-git-state)))
 
@@ -211,7 +207,6 @@
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (println "$ unstage" f)
       (git/unstage-file (:git @!flow) f))
     (swap! !flow refresh-git-state)))
 
@@ -262,6 +257,11 @@
                                                (ui/visible! (:push dialog-controls) true)
                                                (ui/visible! (:conflict-box pull-controls) false)
                                                (ui/text! (:ok dialog-controls) "Done"))
+                             :pull/error      (do
+                                                (ui/text! (:main-label pull-controls) "Error getting changes")
+                                                (ui/visible! (:push dialog-controls) false)
+                                                (ui/visible! (:conflict-box pull-controls) false)
+                                                (ui/text! (:ok dialog-controls) "Close"))
 
                              :push/staging   (do
                                                (ui/items! (:changed push-controls) (sort modified))
@@ -337,7 +337,5 @@
 
     (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
-    (println "opening")
     (ui/show-and-wait! stage)
-    (ui/set-main-stage old-stage))
-  (println "closing"))
+    (ui/set-main-stage old-stage)))
