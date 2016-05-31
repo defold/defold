@@ -11,6 +11,13 @@
            [org.eclipse.jgit.api Git]
            [org.apache.commons.io FileUtils]))
 
+(def without-login-prompt
+  (fn [f]
+    (binding [sync/*login* false]
+      (f))))
+
+(use-fixtures :once without-login-prompt)
+
 (defn- new-flow [git]
   (let [p (prefs/make-prefs "unit-test")]
     (prefs/set-prefs p "email" "foo@bar.com")
@@ -64,7 +71,7 @@
               (create-file local-git "/src/main.cpp" (sync/get-theirs @!flow "src/main.cpp"))
               (sync/resolve-file !flow "src/main.cpp")
               (is (= {"src/main.cpp" :both-modified} (:resolved @!flow)))
-              (is (= #{"src/main.cpp"} (:staged @!flow)))
+              (is (= #{} (:staged @!flow)))
               (let [res2 (sync/advance-flow @!flow progress/null-render-progress!)]
                 (is (= :pull/done (:state res2))))
               (is (= "void main() {FOO}" (slurp-file local-git "/src/main.cpp"))))
@@ -73,7 +80,7 @@
               (create-file local-git "/src/main.cpp" (sync/get-ours @!flow "src/main.cpp"))
               (sync/resolve-file !flow "src/main.cpp")
               (is (= {"src/main.cpp" :both-modified} (:resolved @!flow)))
-              (is (= #{"src/main.cpp"} (:staged @!flow)))
+              (is (= #{} (:staged @!flow)))
               (let [res2 (sync/advance-flow @!flow progress/null-render-progress!)]
                 (is (= :pull/done (:state res2))))
               (is (= "void main() {BAR}" (slurp-file local-git "/src/main.cpp"))))))
