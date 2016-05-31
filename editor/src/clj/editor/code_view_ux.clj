@@ -84,7 +84,6 @@
   ;; Delete
   :Backspace             {:command :delete}
   :Delete                {:command :delete}
-  :Shortcut+X            {:command :cut}
   :Shortcut+D            {:command :cut                     :label "Delete Line"                     :group "Delete" :order 1}
   :Alt+Delete            {:command :delete-next-word        :label "Delete Next Word"                :group "Delete" :order 2}
   :Alt+Backspace         {:command :delete-prev-word        :label "Delete Prev Word"                :group "Delete" :order 3}
