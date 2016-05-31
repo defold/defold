@@ -456,6 +456,19 @@
         (select-word! source-viewer)
         (is (= "" (text-selection source-viewer)))))))
 
+(defn- select-all! [source-viewer]
+  (handler/run :select-all [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-word-test
+  (with-clean-system
+    (let [code "hello there"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "selects the entire doc"
+        (select-all! source-viewer)
+        (is (= "hello there" (text-selection source-viewer)))))))
+
 (defn- delete! [source-viewer]
   (handler/run :delete [{:name :code-view :env {:selection source-viewer}}]{}))
 
