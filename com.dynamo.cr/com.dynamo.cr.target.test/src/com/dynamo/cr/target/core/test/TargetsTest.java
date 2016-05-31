@@ -81,7 +81,7 @@ public class TargetsTest implements ITargetListener {
         @Override
         public synchronized void launch(String customApplication, String location, boolean runInDebugger,
                                         boolean autoRunDebugger, String socksProxy, int socksProxyPort,
-                                        int httpServerPort) {
+                                        int httpServerPort, boolean quitOnEsc) {
             ITarget[] targets = getTargets();
             logClient.resetLogSocket(targets[targets.length - 1]);
         }
@@ -294,7 +294,7 @@ public class TargetsTest implements ITargetListener {
         while (targetService.getTargets().length == 1) {
             Thread.sleep(100);
         }
-        targetService.launch("", "", false, false, "", 1080, 8080);
+        targetService.launch("", "", false, false, "", 1080, 8080, false);
         while (!gameLogger.isDone()) {
             Thread.sleep(100);
         }

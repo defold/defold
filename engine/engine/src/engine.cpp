@@ -160,6 +160,7 @@ namespace dmEngine
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     , m_WasIconified(true)
+    , m_QuitOnEsc(false)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -384,6 +385,9 @@ namespace dmEngine
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
         dmSys::SetEngineInfo(engine_info);
+
+        char* qoe_s = getenv("DM_QUIT_ON_ESC");
+        engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
@@ -998,7 +1002,7 @@ bail:
                     dmHID::KeyboardPacket keybdata;
                     dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
 
-                    if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                    if (engine->m_QuitOnEsc && (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED)))
                     {
                         engine->m_Alive = false;
                         return;
