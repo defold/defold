@@ -71,7 +71,7 @@
        (assoc :state new-state)
        (update :progress #(progress/advance % n)))))
 
-(defn- refresh-git-state [{:keys [git] :as flow}]
+(defn refresh-git-state [{:keys [git] :as flow}]
   (let [st (git/status git)]
     (merge flow
            {:staged   (set/union (:added st)
@@ -147,14 +147,14 @@
                  {:label "Unstage files"
                   :command :unstage-file}])
 
-(defn- get-theirs [{:keys [git] :as flow} file]
+(defn get-theirs [{:keys [git] :as flow} file]
   (String. ^bytes (git/show-file git file)))
 
-(defn- get-ours [{:keys [git ^RevCommit stash-ref] :as flow} file]
+(defn get-ours [{:keys [git ^RevCommit stash-ref] :as flow} file]
   (when stash-ref
     (String. ^bytes (git/show-file git file (.name stash-ref)))))
 
-(defn- resolve-file [!flow file]
+(defn resolve-file [!flow file]
   (when-let [entry (get (:conflicts @!flow) file)]
     (git/stage-file (:git @!flow) file)
     (swap! !flow #(-> %
@@ -194,8 +194,8 @@
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (when-let [ours (get-theirs @!flow f)]
-        (spit (io/file (git/worktree (:git @!flow)) f) ours)
+      (when-let [theirs (get-theirs @!flow f)]
+        (spit (io/file (git/worktree (:git @!flow)) f) theirs)
         (resolve-file !flow f)))))
 
 (handler/defhandler :stage-file :sync
