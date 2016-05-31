@@ -213,7 +213,7 @@
     (remember-caret-col source-viewer pos)
     (changes! source-viewer)
     (when cf (handler/run
-               cf
+               (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                e))))
 
