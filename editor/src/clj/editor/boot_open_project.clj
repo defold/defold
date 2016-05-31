@@ -150,10 +150,7 @@
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
-                                   http-server/start!)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace
-                                                               prefs
-                                                               (.lookup root "#changes-container"))]
+                                   http-server/start!)]
       (console/setup-console! {:text   console
                                :search search-console
                                :clear  clear-console
@@ -166,8 +163,7 @@
                          :prefs         prefs
                          :workspace     (g/node-value project :workspace)
                          :outline-view  outline-view
-                         :web-server    web-server
-                         :changes-view  changes-view}]
+                         :web-server    web-server}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
        (concat
@@ -203,6 +199,8 @@
         _            (workspace/resource-sync! workspace true []
                                                (progress/nest-render-progress render-progress! @progress))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
-        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))]
+        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
+        changes-view (ui/run-now (changes-view/make-changes-view *view-graph* workspace prefs
+                                                                 (.lookup root "#changes-container")))]
     (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))
