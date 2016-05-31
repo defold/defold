@@ -25,6 +25,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:dynamic *login* true)
+
 ;; =================================================================================
 
 ;; Flow state-diagram
@@ -45,7 +47,8 @@
 
 
 (defn make-flow [^Git git prefs]
-  (login/login prefs)
+  (when *login*
+    (login/login prefs))
   (let [start-ref (git/get-current-commit-ref git)
         stash-ref (git/stash git)]
     {:state     :pull/start
