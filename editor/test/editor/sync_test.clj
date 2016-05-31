@@ -38,12 +38,63 @@
     (delete-git git)))
 
 (deftest advance-flow-test
-  (testing ":pull/start"
+  (testing ":pull/done"
     (let [git       (new-git)
           local-git (clone git)
           flow      (new-flow local-git)
           res       (sync/advance-flow flow progress/null-render-progress!)]
-      (is (= :pull/done (:state res)))))
+      (is (= :pull/done (:state res)))
+      (delete-git git)
+      (delete-git local-git)))
 
-  ;; TODO -- filling in
-  )
+  (testing ":pull/conflicts"
+    (let [git (new-git)]
+      (create-file git "/src/main.cpp" "void main() {}")
+      (commit-src git)
+      (let [local-git (clone git)]
+        (create-file git "/src/main.cpp" "void main() {FOO}")
+        (commit-src git)
+        (create-file local-git "/src/main.cpp" "void main() {BAR}")
+        (let [!flow (atom (new-flow local-git))
+              res   (swap! !flow sync/advance-flow progress/null-render-progress!)]
+          (is (= #{"src/main.cpp"} (:conflicting (git/status local-git))))
+          (is (= :pull/conflicts (:state res)))
+          (let [flow2 @!flow]
+            (testing "theirs"
+              (create-file local-git "/src/main.cpp" (sync/get-theirs @!flow "src/main.cpp"))
+              (sync/resolve-file !flow "src/main.cpp")
+              (is (= {"src/main.cpp" :both-modified} (:resolved @!flow)))
+              (is (= #{"src/main.cpp"} (:staged @!flow)))
+              (let [res2 (sync/advance-flow @!flow progress/null-render-progress!)]
+                (is (= :pull/done (:state res2))))
+              (is (= "void main() {FOO}" (slurp-file local-git "/src/main.cpp"))))
+            (testing "ours"
+              (reset! !flow flow2)
+              (create-file local-git "/src/main.cpp" (sync/get-ours @!flow "src/main.cpp"))
+              (sync/resolve-file !flow "src/main.cpp")
+              (is (= {"src/main.cpp" :both-modified} (:resolved @!flow)))
+              (is (= #{"src/main.cpp"} (:staged @!flow)))
+              (let [res2 (sync/advance-flow @!flow progress/null-render-progress!)]
+                (is (= :pull/done (:state res2))))
+              (is (= "void main() {BAR}" (slurp-file local-git "/src/main.cpp"))))))
+        (delete-git local-git))
+      (delete-git git)))
+
+  (testing ":push-staging -> :push/done"
+    (let [git (new-git)]
+      (create-file git "/src/main.cpp" "void main() {}")
+      (commit-src git)
+      (let [local-git (clone git)
+            !flow     (atom (assoc (new-flow local-git) :state :push/start))]
+        (create-file local-git "/src/main.cpp" "void main() {BAR}")
+        (swap! !flow sync/advance-flow progress/null-render-progress!)
+        (is (= :push/staging (:state @!flow)))
+        (git/stage-file local-git "src/main.cpp")
+        (swap! !flow sync/refresh-git-state)
+        (is (= #{"src/main.cpp"} (:staged @!flow)))
+        (swap! !flow merge {:state   :push/comitting
+                            :message "foobar"})
+        (swap! !flow sync/advance-flow progress/null-render-progress!)
+        (is (= :push/done (:state @!flow)))
+        (delete-git git)
+        (delete-git local-git)))))
