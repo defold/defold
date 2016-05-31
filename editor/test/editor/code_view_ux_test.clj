@@ -459,7 +459,7 @@
 (defn- select-all! [source-viewer]
   (handler/run :select-all [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest select-word-test
+(deftest select-all-test
   (with-clean-system
     (let [code "hello there"
           opts lua/lua
