@@ -50,8 +50,9 @@
   :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 6}
   :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 7}
 
-  ;; mouse
+  ;; select
   :Double-Click          {:command :select-word}
+  :Shortcut+A            {:command :select-all}
 
   ;;movement with select
   :Shift+Right           {:command :select-right}
@@ -489,6 +490,11 @@
           end-pos (+ np (count word-end))
           len (- end-pos start-pos)]
       (text-selection! selection start-pos len))))
+
+(handler/defhandler :select-all :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (text-selection! selection 0 (count (text selection)))))
 
 (defn delete [selection]
   (let [c (caret selection)
