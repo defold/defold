@@ -159,10 +159,10 @@
 (defn resolve-file [!flow file]
   (when-let [entry (get (:conflicts @!flow) file)]
     (git/stage-file (:git @!flow) file)
+    (git/unstage-file (:git @!flow) file)
     (swap! !flow #(-> %
                       (update :conflicts dissoc file)
-                      (update :resolved assoc file entry)
-                      (update :staged conj file)))))
+                      (update :resolved assoc file entry)))))
 
 (handler/defhandler :show-diff :sync
   (enabled? [selection] (= 1 (count selection)))
