@@ -345,7 +345,8 @@
         np (adjust-bounds doc c)
         next-word-move (next-word-move doc np)
         next-pos (+ np (count next-word-move))]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (defn prev-word-move [doc np]
   (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str))))
@@ -356,7 +357,8 @@
         np (adjust-bounds doc c)
         next-word-move (prev-word-move doc np)
         next-pos (- np (count next-word-move))]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (handler/defhandler :next-word :code-view
   (enabled? [selection] selection)
@@ -388,7 +390,8 @@
 
 (defn line-begin [selection select?]
   (let [next-pos (line-begin-pos selection)]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (defn line-end-pos [selection]
   (let [c (caret selection)
@@ -400,7 +403,8 @@
 
 (defn line-end [selection select?]
   (let [next-pos (line-end-pos selection)]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (handler/defhandler :line-begin :code-view
   (enabled? [selection] selection)
