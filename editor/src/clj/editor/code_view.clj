@@ -352,9 +352,13 @@
                    (mapv style-fn style-ranges)))
   cvx/TextUndo
   (changes! [this]
-    (let [code-node-id (-> this (.getTextWidget) (code-node))]
-      (g/transact [(g/set-property code-node-id :code (cvx/text this))
-                   (g/set-property code-node-id :caret-position (cvx/caret this)) ]))))
+    (let [code-node-id (-> this (.getTextWidget) (code-node))
+          code-changed? (not= (cvx/text this) (g/node-value code-node-id :code))
+          caret-changed? (not= (cvx/caret this) (g/node-value code-node-id :caret-position))]
+      (when (or code-changed? caret-changed?)
+        (g/transact (remove nil?
+                            [(when code-changed? (g/set-property code-node-id :code (cvx/text this)))
+                             (when caret-changed? (g/set-property code-node-id :caret-position (cvx/caret this))) ]))))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
