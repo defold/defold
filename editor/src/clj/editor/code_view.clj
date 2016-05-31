@@ -29,28 +29,11 @@
 (ui/extend-menu ::text-edit :editor.app-view/edit
                 (cvx/create-menu-data))
 
-(defn- opseqs [text-area]
-  (ui/user-data text-area ::opseqs))
-
-(defn- new-opseq [text-area]
-  (swap! (opseqs text-area) rest))
-
-(defn- opseq [text-area]
-  (first @(opseqs text-area)))
-
-(defn- programmatic-change [text-area]
-  (ui/user-data text-area ::programmatic-change))
-
 (defn- code-node [text-area]
   (ui/user-data text-area ::code-node))
 
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
-
-(defn- restart-opseq-timer [text-area]
-  (if-let [timer (ui/user-data text-area ::opseq-timer)]
-    (ui/restart timer)
-    (ui/user-data! text-area ::opseq-timer (ui/->future 0.5 #(new-opseq text-area)))))
 
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
@@ -61,22 +44,16 @@
          (reset! ~a old-val#)))))
 
 (g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position]
-  (let [text-area (.getTextWidget source-viewer)
-        document (.getDocument source-viewer)]
-    (ui/user-data! text-area ::code-node code-node)
-    (when (not= code (.get document))
-      (new-opseq text-area)
-      (binding-atom (programmatic-change text-area) true
-                    (try
-                      (.set document code)
-                      (catch Throwable e
-                        (println "exception during .set!")
-                        (.printStackTrace e)))))
-    (when (not= caret-position (.getCaretOffset text-area))
-      (new-opseq text-area)
-      (binding-atom (programmatic-change text-area) true
-                    (.setCaretOffset text-area caret-position)))
-    [code-node code caret-position]))
+  (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
+  (when (not= code (cvx/text source-viewer))
+    (try
+      (cvx/text! source-viewer code)
+      (catch Throwable e
+        (println "exception during .set!")
+        (.printStackTrace e))))
+  (when (not= caret-position (cvx/caret source-viewer))
+    (cvx/caret! source-viewer caret-position false))
+  [code-node code caret-position])
 
 (defn- make-proposal [{:keys [replacement offset length position image display-string additional-info]}]
   (reify ICompletionProposal
@@ -304,33 +281,8 @@
                             MouseEvent/MOUSE_CLICKED
                             (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
 
-      (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
-      (ui/user-data! text-area ::programmatic-change (atom nil))
       (ui/user-data! text-area ::behavior styled-text-behavior)
-      (ui/user-data! source-viewer ::syntax (:syntax opts))
-
-      (.addDocumentListener document
-                            (reify IDocumentListener
-                              (^void documentAboutToBeChanged [this ^DocumentEvent event])
-                              (^void documentChanged [this ^DocumentEvent event]
-                                (restart-opseq-timer text-area)
-                                (when-not @(programmatic-change text-area)
-                                  (let [new-code (.get document)]
-                                    (g/transact
-                                     (concat
-                                      (g/operation-sequence (opseq text-area))
-                                      (g/operation-label "Code Change")
-                                      (g/set-property (code-node text-area) :code new-code))))))))
-
-      (ui/observe (.caretOffsetProperty text-area)
-                  (fn [_ _ new-caret-position]
-                    (when-not @(programmatic-change text-area)
-                      (g/transact
-                       (concat
-                        (g/operation-sequence (opseq text-area))
-                        ;; we dont supply an operation label here, because the caret position events comes just after the text change, and it seems
-                        ;; when merging transactions the latest label wins
-                        (g/set-property (code-node text-area) :caret-position new-caret-position)))))))
+      (ui/user-data! source-viewer ::syntax (:syntax opts)))
 
   source-viewer))
 
@@ -397,31 +349,24 @@
                        style-fn (fn [sr] {:start (.-start ^StyleRange sr)
                                          :length (.-length ^StyleRange sr)
                                          :stylename (.-stylename ^StyleRange sr)})]
-                   (mapv style-fn style-ranges))))
+                   (mapv style-fn style-ranges)))
+  cvx/TextUndo
+  (changes! [this]
+    (let [code-node-id (-> this (.getTextWidget) (code-node))]
+      (g/transact [(g/set-property code-node-id :code (cvx/text this))
+                   (g/set-property code-node-id :caret-position (cvx/caret this)) ]))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node :clipboard (Clipboard/getSystemClipboard)} source-viewer)
-    (let [refresh-timer (ui/->timer 10 "refresh-code-view" (fn [_] (g/node-value view-id :new-content)))
-          stage (ui/parent->stage parent)]
-      (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
-      (ui/timer-stop-on-close! stage refresh-timer)
-      (ui/timer-start! refresh-timer)
-      view-id)))
-
-(defn update-caret-pos [view-id {:keys [caret-position]}]
-  (when caret-position
-    (when-let [code-node (g/node-value view-id :code-node)]
-      (g/transact
-       (concat
-        (g/set-property code-node :caret-position caret-position))))))
+    (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
+    (g/node-value view-id :new-content)
+    view-id))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
-                                :focus-fn update-caret-pos
                                 :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))
