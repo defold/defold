@@ -264,7 +264,18 @@
         (prev-word! source-viewer)
         (is (= \q (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
-        (is (= \t (get-char-at-caret source-viewer)))))))
+        (is (= \t (get-char-at-caret source-viewer))))
+      (testing "moving by word remembers col position"
+        (text! source-viewer "aed.111\nbcf 222")
+        (caret! source-viewer 0 false)
+        (next-word! source-viewer)
+        (is (= \. (get-char-at-caret source-viewer)))
+        (down! source-viewer)
+        (is (= \space (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \b (get-char-at-caret source-viewer)))
+        (up! source-viewer)
+        (is (= \a (get-char-at-caret source-viewer)))))))
 
 (defn- select-next-word! [source-viewer]
   (handler/run :select-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -316,7 +327,16 @@
         (is (= nil (get-char-at-caret source-viewer)))
         (is (= 11 (caret source-viewer)))
         (line-end! source-viewer)
-        (is (= 11 (caret source-viewer)))))))
+        (is (= 11 (caret source-viewer))))
+      (testing "moving remembers col position"
+        (text! source-viewer "line1\nline2")
+        (caret! source-viewer 0 false)
+        (line-end! source-viewer)
+        (down! source-viewer)
+        (is (= 11 (caret source-viewer)))
+        (line-begin! source-viewer)
+        (up! source-viewer)
+        (is (= 0 (caret source-viewer)))))))
 
 (defn- select-line-begin! [source-viewer]
   (handler/run :select-line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
