@@ -8,6 +8,7 @@
              [diff-view :as diff-view]
              [git :as git]
              [handler :as handler]
+             [login :as login]
              [ui :as ui]]
             [editor.progress :as progress])
   (:import javafx.geometry.Pos
@@ -44,6 +45,7 @@
 
 
 (defn make-flow [^Git git prefs]
+  (login/login prefs)
   (let [start-ref (git/get-current-commit-ref git)
         stash-ref (git/stash git)]
     {:state     :pull/start
