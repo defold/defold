@@ -8,6 +8,7 @@
              [diff-view :as diff-view]
              [git :as git]
              [handler :as handler]
+             [login :as login]
              [ui :as ui]]
             [editor.progress :as progress])
   (:import javafx.geometry.Pos
@@ -23,6 +24,8 @@
            org.eclipse.jgit.api.errors.CheckoutConflictException))
 
 (set! *warn-on-reflection* true)
+
+(def ^:dynamic *login* true)
 
 ;; =================================================================================
 
@@ -44,6 +47,8 @@
 
 
 (defn make-flow [^Git git prefs]
+  (when *login*
+    (login/login prefs))
   (let [start-ref (git/get-current-commit-ref git)
         stash-ref (git/stash git)]
     {:state     :pull/start
@@ -157,10 +162,10 @@
 (defn resolve-file [!flow file]
   (when-let [entry (get (:conflicts @!flow) file)]
     (git/stage-file (:git @!flow) file)
+    (git/unstage-file (:git @!flow) file)
     (swap! !flow #(-> %
                       (update :conflicts dissoc file)
-                      (update :resolved assoc file entry)
-                      (update :staged conj file)))))
+                      (update :resolved assoc file entry)))))
 
 (handler/defhandler :show-diff :sync
   (enabled? [selection] (= 1 (count selection)))
