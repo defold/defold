@@ -188,7 +188,11 @@ TEST(Socket, New_InvalidDomain)
 
     // Teardown
     result = dmSocket::Delete(instance);
+#if defined(_WIN32)
+    ASSERT_EQ(dmSocket::RESULT_NOTSOCK, result);
+#else
     ASSERT_EQ(dmSocket::RESULT_BADF, result);
+#endif
 }
 
 TEST(Socket, SetReuseAddress_IPv4)
@@ -343,7 +347,11 @@ TEST(Socket, Delete_InvalidSocket)
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::Delete(instance);
+#if defined(_WIN32)
+    ASSERT_EQ(dmSocket::RESULT_NOTSOCK, result);
+#else
     ASSERT_EQ(dmSocket::RESULT_BADF, result);
+#endif
 }
 
 // Accept
@@ -483,47 +491,6 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
 // Listen
 
 // Shutdown
-
-TEST(Socket, GetName_IPv4)
-{
-    dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
-    dmSocket::Result result = dmSocket::RESULT_OK;
-    dmSocket::Address address;
-    uint16_t port = 0;
-
-    result = dmSocket::GetName(instance, &address, &port);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-    ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
-    ASSERT_EQ(0, *dmSocket::IPv4(&address));
-    ASSERT_EQ(0, port);
-
-    // Teardown
-    result = dmSocket::Delete(instance);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-}
-
-TEST(Socket, GetName_IPv6)
-{
-    dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
-    dmSocket::Result result = dmSocket::RESULT_OK;
-    dmSocket::Address address;
-    uint16_t port = 0;
-
-    result = dmSocket::GetName(instance, &address, &port);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-    ASSERT_EQ(dmSocket::DOMAIN_IPV6, address.m_family);
-    ASSERT_EQ(0, address.m_address[0]);
-    ASSERT_EQ(0, address.m_address[1]);
-    ASSERT_EQ(0, address.m_address[2]);
-    ASSERT_EQ(0, address.m_address[3]);
-    ASSERT_EQ(0, port);
-
-    // Teardown
-    result = dmSocket::Delete(instance);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-}
 
 TEST(Socket, GetName_IPv4_Connected)
 {

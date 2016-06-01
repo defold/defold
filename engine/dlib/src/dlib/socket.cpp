@@ -20,6 +20,10 @@
 
 #endif
 
+#if defined(_WIN32)
+#include <Winsock2.h>
+#endif
+
 #include "log.h"
 #include "socket_private.h"
 
@@ -47,6 +51,14 @@ namespace dmSocket
 
     bool IsSocketIPv4(Socket socket)
     {
+#if defined(_WIN32)
+        WSAPROTOCOL_INFO ss = {0};
+        socklen_t sslen = sizeof(ss);
+        int result = getsockopt( socket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&ss, (int*)&sslen );
+        if (result == 0) {
+            return ss.iAddressFamily == AF_INET;
+        }
+#else
         struct sockaddr_storage ss = { 0 };
         socklen_t sslen = sizeof(ss);
         int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
@@ -54,14 +66,23 @@ namespace dmSocket
         {
             return ss.ss_family == AF_INET;
         }
-
+#endif
         dmLogError("Failed to retrieve address family (%d): %s",
             NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+
         return false;
     }
 
     bool IsSocketIPv6(Socket socket)
     {
+#if defined(_WIN32)
+        WSAPROTOCOL_INFO ss = {0};
+        socklen_t sslen = sizeof(ss);
+        int result = getsockopt( socket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&ss, (int*)&sslen );
+        if (result == 0) {
+            return ss.iAddressFamily == AF_INET6;
+        }
+#else
         struct sockaddr_storage ss = { 0 };
         socklen_t sslen = sizeof(ss);
         int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
@@ -69,6 +90,7 @@ namespace dmSocket
         {
             return ss.ss_family == AF_INET6;
         }
+#endif
 
         dmLogError("Failed to retrieve address family (%d): %s",
             NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
@@ -123,7 +145,6 @@ namespace dmSocket
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
         Socket sock = ::socket(domain, type, protocol);
-
         *socket = sock;
         if (sock >= 0)
         {
@@ -776,14 +797,14 @@ namespace dmSocket
         memset(&hints, 0x0, sizeof(hints));
         hints.ai_family = PF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags |= AI_CANONNAME;
 
         // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.
         if (getaddrinfo(name, NULL, &hints, &res) == 0)
         {
             struct addrinfo* iterator = res;
-            while (iterator && result == RESULT_UNKNOWN)
+            while (iterator && result == RESULT_HOST_NOT_FOUND)
             {
+                dmLogError("Got a response: %d (ipv4: %d, ipv6: %d)", iterator->ai_family, AF_INET, AF_INET6);
                 // There could be (and probably are) multiple results for the same
                 // address. The correct way to handle this would be to return a
                 // list of addresses and then try each of them until one succeeds.
