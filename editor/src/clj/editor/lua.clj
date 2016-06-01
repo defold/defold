@@ -211,6 +211,7 @@
                                        "local" "goto" "in"})
 
 (def constant-pattern #"^(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)")
+(def library-pattern #"^(?<![^.]\.|\\)\b(coroutine\.(create|resume|running|status|wrap|yield)|string\.(byte|char|dump|find|format|gmatch|gsub|len|lower|match|rep|reverse|sub|upper)|table\.(concat|insert|maxn|remove|sort)|math\.(abs|acos|asin|atan2?|ceil|cosh?|deg|exp|floor|fmod|frexp|ldexp|log|log10|max|min|modf|pow|rad|random|randomseed|sinh?|sqrt|tanh?)|io\.(close|flush|input|lines|open|output|popen|read|tmpfile|type|write)|os\.(clock|date|difftime|execute|exit|getenv|remove|rename|setlocale|time|tmpname)|package\.(cpath|loaded|loadlib|path|preload|seeall)|jit\.(flush|on|off|version|version_num|os|arch|status)|bit\.(tobit|tohex|bnot|band|bor|bxor|lshift|rshift|arshift|rol|ror|bswap)|debug\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etlocal|[gs]etmetatable|getregistry|[gs]etupvalue|traceback)|ffi\.(cdef|cast|new|C|load|typeof|metatype|gc|sizeof|alignof|offsetof|istype|errno|string|copy|fill|abi|os|arch))\b")
 
 (defn match-regex [pattern s]
 (let [result (re-find pattern s)]
@@ -222,6 +223,9 @@
 
 (defn match-constant [s]
   (match-regex constant-pattern s))
+
+(defn match-library [s]
+  (match-regex library-pattern s))
 
 (defn- is-word-start [^Character c] (or (Character/isLetter c) (#{\_ \:} c)))
 (defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (#{\-} c)))
@@ -286,6 +290,7 @@
               {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}
               {:type :custom :scanner match-constant :class "constant"}
+              {:type :custom :scanner match-library :class "library"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}
               {:type :word :start? is-word-start :part? is-word-part :class "default"}
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
