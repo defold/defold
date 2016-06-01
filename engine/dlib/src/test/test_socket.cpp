@@ -43,7 +43,8 @@ static void ServerThread(void* arg)
     result = dmSocket::SetReuseAddress(server_sock, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    result = dmSocket::GetHostByName("localhost", &server_addr, dmSocket::IsSocketIPv4(server_sock), dmSocket::IsSocketIPv6(server_sock));
+    const char* hostname = dmSocket::IsSocketIPv4(server_sock) ? DM_LOOPBACK_ADDRESS_IPV4 : DM_LOOPBACK_ADDRESS_IPV6;
+    result = dmSocket::GetHostByName(hostname, &server_addr, dmSocket::IsSocketIPv4(server_sock), dmSocket::IsSocketIPv6(server_sock));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::Bind(server_sock, server_addr, info->port);
@@ -119,7 +120,7 @@ TEST(Socket, BitDifference_Equal)
 TEST(Socket, NetworkOrder)
 {
     dmSocket::Address address;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
@@ -357,7 +358,7 @@ TEST(Socket, Connect_IPv4_ThreadServer)
     info.listening = false;
     info.port = CONST_TEST_PORT;
     info.domain = dmSocket::DOMAIN_IPV4;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
 
     // Setup client
@@ -403,7 +404,7 @@ TEST(Socket, Connect_IPv6_ThreadServer)
     info.port = CONST_TEST_PORT;
     info.domain = dmSocket::DOMAIN_IPV6;
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
 
     // Setup client
     dmSocket::Socket socket = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -445,7 +446,7 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
     ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Address address;
     uint16_t port = 47204; // We just assume that this port is not listening...
 
@@ -465,7 +466,7 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
     ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
     dmSocket::Address address;
     uint16_t port = 47204; // We just assume that this port is not listening...
 
@@ -538,7 +539,7 @@ TEST(Socket, GetName_IPv4_Connected)
 
     ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Address address;
     uint16_t port = CONST_TEST_PORT;
 
@@ -584,7 +585,7 @@ TEST(Socket, GetName_IPv6_Connected)
 
     ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
     dmSocket::Address address;
     uint16_t port = CONST_TEST_PORT;
 
@@ -799,7 +800,7 @@ TEST(Socket, GetHostByName_IPv4_Localhost)
 {
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -811,7 +812,7 @@ TEST(Socket, GetHostByName_IPv6_Localhost)
 {
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "localhost";
+    const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
 
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -871,7 +872,7 @@ TEST(Socket, GetHostByName_NoValidAddressFamily)
     const char* hostname = "localhost";
 
     result = dmSocket::GetHostByName(hostname, &address, false, false);
-    ASSERT_EQ(dmSocket::RESULT_UNKNOWN, result);
+    ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
 
 TEST(Socket, ServerSocketIPv4)

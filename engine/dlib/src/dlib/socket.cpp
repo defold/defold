@@ -776,13 +776,12 @@ namespace dmSocket
         memset(&hints, 0x0, sizeof(hints));
         hints.ai_family = PF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags |= AI_CANONNAME;
 
         // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.
         if (getaddrinfo(name, NULL, &hints, &res) == 0)
         {
             struct addrinfo* iterator = res;
-            while (iterator && result == RESULT_UNKNOWN)
+            while (iterator && result == RESULT_HOST_NOT_FOUND)
             {
                 // There could be (and probably are) multiple results for the same
                 // address. The correct way to handle this would be to return a
