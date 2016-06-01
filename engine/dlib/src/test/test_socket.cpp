@@ -1106,9 +1106,12 @@ TEST(Socket, Timeout)
 
     uint16_t port;
     dmSocket::Address address;
-    r = dmSocket::GetName(server_socket, &address, &port);
+    r = dmSocket::GetName(server_socket, &address, &port); // We do this to get the port
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
+
+    r = dmSocket::GetHostByName(DM_LOOPBACK_ADDRESS_IPV6, &address, false, true); // We do this to get the address
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     dmSocket::Socket client_socket;
     r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client_socket); // This has to be rewritten
