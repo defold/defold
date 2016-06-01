@@ -203,7 +203,9 @@
       (.printStackTrace e))))
 
 (def  keywords
-  #{"not" "require"  "or"  "and"})
+  #{"require"})
+
+(def logic-keywords #{"and" "or" "not"})
 
 (def self-keyword #{"self"})
 
@@ -289,6 +291,7 @@
              [{:type :whitespace :space? #{\space \tab \newline \return}}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords logic-keywords :class "logic-keywords"}
               {:type :custom :scanner match-constant :class "constant"}
               {:type :custom :scanner match-library :class "library"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}

@@ -928,6 +928,10 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #E066FF;
 }
 
+.lua.styled-text-area .logic-keywords {
+    -styled-text-color: #FFB90F;
+}
+
 .lua.styled-text-area .control-flow-keyword {
     -styled-text-color: #fd6623;
 }
