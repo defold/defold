@@ -924,6 +924,10 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #fd6623;
 }
 
+.lua.styled-text-area .helper-keyword {
+    -styled-text-color: #33cccc;
+}
+
 .lua.styled-text-area .self-keyword {
     -styled-text-color: #E066FF;
 }
