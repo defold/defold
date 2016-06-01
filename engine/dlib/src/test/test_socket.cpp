@@ -44,6 +44,7 @@ static void ServerThread(void* arg)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::GetHostByName("localhost", &server_addr, dmSocket::IsSocketIPv4(server_sock), dmSocket::IsSocketIPv6(server_sock));
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::Bind(server_sock, server_addr, info->port);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -194,6 +195,7 @@ TEST(Socket, SetReuseAddress_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
 
     result = dmSocket::SetReuseAddress(instance, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -207,6 +209,7 @@ TEST(Socket, SetReuseAddress_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
 
     result = dmSocket::SetReuseAddress(instance, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -220,6 +223,7 @@ TEST(Socket, AddMembership_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
 
     // ASSERT_FALSE("This test has not been implemented yet");
 
@@ -232,6 +236,7 @@ TEST(Socket, AddMembership_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
 
     // ASSERT_FALSE("This test has not been implemented yet");
 
@@ -244,6 +249,7 @@ TEST(Socket, SetMulticastIf_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
 
     uint32_t tests = 0;
     uint32_t count = 0;
@@ -279,6 +285,7 @@ TEST(Socket, SetMulticastIf_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
 
     uint32_t tests = 0;
     uint32_t count = 0;
@@ -314,6 +321,7 @@ TEST(Socket, Delete_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
 
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -323,6 +331,7 @@ TEST(Socket, Delete_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
 
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -353,6 +362,7 @@ TEST(Socket, Connect_IPv4_ThreadServer)
 
     // Setup client
     dmSocket::Socket socket = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, socket);
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
 
@@ -397,6 +407,7 @@ TEST(Socket, Connect_IPv6_ThreadServer)
 
     // Setup client
     dmSocket::Socket socket = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, socket);
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
 
@@ -432,6 +443,7 @@ TEST(Socket, Connect_IPv6_ThreadServer)
 TEST(Socket, Connect_IPv4_ConnectionRefused)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "localhost";
     dmSocket::Address address;
@@ -451,6 +463,7 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "localhost";
     dmSocket::Address address;
@@ -474,6 +487,7 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
 TEST(Socket, GetName_IPv4)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Address address;
     uint16_t port = 0;
@@ -492,6 +506,7 @@ TEST(Socket, GetName_IPv4)
 TEST(Socket, GetName_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Address address;
     uint16_t port = 0;
@@ -520,6 +535,8 @@ TEST(Socket, GetName_IPv4_Connected)
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
 
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "localhost";
     dmSocket::Address address;
@@ -564,6 +581,8 @@ TEST(Socket, GetName_IPv6_Connected)
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
 
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "localhost";
     dmSocket::Address address;
@@ -604,6 +623,7 @@ TEST(Socket, GetName_IPv6_Connected)
 TEST(Socket, SetBlocking_IPv4)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetBlocking(instance, true);
@@ -620,6 +640,7 @@ TEST(Socket, SetBlocking_IPv4)
 TEST(Socket, SetBlocking_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetBlocking(instance, true);
@@ -636,6 +657,7 @@ TEST(Socket, SetBlocking_IPv6)
 TEST(Socket, SetNoDelay_IPv4)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetNoDelay(instance, true);
@@ -652,6 +674,7 @@ TEST(Socket, SetNoDelay_IPv4)
 TEST(Socket, SetNoDelay_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetNoDelay(instance, true);
@@ -860,7 +883,11 @@ TEST(Socket, ServerSocketIPv4)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV4), port);
+    dmSocket::Address bindaddress;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress, true, false);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(socket, bindaddress, port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -882,7 +909,11 @@ TEST(Socket, ServerSocketIPv6)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV6), port);
+    dmSocket::Address bindaddress;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(socket, bindaddress, port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -908,11 +939,19 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket1, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV4), port);
+    dmSocket::Address bindaddress1;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress1, true, false);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    dmSocket::Address bindaddress2;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress2, true, false);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(socket1, bindaddress1, port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
-    r = dmSocket::Bind(socket2, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV4), port);
+    r = dmSocket::Bind(socket2, bindaddress2, port);
     ASSERT_EQ(dmSocket::RESULT_ADDRINUSE, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_ADDRINUSE) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -938,11 +977,19 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket1, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV6), port);
+    dmSocket::Address bindaddress1;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress1, false, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    dmSocket::Address bindaddress2;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress2, false, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(socket1, bindaddress1, port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
-    r = dmSocket::Bind(socket2, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV6), port);
+    r = dmSocket::Bind(socket2, bindaddress2, port);
     ASSERT_EQ(dmSocket::RESULT_ADDRINUSE, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_ADDRINUSE) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -968,7 +1015,11 @@ TEST(Socket, ServerSocketIPv4_Accept)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV4), port);
+    dmSocket::Address bindaddress;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress, true, false);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(socket, bindaddress, port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -1000,7 +1051,11 @@ TEST(Socket, ServerSocketIPv6_Accept)
 
     const int port = 9000;
 
-    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString(DM_UNIVERSAL_BIND_ADDRESS_IPV6), port);
+    dmSocket::Address bindaddress;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(socket, bindaddress, port);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
@@ -1069,7 +1124,11 @@ TEST(Socket, Timeout)
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 
-	r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("localhost"), 0);
+    dmSocket::Address bindaddress;
+    r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+	r = dmSocket::Bind(server_socket, bindaddress, 0);
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 

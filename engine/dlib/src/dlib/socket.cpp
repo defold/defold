@@ -767,7 +767,7 @@ namespace dmSocket
 
     Result GetHostByName(const char* name, Address* address, bool ipv4, bool ipv6)
     {
-        Result result = RESULT_UNKNOWN;
+        Result result = RESULT_HOST_NOT_FOUND;
 
         memset(address, 0x0, sizeof(Address));
         struct addrinfo hints;
@@ -806,10 +806,6 @@ namespace dmSocket
             }
 
             freeaddrinfo(res); // Free the head of the linked list
-        }
-        else
-        {
-            return RESULT_HOST_NOT_FOUND;
         }
 
         return result;
