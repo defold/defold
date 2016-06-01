@@ -4,7 +4,9 @@
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
+#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <arpa/inet.h>
+#endif
 
 #include "../dlib/network_constants.h"
 
@@ -96,8 +98,8 @@ TEST(Socket, BitDifference_Difference)
     dmSocket::Address instance1;
     dmSocket::Address instance2;
 
-    instance1.m_address[3] = 0b001001110;
-    instance2.m_address[3] = 0b011100110;
+    instance1.m_address[3] = 0x4e;
+    instance2.m_address[3] = 0xe6;
 
     ASSERT_EQ(3, dmSocket::BitDifference(instance1, instance2));
 }
@@ -107,8 +109,8 @@ TEST(Socket, BitDifference_Equal)
     dmSocket::Address instance1;
     dmSocket::Address instance2;
 
-    instance1.m_address[3] = 0b001001110;
-    instance2.m_address[3] = 0b001001110;
+    instance1.m_address[3] = 0xe6;
+    instance2.m_address[3] = 0xe6;
 
     ASSERT_EQ(0, dmSocket::BitDifference(instance1, instance2));
 }

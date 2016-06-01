@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 #include <ostream>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
@@ -13,7 +14,8 @@
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#typedef int socklen_t;
+#define snprintf _snprintf
+typedef int socklen_t;
 #else
 #error "Unsupported platform"
 #endif
