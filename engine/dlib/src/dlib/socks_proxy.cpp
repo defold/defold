@@ -9,7 +9,7 @@ namespace dmSocksProxy
         uint8_t            m_Version;
         uint8_t            m_CommandCode;
         uint16_t           m_Port;
-        dmSocket::Address  m_Address;
+        uint32_t           m_Address;
         char               m_UserID; // No support for userid. Null terminated string.
     };
 
@@ -23,6 +23,12 @@ namespace dmSocksProxy
 
     Result Connect(dmSocket::Address address, int port, dmSocket::Socket* socket, dmSocket::Result* socket_result)
     {
+        if (address.m_family != dmSocket::DOMAIN_IPV4)
+        {
+            // Socks v4 doesn't support IPv6.
+            return RESULT_SOCKET_ERROR;
+        }
+
         char* socks_proxy = getenv("DMSOCKS_PROXY");
         if (!socks_proxy)
             return RESULT_NO_DMSOCKS_PROXY_SET;
@@ -41,7 +47,7 @@ namespace dmSocksProxy
             return RESULT_SOCKET_ERROR;
         }
 
-        sock_res = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, socket);
+        sock_res = dmSocket::New(proxy_address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, socket);
         if (sock_res != dmSocket::RESULT_OK)
         {
             if (socket_result)
@@ -60,7 +66,7 @@ namespace dmSocksProxy
             return RESULT_SOCKET_ERROR;
         }
 
-        Request request = { 0x04, 0x01, htons(port), htonl(address), 0 };
+        Request request = { 0x04, 0x01, htons(port), *dmSocket::IPv4(&address), 0 };
         // NOTE: Due to alignment calculate size. Do *not* use sizeof(.)
         int request_size = 1 + 1 + 2 + 4 + 1;
 
