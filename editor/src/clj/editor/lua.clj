@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [editor.code :as code])
-  
+
   (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
 
 (set! *warn-on-reflection* true)
@@ -53,7 +53,7 @@
       (parse-unscoped-line line)))
 
 (defn- load-sdoc [path]
-  (try 
+  (try
     (with-open [in (io/input-stream (io/resource path))]
       (let [doc (-> (ScriptDoc$Document/newBuilder)
                   (.mergeFrom in)
@@ -167,7 +167,7 @@
       ;; logic for replacement offsets etc as lifted from old editor was borked so below is also broken and just for testing
       ;; probably need prefix length info etc from saner parsing
       (if (str/blank? namespace)
-        (let [match-length (- end start) 
+        (let [match-length (- end start)
               replacement-offset offset
               replacement-length 0
               replacement-string (subs display-string match-length)
@@ -196,33 +196,52 @@
   (map (partial doc-element-to-hint parse-result offset) elements))
 
 (defn compute-proposals [^String text offset ^String line]
-  (try 
+  (try
     (when-let [parse-result (or (parse-line line) (default-parse-result))]
       (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
     (catch Exception e
       (.printStackTrace e))))
 
-(def ^:private keywords (str/split "and break do else elseif end false for function if in local nil not or repeat return then true until while self require" #" "))
+(def  keywords
+  #{"not" "require"  "or"  "and"})
+
+(def self-keyword #{"self"})
+
+(def control-flow-keywords #{"break" "do" "else" "for" "if" "elseif" "return" "then" "repeat" "while" "until" "end" "function"
+                                       "local" "goto" "in"})
+
+(def constant-pattern #"^(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)")
+
+(defn match-regex [pattern s]
+(let [result (re-find pattern s)]
+    (when result
+      (if (string? result)
+        {:body result :length (count result)}
+        (let [first-group-match (->> result (remove nil?) first)]
+          {:body first-group-match :length (count first-group-match)})))))
+
+(defn match-constant [s]
+  (match-regex constant-pattern s))
 
 (defn- is-word-start [^Character c] (or (Character/isLetter c) (#{\_ \:} c)))
 (defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (#{\-} c)))
 
-(defn- match-multi-comment [charseq]
-  (when-let [match-open (code/match-string charseq "--[")]
+(defn- match-multi-comment [s]
+  (when-let [match-open (code/match-string s "--[")]
     (when-let [match-eqs (code/match-while-eq (:body match-open) \=)]
       (when-let [match-open2 (code/match-string (:body match-eqs) "[")]
-        (let [closing-marker (str "]" (apply str (repeat (:length match-eqs) \=)) "]")] 
+        (let [closing-marker (str "]" (apply str (repeat (:length match-eqs) \=)) "]")]
           (when-let [match-body (code/match-until-string (:body match-open2) closing-marker)]
             (code/combine-matches match-open match-eqs match-open2 match-body)))))))
 
-(defn- match-multi-open [charseq]
-  (when-let [match-open (code/match-string charseq "[")]
+(defn- match-multi-open [s]
+  (when-let [match-open (code/match-string s "[")]
     (when-let [match-eqs (code/match-while-eq (:body match-open) \=)]
       (when-let [match-open2 (code/match-string (:body match-eqs) "[")]
         (code/combine-matches match-open match-eqs match-open2)))))
 
-(defn- match-single-comment [charseq]
-  (when-let [match-open (code/match-string charseq "--")]
+(defn- match-single-comment [s]
+  (when-let [match-open (code/match-string s "--")]
     (when-not (match-multi-open (:body match-open))
       (when-let [match-body (code/match-until-eol (:body match-open))]
         (code/combine-matches match-open match-body)))))
@@ -265,6 +284,9 @@
              :rules
              [{:type :whitespace :space? #{\space \tab \newline \return}}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}
+              {:type :custom :scanner match-constant :class "constant"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}
               {:type :word :start? is-word-start :part? is-word-part :class "default"}
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
               {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
