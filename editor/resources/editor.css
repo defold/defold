@@ -940,8 +940,12 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #FFBBFF;
 }
 
-.lua.styled-text-area .library {
-    -styled-text-color: #00F5FF;
+.lua.styled-text-area .defold-keyword {
+    -styled-text-color: #33cc33;
+}
+
+.lua.styled-text-area .operator {
+    -styled-text-color: #33cccc;
 }
 
 .lua.styled-text-area .default,
