@@ -936,6 +936,10 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #FFBBFF;
 }
 
+.lua.styled-text-area .library {
+    -styled-text-color: #00F5FF;
+}
+
 .lua.styled-text-area .default,
 .glsl.styled-text-area .default {
     -styled-text-color: #f0f2f6;
