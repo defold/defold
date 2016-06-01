@@ -2,6 +2,8 @@
 #define DM_SOCKET_H
 
 #include <stdint.h>
+#include <string.h>
+#include <ostream>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <sys/socket.h>
@@ -11,6 +13,7 @@
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#typedef int socklen_t;
 #else
 #error "Unsupported platform"
 #endif
@@ -79,11 +82,6 @@ namespace dmSocket
      */
     typedef int Socket;
 
-    /**
-     * Network address
-     */
-    typedef uint32_t Address;
-
     enum SelectorKind
     {
         SELECTOR_KIND_READ   = 0,
@@ -97,14 +95,6 @@ namespace dmSocket
         FLAGS_RUNNING = (1 << 1),
         FLAGS_INET = (1 << 2),
         FLAGS_LINK = (1 << 3),
-    };
-
-    struct IfAddr
-    {
-        char     m_Name[128];
-        uint32_t m_Flags;
-        Address  m_Address;
-        uint8_t  m_MacAddress[6];
     };
 
     struct Selector;
@@ -128,6 +118,17 @@ namespace dmSocket
      * Invalid socket handle
      */
     const Socket INVALID_SOCKET_HANDLE = 0xffffffff;
+
+    /**
+     * Domain type
+     */
+    enum Domain
+    {
+        DOMAIN_MISSING = 0x0,     //!< DOMAIN_MISSING
+        DOMAIN_IPV4 = AF_INET,    //!< DOMAIN_IPV4
+        DOMAIN_IPV6 = AF_INET6,   //!< DOMAIN_IPV6
+        DOMAIN_UNKNOWN = 0xff,    //!< DOMAIN_UNKNOWN
+    };
 
     /**
      * Socket type
@@ -164,6 +165,69 @@ namespace dmSocket
     };
 
     /**
+     * Network address
+     * Network addresses were previously represented as an uint32_t, but in
+     * order to support IPv6 the internal representation was changed to a
+     * struct.
+     */
+    struct Address
+    {
+
+        Address() {
+            m_family = dmSocket::DOMAIN_MISSING;
+            memset(m_address, 0x0, sizeof(m_address));
+        }
+
+        Domain m_family;
+        uint32_t m_address[4];
+    };
+
+    /**
+     * Comparison operators for dmSocket::Address (network address).
+     * These operators are required since network code was initially designed
+     * with the assumption that addresses were stored as uint32_t (IPv4), and
+     * thus sortable.
+     */
+    inline bool operator==(const Address& lhs, const Address& rhs)
+    {
+        return memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr)) == 0;
+    }
+
+    inline bool operator< (const Address& lhs, const Address& rhs)
+    {
+        return memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr)) < 0;
+    }
+
+    inline bool operator!=(const Address& lhs, const Address& rhs) { return !operator==(lhs,rhs); }
+    inline bool operator> (const Address& lhs, const Address& rhs) { return  operator< (rhs,lhs); }
+    inline bool operator<=(const Address& lhs, const Address& rhs) { return !operator> (lhs,rhs); }
+    inline bool operator>=(const Address& lhs, const Address& rhs) { return !operator< (lhs,rhs); }
+
+    /**
+     * Stream operator for dmSocket::Address (network address).
+     * This operator is required so that a GTest failure can print out relevant
+     * information. The operator is not, and should never, be used in production
+     * code.
+     */
+    inline std::ostream & operator<<(std::ostream &os, const dmSocket::Address& address) {
+        char buffer[39 + 1] = { 0 };
+        snprintf(buffer, sizeof(buffer), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+            address.m_address[0] & 0xff00, address.m_address[0] & 0x00ff,
+            address.m_address[1] & 0xff00, address.m_address[1] & 0x00ff,
+            address.m_address[2] & 0xff00, address.m_address[2] & 0x00ff,
+            address.m_address[3] & 0xff00, address.m_address[3] & 0x00ff);
+        return os << buffer;
+    }
+
+    struct IfAddr
+    {
+        char     m_Name[128];
+        uint32_t m_Flags;
+        Address  m_Address;
+        uint8_t  m_MacAddress[6];
+    };
+
+    /**
      * Initialize socket system. Network initialization is required on some platforms.
      * @return RESULT_OK on success
      */
@@ -184,7 +248,7 @@ namespace dmSocket
      * @param socket Pointer to created socket
      * @return RESULT_OK on succcess
      */
-    Result New(Type type, enum Protocol protocol, Socket* socket);
+    Result New(Domain domain, Type type, enum Protocol protocol, Socket* socket);
 
     /**
      * Delete a socket. Corresponds to BSD socket function close()
@@ -445,9 +509,11 @@ namespace dmSocket
      * Get host by name.
      * @param name  Hostname to resolve
      * @param address Host address result
+     * @param ipv4 Whether or not to search for IPv4 addresses
+     * @param ipv6 Whether or not to search for IPv6 addresses
      * @return RESULT_OK on success
      */
-    Result GetHostByName(const char* name, Address* address);
+    Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
 
     /**
      * Get information about network adapters (loopback devices are not included)
@@ -465,6 +531,54 @@ namespace dmSocket
      * @return Result as string
      */
     const char* ResultToString(Result result);
+
+    /**
+     * Check if a network address is empty (all zeroes).
+     * @param address The address to check
+     * @return True if the address is empty, false otherwise
+     */
+    bool Empty(Address address);
+
+    /**
+     * Return a pointer to the IPv4 buffer of address.
+     * @note Make sure the address family of address is actually AF_INET before
+     * attempting to retrieve the IPv4 buffer, otherwise an assert will trigger.
+     * @param address Pointer to the address containing the buffer
+     * @return Pointer to the buffer that holds the IPv4 address
+     */
+    uint32_t* IPv4(Address* address);
+
+    /**
+     * Return a pointer to the IPv6 buffer of address.
+     * @note Make sure the address family of address is actually AF_INET6 before
+     * attempting to retrieve the IPv6 buffer, otherwise an assert will trigger.
+     * @param address Pointer to the address containing the buffer
+     * @return Pointer to the buffer that holds the IPv6 address
+     */
+    uint32_t* IPv6(Address* address);
+
+    /**
+     * Checks if a socket was created for IPv4 (AF_INET).
+     * @param socket The socket to check
+     * @return True if the socket was created for IPv4 communication, false otherwise
+     */
+    bool IsSocketIPv4(Socket socket);
+
+    /**
+     * Checks if a socket was created for IPv6 (AF_INET6).
+     * @param socket The socket to check
+     * @return True if the socket was created for IPv6 communication, false otherwise
+     */
+    bool IsSocketIPv6(Socket socket);
+
+    /**
+     * Calculate the number of bits that differs between address a and b.
+     * @note This is used for the Hamming Distance.
+     * @param a The first address to compare
+     * @param b The second address to compare
+     * @return Number of bits that differs between a and b
+     */
+    uint32_t BitDifference(Address a, Address b);
 
 }
 
