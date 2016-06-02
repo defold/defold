@@ -950,7 +950,8 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #33cc33;
 }
 
-.lua.styled-text-area .operator {
+.lua.styled-text-area .operator,
+.glsl.styled-text-area .operator {
     -styled-text-color: #33cccc;
 }
 
