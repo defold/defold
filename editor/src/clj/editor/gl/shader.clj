@@ -504,11 +504,40 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 
 (def storage-types-pattern #"^\b(void|bool|int|uint|float|double|vec[2|3|4]|dvec[2|3|4]|bvec[2|3|4]|ivec[2|3|4]|uvec[2|3|4]|mat[2|3|4]|mat2x2|mat2x3|mat2x4|mat3x2|mat3x3|mat3x4|mat4x2|mat4x3|mat4x4|dmat2|dmat3|dmat4|dmat2x2|dmat2x3|dmat2x4|dmat3x2|dmat3x3|dmat3x4|dmat4x2|dmat4x3|dmat4x4|sampler[1|2|3]D|image[1|2|3]D|samplerCube|imageCube|sampler2DRect|image2DRect|sampler[1|2]DArray|image[1|2]DArray|samplerBuffer|imageBuffer|sampler2DMS|image2DMS|sampler2DMSArray|image2DMSArray|samplerCubeArray|imageCubeArray|sampler[1|2]DShadow|sampler2DRectShadow|sampler[1|2]DArrayShadow|samplerCubeShadow|samplerCubeArrayShadow|isampler[1|2|3]D|iimage[1|2|3]D|isamplerCube|iimageCube|isampler2DRect|iimage2DRect|isampler[1|2]DArray|iimage[1|2]DArray|isamplerBuffer|iimageBuffer|isampler2DMS|iimage2DMS|isampler2DMSArray|iimage2DMSArray|isamplerCubeArray|iimageCubeArray|atomic_uint|usampler[1|2|3]D|uimage[1|2|3]D|usamplerCube|uimageCube|usampler2DRect|uimage2DRect|usampler[1|2]DArray|uimage[1|2]DArray|usamplerBuffer|uimageBuffer|usampler2DMS|uimage2DMS|usampler2DMSArray|uimage2DMSArray|usamplerCubeArray|uimageCubeArray|struct)\b")
 
+(def arithmetic-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(\+|\-|\*|\/|\%)(?![/=\-+!*%><&|^~.])")
+(def increment-decrement-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(\+\+|\-\-)(?![/=\-+!*%><&|^~.])")
+(def bitwise-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(~|&|\||\^|<<|>>)(?![/=\-+!*%<>&|^~.])")
+(def assignment-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(\+|\-|\*|\%|\/|<<|>>|&|\^|\|)?=(?![/=\-+!*%<>&|^~.])")
+(def comparative-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])((=|!)=|(&lt;|&gt;)=?)(?![/=\-+!*%<>&|^~.])")
+(def logical-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(!|&&|\|\||\^\^)(?![/=\-+!*%<>&|^~.])")
+(def ternary-operator-pattern #"^(\?|:)")
+
 (defn match-directive [s]
   (code/match-regex directive-pattern s))
 
 (defn match-storage-types [s]
   (code/match-regex storage-types-pattern s))
+
+(defn match-arithmetic-operator [s]
+  (code/match-regex arithmetic-operator-pattern s))
+
+(defn match-increment-decrement-operator [s]
+  (code/match-regex increment-decrement-operator-pattern s))
+
+(defn match-bitwise-operator [s]
+  (code/match-regex bitwise-operator-pattern s))
+
+(defn match-assignment-operator [s]
+  (code/match-regex assignment-operator-pattern s))
+
+(defn match-comparative-operator [s]
+  (code/match-regex comparative-operator-pattern s))
+
+(defn match-logical-operator [s]
+  (code/match-regex logical-operator-pattern s))
+
+(defn match-ternary-operator [s]
+  (code/match-regex ternary-operator-pattern s))
 
 (def glsl-opts {:code {:language "glsl"
                        :syntax
@@ -541,6 +570,13 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                            {:type :keyword :start? is-word-start :part? is-word-part :keywords support-function-keywords :class "support-function-keyword"}
                            {:type :custom :scanner match-directive :class "directive"}
                            {:type :custom :scanner match-storage-types :class "storage-type"}
+                           {:type :custom :scanner match-arithmetic-operator :class "operator"}
+                           {:type :custom :scanner match-increment-decrement-operator :class "operator"}
+                           {:type :custom :scanner match-bitwise-operator :class "operator"}
+                           {:type :custom :scanner match-assignment-operator :class "operator"}
+                           {:type :custom :scanner match-comparative-operator :class "operator"}
+                           {:type :custom :scanner match-logical-operator :class "operator"}
+                           {:type :custom :scanner match-ternary-operator :class "operator"}
 
                            {:type :word :start? is-word-start :part? is-word-part :class "default"}
                            {:type :number :class "number"}
