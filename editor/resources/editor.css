@@ -936,7 +936,9 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #E3A869;
 }
 
-.lua.styled-text-area .control-flow-keyword {
+.lua.styled-text-area .control-flow-keyword,
+.glsl.styled-text-area .control-flow-keyword
+ {
     -styled-text-color: #fd6623;
 }
 
@@ -978,6 +980,35 @@ Defold Orange       #fd6623             Guides etc
 .glsl.selection-marker {
     -fx-background-color: #8f9296;
 }
+
+.glsl.styled-text-area .directive {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .macro-keyword {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .precision-keyword {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .storage-type {
+    -styled-text-color: #33cc33;
+}
+
+.glsl.styled-text-area .storage-modifier-keyword {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .support-variable-keyword {
+   -styled-text-color: f0f2f6
+}
+
+.glsl.styled-text-area .support-function-keyword {
+    -styled-text-color: #fd6623;
+}
+
 
 .styled-text-area .text-caret {
 	-fx-fill: white;
