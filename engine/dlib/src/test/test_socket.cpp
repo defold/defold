@@ -816,6 +816,7 @@ TEST(Socket, GetHostByName_IPv4_External)
 
 TEST(Socket, GetHostByName_IPv6_External)
 {
+#if !defined(_WIN32)
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "ipv6-test.com";
@@ -823,6 +824,10 @@ TEST(Socket, GetHostByName_IPv6_External)
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV6, address.m_family);
+#else
+    printf("[   INFO   ] Test for GetHostByName/IPv6 is disabled on Windows.\n");
+    ASSERT_TRUE(true);
+#endif
 }
 
 TEST(Socket, GetHostByName_IPv4_Unavailable)
