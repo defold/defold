@@ -555,10 +555,11 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                           :type :default
                           :rules
                           [{:type :whitespace :space? #{\space \tab \newline \return}}
-                           {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
-                           {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
                            {:type :custom :scanner match-multi-comment :class "comment-multi"}
                            {:type :custom :scanner match-single-comment :class "comment"}
+
+                           {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
+                           {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
 
                           ; {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
                            {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}
