@@ -284,7 +284,8 @@
              :type :default
              :rules
              [{:type :whitespace :space? #{\space \tab \newline \return}}
-              {:type :custom :scanner match-constant :class "constant"}
+              {:type :custom :scanner match-single-comment :class "comment"}
+              {:type :custom :scanner match-multi-comment :class "comment-multi"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords defold-keywords :class "defold-keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords helper-keywords :class "helper-keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}
@@ -293,10 +294,9 @@
               {:type :word :start? is-word-start :part? is-word-part :class "default"}
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
               {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
-              {:type :custom :scanner match-single-comment :class "comment"}
-              {:type :custom :scanner match-multi-comment :class "comment-multi"}
-              {:type :number :class "number"}
+              {:type :custom :scanner match-constant :class "constant"}
               {:type :custom :scanner match-operator :class "operator"}
+              {:type :number :class "number"}
               {:type :default :class "default"}
               ]}
             ]}
