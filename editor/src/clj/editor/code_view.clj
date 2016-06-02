@@ -57,6 +57,7 @@
       ;; display the text selection property after you change the text programatically
       ;; when it's resolved uncomment
       ;(cvx/text-selection! source-viewer selection-offset selection-length)
+      (cvx/caret! source-viewer caret-position false)
     )
     (cvx/caret! source-viewer caret-position false))
   [code-node code caret-position])
