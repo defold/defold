@@ -20,12 +20,33 @@ struct ServerThreadInfo
         port = 0;
         domain = dmSocket::DOMAIN_MISSING;
         listening = false;
+        sent = false;
     }
 
     uint16_t port;
     dmSocket::Domain domain;
     bool listening;
+    bool sent;
 };
+
+void WaitForBool(bool* lock)
+{
+    const uint32_t maximum_wait = 5000; // milliseconds
+    const uint32_t wait_timeout = 100;  // milliseconds
+    uint32_t wait_count = 0;
+    for (int i = 0; i < (maximum_wait / wait_timeout); ++i)
+    {
+        if (!(*lock))
+        {
+            wait_count += 1;
+            dmTime::Sleep(wait_timeout * 1000); // nanoseconds
+        }
+    }
+
+    printf("Waited for %d/%d counts (%d ms each)\n", wait_count, (maximum_wait / wait_timeout), wait_timeout);
+    ASSERT_TRUE(*lock);
+    dmTime::Sleep(5 * wait_timeout * 1000); // nanoseconds
+}
 
 static void ServerThread(void* arg)
 {
@@ -65,6 +86,8 @@ static void ServerThread(void* arg)
     result = dmSocket::Send(client_sock, &value, sizeof(value), &written);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
     ASSERT_EQ((int) sizeof(value), written);
+
+    info->sent = true;
 
     // Teardown
     result = dmSocket::Delete(client_sock);
@@ -378,17 +401,12 @@ TEST(Socket, Connect_IPv4_ThreadServer)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(socket), dmSocket::IsSocketIPv6(socket));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    for (int i = 0; i < 20; ++i) // Wait up to 2 seconds for the Server thread to kick in
-    {
-        if (!info.listening)
-            dmTime::Sleep(100000); // 100 ms
-    }
-
-    dmTime::Sleep(500000);
-    ASSERT_TRUE(info.listening);
+    WaitForBool(&info.listening);
 
     result = dmSocket::Connect(socket, address, CONST_TEST_PORT);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    WaitForBool(&info.sent);
 
     // Receive data from the server
     int value = 0;
@@ -423,17 +441,12 @@ TEST(Socket, Connect_IPv6_ThreadServer)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(socket), dmSocket::IsSocketIPv6(socket));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    for (int i = 0; i < 20; ++i) // Wait up to 2 seconds for the Server thread to kick in
-    {
-        if (!info.listening)
-            dmTime::Sleep(100000); // 100 ms
-    }
-
-    dmTime::Sleep(500000);
-    ASSERT_TRUE(info.listening);
+    WaitForBool(&info.listening);
 
     result = dmSocket::Connect(socket, address, CONST_TEST_PORT);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    WaitForBool(&info.sent);
 
     // Receive data from the server
     int value = 0;
@@ -805,7 +818,7 @@ TEST(Socket, GetHostByName_IPv6_External)
 {
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "ipv6.prod-cr-909202183.eu-west-1.elb.amazonaws.com";
+    const char* hostname = "ipv6-test.com";
 
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
