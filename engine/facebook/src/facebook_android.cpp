@@ -137,6 +137,7 @@ static void RunCallback(Command* cmd)
         int top = lua_gettop(L);
 
         int callback = g_Facebook.m_Callback;
+        g_Facebook.m_Callback = LUA_NOREF;
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
 
         // Setup self
@@ -158,7 +159,6 @@ static void RunCallback(Command* cmd)
         (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
-        g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }

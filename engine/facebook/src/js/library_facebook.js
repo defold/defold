@@ -86,6 +86,12 @@ var LibraryFacebook = {
             var par = JSON.parse(Pointer_stringify(params));
             par.method = Pointer_stringify(mth);
 
+            // if (par.filters == 2) {
+            //     par.filters = ["app_users"];
+            // } else if (par.filters == 3) {
+            //     par.filters = ["app_non_users"];
+            // }
+
             try {
                 FB.ui(par, function(response) {
                     // https://developers.facebook.com/docs/graph-api/using-graph-api/v2.0

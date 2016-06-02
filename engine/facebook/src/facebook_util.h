@@ -4,7 +4,7 @@
 namespace dmFacebook {
 
     /**
-     * Helper function to escapes "escapable character sequences" in a string.
+     * Helper function to escape "escapable character sequences" in a string.
      * Used by LuaDialogParamsToJson to escape strings and keys in the JSON table.
      * @param unescaped String to escape
      * @param escaped A user allocated char buffer where the escaped string will be stored.
@@ -30,10 +30,26 @@ namespace dmFacebook {
      * dialog functionality in the Android and JS Facebook SDKs.
      * @param L Lua state
      * @param index Stack location of Lua table
-     * @param json User allocated char buffer where the JSON string should be stored.
-     * @param json_max_length Size of the JSON buffer.
+     * @param json_buffer User allocated char buffer where the JSON string should be stored.
+     * @param json_buffer_size Size of the JSON buffer.
      * @return 1 on success, 0 on failure
      */
-    int LuaDialogParamsToJson(lua_State* L, int index, char* json, size_t json_max_length);
+    // int LuaDialogParamsToJson(lua_State* L, int index, char* json_buffer, size_t json_buffer_size);
+
+    int WriteEscapedJsonString(char* json_buffer, size_t json_buffer_size, const char* unescaped_value, size_t unescaped_value_len);
+    int LuaValueToJson(lua_State* L, int index, char* buffer, size_t buffer_size);
+
+    int DuplicateLuaTable(lua_State* L, int from_index, int to_index, int recursion);
+    int DialogTableToEmscripten(lua_State* L, const char* dialog_type, int from_index, int to_index);
+
+    /**
+     * Check if a Lua table can be considered an array.
+     * If the supplied table only has number keys in ascending order.
+     * @param L Lua state
+     * @param index Stack location of Lua table
+     * @return 1 if table can be considered an array, 0 otherwise
+     */
+    bool IsLuaArray(lua_State* L, int index);
+
 
 } // #ifndef DM_FACEBOOK_H
