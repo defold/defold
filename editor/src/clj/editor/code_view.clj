@@ -43,15 +43,21 @@
        (finally
          (reset! ~a old-val#)))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position]
+(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length]
   (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
-  (when (not= code (cvx/text source-viewer))
+    (when (not= code (cvx/text source-viewer))
     (try
       (cvx/text! source-viewer code)
       (catch Throwable e
         (println "exception during .set!")
         (.printStackTrace e))))
-  (when (not= caret-position (cvx/caret source-viewer))
+  (if (pos? selection-length)
+    (do 
+      ;; There is a bug somewhere in the e(fx)clipse that doesn't
+      ;; display the text selection property after you change the text programatically
+      ;; when it's resolved uncomment
+      ;(cvx/text-selection! source-viewer selection-offset selection-length)
+    )
     (cvx/caret! source-viewer caret-position false))
   [code-node code caret-position])
 
@@ -291,6 +297,8 @@
   (input code-node g/Int)
   (input code g/Str)
   (input caret-position g/Int)
+  (input selection-offset g/Int)
+  (input selection-length g/Int)
   (output new-content g/Any :cached update-source-viewer))
 
 (defn setup-code-view [view-id code-node initial-caret-position]
@@ -299,7 +307,11 @@
     (g/connect code-node :_node-id view-id :code-node)
     (g/connect code-node :code view-id :code)
     (g/connect code-node :caret-position view-id :caret-position)
-    (g/set-property code-node :caret-position initial-caret-position)))
+    (g/connect code-node :selection-offset view-id :selection-offset)
+    (g/connect code-node :selection-length view-id :selection-length)
+    (g/set-property code-node :caret-position initial-caret-position)
+    (g/set-property code-node :selection-offset 0)
+    (g/set-property code-node :selection-length 0)))
   view-id)
 
 (extend-type Clipboard
@@ -353,12 +365,22 @@
   cvx/TextUndo
   (changes! [this]
     (let [code-node-id (-> this (.getTextWidget) (code-node))
-          code-changed? (not= (cvx/text this) (g/node-value code-node-id :code))
-          caret-changed? (not= (cvx/caret this) (g/node-value code-node-id :caret-position))]
-      (when (or code-changed? caret-changed?)
+          selection-offset (cvx/selection-offset this)
+          selection-length (cvx/selection-length this)
+          code (cvx/text this)
+          caret (cvx/caret this)
+          code-changed? (not= code (g/node-value code-node-id :code))
+          caret-changed? (not= caret (g/node-value code-node-id :caret-position))
+          selection-changed? (or (not= selection-offset (g/node-value code-node-id :selection-offset))
+                                 (not= selection-length (g/node-value code-node-id :selection-length)))]
+      (when (or code-changed? caret-changed? selection-changed?)
         (g/transact (remove nil?
-                            [(when code-changed? (g/set-property code-node-id :code (cvx/text this)))
-                             (when caret-changed? (g/set-property code-node-id :caret-position (cvx/caret this))) ]))))))
+                            (concat
+                             (when code-changed?  [(g/set-property code-node-id :code code)])
+                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)]) 
+                             (when selection-changed?
+                               [(g/set-property code-node-id :selection-offset selection-offset)
+                                (g/set-property code-node-id :selection-length selection-length)]))))))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
