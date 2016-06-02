@@ -158,18 +158,23 @@
   (let [code (if (= click-count 2) :Double-Click :Single-Click)]
     (get mappings code)))
 
-(defn handle-key-pressed [e source-viewer]
+(defn- is-mac-os? []
+  (= "Mac OS X" (System/getProperty "os.name")))
+
+(defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
-        kf (key-fn k-info (.getCode ^KeyEvent e))]
-    (when (and (:command kf) (not (:label kf)))
+        kf (key-fn k-info (.getCode e))]
+
+    (when (and (is-mac-os?) (or (= KeyCode/ALT (.getCode e)) (.isAltDown e)))
+      (.consume e))
+
+    (when (and  (not (.isConsumed e)) (:command kf) (not (:label kf)))
       (handler/run
         (:command kf)
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
         k-info)
-      (changes! source-viewer))))
-
-(defn- is-mac-os? []
-  (= "Mac OS X" (System/getProperty "os.name")))
+      (changes! source-viewer)
+      (.consume e))))
 
 (defn is-not-typable-modifier? [e]
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
