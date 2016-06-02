@@ -226,9 +226,17 @@ size_t dmFacebook::LuaStringCommaArray(lua_State* L, int index, char* buffer, si
 
 int dmFacebook::LuaValueToJson(lua_State* L, int index, char* buffer, size_t buffer_size)
 {
+    int top = lua_gettop(L);
     int value_type = lua_type(L, index);
     size_t len = 0;
     const char* v = 0;
+
+    // need space for null term
+    if (buffer_size < 1) {
+        return 0;
+    }
+    buffer_size--;
+
     switch (value_type) {
         case LUA_TSTRING:
             // String entries need to be escaped and enclosed with citations
@@ -262,23 +270,58 @@ int dmFacebook::LuaValueToJson(lua_State* L, int index, char* buffer, size_t buf
 
     buffer[len] = '\0';
 
-    // TODO check buffer overflow
-
+    assert(top == lua_gettop(L));
     return len;
+}
+
+int dmFacebook::DialogTableToAndroid(lua_State* L, const char* dialog_type, int from_index, int to_index)
+{
+    int r = DuplicateLuaTable(L, from_index, to_index, 0);
+    if (!r) {
+        dmLogError("Could not create Android specific dialog param table.");
+        return 0;
+    }
+
+    if (strcmp(dialog_type, "apprequest") == 0 || strcmp(dialog_type, "apprequests") == 0)
+    {
+        // need to convert "to" field into comma separated list if table
+        lua_getfield(L, to_index, "to");
+        if (lua_type(L, lua_gettop(L)) == LUA_TTABLE) {
+            char t_buf[2048];
+            size_t t = LuaStringCommaArray(L, lua_gettop(L), t_buf, 2048);
+            lua_pushstring(L, t_buf);
+            lua_setfield(L, to_index, "to");
+        }
+        lua_pop(L, 1);
+    }
+
+    return 1;
 }
 
 int dmFacebook::DialogTableToEmscripten(lua_State* L, const char* dialog_type, int from_index, int to_index)
 {
     int r = DuplicateLuaTable(L, from_index, to_index, 0);
     if (!r) {
-        dmLogError("Could not create Emscripten dialog param table.");
+        dmLogError("Could not create Emscripten specific dialog param table.");
         return 0;
     }
 
-    if (strcmp(dialog_type, "apprequests") == 0)
+    if (strcmp(dialog_type, "apprequest") == 0 || strcmp(dialog_type, "apprequests") == 0)
     {
         // need to convert "to" field into comma separated list if table
         lua_getfield(L, to_index, "to");
+        if (lua_type(L, lua_gettop(L)) == LUA_TTABLE) {
+            char t_buf[2048];
+            size_t t = LuaStringCommaArray(L, lua_gettop(L), t_buf, 2048);
+            lua_pushstring(L, t_buf);
+            lua_setfield(L, to_index, "to");
+        }
+        lua_pop(L, 1);
+
+        // if recipients is a table, concat to comma separated list and override "to" field
+        // (Since FB JS not have "recipient" field, we utilize the "to" field to have same
+        // functionality and API as other platforms.)
+        lua_getfield(L, to_index, "recipients");
         if (lua_type(L, lua_gettop(L)) == LUA_TTABLE) {
             char t_buf[2048];
             size_t t = LuaStringCommaArray(L, lua_gettop(L), t_buf, 2048);
@@ -314,11 +357,11 @@ int dmFacebook::DialogTableToEmscripten(lua_State* L, const char* dialog_type, i
     return 1;
 }
 
-int dmFacebook::DuplicateLuaTable(lua_State* L, int from_index, int to_index, int recursion)
+int dmFacebook::DuplicateLuaTable(lua_State* L, int from_index, int to_index, int recursion_depth)
 {
     assert(lua_istable(L, from_index));
     assert(lua_istable(L, to_index));
-    if (recursion >= MAX_DUPLICATE_TABLE_RECURSION) {
+    if (recursion_depth >= MAX_DUPLICATE_TABLE_RECURSION) {
         dmLogError("Max recursion depth reached (%d) when duplicating Lua table.", MAX_DUPLICATE_TABLE_RECURSION);
         return 0;
     }
@@ -358,7 +401,7 @@ int dmFacebook::DuplicateLuaTable(lua_State* L, int from_index, int to_index, in
                 break;
             case LUA_TTABLE:
                 lua_newtable(L);
-                ret = DuplicateLuaTable(L, value_index, lua_gettop(L), recursion++);
+                ret = DuplicateLuaTable(L, value_index, lua_gettop(L), recursion_depth++);
                 break;
             default:
                 dmLogError("invalid value type: %s (%x)", lua_typename(L, value_type), value_type);
@@ -374,71 +417,3 @@ int dmFacebook::DuplicateLuaTable(lua_State* L, int from_index, int to_index, in
     assert(top == lua_gettop(L));
     return ret;
 }
-
-/*
-int dmFacebook::LuaDialogParamsToJson(lua_State* L, int index, char* json, size_t json_max_length)
-{
-
-    int cursor = 0;
-    if (json_max_length < 1) {
-        return 0;
-    }
-
-    json[cursor++] = '{';
-
-    lua_pushnil(L);
-    int i = 0;
-    while (lua_next(L, index) != 0) {
-
-        size_t key_len = 0;
-        size_t value_len = 0;
-        char* key = (char*)lua_tolstring(L, -2, &key_len);
-        char* value = NULL;
-
-        // value, must be table (converts to comma separated string array) or convertable to string
-        char* tmp = NULL;
-        if (lua_istable(L, -1)) {
-            tmp = (char*)malloc(json_max_length*sizeof(char));
-            if (tmp != NULL) {
-                // value_len = LuaStringCommaArray(L, lua_gettop(L), tmp, json_max_length);
-                value = tmp;
-            }
-        } else {
-            value = (char*)lua_tolstring(L, -1, &value_len);
-        }
-        lua_pop(L, 1);
-
-        // append a entry separator
-        if (i > 0) {
-            if (0 == WriteString(json, (char*)", ", cursor, json_max_length, 2)) {
-                if (tmp) {
-                    free(tmp);
-                }
-                return 0;
-            }
-            cursor += 2;
-        }
-
-        // Create key-value-string pair and append to JSON string
-        if (0 == AppendJsonKeyValue(json, json_max_length, cursor, key, key_len, value, value_len)) {
-            if (tmp) {
-                free(tmp);
-            }
-            return 0;
-        }
-
-        // free 'tmp' if it was allocated above
-        if (tmp) {
-            free(tmp);
-        }
-
-        ++i;
-    }
-
-    if (0 == WriteString(json, (char*)"}\0", cursor, json_max_length, 2)) {
-        return 0;
-    }
-
-    return 1;
-}
-*/

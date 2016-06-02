@@ -641,12 +641,22 @@ int Facebook_ShowDialog(lua_State* L)
 
     JNIEnv* env = Attach();
 
+    lua_newtable(L);
+    int to_index = lua_gettop(L);
+    if (0 == dmFacebook::DialogTableToAndroid(L, dialog, 2, to_index)) {
+        lua_pop(L, 1);
+        luaL_error(L, "Could not convert show dialog param table.");
+        return 0;
+    }
+
     int json_max_length = 2048;
     char params_json[json_max_length];
-    if (0 == dmFacebook::LuaDialogParamsToJson(L, 2, params_json, json_max_length)) {
+    if (0 == dmFacebook::LuaValueToJson(L, to_index, params_json, json_max_length)) {
+        lua_pop(L, 1);
         luaL_error(L, "Dialog params table too large.");
         return 0;
     }
+    lua_pop(L, 1);
 
     jstring str_dialog = env->NewStringUTF(dialog);
     jstring str_params = env->NewStringUTF(params_json);

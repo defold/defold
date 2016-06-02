@@ -143,6 +143,7 @@ TEST_F(FBTest, InvalidValueToJson)
     lua_pushcfunction(L, NULL);
     lua_pushlightuserdata(L, NULL);
     lua_pushthread(L);
+    lua_pushnumber(L, 1);
 
     ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 1, json, 256));
     ASSERT_STREQ("", json);
@@ -151,6 +152,14 @@ TEST_F(FBTest, InvalidValueToJson)
     ASSERT_STREQ("", json);
 
     ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 3, json, 256));
+    ASSERT_STREQ("", json);
+
+    char small_buffer[2];
+    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 4, small_buffer, 0));
+    ASSERT_STREQ("", json);
+    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 4, small_buffer, 1));
+    ASSERT_STREQ("", json);
+    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 4, small_buffer, 2));
     ASSERT_STREQ("", json);
 }
 
@@ -363,6 +372,45 @@ TEST_F(FBTest, DuplicateTable)
     lua_getfield(L, -1, "abcd");
     ASSERT_STREQ("userid2", lua_tostring(L, -1));
     lua_pop(L, 2);
+    ASSERT_EQ(to_index, lua_gettop(L));
+}
+
+TEST_F(FBTest, DialogTableConversionAndroid)
+{
+    lua_State* L = luaL_newstate();
+    lua_newtable(L);
+    lua_pushstring(L, "to");
+        lua_newtable(L);
+        lua_pushnumber(L, 1);
+        lua_pushstring(L, "userid1");
+        lua_rawset(L, -3);
+        lua_pushnumber(L, 2);
+        lua_pushstring(L, "userid2");
+        lua_rawset(L, -3);
+        lua_pushnumber(L, 3);
+        lua_pushstring(L, "userid3");
+        lua_rawset(L, -3);
+    lua_rawset(L, -3);
+    lua_pushstring(L, "filters");
+    lua_pushnumber(L, dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
+    lua_rawset(L, -3);
+    int from_index = lua_gettop(L);
+
+    lua_newtable(L);
+    int to_index = lua_gettop(L);
+
+    ASSERT_EQ(1, dmFacebook::DialogTableToAndroid(L, (char*)"apprequests", from_index, to_index));
+    ASSERT_EQ(to_index, lua_gettop(L));
+
+    lua_getfield(L, to_index, "to");
+    ASSERT_STREQ("userid1,userid2,userid3", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, to_index, "filters");
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(dmFacebook::GAMEREQUEST_FILTER_APPUSERS, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
     ASSERT_EQ(to_index, lua_gettop(L));
 }
 
