@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [editor.code :as code])
-
+ 
   (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
 
 (set! *warn-on-reflection* true)
@@ -53,7 +53,7 @@
       (parse-unscoped-line line)))
 
 (defn- load-sdoc [path]
-  (try
+  (try 
     (with-open [in (io/input-stream (io/resource path))]
       (let [doc (-> (ScriptDoc$Document/newBuilder)
                   (.mergeFrom in)
@@ -167,7 +167,7 @@
       ;; logic for replacement offsets etc as lifted from old editor was borked so below is also broken and just for testing
       ;; probably need prefix length info etc from saner parsing
       (if (str/blank? namespace)
-        (let [match-length (- end start)
+        (let [match-length (- end start) 
               replacement-offset offset
               replacement-length 0
               replacement-string (subs display-string match-length)
@@ -196,7 +196,7 @@
   (map (partial doc-element-to-hint parse-result offset) elements))
 
 (defn compute-proposals [^String text offset ^String line]
-  (try
+  (try 
     (when-let [parse-result (or (parse-line line) (default-parse-result))]
       (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
     (catch Exception e
