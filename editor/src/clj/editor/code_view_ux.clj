@@ -175,8 +175,8 @@
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
     (not (or (.isControlDown ^KeyEvent e) (and (is-mac-os?) (.isAltDown ^KeyEvent e))))))
 
-(defn handle-key-typed [e source-viewer]
-  (let [key-typed (.getCharacter ^KeyEvent e)]
+(defn handle-key-typed [^KeyEvent e source-viewer]
+  (let [key-typed (.getCharacter e)]
     (when-not (is-not-typable-modifier? e)
       (handler/run
         :key-typed
@@ -206,16 +206,17 @@
         caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
     (preferred-offset! caret-col)))
 
-(defn handle-mouse-clicked [e source-viewer]
-  (let [click-count (.getClickCount ^MouseEvent e)
+(defn handle-mouse-clicked [^MouseEvent e source-viewer]
+  (let [click-count (.getClickCount e)
         cf (click-fn click-count)
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
-    (changes! source-viewer)
     (when cf (handler/run
                (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-               e))))
+               e))
+    (changes! source-viewer)
+    (.consume e)))
 
 (defn- replace-text-selection [selection s]
   (replace! selection (selection-offset selection) (selection-length selection) s)
