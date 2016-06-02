@@ -804,7 +804,6 @@ namespace dmSocket
             struct addrinfo* iterator = res;
             while (iterator && result == RESULT_HOST_NOT_FOUND)
             {
-                dmLogError("Got a response: %d (ipv4: %d, ipv6: %d)", iterator->ai_family, AF_INET, AF_INET6);
                 // There could be (and probably are) multiple results for the same
                 // address. The correct way to handle this would be to return a
                 // list of addresses and then try each of them until one succeeds.
