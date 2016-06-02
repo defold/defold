@@ -429,46 +429,6 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
       (code/combine-matches match-open match-body))))
 
 
-(def ^:private basic-types ["void" "bool" "int" "float"])
-
-(def ^:private vec-types (for [tp ["" "i" "b"]
-                               n (range 2 4)]
-                           (str tp "vec" n)))
-
-(def ^:private mat-types (for [n (range 2 4)]
-                            (str "mat" n)))
-
-(def ^:private literals ["true" "false"])
-
-(def ^:private extension-behaviors ["require" "enable" "warn" "disable"])
-
-(def ^:private pp-directives (map (partial str "#") (string/split "define undef if ifdef ifndef else elif endif error pragma extension version line" #" ")))
-
-(def ^:private storage-qualifiers ["const" "attribute" "uniform" "varying"])
-
-(def ^:private parameter-qualifiers ["in" "out" "inout"])
-
-(def ^:private precision-qualifiers ["lowp" "mediump" "highp"])
-
-(def ^:private other-keywords (string/split "break continue do for while if else precision invariant discard return sampler2D samplerCube struct" #" "))
-
-(def ^:private reserved (string/split "asm class union enum typedef template this packed goto switch default inline noinline volatile public static extern external interface flat long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 dvec4 fvec2 fvec3 fvec4 sampler1D sampler3D sampler1DShadow sampler2dShadow sampler2DRect sampler3DRect sampler2DRectShadow sizeof cast namespace using" #" "))
-
-(def ^:private keywords (concat basic-types
-                                vec-types
-                                mat-types
-                                literals
-                                extension-behaviors
-                                storage-qualifiers
-                                parameter-qualifiers
-                                precision-qualifiers
-                                other-keywords
-                                reserved))
-
-(def ^:private operators (string/split "( ) [ ] . ++ -- + - ~ ! * / % << >> < > <= >= == != & ^ | && ^^ || ? : = += -= *= /= %= <<= >>= &= ^= |= ," #" "))
-
-;;; new start here
-
 (def control-flow-keywords #{ "break" "case" "continue" "default" "discard" "do" "else" "for" "if" "return" "switch" "while" })
 
 (def directive-pattern #"^\s*#\s*(define|undef|if|ifdef|ifndef|else|elif|endif|error|pragma|extension|version|line)\b")
