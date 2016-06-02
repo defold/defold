@@ -12,9 +12,6 @@ message ProjectTemplate {
 message Configuration
 {
     required int32 service_port = 4;
-    optional int32 ssl_service_port = 41;
-    optional string keystore = 42;
-    optional string keystore_password = 43;
     // Exposed port to the client, i.e. editor
     required int32 git_port = 40;
     required string persistence_unit_name = 6;
