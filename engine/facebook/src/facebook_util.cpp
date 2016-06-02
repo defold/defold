@@ -11,7 +11,7 @@ static int WriteString(char* dst, size_t dst_size, const char* src, size_t src_s
         return 0;
     }
 
-    for (int i = 0; i < src_size; ++i) {
+    for (size_t i = 0; i < src_size; ++i) {
         dst[i] = src[i];
     }
 
@@ -96,9 +96,10 @@ bool dmFacebook::IsLuaArray(lua_State* L, int index)
 
 int dmFacebook::EscapeJsonString(const char* unescaped, char* escaped, char* end_ptr)
 {
-    if (escaped == NULL) {
+    if (unescaped == NULL || escaped == NULL) {
         return 0;
     }
+
     // keep going through the unescaped until null terminating
     // always need at least 3 chars left in escaped buffer,
     // 2 for char expanding + 1 for null term
@@ -153,6 +154,10 @@ int dmFacebook::EscapeJsonString(const char* unescaped, char* escaped, char* end
 
 int dmFacebook::WriteEscapedJsonString(char* json, size_t json_size, const char* value, size_t value_len)
 {
+    if (json == NULL || value == NULL) {
+        return 0;
+    }
+
     // allocate buffers to hold the escaped key and value strings
     char *value_escaped = (char*)malloc((1+value_len*2)*sizeof(char));
 
