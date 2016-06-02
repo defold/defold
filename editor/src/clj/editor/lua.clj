@@ -218,19 +218,11 @@
 (def constant-pattern #"^(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)")
 (def operator-pattern #"^(\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
 
-(defn match-regex [pattern s]
-(let [result (re-find pattern s)]
-    (when result
-      (if (string? result)
-        {:body result :length (count result)}
-        (let [first-group-match (->> result (remove nil?) first)]
-          {:body first-group-match :length (count first-group-match)})))))
-
 (defn match-constant [s]
-  (match-regex constant-pattern s))
+  (code/match-regex constant-pattern s))
 
 (defn match-operator [s]
-  (match-regex operator-pattern s))
+  (code/match-regex operator-pattern s))
 
 (defn- is-word-start [^Character c] (or (Character/isLetter c) (#{\_ \:} c)))
 (defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (#{\-} c)))

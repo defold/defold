@@ -34,3 +34,11 @@
 
 (defn combine-matches [& matches]
   {:body (last matches) :length (apply + (map :length matches))})
+
+(defn match-regex [pattern s]
+(let [result (re-find pattern s)]
+    (when result
+      (if (string? result)
+        {:body result :length (count result)}
+        (let [first-group-match (->> result (remove nil?) first)]
+          {:body first-group-match :length (count first-group-match)})))))
