@@ -137,6 +137,7 @@ static void RunCallback(Command* cmd)
         int top = lua_gettop(L);
 
         int callback = g_Facebook.m_Callback;
+        g_Facebook.m_Callback = LUA_NOREF;
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
 
         // Setup self
@@ -158,7 +159,6 @@ static void RunCallback(Command* cmd)
         (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
-        g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
@@ -641,12 +641,21 @@ int Facebook_ShowDialog(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    int json_max_length = 2048;
-    char params_json[json_max_length];
-    if (0 == dmFacebook::LuaDialogParamsToJson(L, 2, params_json, json_max_length)) {
-        luaL_error(L, "Dialog params table too large.");
-        return 0;
+    lua_newtable(L);
+    int to_index = lua_gettop(L);
+    if (0 == dmFacebook::DialogTableToAndroid(L, dialog, 2, to_index)) {
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "Could not convert show dialog param table.");
     }
+
+    char params_json[2048];
+    if (0 == dmFacebook::LuaTableToJson(L, to_index, params_json, 2048)) {
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "Dialog params table too large.");
+    }
+    lua_pop(L, 1);
 
     jstring str_dialog = env->NewStringUTF(dialog);
     jstring str_params = env->NewStringUTF(params_json);
@@ -656,7 +665,8 @@ int Facebook_ShowDialog(lua_State* L)
 
     if (!Detach(env))
     {
-        luaL_error(L, "An unexpected error occurred.");
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "An unexpected error occurred.");
     }
 
     assert(top == lua_gettop(L));
