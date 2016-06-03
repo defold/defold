@@ -172,7 +172,7 @@
     (with-build-results "/merge/merge_embed.collection"
       (is (= 1 (count-exts (keys content-by-target) "goc")))
       (is (= 1 (count-exts (keys content-by-target) "spritec")))
-      (let [go-node   (first-source (first-source resource-node :child-scenes) :source)
+      (let [go-node   (first-source (first-source resource-node :child-scenes) :source-id)
             comp-node (first-source go-node :child-scenes)]
         (g/transact (g/delete-node comp-node))
         (let [build-results     (project/build project resource-node {})
@@ -288,9 +288,11 @@
         #_(is (contains? content-by-target (.getTextureSet desc)))))))
 
 (deftest build-script-properties
-  (with-build-results "/script/props.go"
+  (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
-                                     ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]]]
+                                     ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]
+                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]
+                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map pb content)
             decl (get-in desc decl-path)]
@@ -303,7 +305,41 @@
         (is (not-empty (:bool-entries decl)))
         (is (not-empty (:float-values decl)))
         (is (not-empty (:hash-values decl)))
-        (is (not-empty (:string-values decl)))))))
+        (is (not-empty (:string-values decl))))))
+  (with-build-results "/script/sub_props.collection"
+    (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+      (let [content (get content-by-source res-path)
+            desc (protobuf/bytes->map pb content)
+            decl (get-in desc decl-path)]
+        (is (not-empty (:number-entries decl)))
+        (is (not-empty (:hash-entries decl)))
+        (is (not-empty (:url-entries decl)))
+        (is (not-empty (:vector3-entries decl)))
+        (is (not-empty (:vector4-entries decl)))
+        (is (not-empty (:quat-entries decl)))
+        (is (not-empty (:bool-entries decl)))
+        (is (not-empty (:float-values decl)))
+        (is (not-empty (:hash-values decl)))
+        (is (not-empty (:string-values decl)))))
+    ;; Sub-collections should not be built separately
+    (is (not (contains? content-by-source "/script/props.collection"))))
+  (with-build-results "/script/sub_sub_props.collection"
+    (doseq [[res-path pb decl-path] [["/script/sub_sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+      (let [content (get content-by-source res-path)
+            desc (protobuf/bytes->map pb content)
+            decl (get-in desc decl-path)]
+        (is (not-empty (:number-entries decl)))
+        (is (not-empty (:hash-entries decl)))
+        (is (not-empty (:url-entries decl)))
+        (is (not-empty (:vector3-entries decl)))
+        (is (not-empty (:vector4-entries decl)))
+        (is (not-empty (:quat-entries decl)))
+        (is (not-empty (:bool-entries decl)))
+        (is (not-empty (:float-values decl)))
+        (is (not-empty (:hash-values decl)))
+        (is (not-empty (:string-values decl)))))
+    ;; Sub-collections should not be built separately
+    (is (not (contains? content-by-source "/script/sub_props.collection")))))
 
 (deftest build-gui-templates
   (with-clean-system
