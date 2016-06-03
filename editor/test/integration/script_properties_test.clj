@@ -5,7 +5,8 @@
             [support.test-support :refer [with-clean-system tx-nodes]]
             [integration.test-util :as tu]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]))
+            [editor.defold-project :as project]
+            [editor.properties :as properties]))
 
 (defn- component [go-id id]
   (let [comps (->> (g/node-value go-id :node-outline)
@@ -28,17 +29,36 @@
      ~@body
      (source! ~script-id orig#)))
 
+(defn- prop [node-id prop-name]
+  (let [key (properties/user-name->key prop-name)]
+    (tu/prop (tu/prop-node-id node-id key) key)))
+
+(defn- read-only? [node-id prop-name]
+  (tu/prop-read-only? node-id (properties/user-name->key prop-name)))
+
+(defn- overridden? [node-id prop-name]
+  (let [key (properties/user-name->key prop-name)]
+    (tu/prop-overridden? (tu/prop-node-id node-id key) key)))
+
+(defn- prop! [node-id prop-name value]
+  (let [key (properties/user-name->key prop-name)]
+    (tu/prop! (tu/prop-node-id node-id key) key value)))
+
+(defn- clear! [node-id prop-name]
+  (let [key (properties/user-name->key prop-name)]
+    (tu/prop-clear! (tu/prop-node-id node-id key) key)))
+
 (deftest script-properties-source
   (with-clean-system
     (let [workspace (tu/setup-workspace! world)
           project (tu/setup-project! workspace)
           script-id (tu/resource-node project "/script/props.script")]
       (testing "reading values"
-               (is (= 1.0 (tu/prop script-id :number)))
-               (is (tu/prop-read-only? script-id :number)))
+               (is (= 1.0 (prop script-id "number")))
+               (is (read-only? script-id "number")))
       (testing "broken prop defs" ;; string vals are not supported
                (with-source script-id "go.property(\"number\", \"my_string\")\n"
-                 (is (nil? (tu/prop script-id :number))))))))
+                 (is (nil? (prop script-id "number"))))))))
 
 (deftest script-properties-component
   (with-clean-system
@@ -46,8 +66,26 @@
           project (tu/setup-project! workspace)
           go-id (tu/resource-node project "/game_object/props.go")
           script-c (component go-id "script")]
-      (is (= 2.0 (tu/prop script-c :number)))
-      (tu/prop! (tu/prop-node-id script-c :number) :number 3.0)
-      (is (= 3.0 (tu/prop script-c :number)))
-      (tu/prop-clear! (tu/prop-node-id script-c :number) :number)
-      (is (= 1.0 (tu/prop script-c :number))))))
+      (is (= 2.0 (prop script-c "number")))
+      (is (overridden? script-c "number"))
+      (prop! script-c "number" 3.0)
+      (is (= 3.0 (prop script-c "number")))
+      (is (overridden? script-c "number"))
+      (clear! script-c "number")
+      (is (= 1.0 (prop script-c "number")))
+      (is (not (overridden? script-c "number"))))))
+
+(deftest script-properties-collection
+  (with-clean-system
+    (let [workspace (tu/setup-workspace! world)
+          project (tu/setup-project! workspace)]
+      (doseq [[resource paths val] [["/collection/props.collection" [[0 0] [1 0]] 3.0]
+                                    ["/collection/sub_props.collection" [[0 0 0]] 4.0]
+                                    ["/collection/sub_sub_props.collection" [[0 0 0 0]] 5.0]]
+              path paths]
+        (let [coll-id (tu/resource-node project resource)]
+          (let [outline (tu/outline coll-id path)
+                script-c (:node-id outline)]
+            (is (:outline-overridden? outline))
+            (is (= val (prop script-c "number")))
+            (is (overridden? script-c "number"))))))))

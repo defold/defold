@@ -2,11 +2,12 @@ name: "sub_props"
 collection_instances {
     id: "props"
     collection: "/collection/props.collection"
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
     instance_properties {
         id: "props"
         properties {
             id: "script"
-            properties {id: "number" value: "4" type: PROPERTY_TYPE_NUMBER}
+            properties {id: "number" value: "4.0" type: PROPERTY_TYPE_NUMBER}
             properties {id: "hash" value: "hash4" type: PROPERTY_TYPE_HASH}
             properties {id: "url" value: "/url3" type: PROPERTY_TYPE_URL}
         }

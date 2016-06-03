@@ -652,9 +652,13 @@
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
 
-(defn gen-resource-setter [connections]
-  (fn [basis self old-value new-value]
-    (let [project (get-project self)]
-      (concat
-       (when old-value (disconnect-resource-node project old-value self connections))
-       (when new-value (connect-resource-node project new-value self connections))))))
+(defn gen-resource-setter
+  ([connections]
+    (gen-resource-setter connections nil))
+  ([connections attach-fn]
+    (fn [basis self old-value new-value]
+      (let [project (get-project self)
+            attach-fn (when attach-fn (fn [n] (attach-fn basis self n)))]
+        (concat
+          (when old-value (disconnect-resource-node project old-value self connections))
+          (when new-value (connect-resource-node project new-value self connections attach-fn)))))))

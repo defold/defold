@@ -1142,8 +1142,16 @@
         (or (= :_declared-properties output)
             (= :_properties output)) (let [f (output-fn type output)
                                            props (f this evaluation-context)
-                                           orig-props (:properties (f original evaluation-context))
-                                           dynamic-props (without (set (keys properties)) (set (keys (gt/property-types this basis))))]
+                                           orig-props (:properties (gt/produce-value original output evaluation-context))
+                                           dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (gt/property-types this basis))))
+                                           props (reduce-kv (fn [p k v]
+                                                              (if (and (dynamic-props k)
+                                                                       (= original-id (:node-id v)))
+                                                                (cond-> p
+                                                                  (contains? v :original-value)
+                                                                  (assoc-in [:properties k :value] (:value v)))
+                                                                p))
+                                                            props orig-props)]
                                        (reduce (fn [props [k v]]
                                                  (cond-> props
                                                    (and (= :_properties output)
