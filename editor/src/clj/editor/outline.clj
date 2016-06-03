@@ -13,8 +13,7 @@
   (parent [this]))
 
 (defn- req-satisfied? [req node]
-  (and (g/node-instance*? (:node-type req) node)
-       (reduce (fn [v [field valid-fn]] (and v (valid-fn (get node field)))) true (:values req))))
+  (g/node-instance*? (:node-type req) node))
 
 (defn- find-req [node reqs]
   (when reqs
