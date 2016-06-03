@@ -86,8 +86,8 @@
   :Backspace             {:command :delete}
   :Delete                {:command :delete}
   :Shortcut+D            {:command :cut                     :label "Delete Line"                     :group "Delete" :order 1}
-  :Alt+Delete            {:command :delete-next-word        :label "Delete Next Word"                :group "Delete" :order 2}
-  :Alt+Backspace         {:command :delete-prev-word        :label "Delete Prev Word"                :group "Delete" :order 3}
+  :Alt+Delete            {:command :delete-next-word}  ;; these two do not work when they are included in the menu
+  :Alt+Backspace         {:command :delete-prev-word}  ;; the menu event does not get propagated back like the rest
   :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
   :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
 
