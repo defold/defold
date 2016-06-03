@@ -542,6 +542,9 @@
         (caret! source-viewer 9 false)
         (is (= \e (get-char-at-caret source-viewer)))
         (cut! source-viewer clipboard)
+        (= "line1\n" (text source-viewer))
+        (caret! source-viewer 0 false)
+        (paste! source-viewer clipboard)
         (= "line1\n" (text source-viewer))))))
 
 (defn- delete-prev-word! [source-viewer]
