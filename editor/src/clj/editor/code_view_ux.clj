@@ -165,16 +165,14 @@
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
 
-    (when (and (is-mac-os?) (or (= KeyCode/ALT (.getCode e)) (.isAltDown e)))
-      (.consume e))
-
-    (when (and  (not (.isConsumed e)) (:command kf) (not (:label kf)))
-      (handler/run
-        (:command kf)
-        [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-        k-info)
-      (changes! source-viewer)
-      (.consume e))))
+    (when (not (.isConsumed e))
+      (.consume e)
+      (when (and (:command kf) (not (:label kf)))
+        (handler/run
+          (:command kf)
+          [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
+          k-info)
+        (changes! source-viewer)))))
 
 (defn is-not-typable-modifier? [e]
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
@@ -247,45 +245,61 @@
           (replace-text-selection selection clipboard-text)
           (replace-text-and-caret selection caret 0 clipboard-text (+ caret (count clipboard-text))))))))
 
-(defn right [selection select?]
+(defn right [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (+ c (count selected-text)))
                    (adjust-bounds doc (inc c)))]
-      (caret! selection next-pos select?)
+      (caret! selection next-pos false)
       (remember-caret-col selection next-pos)))
 
-(defn left [selection select?]
+(defn select-right [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        selected-text (text-selection selection)
+        next-pos (adjust-bounds doc (inc c))]
+      (caret! selection next-pos true)
+      (remember-caret-col selection next-pos)))
+
+(defn left [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
-      (caret! selection next-pos select?)
+      (caret! selection next-pos false)
+      (remember-caret-col selection next-pos)))
+
+(defn select-left [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        selected-text (text-selection selection)
+        next-pos (adjust-bounds doc (dec c))]
+      (caret! selection next-pos true)
       (remember-caret-col selection next-pos)))
 
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (right selection false)))
+    (right selection)))
 
 (handler/defhandler :left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (left selection false)))
+    (left selection)))
 
 (handler/defhandler :select-right :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (right selection true)))
+    (select-right selection)))
 
 (handler/defhandler :select-left :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (left selection true)))
+    (select-left selection)))
 
 (defn lines-after [s pos]
   (let [np (adjust-bounds s pos)]
