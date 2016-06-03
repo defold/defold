@@ -180,7 +180,7 @@
 
 (defn handle-key-typed [^KeyEvent e source-viewer]
   (let [key-typed (.getCharacter e)]
-    (when-not (is-not-typable-modifier? e)
+    (when-not (or (.isMetaDown ^KeyEvent e) (is-not-typable-modifier? e))
       (handler/run
         :key-typed
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
