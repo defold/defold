@@ -645,7 +645,7 @@
     (let [text (promise)
           ^Stage stage (dialogs/make-find-text-dialog text)
           find-text-fn (fn [] (when (realized? text)
-                                (find-text selection @text)))]
+                                (find-text selection (or @text ""))))]
       (.setOnHidden stage (ui/event-handler e (find-text-fn))))))
 
 (handler/defhandler :find-next :code-view
@@ -698,7 +698,7 @@
     (let [result (promise)
           ^Stage stage (dialogs/make-replace-text-dialog result)
           replace-text-fn (fn [] (when (realized? result)
-                                (replace-text selection @result)))]
+                                (replace-text selection (or @result {}))))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :replace-next :code-view
