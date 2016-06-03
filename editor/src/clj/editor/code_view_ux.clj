@@ -326,39 +326,58 @@
         adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))]
       (adjust-bounds s adj-next-pos)))
 
-(defn up [selection select?]
+(defn up [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        preferred-offset (preferred-offset)
+        next-pos (if (pos? (selection-length selection))
+                   (adjust-bounds doc (selection-offset selection))
+                   (up-line doc c preferred-offset))]
+    (caret! selection next-pos false)))
+
+(defn select-up [selection]
   (let [c (caret selection)
         doc (text selection)
         preferred-offset (preferred-offset)
         next-pos (up-line doc c preferred-offset)]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos true)))
 
-(defn down [selection select?]
+(defn down [selection]
+  (let [c (caret selection)
+        doc (text selection)
+        preferred-offset (preferred-offset)
+        next-pos (if (pos? (selection-length selection))
+                   (adjust-bounds doc (+ (selection-offset selection)
+                                         (selection-length selection)))
+                   (down-line doc c preferred-offset))]
+      (caret! selection next-pos false)))
+
+(defn select-down [selection]
   (let [c (caret selection)
         doc (text selection)
         preferred-offset (preferred-offset)
         next-pos (down-line doc c preferred-offset)]
-      (caret! selection next-pos select?)))
+      (caret! selection next-pos true)))
 
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (up selection false)))
+    (up selection)))
 
 (handler/defhandler :down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (down selection false)))
+    (down selection)))
 
 (handler/defhandler :select-up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (up selection true)))
+    (select-up selection)))
 
 (handler/defhandler :select-down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (down selection true)))
+    (select-down selection)))
 
 (def word-regex  #"\n|\w+|\s\w+|.")
 
