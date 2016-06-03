@@ -212,14 +212,12 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         computeIconifiedState();
         break;
     case APP_CMD_GAINED_FOCUS:
-        _glfwWin.active = 1;
         computeIconifiedState();
         break;
     case APP_CMD_LOST_FOCUS:
         if (g_KeyboardActive) {
             _glfwShowKeyboard(0, 0, 0);
         }
-        _glfwWin.active = 0;
         computeIconifiedState();
         break;
     case APP_CMD_START:
@@ -227,6 +225,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_STOP:
         break;
     case APP_CMD_RESUME:
+        _glfwWin.active = 1;
         _glfwWin.paused = 0;
         if (g_sensorEventQueue && g_accelerometer) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
@@ -241,6 +240,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_PAUSE:
         _glfwWin.paused = 1;
+        _glfwWin.active = 0;
         if (g_sensorEventQueue && g_accelerometer) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
