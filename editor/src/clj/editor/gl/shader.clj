@@ -429,44 +429,75 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
       (code/combine-matches match-open match-body))))
 
 
-(def ^:private basic-types ["void" "bool" "int" "float"])
+(def control-flow-keywords #{ "break" "case" "continue" "default" "discard" "do" "else" "for" "if" "return" "switch" "while" })
 
-(def ^:private vec-types (for [tp ["" "i" "b"]
-                               n (range 2 4)]
-                           (str tp "vec" n)))
+(def directive-pattern #"^\s*#\s*(define|undef|if|ifdef|ifndef|else|elif|endif|error|pragma|extension|version|line)\b")
 
-(def ^:private mat-types (for [n (range 2 4)]
-                            (str "mat" n)))
+(def macro-keywords #{"__LINE__" "__FILE__" "__VERSION__" "GL_core_profile" "GL_es_profile" "GL_compatibility_profile)"})
 
-(def ^:private literals ["true" "false"])
+(def precision-keywords #{"precision" "highp" "mediump" "lowp"})
 
-(def ^:private extension-behaviors ["require" "enable" "warn" "disable"])
 
-(def ^:private pp-directives (map (partial str "#") (string/split "define undef if ifdef ifndef else elif endif error pragma extension version line" #" ")))
+(def storage-modifier-keywords #{"layout" "attribute" "centroid" "sampler" "patch" "const" "flat" "in" "inout" "invariant" "noperspective" "out" "smooth" "uniform"
+                                "varying" "buffer" "shared" "coherent" "readonly" "writeonly)"})
 
-(def ^:private storage-qualifiers ["const" "attribute" "uniform" "varying"])
+(def support-variable-keywords #{"gl_BackColor" "gl_BackLightModelProduct" "gl_BackLightProduct" "gl_BackMaterial" "gl_BackSecondaryColor" "gl_ClipDistance" "gl_ClipPlane"
+                                 "gl_ClipVertex" "gl_Color" "gl_DepthRange" "gl_DepthRangeParameters" "gl_EyePlaneQ" "gl_EyePlaneR" "gl_EyePlaneS" "gl_EyePlaneT" "gl_Fog"
+                                 "gl_FogCoord" "gl_FogFragCoord" "gl_FogParameters" "gl_FragColor" "gl_FragCoord" "gl_FragDat" "gl_FragDept" "gl_FrontColor" "gl_FrontFacing"
+                                 "gl_FrontLightModelProduct" "gl_FrontLightProduct" "gl_FrontMaterial" "gl_FrontSecondaryColor" "gl_InstanceID" "gl_Layer" "gl_LightModel"
+                                 "gl_LightModelParameters" "gl_LightModelProducts" "gl_LightProducts" "gl_LightSource" "gl_LightSourceParameters" "gl_MaterialParameters"
+                                 "gl_ModelViewMatrix" "gl_ModelViewMatrixInverse" "gl_ModelViewMatrixInverseTranspose" "gl_ModelViewMatrixTranspose" "gl_ModelViewProjectionMatrix"
+                                 "gl_ModelViewProjectionMatrixInverse" "gl_ModelViewProjectionMatrixInverseTranspose" "gl_ModelViewProjectionMatrixTranspose" "gl_MultiTexCoord[0-7]"
+                                 "gl_Normal" "gl_NormalMatrix" "gl_NormalScale" "gl_ObjectPlaneQ" "gl_ObjectPlaneR" "gl_ObjectPlaneS" "gl_ObjectPlaneT" "gl_Point" "gl_PointCoord"
+                                 "gl_PointParameters" "gl_PointSize" "gl_Position" "gl_PrimitiveIDIn" "gl_ProjectionMatrix" "gl_ProjectionMatrixInverse" "gl_ProjectionMatrixInverseTranspose"
+                                 "gl_ProjectionMatrixTranspose" "gl_SecondaryColor" "gl_TexCoord" "gl_TextureEnvColor" "gl_TextureMatrix" "gl_TextureMatrixInverse"
+                                 "gl_TextureMatrixInverseTranspose" "gl_TextureMatrixTranspose" "gl_Vertex" "gl_VertexID"})
 
-(def ^:private parameter-qualifiers ["in" "out" "inout"])
+(def support-constant-keywords #{"gl_MaxClipPlanes" "gl_MaxCombinedTextureImageUnits" "gl_MaxDrawBuffers" "gl_MaxFragmentUniformComponents" "gl_MaxLights" "gl_MaxTextureCoords"
+                                 "gl_MaxTextureImageUnits" "gl_MaxTextureUnits" "gl_MaxVaryingFloats" "gl_MaxVertexAttribs" "gl_MaxVertexTextureImageUnits" "gl_MaxVertexUniformComponents"})
 
-(def ^:private precision-qualifiers ["lowp" "mediump" "highp"])
+(def support-function-keywords #{"abs" "acos" "all" "any" "asin" "atan" "ceil" "clamp" "cos" "cross" "degrees" "dFdx" "dFdy" "distance" "dot" "equal" "exp" "exp2" "faceforward" "floor"
+                                 "fract" "ftransform" "fwidth" "greaterThan" "greaterThanEqual" "inversesqrt" "length" "lessThan" "lessThanEqual" "log" "log2" "matrixCompMult" "max" "min"
+                                 "mix" "mod" "noise1" "noise2" "noise3" "noise4" "normalize" "not" "notEqual" "outerProduct" "pow" "radians" "reflect" "refract" "shadow1D" "shadow1DLod" "shadow1DProj" "shadow1DProjLod"
+                                 "shadow2D" "shadow2DLod" "shadow2DProj" "shadow2DProjLod" "sign" "sin" "smoothstep" "sqrt" "step" "tan" "texture1D" "texture1DLod" "texture1DProj" "texture1DProjLod"
+                                 "texture2D" "texture2DLod" "texture2DProj" "texture2DProjLod" "texture3D" "texture3DLod" "texture3DProj" "texture3DProjLod" "textureCube" "textureCubeLod" "transpose"})
 
-(def ^:private other-keywords (string/split "break continue do for while if else precision invariant discard return sampler2D samplerCube struct" #" "))
+(def storage-types-pattern #"^\b(void|bool|int|uint|float|double|vec[2|3|4]|dvec[2|3|4]|bvec[2|3|4]|ivec[2|3|4]|uvec[2|3|4]|mat[2|3|4]|mat2x2|mat2x3|mat2x4|mat3x2|mat3x3|mat3x4|mat4x2|mat4x3|mat4x4|dmat2|dmat3|dmat4|dmat2x2|dmat2x3|dmat2x4|dmat3x2|dmat3x3|dmat3x4|dmat4x2|dmat4x3|dmat4x4|sampler[1|2|3]D|image[1|2|3]D|samplerCube|imageCube|sampler2DRect|image2DRect|sampler[1|2]DArray|image[1|2]DArray|samplerBuffer|imageBuffer|sampler2DMS|image2DMS|sampler2DMSArray|image2DMSArray|samplerCubeArray|imageCubeArray|sampler[1|2]DShadow|sampler2DRectShadow|sampler[1|2]DArrayShadow|samplerCubeShadow|samplerCubeArrayShadow|isampler[1|2|3]D|iimage[1|2|3]D|isamplerCube|iimageCube|isampler2DRect|iimage2DRect|isampler[1|2]DArray|iimage[1|2]DArray|isamplerBuffer|iimageBuffer|isampler2DMS|iimage2DMS|isampler2DMSArray|iimage2DMSArray|isamplerCubeArray|iimageCubeArray|atomic_uint|usampler[1|2|3]D|uimage[1|2|3]D|usamplerCube|uimageCube|usampler2DRect|uimage2DRect|usampler[1|2]DArray|uimage[1|2]DArray|usamplerBuffer|uimageBuffer|usampler2DMS|uimage2DMS|usampler2DMSArray|uimage2DMSArray|usamplerCubeArray|uimageCubeArray|struct)\b")
 
-(def ^:private reserved (string/split "asm class union enum typedef template this packed goto switch default inline noinline volatile public static extern external interface flat long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 dvec4 fvec2 fvec3 fvec4 sampler1D sampler3D sampler1DShadow sampler2dShadow sampler2DRect sampler3DRect sampler2DRectShadow sizeof cast namespace using" #" "))
+(def arithmetic-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(\+|\-|\*|\/|\%)(?![/=\-+!*%><&|^~.])")
+(def increment-decrement-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(\+\+|\-\-)(?![/=\-+!*%><&|^~.])")
+(def bitwise-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(~|&|\||\^|<<|>>)(?![/=\-+!*%<>&|^~.])")
+(def assignment-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(\+|\-|\*|\%|\/|<<|>>|&|\^|\|)?=(?![/=\-+!*%<>&|^~.])")
+(def comparative-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])((=|!)=|(&lt;|&gt;)=?)(?![/=\-+!*%<>&|^~.])")
+(def logical-operator-pattern #"^(?<![/=\-+!*%<>&|\^~.])(!|&&|\|\||\^\^)(?![/=\-+!*%<>&|^~.])")
+(def ternary-operator-pattern #"^(\?|:)")
 
-(def ^:private keywords (concat basic-types
-                                vec-types
-                                mat-types
-                                literals
-                                extension-behaviors
-                                storage-qualifiers
-                                parameter-qualifiers
-                                precision-qualifiers
-                                other-keywords
-                                reserved))
+(defn match-directive [s]
+  (code/match-regex directive-pattern s))
 
-(def ^:private operators (string/split "( ) [ ] . ++ -- + - ~ ! * / % << >> < > <= >= == != & ^ | && ^^ || ? : = += -= *= /= %= <<= >>= &= ^= |= ," #" "))
+(defn match-storage-types [s]
+  (code/match-regex storage-types-pattern s))
 
+(defn match-arithmetic-operator [s]
+  (code/match-regex arithmetic-operator-pattern s))
+
+(defn match-increment-decrement-operator [s]
+  (code/match-regex increment-decrement-operator-pattern s))
+
+(defn match-bitwise-operator [s]
+  (code/match-regex bitwise-operator-pattern s))
+
+(defn match-assignment-operator [s]
+  (code/match-regex assignment-operator-pattern s))
+
+(defn match-comparative-operator [s]
+  (code/match-regex comparative-operator-pattern s))
+
+(defn match-logical-operator [s]
+  (code/match-regex logical-operator-pattern s))
+
+(defn match-ternary-operator [s]
+  (code/match-regex ternary-operator-pattern s))
 
 (def glsl-opts {:code {:language "glsl"
                        :syntax
@@ -483,11 +514,31 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                          {:partition :default
                           :type :default
                           :rules
-                          [{:type :multiline :start "\"" :end "\"" :eof false :class "string"}
+                          [{:type :whitespace :space? #{\space \tab \newline \return}}
                            {:type :custom :scanner match-multi-comment :class "comment-multi"}
                            {:type :custom :scanner match-single-comment :class "comment"}
-                           {:type :whitespace}
-                           {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+
+                           {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
+                           {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
+
+                          ; {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords macro-keywords :class "macro-keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords precision-keywords :class "precision-keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords storage-modifier-keywords :class "storage-modifier-keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords support-variable-keywords :class "support-variable-keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords support-constant-keywords :class "support-constant-keyword"}
+                           {:type :keyword :start? is-word-start :part? is-word-part :keywords support-function-keywords :class "support-function-keyword"}
+                           {:type :custom :scanner match-directive :class "directive"}
+                           {:type :custom :scanner match-storage-types :class "storage-type"}
+                           {:type :custom :scanner match-arithmetic-operator :class "operator"}
+                           {:type :custom :scanner match-increment-decrement-operator :class "operator"}
+                           {:type :custom :scanner match-bitwise-operator :class "operator"}
+                           {:type :custom :scanner match-assignment-operator :class "operator"}
+                           {:type :custom :scanner match-comparative-operator :class "operator"}
+                           {:type :custom :scanner match-logical-operator :class "operator"}
+                           {:type :custom :scanner match-ternary-operator :class "operator"}
+
                            {:type :word :start? is-word-start :part? is-word-part :class "default"}
                            {:type :number :class "number"}
                            {:type :default :class "default"}]
