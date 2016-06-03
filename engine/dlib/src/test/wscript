@@ -40,6 +40,7 @@ def build(bld):
 
     bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
 
+    create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
     create_test(bld, 'test_math', extra_libs = ['THREAD'])
     create_test(bld, 'test_transform', extra_libs = ['THREAD'])
@@ -62,7 +63,6 @@ def build(bld):
     create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socks_proxy', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
     bld.new_task_gen(rule = 'echo generated data > ${TGT}',

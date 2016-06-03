@@ -6,7 +6,7 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextBehavior DefoldStyledTextSkin]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
@@ -26,28 +26,14 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- opseqs [text-area]
-  (ui/user-data text-area ::opseqs))
-
-(defn- new-opseq [text-area]
-  (swap! (opseqs text-area) rest))
-
-(defn- opseq [text-area]
-  (first @(opseqs text-area)))
-
-(defn- programmatic-change [text-area]
-  (ui/user-data text-area ::programmatic-change))
+(ui/extend-menu ::text-edit :editor.app-view/edit
+                (cvx/create-menu-data))
 
 (defn- code-node [text-area]
   (ui/user-data text-area ::code-node))
 
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
-
-(defn- restart-opseq-timer [text-area]
-  (if-let [timer (ui/user-data text-area ::opseq-timer)]
-    (ui/restart timer)
-    (ui/user-data! text-area ::opseq-timer (ui/->future 0.5 #(new-opseq text-area)))))
 
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
@@ -57,23 +43,24 @@
        (finally
          (reset! ~a old-val#)))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position]
-  (let [text-area (.getTextWidget source-viewer)
-        document (.getDocument source-viewer)]
-    (ui/user-data! text-area ::code-node code-node)
-    (when (not= code (.get document))
-      (new-opseq text-area)
-      (binding-atom (programmatic-change text-area) true
-                    (try
-                      (.set document code)
-                      (catch Throwable e
-                        (println "exception during .set!")
-                        (.printStackTrace e)))))
-    (when (not= caret-position (.getCaretOffset text-area))
-      (new-opseq text-area)
-      (binding-atom (programmatic-change text-area) true
-                    (.setCaretOffset text-area caret-position)))
-    [code-node code caret-position]))
+(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length]
+  (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
+    (when (not= code (cvx/text source-viewer))
+    (try
+      (cvx/text! source-viewer code)
+      (catch Throwable e
+        (println "exception during .set!")
+        (.printStackTrace e))))
+  (if (pos? selection-length)
+    (do 
+      ;; There is a bug somewhere in the e(fx)clipse that doesn't
+      ;; display the text selection property after you change the text programatically
+      ;; when it's resolved uncomment
+      ;(cvx/text-selection! source-viewer selection-offset selection-length)
+      (cvx/caret! source-viewer caret-position false)
+    )
+    (cvx/caret! source-viewer caret-position false))
+  [code-node code caret-position])
 
 (defn- make-proposal [{:keys [replacement offset length position image display-string additional-info]}]
   (reify ICompletionProposal
@@ -229,27 +216,28 @@
     (getDamageRegion [p e chg]
       p)))
 
-(defn- make-reconciler [^SourceViewerConfiguration configuration ^SourceViewer source-viewer syntax]
+(defn- make-reconciler [^SourceViewerConfiguration configuration ^SourceViewer source-viewer scanner-syntax]
   (let [pr (PresentationReconciler.)]
     (.setDocumentPartitioning pr (.getConfiguredDocumentPartitioning configuration source-viewer))
-    (doseq [{:keys [partition rules]} syntax]
+    (doseq [{:keys [partition rules]} scanner-syntax]
       (let [partition (get default-content-type-map partition partition)]
         (let [damager-repairer (make-multiline-dr (make-scanner rules))] ;;_(DefaultDamagerRepairer. (make-scanner rules))]
           (.setDamager pr damager-repairer partition)
           (.setRepairer pr damager-repairer partition))))
     pr))
 
-(defn- ^SourceViewerConfiguration create-viewer-config [language]
-  (let [{:keys [language syntax assist]} language]
+(defn- ^SourceViewerConfiguration create-viewer-config [opts]
+  (let [{:keys [language syntax assist]} opts
+        scanner-syntax (:scanner syntax)]
     (proxy [SourceViewerConfiguration] []
       (getStyleclassName [] language)
       (getPresentationReconciler [source-viewer]
-        (make-reconciler this source-viewer syntax))
+        (make-reconciler this source-viewer scanner-syntax))
       (getContentAssist []
         (when assist
           (ContentAssistant. (to-function (make-proposal-fn assist)))))
       (getConfiguredContentTypes [source-viewer]
-        (into-array String (replace default-content-type-map (map :partition syntax)))))))
+        (into-array String (replace default-content-type-map (map :partition scanner-syntax)))))))
 
 (defn- default-partition? [partition]
   (= (:type partition) :default))
@@ -262,8 +250,8 @@
     (doto (RuleBasedPartitionScanner.)
       (.setPredicateRules (into-array IPredicateRule rules)))))
 
-(defn- ^IDocumentPartitioner make-partitioner [language]
-  (when-let [partitions (:syntax language)]
+(defn- ^IDocumentPartitioner make-partitioner [opts]
+  (when-let [partitions (get-in opts [:syntax :scanner])]
     (let [legal-content-types (map :partition (remove default-partition? partitions))]
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
@@ -282,10 +270,17 @@
     (.setDocument source-viewer document)
 
     (let [text-area (.getTextWidget source-viewer)
-          styled-text-behavior (new DefoldStyledTextBehavior text-area)]
+          styled-text-behavior  (proxy [StyledTextBehavior] [text-area]
+                                  (callActionForEvent [key-event]
+                                    ;;do nothing we are handling all
+                                    ;;the events
+                                    ))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
+      (.addEventHandler ^StyledTextArea text-area
+                        KeyEvent/KEY_TYPED
+                        (ui/event-handler e (cvx/handle-key-typed e source-viewer)))
      (when use-custom-skin?
        (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
          (.setSkin text-area skin)
@@ -293,32 +288,8 @@
                             MouseEvent/MOUSE_CLICKED
                             (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
 
-      (ui/user-data! text-area ::opseqs (atom (repeatedly gensym)))
-      (ui/user-data! text-area ::programmatic-change (atom nil))
       (ui/user-data! text-area ::behavior styled-text-behavior)
-
-      (.addDocumentListener document
-                            (reify IDocumentListener
-                              (^void documentAboutToBeChanged [this ^DocumentEvent event])
-                              (^void documentChanged [this ^DocumentEvent event]
-                                (restart-opseq-timer text-area)
-                                (when-not @(programmatic-change text-area)
-                                  (let [new-code (.get document)]
-                                    (g/transact
-                                     (concat
-                                      (g/operation-sequence (opseq text-area))
-                                      (g/operation-label "Code Change")
-                                      (g/set-property (code-node text-area) :code new-code))))))))
-
-      (ui/observe (.caretOffsetProperty text-area)
-                  (fn [_ _ new-caret-position]
-                    (when-not @(programmatic-change text-area)
-                      (g/transact
-                       (concat
-                        (g/operation-sequence (opseq text-area))
-                        ;; we dont supply an operation label here, because the caret position events comes just after the text change, and it seems
-                        ;; when merging transactions the latest label wins
-                        (g/set-property (code-node text-area) :caret-position new-caret-position)))))))
+      (ui/user-data! source-viewer ::syntax (:syntax opts)))
 
   source-viewer))
 
@@ -327,6 +298,8 @@
   (input code-node g/Int)
   (input code g/Str)
   (input caret-position g/Int)
+  (input selection-offset g/Int)
+  (input selection-length g/Int)
   (output new-content g/Any :cached update-source-viewer))
 
 (defn setup-code-view [view-id code-node initial-caret-position]
@@ -335,7 +308,11 @@
     (g/connect code-node :_node-id view-id :code-node)
     (g/connect code-node :code view-id :code)
     (g/connect code-node :caret-position view-id :caret-position)
-    (g/set-property code-node :caret-position initial-caret-position)))
+    (g/connect code-node :selection-offset view-id :selection-offset)
+    (g/connect code-node :selection-length view-id :selection-length)
+    (g/set-property code-node :caret-position initial-caret-position)
+    (g/set-property code-node :selection-offset 0)
+    (g/set-property code-node :selection-length 0)))
   view-id)
 
 (extend-type Clipboard
@@ -359,6 +336,8 @@
     (.set (.getDocument this) s))
   (text [this]
     (.get (.getDocument this)))
+  (replace! [this offset length s]
+    (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s)))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
@@ -371,13 +350,10 @@
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
     (.setSelectionRange (.getTextWidget this) offset length))
-  cvx/TextScroller
-  (preferred-offset [this]
-    (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
-      (.getPreferredColOffset b)))
-  (preferred-offset! [this offset]
-    (let [b ^DefoldStyledTextBehavior (behavior (.getTextWidget this))]
-      (.setPreferredColOffset b offset)))
+  (editable? [this]
+    (-> this (.getTextWidget) (.getEditable)))
+  (editable! [this val]
+    (-> this (.getTextWidget) (.setEditable val)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
@@ -386,31 +362,38 @@
                        style-fn (fn [sr] {:start (.-start ^StyleRange sr)
                                          :length (.-length ^StyleRange sr)
                                          :stylename (.-stylename ^StyleRange sr)})]
-                   (mapv style-fn style-ranges))))
+                   (mapv style-fn style-ranges)))
+  cvx/TextUndo
+  (changes! [this]
+    (let [code-node-id (-> this (.getTextWidget) (code-node))
+          selection-offset (cvx/selection-offset this)
+          selection-length (cvx/selection-length this)
+          code (cvx/text this)
+          caret (cvx/caret this)
+          code-changed? (not= code (g/node-value code-node-id :code))
+          caret-changed? (not= caret (g/node-value code-node-id :caret-position))
+          selection-changed? (or (not= selection-offset (g/node-value code-node-id :selection-offset))
+                                 (not= selection-length (g/node-value code-node-id :selection-length)))]
+      (when (or code-changed? caret-changed? selection-changed?)
+        (g/transact (remove nil?
+                            (concat
+                             (when code-changed?  [(g/set-property code-node-id :code code)])
+                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)]) 
+                             (when selection-changed?
+                               [(g/set-property code-node-id :selection-offset selection-offset)
+                                (g/set-property code-node-id :selection-length selection-length)]))))))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node :clipboard (Clipboard/getSystemClipboard)} source-viewer)
-    (let [refresh-timer (ui/->timer 10 "refresh-code-view" (fn [_] (g/node-value view-id :new-content)))
-          stage (ui/parent->stage parent)]
-      (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
-      (ui/timer-stop-on-close! stage refresh-timer)
-      (ui/timer-start! refresh-timer)
-      view-id)))
-
-(defn update-caret-pos [view-id {:keys [caret-position]}]
-  (when caret-position
-    (when-let [code-node (g/node-value view-id :code-node)]
-      (g/transact
-       (concat
-        (g/set-property code-node :caret-position caret-position))))))
+    (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
+    (g/node-value view-id :new-content)
+    view-id))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
-                                :focus-fn update-caret-pos
                                 :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))

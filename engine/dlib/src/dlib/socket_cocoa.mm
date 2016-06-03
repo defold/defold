@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include "log.h"
 #include "socket.h"
+#include "network_constants.h"
 
 namespace dmSocket
 {
@@ -52,7 +53,7 @@ namespace dmSocket
         else
         {
             // We fallback to loopback address
-            *address = AddressFromIPString("127.0.0.1");
+            *address = AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
             return RESULT_OK;
         }
     }

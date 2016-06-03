@@ -262,6 +262,7 @@ void func2(std::vector<void*>& allocations)
     for (int i = 0; i < 8; ++i)
     {
         void*p = malloc(16);
+        g_dont_optimize = p;
         allocations.push_back(p);
     }
 }
@@ -271,6 +272,7 @@ void func1a(std::vector<void*>& allocations)
     for (int i = 0; i < 16; ++i)
     {
         void*p = malloc(512);
+        g_dont_optimize = p;
         allocations.push_back(p);
         func2(allocations);
     }
@@ -281,6 +283,7 @@ void func1b(std::vector<void*>& allocations)
     for (int i = 0; i < 16; ++i)
     {
         void*p = malloc(256);
+        g_dont_optimize = p;
         allocations.push_back(p);
         func2(allocations);
     }

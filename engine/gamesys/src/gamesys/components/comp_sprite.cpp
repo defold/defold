@@ -21,6 +21,7 @@
 #include "../gamesys_private.h"
 
 #include "sprite_ddf.h"
+#include "gamesys_ddf.h"
 
 using namespace Vectormath::Aos;
 namespace dmGameSystem

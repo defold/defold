@@ -1102,7 +1102,7 @@ TEST_F(ParticleTest, ReloadInstanceLoop)
 
     dmParticle::StartInstance(m_Context, instance);
 
-    const float time = 0.4f;
+    const float time = 0.5f;
     float timer = 0.0f;
     while (timer < time)
     {

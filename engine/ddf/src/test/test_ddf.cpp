@@ -14,6 +14,7 @@
 #endif
 
 #include "../ddf/ddf.h"
+#include <dlib/memory.h>
 
 /*
  * TODO:
@@ -712,6 +713,25 @@ TEST(StringOffset, Load)
     // Currently no support to save messages with offset strings
 
     dmDDF::FreeMessage(message);
+}
+
+TEST(AlignmentTests, AlignStruct)
+{
+    DM_STATIC_ASSERT(sizeof(DUMMY::TestDDF::TestMessageAlignment) % 16 == 0, Invalid_Struct_Size);
+}
+
+TEST(AlignmentTests, AlignField)
+{
+    size_t struct_size = sizeof(DUMMY::TestDDF::TestFieldAlignment);
+    DUMMY::TestDDF::TestFieldAlignment *dummy = 0x0;
+    ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc((void**)&dummy, 16, struct_size));
+
+    ASSERT_EQ(16, offsetof(DUMMY::TestDDF::TestFieldAlignment, m_NeedsToBeAligned1));
+    ASSERT_EQ(32, offsetof(DUMMY::TestDDF::TestFieldAlignment, m_NeedsToBeAligned2));
+    ASSERT_EQ(0, ((unsigned long)(&(dummy->m_NeedsToBeAligned1))) % 16);
+    ASSERT_EQ(0, ((unsigned long)(&(dummy->m_NeedsToBeAligned2))) % 16);
+
+    dmMemory::AlignedFree(dummy);
 }
 
 int main(int argc, char **argv)

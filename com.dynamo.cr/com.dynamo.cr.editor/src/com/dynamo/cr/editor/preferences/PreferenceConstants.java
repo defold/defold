@@ -21,5 +21,8 @@ public class PreferenceConstants {
     // Debug
     public static final String P_RUN_IN_DEBUGGER = "runInDebugger";
     public static final String P_AUTO_RUN_DEBUGGER = "autoRunDebugger";
+
+    public static final String P_QUIT_ON_ESC = "quitOnEsc";
+
 }
 

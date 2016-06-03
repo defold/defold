@@ -9,6 +9,7 @@
 #include "dstrings.h"
 #include "http_server.h"
 #include "http_server_private.h"
+#include "network_constants.h"
 
 namespace dmHttpServer
 {
@@ -99,16 +100,27 @@ namespace dmHttpServer
 
     static Result Connect(Server* server, uint16_t port)
     {
-        dmSocket::Socket socket;
+        dmSocket::Socket socket = -1;
+        dmSocket::Address bind_address;
+        dmSocket::Result r = dmSocket::RESULT_OK;
 
         Disconnect(server);
-        dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
+
+        r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bind_address);
         if (r != dmSocket::RESULT_OK)
+        {
+            return RESULT_SOCKET_ERROR;
+        }
+
+        r = dmSocket::New(bind_address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
+        if (r != dmSocket::RESULT_OK)
+        {
             return RESULT_UNKNOWN;
+        }
 
         dmSocket::SetReuseAddress(socket, true);
 
-        r = dmSocket::Bind(socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+        r = dmSocket::Bind(socket, bind_address, port);
         if (r != dmSocket::RESULT_OK)
         {
             dmSocket::Delete(socket);

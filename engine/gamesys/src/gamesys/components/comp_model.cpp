@@ -13,6 +13,7 @@
 #include "../gamesys_private.h"
 
 #include "model_ddf.h"
+#include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
@@ -181,9 +182,9 @@ namespace dmGameSystem
 
         dmRender::RenderObject* ro = &component->m_RenderObject;
 
-        if (params.m_Message->m_Id == dmModelDDF::SetConstant::m_DDFDescriptor->m_NameHash)
+        if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
         {
-            dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
+            dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
             dmRender::EnableRenderObjectConstant(ro, ddf->m_NameHash, ddf->m_Value);
         }
         else if (params.m_Message->m_Id == dmModelDDF::ResetConstant::m_DDFDescriptor->m_NameHash)

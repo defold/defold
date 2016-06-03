@@ -49,9 +49,21 @@ namespace dmSocket
 
             if(ioctl(s, SIOCGIFADDR, r) < 0)
                 continue;
-            sockaddr_in* ia = (sockaddr_in*) &r->ifr_ifru.ifru_addr;
-            a->m_Flags |= FLAGS_INET;
-            a->m_Address = ntohl(ia->sin_addr.s_addr);
+
+            if (r->ifr_addr.sa_family == AF_INET)
+            {
+                sockaddr_in* ia = (sockaddr_in*) &r->ifr_ifru.ifru_addr;
+                a->m_Flags |= FLAGS_INET;
+                a->m_Address.m_family = DOMAIN_IPV4;
+                *IPv4(&a->m_Address) = ia->sin_addr.s_addr;
+            }
+            else if (r->ifr_addr.sa_family == AF_INET6)
+            {
+                sockaddr_in6* ia = (sockaddr_in6*) &r->ifr_ifru.ifru_addr;
+                a->m_Flags |= FLAGS_INET;
+                a->m_Address.m_family = DOMAIN_IPV6;
+                memcpy(IPv6(&a->m_Address), &ia->sin6_addr, sizeof(struct in6_addr));
+            }
 
             if(ioctl(s, SIOCGIFHWADDR, r) < 0)
                 continue;

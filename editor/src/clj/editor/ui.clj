@@ -5,7 +5,8 @@
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.profiler :as profiler])
+            [util.profiler :as profiler]
+            [dynamo.graph :as g])
   (:import [com.defold.control LongField]
            [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
@@ -14,14 +15,15 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.layout Region]
-           [javafx.scene.control ButtonBase CheckBox ColorPicker ComboBox ComboBoxBase Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
-           [javafx.scene.layout AnchorPane Pane]
+           [javafx.scene.layout AnchorPane Pane HBox]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
            [javafx.css Styleable]
-           [javafx.util Callback Duration]
+           [javafx.util Callback Duration StringConverter]
+           [javafx.geometry Orientation]
            [com.defold.control TreeCell]))
 
 (set! *warn-on-reflection* true)
@@ -463,10 +465,14 @@
                       (vec))))
 
 
-(defn context! [^Node node name env selection-provider]
-  (user-data! node ::context {:name name
-                              :env env
-                              :selection-provider selection-provider}))
+(defn context!
+  ([^Node node name env selection-provider]
+    (context! node name env selection-provider {}))
+  ([^Node node name env selection-provider dynamics]
+    (user-data! node ::context {:name name
+                                :env env
+                                :selection-provider selection-provider
+                                :dynamics dynamics})))
 
 (defn- contexts []
   (let [main-scene (.getScene ^Stage @*main-stage*)
@@ -478,7 +484,10 @@
           ctxs
           (recur (.getParent node) (conj ctxs (user-data node ::context)))))
       (remove nil?)
-      (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
+      (map (fn [ctx]
+             (-> ctx
+               (assoc-in [:env :selection] (workspace/selection (:selection-provider ctx)))
+               (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in ctx [:env node]) v)]) (:dynamics ctx))))))))))
 
 
 (defn extend-menu [id location menu]
@@ -626,31 +635,65 @@
      (.clear (.getChildren control))
      (user-data! control ::menu menu)
      (user-data! control ::command-contexts command-contexts)
-     (doseq [menu-item menu
-             :let [command (:command menu-item)
-                   user-data (:user-data menu-item)]
-             :when (handler/active? command command-contexts user-data)]
-       (let [button (ToggleButton. (or (handler/label command command-contexts user-data) (:label menu-item)))
-             icon (:icon menu-item)
-             selection-provider (:selection-provider td)]
-         (user-data! button ::menu-user-data user-data)
-         (when icon
-           (.setGraphic button (jfx/get-image-view icon 22.5)))
-         (when command
-           (.setId button (name command))
-           (.setOnAction button (event-handler event (handler/run command command-contexts user-data))))
-         (.add (.getChildren control) button))))))
+     (let [children (doall
+                      (for [menu-item menu
+                            :let [command (:command menu-item)
+                                  user-data (:user-data menu-item)
+                                  separator? (= :separator (:label menu-item))]
+                            :when (or separator? (handler/active? command command-contexts user-data))]
+                        (let [^Control child (if separator?
+                                               (doto (Separator. Orientation/VERTICAL)
+                                                 (add-style! "separator"))
+                                               (if-let [opts (handler/options command command-contexts user-data)]
+                                                 (let [hbox (doto (HBox.)
+                                                              (add-style! "cell"))
+                                                       cb (doto (ChoiceBox.)
+                                                            (.setConverter (proxy [StringConverter] []
+                                                                             (fromString [str] (some #{str} (map :label opts)))
+                                                                             (toString [v] (:label v)))))]
+                                                   (observe (.valueProperty cb) (fn [this old new]
+                                                                                  (when new
+                                                                                    (handler/run (:command new) command-contexts (:user-data new)))))
+                                                   (doseq [opt opts]
+                                                     (.add (.getItems cb) opt))
+                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 22.5))
+                                                   (.add (.getChildren hbox) cb)
+                                                   hbox)
+                                                 (let [button (ToggleButton. (or (handler/label command command-contexts user-data) (:label menu-item)))
+                                                       icon (:icon menu-item)
+                                                       selection-provider (:selection-provider td)]
+                                                   (when icon
+                                                     (.setGraphic button (jfx/get-image-view icon 22.5)))
+                                                   (when command
+                                                     (on-action! button (fn [event] (handler/run command command-contexts user-data))))
+                                                   button)))]
+                          (when command
+                            (.setId child (name command)))
+                          (user-data! child ::menu-user-data user-data)
+                          child)))
+           children (if (instance? Separator (last children))
+                      (butlast children)
+                      children)]
+       (doseq [child children]
+         (.add (.getChildren control) child))))))
 
 (defn- refresh-toolbar-state [^Pane toolbar command-contexts]
   (let [nodes (.getChildren toolbar)
         ids (map #(.getId ^Node %) nodes)]
     (doseq [^Node n nodes
             :let [user-data (user-data n ::menu-user-data)]]
-      (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-contexts user-data)))
+      (disable! n (not (handler/enabled? (keyword (.getId n)) command-contexts user-data)))
       (when (instance? ToggleButton n)
         (if (handler/state (keyword (.getId n)) command-contexts user-data)
-         (.setSelected ^Toggle n true)
-         (.setSelected ^Toggle n false))))))
+          (.setSelected ^Toggle n true)
+          (.setSelected ^Toggle n false)))
+      (when (instance? HBox n)
+        (let [^HBox box n
+              state (handler/state (keyword (.getId n)) command-contexts user-data)
+              ^ChoiceBox cb (.get (.getChildren box) 1)]
+          (when (not (.isShowing cb))
+            (-> (.getSelectionModel cb)
+              (.select state))))))))
 
 (defn refresh
   ([^Scene scene] (refresh scene (contexts)))
@@ -667,7 +710,8 @@
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
     (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
-    (.setText label (progress/description progress))))
+    (when label
+      (.setText label (progress/description progress)))))
 
 (defn default-render-progress! [progress]
   (run-later

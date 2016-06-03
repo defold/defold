@@ -69,7 +69,14 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
+            # some tests after we switched to -02 optimisations. We should refine these tests so that they
+            # don't rely on equal-compare floating point values, and/or verify that underlaying engine
+            # code don't rely on floats being of a certain precision level. When this is done, we can
+            # remove -ffloat-store. Jira Issue: DEF-1891
+            if 'linux' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
+                self.env.append_value(f, ['-ffloat-store'])
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
@@ -126,10 +133,10 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0'])
+        self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -140,7 +147,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['-g'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+            self.env.append_value(f, ['/O2', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
 

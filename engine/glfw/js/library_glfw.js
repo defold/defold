@@ -135,7 +135,13 @@ var LibraryGLFW = {
         }
     },
 
+    isCanvasActive: function() {
+      return (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
+    },
+
     onKeyPress: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       // charCode is only available whith onKeyPress event
       if (event.charCode) {
         var char = GLFW.getUnicodeChar(event.charCode);
@@ -146,6 +152,8 @@ var LibraryGLFW = {
     },
 
     onKeyChanged: function(event, status) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       var key = GLFW.DOMToGLFWKeyCode(event.keyCode);
       if (key) {
         GLFW.keys[key] = status;
@@ -156,6 +164,8 @@ var LibraryGLFW = {
     },
 
     onKeydown: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       // This logic comes directly from the sdl implementation. We cannot
       // call preventDefault on all keydown events otherwise onKeyPress will
@@ -166,10 +176,14 @@ var LibraryGLFW = {
     },
 
     onKeyup: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       GLFW.onKeyChanged(event, 0);// GLFW_RELEASE
     },
 
     onMousemove: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       /* Send motion event only if the motion changed, prevents
        * spamming our app with uncessary callback call. It does happen in
        * Chrome on Windows.
@@ -187,6 +201,8 @@ var LibraryGLFW = {
     },
 
     onMouseButtonChanged: function(event, status) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       if (GLFW.mouseButtonFunc == null) {
         return;
       }
@@ -219,6 +235,8 @@ var LibraryGLFW = {
     },
 
     onTouchEnd: function(event) {
+        if (!GLFW.isCanvasActive()) { return; }
+
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
@@ -241,6 +259,8 @@ var LibraryGLFW = {
     },
 
     onTouchMove: function(event) {
+        if (!GLFW.isCanvasActive()) { return; }
+
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
         for(var i = 0; i < e.changedTouches.length; ++i) {
@@ -255,6 +275,8 @@ var LibraryGLFW = {
     },
 
     onTouchStart: function(event) {
+        if (!GLFW.isCanvasActive()) { return; }
+
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
         for(var i = 0; i < e.changedTouches.length; ++i) {
@@ -270,16 +292,22 @@ var LibraryGLFW = {
     },
 
     onMouseButtonDown: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
     },
 
     onMouseButtonUp: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
     },
 
     onMouseWheel: function(event) {
+      if (!GLFW.isCanvasActive()) { return; }
+
       GLFW.wheelPos -= Browser.getMouseWheelDelta(event);
 
       if (GLFW.mouseWheelFunc && event.target == Module["canvas"]) {

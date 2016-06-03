@@ -877,17 +877,31 @@ Defold Orange       #fd6623             Guides etc
 #toolbar {
   -fx-background-color: #484d54;
   -fx-border-color: #484d54;
-  -fx-border-width: 0 1;
+  -fx-border-width: 1 1;
   -fx-padding: 0;
   -fx-spacing: 1; }
 
-#toolbar > .toggle-button {
+#toolbar .separator {
+  -fx-background-color: #484d54;
+  -fx-border-width: 0 1;
+  -fx-padding: 2;
+  -fx-spacing: 1; }
+
+#toolbar .separator .line {
+  -fx-background-color: #484d54;
+  -fx-border-color: #484d54; }
+
+#toolbar > .cell {
+  -fx-alignment: center; }
+
+#toolbar > .toggle-button, #toolbar > .cell {
   -fx-background-color: #222426, #272b30;
   -fx-background-insets: 0, 0 0 2 0;
   -fx-background-radius: 0;
   -fx-border-radius: 0;
   -fx-border-width: 0;
-  -fx-padding: 5px; }
+  -fx-padding: 5px;
+  -fx-spacing: 5px; }
 
 #toolbar > .toggle-button:hover {
   -fx-background-color: #1e2021; }
@@ -908,6 +922,37 @@ Defold Orange       #fd6623             Guides etc
 .lua.styled-text-area .keyword,
 .glsl.styled-text-area .keyword {
     -styled-text-color: #fd6623;
+}
+
+.lua.styled-text-area .helper-keyword {
+    -styled-text-color: #33cccc;
+}
+
+.lua.styled-text-area .self-keyword {
+    -styled-text-color: #E066FF;
+}
+
+.lua.styled-text-area .logic-keywords {
+    -styled-text-color: #E3A869;
+}
+
+.lua.styled-text-area .control-flow-keyword,
+.glsl.styled-text-area .control-flow-keyword
+ {
+    -styled-text-color: #fd6623;
+}
+
+.lua.styled-text-area .constant {
+    -styled-text-color: #FFBBFF;
+}
+
+.lua.styled-text-area .defold-keyword {
+    -styled-text-color: #33cc33;
+}
+
+.lua.styled-text-area .operator,
+.glsl.styled-text-area .operator {
+    -styled-text-color: #33cccc;
 }
 
 .lua.styled-text-area .default,
@@ -936,6 +981,35 @@ Defold Orange       #fd6623             Guides etc
 .glsl.selection-marker {
     -fx-background-color: #8f9296;
 }
+
+.glsl.styled-text-area .directive {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .macro-keyword {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .precision-keyword {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .storage-type {
+    -styled-text-color: #33cc33;
+}
+
+.glsl.styled-text-area .storage-modifier-keyword {
+    -styled-text-color: #fd6623;
+}
+
+.glsl.styled-text-area .support-variable-keyword {
+   -styled-text-color: f0f2f6
+}
+
+.glsl.styled-text-area .support-function-keyword {
+    -styled-text-color: #fd6623;
+}
+
 
 .styled-text-area .text-caret {
 	-fx-fill: white;
@@ -976,3 +1050,9 @@ Line numbers:
 
 .overridden .color-picker-label .text {
   -fx-fill: -defold-light-blue; }
+
+/* Console */
+
+#console {
+    -fx-highlight-fill: -defold-selected-blue;
+}
