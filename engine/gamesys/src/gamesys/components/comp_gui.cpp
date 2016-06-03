@@ -148,6 +148,7 @@ namespace dmGameSystem
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
 
         // texture and texture animation setup
+        dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
         if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
         {
             const size_t path_str_size_max = 512;
@@ -215,7 +216,6 @@ namespace dmGameSystem
         dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
         dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
         dmGui::SetNodeAdjustMode(scene, n, (dmGui::AdjustMode) node_desc->m_AdjustMode);
-        dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
         dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
 
         dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);

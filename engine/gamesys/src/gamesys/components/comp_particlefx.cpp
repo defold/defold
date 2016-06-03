@@ -305,19 +305,13 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
             uint32_t count = world->m_Components.Size();
-            uint32_t found_count = 0;
             for (uint32_t i = 0; i < count; ++i)
             {
                 ParticleFXComponent* component = &world->m_Components[i];
                 if (component->m_Instance == params.m_Instance)
                 {
                     dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
-                    ++found_count;
                 }
-            }
-            if (found_count == 0)
-            {
-                dmLogWarning("Particle FX to stop could not be found.");
             }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash)

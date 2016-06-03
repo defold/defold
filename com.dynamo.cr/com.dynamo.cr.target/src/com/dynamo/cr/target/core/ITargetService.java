@@ -15,7 +15,7 @@ public interface ITargetService {
     public void setSearchInternal(int searchInterval);
 
     public void launch(String customApplication, String location, boolean runInDebugger, boolean autoRunDebugger,
-                       String socksProxy, int socksProxyPort, int httpServerPort);
+                       String socksProxy, int socksProxyPort, int httpServerPort, boolean quitOnEsc);
 
     public ITarget getSelectedTarget();
 
