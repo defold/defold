@@ -554,7 +554,7 @@
   (text! clipboard (text-selection selection))
   (replace-text-selection selection ""))
 
-(defn cut-line [selection]
+(defn cut-line [selection clipboard]
   (let [c (caret selection)
         doc (text selection)
         np (adjust-bounds doc c)
@@ -564,7 +564,9 @@
                       line-end-offset
                       (inc line-end-offset))
         new-doc (str (subs doc 0 line-begin-offset)
-                     (subs doc consume-pos))]
+                     (subs doc consume-pos))
+        line-doc (str (subs doc line-begin-offset consume-pos))]
+    (text! clipboard line-doc)
     (text! selection new-doc)
     (caret! selection (adjust-bounds new-doc line-begin-offset) false)))
 
@@ -573,7 +575,7 @@
   (run [selection clipboard]
     (if (pos? (selection-length selection))
       (cut-selection selection clipboard)
-      (cut-line selection))))
+      (cut-line selection clipboard))))
 
 (handler/defhandler :delete-prev-word :code-view
   (enabled? [selection] (editable? selection))
