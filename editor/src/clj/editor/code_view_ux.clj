@@ -494,14 +494,15 @@
       (caret! selection (count doc) true))))
 
 (defn go-to-line [selection line-number]
-  (try
-    (let [line  (Integer/parseInt line-number)
-          doc (text selection)
-          doc-lines (string/split doc #"\n")
-          target-lines (take (dec line) doc-lines)
-          np (+ (count target-lines) (reduce + (map count target-lines)))]
-      (caret! selection (adjust-bounds doc (if (zero? np) 0 np)) false))
-    (catch Exception e (println "Not a valid line number" line-number (.getMessage e)))))
+  (when line-number
+    (try
+     (let [line  (Integer/parseInt line-number)
+           doc (text selection)
+           doc-lines (string/split doc #"\n")
+           target-lines (take (dec line) doc-lines)
+           np (+ (count target-lines) (reduce + (map count target-lines)))]
+       (caret! selection (adjust-bounds doc (if (zero? np) 0 np)) false))
+     (catch Exception e (println "Not a valid line number" line-number (.getMessage e))))))
 
 (handler/defhandler :goto-line :code-view
   (enabled? [selection] selection)
