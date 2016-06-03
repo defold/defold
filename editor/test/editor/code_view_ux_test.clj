@@ -253,7 +253,7 @@
 
 (deftest word-move-test
   (with-clean-system
-    (let [code "the quick.brown\nfox"
+    (let [code "the quick.brown\nfox_test"
           opts lua/lua
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
@@ -270,8 +270,12 @@
         (next-word! source-viewer)
         (is (= \f (get-char-at-caret source-viewer)))
         (next-word! source-viewer)
+        (is (= \_ (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
         (is (= nil (get-char-at-caret source-viewer))))
       (testing "moving prev word"
+        (prev-word! source-viewer)
+        (is (= \t (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
         (is (= \f (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
