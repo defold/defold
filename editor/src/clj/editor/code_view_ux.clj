@@ -171,8 +171,7 @@
         (handler/run
           (:command kf)
           [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-          k-info)
-        (changes! source-viewer)))))
+          k-info)))))
 
 (defn is-not-typable-modifier? [e]
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
@@ -184,8 +183,7 @@
       (handler/run
         :key-typed
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
-        e)
-      (changes! source-viewer))))
+        e))))
 
 
 (defn- adjust-bounds [s pos]
@@ -218,7 +216,6 @@
                (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
                e))
-    (changes! source-viewer)
     (.consume e)))
 
 (defn- replace-text-selection [selection s]
