@@ -36,7 +36,8 @@ namespace dmSocket
                     a->m_Name[sizeof(a->m_Name)-1] = 0;
                     sockaddr_in* ia = (sockaddr_in*) pcurraddresses->FirstUnicastAddress->Address.lpSockaddr;
                     a->m_Flags |= FLAGS_INET;
-                    a->m_Address = ntohl(ia->sin_addr.s_addr);
+                    a->m_Address.m_family = DOMAIN_IPV4;
+                    *IPv4(&a->m_Address) = ia->sin_addr.s_addr;
 
                     a->m_Flags |= FLAGS_LINK;
                     a->m_MacAddress[0] = pcurraddresses->PhysicalAddress[0];

@@ -62,6 +62,12 @@ namespace dmSys
         }
         reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
 
+        if (reachability_ref == NULL)
+        {
+            dmLogError("Could not create reachability reference (NULL).");
+            return;
+        }
+
         SCNetworkReachabilityContext context = {0, (void*) 0, NULL, NULL, NULL};
         if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context))
         {
