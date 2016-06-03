@@ -107,31 +107,31 @@ TEST_F(FBTest, ValueToJson)
     lua_pushnil(L);
     lua_pushcfunction(L, NULL);
 
-    ASSERT_EQ(1, dmFacebook::LuaValueToJson(L, 1, json, 256));
+    ASSERT_EQ(1, dmFacebook::LuaValueToJsonValue(L, 1, json, 256));
     ASSERT_STREQ("1", json);
 
-    ASSERT_EQ(3, dmFacebook::LuaValueToJson(L, 2, json, 256));
+    ASSERT_EQ(3, dmFacebook::LuaValueToJsonValue(L, 2, json, 256));
     ASSERT_STREQ("1.1", json);
 
-    ASSERT_EQ(1, dmFacebook::LuaValueToJson(L, 3, json, 256));
+    ASSERT_EQ(1, dmFacebook::LuaValueToJsonValue(L, 3, json, 256));
     ASSERT_STREQ("0", json);
 
-    ASSERT_EQ(2, dmFacebook::LuaValueToJson(L, 4, json, 256));
+    ASSERT_EQ(2, dmFacebook::LuaValueToJsonValue(L, 4, json, 256));
     ASSERT_STREQ("-1", json);
 
-    ASSERT_EQ(4, dmFacebook::LuaValueToJson(L, 5, json, 256));
+    ASSERT_EQ(4, dmFacebook::LuaValueToJsonValue(L, 5, json, 256));
     ASSERT_STREQ("-1.1", json);
 
-    ASSERT_EQ(5, dmFacebook::LuaValueToJson(L, 6, json, 256));
+    ASSERT_EQ(5, dmFacebook::LuaValueToJsonValue(L, 6, json, 256));
     ASSERT_STREQ("\"asd\"", json);
 
-    ASSERT_EQ(5, dmFacebook::LuaValueToJson(L, 7, json, 256));
+    ASSERT_EQ(5, dmFacebook::LuaValueToJsonValue(L, 7, json, 256));
     ASSERT_STREQ("false", json);
 
-    ASSERT_EQ(4, dmFacebook::LuaValueToJson(L, 8, json, 256));
+    ASSERT_EQ(4, dmFacebook::LuaValueToJsonValue(L, 8, json, 256));
     ASSERT_STREQ("true", json);
 
-    ASSERT_EQ(4, dmFacebook::LuaValueToJson(L, 9, json, 256));
+    ASSERT_EQ(4, dmFacebook::LuaValueToJsonValue(L, 9, json, 256));
     ASSERT_STREQ("null", json);
 }
 
@@ -145,25 +145,23 @@ TEST_F(FBTest, InvalidValueToJson)
     lua_pushthread(L);
     lua_pushnumber(L, 1);
 
-    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 1, json, 256));
+    ASSERT_EQ(0, dmFacebook::LuaValueToJsonValue(L, 1, json, 256));
     ASSERT_STREQ("", json);
 
-    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 2, json, 256));
+    ASSERT_EQ(0, dmFacebook::LuaValueToJsonValue(L, 2, json, 256));
     ASSERT_STREQ("", json);
 
-    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 3, json, 256));
+    ASSERT_EQ(0, dmFacebook::LuaValueToJsonValue(L, 3, json, 256));
     ASSERT_STREQ("", json);
 
     char small_buffer[2];
-    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 4, small_buffer, 0));
-    ASSERT_STREQ("", json);
-    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 4, small_buffer, 1));
-    ASSERT_STREQ("", json);
-    ASSERT_EQ(0, dmFacebook::LuaValueToJson(L, 4, small_buffer, 2));
-    ASSERT_STREQ("", json);
+    ASSERT_EQ(0, dmFacebook::LuaValueToJsonValue(L, 4, small_buffer, 0));
+    ASSERT_EQ(0, dmFacebook::LuaValueToJsonValue(L, 4, small_buffer, 1));
+    ASSERT_EQ(1, dmFacebook::LuaValueToJsonValue(L, 4, small_buffer, 2));
+    ASSERT_STREQ("1", small_buffer);
 }
 
-TEST_F(FBTest, ArrayToJson)
+TEST_F(FBTest, ArrayToJsonStrings)
 {
     char json[256];
     int r = 0;
@@ -181,11 +179,18 @@ TEST_F(FBTest, ArrayToJson)
     lua_pushstring(L, "jkl");
     lua_rawset(L, -3);
 
-    r = dmFacebook::LuaValueToJson(L, 1, json, 256);
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
     ASSERT_STREQ("[\"asd\",\"fgh\",\"jkl\"]", json);
+}
+
+TEST_F(FBTest, ArrayToJsonMixed1)
+{
+    char json[256];
+    int r = 0;
 
     // { 1: "asd", 2: 1.1, 3: 1 }
-    L = luaL_newstate();
+    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushnumber(L, 1);
     lua_pushstring(L, "asd");
@@ -197,11 +202,18 @@ TEST_F(FBTest, ArrayToJson)
     lua_pushnumber(L, 1.0);
     lua_rawset(L, -3);
 
-    r = dmFacebook::LuaValueToJson(L, 1, json, 256);
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
     ASSERT_STREQ("[\"asd\",1.1,1]", json);
+}
+
+TEST_F(FBTest, ArrayToJsonMixed2)
+{
+    char json[256];
+    int r = 0;
 
     // { 1: false, 2: 1.337, 3: true }
-    L = luaL_newstate();
+    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushnumber(L, 1);
     lua_pushboolean(L, false);
@@ -213,11 +225,12 @@ TEST_F(FBTest, ArrayToJson)
     lua_pushboolean(L, true);
     lua_rawset(L, -3);
 
-    r = dmFacebook::LuaValueToJson(L, 1, json, 256);
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
     ASSERT_STREQ("[false,1.337,true]", json);
 }
 
-TEST_F(FBTest, TableToJson)
+TEST_F(FBTest, TableToJsonStrings)
 {
     char json[256];
     int r = 0;
@@ -234,11 +247,18 @@ TEST_F(FBTest, TableToJson)
     lua_pushstring(L, "jkl");
     lua_rawset(L, -3);
 
-    r = dmFacebook::LuaValueToJson(L, 1, json, 256);
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
     ASSERT_STREQ("{1:\"asd\",3:\"jkl\",\"string_key\":\"fgh\"}", json);
+}
+
+TEST_F(FBTest, TableToJsonMultiLevelStrings)
+{
+    char json[256];
+    int r = 0;
 
     // { "suggestions": ["userid1", "userid2", "userid3"] }
-    L = luaL_newstate();
+    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
         lua_createtable(L, 1, 0);
         lua_pushnumber(L, 1);
@@ -252,11 +272,18 @@ TEST_F(FBTest, TableToJson)
         lua_rawset(L, -3);
     lua_setfield(L, 1, "suggestions");
 
-    r = dmFacebook::LuaValueToJson(L, 1, json, 256);
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
     ASSERT_STREQ("{\"suggestions\":[\"userid1\",\"userid2\",\"userid3\"]}", json);
+}
+
+TEST_F(FBTest, TableToJsonMultiLevelMixed)
+{
+    char json[256];
+    int r = 0;
 
     // { "a": {1: "d", 2: "e", "b":["c"]} }
-    L = luaL_newstate();
+    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
         lua_createtable(L, 1, 0);
         lua_pushstring(L, "b");
@@ -274,8 +301,69 @@ TEST_F(FBTest, TableToJson)
         lua_rawset(L, -3);
     lua_setfield(L, 1, "a");
 
-    r = dmFacebook::LuaValueToJson(L, 1, json, 256);
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
     ASSERT_STREQ("{\"a\":{1:\"d\",2:\"e\",\"b\":[\"c\"]}}", json);
+}
+
+TEST_F(FBTest, TableToJsonEmpty1)
+{
+    char json[256];
+    int r = 0;
+
+    // {}
+    lua_State* L = luaL_newstate();
+    lua_createtable(L, 1, 0);
+
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
+    ASSERT_NE(0, r);
+    ASSERT_STREQ("[]", json);
+}
+
+TEST_F(FBTest, TableToJsonEmpty2)
+{
+    char json[256];
+    int r = 0;
+
+    // {}
+    lua_State* L = luaL_newstate();
+    lua_createtable(L, 1, 0);
+
+    r = dmFacebook::LuaValueToJsonValue(L, -1, json, 256);
+    ASSERT_NE(0, r);
+    ASSERT_STREQ("[]", json);
+}
+
+TEST_F(FBTest, TableToJsonBufferOverflow1)
+{
+    char json[] = "abcd";
+    int r = 0;
+
+    // {}
+    lua_State* L = luaL_newstate();
+    lua_createtable(L, 1, 0);
+
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 2);
+    ASSERT_EQ(0, r);
+    ASSERT_STREQ("cd", json+2);
+}
+
+
+TEST_F(FBTest, TableToJsonBufferOverflow2)
+{
+    char json[] = "abcdefghij";
+    int r = 0;
+
+    // {"12345"} -> ["12345"]
+    lua_State* L = luaL_newstate();
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "12345");
+    lua_rawset(L, -3);
+
+    r = dmFacebook::LuaValueToJsonValue(L, 1, json, 7);
+    ASSERT_EQ(0, r);
+    ASSERT_STREQ("hij", json+7);
 }
 
 TEST_F(FBTest, ParseJsonSimple)
@@ -288,7 +376,7 @@ TEST_F(FBTest, ParseJsonSimple)
     lua_setfield(L, 1, "another_key");
 
     char json[1024];
-    ASSERT_NE(0, dmFacebook::LuaValueToJson(L, 1, json, 1024));
+    ASSERT_NE(0, dmFacebook::LuaValueToJsonValue(L, 1, json, 1024));
 
     // parse json document
     dmJson::Document doc;
@@ -326,7 +414,7 @@ TEST_F(FBTest, ParseJsonMultiTable)
     lua_setfield(L, 1, "suggestions");
 
     char json[1024];
-    ASSERT_NE(0, dmFacebook::LuaValueToJson(L, 1, json, 1024));
+    ASSERT_NE(0, dmFacebook::LuaValueToJsonValue(L, 1, json, 1024));
 
     // parse json document
     dmJson::Document doc;
@@ -365,12 +453,40 @@ TEST_F(FBTest, DuplicateTable)
     lua_newtable(L);
     int to_index = lua_gettop(L);
 
-    ASSERT_EQ(1, dmFacebook::DuplicateLuaTable(L, from_index, to_index, 0));
+    ASSERT_EQ(1, dmFacebook::DuplicateLuaTable(L, from_index, to_index, 4));
     ASSERT_EQ(to_index, lua_gettop(L));
 
     lua_getfield(L, to_index, "suggestions");
     lua_getfield(L, -1, "abcd");
     ASSERT_STREQ("userid2", lua_tostring(L, -1));
+    lua_pop(L, 2);
+    ASSERT_EQ(to_index, lua_gettop(L));
+}
+
+TEST_F(FBTest, DuplicateTableMaxRecursion)
+{
+    lua_State* L = luaL_newstate();
+    lua_newtable(L);
+    lua_pushstring(L, "level0");
+        lua_newtable(L);
+        lua_pushstring(L, "level1");
+            lua_newtable(L);
+            lua_pushstring(L, "level2");
+            lua_pushstring(L, "level2");
+            lua_rawset(L, -3);
+        lua_rawset(L, -3);
+    lua_rawset(L, -3);
+    int from_index = lua_gettop(L);
+
+    lua_newtable(L);
+    int to_index = lua_gettop(L);
+
+    ASSERT_EQ(0, dmFacebook::DuplicateLuaTable(L, from_index, to_index, 1));
+    ASSERT_EQ(to_index, lua_gettop(L));
+
+    lua_getfield(L, to_index, "level0");
+    lua_getfield(L, -1, "level1");
+    ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
     lua_pop(L, 2);
     ASSERT_EQ(to_index, lua_gettop(L));
 }

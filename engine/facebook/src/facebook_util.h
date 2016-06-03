@@ -32,9 +32,10 @@ namespace dmFacebook {
      * @param L Lua state
      * @param from_index Stack location of input table
      * @param to_index Stack location of output table
+     * @param max_recursion_depth Max table recursions allowed
      * @return 1 on success, 0 on failure
      */
-    int DuplicateLuaTable(lua_State* L, int from_index, int to_index, int recursion_depth = 0);
+    int DuplicateLuaTable(lua_State* L, int from_index, int to_index, unsigned int max_recursion_depth);
 
     /**
      * Converts a Lua table into a comma seperated string. The table will be treated as an
@@ -48,14 +49,24 @@ namespace dmFacebook {
     size_t LuaStringCommaArray(lua_State* L, int index, char* buffer, size_t buffer_size);
 
     /**
-     * Convert a Lua table into a JSON object, encoded as a non-prettyfied string.
+     * Convert a Lua value into a JSON value, encoded as a non-prettyfied null terminated string.
      * @param L Lua state
      * @param index Stack location of Lua table
      * @param buffer Output JSON char buffer
      * @param buffer_size Output buffer size
      * @return Length of output string, 0 if conversion failed
      */
-    int LuaValueToJson(lua_State* L, int index, char* buffer, size_t buffer_size);
+    int LuaValueToJsonValue(lua_State* L, int index, char* buffer, size_t buffer_size);
+
+    /**
+     * Convert a Lua table into a JSON object, encoded as a non-prettyfied null terminated string.
+     * @param L Lua state
+     * @param index Stack location of Lua table
+     * @param buffer Output JSON char buffer
+     * @param buffer_size Output buffer size
+     * @return Length of output string, 0 if conversion failed
+     */
+    int LuaTableToJson(lua_State* L, int index, char* buffer, size_t buffer_size);
 
     /**
      * Escapes "escapable character sequences" in a string and writes it to an output buffer.
@@ -70,8 +81,8 @@ namespace dmFacebook {
     /**
      * Converts a Lua table to a platform specific "facebook.show_dialog" param table.
      * The Lua table will be formatted to be used with the internal functionality of
-     * the Android and JavaScript Facebook SDKs. The formatting tries to unify the
-     * field names and value types with the iOS implementation.
+     * the JavaScript Facebook SDK. The formatting tries to unify the field names
+     * and value types with the iOS implementation.
      * @param L Lua state
      * @param dialog_type Dialog type that the param table will be used for
      * @param from_index Stack location of input table
@@ -79,6 +90,18 @@ namespace dmFacebook {
      * @return 1 on success, 0 on failure
      */
     int DialogTableToEmscripten(lua_State* L, const char* dialog_type, int from_index, int to_index);
+
+    /**
+     * Converts a Lua table to a platform specific "facebook.show_dialog" param table.
+     * The Lua table will be formatted to be used with the internal functionality of
+     * the Android Facebook SDK. The formatting tries to unify the field names
+     * and value types with the iOS implementation.
+     * @param L Lua state
+     * @param dialog_type Dialog type that the param table will be used for
+     * @param from_index Stack location of input table
+     * @param to_index Stack location of output table
+     * @return 1 on success, 0 on failure
+     */
     int DialogTableToAndroid(lua_State* L, const char* dialog_type, int from_index, int to_index);
 
 

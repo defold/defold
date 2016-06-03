@@ -645,16 +645,15 @@ int Facebook_ShowDialog(lua_State* L)
     int to_index = lua_gettop(L);
     if (0 == dmFacebook::DialogTableToAndroid(L, dialog, 2, to_index)) {
         lua_pop(L, 1);
-        luaL_error(L, "Could not convert show dialog param table.");
-        return 0;
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "Could not convert show dialog param table.");
     }
 
-    int json_max_length = 2048;
-    char params_json[json_max_length];
-    if (0 == dmFacebook::LuaValueToJson(L, to_index, params_json, json_max_length)) {
+    char params_json[2048];
+    if (0 == dmFacebook::LuaTableToJson(L, to_index, params_json, 2048)) {
         lua_pop(L, 1);
-        luaL_error(L, "Dialog params table too large.");
-        return 0;
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "Dialog params table too large.");
     }
     lua_pop(L, 1);
 
@@ -666,7 +665,8 @@ int Facebook_ShowDialog(lua_State* L)
 
     if (!Detach(env))
     {
-        luaL_error(L, "An unexpected error occurred.");
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "An unexpected error occurred.");
     }
 
     assert(top == lua_gettop(L));
