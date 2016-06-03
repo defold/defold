@@ -199,7 +199,27 @@
           (down! source-viewer)
           (is (= \2 (get-char-at-caret source-viewer)))
           (up! source-viewer)
-          (is (= \1 (get-char-at-caret source-viewer))))))))
+          (is (= \1 (get-char-at-caret source-viewer)))))
+      (testing "with chunk of selected text, down takes cursor to end of chunk"
+        (preferred-offset! 0)
+        (text! source-viewer "line1\nline2\nline3")
+        (caret! source-viewer 0 false)
+        (text-selection! source-viewer 0 15)
+        (is (= 0 (caret source-viewer)))
+        (is (= "line1\nline2\nlin" (text-selection source-viewer)))
+        (down! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 15 (caret source-viewer))))
+      (testing "with chunk of selected text, up takes cursor to start of chunk"
+        (preferred-offset! 0)
+        (text! source-viewer "line1\nline2\nline3")
+        (caret! source-viewer 15 false)
+        (text-selection! source-viewer 0 15)
+        (is (= 15 (caret source-viewer)))
+        (is (= "line1\nline2\nlin" (text-selection source-viewer)))
+        (up! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 0 (caret source-viewer)))))))
 
 (defn- select-up! [source-viewer]
   (handler/run :select-up [{:name :code-view :env {:selection source-viewer}}]{}))
