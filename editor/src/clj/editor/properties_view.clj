@@ -61,6 +61,13 @@
   (update-field-message [text] message)
   (ui/editable! text (not read-only?)))
 
+(defn- auto-commit! [^Node node update-fn]
+  (ui/on-focus! node (fn [got-focus] (if got-focus
+                                       (ui/user-data! node ::auto-commit? false)
+                                       (when (ui/user-data node ::auto-commit?)
+                                         (update-fn nil)))))
+  (ui/on-edit! node (fn [old new] (ui/user-data! node ::auto-commit? true))))
+
 (defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
 
 (defmethod create-property-control! String [_ _ property-fn]
@@ -69,7 +76,7 @@
         update-fn    (fn [_]
                        (properties/set-values! (property-fn) (repeat (.getText text))))]
     (ui/on-action! text update-fn)
-    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
+    (auto-commit! text update-fn)
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
@@ -83,7 +90,7 @@
                                          (properties/validation-message property)
                                          (properties/read-only? property)))))]
     (ui/on-action! text update-fn)
-    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
+    (auto-commit! text update-fn)
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
@@ -94,7 +101,7 @@
                                (update-ui-fn (properties/values (property-fn))
                                              (properties/validation-message (property-fn)))))]
     (ui/on-action! text update-fn)
-    (ui/on-focus! text (fn [got-focus] (and (not got-focus) (update-fn _))))
+    (auto-commit! text update-fn)
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
@@ -138,7 +145,7 @@
                                                         (properties/read-only? (property-fn))))))])
                                text-fields)]
       (ui/on-action! ^TextField t f)
-      (ui/on-focus! t (fn [got-focus] (and (not got-focus) (f nil)))))
+      (auto-commit! t f))
     (doseq [[t label] (map vector text-fields labels)]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
@@ -173,7 +180,7 @@
                                                 (properties/read-only? (property-fn))))))])
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
-      (ui/on-focus! t (fn [got-focus] (and (not got-focus) (f nil)))))
+      (auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
     (doseq [[t f] (map vector text-fields fields)
             :let  [children (if (:label f)
                               [(Label. (:label f)) t]
