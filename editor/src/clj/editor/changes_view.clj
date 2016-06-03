@@ -19,7 +19,8 @@
 (def short-status {:add "A" :modify "M" :delete "D" :rename "R"})
 
 (defn refresh! [git list-view]
-  (ui/items! list-view (git/unified-status git)))
+  (when git
+    (ui/items! list-view (git/unified-status git))))
 
 (defn- status-render [status]
   {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
@@ -54,7 +55,8 @@
          (diff-view/make-diff-viewer old-name old new-name new))))
 
 (handler/defhandler :synchronize :global
-  (enabled? [changes-view] true)
+  (enabled? [changes-view]
+            (g/node-value changes-view :git))
   (run [changes-view]
     (let [git   (g/node-value changes-view :git)
           prefs (g/node-value changes-view :prefs)]
@@ -84,10 +86,13 @@
      (ui/register-context-menu list-view ::changes-menu)
      (ui/cell-factory! list-view status-render)
      (ui/on-action! refresh (fn [_] (refresh! git list-view)))
+     (when-not git
+       (ui/disable! refresh true))
      (refresh! git list-view))))
 
 (defn make-changes-view [view-graph workspace prefs parent]
-  (let [git     (Git/open (io/file (g/node-value workspace :root)))
+  (let [git     (try (Git/open (io/file (g/node-value workspace :root)))
+                     (catch Exception _))
         view-id (g/make-node! view-graph ChangesView :parent-view parent :git git :prefs prefs)
         view    (g/node-by-id view-id)]
     ; TODO: try/catch to protect against project without git setup

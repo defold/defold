@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [editor.code :as code])
-  
+ 
   (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
 
 (set! *warn-on-reflection* true)
@@ -202,27 +202,47 @@
     (catch Exception e
       (.printStackTrace e))))
 
-(def ^:private keywords (str/split "and break do else elseif end false for function if in local nil not or repeat return then true until while self require" #" "))
+(def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
+                "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
+
+(def logic-keywords #{"and" "or" "not"})
+
+(def self-keyword #{"self"})
+
+(def control-flow-keywords #{"break" "do" "else" "for" "if" "elseif" "return" "then" "repeat" "while" "until" "end" "function"
+                             "local" "goto" "in"})
+
+(def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
+                       "release_input_focus" "request_transform" "set_parent" "transform_response"})
+
+(def constant-pattern #"^(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)")
+(def operator-pattern #"^(\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
+
+(defn match-constant [s]
+  (code/match-regex constant-pattern s))
+
+(defn match-operator [s]
+  (code/match-regex operator-pattern s))
 
 (defn- is-word-start [^Character c] (or (Character/isLetter c) (#{\_ \:} c)))
 (defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (#{\-} c)))
 
-(defn- match-multi-comment [charseq]
-  (when-let [match-open (code/match-string charseq "--[")]
+(defn- match-multi-comment [s]
+  (when-let [match-open (code/match-string s "--[")]
     (when-let [match-eqs (code/match-while-eq (:body match-open) \=)]
       (when-let [match-open2 (code/match-string (:body match-eqs) "[")]
-        (let [closing-marker (str "]" (apply str (repeat (:length match-eqs) \=)) "]")] 
+        (let [closing-marker (str "]" (apply str (repeat (:length match-eqs) \=)) "]")]
           (when-let [match-body (code/match-until-string (:body match-open2) closing-marker)]
             (code/combine-matches match-open match-eqs match-open2 match-body)))))))
 
-(defn- match-multi-open [charseq]
-  (when-let [match-open (code/match-string charseq "[")]
+(defn- match-multi-open [s]
+  (when-let [match-open (code/match-string s "[")]
     (when-let [match-eqs (code/match-while-eq (:body match-open) \=)]
       (when-let [match-open2 (code/match-string (:body match-eqs) "[")]
         (code/combine-matches match-open match-eqs match-open2)))))
 
-(defn- match-single-comment [charseq]
-  (when-let [match-open (code/match-string charseq "--")]
+(defn- match-single-comment [s]
+  (when-let [match-open (code/match-string s "--")]
     (when-not (match-multi-open (:body match-open))
       (when-let [match-body (code/match-until-eol (:body match-open))]
         (code/combine-matches match-open match-body)))))
@@ -264,12 +284,18 @@
              :type :default
              :rules
              [{:type :whitespace :space? #{\space \tab \newline \return}}
-              {:type :keyword :start? is-word-start :part? is-word-part :keywords keywords :class "keyword"}
+              {:type :custom :scanner match-single-comment :class "comment"}
+              {:type :custom :scanner match-multi-comment :class "comment-multi"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords defold-keywords :class "defold-keyword"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords helper-keywords :class "helper-keyword"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords logic-keywords :class "logic-keywords"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}
               {:type :word :start? is-word-start :part? is-word-part :class "default"}
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
               {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
-              {:type :custom :scanner match-single-comment :class "comment"}
-              {:type :custom :scanner match-multi-comment :class "comment-multi"}
+              {:type :custom :scanner match-constant :class "constant"}
+              {:type :custom :scanner match-operator :class "operator"}
               {:type :number :class "number"}
               {:type :default :class "default"}
               ]}

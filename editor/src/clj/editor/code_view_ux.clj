@@ -27,6 +27,9 @@
 (defprotocol TextStyles
   (styles [this]))
 
+(defprotocol TextUndo
+  (changes! [this]))
+
 (def mappings
   {
   ;;;movement
@@ -47,8 +50,9 @@
   :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 6}
   :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 7}
 
-  ;; mouse
+  ;; select
   :Double-Click          {:command :select-word}
+  :Shortcut+A            {:command :select-all}
 
   ;;movement with select
   :Shift+Right           {:command :select-right}
@@ -81,7 +85,6 @@
   ;; Delete
   :Backspace             {:command :delete}
   :Delete                {:command :delete}
-  :Shortcut+X            {:command :cut}
   :Shortcut+D            {:command :cut                     :label "Delete Line"                     :group "Delete" :order 1}
   :Alt+Delete            {:command :delete-next-word        :label "Delete Next Word"                :group "Delete" :order 2}
   :Alt+Backspace         {:command :delete-prev-word        :label "Delete Prev Word"                :group "Delete" :order 3}
@@ -155,29 +158,36 @@
   (let [code (if (= click-count 2) :Double-Click :Single-Click)]
     (get mappings code)))
 
-(defn handle-key-pressed [e source-viewer]
+(defn- is-mac-os? []
+  (= "Mac OS X" (System/getProperty "os.name")))
+
+(defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
-        kf (key-fn k-info (.getCode ^KeyEvent e))]
-    (when (and (:command kf) (not (:label kf)))
+        kf (key-fn k-info (.getCode e))]
+
+    (when (and (is-mac-os?) (or (= KeyCode/ALT (.getCode e)) (.isAltDown e)))
+      (.consume e))
+
+    (when (and  (not (.isConsumed e)) (:command kf) (not (:label kf)))
       (handler/run
         (:command kf)
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-        k-info))))
-
-(defn- is-mac-os? []
-  (= "Mac OS X" (System/getProperty "os.name")))
+        k-info)
+      (changes! source-viewer)
+      (.consume e))))
 
 (defn is-not-typable-modifier? [e]
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
     (not (or (.isControlDown ^KeyEvent e) (and (is-mac-os?) (.isAltDown ^KeyEvent e))))))
 
-(defn handle-key-typed [e source-viewer]
-  (let [key-typed (.getCharacter ^KeyEvent e)]
+(defn handle-key-typed [^KeyEvent e source-viewer]
+  (let [key-typed (.getCharacter e)]
     (when-not (is-not-typable-modifier? e)
       (handler/run
         :key-typed
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
-        e))))
+        e)
+      (changes! source-viewer))))
 
 
 (defn- adjust-bounds [s pos]
@@ -201,15 +211,17 @@
         caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
     (preferred-offset! caret-col)))
 
-(defn handle-mouse-clicked [e source-viewer]
-  (let [click-count (.getClickCount ^MouseEvent e)
+(defn handle-mouse-clicked [^MouseEvent e source-viewer]
+  (let [click-count (.getClickCount e)
         cf (click-fn click-count)
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
     (when cf (handler/run
-               cf
+               (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-               e))))
+               e))
+    (changes! source-viewer)
+    (.consume e)))
 
 (defn- replace-text-selection [selection s]
   (replace! selection (selection-offset selection) (selection-length selection) s)
@@ -345,7 +357,8 @@
         np (adjust-bounds doc c)
         next-word-move (next-word-move doc np)
         next-pos (+ np (count next-word-move))]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (defn prev-word-move [doc np]
   (re-find word-regex (->> (subs doc 0 np) (reverse) (apply str))))
@@ -356,7 +369,8 @@
         np (adjust-bounds doc c)
         next-word-move (prev-word-move doc np)
         next-pos (- np (count next-word-move))]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (handler/defhandler :next-word :code-view
   (enabled? [selection] selection)
@@ -388,7 +402,8 @@
 
 (defn line-begin [selection select?]
   (let [next-pos (line-begin-pos selection)]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (defn line-end-pos [selection]
   (let [c (caret selection)
@@ -400,7 +415,8 @@
 
 (defn line-end [selection select?]
   (let [next-pos (line-end-pos selection)]
-    (caret! selection next-pos select?)))
+    (caret! selection next-pos select?)
+    (remember-caret-col selection next-pos)))
 
 (handler/defhandler :line-begin :code-view
   (enabled? [selection] selection)
@@ -480,6 +496,11 @@
           end-pos (+ np (count word-end))
           len (- end-pos start-pos)]
       (text-selection! selection start-pos len))))
+
+(handler/defhandler :select-all :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (text-selection! selection 0 (count (text selection)))))
 
 (defn delete [selection]
   (let [c (caret selection)
@@ -749,3 +770,15 @@
     (when (editable? selection)
       (let [line-seperator (System/getProperty "line.separator")]
         (enter-key-text selection line-seperator)))))
+
+(handler/defhandler :undo :code-view
+  (enabled? [selection] selection)
+  (run [view-node code-node]
+    (g/undo! (g/node-id->graph-id code-node))
+    (g/node-value view-node :new-content)))
+
+(handler/defhandler :redo :code-view
+  (enabled? [selection] selection)
+  (run [view-node code-node]
+    (g/redo! (g/node-id->graph-id code-node))
+    (g/node-value view-node :new-content)))

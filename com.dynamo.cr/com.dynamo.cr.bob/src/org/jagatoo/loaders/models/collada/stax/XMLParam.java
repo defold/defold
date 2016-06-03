@@ -1,20 +1,20 @@
 /**
  * Copyright (c) 2007-2009, JAGaToo Project Group all rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * Neither the name of the 'Xith3D Project Group' nor the names of its
  * contributors may be used to endorse or promote products derived from this
  * software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -43,19 +43,21 @@ import org.jagatoo.logging.JAGTLog;
  * The name contains the "use" of the param, e.g.
  * "TIME", "ANGLE", "X", "Y", "Z"
  * Child of Accessor.
- * 
+ *
  * @author Amos Wenger (aka BlueSky)
  * @author Joe LaFata (aka qbproger)
  */
 public class XMLParam
 {
-    
+
     public static enum Type
     {
         /** Boolean */
         _bool,
         /** Float */
         _float,
+        /** Double */
+        _double,
         /** Integer */
         _int,
         /** Name (String) */
@@ -65,9 +67,9 @@ public class XMLParam
         /** 4x4 float matrix */
         _float4x4
     }
-    
+
     public XMLParam.Type type = null;
-    
+
     public static enum Name
     {
         /** X coordinate */
@@ -101,26 +103,26 @@ public class XMLParam
         /** Joint */
         JOINT
     }
-    
+
     public Name name = null;
-    
+
     public static Type readTypeString( String typeString )
     {
         return Type.valueOf( "_" + typeString );
     }
-    
+
     public void parse( XMLStreamReader parser ) throws XMLStreamException
     {
         doParsing( parser );
-        
+
         Location loc = parser.getLocation();
         if ( name == null )
             JAGTLog.exception( loc.getLineNumber(), ":", loc.getColumnNumber(), " ", this.getClass().getSimpleName(), ": missing name." );
-        
+
         if ( type == null )
             JAGTLog.exception( loc.getLineNumber(), ":", loc.getColumnNumber(), " ", this.getClass().getSimpleName(), ": missing type." );
     }
-    
+
     private void doParsing( XMLStreamReader parser ) throws XMLStreamException
     {
         for ( int i = 0; i < parser.getAttributeCount(); i++ )
@@ -139,7 +141,7 @@ public class XMLParam
                 JAGTLog.exception( "Unsupported ", this.getClass().getSimpleName(), " Attr tag: ", attr.getLocalPart() );
             }
         }
-        
+
         for ( int event = parser.next(); event != XMLStreamConstants.END_DOCUMENT; event = parser.next() )
         {
             switch ( event )
@@ -158,5 +160,5 @@ public class XMLParam
             }
         }
     }
-    
+
 }

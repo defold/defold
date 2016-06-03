@@ -352,12 +352,13 @@ public class TargetService implements ITargetService, Runnable {
                                     boolean autoRunDebugger,
                                     String socksProxy,
                                     int socksProxyPort,
-                                    int httpServerPort) {
+                                    int httpServerPort,
+                                    boolean quitOnEsc) {
 
         ITarget targetToLaunch = getSelectedTarget();
         LaunchThread launchThread = new LaunchThread(targetToLaunch, customApplication, location, runInDebugger,
                 autoRunDebugger, socksProxy, socksProxyPort, getHttpServerURL(targetToLaunch.getInetAddress(),
-                        httpServerPort));
+                        httpServerPort), quitOnEsc);
         launchThread.start();
         logClient.resetLogSocket(targetToLaunch);
     }

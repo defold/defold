@@ -73,6 +73,8 @@ namespace dmSocket
                 }
             }
 
+            a->m_Address.m_family = DOMAIN_MISSING;
+
             if (ifa->ifa_flags & IFF_UP) {
                 a->m_Flags |= FLAGS_UP;
             }
@@ -93,9 +95,15 @@ namespace dmSocket
                     a->m_MacAddress[5] = ptr[5];
                 }
             } else if (family == AF_INET) {
-                sockaddr_in* ia = (sockaddr_in*) ifa->ifa_addr;
+                sockaddr_in* sock_addr = (sockaddr_in*) ifa->ifa_addr;
                 a->m_Flags |= FLAGS_INET;
-                a->m_Address = ntohl(ia->sin_addr.s_addr);
+                a->m_Address.m_family = DOMAIN_IPV4;
+                *IPv4(&a->m_Address) = sock_addr->sin_addr.s_addr;
+            } else if (family == AF_INET6) {
+                sockaddr_in6* sock_addr = (sockaddr_in6*) ifa->ifa_addr;
+                a->m_Flags |= FLAGS_INET;
+                a->m_Address.m_family = DOMAIN_IPV6;
+                memcpy(IPv6(&a->m_Address), &sock_addr->sin6_addr, sizeof(struct in6_addr));
             }
         }
         freeifaddrs(ifaddr);

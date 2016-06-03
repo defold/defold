@@ -76,14 +76,10 @@
       (caret! source-viewer 5 false)
       (testing "moving right"
         (right! source-viewer)
-        (g/node-value viewer-node :new-content)
-        (is (= 6 (caret source-viewer)))
-        (is (= 6 (g/node-value code-node :caret-position))))
+        (is (= 6 (caret source-viewer))))
       (testing "moving left"
         (left! source-viewer)
-        (g/node-value viewer-node :new-content)
-        (is (= 5 (caret source-viewer)))
-        (is (= 5 (g/node-value code-node :caret-position))))
+        (is (= 5 (caret source-viewer))))
       (testing "out of bounds right"
         (caret! source-viewer (count code) false)
         (right! source-viewer)
@@ -127,14 +123,12 @@
        (select-right! source-viewer)
        (select-right! source-viewer)
        (is (= 2 (caret source-viewer)))
-       (is (= 2 (g/node-value code-node :caret-position)))
        (is (= "he" (text-selection source-viewer))))
      (testing "selecting left"
        (caret! source-viewer 5 false)
        (select-left! source-viewer)
        (select-left! source-viewer)
        (is (= 3 (caret source-viewer)))
-       (is (= 3 (g/node-value code-node :caret-position)))
        (is (= "lo" (text-selection source-viewer))))
      (testing "out of bounds right"
        (caret! source-viewer (count code) false)
@@ -192,8 +186,7 @@
         (is (= \l (get-char-at-caret source-viewer))))
       (testing "respects tab spacing"
         (let [new-code "line1\n\t2345"]
-          (g/transact (g/set-property code-node :code new-code))
-          (g/node-value viewer-node :new-content)
+          (text! source-viewer new-code)
           (caret! source-viewer 3 false)
           (preferred-offset! 4)
           (is (= \e (get-char-at-caret source-viewer)))
@@ -264,7 +257,18 @@
         (prev-word! source-viewer)
         (is (= \q (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
-        (is (= \t (get-char-at-caret source-viewer)))))))
+        (is (= \t (get-char-at-caret source-viewer))))
+      (testing "moving by word remembers col position"
+        (text! source-viewer "aed.111\nbcf 222")
+        (caret! source-viewer 0 false)
+        (next-word! source-viewer)
+        (is (= \. (get-char-at-caret source-viewer)))
+        (down! source-viewer)
+        (is (= \space (get-char-at-caret source-viewer)))
+        (prev-word! source-viewer)
+        (is (= \b (get-char-at-caret source-viewer)))
+        (up! source-viewer)
+        (is (= \a (get-char-at-caret source-viewer)))))))
 
 (defn- select-next-word! [source-viewer]
   (handler/run :select-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -316,7 +320,16 @@
         (is (= nil (get-char-at-caret source-viewer)))
         (is (= 11 (caret source-viewer)))
         (line-end! source-viewer)
-        (is (= 11 (caret source-viewer)))))))
+        (is (= 11 (caret source-viewer))))
+      (testing "moving remembers col position"
+        (text! source-viewer "line1\nline2")
+        (caret! source-viewer 0 false)
+        (line-end! source-viewer)
+        (down! source-viewer)
+        (is (= 11 (caret source-viewer)))
+        (line-begin! source-viewer)
+        (up! source-viewer)
+        (is (= 0 (caret source-viewer)))))))
 
 (defn- select-line-begin! [source-viewer]
   (handler/run :select-line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -443,6 +456,19 @@
         (select-word! source-viewer)
         (is (= "" (text-selection source-viewer)))))))
 
+(defn- select-all! [source-viewer]
+  (handler/run :select-all [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-all-test
+  (with-clean-system
+    (let [code "hello there"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "selects the entire doc"
+        (select-all! source-viewer)
+        (is (= "hello there" (text-selection source-viewer)))))))
+
 (defn- delete! [source-viewer]
   (handler/run :delete [{:name :code-view :env {:selection source-viewer}}]{}))
 
@@ -481,9 +507,8 @@
         (paste! source-viewer clipboard)
         (is (= " duckblue" (text source-viewer))))
       (testing "cutting without selection cuts the line"
-        (g/transact (g/set-property code-node :code "line1\nline2"))
-        (g/node-value viewer-node :new-content)
-        (text-selection! source-viewer 0 0)
+        (text! source-viewer "line1\nline2")
+       (text-selection! source-viewer 0 0)
         (caret! source-viewer 9 false)
         (is (= \e (get-char-at-caret source-viewer)))
         (cut! source-viewer clipboard)
@@ -511,8 +536,7 @@
         (is (= "ck" (text source-viewer)))
         (is (= \c  (get-char-at-caret source-viewer))))
       (testing "deleting next"
-        (g/transact (g/set-property code-node :code code))
-        (g/node-value viewer-node :new-content)
+        (text! source-viewer code)
         (caret! source-viewer 2 false)
         (is (= \u (get-char-at-caret source-viewer)))
         (delete-next-word! source-viewer)
@@ -541,8 +565,7 @@
         (is (= "blue du" (text source-viewer)))
         (is (= nil (get-char-at-caret source-viewer))))
       (testing "deleting to start of the line"
-        (g/transact (g/set-property code-node :code code))
-        (g/node-value viewer-node :new-content)
+        (text! source-viewer code)
         (caret! source-viewer 7 false)
         (is (= \c (get-char-at-caret source-viewer)))
         (delete-to-start-of-line! source-viewer)
@@ -645,9 +668,8 @@
         (is (= "the red red ducks" (text source-viewer)))
         (is (= 11 (caret source-viewer))))
       (testing "when caret is beyond match, will not replace"
-         (g/transact (g/set-property code-node :code code))
-         (g/node-value viewer-node :new-content)
-         (caret! source-viewer 7 false)
+        (text! source-viewer code)
+        (caret! source-viewer 7 false)
         (replace-next! source-viewer)
         (is (= "the blue red ducks" (text source-viewer)))
         (is (= 12 (caret source-viewer)))))))
@@ -677,3 +699,27 @@
       (testing "basic enter"
         (enter! source-viewer)
         (is (= "\nhi" (text source-viewer)))))))
+
+(defn- undo! [source-viewer view-node code-node]
+  (handler/run :undo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
+
+(defn- redo! [source-viewer view-node code-node]
+  (handler/run :redo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
+
+(deftest undo-redo-test
+  (with-clean-system
+    (let [pgraph-id  (g/make-graph! :history true)
+          code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes pgraph-id source-viewer code script/ScriptNode)]
+      (testing "text editing"
+        (key-typed! source-viewer "h")
+        (changes! source-viewer)
+        (key-typed! source-viewer "i")
+        (changes! source-viewer)
+        (is (= "hi" (g/node-value code-node :code)))
+        (undo! source-viewer viewer-node code-node)
+        (is (= "h" (g/node-value code-node :code)))
+        (redo! source-viewer viewer-node code-node)
+        (is (= "hi" (g/node-value code-node :code)))))))
