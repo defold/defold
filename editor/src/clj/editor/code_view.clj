@@ -52,7 +52,7 @@
         (println "exception during .set!")
         (.printStackTrace e))))
   (if (pos? selection-length)
-    (do 
+    (do
       ;; There is a bug somewhere in the e(fx)clipse that doesn't
       ;; display the text selection property after you change the text programatically
       ;; when it's resolved uncomment
@@ -378,7 +378,7 @@
         (g/transact (remove nil?
                             (concat
                              (when code-changed?  [(g/set-property code-node-id :code code)])
-                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)]) 
+                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
                              (when selection-changed?
                                [(g/set-property code-node-id :selection-offset selection-offset)
                                 (g/set-property code-node-id :selection-length selection-length)]))))))))
@@ -390,6 +390,11 @@
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
     (g/node-value view-id :new-content)
+    (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_] (cvx/changes! source-viewer)))
+          stage (ui/parent->stage parent)]
+      (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
+      (ui/timer-stop-on-close! stage refresh-timer)
+      (ui/timer-start! refresh-timer))
     view-id))
 
 (defn register-view-types [workspace]
