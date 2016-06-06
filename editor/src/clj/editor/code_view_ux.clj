@@ -23,7 +23,8 @@
   (caret [this])
   (caret! [this offset select?])
   (editable? [this])
-  (editable! [this val]))
+  (editable! [this val])
+  (screen-position [this]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -32,7 +33,8 @@
   (changes! [this]))
 
 (defprotocol TextProposals
-  (propose [this]))
+  (propose [this])
+  (new-propose [this]))
 
 (def mappings
   {
@@ -797,11 +799,15 @@
     (g/node-value view-node :new-content)))
 
 (defn show-proposals [selection]
-  (let [tw (.getTextWidget selection)
-        caret-pos (caret selection)
-        p (.getLocationAtOffset tw caret-pos)]
-    (println "Carin p " p)
-    (dialogs/make-proposal-dialog caret-pos (.localToScreen tw p))))
+  (let [proposals (new-propose selection)
+        screen-position (screen-position selection)
+        offset (caret selection)
+        result (promise)
+        ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
+        replace-text-fn (fn [] (when (and (realized? result) @result)
+                                (println "Carin selected! " (first @result))
+                                (replace! selection offset 0 (:replacement (first @result)))))]
+    (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))
 
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)

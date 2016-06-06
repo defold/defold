@@ -510,25 +510,29 @@
     (ui/show! stage)
     stage))
 
-(defn make-proposal-dialog [caret screen-point]
+(defn make-proposal-dialog [result caret screen-point proposals]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals"])
-        close (fn [] (.close stage))]
+        close (fn [v] (do (deliver result v) (.close stage)))]
     (println :make-proposal-dialog caret screen-point)
     (.initStyle stage StageStyle/UNDECORATED)
     (.setX stage (.getX ^Point2D screen-point))
     (.setY stage (.getY ^Point2D screen-point))
-    (ui/items! (:proposals controls) ["Cat" "Dog"])
+    (ui/items! (:proposals controls) proposals)
     (let [^ListView list-view (:proposals controls)]
       (.select (.getSelectionModel list-view) 0)
-      (ui/cell-factory! list-view (fn [e] {:text e})))
+      (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)})))
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
-                                         (println "hey carin")
-                                         (close))))
+                                         (println "carin code" code)
+                                         (cond
+                                           (= code (KeyCode/UP)) (ui/request-focus! (:proposals controls))
+                                           (= code (KeyCode/DOWN)) (ui/request-focus! (:proposals controls))
+                                           (= code (KeyCode/ENTER)) (close (ui/selection (:proposals controls)))
+                                           :default (close nil)))))
 
     (.initOwner stage (ui/main-stage))
     (.initModality stage Modality/NONE)
