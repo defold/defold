@@ -38,6 +38,9 @@
 (defn content-assistant [source-viewer]
   (ui/user-data source-viewer ::content-assistant))
 
+(defn assist [source-viewer]
+  (ui/user-data source-viewer ::assist))
+
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
      (try
@@ -296,7 +299,8 @@
                             (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
 
 
-      (ui/user-data! text-area ::behavior styled-text-behavior))
+      (ui/user-data! text-area ::behavior styled-text-behavior)
+      (ui/user-data! source-viewer ::assist (:assist opts)))
 
   source-viewer))
 
@@ -361,6 +365,11 @@
     (-> this (.getTextWidget) (.getEditable)))
   (editable! [this val]
     (-> this (.getTextWidget) (.setEditable val)))
+  (screen-position [this]
+    (let [tw (.getTextWidget this)
+        caret-pos (cvx/caret this)
+        p (.getLocationAtOffset tw caret-pos)]
+      (.localToScreen tw p)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
@@ -391,8 +400,15 @@
                                 (g/set-property code-node-id :selection-length selection-length)])))))))
   cvx/TextProposals
   (propose [this]
-    (println :content-assistant (content-assistant this))
-    (ui/run-later(.doProposals ^DefoldContentAssistant (content-assistant this)))))
+    (ui/run-later(.doProposals ^DefoldContentAssistant (content-assistant this))))
+  (new-propose [this]
+    (let [assist-fn (assist this)
+          document (.getDocument this)
+          offset (cvx/caret this)
+          line-no (.getLineOfOffset document offset)
+          line-offset (.getLineOffset document line-no)
+          line (.get document line-offset (- offset line-offset))]
+          (assist-fn (cvx/text this) offset line))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
