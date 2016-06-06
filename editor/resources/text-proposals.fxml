@@ -9,7 +9,7 @@
 <?import javafx.scene.paint.*?>
 <?import javafx.scene.text.*?>
 
-<VBox prefHeight="100.0" prefWidth="400.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<VBox id= "proposals-box" prefHeight="100.0" prefWidth="400.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <ListView id="proposals" prefHeight="100.0" prefWidth="400.0" VBox.vgrow="ALWAYS" styleClass="flat-list-view"/>
    </children>
