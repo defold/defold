@@ -5,7 +5,6 @@
             [editor.handler :as handler]
             [editor.ui :as ui])
   (:import  [javafx.stage Stage]
-            [javafx.geometry Point2D]
             [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
 
 (set! *warn-on-reflection* true)
@@ -33,8 +32,7 @@
   (changes! [this]))
 
 (defprotocol TextProposals
-  (propose [this])
-  (new-propose [this]))
+  (propose [this]))
 
 (def mappings
   {
@@ -175,12 +173,8 @@
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
-
-    (println "pressed!")
-
     (when (and (is-mac-os?) (or (= KeyCode/ALT (.getCode e)) (.isAltDown e)))
       (.consume e))
-
     (when (and  (not (.isConsumed e)) (:command kf) (not (:label kf)))
       (handler/run
         (:command kf)
@@ -201,7 +195,6 @@
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
         e)
       (changes! source-viewer))))
-
 
 (defn- adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
@@ -763,6 +756,16 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (inc np)))))
 
+(defn show-proposals [selection]
+  (let [proposals (propose selection)
+        screen-position (screen-position selection)
+        offset (caret selection)
+        result (promise)
+        ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
+        replace-text-fn (fn [] (when (and (realized? result) @result)
+                                (replace! selection offset 0 (:replacement (first @result)))))]
+    (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))
+
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
@@ -771,7 +774,7 @@
            (not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
       (when (contains? proposal-key-triggers key-typed)
-        (propose selection)))))
+        (show-proposals selection)))))
 
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
@@ -797,17 +800,6 @@
   (run [view-node code-node]
     (g/redo! (g/node-id->graph-id code-node))
     (g/node-value view-node :new-content)))
-
-(defn show-proposals [selection]
-  (let [proposals (new-propose selection)
-        screen-position (screen-position selection)
-        offset (caret selection)
-        result (promise)
-        ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
-        replace-text-fn (fn [] (when (and (realized? result) @result)
-                                (println "Carin selected! " (first @result))
-                                (replace! selection offset 0 (:replacement (first @result)))))]
-    (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))
 
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)

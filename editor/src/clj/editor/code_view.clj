@@ -6,14 +6,13 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldContentAssistant]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
            [javafx.scene.control ListView]
            [org.eclipse.fx.text.ui TextAttribute]
-           [org.eclipse.fx.text.ui.contentassist ContentAssistContextData ICompletionProposal]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
@@ -35,11 +34,8 @@
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
 
-(defn content-assistant [source-viewer]
-  (ui/user-data source-viewer ::content-assistant))
-
-(defn assist [source-viewer]
-  (ui/user-data source-viewer ::assist))
+(defn- assist [selection]
+  (ui/user-data selection ::assist))
 
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
@@ -68,38 +64,6 @@
     (cvx/caret! source-viewer caret-position false))
   [code-node code caret-position])
 
-(defn- make-proposal [{:keys [replacement offset length position image display-string additional-info]}]
-  (reify ICompletionProposal
-    (getLabel [this] display-string)
-    ;;    (getReplacementOffset [this] offset)
-    ;;    (getReplacementLength [this] length)
-    ;;    (getCursorPosition [this] position)
-    (getGraphic [this] (when image (ImageView. (Image. (io/input-stream (io/resource image))))))
-    (^void apply [this ^IDocument document]
-     (try
-        (.replace document offset length replacement)
-        (catch Exception e
-          (.printStackTrace e))))
-    (getSelection [this document]
-      ; ?
-      (TextSelection. (+ offset position) 0))))
-
-(defn- make-proposals [hints]
-  (map make-proposal hints))
-
-(defn- make-proposal-fn [assist-fn]
-  (fn [^ContentAssistContextData ctxt]
-    (let [document (.document ctxt)
-          offset (.offset ctxt)
-          line-no (.getLineOfOffset document offset)
-          line-offset (.getLineOffset document line-no)
-          line (.get document line-offset (- offset line-offset))
-          hints (assist-fn (.get document) offset line)]
-      (make-proposals hints))))
-
-(defn- to-function [fn]
-  (reify Function
-    (apply [this arg] (fn arg))))
 
 (defn- default-rule? [rule]
   (= (:type rule) :default))
@@ -239,13 +203,6 @@
       (getStyleclassName [] language)
       (getPresentationReconciler [source-viewer]
         (make-reconciler this source-viewer scanner-syntax))
-      (getContentAssist []
-        (when assist
-          (let [content-assistant (DefoldContentAssistant. (to-function (make-proposal-fn assist)))]
-            (println "Carin putting conetnt assisant in here! " content-assistant)
-            (def x source-viewer)
-            (ui/user-data! source-viewer ::content-assistant content-assistant)
-            content-assistant)))
       (getConfiguredContentTypes [source-viewer]
         (into-array String (replace default-content-type-map (map :partition scanner-syntax)))))))
 
@@ -400,15 +357,13 @@
                                 (g/set-property code-node-id :selection-length selection-length)])))))))
   cvx/TextProposals
   (propose [this]
-    (ui/run-later(.doProposals ^DefoldContentAssistant (content-assistant this))))
-  (new-propose [this]
-    (let [assist-fn (assist this)
-          document (.getDocument this)
-          offset (cvx/caret this)
-          line-no (.getLineOfOffset document offset)
-          line-offset (.getLineOffset document line-no)
-          line (.get document line-offset (- offset line-offset))]
-          (assist-fn (cvx/text this) offset line))))
+    (when-let [assist-fn (assist this)]
+      (let [document (.getDocument this)
+            offset (cvx/caret this)
+            line-no (.getLineOfOffset document offset)
+            line-offset (.getLineOffset document line-no)
+            line (.get document line-offset (- offset line-offset))]
+        (assist-fn (cvx/text this) offset line)))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
