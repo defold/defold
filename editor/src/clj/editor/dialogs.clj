@@ -514,23 +514,25 @@
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
         stage (Stage.)
         scene (Scene. root)
-        controls (ui/collect-controls root ["proposals"])
-        close (fn [v] (do (deliver result v) (.close stage)))]
+        controls (ui/collect-controls root ["proposals" "proposals-box"])
+        close (fn [v] (do (deliver result v) (.close stage)))
+        ^ListView list-view  (:proposals controls)]
+    (.setFill scene nil)
     (.initStyle stage StageStyle/UNDECORATED)
+    (.initStyle stage StageStyle/TRANSPARENT)
     (.setX stage (.getX ^Point2D screen-point))
     (.setY stage (.getY ^Point2D screen-point))
-    (ui/items! (:proposals controls) proposals)
-    (let [^ListView list-view (:proposals controls)]
-      (.select (.getSelectionModel list-view) 0)
-      (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)})))
+    (ui/items! list-view proposals)
+    (.select (.getSelectionModel list-view) 0)
+    (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)}))
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (cond
-                                           (= code (KeyCode/UP)) (ui/request-focus! (:proposals controls))
-                                           (= code (KeyCode/DOWN)) (ui/request-focus! (:proposals controls))
-                                           (= code (KeyCode/ENTER)) (close (ui/selection (:proposals controls)))
-                                           (= code (KeyCode/TAB)) (close (ui/selection (:proposals controls)))
+                                           (= code (KeyCode/UP)) (ui/request-focus! list-view)
+                                           (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
+                                           (= code (KeyCode/ENTER)) (close (ui/selection list-view))
+                                           (= code (KeyCode/TAB)) (close (ui/selection list-view))
                                            :default (close nil)))))
 
     (.initOwner stage (ui/main-stage))
