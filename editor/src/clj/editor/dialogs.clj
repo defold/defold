@@ -516,7 +516,6 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals"])
         close (fn [v] (do (deliver result v) (.close stage)))]
-    (println :make-proposal-dialog caret screen-point)
     (.initStyle stage StageStyle/UNDECORATED)
     (.setX stage (.getX ^Point2D screen-point))
     (.setY stage (.getY ^Point2D screen-point))
@@ -527,11 +526,11 @@
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
-                                         (println "carin code" code)
                                          (cond
                                            (= code (KeyCode/UP)) (ui/request-focus! (:proposals controls))
                                            (= code (KeyCode/DOWN)) (ui/request-focus! (:proposals controls))
                                            (= code (KeyCode/ENTER)) (close (ui/selection (:proposals controls)))
+                                           (= code (KeyCode/TAB)) (close (ui/selection (:proposals controls)))
                                            :default (close nil)))))
 
     (.initOwner stage (ui/main-stage))
