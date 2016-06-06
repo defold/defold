@@ -1034,13 +1034,8 @@ Line numbers:
 
 /* text editor code completion popup */
 
-#proposals {
-   -fx-background-color: #3b3e43;
-   -fx-padding: 10;
-}
-
 #proposals .list-cell:filled:selected {
-    -fx-text-fill: red;
+    -fx-text-fill: #00FFFF;
 }
 
 

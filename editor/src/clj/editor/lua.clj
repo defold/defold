@@ -197,6 +197,8 @@
 
 (defn compute-proposals [^String text offset ^String line]
   (println "Carin compute-proposals")
+  (println :offset offset :line line)
+  (println :text text)
   (try
     (when-let [parse-result (or (parse-line line) (default-parse-result))]
       (println "carin results "       (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
