@@ -12,12 +12,13 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.collections FXCollections ObservableList]
            [javafx.fxml FXMLLoader]
+           [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button ProgressBar TextField TreeView TreeItem ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
-           [javafx.stage Stage Modality DirectoryChooser]
+           [javafx.stage Stage StageStyle Modality DirectoryChooser]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -504,6 +505,32 @@
                                        :replace-text (ui/text (:replace-text controls))}))
                              (when (= key KeyCode/ESCAPE)
                                (close nil)))))
+    (.initModality stage Modality/NONE)
+    (.setScene stage scene)
+    (ui/show! stage)
+    stage))
+
+(defn make-proposal-dialog [caret screen-point]
+  (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["proposals"])
+        close (fn [] (.close stage))]
+    (println :make-proposal-dialog caret screen-point)
+    (.initStyle stage StageStyle/UNDECORATED)
+    (.setX stage (.getX ^Point2D screen-point))
+    (.setY stage (.getY ^Point2D screen-point))
+    (ui/items! (:proposals controls) ["Cat" "Dog"])
+    (let [^ListView list-view (:proposals controls)]
+      (.select (.getSelectionModel list-view) 0)
+      (ui/cell-factory! list-view (fn [e] {:text e})))
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (println "hey carin")
+                                         (close))))
+
+    (.initOwner stage (ui/main-stage))
     (.initModality stage Modality/NONE)
     (.setScene stage scene)
     (ui/show! stage)
