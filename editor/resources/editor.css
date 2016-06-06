@@ -1032,6 +1032,18 @@ Line numbers:
     -fx-background-color: #34373b;
 }
 
+/* text editor code completion popup */
+
+#proposals {
+   -fx-background-color: #3b3e43;
+   -fx-padding: 10;
+}
+
+#proposals .list-cell:filled:selected {
+    -fx-text-fill: red;
+}
+
+
 /* Drag and drop targets */
 
 .drop-target {
