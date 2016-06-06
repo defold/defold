@@ -6,14 +6,14 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldContentAssistant]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
            [javafx.scene.control ListView]
            [org.eclipse.fx.text.ui TextAttribute]
-           [org.eclipse.fx.text.ui.contentassist ContentAssistant ContentAssistContextData ICompletionProposal]
+           [org.eclipse.fx.text.ui.contentassist ContentAssistContextData ICompletionProposal]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
@@ -35,6 +35,9 @@
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
 
+(defn content-assistant [source-viewer]
+  (ui/user-data source-viewer ::content-assistant))
+
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
      (try
@@ -52,7 +55,7 @@
         (println "exception during .set!")
         (.printStackTrace e))))
   (if (pos? selection-length)
-    (do 
+    (do
       ;; There is a bug somewhere in the e(fx)clipse that doesn't
       ;; display the text selection property after you change the text programatically
       ;; when it's resolved uncomment
@@ -226,7 +229,7 @@
           (.setRepairer pr damager-repairer partition))))
     pr))
 
-(defn- ^SourceViewerConfiguration create-viewer-config [opts]
+(defn- ^SourceViewerConfiguration create-viewer-config [source-viewer opts]
   (let [{:keys [language syntax assist]} opts
         scanner-syntax (:scanner syntax)]
     (proxy [SourceViewerConfiguration] []
@@ -235,7 +238,11 @@
         (make-reconciler this source-viewer scanner-syntax))
       (getContentAssist []
         (when assist
-          (ContentAssistant. (to-function (make-proposal-fn assist)))))
+          (let [content-assistant (DefoldContentAssistant. (to-function (make-proposal-fn assist)))]
+            (println "Carin putting conetnt assisant in here! " content-assistant)
+            (def x source-viewer)
+            (ui/user-data! source-viewer ::content-assistant content-assistant)
+            content-assistant)))
       (getConfiguredContentTypes [source-viewer]
         (into-array String (replace default-content-type-map (map :partition scanner-syntax)))))))
 
@@ -258,7 +265,7 @@
 
 (defn setup-source-viewer [opts use-custom-skin?]
   (let [source-viewer (SourceViewer.)
-        source-viewer-config (create-viewer-config opts)
+        source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
         partitioner (make-partitioner opts)]
 
@@ -288,8 +295,8 @@
                             MouseEvent/MOUSE_CLICKED
                             (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
 
-      (ui/user-data! text-area ::behavior styled-text-behavior)
-      (ui/user-data! source-viewer ::syntax (:syntax opts)))
+
+      (ui/user-data! text-area ::behavior styled-text-behavior))
 
   source-viewer))
 
@@ -378,10 +385,14 @@
         (g/transact (remove nil?
                             (concat
                              (when code-changed?  [(g/set-property code-node-id :code code)])
-                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)]) 
+                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
                              (when selection-changed?
                                [(g/set-property code-node-id :selection-offset selection-offset)
-                                (g/set-property code-node-id :selection-length selection-length)]))))))))
+                                (g/set-property code-node-id :selection-length selection-length)])))))))
+  cvx/TextProposals
+  (propose [this]
+    (println :content-assistant (content-assistant this))
+    (ui/run-later(.doProposals ^DefoldContentAssistant (content-assistant this)))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)

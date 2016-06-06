@@ -5,6 +5,7 @@
             [editor.handler :as handler]
             [editor.ui :as ui])
   (:import  [javafx.stage Stage]
+            [javafx.geometry Point2D]
             [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
 
 (set! *warn-on-reflection* true)
@@ -29,6 +30,9 @@
 
 (defprotocol TextUndo
   (changes! [this]))
+
+(defprotocol TextProposals
+  (propose [this]))
 
 (def mappings
   {
@@ -98,7 +102,12 @@
   :Tab                   {:command :tab}
   :Enter                 {:command :enter}
 
+  ;;Completions
+  :Ctrl+Space            {:command :proposals}
+
 })
+
+(def proposal-key-triggers #{"."})
 
 (defn menu-data [item]
   {:label (:label (val item))
@@ -164,6 +173,8 @@
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
+
+    (println "pressed!")
 
     (when (and (is-mac-os?) (or (= KeyCode/ALT (.getCode e)) (.isAltDown e)))
       (.consume e))
@@ -756,7 +767,9 @@
     (when (and (editable? selection)
            (pos? (count key-typed))
            (not-ascii-or-delete key-typed))
-      (enter-key-text selection key-typed))))
+      (enter-key-text selection key-typed)
+      (when (contains? proposal-key-triggers key-typed)
+        (propose selection)))))
 
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
@@ -782,3 +795,15 @@
   (run [view-node code-node]
     (g/redo! (g/node-id->graph-id code-node))
     (g/node-value view-node :new-content)))
+
+(defn show-proposals [selection]
+  (let [tw (.getTextWidget selection)
+        caret-pos (caret selection)
+        p (.getLocationAtOffset tw caret-pos)]
+    (println "Carin p " p)
+    (dialogs/make-proposal-dialog caret-pos (.localToScreen tw p))))
+
+(handler/defhandler :proposals :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (show-proposals selection)))
