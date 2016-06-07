@@ -75,7 +75,7 @@ TEST_F(FBTest, EscapeJsonValues)
     ASSERT_EQ(15, dmFacebook::WriteEscapedJsonString(out_json, 256, "apa bepa cepa", 13));
 
     // should not write past buffer
-    char small_buffer[14];
+    char small_buffer[16];
     ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(small_buffer, 13, "apa bepa cepa", 13)); // not enough for ""\0
     ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(small_buffer, 14, "apa bepa cepa", 13)); // not enough for ""
     ASSERT_EQ(15, dmFacebook::WriteEscapedJsonString(small_buffer, 16, "apa bepa cepa", 13)); // exact fit
