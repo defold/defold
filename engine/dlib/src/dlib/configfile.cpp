@@ -132,12 +132,26 @@ namespace dmConfigFile
     static void EatSpace(Context* context)
     {
         int c;
+        bool comment = false;
+        bool line_start = true;
         do
         {
             c = GetChar(context);
+            if (line_start && (c == '#' || c == ';'))
+            {
+                comment = true;
+            }
             if (c == '\n')
+            {
                 context->m_Line++;
-        } while (isspace(c));
+                comment = false;
+                line_start = true;
+            }
+            else
+            {
+                line_start = false;
+            }
+        } while (comment || isspace(c));
 
         BufferUngetChar(c, context);
     }

@@ -37,6 +37,9 @@
 (defn- assist [selection]
   (ui/user-data selection ::assist))
 
+(defn- syntax [selection]
+  (ui/user-data selection ::syntax))
+
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
      (try
@@ -257,7 +260,8 @@
 
 
       (ui/user-data! text-area ::behavior styled-text-behavior)
-      (ui/user-data! source-viewer ::assist (:assist opts)))
+      (ui/user-data! source-viewer ::assist (:assist opts))
+      (ui/user-data! source-viewer ::syntax (:syntax opts)))
 
   source-viewer))
 
@@ -372,6 +376,11 @@
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
     (g/node-value view-id :new-content)
+    (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_] (cvx/changes! source-viewer)))
+          stage (ui/parent->stage parent)]
+      (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
+      (ui/timer-stop-on-close! stage refresh-timer)
+      (ui/timer-start! refresh-timer))
     view-id))
 
 (defn register-view-types [workspace]

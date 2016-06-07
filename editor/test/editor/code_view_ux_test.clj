@@ -122,14 +122,20 @@
      (testing "selecting right"
        (select-right! source-viewer)
        (select-right! source-viewer)
-       (is (= 2 (caret source-viewer)))
-       (is (= "he" (text-selection source-viewer))))
+       (select-right! source-viewer)
+       (select-right! source-viewer)
+       (select-right! source-viewer)
+       (is (= 5 (caret source-viewer)))
+       (is (= "hello" (text-selection source-viewer))))
      (testing "selecting left"
-       (caret! source-viewer 5 false)
+       (caret! source-viewer 11 false)
        (select-left! source-viewer)
        (select-left! source-viewer)
-       (is (= 3 (caret source-viewer)))
-       (is (= "lo" (text-selection source-viewer))))
+       (select-left! source-viewer)
+       (select-left! source-viewer)
+       (select-left! source-viewer)
+       (is (= 6 (caret source-viewer)))
+       (is (= "world" (text-selection source-viewer))))
      (testing "out of bounds right"
        (caret! source-viewer (count code) false)
        (select-right! source-viewer)
@@ -193,7 +199,27 @@
           (down! source-viewer)
           (is (= \2 (get-char-at-caret source-viewer)))
           (up! source-viewer)
-          (is (= \1 (get-char-at-caret source-viewer))))))))
+          (is (= \1 (get-char-at-caret source-viewer)))))
+      (testing "with chunk of selected text, down takes cursor to end of chunk"
+        (preferred-offset! 0)
+        (text! source-viewer "line1\nline2\nline3")
+        (caret! source-viewer 0 false)
+        (text-selection! source-viewer 0 15)
+        (is (= 0 (caret source-viewer)))
+        (is (= "line1\nline2\nlin" (text-selection source-viewer)))
+        (down! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 15 (caret source-viewer))))
+      (testing "with chunk of selected text, up takes cursor to start of chunk"
+        (preferred-offset! 0)
+        (text! source-viewer "line1\nline2\nline3")
+        (caret! source-viewer 15 false)
+        (text-selection! source-viewer 0 15)
+        (is (= 15 (caret source-viewer)))
+        (is (= "line1\nline2\nlin" (text-selection source-viewer)))
+        (up! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 0 (caret source-viewer)))))))
 
 (defn- select-up! [source-viewer]
   (handler/run :select-up [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -227,7 +253,7 @@
 
 (deftest word-move-test
   (with-clean-system
-    (let [code "the quick.brown\nfox"
+    (let [code "the quick.brown\nfox_test"
           opts lua/lua
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
@@ -244,8 +270,12 @@
         (next-word! source-viewer)
         (is (= \f (get-char-at-caret source-viewer)))
         (next-word! source-viewer)
+        (is (= \_ (get-char-at-caret source-viewer)))
+        (next-word! source-viewer)
         (is (= nil (get-char-at-caret source-viewer))))
       (testing "moving prev word"
+        (prev-word! source-viewer)
+        (is (= \t (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
         (is (= \f (get-char-at-caret source-viewer)))
         (prev-word! source-viewer)
@@ -512,6 +542,9 @@
         (caret! source-viewer 9 false)
         (is (= \e (get-char-at-caret source-viewer)))
         (cut! source-viewer clipboard)
+        (= "line1\n" (text source-viewer))
+        (caret! source-viewer 0 false)
+        (paste! source-viewer clipboard)
         (= "line1\n" (text source-viewer))))))
 
 (defn- delete-prev-word! [source-viewer]

@@ -165,6 +165,9 @@ TEST_P(Test01, Test01)
     ASSERT_STREQ("123", dmConfigFile::GetString(config, "main.foo", 0));
     ASSERT_EQ(123, dmConfigFile::GetInt(config, "main.foo", 0));
 
+    ASSERT_STREQ("#value", dmConfigFile::GetString(config, "comments.pound", 0));
+    ASSERT_STREQ(";value", dmConfigFile::GetString(config, "comments.semi", 0));
+
     ASSERT_STREQ("456", dmConfigFile::GetString(config, "sub.bar", 0));
     ASSERT_EQ(456, dmConfigFile::GetInt(config, "sub.bar", 0));
     ASSERT_STREQ("foo_bar", dmConfigFile::GetString(config, "sub.value", 0));
