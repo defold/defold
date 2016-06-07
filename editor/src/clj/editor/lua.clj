@@ -253,7 +253,7 @@
 ;; After inserting some text on the opening ("/*" ) line, the partition is detected however.
 ;; Workaround: the whole language is treated as one single default partition type.
 
-(def  lua {:language "lua"
+(def lua {:language "lua"
           :syntax
           {:line-comment "-- "
            :scanner
