@@ -519,7 +519,7 @@ int Facebook_Permissions(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IteratePermissions, (jlong)dmScript::GetMainThread(L));
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IteratePermissions, (jlong)L);
 
     if (!Detach(env))
     {
@@ -542,7 +542,7 @@ int Facebook_Me(lua_State* L)
 
     JNIEnv* env = Attach();
 
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IterateMe, (jlong)dmScript::GetMainThread(L));
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_IterateMe, (jlong)L);
 
     if (!Detach(env))
     {
