@@ -109,7 +109,7 @@ Inheritors are required to supply a production function for the :save output."
 
 (g/defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename types/PathManipulationType (dynamic visible (g/fnk [] false)))
+  (property filename types/PathManipulation (dynamic visible (g/fnk [] false)))
 
   (output content g/Any :abstract))
 

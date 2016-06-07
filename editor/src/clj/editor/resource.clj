@@ -27,8 +27,6 @@
   (workspace [this])
   (resource-hash [this]))
 
-(g/deftype ResourceType (s/protocol Resource))
-
 (defn relative-path [^File f1 ^File f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))
 
@@ -164,7 +162,7 @@
          (mapv (fn [x] (->zip-resources workspace "" x))))))
 
 (g/defnode ResourceNode
-  (extern resource ResourceType (dynamic visible false)))
+  (extern resource Resource (dynamic visible false)))
 
 (defn- seq-children [resource]
   (seq (children resource)))
