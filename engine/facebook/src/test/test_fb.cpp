@@ -82,7 +82,7 @@ TEST_F(FBTest, EscapeJsonValues)
 
     // empty value input
     ASSERT_EQ(2, dmFacebook::WriteEscapedJsonString(out_json, 256, "", 0));
-    ASSERT_EQ(2, dmFacebook::WriteEscapedJsonString(out_json, 256, NULL, 0));
+    ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(out_json, 256, NULL, 0));
     ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(out_json, 0, "abc", 3));
 
     // empty output buffer
