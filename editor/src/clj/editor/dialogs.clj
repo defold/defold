@@ -516,7 +516,15 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals" "proposals-box"])
         close (fn [v] (do (deliver result v) (.close stage)))
-        ^ListView list-view  (:proposals controls)]
+        ^ListView list-view  (:proposals controls)
+        filter-text (atom "")
+        keep-fn (fn [prop] (when (re-find (re-pattern @filter-text) (:display-string prop)) prop))
+        update-items (fn [] (try
+                              (ui/items! list-view (keep keep-fn proposals))
+                              (.select (.getSelectionModel list-view) 0)
+                              (catch Exception e (do
+                                                (println "Proposal filter bad filter pattern " @filter-text)
+                                                (swap! filter-text #(apply str (drop-last %)))))))]
     (.setFill scene nil)
     (.initStyle stage StageStyle/UNDECORATED)
     (.initStyle stage StageStyle/TRANSPARENT)
@@ -533,10 +541,22 @@
                                            (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
                                            (= code (KeyCode/ENTER)) (close (ui/selection list-view))
                                            (= code (KeyCode/TAB)) (close (ui/selection list-view))
+                                           (= code (KeyCode/SHIFT)) true
+
+                                           (= code (KeyCode/BACK_SPACE))
+                                           (do
+                                             (swap! filter-text #(apply str (drop-last %)))
+                                             (update-items))
+
+                                           (or (.isLetterKey code) (.isDigitKey code) (= code (KeyCode/MINUS)) (= code (KeyCode/MINUS)))
+                                           (do
+                                             (swap! filter-text str (.getText ^KeyEvent event))
+                                             (update-items))
+
                                            :default (close nil)))))
 
     (.initOwner stage (ui/main-stage))
-    (.initModality stage Modality/NONE)
+    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show! stage)
     stage))
