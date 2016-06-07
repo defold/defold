@@ -180,7 +180,7 @@
 
   (property pb g/Any (dynamic visible (g/fnk [] false)))
   (property def g/Any (dynamic visible (g/fnk [] false)))
-  (property vertex-program resource/ResourceType
+  (property vertex-program resource/Resource
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [vertex-resource] vertex-resource))
     (set (fn [basis self old-value new-value]
@@ -189,7 +189,7 @@
                                         [:full-source :vertex-source])))
     (validate (g/fnk [vertex-program] (validation/resource vertex-program))))
 
-  (property fragment-program resource/ResourceType
+  (property fragment-program resource/Resource
     (dynamic visible (g/fnk [] false))
     (value (g/fnk [fragment-resource] fragment-resource))
     (set (fn [basis self old-value new-value]
@@ -201,9 +201,9 @@
   (output form-data g/Any :cached produce-form-data)
 
   (input dep-build-targets g/Any :array)
-  (input vertex-resource resource/ResourceType)
+  (input vertex-resource resource/Resource)
   (input vertex-source g/Str)
-  (input fragment-resource resource/ResourceType)
+  (input fragment-resource resource/Resource)
   (input fragment-source g/Str)
 
   (output save-data g/Any :cached produce-save-data)

@@ -223,7 +223,7 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image resource/ResourceType
+  (property image resource/Resource
             (value (g/fnk [image-resource] image-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -238,7 +238,7 @@
                              (validation/animation default-animation anim-data)))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
-  (property material resource/ResourceType
+  (property material resource/Resource
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -255,12 +255,12 @@
                                          :options (zipmap (map first options)
                                                           (map (comp :display-name second) options))}))))
 
-  (input image-resource resource/ResourceType)
+  (input image-resource resource/Resource)
   (input anim-data g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
 
-  (input material-resource resource/ResourceType)
+  (input material-resource resource/Resource)
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation

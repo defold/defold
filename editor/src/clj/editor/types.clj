@@ -45,8 +45,6 @@
   (^String           local-path        [this]         "Returns a string representation of the path and extension.")
   (^String           local-name        [this]         "Returns the last segment of the path"))
 
-(g/deftype PathManipulationType (s/protocol PathManipulation))
-
 ;;; ----------------------------------------
 ;;; Functions to create basic value types
 ;;; ----------------------------------------
@@ -174,8 +172,6 @@
   (selection?       [this])
   (model-transform? [this]))
 
-(g/deftype PassType (s/protocol Pass))
-
 (s/defrecord Region
   [left   :- s/Num
    right  :- s/Num
@@ -184,8 +180,6 @@
 
 (defprotocol Viewport
   (viewport ^Region [this]))
-
-(g/deftype ViewportType (s/protocol Viewport))
 
 (s/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)

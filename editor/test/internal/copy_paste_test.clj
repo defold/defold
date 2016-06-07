@@ -238,14 +238,12 @@
 
 (defrecord StructuredValue [a b c])
 
-(g/deftype StructuredValueType StructuredValue)
-
 (def extra-writers (transit/record-write-handlers StructuredValue))
 
 (def extra-readers (transit/record-read-handlers StructuredValue))
 
 (g/defnode RichNode
-  (property deep-value StructuredValueType
+  (property deep-value StructuredValue
             (default (g/fnk [] (->StructuredValue 1 2 3)))))
 
 (defn rich-value-fragment [world]

@@ -432,7 +432,7 @@
             (dynamic edit-type (g/fnk [] (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/fnk [] "Emission Space")))
 
-  (property tile-source resource/ResourceType
+  (property tile-source resource/Resource
             (dynamic label (g/fnk [] "Image"))
             (value (g/fnk [tile-source-resource] tile-source-resource))
             (set (fn [basis self old-value new-value]
@@ -450,7 +450,7 @@
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
 
-  (property material resource/ResourceType
+  (property material resource/Resource
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -472,8 +472,8 @@
   (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
-  (input tile-source-resource resource/ResourceType)
-  (input material-resource resource/ResourceType)
+  (input tile-source-resource resource/Resource)
+  (input material-resource resource/Resource)
   (input texture-set-data g/Any)
   (input gpu-texture g/Any)
   (input anim-data g/Any)

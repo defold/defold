@@ -765,7 +765,7 @@
 
   (property template TemplateData
             (dynamic read-only? override?)
-            (dynamic edit-type (g/fnk [] {:type resource/ResourceType
+            (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui"
                                           :to-type (fn [v] (:resource v))
                                           :from-type (fn [r] {:resource r :overrides {}})}))
@@ -824,7 +824,7 @@
   (input scene-build-targets g/Any)
   (output scene-build-targets g/Any (g/fnk [scene-build-targets] scene-build-targets))
 
-  (input template-resource resource/ResourceType :cascade-delete)
+  (input template-resource resource/Resource :cascade-delete)
   (input template-outline outline/OutlineData)
   (input template-scene g/Any)
   (input template-overrides g/Any)
@@ -887,7 +887,7 @@
   (inherits outline/OutlineNode)
 
   (property name g/Str)
-  (property texture resource/ResourceType
+  (property texture resource/Resource
             (value (g/fnk [texture-resource] texture-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -898,7 +898,7 @@
                                                 [:build-targets :dep-build-targets])))
             (validate (g/fnk [texture] (validation/resource :texture texture))))
 
-  (input texture-resource resource/ResourceType)
+  (input texture-resource resource/Resource)
   (input image BufferedImage)
   (input anim-data g/Any)
   (input anim-ids g/Any)
@@ -929,7 +929,7 @@
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (property font resource/ResourceType
+  (property font resource/Resource
             (value (g/fnk [font-resource] font-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter
@@ -942,7 +942,7 @@
                     [:build-targets :dep-build-targets])))
             (validate (g/fnk [font] (validation/resource :font font))))
 
-  (input font-resource resource/ResourceType)
+  (input font-resource resource/Resource)
   (input font-map g/Any)
   (input font-data font/FontData)
   (input font-shader ShaderLifecycle)
@@ -1226,7 +1226,7 @@
 (g/defnode GuiSceneNode
   (inherits project/ResourceNode)
 
-  (property script resource/ResourceType
+  (property script resource/Resource
             (value (g/fnk [script-resource] script-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter
@@ -1236,7 +1236,7 @@
             (validate (g/fnk [script] (validation/resource :script script))))
 
 
-  (property material resource/ResourceType
+  (property material resource/Resource
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter
@@ -1256,7 +1256,7 @@
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
 
-  (input script-resource resource/ResourceType)
+  (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
   (input fonts-node g/NodeID)
@@ -1291,7 +1291,7 @@
   (input font-ids IDMap :array)
   (input layer-ids IDMap :array)
 
-  (input material-resource resource/ResourceType)
+  (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (input samplers [g/KeywordMap])
