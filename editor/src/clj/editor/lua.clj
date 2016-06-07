@@ -295,6 +295,7 @@
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
               {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
               {:type :custom :scanner match-constant :class "constant"}
+              {:type :custom :scanner code/match-number :class "number"}
               {:type :custom :scanner match-operator :class "operator"}
               {:type :number :class "number"}
               {:type :default :class "default"}
