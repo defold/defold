@@ -957,6 +957,7 @@ namespace dmSound
     }
 
     static Result MixInstances(const MixContext* mix_context) {
+        Result result = RESULT_NOTHING_TO_PLAY;
         SoundSystem* sound = g_SoundSystem;
 
         for (int i = 0; i < MAX_GROUPS; i++) {
@@ -996,6 +997,7 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0) {
                 MixInstance(mix_context, instance);
+                result = RESULT_OK;
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
@@ -1004,7 +1006,7 @@ namespace dmSound
 
         }
 
-        return RESULT_OK;
+        return result;
     }
 
     void Master(const MixContext* mix_context) {
@@ -1087,14 +1089,22 @@ namespace dmSound
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
             MixContext mix_context(current_buffer, total_buffers);
-            Result r = MixInstances(&mix_context);
-            if (r != RESULT_OK) {
-                return r;
+            Result result = MixInstances(&mix_context);
+            if (result == RESULT_OK)
+            {
+                Master(&mix_context);
+                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
             }
-            Master(&mix_context);
-            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
+            else if (result == RESULT_NOTHING_TO_PLAY)
+            {
+                // Just continue
+            }
+            else
+            {
+                return result;
+            }
 
+            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;
             free_slots--;
         }

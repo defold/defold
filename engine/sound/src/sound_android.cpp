@@ -83,7 +83,7 @@ namespace dmSound
         jmethodID isMusicPlaying = environment->GetStaticMethodID(SoundJNI, "isMusicPlaying", "(Landroid/content/Context;)Z");
         assert(::CheckException(environment));
 
-        jint result = environment->CallStaticBooleanMethod(SoundJNI, isMusicPlaying, g_AndroidApp->activity->clazz);
+        int result = (int) environment->CallStaticBooleanMethod(SoundJNI, isMusicPlaying, g_AndroidApp->activity->clazz);
         assert(::CheckException(environment));
 
         // Teardown
@@ -93,6 +93,7 @@ namespace dmSound
         }
 
         // Result
+
         return (bool) result;
     }
 }
