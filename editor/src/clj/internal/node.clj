@@ -117,15 +117,18 @@
   [reg k]
   (loop [type-name k]
     (cond
-      (ref? type-name)    (recur (get reg (ref-key type-name)))
-      (named? type-name)  (recur (get reg type-name))
-      (symbol? type-name) (recur (util/vgr type-name))
-      (type? type-name)   type-name
-      :else               nil)))
+      (ref? type-name)           (recur (get reg (ref-key type-name)))
+      (named? type-name)         (recur (get reg type-name))
+      (symbol? type-name)        (recur (util/vgr type-name))
+      (type? type-name)          type-name
+      (util/protocol? type-name) type-name
+      (class? type-name)         type-name
+      :else                      nil)))
 
 (defn register-type
   [reg-ref k type]
-  (assert (and (named? k) (or (type? type) (named? type))) (pr-str k type))
+  (assert (named? k))
+  (assert (or (type? type) (named? type) (util/schema? type) (util/protocol? type) (class? type)) (pr-str k type))
   (swap! reg-ref assoc k type)
   k)
 
@@ -191,20 +194,45 @@
   (deref [this]
     (value-type-resolve k)))
 
+(prefer-method clojure.core/print-method ValueTypeRef clojure.lang.IDeref)
+
+(defn- mangle
+  "Convert a Clojure symbol into a (hypothetical) class name"
+  [x]
+  (if-let [ns (namespace x)]
+    (let [pkg (str/replace ns #"-" "_")]
+      (symbol (str pkg "." (name x))))
+    x))
+
+(defn- class-or-protocol? [x]
+  (cond
+    (class? x)                    x
+    (util/protocol? x)            x
+    (and (symbol? x) (resolve x)) (class-or-protocol? (resolve x))
+    (symbol? x)                   (class-or-protocol? (resolve (mangle x)))
+    (and (var? x) (var-get x))    (class-or-protocol? (var-get x))))
+
 (defn register-value-type
   [k value-type]
-  (assert (or (value-type? value-type) (named? value-type)))
-  (->ValueTypeRef (register-type value-type-registry-ref k value-type)))
+  (let [real-value-type (cond
+                          (value-type? value-type)    value-type
+                          (named? value-type)         value-type
+                          (util/protocol? value-type) (:on-interface value-type)
+                          (util/schema? value-type)   value-type)]
+    (assert real-value-type)
+    (->ValueTypeRef (register-type value-type-registry-ref k real-value-type))))
 
 (defn unregister-value-type
   [k]
   (unregister-type value-type-registry-ref k))
 
+(defn k->s [k] (symbol (namespace k) (name k)))
+
 (defn value-type-resolve [k]
   (or
    (type-resolve (value-type-registry) k)
-   (if-let [cls (resolve (symbol (name k)))]
-     (deref (register-value-type k cls)))))
+   (when-let [v (class-or-protocol? (k->s k))]
+     (deref (register-value-type k v)))))
 
 (defn- vt->s [vt]
   (if (class? vt) vt (:schema vt)))
@@ -215,9 +243,6 @@
     (class? vtr)   vtr
     (ref? vtr)     (vt->s @vtr)
     (keyword? vtr) (vt->s (value-type-resolve vtr))))
-
-(comment
-  (:schema @input-typeref))
 
 ;;; ----------------------------------------
 ;;; Construction support
