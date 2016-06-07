@@ -45,6 +45,18 @@
     (in/unregister-value-type :java.util.concurrent.BlockingDeque)
     (is (= java.util.concurrent.BlockingDeque (in/value-type-resolve :java.util.concurrent.BlockingDeque)))))
 
+(defprotocol CustomProtocol)
+
+(deftest protocols-are-types
+  (in/unregister-value-type :internal.defnode-test/CustomProtocol)
+  (is (= (:on-interface CustomProtocol) (in/value-type-resolve :internal.defnode-test/CustomProtocol))))
+
+(defrecord CustomRecord [])
+
+(deftest records-are-types
+  (in/unregister-value-type :internal.defnode-test/CustomRecord)
+  (is (= CustomRecord (in/value-type-resolve :internal.defnode-test/CustomRecord))))
+
 (defn substitute-value-fn [& _] "substitute value")
 
 (g/defnode BasicNode)
@@ -545,25 +557,23 @@
   (children  [this])
   (workspace [this]))
 
-(g/deftype AProtocolType (s/protocol AProtocol))
-
 (g/defnode ProtocolPropertyNode
-  (property protocol-property AProtocolType)
-  (property protocol-property-multi [AProtocolType]))
+  (property protocol-property AProtocol)
+  (property protocol-property-multi [AProtocol]))
 
 (g/defnode InheritsProtocolPropertyNode
   (inherits ProtocolPropertyNode))
 
 (g/defnode ProtocolOutputNode
-  (output protocol-output AProtocolType (g/fnk [] nil))
-  (output protocol-output-multi [AProtocolType] (g/fnk [] nil)))
+  (output protocol-output AProtocol (g/fnk [] nil))
+  (output protocol-output-multi [AProtocol] (g/fnk [] nil)))
 
 (g/defnode InheritsProtocolOutputNode
   (inherits ProtocolOutputNode))
 
 (g/defnode ProtocolInputNode
-  (input protocol-input AProtocolType)
-  (input protocol-input-multi [AProtocolType] :array))
+  (input protocol-input AProtocol)
+  (input protocol-input-multi [AProtocol] :array))
 
 (g/defnode InheritsProtocolInputNode
   (inherits ProtocolInputNode))
