@@ -483,7 +483,7 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
-        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0);
         if (client == 0x0)
         {
             return RESULT_FILE_NOT_FOUND;
@@ -527,7 +527,7 @@ namespace dmConfigFile
         if (r != dmURI::RESULT_OK)
             return RESULT_INVALID_URI;
 
-        if (strcmp(uri_parts.m_Scheme, "http") == 0)
+        if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
         {
             return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
         }
