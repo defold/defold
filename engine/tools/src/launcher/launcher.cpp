@@ -15,45 +15,83 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/template.h>
 
 #ifdef _WIN32
 #include <dlib/safe_windows.h>
 #endif
 
-static void MakePath(dmConfigFile::HConfig config, char* resources_path, const char* key, const char* default_value, char* buf, int buf_len)
+// bootstrap.resourcespath must default to resourcespath of the installation
+#define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
+#define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
+
+struct ReplaceContext
 {
-    const char* value = dmConfigFile::GetString(config, key, default_value);
-    if (value[0] == '/' || strchr(value, ':')) {
-        dmStrlCpy(buf, "", buf_len);
-    } else {
-        dmStrlCpy(buf, resources_path, buf_len);
-        dmStrlCat(buf, "/", buf_len);
-    }
-    dmStrlCat(buf, value, buf_len);
+    dmConfigFile::HConfig m_Config;
+    // Will be set to either bootstrap.resourcespath (if set) or the default installation resources path
+    const char* m_ResourcesPath;
+};
 
-
-    for (size_t i = 0; i < strlen(buf); i++) {
-        if (buf[i] == '\\') buf[i] = '/';
+static const char* ReplaceCallback(void* user_data, const char* key)
+{
+    ReplaceContext* context = (ReplaceContext*)user_data;
+    if (dmStrCaseCmp(key, RESOURCES_PATH_KEY) == 0)
+    {
+        return context->m_ResourcesPath;
     }
+    return dmConfigFile::GetString(context->m_Config, key, 0x0);
+}
+
+static bool ConfigGetString(ReplaceContext* context, const char* key, char* buf, uint32_t buf_len)
+{
+    const char* value = dmConfigFile::GetString(context->m_Config, key, 0x0);
+    if (value != 0x0)
+    {
+        dmTemplate::Result result = dmTemplate::RESULT_OK;
+        char last_buf[MAX_ARGS_SIZE];
+        *last_buf = '\0';
+        dmStrlCpy(buf, value, buf_len);
+        int tries_left = 5;
+        while (result == dmTemplate::RESULT_OK && dmStrCaseCmp(buf, last_buf) != 0 && tries_left > 0)
+        {
+            dmStrlCpy(last_buf, buf, buf_len);
+            result = dmTemplate::Format(context, buf, buf_len, last_buf, ReplaceCallback);
+            --tries_left;
+        }
+        switch (result)
+        {
+        case dmTemplate::RESULT_OK:
+            return true;
+        case dmTemplate::RESULT_MISSING_REPLACEMENT:
+            dmLogFatal("One of the replacements in %s could not be resolved: %s", key, buf);
+            break;
+        case dmTemplate::RESULT_BUFFER_TOO_SMALL:
+            dmLogFatal("The buffer is too small to account for the replacements in %s.", key);
+            break;
+        case dmTemplate::RESULT_SYNTAX_ERROR:
+            dmLogFatal("The value at %s has syntax errors: %s", key, buf);
+            break;
+        }
+    }
+    dmStrlCpy(buf, "", buf_len);
+    return false;
 }
 
 int Launch(int argc, char **argv) {
-    char resources_path[DMPATH_MAX_PATH];
+    char default_resources_path[DMPATH_MAX_PATH];
     char config_path[DMPATH_MAX_PATH];
     char java_path[DMPATH_MAX_PATH];
     char jar_path[DMPATH_MAX_PATH];
-    char packages_arg[DMPATH_MAX_PATH];
+    char os_args[MAX_ARGS_SIZE];
+    char vm_args[MAX_ARGS_SIZE];
 
-    dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, resources_path, sizeof(resources_path));
+    dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, default_resources_path, sizeof(default_resources_path));
     if (r != dmSys::RESULT_OK) {
-        dmLogFatal("Failed to located resources path (%d)", r);
+        dmLogFatal("Failed to locate resources path (%d)", r);
         return 5;
     }
 
-    dmStrlCpy(packages_arg, "-Ddefold.resourcespath=", sizeof(packages_arg));
-    dmStrlCat(packages_arg, resources_path, sizeof(packages_arg));
-
-    dmStrlCpy(config_path, resources_path, sizeof(config_path));
+    dmStrlCpy(config_path, default_resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
 
     dmConfigFile::HConfig config;
@@ -68,10 +106,18 @@ int Launch(int argc, char **argv) {
         dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
     }
 
+    ReplaceContext context;
+    context.m_Config = config;
+    context.m_ResourcesPath = dmConfigFile::GetString(config, RESOURCES_PATH_KEY, default_resources_path);
+    if (*context.m_ResourcesPath == '\0')
+    {
+        context.m_ResourcesPath = default_resources_path;
+    }
+
     const char* main = dmConfigFile::GetString(config, "launcher.main", "Main");
 
-    MakePath(config, resources_path, "launcher.java", "jre/bin/java", java_path, sizeof(java_path));
-    MakePath(config, resources_path, "launcher.jar", "app.jar", jar_path, sizeof(jar_path));
+    ConfigGetString(&context, "launcher.java", java_path, sizeof(java_path));
+    ConfigGetString(&context, "launcher.jar", jar_path, sizeof(jar_path));
 
     int max_args = 128;
     const char ** args = (const char**) new char*[max_args];
@@ -79,26 +125,28 @@ int Launch(int argc, char **argv) {
     args[i++] = java_path;
     args[i++] = "-cp";
     args[i++] = jar_path;
-    args[i++] = packages_arg;
-#ifdef __MACH__
-    char icon_arg[DMPATH_MAX_PATH];
-    dmStrlCpy(icon_arg, "-Xdock:icon=", sizeof(icon_arg));
-    dmStrlCat(icon_arg, resources_path, sizeof(icon_arg));
-    dmStrlCat(icon_arg, "/logo.icns", sizeof(icon_arg));
-    args[i++] = icon_arg;
+
+    const char* os_key = "";
+#if defined(__MACH__)
+    os_key = "platform.osx";
+#elif defined(_WIN32)
+    os_key = "platform.windows";
+#elif defined(__linux__)
+    os_key = "platform.linux";
 #endif
+    ConfigGetString(&context, os_key, os_args, sizeof(os_args));
+    char* s, *last;
+    s = dmStrTok(os_args, ",", &last);
+    while (s) {
+        args[i++] = s;
+        s = dmStrTok(0, ",", &last);
+    }
 
-    const char* tmp = dmConfigFile::GetString(config, "launcher.vmargs", 0);
-    char *vm_args = 0;
-    if (tmp) {
-        vm_args = strdup(tmp);
-
-        char* s, *last;
-        s = dmStrTok(vm_args, ",", &last);
-        while (s) {
-            args[i++] = s;
-            s = dmStrTok(0, ",", &last);
-        }
+    ConfigGetString(&context, "launcher.vmargs", vm_args, sizeof(vm_args));
+    s = dmStrTok(vm_args, ",", &last);
+    while (s) {
+        args[i++] = s;
+        s = dmStrTok(0, ",", &last);
     }
 
     args[i++] = (char*) main;
@@ -158,7 +206,6 @@ int Launch(int argc, char **argv) {
     CloseHandle( pi.hThread  );
 
     delete[] buffer;
-    free(vm_args);
     delete[] args;
     dmConfigFile::Delete(config);
 
@@ -170,15 +217,14 @@ int Launch(int argc, char **argv) {
         int er = execv(args[0], (char *const *) args);
         if (er < 0) {
             char buf[2048];
-             strerror_r(errno, buf, sizeof(buf));
-             dmLogFatal("Failed to launch application: %s", buf);
-             exit(127);
+            strerror_r(errno, buf, sizeof(buf));
+            dmLogFatal("Failed to launch application: %s", buf);
+            exit(127);
         }
     }
     int stat;
     wait(&stat);
 
-    free(vm_args);
     delete[] args;
     dmConfigFile::Delete(config);
 
@@ -194,7 +240,9 @@ int main(int argc, char **argv) {
     int ret = Launch(argc, argv);
     while (ret == 17) {
         ret = Launch(argc, argv);
-
     }
     return ret;
 }
+
+#undef RESOURCES_PATH_KEY
+#undef MAX_ARGS_SIZE
