@@ -149,13 +149,11 @@ var LibraryFacebook = {
                                 var permissions_buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
                                 Runtime.dynCall('viiiii', callback, [lua_state, state_open, 0, me_buf, permissions_buf]);
                             } else {
-                                console.err(e);
                                 var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
                                 Runtime.dynCall('viiiii', callback, [lua_state, state_failed, err_buf, 0, 0]);
                             }
                         });
                     } else {
-                        console.err(e);
                         var err_buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
                         Runtime.dynCall('viiiii', callback, [lua_state, state_failed, err_buf, 0, 0]);
                     }
