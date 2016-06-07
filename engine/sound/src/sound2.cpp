@@ -1085,6 +1085,7 @@ namespace dmSound
             StepInstanceValues();
         }
 
+        bool sound_active = false;
         uint32_t current_buffer = 0;
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
@@ -1092,6 +1093,9 @@ namespace dmSound
             Result result = MixInstances(&mix_context);
             if (result == RESULT_OK)
             {
+                sound_active = true;
+                (void) PlatformAcquireAudioFocus();
+
                 Master(&mix_context);
                 sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
             }
@@ -1107,6 +1111,10 @@ namespace dmSound
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;
             free_slots--;
+        }
+
+        if (!sound_active) {
+            (void) PlatformReleaseAudioFocus();
         }
 
         return RESULT_OK;

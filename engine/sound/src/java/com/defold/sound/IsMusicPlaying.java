@@ -9,57 +9,86 @@ public class IsMusicPlaying {
 
     private static class AudioFocusListener implements AudioManager.OnAudioFocusChangeListener {
 
+        private boolean audioFocus = false;
+
         @Override
         public void onAudioFocusChange(int focusChange) {
+            if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                this.audioFocus = true;
+            } else {
+                // AUDIOFOCUS_LOSS
+                // AUDIOFOCUS_LOSS_TRANSIENT
+                // AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK
+                this.audioFocus = false;
+            }
+        }
 
+        public void setAudioFocus(boolean val) {
+            audioFocus = val;
+        }
+
+        public boolean hasAudioFocus() {
+            return audioFocus;
         }
 
     };
 
-    public static boolean isMusicPlayingFocus(Context context) {
-        int result = AudioManager.AUDIOFOCUS_REQUEST_FAILED;
-        boolean isPlaying = true;
-        AudioManager audioManager = null;
-        IsMusicPlaying.AudioFocusListener audioFocusListener = null;
-        try {
-            audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager != null) {
-                Log.i("sound", "Attempting to acquire audio focus");
-                audioFocusListener = new IsMusicPlaying.AudioFocusListener();
-                result = audioManager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+    private IsMusicPlaying.AudioFocusListener listener = null;
+    private AudioManager audioManager = null;
+
+    public IsMusicPlaying(Context context) {
+        this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        this.listener = new IsMusicPlaying.AudioFocusListener();
+    }
+
+    public boolean acquireAudioFocus() {
+        if (this.audioManager != null && this.listener != null) {
+            if (!this.listener.hasAudioFocus()) {
+                int result = this.audioManager.requestAudioFocus(this.listener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                 if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                    isPlaying = true;
-                    Log.i("sound", "Succeeded to acquire audio focus!");
-                } else if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
-                    isPlaying = false;
-                    Log.i("sound", "Failed to acquire audio focus!");
-                }
-            }
-        } catch (Exception exception) {
-            Log.i("sound", "Exception occurred while querying audio focus!");
-        } finally {
-            if (audioManager != null && audioFocusListener != null) {
-                result = audioManager.abandonAudioFocus(audioFocusListener);
-                if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                    Log.i("sound", "Succeeded to abandon audio focus!");
-                } else if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
-                    Log.i("sound", "Failed to abandon audio focus!");
+                    this.listener.setAudioFocus(true);
+                    return true;
+                } else {
+                    this.listener.setAudioFocus(false);
                 }
             }
         }
 
-        return isPlaying;
+        return false;
     }
 
-    public static boolean isMusicPlaying(Context context) {
-        try {
-            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            return audioManager.isMusicActive();
-        } catch (Exception exception) {
-            Log.e("sound", "Exception occurred while checking audio activity!");
+    public boolean isMusicPlaying() {
+        if (this.audioManager != null && this.listener != null) {
+            if (this.audioManager.isMusicActive()) {
+                // Sound is playing on the device
+                if (this.listener.hasAudioFocus()) {
+                    // Our application is responsible for the sound
+                    return false;
+                } else {
+                    // Another application is responsible for the sound
+                    return true;
+                }
+            } else {
+                // No sound is playing on the device
+                return false;
+            }
         }
 
         return true;
+    }
+
+    public boolean releaseAudioFocus() {
+        if (this.audioManager != null && this.listener != null) {
+            if (this.listener.hasAudioFocus()) {
+                int result = this.audioManager.abandonAudioFocus(this.listener);
+                if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    this.listener.setAudioFocus(false);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
 }
