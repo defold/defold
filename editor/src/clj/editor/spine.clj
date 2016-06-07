@@ -583,7 +583,7 @@
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json resource/ResourceType
+  (property spine-json resource/Resource
             (value (g/fnk [spine-json-resource] spine-json-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -592,7 +592,7 @@
             (validate (g/fnk [spine-json spine-scene]
                              (validation/resource :spine-json spine-json "Missing spine json"))))
 
-  (property atlas resource/ResourceType
+  (property atlas resource/Resource
             (value (g/fnk [atlas-resource] atlas-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -605,8 +605,8 @@
 
   (property sample-rate g/Num)
 
-  (input spine-json-resource resource/ResourceType)
-  (input atlas-resource resource/ResourceType)
+  (input spine-json-resource resource/Resource)
+  (input atlas-resource resource/Resource)
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -659,7 +659,7 @@
 (g/defnode SpineModelNode
   (inherits project/ResourceNode)
 
-  (property spine-scene resource/ResourceType
+  (property spine-scene resource/Resource
             (value (g/fnk [spine-scene-resource] spine-scene-resource))
             (set (fn [basis self old-value new-value]
                      (project/resource-setter basis self old-value new-value
@@ -675,7 +675,7 @@
                                    {:type :choicebox
                                     :options (zipmap (map first options)
                                                      (map (comp :display-name second) options))}))))
-  (property material resource/ResourceType
+  (property material resource/Resource
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -695,10 +695,10 @@
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
 
   (input dep-build-targets g/Any :array)
-  (input spine-scene-resource resource/ResourceType)
+  (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
   (input aabb AABB)
-  (input material-resource resource/ResourceType)
+  (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (input sampler-data g/KeywordMap)

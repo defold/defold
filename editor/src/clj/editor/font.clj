@@ -321,14 +321,14 @@
 (g/defnode FontNode
   (inherits project/ResourceNode)
 
-  (property font resource/ResourceType
+  (property font resource/Resource
             (value (g/fnk [font-resource] font-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :font-resource])))
             (validate (g/fnk [font] (validation/resource :font font))))
 
-  (property material resource/ResourceType
+  (property material resource/Resource
             (value (g/fnk [material-resource] material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -365,8 +365,8 @@
   (property cache-height g/Int)
 
   (input dep-build-targets g/Any :array)
-  (input font-resource resource/ResourceType)
-  (input material-resource resource/ResourceType)
+  (input font-resource resource/Resource)
+  (input material-resource resource/Resource)
   (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
 
