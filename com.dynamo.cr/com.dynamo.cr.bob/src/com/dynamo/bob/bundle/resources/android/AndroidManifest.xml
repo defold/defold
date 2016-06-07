@@ -56,6 +56,7 @@
           android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
           android:label="{{project.title}}" />
         <activity android:name="com.defold.iap.IapGooglePlayActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:label="IAP"></activity>
+        <activity android:name="com.defold.webview.WebViewActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:label="WebView"></activity>
 
         <!-- For Local Notifications -->
         <activity android:name="com.defold.push.LocalPushDispatchActivity"
