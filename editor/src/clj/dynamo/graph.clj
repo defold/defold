@@ -31,9 +31,6 @@
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
-(namespaces/import-macro schema.core/defn      s-defn)
-(namespaces/import-macro schema.core/defrecord s-defrecord)
-
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
 
