@@ -42,7 +42,7 @@ typedef void (*OnAccessTokenCallback)(void *L, const char* access_token);
 typedef void (*OnPermissionsCallback)(void *L, const char* json_arr);
 typedef void (*OnMeCallback)(void *L, const char* json);
 typedef void (*OnShowDialogCallback)(void* L, const char* url, const char* error);
-typedef void (*OnLoginCallback)(void *L, int state, const char* error);
+typedef void (*OnLoginCallback)(void* L, int state, const char* error, const char* me_json, const char* permissions_json);
 typedef void (*OnRequestReadPermissionsCallback)(void *L, const char* error);
 typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error);
 
