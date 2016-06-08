@@ -13,7 +13,6 @@
            [java.util.function Function]
            [javafx.scene.control ListView]
            [org.eclipse.fx.text.ui TextAttribute]
-           [org.eclipse.fx.text.ui.contentassist ContentAssistant ContentAssistContextData ICompletionProposal]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
@@ -34,6 +33,12 @@
 
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
+
+(defn- assist [selection]
+  (ui/user-data selection ::assist))
+
+(defn- syntax [selection]
+  (ui/user-data selection ::syntax))
 
 (defmacro binding-atom [a val & body]
   `(let [old-val# (deref ~a)]
@@ -62,38 +67,6 @@
     (cvx/caret! source-viewer caret-position false))
   [code-node code caret-position])
 
-(defn- make-proposal [{:keys [replacement offset length position image display-string additional-info]}]
-  (reify ICompletionProposal
-    (getLabel [this] display-string)
-    ;;    (getReplacementOffset [this] offset)
-    ;;    (getReplacementLength [this] length)
-    ;;    (getCursorPosition [this] position)
-    (getGraphic [this] (when image (ImageView. (Image. (io/input-stream (io/resource image))))))
-    (^void apply [this ^IDocument document]
-     (try
-        (.replace document offset length replacement)
-        (catch Exception e
-          (.printStackTrace e))))
-    (getSelection [this document]
-      ; ?
-      (TextSelection. (+ offset position) 0))))
-
-(defn- make-proposals [hints]
-  (map make-proposal hints))
-
-(defn- make-proposal-fn [assist-fn]
-  (fn [^ContentAssistContextData ctxt]
-    (let [document (.document ctxt)
-          offset (.offset ctxt)
-          line-no (.getLineOfOffset document offset)
-          line-offset (.getLineOffset document line-no)
-          line (.get document line-offset (- offset line-offset))
-          hints (assist-fn (.get document) offset line)]
-      (make-proposals hints))))
-
-(defn- to-function [fn]
-  (reify Function
-    (apply [this arg] (fn arg))))
 
 (defn- default-rule? [rule]
   (= (:type rule) :default))
@@ -226,16 +199,13 @@
           (.setRepairer pr damager-repairer partition))))
     pr))
 
-(defn- ^SourceViewerConfiguration create-viewer-config [opts]
+(defn- ^SourceViewerConfiguration create-viewer-config [source-viewer opts]
   (let [{:keys [language syntax assist]} opts
         scanner-syntax (:scanner syntax)]
     (proxy [SourceViewerConfiguration] []
       (getStyleclassName [] language)
       (getPresentationReconciler [source-viewer]
         (make-reconciler this source-viewer scanner-syntax))
-      (getContentAssist []
-        (when assist
-          (ContentAssistant. (to-function (make-proposal-fn assist)))))
       (getConfiguredContentTypes [source-viewer]
         (into-array String (replace default-content-type-map (map :partition scanner-syntax)))))))
 
@@ -258,7 +228,7 @@
 
 (defn setup-source-viewer [opts use-custom-skin?]
   (let [source-viewer (SourceViewer.)
-        source-viewer-config (create-viewer-config opts)
+        source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
         partitioner (make-partitioner opts)]
 
@@ -288,7 +258,9 @@
                             MouseEvent/MOUSE_CLICKED
                             (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
 
+
       (ui/user-data! text-area ::behavior styled-text-behavior)
+      (ui/user-data! source-viewer ::assist (:assist opts))
       (ui/user-data! source-viewer ::syntax (:syntax opts)))
 
   source-viewer))
@@ -354,6 +326,11 @@
     (-> this (.getTextWidget) (.getEditable)))
   (editable! [this val]
     (-> this (.getTextWidget) (.setEditable val)))
+  (screen-position [this]
+    (let [tw (.getTextWidget this)
+        caret-pos (cvx/caret this)
+        p (.getLocationAtOffset tw caret-pos)]
+      (.localToScreen tw p)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
@@ -381,7 +358,16 @@
                              (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
                              (when selection-changed?
                                [(g/set-property code-node-id :selection-offset selection-offset)
-                                (g/set-property code-node-id :selection-length selection-length)]))))))))
+                                (g/set-property code-node-id :selection-length selection-length)])))))))
+  cvx/TextProposals
+  (propose [this]
+    (when-let [assist-fn (assist this)]
+      (let [document (.getDocument this)
+            offset (cvx/caret this)
+            line-no (.getLineOfOffset document offset)
+            line-offset (.getLineOffset document line-no)
+            line (.get document line-offset (- offset line-offset))]
+        (assist-fn (cvx/text this) offset line)))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)

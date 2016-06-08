@@ -22,13 +22,17 @@
   (caret [this])
   (caret! [this offset select?])
   (editable? [this])
-  (editable! [this val]))
+  (editable! [this val])
+  (screen-position [this]))
 
 (defprotocol TextStyles
   (styles [this]))
 
 (defprotocol TextUndo
   (changes! [this]))
+
+(defprotocol TextProposals
+  (propose [this]))
 
 (def mappings
   {
@@ -98,7 +102,12 @@
   :Tab                   {:command :tab}
   :Enter                 {:command :enter}
 
+  ;;Completions
+  :Ctrl+Space            {:command :proposals}
+
 })
+
+(def proposal-key-triggers #{"."})
 
 (defn menu-data [item]
   {:label (:label (val item))
@@ -164,7 +173,6 @@
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
-
     (when (not (.isConsumed e))
       (.consume e)
       (when (and (:command kf) (not (:label kf)))
@@ -184,7 +192,6 @@
         :key-typed
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
         e))))
-
 
 (defn- adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
@@ -783,13 +790,25 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (inc np)))))
 
+(defn show-proposals [selection]
+  (let [proposals (propose selection)
+        screen-position (screen-position selection)
+        offset (caret selection)
+        result (promise)
+        ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
+        replace-text-fn (fn [] (when (and (realized? result) @result)
+                                (replace! selection offset 0 (:replacement (first @result)))))]
+    (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))
+
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
     (when (and (editable? selection)
            (pos? (count key-typed))
            (not-ascii-or-delete key-typed))
-      (enter-key-text selection key-typed))))
+      (enter-key-text selection key-typed)
+      (when (contains? proposal-key-triggers key-typed)
+        (show-proposals selection)))))
 
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
@@ -815,3 +834,8 @@
   (run [view-node code-node]
     (g/redo! (g/node-id->graph-id code-node))
     (g/node-value view-node :new-content)))
+
+(handler/defhandler :proposals :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (show-proposals selection)))
