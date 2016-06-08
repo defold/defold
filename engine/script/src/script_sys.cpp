@@ -164,8 +164,8 @@ namespace dmScript
      * Get config value from the game.project configuration file.
      *
      * @name sys.get_config
-     * @param key key to get value for. The syntax is SECTION.KEY
-     * @return config value as a string. nil if the config key doesn't exists
+     * @param key key to get value for. The syntax is SECTION.KEY (string)
+     * @return config value as a string. nil if the config key doesn't exists (string)
      * @examples
      * <p>
      * Get display width
@@ -179,9 +179,9 @@ namespace dmScript
      * Get config value from the game.project configuration file with default value
      *
      * @name sys.get_config
-     * @param key key to get value for. The syntax is SECTION.KEY
-     * @param default_value default value to return if the value does not exist
-     * @return config value as a string. default_value if the config key does not exist
+     * @param key key to get value for. The syntax is SECTION.KEY (string)
+     * @param default_value default value to return if the value does not exist (string)
+     * @return config value as a string. default_value if the config key does not exist (string)
      * @examples
      * <p>
      * Get user config value
@@ -235,8 +235,8 @@ namespace dmScript
      * Open URL in default application, typically a browser
      *
      * @name sys.open_url
-     * @param url url to open
-     * @return a boolean indicating if the url could be opened or not
+     * @param url url to open (string)
+     * @return a boolean indicating if the url could be opened or not (boolean)
      */
     int Sys_OpenURL(lua_State* L)
     {
@@ -307,7 +307,7 @@ namespace dmScript
      * <p><code>device_ident</code> is "android_id" and <code>ad_ident</code> is advertising ID provided by Google Play on Android.</p>
      *
      * @name sys.get_sys_info
-     * @return table with system information
+     * @return table with system information (table)
      */
     int Sys_GetSysInfo(lua_State* L)
     {
@@ -368,7 +368,7 @@ namespace dmScript
      * </p>
      *
      * @name sys.get_engine_info
-     * @return table with engine information
+     * @return table with engine information (table)
      */
     int Sys_GetEngineInfo(lua_State* L)
     {
@@ -396,7 +396,7 @@ namespace dmScript
      * </p>
      *
      * @name sys.get_application_info
-     * @return table with application information
+     * @return table with application information (table)
      */
     int Sys_GetApplicationInfo(lua_State* L)
     {
@@ -421,7 +421,7 @@ namespace dmScript
      * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
      *
      * @name sys.get_ifaddrs
-     * @return an array of tables
+     * @return an array of tables (table)
      */
     int Sys_GetIfaddrs(lua_State* L)
     {
@@ -494,7 +494,7 @@ namespace dmScript
      *  end)
      * </pre>
      * @name sys.set_error_handler
-     * @param error_handler the function to be called on error
+     * @param error_handler the function to be called on error (function)
      */
     int Sys_SetErrorHandler(lua_State* L)
     {
@@ -523,7 +523,7 @@ namespace dmScript
      *  sys.set_connectivity_host("www.google.com")
      * </pre>
      * @name sys.set_connectivity_host
-     * @param host hostname to check against
+     * @param host hostname to check against (string)
      */
     static int Sys_SetConnectivityHost(lua_State* L)
     {
@@ -544,7 +544,7 @@ namespace dmScript
      *  end
      * </pre>
      * @name sys.get_connectivity
-     * @return sys.NETWORK_DISCONNECTED if no network connection is found, sys.NETWORK_CONNECTED_CELLULAR if connected through mobile cellular, otherwise sys.NETWORK_CONNECTED
+     * @return sys.NETWORK_DISCONNECTED if no network connection is found, sys.NETWORK_CONNECTED_CELLULAR if connected through mobile cellular, otherwise sys.NETWORK_CONNECTED (number)
      */
     static int Sys_GetConnectivity(lua_State* L)
     {
