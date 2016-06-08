@@ -541,7 +541,7 @@ namespace dmConfigFile
         if (r != dmURI::RESULT_OK)
             return RESULT_INVALID_URI;
 
-        if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
+        if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
         {
             return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
         }
