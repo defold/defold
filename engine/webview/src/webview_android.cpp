@@ -328,10 +328,8 @@ dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
     g_WebView.m_SetVisible = env->GetMethodID(webview_class, "setVisible", "(II)V");
     g_WebView.m_IsVisible = env->GetMethodID(webview_class, "isVisible", "(I)I");
     
-    //jmethodID jni_constructor = env->GetMethodID(webview_class, "<init>", "(Landroid/app/Activity;I)V");
-    //g_WebView.m_WebViewJNI = env->NewGlobalRef(env->NewObject(webview_class, jni_constructor, g_AndroidApp->activity->clazz, dmWebView::MAX_NUM_WEBVIEWS));
-    jmethodID jni_constructor = env->GetMethodID(webview_class, "<init>", "(Landroid/app/Activity;)V");
-    g_WebView.m_WebViewJNI = env->NewGlobalRef(env->NewObject(webview_class, jni_constructor, g_AndroidApp->activity->clazz));
+    jmethodID jni_constructor = env->GetMethodID(webview_class, "<init>", "(Landroid/app/Activity;I)V");
+    g_WebView.m_WebViewJNI = env->NewGlobalRef(env->NewObject(webview_class, jni_constructor, g_AndroidApp->activity->clazz, dmWebView::MAX_NUM_WEBVIEWS));
 
     Detach();
 
