@@ -1,7 +1,6 @@
 (ns editor.lua-parser
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
-            [clojure.walk :as walk]
             [clojure.zip :as zip]
             [clojure.edn :as edn]))
 
