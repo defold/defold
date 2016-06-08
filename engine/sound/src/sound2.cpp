@@ -1116,8 +1116,6 @@ namespace dmSound
             free_slots--;
         }
 
-        SoundSystem* ss = g_SoundSystem;
-
         if (previous_state == true && sound->m_InstancesPool.Size() == 0)
         {
             previous_state = false;
