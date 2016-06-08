@@ -774,7 +774,14 @@ public class RefactorTest {
                 return new String[] { desc.getTextures(0).getTexture() };
             }
         });
+        testRenameAndDelete(SceneDesc.newBuilder(), "logic/main.gui", "/graphics/atlas.atlas", new ReferenceFetcher<SceneDesc>() {
+            @Override
+            public String[] getReferences(SceneDesc desc) {
+                return new String[] { desc.getTextures(1).getTexture() };
+            }
+        });
     }
+
 
     /*
      * Model
