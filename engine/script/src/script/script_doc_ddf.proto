@@ -28,6 +28,8 @@ message Element
     required string return_ = 5;
     repeated Parameter parameters = 6;
     optional string examples = 7 [default=""];
+    optional string note = 8 [default=""];
+    optional string deprecated = 9 [default=""];
 }
 
 message Document
