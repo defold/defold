@@ -1046,7 +1046,7 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
-        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
         client->m_RequestStart = dmTime::GetTime();
 
         Result r;
@@ -1103,7 +1103,7 @@ bail:
         if (strcmp(method, "GET") == 0) {
             return Get(client, path);
         } else {
-            DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+            DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
             client->m_RequestStart = dmTime::GetTime();
             Result r = DoRequest(client, path, method);
             return r;
