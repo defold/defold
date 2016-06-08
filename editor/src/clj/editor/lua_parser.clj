@@ -47,7 +47,7 @@
 (defmethod xform-node :function [node]
   (let [[_ _ [_ funcname] funcbody] node
         [_ _  [_  namelist]] funcbody]
-    {:functions {funcname (parse-namelist namelist)}}))
+    {:functions {funcname {:params (parse-namelist namelist)}}}))
 
 (defn collect-info [loc]
   (loop [loc loc
@@ -63,8 +63,8 @@
 (defn lua-info [code]
   (let [info (-> code lua-parser zip/seq-zip collect-info)
         locals-info (vec (apply concat (map :locals info)))
-        functions-info (vec (apply concat (map :functions info)))
-        requires-info (apply merge (map :requires info))]
+        functions-info (or (apply merge (map :functions info)) {})
+        requires-info (or (apply merge (map :requires info)) {})]
     {:locals locals-info
      :functions functions-info
      :requires requires-info}))
