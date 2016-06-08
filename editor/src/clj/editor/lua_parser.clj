@@ -10,7 +10,6 @@
 (defn- parse-namelist [namelist]
   (vec (remove #(= "," %) (rest namelist))))
 
-
 (defn- require-name [loc]
   (if (zip/end? loc)
     nil
@@ -28,11 +27,11 @@
         (recur (zip/next loc))))))
 
 (defn collect-require [parsed-names exprlist]
-  (when exprlist
+  (if exprlist
     (let [zexpr (zip/seq-zip exprlist)]
-     {(first parsed-names) (if (has-require? zexpr)
-                             (require-name zexpr)
-                             :not-found)})))
+      (when (has-require? zexpr)
+        {(first parsed-names) (require-name zexpr)}))
+    {}))
 
 (defmulti xform-node (fn [node] (keyword (second node))))
 
@@ -41,9 +40,9 @@
 
 (defmethod xform-node :local [node]
   (let [[_ _ namelist _ exprlist] node
-        parsed-names (parse-namelist namelist)]
-    {:locals parsed-names
-     :requires (collect-require parsed-names exprlist)}))
+        parsed-names (parse-namelist namelist)
+        require-info (collect-require parsed-names exprlist)]
+    {:locals parsed-names :requires require-info}))
 
 (defmethod xform-node :function [node]
   (let [[_ _ [_ funcname] funcbody] node
@@ -61,25 +60,42 @@
          (recur (zip/next loc) result))))))
 
 
-(collect-info  (zip/seq-zip (lua-parser "local d \n local e")))
-(apply merge-with concat  [{:locals ["d"]} {:locals ["e"]}])
+(defn lua-info [code]
+  (let [info (-> code lua-parser zip/seq-zip collect-info)
+        locals-info (vec (apply concat (map :locals info)))
+        functions-info (vec (apply concat (map :functions info)))
+        requires-info (apply merge (map :requires info))]
+    {:locals locals-info
+     :functions functions-info
+     :requires requires-info}))
 
 
-[(:stat "local" (:namelist "d")) (:stat "local" (:namelist "e"))]
-(collect-info  (zip/seq-zip (lua-parser "local d,e ")))
-(collect-info  (zip/seq-zip (lua-parser "local mymathmodule = require(\"mymath\")")))
+(comment
+
+  (lua-info "local d \n local e")
+
+  (collect-info  (zip/seq-zip (lua-parser "local d \n local e")))
+  (apply merge-with concat  [{:locals ["d"]} {:locals ["e"]}])
 
 
-(collect-info  (zip/seq-zip (lua-parser "function oadd(num1, num2) return num1 end")))
-
-(lua-parser "function oadd(num1, num2) return num1 end")
-(:chunk (:block (:stat "function" (:funcname "oadd") (:funcbody "(" (:parlist (:namelist "num1" "," "num2")) ")" (:block (:retstat "return" (:explist (:exp (:prefixexp (:varOrExp (:var "num1"))))))) "end"))) "<EOF>")
-
-(lua-parser "local mymathmodule = require(\"mymath\")")
-(:chunk (:block (:stat "local" (:namelist "mymathmodule") "=" (:explist (:exp (:prefixexp (:varOrExp (:var "require")) (:nameAndArgs (:args "(" (:explist (:exp (:string "\"mymath\""))) ")"))))))) "<EOF>")
-(:chunk (:block (:stat (:varlist (:var "mymathmodule")) "=" (:explist (:exp (:prefixexp (:varOrExp (:var "require")) (:nameAndArgs (:args "(" (:explist (:exp (:string "\"mymath\""))) ")"))))))) "<EOF>")
+  [(:stat "local" (:namelist "d")) (:stat "local" (:namelist "e"))]
+  (collect-info  (zip/seq-zip (lua-parser "local d,e ")))
+  (collect-info  (zip/seq-zip (lua-parser "local mymathmodule = require(\"mymath\")")))
 
 
+  (collect-info  (zip/seq-zip (lua-parser "function oadd(num1, num2) return num1 end")))
+
+  (lua-parser "function oadd(num1, num2) return num1 end")
+  (lua-info "function oadd(num1, num2) return num1 end")
+  (:chunk (:block (:stat "function" (:funcname "oadd") (:funcbody "(" (:parlist (:namelist "num1" "," "num2")) ")" (:block (:retstat "return" (:explist (:exp (:prefixexp (:varOrExp (:var "num1"))))))) "end"))) "<EOF>")
+
+  (lua-parser "local mymathmodule = require(\"mymath\")")
+  (lua-info "local mymathmodule = require(\"mymath\")")
+  (:chunk (:block (:stat "local" (:namelist "mymathmodule") "=" (:explist (:exp (:prefixexp (:varOrExp (:var "require")) (:nameAndArgs (:args "(" (:explist (:exp (:string "\"mymath\""))) ")"))))))) "<EOF>")
+  (:chunk (:block (:stat (:varlist (:var "mymathmodule")) "=" (:explist (:exp (:prefixexp (:varOrExp (:var "require")) (:nameAndArgs (:args "(" (:explist (:exp (:string "\"mymath\""))) ")"))))))) "<EOF>")
 
 
 
+
+
+  )
