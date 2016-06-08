@@ -19,3 +19,7 @@ textures {
   name: "test"
   texture: "/graphics/ball.png"
 }
+textures {
+  name: "testatlas"
+  texture: "/graphics/atlas.atlas"
+}
