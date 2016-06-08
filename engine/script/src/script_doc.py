@@ -71,8 +71,12 @@ def _parse_comment(str):
             param = element.parameters.add()
             param.name = tmp[0]
             param.doc = tmp[1]
+        elif tag == 'note':
+            element.note = value
         elif tag == 'examples':
             element.examples = value
+        elif tag == 'deprecated':
+            element.deprecated = value
     return element
 
 def parse_document(doc_str):
