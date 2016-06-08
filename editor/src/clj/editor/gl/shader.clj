@@ -531,6 +531,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                            {:type :keyword :start? is-word-start :part? is-word-part :keywords support-function-keywords :class "support-function-keyword"}
                            {:type :custom :scanner match-directive :class "directive"}
                            {:type :custom :scanner match-storage-types :class "storage-type"}
+                           {:type :custom :scanner code/match-number :class "number"}
                            {:type :custom :scanner match-arithmetic-operator :class "operator"}
                            {:type :custom :scanner match-increment-decrement-operator :class "operator"}
                            {:type :custom :scanner match-bitwise-operator :class "operator"}
