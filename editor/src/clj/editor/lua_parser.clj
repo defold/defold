@@ -78,7 +78,7 @@
 
 (defn lua-info [code]
   (let [info (-> code lua-parser zip/seq-zip collect-info)
-        locals-info (vec (apply concat (map :vars info)))
+        locals-info (into #{} (apply concat (map :vars info)))
         functions-info (or (apply merge (map :functions info)) {})
         requires-info (or (apply merge (map :requires info)) {})]
     {:vars locals-info
