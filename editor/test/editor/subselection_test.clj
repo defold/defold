@@ -1,0 +1,294 @@
+(ns editor.subselection-test
+  (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [util.id-vec :as iv]
+            [editor.types :as types]
+            [support.test-support :refer [with-clean-system tx-nodes]])
+  (:import [javax.vecmath Matrix4d Point3d Vector3d]))
+
+
+(g/defnode Project
+  (property selection g/Any))
+
+(defn- selection [project]
+  (g/node-value project :selection))
+
+(defrecord View [fb select-fn])
+
+(defn- ->view [select-fn]
+  (View. {} select-fn))
+
+(defn view-render [view point user-data]
+  (update view :fb assoc point user-data))
+
+(defmulti render (fn [basis node-id view] (g/node-type* basis node-id)))
+
+(defprotocol GeomCloud
+  (geom-aabbs [this ids])
+  (geom-insert [this positions])
+  (geom-delete [this ids])
+  (geom-update [this ids f])
+  (geom-transform [this ids ^Matrix4d transform]))
+
+(defrecord Mesh [vertices]
+  GeomCloud
+  (geom-aabbs [this ids] (->> (iv/iv-filter-ids vertices ids)
+                          (iv/iv-mapv (fn [[id v]] [id [v v]]))
+                          (into {})))
+  (geom-insert [this positions] (update this :vertices iv/iv-into positions))
+  (geom-delete [this ids] (update this :vertices iv/iv-remove-ids ids))
+  (geom-update [this ids f] (let [ids (set ids)]
+                             (assoc this :vertices (iv/iv-mapv (fn [entry]
+                                                                 (let [[id v] entry]
+                                                                   (if (ids id) [id (f v)] entry))) vertices))))
+  (geom-transform [this ids transform]
+    (let [p (Point3d.)]
+      (geom-update this ids (fn [v]
+                             (let [[x y] v]
+                               (.set p x y 0.0)
+                               (.transform transform p)
+                               [(.getX p) (.getY p) 0.0]))))))
+
+(defn ->mesh [vertices]
+  (Mesh. (iv/iv-vec vertices)))
+
+(defn- hermite [y0 y1 t0 t1 t]
+  (let [t2 (* t t)
+        t3 (* t2 t)]
+    (+ (* (+ (* 2 t3) (* -3 t2) 1.0) y0)
+       (* (+ t3 (* -2 t2) t) t0)
+       (* (+ (* -2 t3) (* 3 t2)) y1)
+       (* (- t3 t2) t1))))
+
+(defn- hermite' [y0 y1 t0 t1 t]
+  (let [t2 (* t t)]
+    (+ (* (+ (* 6 t2) (* -6 t)) y0)
+       (* (+ (* 3 t2) (* -4 t) 1) t0)
+       (* (+ (* -6 t2) (* 6 t)) y1)
+       (* (+ (* 3 t2) (* -2 t)) t1))))
+
+(defn- ->spline [cps]
+  (sort-by first cps))
+
+
+(defn- spline-val [cp0 cp1 t]
+  (let [[x0 y0 s0 t0] cp0
+        [x1 y1 s1 t1] cp1
+        dx (- x1 x0)]
+    (hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)))
+
+(defn- spline-cp [spline x]
+  (let [x (min (max x 0.0) 1.0)
+        [[cp0 cp1]] (filter (fn [[[x0] [x1]]] (and (<= x0 x) (< x x1))) (partition 2 1 spline))]
+    (when (and cp0 cp1)
+      (let [[x0 y0 s0 t0] cp0
+            [x1 y1 s1 t1] cp1
+            dx (- x1 x0)
+            t (/ (- x (first cp0)) (- (first cp1) (first cp0)))
+            y (hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)
+            ty (/ (hermite' y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t) dx)
+            l (Math/sqrt (+ 1.0 (* ty ty)))
+            ty (/ ty l)
+            tx (/ 1.0 l)]
+        [x y tx ty]))))
+
+(defrecord Curve [cps]
+  GeomCloud
+  (geom-aabbs [this ids] (->> (iv/iv-filter-ids cps ids)
+                          (iv/iv-mapv (fn [[id v]] (let [[x y] v
+                                                         v [x y 0.0]]
+                                                     [id [v v]])))
+                          (into {})))
+  (geom-insert [this positions] (let [spline (->> cps
+                                               (iv/iv-mapv second)
+                                               ->spline)
+                                      cps (mapv (fn [[x]] (-> spline
+                                                            (spline-cp x))) positions)]
+                                  (update this :cps iv/iv-into cps)))
+  (geom-delete [this ids] (update this :cps iv/iv-remove-ids ids))
+  (geom-update [this ids f] (let [ids (set ids)]
+                             (assoc this :cps (iv/iv-mapv (fn [entry]
+                                                            (let [[id v] entry]
+                                                              (if (ids id) [id (f v)] entry))) cps))))
+  (geom-transform [this ids transform]
+    (let [p (Point3d.)]
+      (geom-update this ids (fn [v]
+                             (let [[x y] v]
+                               (.set p x y 0.0)
+                               (.transform transform p)
+                               [(.getX p) (.getY p) 0.0]))))))
+
+(defn ->curve [control-points]
+  (Curve. (iv/iv-vec control-points)))
+
+(g/defnode Model
+  (property mesh Mesh))
+
+(defn- ->p3 [v]
+  (let [[x y z] v]
+    (Point3d. x y (or z 0.0))))
+
+(defn- p3-> [^Point3d p]
+  [(.getX p) (.getY p) (.getZ p)])
+
+(defn- centroid [aabb]
+  (let [[^Point3d min ^Point3d max] (map ->p3 aabb)]
+    (.sub max min)
+    (.scaleAdd max 0.5 min)
+    (p3-> max)))
+
+(defn- render-geom-cloud [basis view node-id property]
+  (let [render-data (-> (g/node-value node-id property :basis basis)
+                      (geom-aabbs nil))]
+    (reduce (fn [view [id aabb]] (view-render view (centroid aabb) {:node-id node-id
+                                                                    :property property
+                                                                    :element-id id}))
+            view render-data)))
+
+(defmethod render Model [basis node-id view]
+  (render-geom-cloud basis view node-id :mesh))
+
+(g/defnode Emitter
+  (property color Curve))
+
+(defmethod render Emitter [basis node-id view]
+  (render-geom-cloud basis view node-id :color))
+
+(defn- render-clear [view]
+  (assoc view :fb {}))
+
+(defn- render-all [view renderables]
+  (reduce (fn [view r] (render (g/now) r view))
+          view renderables))
+
+(defn- box-select! [view box]
+  (let [[minp maxp] box
+        selection (->> (:fb view)
+                    (filter (fn [[p v]]
+                              (and (= minp (mapv min p minp))
+                                   (= maxp (mapv max p maxp)))))
+                    (map second)
+                    (reduce (fn [s v]
+                              (update-in s [(:node-id v) (:property v)]
+                                         (fn [ids] (conj (or ids []) (:element-id v)))))
+                            {})
+                    (mapv identity))]
+    ((:select-fn view) selection)))
+
+;; Commands
+
+(defn delete! [project]
+  (let [s (selection project)]
+    (g/transact (reduce (fn [tx-data v]
+                          (if (sequential? v)
+                            (let [[nid props] v]
+                              (into tx-data
+                                    (for [[k ids] props]
+                                      (g/update-property nid k geom-delete ids))))
+                            (into tx-data (g/delete-node s))))
+                        [] s))))
+
+(g/defnode MoveManip
+  (input selection g/Any)
+  (output position g/Any (g/fnk [selection basis]
+                                (let [positions (->> (for [[nid props] selection
+                                                           [k ids] props]
+                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k :basis basis)
+                                                                                                    (geom-aabbs ids))))
+                                                  (reduce into [])
+                                                  (map second))
+                                      avg (mapv / (reduce (fn [r p] (mapv + r p)) [0.0 0.0 0.0] positions)
+                                                (repeat (double (count positions))))]
+                                  avg))))
+
+(defn- start-move [selection p]
+  {:selection selection
+   :origin p
+   :basis (g/now)})
+
+(defn- move! [ctx p]
+  (let [origin (->p3 (:origin ctx))
+        delta (doto (->p3 p)
+                (.sub origin))
+        basis (:basis ctx)
+        selection (:selection ctx)
+        transform (doto (Matrix4d.)
+                    (.set (Vector3d. delta)))]
+    (g/transact
+      (for [[nid props] selection
+            [k ids] props
+            :let [v (g/node-value nid k :basis basis)]]
+        (g/set-property nid k (geom-transform v ids transform))))))
+
+;; Tests
+
+(deftest delete-mixed
+  (with-clean-system
+    (let [[project
+           model
+           emitter] (tx-nodes (g/make-nodes world [project [Project :selection []]
+                                                   model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
+                                                   emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
+                                                                                     [0.6 0.6 0.0 0.0]
+                                                                                     [0.0 1.0 0.0 0.0]])]]))
+          view (-> (->view (fn [s] (g/set-property! project :selection s)))
+                 (render-all [model emitter]))
+          box [[0.5 0.5] [1.0 1.0]]]
+      (box-select! view box)
+      (is (not (empty? (selection project))))
+      (delete! project)
+      (let [view (-> view
+                   render-clear
+                   (render-all [model emitter]))]
+        (box-select! view box)
+        (is (empty? (selection project)))))))
+
+(deftest move-mixed
+  (with-clean-system
+    (let [[project
+           model
+           emitter
+           manip] (tx-nodes (g/make-nodes world [project [Project :selection []]
+                                                 model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
+                                                 emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
+                                                                                   [0.6 0.6 0.0 0.0]
+                                                                                   [0.0 1.0 0.0 0.0]])]
+                                                 manip MoveManip]
+                                          (g/connect project :selection manip :selection)))
+          view (-> (->view (fn [s] (g/set-property! project :selection s)))
+                 (render-all [model emitter]))
+          box [[0.5 0.5] [1.0 1.0]]]
+      (box-select! view box)
+      (is (not (empty? (selection project))))
+      (is (= [(/ 2.1 3.0) (/ 2.1 3.0) 0.0] (g/node-value manip :position)))
+      (-> (start-move (selection project) (g/node-value manip :position))
+        (move! [2.0 2.0 0.0]))
+      (let [view (-> view
+                   render-clear
+                   (render-all [model emitter]))]
+        (box-select! view box)
+        (is (empty? (selection project)))))))
+
+(defn- near [v1 v2]
+  (< (Math/abs (- v1 v2)) 0.000001))
+
+(deftest insert-control-point
+  (with-clean-system
+    (let [[project
+           emitter] (tx-nodes (g/make-nodes world [project [Project :selection []]
+                                                   emitter [Emitter :color (->curve [[0.0 0.0 0.5 0.5]
+                                                                                     [0.5 0.5 0.5 0.5]
+                                                                                     [1.0 1.0 0.5 0.5]])]]))
+          view (-> (->view (fn [s] (g/set-property! project :selection s)))
+                 (render-all [emitter]))
+          box [[0.5 0.5] [1.0 1.0]]
+          half-sq-2 (* 0.5 (Math/sqrt 2.0))]
+      (g/transact
+        (g/update-property emitter :color geom-insert [[0.25 0.25 0.0]]))
+      (let [[x y tx ty] (-> (g/node-value emitter :color)
+                          :cps
+                          (iv/iv-filter-ids [4])
+                          iv/iv-vals
+                          first)]
+        (is (near half-sq-2 tx))
+        (is (near half-sq-2 ty))))))
