@@ -14,7 +14,8 @@
             [editor.resource :as resource]
             [editor.pipeline.lua-scan :as lua-scan]
             [editor.gl.pass :as pass]
-            [editor.lua :as lua])
+            [editor.lua :as lua]
+            [editor.lua-parser :as lua-parser])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]
@@ -135,7 +136,11 @@
                                                     (g/error? user-properties) user-properties
                                                     true (merge-with into _declared-properties user-properties))))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+
+  (output completion-info g/Any :cached (g/fnk [code resource]
+                                               (assoc (lua-parser/lua-info code)
+                                                      :namespace (first (string/split (resource/resource-name resource) #"\."))))))
 
 (defn load-script [project self resource]
   (g/set-property self :code (slurp resource)))
