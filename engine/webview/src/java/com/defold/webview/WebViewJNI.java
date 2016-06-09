@@ -52,9 +52,7 @@ public class WebViewJNI {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                 case MotionEvent.ACTION_UP:
-                Log.d(TAG, "Embedded view touched!");
                 if (!this.hasFocus()) {
-                    Log.d(TAG, "Embedded view touched (no focus)!");
                     this.requestFocus();
 
                 }
@@ -78,7 +76,6 @@ public class WebViewJNI {
         @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             super.onLayout(changed, left, top, right, bottom);
-            Log.d(TAG, String.format("onLayout: %d  %d  %d  %d", left, top, right, bottom));
             
             if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB ) { // Api level 11
                 setSystemUiVisibility(

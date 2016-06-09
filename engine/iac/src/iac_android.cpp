@@ -313,7 +313,7 @@ dmExtension::Result UpdateIAC(dmExtension::Params* params)
                 {
                     if (g_IAC.m_Listener.m_Callback == LUA_NOREF)
                     {
-                        dmLogError("No callback set");
+                        dmLogError("No iac listener set. Invocation discarded.");
                         g_IAC.m_StoredInvocation.Store(cmd.m_Payload, cmd.m_Origin);
                     }
                     else
