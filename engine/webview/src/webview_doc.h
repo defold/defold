@@ -20,9 +20,8 @@
  *     </ul>
  *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
  *     <ul>
- *         <li>url (string) The url used in the webview.open() call</li>
- *         <li>error (string) Non-empty if either webview.open() or webview.open_raw() failed</li>
- *         <li>result (string) Non-empty if webview.eval() succeeded</li>
+ *         <li>url (string) The url used in the webview.open() call. nil otherwise.</li>
+ *         <li>result (string) Holds the result of either: a failed url open, a successful eval request or a failed eval. nil otherwise</li>
  *     </ul>
  * </ul>
  *

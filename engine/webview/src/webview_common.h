@@ -43,8 +43,7 @@ struct CallbackInfo
     int             m_RequestID;
     CallbackResult  m_Type;
     const char*     m_Url;
-    const char*     m_Error;
-    const char*     m_EvalResult;
+    const char*     m_Result;
 
     CallbackInfo() { memset(this, 0, sizeof(*this)); }
 };

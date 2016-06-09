@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <dlib/array.h>
-#include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/json.h>
+#include <dlib/log.h>
+#include <dlib/mutex.h>
 #include <script/script.h>
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
@@ -72,7 +73,8 @@ struct WebView
     jmethodID               m_Eval;
     jmethodID               m_SetVisible;
     jmethodID               m_IsVisible;
-    int                     m_Pipefd[2];
+    dmMutex::Mutex          m_Mutex;
+    dmArray<Command>        m_CmdQueue;
 };
 
 WebView g_WebView;
@@ -183,10 +185,6 @@ int Platform_IsVisible(lua_State* L, int webview_id)
 } // namespace dmWebView
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 static char* CopyString(JNIEnv* env, jstring s)
 {
     const char* javastring = env->GetStringUTFChars(s, 0);
@@ -195,6 +193,20 @@ static char* CopyString(JNIEnv* env, jstring s)
     return copy;
 }
 
+static void QueueCommand(Command* cmd)
+{
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    if (g_WebView.m_CmdQueue.Full())
+    {
+        g_WebView.m_CmdQueue.OffsetCapacity(8);
+    }
+    g_WebView.m_CmdQueue.Push(*cmd);
+}
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onPageFinished(JNIEnv* env, jobject, jstring url, jint webview_id, jint request_id)
 {
@@ -203,9 +215,7 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onPageFinished(JNIEnv*
     cmd.m_WebViewID = webview_id;
     cmd.m_RequestID = request_id;
     cmd.m_Url = CopyString(env, url);
-    if (write(g_WebView.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
-        dmLogFatal("Failed to write command");
-    }
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onReceivedError__Ljava_lang_String_2(JNIEnv* env, jobject, jstring url, jint webview_id, jint request_id, jstring errorMessage)
@@ -216,9 +226,7 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onReceivedError__Ljava
     cmd.m_RequestID = request_id;
     cmd.m_Url = CopyString(env, url);
     cmd.m_Data = CopyString(env, errorMessage);
-    if (write(g_WebView.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
-        dmLogFatal("Failed to write command");
-    }
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFinished(JNIEnv* env, jobject, jstring result, jint webview_id, jint request_id)
@@ -229,20 +237,32 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFinished(JNIEnv*
     cmd.m_RequestID = request_id;
     cmd.m_Url = 0;
     cmd.m_Data = CopyString(env, result);
-    if (write(g_WebView.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
-        dmLogFatal("Failed to write command");
-    }
+    QueueCommand(&cmd);
+}
+
+JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFailed(JNIEnv* env, jobject, jstring error, jint webview_id, jint request_id)
+{
+    Command cmd;
+    cmd.m_Type = CMD_EVAL_ERROR;
+    cmd.m_WebViewID = webview_id;
+    cmd.m_RequestID = request_id;
+    cmd.m_Url = 0;
+    cmd.m_Data = CopyString(env, error);
+    QueueCommand(&cmd);
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-static int LooperCallback(int fd, int events, void* data)
+dmExtension::Result UpdateWebView(dmExtension::Params* params)
 {
-    dmWebView::CallbackInfo cbinfo;
-    Command cmd;
-    if (read(g_WebView.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
+    {
+        const Command& cmd = g_WebView.m_CmdQueue[i];
+
+        dmWebView::CallbackInfo cbinfo;
         switch (cmd.m_Type)
         {
         case CMD_LOAD_OK:
@@ -251,8 +271,7 @@ static int LooperCallback(int fd, int events, void* data)
             cbinfo.m_RequestID = cmd.m_RequestID;
             cbinfo.m_Url = cmd.m_Url;
             cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_OK;
-            cbinfo.m_Error = 0;
-            cbinfo.m_EvalResult = 0;
+            cbinfo.m_Result = 0;
             RunCallback(&cbinfo);
             break;
 
@@ -262,20 +281,27 @@ static int LooperCallback(int fd, int events, void* data)
             cbinfo.m_RequestID = cmd.m_RequestID;
             cbinfo.m_Url = cmd.m_Url;
             cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_ERROR;
-            cbinfo.m_Error = (const char*)cmd.m_Data;
-            cbinfo.m_EvalResult = 0;
+            cbinfo.m_Result = (const char*)cmd.m_Data;
             RunCallback(&cbinfo);
             break;
 
         case CMD_EVAL_OK:
+            cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
+            cbinfo.m_WebViewID = cmd.m_WebViewID;
+            cbinfo.m_RequestID = cmd.m_RequestID;
+            cbinfo.m_Url = 0;
+            cbinfo.m_Type = dmWebView::CALLBACK_RESULT_EVAL_OK;
+            cbinfo.m_Result = (const char*)cmd.m_Data;
+            RunCallback(&cbinfo);
+            break;
+
         case CMD_EVAL_ERROR:
             cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
             cbinfo.m_WebViewID = cmd.m_WebViewID;
             cbinfo.m_RequestID = cmd.m_RequestID;
             cbinfo.m_Url = 0;
-            cbinfo.m_Type = cmd.m_Data ? dmWebView::CALLBACK_RESULT_EVAL_OK : dmWebView::CALLBACK_RESULT_EVAL_ERROR;
-            cbinfo.m_Error = 0;
-            cbinfo.m_EvalResult = (const char*)cmd.m_Data;
+            cbinfo.m_Type = dmWebView::CALLBACK_RESULT_EVAL_ERROR;
+            cbinfo.m_Result = (const char*)cmd.m_Data;
             RunCallback(&cbinfo);
             break;
 
@@ -289,25 +315,14 @@ static int LooperCallback(int fd, int events, void* data)
             free(cmd.m_Data);
         }
     }
-    else {
-        dmLogFatal("read error in looper callback");
-    }
-    return 1;
+    g_WebView.m_CmdQueue.SetSize(0);
+    return dmExtension::RESULT_OK;
 }
 
 dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
 {
-    int result = pipe(g_WebView.m_Pipefd);
-    if (result != 0) {
-        dmLogFatal("Could not open pipe for communication: %d", result);
-        return dmExtension::RESULT_INIT_ERROR;
-    }
-
-    result = ALooper_addFd(g_AndroidApp->looper, g_WebView.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &g_WebView);
-    if (result != 1) {
-        dmLogFatal("Could not add file descriptor to looper: %d", result);
-        return dmExtension::RESULT_INIT_ERROR;
-    }
+    g_WebView.m_Mutex = dmMutex::New();
+    g_WebView.m_CmdQueue.SetCapacity(8);
 
     JNIEnv* env = Attach();
 
@@ -350,13 +365,7 @@ dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
     Detach();
     g_WebView.m_WebViewJNI = NULL;
 
-    int result = ALooper_removeFd(g_AndroidApp->looper, g_WebView.m_Pipefd[0]);
-    if (result != 1) {
-        dmLogFatal("Could not remove fd from looper: %d", result);
-    }
-
-    close(g_WebView.m_Pipefd[0]);
-    close(g_WebView.m_Pipefd[1]);
+    dmMutex::Delete(g_WebView.m_Mutex);
 
     return dmExtension::RESULT_OK;
 }
@@ -366,4 +375,4 @@ dmExtension::Result FinalizeWebView(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, 0, 0, FinalizeWebView)
+DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, UpdateWebView, 0, FinalizeWebView)

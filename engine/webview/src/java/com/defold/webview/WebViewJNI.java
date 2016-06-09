@@ -16,6 +16,7 @@ import android.view.ViewGroup.MarginLayoutParams;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
+import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
@@ -37,6 +38,7 @@ public class WebViewJNI {
     public native void onPageFinished(String url, int webview_id, int request_id);
     public native void onReceivedError(String url, int webview_id, int request_id, String errorMessage);
     public native void onEvalFinished(String result, int webview_id, int request_id);
+    public native void onEvalFailed(String errorMessage, int webview_id, int request_id);
 
     private static class CustomWebView extends WebView {
         private WebViewInfo info;
@@ -169,10 +171,38 @@ public class WebViewJNI {
         }
     }
 
+    private static class CustomWebChromeClient extends WebChromeClient {
+        private WebViewJNI webviewJNI;
+        private int webviewID;
+        private int requestID;
+
+        public CustomWebChromeClient(WebViewJNI webviewJNI, int webview_id) {
+            this.webviewJNI = webviewJNI;
+            this.webviewID = webview_id;
+            reset(-1);
+        }
+
+        public void reset(int request_id)
+        {
+            this.requestID = request_id;
+        }
+
+        @Override
+        public boolean onConsoleMessage(ConsoleMessage msg) {
+            if( msg.messageLevel() == ConsoleMessage.MessageLevel.ERROR )
+            {
+                webviewJNI.onEvalFailed(String.format("js:%d: %s", msg.lineNumber(), msg.message()), webviewID, requestID);
+                return true;
+            }
+            return false;
+        }
+    }
+
     private class WebViewInfo
     {
         CustomWebView           webview;
         CustomWebViewClient     webviewClient;
+        CustomWebChromeClient   webviewChromeClient;
         LinearLayout            layout;
         int                     first;
     };
@@ -217,7 +247,8 @@ public class WebViewJNI {
 
         info.webview.requestFocusFromTouch();
 
-        info.webview.setWebChromeClient(new WebChromeClient());
+        info.webviewChromeClient = new CustomWebChromeClient(WebViewJNI.this, webview_id);
+        info.webview.setWebChromeClient(info.webviewChromeClient);
 
         info.webviewClient = new CustomWebViewClient(activity, WebViewJNI.this, webview_id);
         info.webview.setWebViewClient(info.webviewClient);
@@ -287,6 +318,7 @@ public class WebViewJNI {
             @Override
             public void run() {
                 WebViewJNI.this.infos[webview_id].webviewClient.reset(request_id);
+                WebViewJNI.this.infos[webview_id].webviewChromeClient.reset(request_id);
                 WebViewJNI.this.infos[webview_id].webview.loadDataWithBaseURL("file:///android_res/", html, "text/html", "utf-8", null);
                 setVisibleInternal(WebViewJNI.this.infos[webview_id], hidden != 0 ? 0 : 1);
             }
@@ -298,6 +330,7 @@ public class WebViewJNI {
             @Override
             public void run() {
                 WebViewJNI.this.infos[webview_id].webviewClient.reset(request_id);
+                WebViewJNI.this.infos[webview_id].webviewChromeClient.reset(request_id);
                 WebViewJNI.this.infos[webview_id].webview.loadUrl(url);
                 setVisibleInternal(WebViewJNI.this.infos[webview_id], hidden != 0 ? 0 : 1);
             }
@@ -309,6 +342,7 @@ public class WebViewJNI {
             @Override
             public void run() {
                 WebViewJNI.this.infos[webview_id].webviewClient.reset(request_id);
+                WebViewJNI.this.infos[webview_id].webviewChromeClient.reset(request_id);
                 String javascript = String.format("javascript:%s.returnResultToJava(eval(\"%s\"))", JS_NAMESPACE, code);
                 WebViewJNI.this.infos[webview_id].webview.loadUrl(javascript);
             }

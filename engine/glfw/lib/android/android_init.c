@@ -177,8 +177,8 @@ static void computeIconifiedState()
     // operations without a current GL context.
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
-    // Iconified unless opened, active and resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused && _glfwWin.hasSurface);
+    // Iconified unless opened, resumed (not paused)
+    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWin.paused && _glfwWin.hasSurface);
 }
 
 static void handleCommand(struct android_app* app, int32_t cmd) {

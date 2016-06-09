@@ -333,9 +333,8 @@ dmExtension::Result UpdateIAC(dmExtension::Params* params)
             free((void*)cmd.m_Origin);
             cmd.m_Origin = 0x0;
         }
-
-        g_IAC.m_CmdQueue.EraseSwap(i--);
     }
+    g_IAC.m_CmdQueue.SetSize(0);
     return dmExtension::RESULT_OK;
 }
 

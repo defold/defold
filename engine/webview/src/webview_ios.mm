@@ -58,7 +58,7 @@ WebView g_WebView;
     cbinfo.m_RequestID = m_RequestID;
     cbinfo.m_Url = m_Url;
     cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_OK;
-    cbinfo.m_Error = 0;
+    cbinfo.m_Result = 0;
     RunCallback(&cbinfo);
 }
 
@@ -70,7 +70,7 @@ WebView g_WebView;
     cbinfo.m_RequestID = m_RequestID;
     cbinfo.m_Url = m_Url;
     cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_ERROR;
-    cbinfo.m_Error = [error.localizedDescription UTF8String];
+    cbinfo.m_Result = [error.localizedDescription UTF8String];
     RunCallback(&cbinfo);
 }
 
@@ -181,9 +181,8 @@ int Platform_Eval(lua_State* L, int webview_id, const char* code)
         cbinfo.m_WebViewID = webview_id;
         cbinfo.m_RequestID = request_id;
         cbinfo.m_Url = 0;
-        cbinfo.m_Type = res != nil ? dmWebView::CALLBACK_RESULT_EVAL_OK : dmWebView::CALLBACK_RESULT_EVAL_ERROR;
-        cbinfo.m_Error = 0;
-        cbinfo.m_EvalResult = res != nil ? [res UTF8String] : 0;
+        cbinfo.m_Type = (res != nil) ? dmWebView::CALLBACK_RESULT_EVAL_OK : dmWebView::CALLBACK_RESULT_EVAL_ERROR;
+        cbinfo.m_Result = (res != nil) ? [res UTF8String] : "Error string unavailable on iOS";
         RunCallback(&cbinfo);
         [res release];
     });

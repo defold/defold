@@ -35,20 +35,25 @@ void RunCallback(CallbackInfo* cbinfo)
     lua_pushnumber(L, (lua_Number)cbinfo->m_Type);
 
     lua_newtable(L);
-    lua_pushstring(L, "error");
-    lua_pushstring(L, cbinfo->m_Error ? cbinfo->m_Error : "");
-    lua_rawset(L, -3);
 
     lua_pushstring(L, "url");
-    lua_pushstring(L, cbinfo->m_Url ? cbinfo->m_Url : "");
+    if( cbinfo->m_Url ) {
+        lua_pushstring(L, cbinfo->m_Url);
+    } else {
+        lua_pushnil(L);
+    }
     lua_rawset(L, -3);
 
     lua_pushstring(L, "result");
-    lua_pushstring(L, cbinfo->m_EvalResult ? cbinfo->m_EvalResult : "");
+    if( cbinfo->m_Result ) {
+        lua_pushstring(L, cbinfo->m_Result);
+    } else {
+        lua_pushnil(L);
+    }
     lua_rawset(L, -3);
 
 
-    int ret = lua_pcall(L, 5, LUA_MULTRET, 0);
+    int ret = lua_pcall(L, 5, 0, 0);
     if (ret != 0) {
         dmLogError("Error running WebView callback: %s", lua_tostring(L,-1));
         lua_pop(L, 1);
@@ -93,7 +98,7 @@ int Create(lua_State* L)
 
 /** Closes a web view
 @param id the web view id
-@return -1 if an error occurre. 0 if it was destroyed
+@return -1 if an error occurred. 0 if it was destroyed
 */
 int Destroy(lua_State* L)
 {
