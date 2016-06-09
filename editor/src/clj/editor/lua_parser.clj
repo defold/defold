@@ -61,6 +61,12 @@
         [_ _  [_  namelist]] funcbody]
     {:functions {funcname {:params (parse-namelist namelist)}}}))
 
+(defmethod xform-node :functioncall [k node]
+  (let [zexpr (zip/seq-zip node)]
+      (when (has-require? zexpr)
+        (let [rname (require-name (zip/seq-zip node))]
+          {:requires {rname rname}}))))
+
 (defn collect-info [loc]
   (loop [loc loc
         result []]
@@ -124,6 +130,10 @@
   (lua-parser "function oadd(num1, num2) return num1 end")
   (lua-info "function oadd(num1, num2) return num1 end")
   (:chunk (:block (:stat "function" (:funcname "oadd") (:funcbody "(" (:parlist (:namelist "num1" "," "num2")) ")" (:block (:retstat "return" (:explist (:exp (:prefixexp (:varOrExp (:var "num1"))))))) "end"))) "<EOF>")
+
+  (lua-info "require(\"mymath\")")
+  (lua-parser "require(\"mymath\")")
+(:chunk (:block (:stat (:functioncall (:varOrExp (:var "require")) (:nameAndArgs (:args "(" (:explist (:exp (:string "\"mymath\""))) ")"))))) "<EOF>")
 
   (lua-parser "local mymathmodule = require(\"mymath\")")
   (lua-info "local mymathmodule = require(\"mymath\")")
