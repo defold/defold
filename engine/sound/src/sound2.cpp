@@ -179,6 +179,8 @@ namespace dmSound
 
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
+
+        bool                    m_IsActive;
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -254,6 +256,7 @@ namespace dmSound
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
+        sound->m_IsActive = false;
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
         dmSoundCodec::NewCodecContextParams codec_params;
@@ -1077,7 +1080,6 @@ namespace dmSound
     Result Update()
     {
         DM_PROFILE(Sound, "Update")
-        static bool previous_state = false;
         SoundSystem* sound = g_SoundSystem;
 
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
@@ -1093,9 +1095,9 @@ namespace dmSound
             Result result = MixInstances(&mix_context);
             if (result == RESULT_OK)
             {
-                if (previous_state == false)
+                if (sound->m_IsActive == false)
                 {
-                    previous_state = true;
+                    sound->m_IsActive = true;
                     (void) PlatformAcquireAudioFocus();
                 }
 
@@ -1116,9 +1118,9 @@ namespace dmSound
             free_slots--;
         }
 
-        if (previous_state == true && sound->m_InstancesPool.Size() == 0)
+        if (sound->m_IsActive == true && sound->m_InstancesPool.Size() == 0)
         {
-            previous_state = false;
+            sound->m_IsActive = false;
             (void) PlatformReleaseAudioFocus();
         }
 
