@@ -98,15 +98,6 @@
      ns-elements
      namespaces)))
 
-(defn defold-documentation []
-  (reduce
-   (fn [result [ns elements]]
-     (assoc result ns (mapv (fn [e] {:name (.getName ^ScriptDoc$Element e)
-                                    :display-string (element-display-string e)
-                                    :doc (element-additional-info e)}) elements)))
-   {}
-   (load-documentation)))
-
 (def ^:private the-documentation (atom nil))
 
 (defn- documentation []
@@ -203,6 +194,15 @@
 
 (defn- doc-elements-to-hints [elements parse-result offset]
   (map (partial doc-element-to-hint parse-result offset) elements))
+
+(defn defold-documentation []
+  (reduce
+   (fn [result [ns elements]]
+     (assoc result ns (mapv (fn [e] {:name (.getName ^ScriptDoc$Element e)
+                                    :display-string (element-display-string e)
+                                    :doc (element-additional-info e)}) elements)))
+   {}
+   (load-documentation)))
 
 (defn compute-proposals [^String text offset ^String line]
   (try 
