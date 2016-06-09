@@ -1526,8 +1526,8 @@
               (= :_properties output))
           (let [beh           (behavior type output)
                 props         ((:fn beh) this evaluation-context)
-                orig-props    (:properties ((:fn beh) original output evaluation-context))
-                dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (gt/property-types this basis))))
+                orig-props    (:properties ((:fn beh) original evaluation-context))
+                dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (public-properties type))))
                 props         (reduce-kv (fn [p k v]
                                            (if (and (dynamic-props k)
                                                     (= original-id (:node-id v)))

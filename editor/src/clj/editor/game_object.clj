@@ -87,7 +87,7 @@
   (property id g/Str)
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
-            (dynamic read-only? (g/always true)))
+            (dynamic read-only? (g/fnk [] true)))
 
   (display-order [:id :url :path scene/SceneNode])
 
@@ -99,7 +99,7 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
-  (output component-id [(g/one g/Str "id") (g/one g/NodeID "node-id")] (g/fnk [_node-id id] [id _node-id]))
+  (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id node-outline-label id source-outline source-properties]
       (let [source-outline (or source-outline {:icon unknown-icon})
@@ -273,7 +273,7 @@
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
   (input child-scenes g/Any :array)
-  (input component-ids [(g/one g/Str "id") (g/one g/NodeID "node-id")] :array)
+  (input component-ids g/IdPair :array)
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)
 
@@ -283,7 +283,7 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
-  (output component-ids {g/Str g/NodeID} :cached (g/fnk [component-ids] (reduce conj {} component-ids)))
+  (output component-ids g/Dict :cached (g/fnk [component-ids] (reduce conj {} component-ids)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
                  (reduce (fn [props m]
