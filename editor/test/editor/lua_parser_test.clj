@@ -38,6 +38,13 @@
       (is (= {:vars #{"x" "y"}
              :requires {"x" "myx" "y" "myy"}} result)))))
 
+(deftest test-require
+  (testing "bare require function call"
+    (let [code "require(\"mymath\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires {"mymath" "mymath"}} result)))))
+
 (deftest test-functions
   (testing "global function with no params"
     (let [code "function oadd() return num1 end"]
@@ -49,18 +56,23 @@
     (let [code "function oadd(num1, num2) return num1 end \n function tadd(foo) return num1 end"]
       (is (= {"oadd" {:params ["num1" "num2"]}, "tadd" {:params ["foo"]}} (:functions (lua-info code)))))))
 
-
 (deftest test-lua-info-with-files
   (testing "variable test file"
     (let [result (lua-info (slurp (io/resource "lua/variable_test.lua")))]
       (is (= {:vars #{"a" "b" "c" "d"}
               :functions {}
               :requires {}} result))))
-(testing "function test file"
+  (testing "function test file"
     (let [result (lua-info (slurp (io/resource "lua/function_test.lua")))]
       (is (= {:vars #{}
               :functions {"add" {:params ["num1" "num2"]}
                           "ladd" {:params ["num1" "num2"]}
                           "oadd" {:params ["num1" "num2"]}}
               :requires {}} result))))
-  )
+  (testing "require test file"
+    (let [result (lua-info (slurp (io/resource "lua/require_test.lua")))]
+      (is (= {:vars #{"foo" "bar"}
+              :functions {}
+              :requires {"foo" "mymath" "bar" "mymath" "mymath" "mymath"}} result)))))
+
+(deftest test-lua-info-with-spaceship)
