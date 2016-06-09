@@ -1,2 +1,3 @@
-local mymathmodule = require("mymath")
-mymathmodule.add(10,20)
+require("mymath")
+foo = require("mymath")
+local bar = require("mymath")
