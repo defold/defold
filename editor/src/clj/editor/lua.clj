@@ -76,7 +76,7 @@
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
 
-(defn- load-documentation []
+(defn load-documentation []
   (let [ns-elements (reduce
                      (fn [sofar doc]
                        (merge-with concat sofar (load-sdoc (sdoc-path doc))))
@@ -97,6 +97,15 @@
            (update sofar "" conj e))))
      ns-elements
      namespaces)))
+
+(defn defold-documentation []
+  (reduce
+   (fn [result [ns elements]]
+     (assoc result ns (mapv (fn [e] {:name (.getName ^ScriptDoc$Element e)
+                                    :display-string (element-display-string e)
+                                    :doc (element-additional-info e)}) elements)))
+   {}
+   (load-documentation)))
 
 (def ^:private the-documentation (atom nil))
 
