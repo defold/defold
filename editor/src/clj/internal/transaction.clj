@@ -255,7 +255,7 @@
 
 (defn- cascade-delete-sources
   [basis node-id]
-  (if-let [n (ig/node-by-id-at basis node-id)]
+  (if-let [n (gt/node-by-id-at basis node-id)]
     (let [orig (gt/original n)]
       (for [input (some-> n
                     (gt/node-type basis)
