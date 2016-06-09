@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <dlib/log.h>
+#include <dlib/mutex.h>
 #include <dlib/dstrings.h>
 #include <script/script.h>
 #include <extension/extension.h>
@@ -10,9 +11,22 @@
 
 extern struct android_app* g_AndroidApp;
 
+#define CMD_INVOKE 1
+
+struct Command
+{
+    Command()
+    {
+        memset(this, 0, sizeof(Command));
+    }
+    uint8_t m_Type;
+    const char* m_Payload;
+    const char* m_Origin;
+};
+
 static JNIEnv* Attach()
 {
-    JNIEnv* env;
+    JNIEnv* env = 0;
     g_AndroidApp->activity->vm->AttachCurrentThread(&env, NULL);
     return env;
 }
@@ -22,11 +36,11 @@ static void Detach()
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }
 
-struct IACInvocaction
+struct IACInvocation
 {
-    IACInvocaction()
+    IACInvocation()
     {
-        memset(this, 0x0, sizeof(IACInvocaction));
+        memset(this, 0x0, sizeof(IACInvocation));
     }
 
     bool Get(const char** payload, const char** origin)
@@ -39,34 +53,30 @@ struct IACInvocaction
         return true;
     }
 
-    void Store(JNIEnv* env, jstring payload, jstring origin)
+    void Store(const char* payload, const char* origin)
     {
-        Release(env);
+        Release();
         if(payload)
         {
-            m_JPayload = payload;
-            m_Payload = env->GetStringUTFChars(payload, 0);
+            m_Payload = strdup(payload);
             m_Pending = true;
         }
         if(origin)
         {
-            m_JOrigin = origin;
-            m_Origin = env->GetStringUTFChars(origin, 0);
+            m_Origin = strdup(origin);
             m_Pending = true;
         }
     }
 
-    void Release(JNIEnv* env)
+    void Release()
     {
-        if(m_JOrigin)
-            env->ReleaseStringUTFChars(m_JOrigin, m_Origin);
-        if(m_JPayload)
-            env->ReleaseStringUTFChars(m_JPayload, m_Payload);
-        memset(this, 0x0, sizeof(IACInvocaction));
+        if(m_Payload)
+            free((void*)m_Payload);
+        if(m_Origin)
+            free((void*)m_Origin);
+        memset(this, 0x0, sizeof(IACInvocation));
     }
 
-    jstring     m_JPayload;
-    jstring     m_JOrigin;
     const char* m_Payload;
     const char* m_Origin;
     bool        m_Pending;
@@ -105,7 +115,10 @@ struct IAC
     jmethodID            m_Start;
     jmethodID            m_Stop;
 
-    IACInvocaction       m_StoredInvocation;
+    IACInvocation        m_StoredInvocation;
+
+    dmMutex::Mutex       m_Mutex;
+    dmArray<Command>     m_CmdQueue;
 } g_IAC;
 
 
@@ -170,24 +183,43 @@ int IAC_PlatformSetListener(lua_State* L)
 }
 
 
+static void QueueCommand(Command* cmd)
+{
+    dmMutex::ScopedLock lk(g_IAC.m_Mutex);
+    if (g_IAC.m_CmdQueue.Full())
+    {
+        g_IAC.m_CmdQueue.OffsetCapacity(8);
+    }
+    g_IAC.m_CmdQueue.Push(*cmd);
+}
+
+static const char* StrDup(JNIEnv* env, jstring s)
+{
+    if (s != NULL)
+    {
+        const char* str = env->GetStringUTFChars(s, 0);
+        const char* dup = strdup(str);
+        env->ReleaseStringUTFChars(s, str);
+        return dup;
+    }
+    else
+    {
+        return 0x0;
+    }
+}
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 JNIEXPORT void JNICALL Java_com_defold_iac_IACJNI_onInvocation(JNIEnv* env, jobject, jstring jpayload, jstring jorigin)
 {
-    if (g_IAC.m_Listener.m_Callback == LUA_NOREF) {
-        dmLogError("No callback set");
-        g_IAC.m_StoredInvocation.Store(env, jpayload, jorigin);
-        return;
-    }
-    const char* payload = jpayload == 0 ? 0 : env->GetStringUTFChars(jpayload, 0);
-    const char* origin = jorigin == 0 ? 0 : env->GetStringUTFChars(jorigin, 0);
-    OnInvocation(payload, origin);
-    if (jpayload)
-        env->ReleaseStringUTFChars(jpayload, payload);
-    if (jorigin)
-        env->ReleaseStringUTFChars(jorigin, origin);
+    Command cmd;
+    cmd.m_Type = CMD_INVOKE;
+    cmd.m_Payload = StrDup(env, jpayload);
+    cmd.m_Origin = StrDup(env, jorigin);
+    QueueCommand(&cmd);
 }
 
 #ifdef __cplusplus
@@ -197,6 +229,9 @@ JNIEXPORT void JNICALL Java_com_defold_iac_IACJNI_onInvocation(JNIEnv* env, jobj
 
 dmExtension::Result AppInitializeIAC(dmExtension::AppParams* params)
 {
+    g_IAC.m_Mutex = dmMutex::New();
+    g_IAC.m_CmdQueue.SetCapacity(8);
+
     JNIEnv* env = Attach();
 
     jclass activity_class = env->FindClass("android/app/NativeActivity");
@@ -231,7 +266,7 @@ dmExtension::Result AppInitializeIAC(dmExtension::AppParams* params)
 dmExtension::Result AppFinalizeIAC(dmExtension::AppParams* params)
 {
     JNIEnv* env = Attach();
-    g_IAC.m_StoredInvocation.Release(env);
+    g_IAC.m_StoredInvocation.Release();
     env->CallVoidMethod(g_IAC.m_IAC, g_IAC.m_Stop);
     env->DeleteGlobalRef(g_IAC.m_IAC);
     env->DeleteGlobalRef(g_IAC.m_IACJNI);
@@ -260,8 +295,50 @@ dmExtension::Result FinalizeIAC(dmExtension::Params* params)
         g_IAC.m_Listener.m_Callback = LUA_NOREF;
         g_IAC.m_Listener.m_Self = LUA_NOREF;
     }
+    dmMutex::Delete(g_IAC.m_Mutex);
     return dmIAC::Finalize(params);
 }
 
-DM_DECLARE_EXTENSION(IACExt, "IAC", AppInitializeIAC, AppFinalizeIAC, InitializeIAC, 0, 0, FinalizeIAC)
+
+dmExtension::Result UpdateIAC(dmExtension::Params* params)
+{
+    dmMutex::ScopedLock lk(g_IAC.m_Mutex);
+    for (uint32_t i=0;i!=g_IAC.m_CmdQueue.Size();i++)
+    {
+        Command& cmd = g_IAC.m_CmdQueue[i];
+
+        switch (cmd.m_Type)
+        {
+            case CMD_INVOKE:
+                {
+                    if (g_IAC.m_Listener.m_Callback == LUA_NOREF)
+                    {
+                        dmLogError("No iac listener set. Invocation discarded.");
+                        g_IAC.m_StoredInvocation.Store(cmd.m_Payload, cmd.m_Origin);
+                    }
+                    else
+                    {
+                        OnInvocation(cmd.m_Payload, cmd.m_Origin);
+                    }
+                }
+                break;
+        }
+        if (cmd.m_Payload != 0x0)
+        {
+            free((void*)cmd.m_Payload);
+            cmd.m_Payload = 0x0;
+        }
+        if (cmd.m_Origin != 0x0)
+        {
+            free((void*)cmd.m_Origin);
+            cmd.m_Origin = 0x0;
+        }
+
+        g_IAC.m_CmdQueue.EraseSwap(i--);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+
+DM_DECLARE_EXTENSION(IACExt, "IAC", AppInitializeIAC, AppFinalizeIAC, InitializeIAC, UpdateIAC, 0, FinalizeIAC)
 
