@@ -227,18 +227,6 @@ namespace dmHttpClient
         if (r != dmSocket::RESULT_OK)
             return 0;
 
-        char* socks_proxy = getenv("DMSOCKS_PROXY");
-        dmSocket::Address proxy_address = 0;
-        if (socks_proxy)
-        {
-            r = dmSocket::GetHostByName(socks_proxy, &proxy_address);
-            if (r != dmSocket::RESULT_OK)
-            {
-                dmLogWarning("Unable to IP for socks proxy: %s", socks_proxy);
-                return 0;
-            }
-        }
-
         Client* client = new Client();
 
         client->m_Hostname = strdup(hostname);

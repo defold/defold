@@ -64,11 +64,13 @@
    :invalid-args (g/error-severe "Invalid arguments to go.property call") ; TODO: not used for now
    :invalid-value (g/error-severe "Invalid value in go.property call")})
 
+(defn- prop->key [p]
+  (-> p :name properties/user-name->key))
+
 (g/defnk produce-user-properties [_node-id script-properties]
   (let [script-props (filter (comp #{:ok} :status) script-properties)
         props (into {} (map (fn [p]
-                              (let [key (:name p)
-                                    type (:type p)
+                              (let [type (:type p)
                                     prop (-> (select-keys p [:value])
                                            (assoc :node-id _node-id
                                                   :type (go-prop-type->property-types type)
@@ -76,9 +78,9 @@
                                                   :edit-type {:type (properties/go-prop-type->clj-type type)}
                                                   :go-prop-type type
                                                   :read-only? (nil? (g/override-original _node-id))))]
-                                [(keyword key) prop]))
+                                [(prop->key p) prop]))
                             script-props))
-        display-order (mapv #(keyword (:name %)) script-props)]
+        display-order (mapv prop->key script-props)]
     {:properties props
      :display-order display-order}))
 
@@ -94,7 +96,10 @@
 
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
-        properties (mapv (fn [[k v]] {:id (name k) :value (:value v) :type (:go-prop-type v)})
+        properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
+                                       {:id (properties/key->user-name k)
+                                        :value (properties/go-prop->str (:value v) type)
+                                        :type type}))
                          (:properties user-properties))
         modules (:modules user-data)]
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
@@ -119,6 +124,8 @@
 
   (property code g/Str (dynamic visible (g/fnk [] false)))
   (property caret-position g/Int (dynamic visible (g/fnk [] false)) (default 0))
+  (property selection-offset g/Int (dynamic visible (g/fnk [] false)) (default 0))
+  (property selection-length g/Int (dynamic visible (g/fnk [] false)) (default 0))
 
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
   (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))

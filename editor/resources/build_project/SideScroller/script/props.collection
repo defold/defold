@@ -1,0 +1,46 @@
+name: "props"
+instances {
+    id: "props"
+    prototype: "/script/props.go"
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    component_properties {
+        id: "script"
+        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
+        properties {id: "hash" value: "hash3" type: PROPERTY_TYPE_HASH}
+        properties {id: "url" value: "/url2" type: PROPERTY_TYPE_URL}
+        properties {id: "vec3" value: "2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR3}
+        properties {id: "quat" value: "1.0,0.0,0.0,0.0" type: PROPERTY_TYPE_QUAT}
+        properties {id: "vec4" value: "1.0,2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR4}
+        properties {id: "bool" value: "true" type: PROPERTY_TYPE_BOOLEAN}
+    }
+}
+embedded_instances {
+    id: "props"
+    data: "components {\n"
+    "  id: \"script\"\n"
+    "  component: \"/script/props.script\"\n"
+    "  position {\n"
+    "    x: 0.0\n"
+    "    y: 0.0\n"
+    "    z: 0.0\n"
+    "  }\n"
+    "  rotation {\n"
+    "    x: 0.0\n"
+    "    y: 0.0\n"
+    "    z: 0.0\n"
+    "    w: 1.0\n"
+    "  }\n"
+    "}\n"
+    ""
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    component_properties {
+        id: "script"
+        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
+        properties {id: "hash" value: "hash3" type: PROPERTY_TYPE_HASH}
+        properties {id: "url" value: "/url2" type: PROPERTY_TYPE_URL}
+        properties {id: "vec3" value: "2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR3}
+        properties {id: "quat" value: "1.0,0.0,0.0,0.0" type: PROPERTY_TYPE_QUAT}
+        properties {id: "vec4" value: "1.0,2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR4}
+        properties {id: "bool" value: "true" type: PROPERTY_TYPE_BOOLEAN}
+    }
+}

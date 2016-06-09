@@ -2,29 +2,42 @@
 
 #include <windows.h>
 
+#include <dlib/log.h>
 
 namespace dmCrash
 {
-    void WriteCrash(const char* file_name, AppState *data, void (*write_extra)(int))
+    void WriteCrash(const char* file_name, AppState* data)
     {
-        HANDLE file = CreateFileA(file_name, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (!file)
+        HANDLE fhandle = CreateFileA(file_name, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (fhandle != NULL)
         {
-            return;
+            DWORD written;
+            AppStateHeader header;
+            header.version = AppState::VERSION;
+            header.struct_size = sizeof(AppState);
+
+            if (WriteFile(fhandle, &header, sizeof(AppStateHeader), &written, 0))
+            {
+                if (WriteFile(fhandle, data, sizeof(AppState), &written, 0))
+                {
+                    dmLogInfo("Successfully wrote Crashdump to file: %s", file_name);
+                    CloseHandle(fhandle);
+                }
+                else
+                {
+                    dmLogError("Failed to write Crashdump content.");
+                    CloseHandle(fhandle);
+                }
+            }
+            else
+            {
+                dmLogError("Failed to write Crashdump header.");
+                CloseHandle(fhandle);
+            }
         }
-
-        struct
+        else
         {
-            uint32_t version;
-            uint32_t struct_size;
-        } hdr;
-
-        hdr.version = 1;
-        hdr.struct_size = sizeof(AppState);
-
-        DWORD written;
-        WriteFile(file, &hdr, sizeof(hdr), &written, 0);
-        WriteFile(file, data, sizeof(AppState), &written, 0);
-        CloseHandle(file);
+            dmLogError("Failed to write Crashdump file.");
+        }
     }
 }

@@ -3,18 +3,15 @@
 
 namespace dmCrash
 {
-    void WriteExtra(int fd)
-    {
-
-    }
 
     void WriteDump()
     {
-        WriteCrash(g_FilePath, &g_AppState, WriteExtra);
+        WriteCrash(g_FilePath, &g_AppState);
     }
 
     void InstallHandler()
     {
 
     }
+
 }

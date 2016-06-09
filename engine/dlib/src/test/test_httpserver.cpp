@@ -12,6 +12,7 @@
 #include "../dlib/http_server_private.h"
 #include "../dlib/http_client.h"
 #include "../dlib/hash.h"
+#include "../dlib/network_constants.h"
 
 class dmHttpServerTest: public ::testing::Test
 {
@@ -281,7 +282,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
-    dmHttpClient::HClient client = dmHttpClient::New(&client_params, "localhost", 8500);
+    dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
 
     dmHttpClient::Result r;
     m_ClientData = "";

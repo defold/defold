@@ -255,11 +255,15 @@
 
 (defn- cascade-delete-sources
   [basis node-id]
-  (for [input (some-> (gt/node-by-id-at basis node-id)
-                      (gt/node-type basis)
-                      in/cascade-deletes)
-        [source-id _] (gt/sources basis node-id input)]
+  (if-let [n (ig/node-by-id-at basis node-id)]
+    (let [orig (gt/original n)]
+      (for [input (some-> n
+                    (gt/node-type basis)
+                    in/cascade-deletes)
+            [source-id source-label] (gt/sources basis node-id input)
+            :when (or (nil? orig) (not (gt/connected? basis source-id source-label orig input)))]
     source-id))
+    []))
 
 (defn- ctx-delete-node [ctx node-id]
   (when *tx-debug*
@@ -434,18 +438,8 @@
 (defn- ctx-add-overrides [ctx source-id source source-label target target-label]
   (let [basis (:basis ctx)
         target-id (gt/node-id target)]
-    (if (contains? (in/cascade-deletes (gt/node-type target basis)) target-label)
-      (loop [overrides (ig/overrides basis target-id)
-             ctx ctx]
-        (if-let [or (first overrides)]
-          (let [basis (:basis ctx)
-                or-node (gt/node-by-id-at basis or)
-                override-id (gt/override-id or-node)
-                traverse-fn (ig/override-traverse-fn basis override-id)]
-            (if (traverse-fn basis target-id)
-              (populate-overrides ctx target-id)
-              ctx))
-          ctx))
+    (if ((in/cascade-deletes (gt/node-type target basis)) target-label)
+      (populate-overrides ctx target-id)
       ctx)))
 
 (defn- ctx-connect [ctx source-id source-label target-id target-label]

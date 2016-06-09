@@ -15,6 +15,16 @@
 
 (set! *warn-on-reflection* true)
 
+(defn user-name->key [name]
+  (->> name
+    (str "__")
+    keyword))
+
+(defn key->user-name [k]
+  (-> k
+    name
+    (subs 2)))
+
 (defprotocol Sampler
   (sample [this]))
 
@@ -128,7 +138,7 @@
                        :hash-values :string-values])]
     (if-let [prop (first properties)]
       (let [type (:type prop)
-            value (:value prop)
+            value (str->go-prop (:value prop) type)
             value (case type
                     (:property-type-number :property-type-url) [value]
                     :property-type-hash [(protobuf/hash64 value)]
