@@ -7,7 +7,7 @@ function test_http()
     local headers = {}
     headers['X-A'] = 'Defold'
     headers['X-B'] = '!'
-    http.request("http://localhost:" .. PORT, "GET",
+    http.request("http://127.0.0.1:" .. PORT, "GET",
         function(response)
             assert(response.status == 200)
             assert(response.response == "Hello Defold!")
@@ -17,7 +17,7 @@ function test_http()
     headers)
 
     local post_data = "Some data..."
-    http.request("http://localhost:" .. PORT, "POST",
+    http.request("http://127.0.0.1:" .. PORT, "POST",
         function(response)
             assert(response.status == 200)
             assert(response.response == "PONGSome data...")
@@ -28,7 +28,7 @@ function test_http()
 
 
     local binary_data = '\01\02\03'
-    http.request("http://localhost:" .. PORT, "POST",
+    http.request("http://127.0.0.1:" .. PORT, "POST",
         function(response)
             assert(response.status == 200)
             assert(response.response == "PONG" .. binary_data)
@@ -37,7 +37,7 @@ function test_http()
         end,
     headers, binary_data)
 
-    http.request("http://localhost:" .. PORT .. "/not_found", "GET",
+    http.request("http://127.0.0.1:" .. PORT .. "/not_found", "GET",
         function(response)
             assert(response.status == 404)
             assert(response.response == "")

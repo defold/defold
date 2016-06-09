@@ -63,11 +63,6 @@ public:
 
     virtual void SetUp()
     {
-#ifndef _WIN32
-        // Unset these variables to ensure that they are unset even after failing tests
-        unsetenv("DMSOCKS_PROXY");
-        unsetenv("DMSOCKS_PROXY_PORT");
-#endif
         m_Client = 0;
 
         dmURI::Result parse_r = dmURI::Parse(GetParam(), &m_URI);
@@ -592,75 +587,6 @@ TEST_P(dmHttpClientTest, Post)
         ASSERT_EQ(200, m_StatusCode);
         ASSERT_EQ(sum, atoi(m_Content.c_str()));
     }
-}
-
-TEST_P(dmHttpClientTest, InvalidProxy)
-{
-    setenv("DMSOCKS_PROXY", "invalid_host", 1);
-
-    // NOTE: Reconnect with proxy here
-    dmHttpClient::Delete(m_Client);
-    dmHttpClient::NewParams params;
-    params.m_Userdata = this;
-    params.m_HttpContent = dmHttpClientTest::HttpContent;
-    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
-    unsetenv("DMSOCKS_PROXY");
-    ASSERT_EQ((void*) 0, (void*) m_Client);
-}
-
-TEST_P(dmHttpClientTest, InvalidProxyPort)
-{
-    setenv("DMSOCKS_PROXY", "localhost", 1);
-    setenv("DMSOCKS_PROXY_PORT", "1082", 1);
-
-    // NOTE: Reconnect with proxy here
-    dmHttpClient::Delete(m_Client);
-    dmHttpClient::NewParams params;
-    params.m_Userdata = this;
-    params.m_HttpContent = dmHttpClientTest::HttpContent;
-    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
-
-    dmHttpClient::Result r;
-    r = dmHttpClient::Get(m_Client, "/add/10/20");
-    unsetenv("DMSOCKS_PROXY");
-    unsetenv("DMSOCKS_PROXY_PORT");
-    ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
-    ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(m_Client));
-}
-
-TEST_P(dmHttpClientTest, SimpleProxy)
-{
-    if (strcmp(m_URI.m_Scheme, "https") == 0) {
-        dmLogWarning("Skipping proxy test for https");
-        return;
-    }
-    char buf[128];
-
-    setenv("DMSOCKS_PROXY", "localhost", 1);
-    setenv("DMSOCKS_PROXY_PORT", "1081", 1);
-
-    // NOTE: Reconnect with proxy here
-    dmHttpClient::Delete(m_Client);
-    dmHttpClient::NewParams params;
-    params.m_Userdata = this;
-    params.m_HttpContent = dmHttpClientTest::HttpContent;
-    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
-
-    for (int i = 0; i < 100; ++i)
-    {
-        m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
-        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
-    }
-
-    unsetenv("DMSOCKS_PROXY");
-    unsetenv("DMSOCKS_PROXY_PORT");
 }
 
 TEST_P(dmHttpClientTest, Cache)

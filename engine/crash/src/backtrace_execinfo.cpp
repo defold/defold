@@ -15,18 +15,37 @@
 namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
-    static struct sigaction old_signal[SIGNAL_MAX];
 
-    void WriteExtra(int fd)
-    {
-        backtrace_symbols_fd(g_AppState.m_Ptr, g_AppState.m_PtrCount, fd);
-    }
+    // This array contains the default behavior for each signal.
+    static struct sigaction sigdfl[SIGNAL_MAX];
 
     void OnCrash(int signo)
     {
         g_AppState.m_PtrCount = backtrace(g_AppState.m_Ptr, AppState::PTRS_MAX);
         g_AppState.m_Signum = signo;
-        WriteCrash(g_FilePath, &g_AppState, WriteExtra);
+
+        char** stacktrace = backtrace_symbols(g_AppState.m_Ptr, g_AppState.m_PtrCount);
+        uint32_t offset = 0;
+        for (int i = 0; i < g_AppState.m_PtrCount; ++i)
+        {
+            // Write each symbol on a separate line, just like
+            // backgrace_symbols_fd would do.
+            uint32_t stacktrace_length = strnlen(stacktrace[i], dmCrash::AppState::EXTRA_MAX - 1);
+            if ((offset + stacktrace_length) < (dmCrash::AppState::EXTRA_MAX - 1))
+            {
+                memcpy(g_AppState.m_Extra + offset, stacktrace[i], stacktrace_length);
+                g_AppState.m_Extra[offset + stacktrace_length] = '\n';
+                offset += stacktrace_length + 1;
+            }
+            else
+            {
+                dmLogError("Not enough space to write entire stacktrace!");
+                break;
+            }
+        }
+
+        free(stacktrace);
+        WriteCrash(g_FilePath, &g_AppState);
     }
 
     void WriteDump()
@@ -34,38 +53,32 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
-    static void Handler(const int signo, siginfo_t *const si, void *const sc)
+    static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        if (old_signal[signo].sa_sigaction)
-        {
-            old_signal[signo].sa_sigaction(signo, si, sc);
-        }
-        OnCrash(signo);
+        // The previous (default) behavior is restored for the signal.
+        // Unless this is done first thing in the signal handler we'll
+        // be stuck in a signal-handler loop forever.
+        sigaction(signum, &sigdfl[signum], NULL);
+        OnCrash(signum);
     }
 
     void InstallOnSignal(int signum)
     {
         assert(signum >= 0 && signum < SIGNAL_MAX);
 
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
+        struct sigaction sa = { 0 };
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
-        sigaction(signum, &sa, &old_signal[signum]);
+
+        // The current (default) behavior is stored in sigdfl.
+        sigaction(signum, &sa, &sigdfl[signum]);
     }
 
     static char stack_buffer[SIGSTKSZ];
 
     void InstallHandler()
     {
-        stack_t stack;
-        memset(&stack, 0, sizeof(stack));
-        stack.ss_size = sizeof(stack_buffer);
-        stack.ss_sp = stack_buffer;
-        stack.ss_flags = 0;
-        sigaltstack(&stack, NULL);
-
         InstallOnSignal(SIGSEGV);
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);

@@ -88,13 +88,6 @@ message SetFlipVertical
 }
 
 /* Function wrapper documented in gamesys_script.cpp */
-message SetConstant
-{
-    required uint64         name_hash   = 1;
-    required dmMath.Vector4 value       = 2;
-}
-
-/* Function wrapper documented in gamesys_script.cpp */
 message ResetConstant
 {
     required uint64         name_hash   = 1;

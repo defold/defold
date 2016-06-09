@@ -15,7 +15,7 @@ var Combine = {
     //  lastRequestedPiece: index of last data file requested (strictly ascending)
     //  totalLoadedPieces: counts the number of data files received
 
-    //MAX_CONCURRENT_XHR: 6,	// remove comment if throttling of XHR is desired.
+    //MAX_CONCURRENT_XHR: 6,    // remove comment if throttling of XHR is desired.
 
     isCompleted: false,       // status of process
 
@@ -108,7 +108,7 @@ var Combine = {
         xhr.open('GET', this._archiveLocationFilter('/' + item.name), true);
         xhr.responseType = 'arraybuffer';
         xhr.onprogress = function(evt) {
-	    target.progress[item.name] = {};
+           target.progress[item.name] = {total: 0, downloaded: 0};
             if (evt.total && evt.lengthComputable) {
                 target.progress[item.name].total = evt.total;
             }
@@ -120,8 +120,11 @@ var Combine = {
         xhr.onload = function(evt) {
             item.data = new Uint8Array(xhr.response);
             item.dataLength = item.data.length;
+            target.progress[item.name].total = item.dataLength;
+            target.progress[item.name].downloaded = item.dataLength;
             Combine.copyData(target, item);
             Combine.onPieceLoaded(target, item);
+            Combine.updateProgress(target);
             item.data = undefined;
         };
         xhr.send(null);
@@ -285,14 +288,54 @@ var Module = {
     _waitingForArchive: false,
 
     // Persistent storage
+    persistentStorage: true,
     _syncInProgress: false,
     _syncNeeded: false,
     _syncInitial: false,
+    _syncMaxTries: 3,
+    _syncTries: 0,
 
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },
 
     setStatus: function(text) { console.log(text); },
+
+    prepareErrorObject: function (err, url, line, column, errObj) {
+        line = typeof line == "undefined" ? 0 : line;
+        column = typeof column == "undefined" ? 0 : column;
+        url = typeof url == "undefined" ? "" : url;
+        var errorLine = url + ":" + line + ":" + column;
+
+        var error = errObj || (typeof window.event != "undefined" ? window.event.error : "" ) || err || "Undefined Error";
+        var message = "";
+        var stack = "";
+        var backtrace = "";
+
+        if (typeof error == "object" && typeof error.stack != "undefined" && typeof error.message != "undefined") {
+            stack = String(error.stack);
+            message = String(error.message);
+        } else {
+            stack = String(error).split("\n");
+            message = stack.shift();
+            stack = stack.join("\n");
+        }
+        stack = stack || errorLine;
+
+        var callLine = /at (\S+:\d*$)/.exec(message);
+        if (callLine) {
+            message = message.replace(/(at \S+:\d*$)/, "");
+            stack = callLine[1] + "\n" + stack;
+        }
+
+        message = message.replace(/(abort\(.+\)) at .+/, "$1");
+        stack = stack.replace(/\?{1}\S+(:\d+:\d+)/g, "$1");
+        stack = stack.replace(/ *at (\S+)$/gm, "@$1");
+        stack = stack.replace(/ *at (\S+)(?: \[as \S+\])? +\((.+)\)/g, "$1@$2");
+        stack = stack.replace(/^((?:Object|Array)\.)/gm, "");
+        stack = stack.split("\n");
+
+        return { stack:stack, message:message };
+    },
 
     hasWebGLSupport: function() {
         var webgl_support = false;
@@ -328,6 +371,12 @@ var Module = {
     *     'engine_arguments':
     *         List of arguments (strings) that will be passed to the engine.
     *
+    *     'persistent_storage':
+    *         Boolean toggling the usage of persistent storage.
+    *
+    *     'custom_heap_size':
+    *         Number of bytes specifying the memory heap size.
+    *
     **/
     runApp: function(app_canvas_id, extra_params) {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
@@ -336,9 +385,10 @@ var Module = {
             splash_image: undefined,
             archive_location_filter: function(path) { return 'split' + path; },
             unsupported_webgl_callback: undefined,
-            engine_arguments: []
+            engine_arguments: [],
+            persistent_storage: true,
+            custom_heap_size: undefined
         };
-
 
         for (var k in extra_params) {
             if (extra_params.hasOwnProperty(k)) {
@@ -351,6 +401,8 @@ var Module = {
             Module.canvas.style.background = 'no-repeat center url("' + params["splash_image"] + '")';
         }
         Module.arguments = params["engine_arguments"];
+        Module.persistentStorage = params["persistent_storage"];
+        Module["TOTAL_MEMORY"] = params["custom_heap_size"];
 
         if (Module.hasWebGLSupport()) {
             // Override game keys
@@ -414,8 +466,14 @@ var Module = {
         // Initial persistent sync before main is called
         FS.syncfs(true, function(err) {
             if(err) {
+                Module._syncTries += 1;
                 console.error("FS syncfs error: " + err);
-                Module.preSync(done);
+                if (Module._syncMaxTries > Module._syncTries) {
+                    Module.preSync(done);
+                } else {
+                    Module._syncInitial = true;
+                    done();
+                }
             } else {
                 Module._syncInitial = true;
                 if (done !== undefined) {
@@ -461,7 +519,7 @@ var Module = {
         // then try to do a IDB->MEM sync before we start the engine to get
         // previously saved data before boot.
         window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
-        if (window.indexedDB) {
+        if (Module.persistentStorage && window.indexedDB) {
             FS.mount(IDBFS, {}, dir);
 
             // Patch FS.close so it will try to sync MEM->IDB
@@ -495,6 +553,10 @@ var Module = {
         if (!Module._archiveLoaded) {
             Module._waitingForArchive = true;
         } else {
+
+            // Need to set heap size before calling main
+            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
+
             Module.preloadAll();
             Progress.removeProgress();
             Module.callMain(Module.arguments);
@@ -506,23 +568,28 @@ var Module = {
     _startSyncFS: function() {
         Module._syncInProgress = true;
 
-        FS.syncfs(false, function(err) {
-            Module._syncInProgress = false;
+        if (Module._syncMaxTries > Module._syncTries) {
+            FS.syncfs(false, function(err) {
+                Module._syncInProgress = false;
 
-            if (err) {
-                console.error("Module._startSyncFS error: " + err);
-            }
+                if (err) {
+                    console.error("Module._startSyncFS error: " + err);
+                    Module._syncTries += 1;
+                }
 
-            if (Module._syncNeeded) {
-                Module._syncNeeded = false;
-                Module._startSyncFS();
-            }
+                if (Module._syncNeeded) {
+                    Module._syncNeeded = false;
+                    Module._startSyncFS();
+                }
 
-        });
+            });
+        }
     },
 };
 
-window.onerror = function() {
+window.onerror = function(err, url, line, column, errObj) {
+    var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
+    Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);

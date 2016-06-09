@@ -12,12 +12,13 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.collections FXCollections ObservableList]
            [javafx.fxml FXMLLoader]
+           [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button ProgressBar TextField TreeView TreeItem ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
-           [javafx.stage Stage Modality DirectoryChooser]
+           [javafx.stage Stage StageStyle Modality DirectoryChooser]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -505,6 +506,57 @@
                              (when (= key KeyCode/ESCAPE)
                                (close nil)))))
     (.initModality stage Modality/NONE)
+    (.setScene stage scene)
+    (ui/show! stage)
+    stage))
+
+(defn make-proposal-dialog [result caret screen-point proposals]
+  (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["proposals" "proposals-box"])
+        close (fn [v] (do (deliver result v) (.close stage)))
+        ^ListView list-view  (:proposals controls)
+        filter-text (atom "")
+        keep-fn (fn [prop] (when (re-find (re-pattern @filter-text) (:display-string prop)) prop))
+        update-items (fn [] (try
+                              (ui/items! list-view (keep keep-fn proposals))
+                              (.select (.getSelectionModel list-view) 0)
+                              (catch Exception e (do
+                                                (println "Proposal filter bad filter pattern " @filter-text)
+                                                (swap! filter-text #(apply str (drop-last %)))))))]
+    (.setFill scene nil)
+    (.initStyle stage StageStyle/UNDECORATED)
+    (.initStyle stage StageStyle/TRANSPARENT)
+    (.setX stage (.getX ^Point2D screen-point))
+    (.setY stage (.getY ^Point2D screen-point))
+    (ui/items! list-view proposals)
+    (.select (.getSelectionModel list-view) 0)
+    (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)}))
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (cond
+                                           (= code (KeyCode/UP)) (ui/request-focus! list-view)
+                                           (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
+                                           (= code (KeyCode/ENTER)) (close (ui/selection list-view))
+                                           (= code (KeyCode/TAB)) (close (ui/selection list-view))
+                                           (= code (KeyCode/SHIFT)) true
+
+                                           (= code (KeyCode/BACK_SPACE))
+                                           (do
+                                             (swap! filter-text #(apply str (drop-last %)))
+                                             (update-items))
+
+                                           (or (.isLetterKey code) (.isDigitKey code) (= code (KeyCode/MINUS)) (= code (KeyCode/MINUS)))
+                                           (do
+                                             (swap! filter-text str (.getText ^KeyEvent event))
+                                             (update-items))
+
+                                           :default (close nil)))))
+
+    (.initOwner stage (ui/main-stage))
+    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show! stage)
     stage))

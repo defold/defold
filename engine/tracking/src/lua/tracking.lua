@@ -106,7 +106,7 @@ function start(save_directory, engine_version)
 
     local new_install = false
     if not config_url or config_url == "" then
-        config_url = "http://g.defold.com/conf";
+        config_url = "https://g.defold.com/conf";
     end
 
     fn_base = "t" .. app_id

@@ -69,7 +69,8 @@
 			archive_location_filter: function( path ) {
 				return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
 			},
-			splash_image: "{{DEFOLD_SPLASH_IMAGE}}"
+			splash_image: "{{DEFOLD_SPLASH_IMAGE}}",
+			custom_heap_size: {{DEFOLD_HEAP_SIZE}}
 		}
 
         Module.runApp("canvas", extra_params);

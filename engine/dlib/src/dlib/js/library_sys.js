@@ -53,6 +53,16 @@ var LibraryDmSys = {
             var buffer = _malloc(useragent.length + 1);
             writeStringToMemory(useragent, buffer);
             return buffer;
+        },
+
+        dmSysOpenURL__deps: ['$JSEvents'],
+        dmSysOpenURL: function(url) {
+            var jsurl = Pointer_stringify(url);
+            if (window.open(jsurl) == null) {
+                window.location = jsurl;
+            }
+
+            return true;
         }
 }
 autoAddDeps(LibraryDmSys, '$DMSYS');

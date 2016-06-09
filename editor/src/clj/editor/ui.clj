@@ -252,7 +252,8 @@
 
 (defprotocol Editable
   (editable [this])
-  (editable! [this val]))
+  (editable! [this val])
+  (on-edit! [this fn]))
 
 (extend-type Node
   HasUserData
@@ -304,17 +305,23 @@
                         (.selectAll this))))
   Editable
   (editable [this] (.isEditable this))
-  (editable! [this val] (.setEditable this val)))
+  (editable! [this val] (.setEditable this val))
+  (on-edit! [this f] (observe (.textProperty this) (fn [this old new] (f old new)))))
 
 (extend-type ComboBoxBase
   Editable
   (editable [this] (.isEditable this))
-  (editable! [this val] (.setEditable this val)))
+  (editable! [this val] (.setEditable this val))
+  (on-edit! [this f] (observe (.valueProperty this) (fn [this old new] (f old new)))))
 
 (extend-type CheckBox
   HasValue
   (value [this] (.isSelected this))
-  (value! [this val] (.setSelected this val)))
+  (value! [this val] (.setSelected this val))
+  Editable
+  (editable [this] (not (.isDisabled this)))
+  (editable! [this val] (.setDisable this (not val)))
+  (on-edit! [this f] (observe (.selectedProperty this) (fn [this old new] (f old new)))))
 
 (extend-type ColorPicker
   HasValue
@@ -710,7 +717,8 @@
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
     (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
-    (.setText label (progress/description progress))))
+    (when label
+      (.setText label (progress/description progress)))))
 
 (defn default-render-progress! [progress]
   (run-later

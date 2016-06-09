@@ -123,6 +123,7 @@ public class LaunchHandler extends AbstractHandler {
                         int socksProxyPort = store.getInt(PreferenceConstants.P_SOCKS_PROXY_PORT);
                         boolean runInDebugger = store.getBoolean(PreferenceConstants.P_RUN_IN_DEBUGGER);
                         boolean autoRunDebugger = store.getBoolean(PreferenceConstants.P_AUTO_RUN_DEBUGGER);
+                        boolean quitOnEsc = store.getBoolean(PreferenceConstants.P_QUIT_ON_ESC);
 
                         String customApplication = null;
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
@@ -130,7 +131,7 @@ public class LaunchHandler extends AbstractHandler {
                         }
 
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,
-                                socksProxyPort, Activator.SERVER_PORT);
+                                socksProxyPort, Activator.SERVER_PORT, quitOnEsc);
                         return Status.OK_STATUS;
                     } else {
                         return Status.OK_STATUS;

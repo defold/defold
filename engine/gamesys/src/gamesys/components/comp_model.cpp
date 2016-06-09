@@ -13,6 +13,7 @@
 #include "../gamesys_private.h"
 
 #include "model_ddf.h"
+#include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
@@ -111,36 +112,39 @@ namespace dmGameSystem
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
-        for (uint32_t* i=params.m_Begin;i!=params.m_End;i++)
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
-            ModelComponent& component = *((ModelComponent*) params.m_Buf[*i].m_UserData);
-            Model* model = component.m_Model;
-            Mesh* mesh = model->m_Mesh;
-
-            dmRender::RenderObject& ro = component.m_RenderObject;
-
-            Matrix4 local(component.m_Rotation, Vector3(component.m_Position));
-
-            const Matrix4& go_world = dmGameObject::GetWorldMatrix(component.m_Instance);
-            if (dmGameObject::ScaleAlongZ(component.m_Instance))
+            for (uint32_t* i=params.m_Begin;i!=params.m_End;i++)
             {
-                ro.m_WorldTransform = go_world * local;
-            }
-            else
-            {
-                ro.m_WorldTransform = dmTransform::MulNoScaleZ(go_world, local);
-            }
+                ModelComponent& component = *((ModelComponent*) params.m_Buf[*i].m_UserData);
+                Model* model = component.m_Model;
+                Mesh* mesh = model->m_Mesh;
 
-            ro.m_Material = model->m_Material;
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-                ro.m_Textures[i] = model->m_Textures[i];
-            ro.m_VertexBuffer = mesh->m_VertexBuffer;
-            ro.m_VertexDeclaration = mesh->m_VertexDeclaration;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_VertexStart = 0;
-            ro.m_VertexCount = mesh->m_VertexCount;
-            ro.m_TextureTransform = Matrix4::identity();
-            dmRender::AddToRender(params.m_Context, &component.m_RenderObject);
+                dmRender::RenderObject& ro = component.m_RenderObject;
+
+                Matrix4 local(component.m_Rotation, Vector3(component.m_Position));
+
+                const Matrix4& go_world = dmGameObject::GetWorldMatrix(component.m_Instance);
+                if (dmGameObject::ScaleAlongZ(component.m_Instance))
+                {
+                    ro.m_WorldTransform = go_world * local;
+                }
+                else
+                {
+                    ro.m_WorldTransform = dmTransform::MulNoScaleZ(go_world, local);
+                }
+
+                ro.m_Material = model->m_Material;
+                for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+                    ro.m_Textures[i] = model->m_Textures[i];
+                ro.m_VertexBuffer = mesh->m_VertexBuffer;
+                ro.m_VertexDeclaration = mesh->m_VertexDeclaration;
+                ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+                ro.m_VertexStart = 0;
+                ro.m_VertexCount = mesh->m_VertexCount;
+                ro.m_TextureTransform = Matrix4::identity();
+                dmRender::AddToRender(params.m_Context, &component.m_RenderObject);
+            }
         }
     }
 
@@ -181,9 +185,9 @@ namespace dmGameSystem
 
         dmRender::RenderObject* ro = &component->m_RenderObject;
 
-        if (params.m_Message->m_Id == dmModelDDF::SetConstant::m_DDFDescriptor->m_NameHash)
+        if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
         {
-            dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
+            dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
             dmRender::EnableRenderObjectConstant(ro, ddf->m_NameHash, ddf->m_Value);
         }
         else if (params.m_Message->m_Id == dmModelDDF::ResetConstant::m_DDFDescriptor->m_NameHash)

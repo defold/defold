@@ -344,6 +344,11 @@ namespace dmGraphics
         return true;
     }
 
+    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    {
+        return NewVertexDeclaration(context, element, count);
+    }
+
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration();

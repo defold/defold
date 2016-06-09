@@ -33,6 +33,7 @@
           graph-id (g/node-id->graph-id project)
           old-count (node-count (g/graph graph-id))
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
+          old-basis (g/now)
           mem-resource (project/make-embedded-resource project resource-type-name inline-resource)]
       (project/load-project project [mem-resource])
       (let [new-resource-node (project/get-resource-node project mem-resource)
@@ -41,9 +42,10 @@
         (g/delete-node! new-resource-node)
         (let [final-count (node-count (g/graph graph-id))
               final-node-ids (set (ig/node-ids (g/graph graph-id)))
-              orphans (map g/node-by-id (clojure.set/difference final-node-ids old-node-ids))]
-          (is (= 0 (count orphans)))
-          (is (= old-count final-count)))))))
+              new (clojure.set/difference final-node-ids old-node-ids)
+              remainders (clojure.set/difference old-node-ids final-node-ids)]
+          (is (= [] (map #(g/node-type* old-basis %) remainders)))
+          (is (= [] (map g/node-type* new))))))))
 
 (def inline-atlas
 "
@@ -136,11 +138,9 @@
 ")
 
 (def test-cases
-  {
-   "atlas" inline-atlas
+  {"atlas" inline-atlas
    "go" inline-game-object
-   "collection" inline-collection
-   })
+   "collection" inline-collection})
 
 (deftest resource-nodes-disposes-nodes
   (doseq [[resource-type-name inline-resource] test-cases]
