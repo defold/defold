@@ -64,7 +64,7 @@ def build(bld):
               '%s/share/java/iap_android.jar' % (dynamo_home),
               '%s/share/java/push_android.jar' % (dynamo_home),
               '%s/share/java/adtruth_android.jar' % (dynamo_home),
-              '%s/share/java/sound2_android.jar' % (dynamo_home),
+              '%s/share/java/sound_android.jar' % (dynamo_home),
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
     obj = bld.new_task_gen(
