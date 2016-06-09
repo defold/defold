@@ -3,15 +3,18 @@
             [dynamo.graph :as g]
             [util.id-vec :as iv]
             [editor.types :as types]
+            [editor.defold-project :as project]
+            [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system tx-nodes]])
   (:import [javax.vecmath Matrix4d Point3d Vector3d]))
 
-
-(g/defnode Project
-  (property selection g/Any))
+(defn- select! [project selection]
+  (let [opseq (gensym)]
+    (project/select! project (mapv first selection) opseq)
+    (project/sub-select! project selection opseq)))
 
 (defn- selection [project]
-  (g/node-value project :selection))
+  (g/node-value project :sub-selection))
 
 (defrecord View [fb select-fn])
 
@@ -224,14 +227,15 @@
 
 (deftest delete-mixed
   (with-clean-system
-    (let [[project
-           model
-           emitter] (tx-nodes (g/make-nodes world [project [Project :selection []]
-                                                   model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
-                                                   emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
-                                                                                     [0.6 0.6 0.0 0.0]
-                                                                                     [0.0 1.0 0.0 0.0]])]]))
-          view (-> (->view (fn [s] (g/set-property! project :selection s)))
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          proj-graph (g/node-id->graph-id project)
+          [model
+           emitter] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
+                                                        emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
+                                                                                          [0.6 0.6 0.0 0.0]
+                                                                                          [0.0 1.0 0.0 0.0]])]]))
+          view (-> (->view (fn [s] (select! project s)))
                  (render-all [model emitter]))
           box [[0.5 0.5] [1.0 1.0]]]
       (box-select! view box)
@@ -245,17 +249,18 @@
 
 (deftest move-mixed
   (with-clean-system
-    (let [[project
-           model
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          proj-graph (g/node-id->graph-id project)
+          [model
            emitter
-           manip] (tx-nodes (g/make-nodes world [project [Project :selection []]
-                                                 model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
-                                                 emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
-                                                                                   [0.6 0.6 0.0 0.0]
-                                                                                   [0.0 1.0 0.0 0.0]])]
-                                                 manip MoveManip]
-                                          (g/connect project :selection manip :selection)))
-          view (-> (->view (fn [s] (g/set-property! project :selection s)))
+           manip] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
+                                                      emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
+                                                                                        [0.6 0.6 0.0 0.0]
+                                                                                        [0.0 1.0 0.0 0.0]])]
+                                                      manip MoveManip]
+                                          (g/connect project :sub-selection manip :selection)))
+          view (-> (->view (fn [s] (select! project s)))
                  (render-all [model emitter]))
           box [[0.5 0.5] [1.0 1.0]]]
       (box-select! view box)
@@ -274,21 +279,22 @@
 
 (deftest insert-control-point
   (with-clean-system
-    (let [[project
-           emitter] (tx-nodes (g/make-nodes world [project [Project :selection []]
-                                                   emitter [Emitter :color (->curve [[0.0 0.0 0.5 0.5]
-                                                                                     [0.5 0.5 0.5 0.5]
-                                                                                     [1.0 1.0 0.5 0.5]])]]))
-          view (-> (->view (fn [s] (g/set-property! project :selection s)))
-                 (render-all [emitter]))
-          box [[0.5 0.5] [1.0 1.0]]
-          half-sq-2 (* 0.5 (Math/sqrt 2.0))]
-      (g/transact
-        (g/update-property emitter :color geom-insert [[0.25 0.25 0.0]]))
-      (let [[x y tx ty] (-> (g/node-value emitter :color)
-                          :cps
-                          (iv/iv-filter-ids [4])
-                          iv/iv-vals
-                          first)]
-        (is (near half-sq-2 tx))
-        (is (near half-sq-2 ty))))))
+    (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         proj-graph (g/node-id->graph-id project)
+         [emitter] (tx-nodes (g/make-nodes proj-graph [emitter [Emitter :color (->curve [[0.0 0.0 0.5 0.5]
+                                                                                         [0.5 0.5 0.5 0.5]
+                                                                                         [1.0 1.0 0.5 0.5]])]]))
+         view (-> (->view (fn [s] (select! project s)))
+                (render-all [emitter]))
+         box [[0.5 0.5] [1.0 1.0]]
+         half-sq-2 (* 0.5 (Math/sqrt 2.0))]
+     (g/transact
+       (g/update-property emitter :color geom-insert [[0.25 0.25 0.0]]))
+     (let [[x y tx ty] (-> (g/node-value emitter :color)
+                         :cps
+                         (iv/iv-filter-ids [4])
+                         iv/iv-vals
+                         first)]
+       (is (near half-sq-2 tx))
+       (is (near half-sq-2 ty))))))
