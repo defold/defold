@@ -1524,10 +1524,18 @@
 
           (or (= :_declared-properties output)
               (= :_properties output))
-          (let [beh             (behavior type output)
+          (let [beh           (behavior type output)
                 props         ((:fn beh) this evaluation-context)
-                orig-props    (:properties ((:fn beh) original evaluation-context))
-                dynamic-props (without (set (keys properties)) (set (keys (public-properties type))))]
+                orig-props    (:properties ((:fn beh) original output evaluation-context))
+                dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (gt/property-types this basis))))
+                props         (reduce-kv (fn [p k v]
+                                           (if (and (dynamic-props k)
+                                                    (= original-id (:node-id v)))
+                                             (cond-> p
+                                               (contains? v :original-value)
+                                               (assoc-in [:properties k :value] (:value v)))
+                                             p))
+                                         props orig-props)]
             (reduce (fn [props [k v]]
                       (cond-> props
                         (and (= :_properties output)

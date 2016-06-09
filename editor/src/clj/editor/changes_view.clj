@@ -7,6 +7,7 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [editor.sync :as sync]
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
@@ -18,7 +19,8 @@
 (def short-status {:add "A" :modify "M" :delete "D" :rename "R"})
 
 (defn refresh! [git list-view]
-  (ui/items! list-view (git/unified-status git)))
+  (when git
+    (ui/items! list-view (git/unified-status git))))
 
 (defn- status-render [status]
   {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
@@ -52,6 +54,14 @@
              new (slurp (io/file work-tree new-name))]
          (diff-view/make-diff-viewer old-name old new-name new))))
 
+(handler/defhandler :synchronize :global
+  (enabled? [changes-view]
+            (g/node-value changes-view :git))
+  (run [changes-view]
+    (let [git   (g/node-value changes-view :git)
+          prefs (g/node-value changes-view :prefs)]
+      (sync/open-sync-dialog (sync/make-flow git prefs)))))
+
 (defn changes-view-post-create
   [this basis event]
   (let [{:keys [^Parent parent git workspace]} event
@@ -63,20 +73,31 @@
     (ui/register-context-menu list-view ::changes-menu)
     (ui/cell-factory! list-view status-render)
     (ui/on-action! refresh (fn [_] (refresh! git list-view)))
+    (when-not git
+      (ui/disable! refresh true))
     (refresh! git list-view)))
+
+(ui/extend-menu ::menubar :editor.app-view/open
+                [{:label "Synchronize"
+                  :id ::synchronize
+                  :acc "Shortcut+U"
+                  :command :synchronize}])
 
 (g/defnode ChangesView
   (inherits core/Scope)
   (property parent-view g/Any)
-  (property git g/Any))
+  (property git g/Any)
+  (property prefs g/Any))
 
-(defn make-changes-view [view-graph workspace parent]
-  (let [view-id (g/make-node! view-graph ChangesView :parent-view parent)
+(defn make-changes-view [view-graph workspace prefs parent]
+  (let [git     (try (Git/open (io/file (g/node-value workspace :root)))
+                     (catch Exception _))
+        view-id (g/make-node! view-graph ChangesView :parent-view parent :git git :prefs prefs)
         view    (g/node-by-id view-id)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (changes-view-post-create view (g/now) {:parent parent :git (Git/open (io/file (g/node-value workspace :root))) :workspace workspace})
+      (changes-view-post-create view (g/now) {:parent parent :git git :workspace workspace})
       view-id
       (catch Exception e
         (log/error :exception e)))))

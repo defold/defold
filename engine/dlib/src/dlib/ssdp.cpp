@@ -17,12 +17,13 @@
 #include "http_server_private.h"
 #include "http_client_private.h"
 #include "http_server.h"
+#include "network_constants.h"
 
 namespace dmSSDP
 {
-    const char * SSDP_MCAST_ADDR = "239.255.255.250";
-    const uint16_t SSDP_MCAST_PORT = 1900U;
-    const uint32_t SSDP_MCAST_TTL = 4U;
+    const char * SSDP_MCAST_ADDR_IPV4              = "239.255.255.250";
+    const uint16_t SSDP_MCAST_PORT                 = 1900U;
+    const uint32_t SSDP_MCAST_TTL                  = 4U;
 
     static const char* SSDP_ALIVE_TMPL =
         "NOTIFY * HTTP/1.1\r\n"
@@ -254,13 +255,19 @@ namespace dmSSDP
 
     static const char* ReplaceIfAddrVar(void *user_data, const char *key)
     {
-        static char tmp[32];
+        static char tmp[45 + 1] = { 0 };
         dmSocket::Address saddr = *((dmSocket::Address*) user_data);
         if (strcmp(key, "HOSTNAME") == 0)
         {
-            DM_SNPRINTF(tmp, sizeof(tmp), "%u.%u.%u.%u", (saddr >> 24) & 0xff, (saddr >> 16) & 0xff, (saddr >> 8) & 0xff, (saddr >> 0) & 0xff);
+            assert(saddr.m_family == dmSocket::DOMAIN_IPV4 || saddr.m_family == dmSocket::DOMAIN_IPV6);
+            char* straddr = dmSocket::AddressToIPString(saddr);
+            memset(tmp, 0x0, sizeof(tmp));
+            snprintf(tmp, sizeof(tmp), "%s", straddr);
+            free(straddr);
+
             return tmp;
         }
+
         return 0;
     }
 
@@ -323,10 +330,10 @@ namespace dmSSDP
         return 0;
     }
 
-    static dmSocket::Socket NewSocket()
+    static dmSocket::Socket NewSocket(dmSocket::Domain domain)
     {
         dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
-        dmSocket::Result sr = dmSocket::New(dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
+        dmSocket::Result sr = dmSocket::New(domain, dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
         if (sr != dmSocket::RESULT_OK)
             goto bail;
 
@@ -357,8 +364,9 @@ bail:
     {
         if (ssdp->m_LocalAddrSocket[slot] != dmSocket::INVALID_SOCKET_HANDLE)
         {
-            const uint32_t la = ssdp->m_LocalAddr[slot].m_Address;
-            dmLogInfo("SSDP: Done on address %u.%u.%u.%u", (la >> 24) & 0xff, (la >> 16) & 0xff, (la >> 8) & 0xff, (la >> 0) & 0xff);
+            const char* straddr = dmSocket::AddressToIPString(ssdp->m_LocalAddr[slot].m_Address);
+            dmLogInfo("SSDP: Done on address %s", straddr);
+            free((void*) straddr);
             dmSocket::Delete(ssdp->m_LocalAddrSocket[slot]);
         }
     }
@@ -395,7 +403,13 @@ bail:
             {
                 new_socket[i] = dmSocket::INVALID_SOCKET_HANDLE;
 
-                dmSocket::Socket s = NewSocket();
+                if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
+                {
+                    // This is an interesting change in control flow
+                    continue;
+                }
+
+                dmSocket::Socket s = NewSocket(addr.m_family);
                 if (s == dmSocket::INVALID_SOCKET_HANDLE)
                     continue;
 
@@ -411,8 +425,9 @@ bail:
                     continue;
                 }
 
-                uint32_t la = addr;
-                dmLogInfo("SSDP: Started on address %u.%u.%u.%u", (la >> 24) & 0xff, (la >> 16) & 0xff, (la >> 8) & 0xff, (la >> 0) & 0xff);
+                const char* straddr = dmSocket::AddressToIPString(addr);
+                dmLogInfo("SSDP: Started on address %s", straddr);
+                free((void*) straddr);
                 new_socket[i] = s;
             }
         }
@@ -502,18 +517,42 @@ bail:
         dmSocket::Socket mcast_sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Result sr;
 
-        mcast_sock = NewSocket();
-        if (mcast_sock == dmSocket::INVALID_SOCKET_HANDLE) goto bail;
-        sr = dmSocket::Bind(mcast_sock, 0, SSDP_MCAST_PORT);
-        if (sr != dmSocket::RESULT_OK) goto bail;
-        sr = dmSocket::AddMembership(mcast_sock,
-                                     dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
-                                     0,
-                                     SSDP_MCAST_TTL);
+        dmSocket::Address listen_address;
+        dmSocket::Address multicast_address;
 
+        sr = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &listen_address);
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to resolve listening address '%s' for ssdp (%d)", DM_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
+            goto bail;
+        }
+
+        mcast_sock = NewSocket(listen_address.m_family);
+        if (mcast_sock == dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmLogError("Unable to create socket for ssdp");
+            goto bail;
+        }
+
+        sr = dmSocket::Bind(mcast_sock, listen_address, SSDP_MCAST_PORT);
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to bind ssdp socket to listening listen_address '%s' (%d)", DM_UNIVERSAL_BIND_ADDRESS_IPV4, sr);
+            goto bail;
+        }
+
+        sr = dmSocket::GetHostByName(SSDP_MCAST_ADDR_IPV4, &multicast_address);
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to resolve multicast address '%s' for ssdp (%d)", SSDP_MCAST_ADDR_IPV4, sr);
+            goto bail;
+        }
+
+        sr = dmSocket::AddMembership(mcast_sock, multicast_address, listen_address, SSDP_MCAST_TTL);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogError("Unable to add broadcast membership for ssdp socket. No network connection? (%d)", sr);
+            goto bail; // This changes the control flow slightly, but seems like the correct thing to do?
         }
 
         ssdp->m_MCastSocket = mcast_sock;
@@ -533,6 +572,7 @@ bail:
         dmHttpServer::HServer http_server = 0;
         dmHttpServer::NewParams http_params;
         dmHttpServer::Result hsr;
+        dmSocket::Address http_address;
 
         if(params->m_AnnounceInterval > params->m_MaxAge)
         {
@@ -560,7 +600,6 @@ bail:
 
         ssdp->m_HttpServer = http_server;
 
-        dmSocket::Address http_address;
         uint16_t http_port;
         dmHttpServer::GetName(http_server, &http_address, &http_port);
 
@@ -604,7 +643,7 @@ bail:
         }
 
         int sent_bytes;
-        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
+        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send announce message (%d)", sr);
@@ -622,7 +661,7 @@ bail:
         }
 
         int sent_bytes;
-        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
+        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send unannounce message (%d)", sr);
@@ -795,12 +834,13 @@ bail:
         // To know which socket to use for the response, pick the one with the highest
         // number of matching bits. Ideally, netmask would be available to make a correct
         // decision, but it is unfortunately not so easy to read out on all platforms.
-        dmSocket::Address local_address = 0;
+        dmSocket::Address local_address;
         dmSocket::Socket output_socket = dmSocket::INVALID_SOCKET_HANDLE;
         uint32_t best_match_value = ~0;
         for (uint32_t i=0;i!=ssdp->m_LocalAddrCount;i++)
         {
-            uint32_t non_matching_bits = ssdp->m_LocalAddr[i].m_Address ^ ctx->m_FromAddress;
+
+            uint32_t non_matching_bits = BitDifference(ssdp->m_LocalAddr[i].m_Address, ctx->m_FromAddress);
             if (i == 0 || non_matching_bits < best_match_value)
             {
                 best_match_value = non_matching_bits;
@@ -897,10 +937,8 @@ bail:
             }
         }
 
-        uint8_t comps[4];
-        comps[0] = (from_addr >> 24) & 0xff; comps[1] = (from_addr >> 16) & 0xff;
-        comps[2] = (from_addr >> 8) & 0xff; comps[3] = (from_addr >> 0) & 0xff;
-        dmLogDebug("Multicast SSDP message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
+        const char* straddr = dmSocket::AddressToIPString(from_addr);
+        dmLogDebug("Multicast SSDP message from %s:%d", straddr, from_port);
 
         RequestParseState state(ssdp);
         bool ok = false;
@@ -930,7 +968,7 @@ bail:
                     }
                     else
                     {
-                        dmLogWarning("Malformed message from %u.%u.%u.%u:%d. Missing USN header.", comps[0],comps[1],comps[2],comps[3], from_port);
+                        dmLogWarning("Malformed message from %s:%d. Missing USN header.", straddr, from_port);
                     }
                 }
             }
@@ -951,7 +989,7 @@ bail:
                     }
                     else
                     {
-                        dmLogWarning("Malformed message from %u.%u.%u.%u:%d. Missing USN header.", comps[0],comps[1],comps[2],comps[3], from_port);
+                        dmLogWarning("Malformed message from %s:%d. Missing USN header.", straddr, from_port);
                     }
                 }
                 else if (state.m_RequestType == RT_M_SEARCH)
@@ -962,10 +1000,11 @@ bail:
         }
         else
         {
-            dmLogWarning("Malformed message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
+            dmLogWarning("Malformed message from %s:%d", straddr, from_port);
         }
 
-       return true;
+        free((void*) straddr);
+        return true;
     }
 
     static void VisitDiscoveredExpireDevice(ExpireContext* context, const dmhash_t* key, Device* device)
@@ -1029,7 +1068,11 @@ bail:
             dst->m_Address = ssdp->m_LocalAddr[i].m_Address;
             if (new_expires[i] <= now)
             {
-                SendAnnounce(ssdp, dev, i);
+                if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
+                {
+                    SendAnnounce(ssdp, dev, i);
+                }
+
                 dst->m_Expires = next;
             }
             else
@@ -1068,8 +1111,11 @@ bail:
             // Remove zeroes which are all at the starts
             dmSocket::IfAddr *begin = &if_addr[0];
             dmSocket::IfAddr *end = begin + if_addr_count;
-            while (begin < end && !begin->m_Address)
+
+            while (begin < end && dmSocket::Empty(begin->m_Address))
+            {
                 ++begin;
+            }
 
             UpdateListeningSockets(ssdp, begin, end - begin);
         }
@@ -1131,12 +1177,8 @@ bail:
 
                 int sent_bytes;
                 dmSocket::Result sr;
-                sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[i],
-                                 M_SEARCH_FMT,
-                                 strlen(M_SEARCH_FMT),
-                                 &sent_bytes,
-                                 dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
-                                 SSDP_MCAST_PORT);
+                sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[i], M_SEARCH_FMT, strlen(M_SEARCH_FMT), &sent_bytes,
+                    dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
 
                 dmLogDebug("SSDP M-SEARCH");
                 if (sr != dmSocket::RESULT_OK)

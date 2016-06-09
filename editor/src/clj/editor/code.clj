@@ -34,3 +34,17 @@
 
 (defn combine-matches [& matches]
   {:body (last matches) :length (apply + (map :length matches))})
+
+(defn match-regex [pattern s]
+(when-let [result (re-find pattern s)]
+    (if (string? result)
+      {:body result :length (count result)}
+      (let [first-group-match (->> result (remove nil?) first)]
+        {:body first-group-match :length (count first-group-match)}))))
+
+(def number-pattern   #"^-?(?:0|[1-9]\d*)(?:\.\d*)?(?:[eE][+\-]?\d+)?" )
+(def leading-decimal-number-pattern   #"^-?(?:\.\d*)(?:[eE][+\-]?\d+)?" )
+
+(defn match-number [s]
+  (or (match-regex number-pattern s)
+      (match-regex leading-decimal-number-pattern s)))

@@ -408,6 +408,9 @@
                   type-class="image">
             </reference-type-class>
             <reference-type-class
+                  type-class="atlas">
+            </reference-type-class>
+            <reference-type-class
                   type-class="fontdesc">
             </reference-type-class>
             <reference-type-class

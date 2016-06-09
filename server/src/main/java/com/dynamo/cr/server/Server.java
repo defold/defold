@@ -39,8 +39,6 @@ import org.glassfish.grizzly.http.server.NetworkListener;
 import org.glassfish.grizzly.http.server.ServerConfiguration;
 import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.servlet.ServletHandler;
-import org.glassfish.grizzly.ssl.SSLContextConfigurator;
-import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -172,27 +170,6 @@ public class Server {
             listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
         }
         server.addListener(listener);
-
-        if (configuration.hasSslServicePort() && configuration.hasKeystore()) {
-            SSLContextConfigurator sslCon = new SSLContextConfigurator();
-            sslCon.setKeyStoreFile(configuration.getKeystore());
-            String password = "defold";
-            if (configuration.hasKeystorePassword()) {
-                password = configuration.getKeystorePassword();
-            }
-            sslCon.setKeyStorePass(password);
-            NetworkListener sslListener = new NetworkListener("ssl_grizzly", NetworkListener.DEFAULT_NETWORK_HOST,
-                    new PortRange(configuration.getSslServicePort()));
-            sslListener.setSecure(true);
-            SSLEngineConfigurator ssle = new SSLEngineConfigurator(sslCon);
-            sslListener.setSSLEngineConfig(ssle);
-            ssle.setClientMode(false);
-
-            if (configuration.hasGrizzlyIdleTimeout()) {
-                sslListener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
-            }
-            server.addListener(sslListener);
-        }
 
         Config config = new Config(this);
         ServletHandler handler = new GuiceHandler(config);

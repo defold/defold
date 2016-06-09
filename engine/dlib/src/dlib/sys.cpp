@@ -54,6 +54,7 @@ extern "C" const char* dmSysGetUserPersistentDataRoot();
 extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
+extern "C" bool dmSysOpenURL(const char* url);
 
 #endif
 
@@ -340,7 +341,11 @@ namespace dmSys
 
     Result OpenURL(const char* url)
     {
-        return RESULT_UNKNOWN;
+        if (dmSysOpenURL(url)) {
+            return RESULT_OK;
+        } else {
+            return RESULT_UNKNOWN;
+        }
     }
 
 #elif defined(__linux__)

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <gtest/gtest.h>
 #include "../src/dlib/socks_proxy.h"
+#include "../src/dlib/network_constants.h"
 
 #ifndef _WIN32
 
@@ -11,7 +12,7 @@
 TEST(dmSocksProxy, NoSocksProxySet)
 {
     unsetenv("DMSOCKS_PROXY");
-    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
@@ -24,7 +25,7 @@ TEST(dmSocksProxy, ConnectionRefused)
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1079", 1);
 
-    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
@@ -38,7 +39,7 @@ TEST(dmSocksProxy, ClientNotReachable)
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1081", 1);
 
-    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+    dmSocket::Address local_address = dmSocket::AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;

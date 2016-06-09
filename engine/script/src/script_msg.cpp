@@ -434,7 +434,7 @@ namespace dmScript
             return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", message_name, sender_buffer, receiver_buffer);
         }
 
-        char data[MAX_MESSAGE_DATA_SIZE];
+        DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
         const dmDDF::Descriptor* desc = 0x0;

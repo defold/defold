@@ -31,7 +31,7 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
-    const uint64_t LAYER_RANGE = 3;
+    const uint64_t LAYER_RANGE = 4;
     const uint64_t INDEX_RANGE = 10;
     const uint64_t CLIPPER_RANGE = 8;
 
@@ -249,8 +249,8 @@ namespace dmGui
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
-        // 8 is hard cap for the same reason as above
-        params->m_MaxLayers = 8;
+        // 16 is hard cap for the same reason as above
+        params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
     }
 

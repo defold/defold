@@ -42,10 +42,11 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
     private int socksProxyPort;
     private MessageConsoleStream stream;
     private URL serverUrl;
+    private boolean quitOnEsc;
 
     public LaunchThread(ITarget target, String customApplication,
             String location, boolean runInDebugger, boolean autoRunDebugger,
-            String socksProxy, int socksProxyPort, URL serverUrl) {
+            String socksProxy, int socksProxyPort, URL serverUrl, boolean quitOnEsc) {
         this.target = target;
         this.location = location;
         this.serverUrl = serverUrl;
@@ -59,6 +60,7 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
         this.autoRunDebugger = autoRunDebugger;
         this.socksProxy = socksProxy;
         this.socksProxyPort = socksProxyPort;
+        this.quitOnEsc = quitOnEsc;
     }
 
     private String[] createArgs() throws IOException {
@@ -117,6 +119,8 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
                 env.put("DMSOCKS_PROXY_PORT", Integer.toString(socksProxyPort));
             }
 
+            env.put("DM_QUIT_ON_ESC", quitOnEsc == true ? "1" : "0");
+
             ProcessBuilder pb = new ProcessBuilder(args);
             pb.directory(new File(location));
 
@@ -129,8 +133,6 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
 
             // Dump env and exe args when debugging
             if (System.getProperty("osgi.dev") != null) {
-                stream.println("DMSOCKS_PROXY=" + socksProxy);
-                stream.println("DMSOCKS_PROXY_PORT=" + socksProxyPort);
                 for (String s : args) {
                     stream.print(s + " ");
                 }

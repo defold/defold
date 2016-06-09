@@ -24,20 +24,30 @@
          source-viewer (setup-source-viewer opts false)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
      (testing "default style"
-       (let [new-code "x="]
+       (let [new-code "foo"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= [{:start 0 :length 2 :stylename "default"}] (styles source-viewer)))))
+         (is (= [{:start 0 :length 3 :stylename "default"}] (styles source-viewer)))))
      (testing "number style"
        (let [new-code "22"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
          (is (= [{:start 0 :length 2 :stylename "number"}] (styles source-viewer)))))
-     (testing "keyword style"
+     (testing "control-flow-keyword style"
        (let [new-code "break"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= [{:start 0 :length 5 :stylename "keyword"}] (styles source-viewer)))))
+         (is (= [{:start 0 :length 5 :stylename "control-flow-keyword"}] (styles source-viewer)))))
+     (testing "defold-keyword style"
+       (let [new-code "update"]
+         (g/transact (g/set-property code-node :code new-code))
+         (g/node-value viewer-node :new-content)
+         (is (= [{:start 0 :length 6 :stylename "defold-keyword"}] (styles source-viewer)))))
+     (testing "operator style"
+       (let [new-code "=="]
+         (g/transact (g/set-property code-node :code new-code))
+         (g/node-value viewer-node :new-content)
+         (is (=  [{:start 0, :length 2, :stylename "operator"}] (styles source-viewer)))))
      (testing "string style"
        (let [new-code "\"foo\""]
          (g/transact (g/set-property code-node :code new-code))
@@ -71,20 +81,30 @@
          source-viewer (setup-source-viewer opts false)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code shader/ShaderNode)]
      (testing "default style"
-       (let [new-code "x="]
+       (let [new-code "foo"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
-         (is (= [{:start 0 :length 2 :stylename "default"}] (styles source-viewer)))))
+         (is (= [{:start 0 :length 3 :stylename "default"}] (styles source-viewer)))))
     (testing "number style"
        (let [new-code "22"]
          (g/transact (g/set-property code-node :code new-code))
          (g/node-value viewer-node :new-content)
          (is (= [{:start 0 :length 2 :stylename "number"}] (styles source-viewer)))))
-    (testing "keyword style"
-      (let [new-code "template"]
+    (testing "storage modifier keyword style"
+      (let [new-code "uniform"]
         (g/transact (g/set-property code-node :code new-code))
         (g/node-value viewer-node :new-content)
-        (is (= [{:start 0 :length 8 :stylename "keyword"}] (styles source-viewer)))))
+        (is (= [{:start 0 :length 7 :stylename "storage-modifier-keyword"}] (styles source-viewer)))))
+    (testing "storage type style"
+      (let [new-code "vec4"]
+        (g/transact (g/set-property code-node :code new-code))
+        (g/node-value viewer-node :new-content)
+        (is (= [{:start 0 :length 4 :stylename "storage-type"}] (styles source-viewer)))))
+    (testing "operator style"
+      (let [new-code ">>"]
+        (g/transact (g/set-property code-node :code new-code))
+        (g/node-value viewer-node :new-content)
+        (is (= [{:start 0 :length 2 :stylename "operator"}] (styles source-viewer)))))
     (testing "string style"
       (let [new-code "\"foo\""]
         (g/transact (g/set-property code-node :code new-code))
