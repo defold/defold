@@ -75,4 +75,16 @@
               :functions {}
               :requires {"foo" "mymath" "bar" "mymath" "mymath" "mymath"}} result)))))
 
-(deftest test-lua-info-with-spaceship)
+(deftest test-lua-info-with-spaceship
+  (let [result (lua-info (slurp (io/resource "build_project/SideScroller/spaceship/spaceship.script")))]
+    (is (= {:vars #{"max_speed" "min_y" "max_y" "p" "self"}
+            :functions {"init" {:params ["self"]}
+                        "update" {:params ["self" "dt"]}
+                        "on_input" {:params ["self" "action_id" "action"]}}
+            :requires {}} result))))
+
+(deftest test-lua-info-with-props-script
+  (let [result (lua-info (slurp (io/resource "build_project/SideScroller/script/props.script")))]
+    (is (= {:vars #{}
+            :functions {}
+            :requires {"script.test" "script.test"}} result))))
