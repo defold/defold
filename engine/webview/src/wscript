@@ -38,3 +38,14 @@ def build(bld):
                                includes = '.',
                                source = source,
                                target = 'webviewext')
+
+    bld.new_task_gen(source = 'webview_doc.h',
+                     target = 'webview_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = 'webview_doc.h',
+                     target = 'webview_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'webview_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'webview_doc.json')
