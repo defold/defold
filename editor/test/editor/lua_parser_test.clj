@@ -5,35 +5,47 @@
             [editor.lua-parser :refer :all]))
 
 (deftest test-variables
-  (testing "global variable"
-    (is (= ["foo"] (:locals (lua-info "foo")))))
+  (testing "global variable with assignment"
+    (is (= ["foo"] (:vars (lua-info "foo=1")))))
+  (testing "mulitiple global variable with assignment"
+    (is (= ["foo" "bar"] (:vars (lua-info "foo,bar=1,2")))))
   (testing "one local with no assignment"
-    (is (= ["foo"] (:locals (lua-info "local foo")))))
+    (is (= ["foo"] (:vars (lua-info "local foo")))))
   (testing "multiple locals with no assignment"
-    (is (= ["foo" "bar"] (:locals (lua-info "local foo,bar")))))
+    (is (= ["foo" "bar"] (:vars (lua-info "local foo,bar")))))
   (testing "one local with assignment"
-    (is (= ["foo"] (:locals (lua-info "local foo=1")))))
+    (is (= ["foo"] (:vars (lua-info "local foo=1")))))
   (testing "multiple locals with assignment"
-    (is (= ["foo" "bar"] (:locals (lua-info "local foo,bar = 1,3")))))
+    (is (= ["foo" "bar"] (:vars (lua-info "local foo,bar = 1,3")))))
   (testing "local with a require assignment"
     (let [code "local mymathmodule = require(\"mymath\")"
-          result (select-keys (lua-info code) [:locals :requires])]
-     (is (= {:locals ["mymathmodule"]
+          result (select-keys (lua-info code) [:vars :requires])]
+     (is (= {:vars ["mymathmodule"]
+             :requires {"mymathmodule" "mymath"}} result))))
+  (testing "global with a require assignment"
+    (let [code "mymathmodule = require(\"mymath\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+     (is (= {:vars ["mymathmodule"]
              :requires {"mymathmodule" "mymath"}} result))))
   (testing "local with multiple require assignments"
     (let [code "local x = require(\"myx\") \n local y = require(\"myy\")"
-          result (select-keys (lua-info code) [:locals :requires])]
-     (is (= {:locals ["x" "y"]
+          result (select-keys (lua-info code) [:vars :requires])]
+     (is (= {:vars ["x" "y"]
+             :requires {"x" "myx" "y" "myy"}} result))))
+  (testing "global with multiple require assignments"
+    (let [code "x = require(\"myx\") \n y = require(\"myy\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+     (is (= {:vars ["x" "y"]
              :requires {"x" "myx" "y" "myy"}} result)))))
 
 (deftest test-functions
-  (testing "one function with no params"
+  (testing "global function with no params"
     (let [code "function oadd() return num1 end"]
       (is (= {"oadd" {:params []}} (:functions (lua-info code))))))
-  (testing "one function with params"
+  (testing "global function with params"
     (let [code "function oadd(num1, num2) return num1 end"]
       (is (= {"oadd" {:params ["num1" "num2"]}} (:functions (lua-info code))))))
-  (testing "multiple functions"
+  (testing "global multiple functions"
     (let [code "function oadd(num1, num2) return num1 end \n function tadd(foo) return num1 end"]
       (is (= {"oadd" {:params ["num1" "num2"]}, "tadd" {:params ["foo"]}} (:functions (lua-info code)))))))
 
