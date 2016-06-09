@@ -1,6 +1,7 @@
 (ns editor.collection
   (:require [clojure.java.io :as io]
             [editor.core :as core]
+            [schema.core :as s]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
@@ -83,7 +84,7 @@
   (property id g/Str)
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
-            (dynamic read-only? (g/always true)))
+            (dynamic read-only? (g/fnk [] true)))
   (input base-url g/Str)
   (input source-id g/Any :cascade-delete))
 
@@ -202,7 +203,7 @@
   (inherits GameObjectInstanceNode)
 
   (property overrides g/Any
-              (dynamic visible (g/always false))
+              (dynamic visible (g/fnk [] false))
               (value (g/fnk [ddf-component-properties] ddf-component-properties))
               (set (fn [basis self old-value new-value]
                      (let [go (g/node-value self :source-id :basis basis)
@@ -249,7 +250,7 @@
 
   (property path g/Any
             (dynamic edit-type (g/fnk [source-resource]
-                                      {:type (g/protocol resource/Resource)
+                                      {:type (s/protocol resource/Resource)
                                        :ext (some-> source-resource resource/resource-type :ext)
                                        :to-type (fn [v] (:resource v))
                                        :from-type (fn [r] {:resource r :overrides {}})}))
@@ -515,7 +516,7 @@
                                                         (g/connect self from or-node to))
                                                       (for [[comp-id label value] component-overrides]
                                                         (g/set-property comp-id label value)))))))))))
-    (validate (g/fnk [path scene] (validation/validate-resource :path path "Missing prototype"))))
+    (validate (g/fnk [path scene] (validation/resource :path path "Missing prototype"))))
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 

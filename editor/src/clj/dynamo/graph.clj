@@ -207,6 +207,8 @@
 (deftype NodeID     s/Int)
 (deftype Keyword    s/Keyword)
 (deftype KeywordMap {s/Keyword s/Any})
+(deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
+(deftype Dict       {s/Str s/Int})
 (deftype Properties
     {:properties {s/Keyword {:node-id                              gt/NodeID
                              (s/optional-key :validation-problems) s/Any
