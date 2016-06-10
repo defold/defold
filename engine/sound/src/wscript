@@ -35,6 +35,9 @@ def build(bld):
         source.append('sound_ios.cpp')
         source2.append('sound_ios.cpp')
         defines = 'TREMOLO_SCORE=10'
+    elif re.match('arm.*?android', bld.env['PLATFORM']):
+        source.append('sound_android.cpp')
+        source2.append('sound_android.cpp')
     else:
         source.append('sound_generic.cpp')
         source2.append('sound_generic.cpp')
@@ -61,9 +64,9 @@ def build(bld):
 
         bld.new_task_gen(features='jar seq',
                          basedir='java',
-                         destfile='sound2_android.jar')
+                         destfile='sound_android.jar')
 
-        bld.install_files('${PREFIX}/share/java', 'sound2_android.jar')
+        bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
     # NOTE: This if was just for 'sound' in EMSCRIPTEN branch,
     # assumed it applied to both sound and sound2

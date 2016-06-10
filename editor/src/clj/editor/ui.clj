@@ -34,6 +34,7 @@
 (PlatformImpl/startup (constantly nil))
 
 (defonce ^:dynamic *menus* (atom {}))
+(defonce ^:dynamic *menu-key-combos* (atom #{}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
 ; NOTE: This one might change from welcome to actual project window
@@ -537,11 +538,13 @@
       menu)))
 
 (defn- make-menu-command [label icon acc command command-contexts user-data]
-  (let [menu-item (MenuItem. label)]
+  (let [menu-item (MenuItem. label)
+        key-combo (and acc (KeyCombination/keyCombination acc))]
     (when command
       (.setId menu-item (name command)))
-    (when acc
-      (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
+    (when key-combo
+      (.setAccelerator menu-item key-combo)
+      (swap! *menu-key-combos* conj key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
     (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
@@ -549,7 +552,7 @@
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
-(def ^:private make-menu-items nil)
+(declare make-menu-items)
 
 (defn- make-menu-item [item command-contexts]
   (let [icon (:icon item),
@@ -603,7 +606,11 @@
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id)]
        (user-data! root ::menubar desc))
-     (log/warn :message (format "menubar %s not found" menubar-id)))))
+     (log/warn :message (format "menubar %s not found" menubar-id))))
+  (.addEventFilter scene KeyEvent/KEY_PRESSED
+                   (event-handler event
+                                  (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
+                                    (.consume event)))))
 
 (defn- refresh-menubar [md command-contexts]
  (let [menu (realize-menu (:menu-id md))
