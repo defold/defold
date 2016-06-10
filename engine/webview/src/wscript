@@ -1,0 +1,51 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+    embed_source = ''
+    source = ['webview_common.cpp']
+
+    print "bld.env.PLATFORM", bld.env.PLATFORM
+
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        source += ['webview_ios.mm']
+    elif re.match('.*?android', bld.env.PLATFORM):
+        source += ['webview_android.cpp']
+
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
+                     '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
+
+        bld.new_task_gen(features='javac seq',
+                         classpath=classpath,
+                         source_root='java')
+
+        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6 -Xlint:deprecation'
+
+        bld.new_task_gen(features='jar seq dex',
+                         basedir='java',
+                         destfile='webview_android.jar')
+
+        bld.install_files('${PREFIX}/share/java', 'webview_android.jar')
+    else:
+        source += ['webview_null.cpp']
+
+    webview = bld.new_task_gen(features = 'cxx cstaticlib',
+                               includes = '.',
+                               source = source,
+                               target = 'webviewext')
+
+    bld.new_task_gen(source = 'webview_doc.h',
+                     target = 'webview_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = 'webview_doc.h',
+                     target = 'webview_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'webview_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'webview_doc.json')
