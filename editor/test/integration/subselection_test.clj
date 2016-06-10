@@ -1,12 +1,16 @@
-(ns editor.subselection-test
+(ns integration.subselection-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [util.id-vec :as iv]
             [editor.types :as types]
             [editor.defold-project :as project]
+            [editor.math :as math]
+            [editor.properties :as properties]
+            [editor.particlefx :as particlefx]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system tx-nodes]])
-  (:import [javax.vecmath Matrix4d Point3d Vector3d]))
+  (:import [javax.vecmath Matrix4d Point3d Vector3d]
+           [editor.properties Curve]))
 
 (defn- select! [project selection]
   (let [opseq (gensym)]
@@ -26,27 +30,20 @@
 
 (defmulti render (fn [basis node-id view] (g/node-type* basis node-id)))
 
-(defprotocol GeomCloud
-  (geom-aabbs [this ids])
-  (geom-insert [this positions])
-  (geom-delete [this ids])
-  (geom-update [this ids f])
-  (geom-transform [this ids ^Matrix4d transform]))
-
 (defrecord Mesh [vertices]
-  GeomCloud
-  (geom-aabbs [this ids] (->> (iv/iv-filter-ids vertices ids)
-                          (iv/iv-mapv (fn [[id v]] [id [v v]]))
-                          (into {})))
-  (geom-insert [this positions] (update this :vertices iv/iv-into positions))
-  (geom-delete [this ids] (update this :vertices iv/iv-remove-ids ids))
-  (geom-update [this ids f] (let [ids (set ids)]
+  types/GeomCloud
+  (types/geom-aabbs [this ids] (->> (iv/iv-filter-ids vertices ids)
+                                (iv/iv-mapv (fn [[id v]] [id [v v]]))
+                                (into {})))
+  (types/geom-insert [this positions] (update this :vertices iv/iv-into positions))
+  (types/geom-delete [this ids] (update this :vertices iv/iv-remove-ids ids))
+  (types/geom-update [this ids f] (let [ids (set ids)]
                              (assoc this :vertices (iv/iv-mapv (fn [entry]
                                                                  (let [[id v] entry]
                                                                    (if (ids id) [id (f v)] entry))) vertices))))
-  (geom-transform [this ids transform]
+  (types/geom-transform [this ids transform]
     (let [p (Point3d.)]
-      (geom-update this ids (fn [v]
+      (types/geom-update this ids (fn [v]
                              (let [[x y] v]
                                (.set p x y 0.0)
                                (.transform transform p)
@@ -54,75 +51,6 @@
 
 (defn ->mesh [vertices]
   (Mesh. (iv/iv-vec vertices)))
-
-(defn- hermite [y0 y1 t0 t1 t]
-  (let [t2 (* t t)
-        t3 (* t2 t)]
-    (+ (* (+ (* 2 t3) (* -3 t2) 1.0) y0)
-       (* (+ t3 (* -2 t2) t) t0)
-       (* (+ (* -2 t3) (* 3 t2)) y1)
-       (* (- t3 t2) t1))))
-
-(defn- hermite' [y0 y1 t0 t1 t]
-  (let [t2 (* t t)]
-    (+ (* (+ (* 6 t2) (* -6 t)) y0)
-       (* (+ (* 3 t2) (* -4 t) 1) t0)
-       (* (+ (* -6 t2) (* 6 t)) y1)
-       (* (+ (* 3 t2) (* -2 t)) t1))))
-
-(defn- ->spline [cps]
-  (sort-by first cps))
-
-
-(defn- spline-val [cp0 cp1 t]
-  (let [[x0 y0 s0 t0] cp0
-        [x1 y1 s1 t1] cp1
-        dx (- x1 x0)]
-    (hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)))
-
-(defn- spline-cp [spline x]
-  (let [x (min (max x 0.0) 1.0)
-        [[cp0 cp1]] (filter (fn [[[x0] [x1]]] (and (<= x0 x) (< x x1))) (partition 2 1 spline))]
-    (when (and cp0 cp1)
-      (let [[x0 y0 s0 t0] cp0
-            [x1 y1 s1 t1] cp1
-            dx (- x1 x0)
-            t (/ (- x (first cp0)) (- (first cp1) (first cp0)))
-            y (hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)
-            ty (/ (hermite' y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t) dx)
-            l (Math/sqrt (+ 1.0 (* ty ty)))
-            ty (/ ty l)
-            tx (/ 1.0 l)]
-        [x y tx ty]))))
-
-(defrecord Curve [cps]
-  GeomCloud
-  (geom-aabbs [this ids] (->> (iv/iv-filter-ids cps ids)
-                          (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                                         v [x y 0.0]]
-                                                     [id [v v]])))
-                          (into {})))
-  (geom-insert [this positions] (let [spline (->> cps
-                                               (iv/iv-mapv second)
-                                               ->spline)
-                                      cps (mapv (fn [[x]] (-> spline
-                                                            (spline-cp x))) positions)]
-                                  (update this :cps iv/iv-into cps)))
-  (geom-delete [this ids] (update this :cps iv/iv-remove-ids ids))
-  (geom-update [this ids f] (let [ids (set ids)]
-                             (assoc this :cps (iv/iv-mapv (fn [entry]
-                                                            (let [[id v] entry]
-                                                              (if (ids id) [id (f v)] entry))) cps))))
-  (geom-transform [this ids transform]
-    (let [p (Point3d.)]
-      (geom-update this ids (fn [v]
-                             (let [[x y] v]
-                               (.set p x y 0.0)
-                               (.transform transform p)
-                               [(.getX p) (.getY p) 0.0]))))))
-
-(defn ->curve [control-points]
-  (Curve. (iv/iv-vec control-points)))
 
 (g/defnode Model
   (property mesh Mesh))
@@ -142,7 +70,7 @@
 
 (defn- render-geom-cloud [basis view node-id property]
   (let [render-data (-> (g/node-value node-id property :basis basis)
-                      (geom-aabbs nil))]
+                      (types/geom-aabbs nil))]
     (reduce (fn [view [id aabb]] (view-render view (centroid aabb) {:node-id node-id
                                                                     :property property
                                                                     :element-id id}))
@@ -151,11 +79,8 @@
 (defmethod render Model [basis node-id view]
   (render-geom-cloud basis view node-id :mesh))
 
-(g/defnode Emitter
-  (property color Curve))
-
-(defmethod render Emitter [basis node-id view]
-  (render-geom-cloud basis view node-id :color))
+(defmethod render particlefx/EmitterNode [basis node-id view]
+  (render-geom-cloud basis view node-id :particle-key-alpha))
 
 (defn- render-clear [view]
   (assoc view :fb {}))
@@ -187,7 +112,7 @@
                             (let [[nid props] v]
                               (into tx-data
                                     (for [[k ids] props]
-                                      (g/update-property nid k geom-delete ids))))
+                                      (g/update-property nid k types/geom-delete ids))))
                             (into tx-data (g/delete-node s))))
                         [] s))))
 
@@ -197,7 +122,7 @@
                                 (let [positions (->> (for [[nid props] selection
                                                            [k ids] props]
                                                        (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k :basis basis)
-                                                                                                    (geom-aabbs ids))))
+                                                                                                    (types/geom-aabbs ids))))
                                                   (reduce into [])
                                                   (map second))
                                       avg (mapv / (reduce (fn [r p] (mapv + r p)) [0.0 0.0 0.0] positions)
@@ -221,7 +146,7 @@
       (for [[nid props] selection
             [k ids] props
             :let [v (g/node-value nid k :basis basis)]]
-        (g/set-property nid k (geom-transform v ids transform))))))
+        (g/set-property nid k (types/geom-transform v ids transform))))))
 
 ;; Tests
 
@@ -229,12 +154,13 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
+          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+          emitter (doto (:node-id (test-util/outline pfx-id [2]))
+                    (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
+                                                                              [0.6 0.6 1.0 0.0]
+                                                                              [0.0 1.0 1.0 0.0]])))
           proj-graph (g/node-id->graph-id project)
-          [model
-           emitter] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
-                                                        emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
-                                                                                          [0.6 0.6 0.0 0.0]
-                                                                                          [0.0 1.0 0.0 0.0]])]]))
+          [model] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]]))
           view (-> (->view (fn [s] (select! project s)))
                  (render-all [model emitter]))
           box [[0.5 0.5] [1.0 1.0]]]
@@ -251,13 +177,14 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
+          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+          emitter (doto (:node-id (test-util/outline pfx-id [2]))
+                    (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
+                                                                              [0.6 0.6 1.0 0.0]
+                                                                              [0.0 1.0 1.0 0.0]])))
           proj-graph (g/node-id->graph-id project)
           [model
-           emitter
            manip] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
-                                                      emitter [Emitter :color (->curve [[0.0 0.0 0.0 0.0]
-                                                                                        [0.6 0.6 0.0 0.0]
-                                                                                        [0.0 1.0 0.0 0.0]])]
                                                       manip MoveManip]
                                           (g/connect project :sub-selection manip :selection)))
           view (-> (->view (fn [s] (select! project s)))
@@ -281,18 +208,20 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
          project   (test-util/setup-project! workspace)
+         pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+         emitter (doto (:node-id (test-util/outline pfx-id [2]))
+                   (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 0.5 0.5]
+                                                                             [0.5 0.5 0.5 0.5]
+                                                                             [1.0 1.0 0.5 0.5]])))
          proj-graph (g/node-id->graph-id project)
-         [emitter] (tx-nodes (g/make-nodes proj-graph [emitter [Emitter :color (->curve [[0.0 0.0 0.5 0.5]
-                                                                                         [0.5 0.5 0.5 0.5]
-                                                                                         [1.0 1.0 0.5 0.5]])]]))
          view (-> (->view (fn [s] (select! project s)))
                 (render-all [emitter]))
          box [[0.5 0.5] [1.0 1.0]]
          half-sq-2 (* 0.5 (Math/sqrt 2.0))]
      (g/transact
-       (g/update-property emitter :color geom-insert [[0.25 0.25 0.0]]))
-     (let [[x y tx ty] (-> (g/node-value emitter :color)
-                         :cps
+       (g/update-property emitter :particle-key-alpha types/geom-insert [[0.25 0.25 0.0]]))
+     (let [[x y tx ty] (-> (g/node-value emitter :particle-key-alpha)
+                         :points
                          (iv/iv-filter-ids [4])
                          iv/iv-vals
                          first)]
