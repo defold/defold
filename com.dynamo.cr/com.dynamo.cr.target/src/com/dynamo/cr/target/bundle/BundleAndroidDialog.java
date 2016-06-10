@@ -33,6 +33,9 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
     private Button releaseMode;
     private Button generateReport;
 
+    private static String persistentCertificate = null;
+    private static String persistentKey = null;
+
     public BundleAndroidDialog(Shell parentShell) {
         super(parentShell);
         setShellStyle(SWT.DIALOG_TRIM | SWT.RESIZE);
@@ -68,6 +71,9 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         final Text certificateText = new Text(container, SWT.BORDER);
         certificateText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
         certificateText.setEditable(false);
+        if (BundleAndroidDialog.persistentCertificate != null) {
+            certificateText.setText(BundleAndroidDialog.persistentCertificate);
+        }
 
         Button selectCertificateButton = new Button(container, SWT.FLAT);
         GridData gd = new GridData(SWT.LEFT, SWT.FILL, false, false, 1, 1);
@@ -79,6 +85,7 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
                 FileDialog fileDialog = new FileDialog(getShell());
                 String certificate = fileDialog.open();
                 if (certificate != null) {
+                    BundleAndroidDialog.persistentCertificate = certificate;
                     certificateText.setText(certificate);
                     presenter.setCertificate(certificate);
                 }
@@ -92,6 +99,9 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         final Text keyText = new Text(container, SWT.BORDER);
         keyText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
         keyText.setEditable(false);
+        if (BundleAndroidDialog.persistentKey != null) {
+            keyText.setText(BundleAndroidDialog.persistentKey);
+        }
 
         Button selectKeyButton = new Button(container, SWT.FLAT);
         gd = new GridData(SWT.LEFT, SWT.FILL, false, false, 1, 1);
@@ -103,6 +113,7 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
                 FileDialog fileDialog = new FileDialog(getShell());
                 String key = fileDialog.open();
                 if (key != null) {
+                    BundleAndroidDialog.persistentKey = key;
                     keyText.setText(key);
                     presenter.setKey(key);
                 }

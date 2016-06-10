@@ -7,6 +7,7 @@ import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -43,6 +44,9 @@ public class BundleiOSDialog extends TitleAreaDialog implements
     private Button releaseMode;
     private Button generateReport;
     
+
+    private static String persistentProfileText = null;
+
     public BundleiOSDialog(Shell parentShell) {
         super(parentShell);
         setShellStyle(SWT.DIALOG_TRIM | SWT.RESIZE);
@@ -97,6 +101,9 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         profileText = new Text(container, SWT.BORDER);
         profileText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
         profileText.setEditable(false);
+        if (BundleiOSDialog.persistentProfileText != null) {
+            profileText.setText(BundleiOSDialog.persistentProfileText);
+        }
 
         Button selectProfileButton = new Button(container, SWT.FLAT);
         GridData gd = new GridData(SWT.LEFT, SWT.FILL, false, false, 1, 1);
@@ -108,6 +115,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
                 FileDialog fileDialog = new FileDialog(getShell());
                 String profile = fileDialog.open();
                 if (profile != null) {
+                    BundleiOSDialog.persistentProfileText = profile;
                     profileText.setText(profile);
                     presenter.setProvisioningProfile(profile);
                 }
