@@ -182,3 +182,18 @@
                         (.m10 this) (.m11 this) (.m12 this) (.m13 this)
                         (.m20 this) (.m21 this) (.m22 this) (.m23 this)
                         (.m30 this) (.m31 this) (.m32 this) (.m33 this)]))
+
+(defn hermite [y0 y1 t0 t1 t]
+  (let [t2 (* t t)
+        t3 (* t2 t)]
+    (+ (* (+ (* 2 t3) (* -3 t2) 1.0) y0)
+       (* (+ t3 (* -2 t2) t) t0)
+       (* (+ (* -2 t3) (* 3 t2)) y1)
+       (* (- t3 t2) t1))))
+
+(defn hermite' [y0 y1 t0 t1 t]
+  (let [t2 (* t t)]
+    (+ (* (+ (* 6 t2) (* -6 t)) y0)
+       (* (+ (* 3 t2) (* -4 t) 1) t0)
+       (* (+ (* -6 t2) (* 6 t)) y1)
+       (* (+ (* 3 t2) (* -2 t)) t1))))
