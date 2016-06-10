@@ -400,41 +400,6 @@
 (defn setter-for [node-type property]
   (some-> (public-properties node-type) property :setter :fn util/var-get-recursive))
 
-(defn tx-invoke-setter
-  "Internal plumbing for assigning values to properties. Returns a
-  vector of [node tx-data].
-
-  Always associates the new value onto the node data structure. If
-  there is a setter fn defined for the property, invokes that and uses
-  its return value as the tx-data.
-
-  Applies schema checking to new-value. Will throw with ex-info on a
-  schema validation failure."
-  [basis node property old-value new-value]
-  (let [new-node (gt/set-property node basis property new-value)]
-    (if (= old-value new-value)
-      [new-node []]
-      (let [node-type  (gt/node-type node basis)
-            value-type (some-> (property-type node-type property) deref :schema s/maybe)
-            setter-fn  (setter-for node-type property)
-            deferred   (if setter-fn
-                         [setter-fn (gt/node-id node) old-value new-value]
-                         [])]
-        (try
-          (if-let [validation-error (and value-type (s/check value-type new-value))]
-            (do
-              (warn-output-schema (gt/node-id node) node-type property new-value value-type validation-error)
-              (throw (ex-info "SCHEMA-VALIDATION"
-                              {:node-id          (gt/node-id node)
-                               :type             node-type
-                               :property         property
-                               :expected         value-type
-                               :actual           new-value
-                               :validation-error validation-error})))
-            (with-meta [new-node deferred] {:node-id (gt/node-id node) :property property}))
-          (catch IllegalArgumentException iae
-            (throw (ex-info (str "Illegal property type schema " {:node-id (gt/node-id node) :type node-type :property property}) {} iae))))))))
-
 ;;; ----------------------------------------
 ;; Type checking
 

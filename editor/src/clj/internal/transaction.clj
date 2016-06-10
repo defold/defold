@@ -362,15 +362,35 @@
         override-nodes)
       (populate-overrides to-node-id))))
 
+(defn- property-default-setter
+  [basis node property _ new-value]
+  (first (gt/replace-node basis node (gt/set-property (gt/node-by-id-at basis node) basis property new-value))))
+
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
-  (let [[new-node deferred] (in/tx-invoke-setter (:basis ctx) node property old-value new-value)
-        ctx                (cond-> (update ctx :basis #(first (gt/replace-node % node-id new-node)))
-                               (not= old-value new-value)
-                               (mark-output-activated node-id property))]
-    (if (empty? deferred)
-      ctx
-      (update ctx :deferred-setters conj (with-meta deferred {:original-property property :original-node node-id})))))
+  (let [basis (:basis ctx)
+        node-type (gt/node-type node basis)
+        value-type (some-> (in/property-type node-type property) :schema s/maybe)]
+   (if-let [validation-error (and value-type (s/check value-type new-value))]
+     (do
+       (in/warn-output-schema node-id node-type property new-value value-type validation-error)
+       (throw (ex-info "SCHEMA-VALIDATION"
+                   {:node-id          node-id
+                    :type             node-type
+                    :property         property
+                    :expected         value-type
+                    :actual           new-value
+                    :validation-error validation-error})))
+     (let [setter-fn (in/setter-for node-type property)]
+      (-> ctx
+        (update :basis property-default-setter node-id property old-value new-value)
+        (cond->
+          (not= old-value new-value)
+          (->
+            (mark-output-activated node-id property)
+            (cond->
+              (not (nil? setter-fn))
+              (update :deferred-setters conj [setter-fn node-id old-value new-value])))))))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
