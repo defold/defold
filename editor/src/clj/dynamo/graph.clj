@@ -435,11 +435,13 @@
         derivations   (for [tref (:supertypes node-type-def)]
                         `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                            (derive ~node-key ~(:key (deref tref)))))
-        node-type-def (update node-type-def :supertypes #(list `quote %))]
+        node-type-def (update node-type-def :supertypes #(list `quote %))
+        runtime-definer (symbol (str symb "*"))]
     `(do
        (declare ~symb)
        ~@fn-defs
-       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl ~node-type-def)))
+       (defn ~runtime-definer [] ~node-type-def)
+       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
        ~@derivations
        (var ~symb))))
 
