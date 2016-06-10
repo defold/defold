@@ -6,6 +6,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
             [editor.ui :as ui]
@@ -25,7 +26,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -108,12 +109,21 @@
                   :icon "icons/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
+(def ^:const prefs-window-dimensions "window-dimensions")
+(def ^:const prefs-split-positions "split-positions")
+
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [project]
+  (run [project ^Stage main-stage prefs splits]
+    (let [dims    {:x      (.getX main-stage)
+                   :y      (.getY main-stage)
+                   :width  (.getWidth main-stage)
+                   :height (.getHeight main-stage)}
+          div-pos (map (fn [^SplitPane sp] (.getDividerPositions sp)) splits)]
+      (prefs/set-prefs prefs prefs-window-dimensions dims)
+      (prefs/set-prefs prefs prefs-split-positions div-pos))
     (when (or (not (workspace/version-on-disk-outdated? (project/workspace project)))
-              (and (workspace/version-on-disk-outdated? (project/workspace project))
-                   (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?")))
+              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))
       (Platform/exit))))
 
 (handler/defhandler :new :global
