@@ -1,6 +1,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
+#include <dlib/mutex.h>
 #include <extension/extension.h>
 #include <script/script.h>
 
@@ -8,6 +9,25 @@
 #import <UIKit/UIKit.h>
 
 #include "webview_common.h"
+
+enum CommandType
+{
+    CMD_EVAL_OK,
+    CMD_EVAL_ERROR,
+};
+
+struct Command
+{
+    Command()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+    CommandType m_Type;
+    int         m_WebViewID;
+    int         m_RequestID;
+    void*       m_Data;
+    const char* m_Url;
+};
 
 /*
  * NOTES:
@@ -43,6 +63,8 @@ struct WebView
     dmWebView::WebViewInfo  m_Info[dmWebView::MAX_NUM_WEBVIEWS];
     UIWebView*              m_WebViews[dmWebView::MAX_NUM_WEBVIEWS];
     WebViewDelegate*        m_WebViewDelegates[dmWebView::MAX_NUM_WEBVIEWS];
+    dmMutex::Mutex          m_Mutex;
+    dmArray<Command>        m_CmdQueue;
 };
 
 WebView g_WebView;
@@ -75,6 +97,25 @@ WebView g_WebView;
 }
 
 @end
+
+
+static char* CopyString(NSString* s)
+{
+    const char* osstring = [s UTF8String];
+    char* copy = strdup(osstring);
+    return copy;
+}
+
+static void QueueCommand(Command* cmd)
+{
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    if (g_WebView.m_CmdQueue.Full())
+    {
+        g_WebView.m_CmdQueue.OffsetCapacity(8);
+    }
+    g_WebView.m_CmdQueue.Push(*cmd);
+}
+
 
 namespace dmWebView
 {
@@ -175,17 +216,14 @@ int Platform_Eval(lua_State* L, int webview_id, const char* code)
 
     // Delay this a bit (on the main thread), so that we can return the request_id from this function,
     // before calling the callback
-    dispatch_async(dispatch_get_main_queue(), ^{
-        dmWebView::CallbackInfo cbinfo;
-        cbinfo.m_Info = &g_WebView.m_Info[webview_id];
-        cbinfo.m_WebViewID = webview_id;
-        cbinfo.m_RequestID = request_id;
-        cbinfo.m_Url = 0;
-        cbinfo.m_Type = (res != nil) ? dmWebView::CALLBACK_RESULT_EVAL_OK : dmWebView::CALLBACK_RESULT_EVAL_ERROR;
-        cbinfo.m_Result = (res != nil) ? [res UTF8String] : "Error string unavailable on iOS";
-        RunCallback(&cbinfo);
-        [res release];
-    });
+    Command cmd;
+    cmd.m_Type = (res != nil) ? CMD_EVAL_OK : CMD_EVAL_ERROR;
+    cmd.m_WebViewID = webview_id;
+    cmd.m_RequestID = request_id;
+    cmd.m_Url = 0;
+    cmd.m_Data = (void*) ((res != nil) ? CopyString(res) : "Error string unavailable on iOS");
+    QueueCommand(&cmd);
+
     return request_id;
 }
 
@@ -209,12 +247,16 @@ int Platform_IsVisible(lua_State* L, int webview_id)
 
 dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
 {
-    g_WebView.Clear();
+    g_WebView.Clear();    
+    g_WebView.m_Mutex = dmMutex::New();
+    g_WebView.m_CmdQueue.SetCapacity(8);
+
     return dmExtension::RESULT_OK;
 }
 
 dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
 {
+    dmMutex::Delete(g_WebView.m_Mutex);
     g_WebView.Clear();
     return dmExtension::RESULT_OK;
 }
@@ -250,4 +292,49 @@ dmExtension::Result FinalizeWebView(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, 0, 0, FinalizeWebView)
+
+dmExtension::Result UpdateWebView(dmExtension::Params* params)
+{
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
+    {
+        const Command& cmd = g_WebView.m_CmdQueue[i];
+
+        dmWebView::CallbackInfo cbinfo;
+        switch (cmd.m_Type)
+        {
+        case CMD_EVAL_OK:
+            cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
+            cbinfo.m_WebViewID = cmd.m_WebViewID;
+            cbinfo.m_RequestID = cmd.m_RequestID;
+            cbinfo.m_Url = 0;
+            cbinfo.m_Type = dmWebView::CALLBACK_RESULT_EVAL_OK;
+            cbinfo.m_Result = (const char*)cmd.m_Data;
+            RunCallback(&cbinfo);
+            break;
+
+        case CMD_EVAL_ERROR:
+            cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
+            cbinfo.m_WebViewID = cmd.m_WebViewID;
+            cbinfo.m_RequestID = cmd.m_RequestID;
+            cbinfo.m_Url = 0;
+            cbinfo.m_Type = dmWebView::CALLBACK_RESULT_EVAL_ERROR;
+            cbinfo.m_Result = (const char*)cmd.m_Data;
+            RunCallback(&cbinfo);
+            break;
+
+        default:
+            assert(false);
+        }
+        if (cmd.m_Url) {
+            free((void*)cmd.m_Url);
+        }
+        if (cmd.m_Data) {
+            free(cmd.m_Data);
+        }
+    }
+    g_WebView.m_CmdQueue.SetSize(0);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, UpdateWebView, 0, FinalizeWebView)

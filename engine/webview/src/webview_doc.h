@@ -27,6 +27,8 @@
  *
  * @return (int) The id number of the webview
  *
+ * @note On iOS, the callback will never get a webview.CALLBACK_RESULT_EVAL_ERROR, due to the iOS SDK implementation
+ *
  * @examples
  * <pre>
  * function webview_callback(self, webview_id, request_id, type, data)
