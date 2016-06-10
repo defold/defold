@@ -1101,8 +1101,9 @@
 
 (defn collect-base-property-value
   [self-name ctx-name nodeid-sym description prop-name]
-  (let [property-definition (get-in description [:property prop-name])]
-    (if (not (:value property-definition))
+  (let [property-definition (get-in description [:property prop-name])
+        default?            (not (:value property-definition))]
+    (if default?
       `(gt/get-property ~self-name (:basis ~ctx-name) ~prop-name)
       (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop-name description
                                               (:arguments (:value property-definition))
