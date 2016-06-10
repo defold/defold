@@ -39,6 +39,9 @@ namespace dmSound
         RESULT_DEVICE_NOT_FOUND   = -11,   //!< RESULT_DEVICE_NOT_FOUND
         RESULT_OUT_OF_GROUPS      = -12,   //!< RESULT_OUT_OF_GROUPS
         RESULT_NO_SUCH_GROUP      = -13,   //!< RESULT_NO_SUCH_GROUP
+        RESULT_NOTHING_TO_PLAY    = -14,   //!< RESULT_NOTHING_TO_PLAY
+        RESULT_INIT_ERROR         = -15,   //!< RESULT_INIT_ERROR
+        RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
