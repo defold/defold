@@ -377,3 +377,19 @@
           node-id (test-util/resource-node project "/graphics/sprites.tileset")
           ol (g/node-value node-id :node-outline)]
       (is (some? ol)))))
+
+(deftest copy-paste-particlefx
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/particlefx/fireworks_big.particlefx")]
+      ; Original tree
+      ; Root (particlefx)
+      ; + Drag (modifier)
+      ; + Acceleration (modifier)
+      ; + primary (emitter)
+      ; + secondary (emitter)
+      (is (= 4 (child-count root)))
+      (copy! root [2])
+      (paste! project root)
+      (is (= 5 (child-count root)))
+      (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))

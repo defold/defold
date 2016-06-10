@@ -164,20 +164,25 @@
         box          (doto (HBox.)
                        (.setAlignment (Pos/BASELINE_LEFT)))
         update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values
-                                                                               (map #(get-in % (:path f)) values)))])
+                       (doseq [[^TextInputControl t v] (map (fn [f t]
+                                                              (let [get-fn (or (:get-fn f)
+                                                                               #(get-in % (:path f)))]
+                                                                [t (str (properties/unify-values
+                                                                          (map get-fn values)))]))
                                                             fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
                        (update-field-message text-fields message))]
     (doseq [[t f] (map (fn [f t]
-                         [t (fn [_]
-                              (let [v            (to-double (.getText ^TextField t))
-                                    current-vals (properties/values (property-fn))]
-                                (if v
-                                  (properties/set-values! (property-fn) (mapv #(assoc-in % (:path f) v) current-vals))
-                                  (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                (properties/read-only? (property-fn))))))])
+                         (let [set-fn (or (:set-fn f)
+                                          (fn [e v] (assoc-in e (:path f) v)))]
+                           [t (fn [_]
+                               (let [v            (to-double (.getText ^TextField t))
+                                     current-vals (properties/values (property-fn))]
+                                 (if v
+                                   (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
+                                   (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                 (properties/read-only? (property-fn))))))]))
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
@@ -192,11 +197,15 @@
     [box update-ui-fn]))
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
-  (let [fields [{:label "Value" :path [:points 0 :y]} {:label "Spread" :path [:spread]}]]
+  (let [fields [{:label "Value"
+                 :get-fn (fn [c] (second (first (properties/curve-vals c))))
+                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c)))}
+                {:label "Spread" :path [:spread]}]]
     (create-multi-keyed-textfield! fields property-fn)))
 
 (defmethod create-property-control! Curve [_ _ property-fn]
-  (let [fields [{:path [:points 0 :y]}]]
+  (let [fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
+                 :set-fn (fn [c v] (properties/->curve [[0 v 1 0]]))}]]
     (create-multi-keyed-textfield! fields property-fn)))
 
 (defmethod create-property-control! types/Color [_ _ property-fn]
