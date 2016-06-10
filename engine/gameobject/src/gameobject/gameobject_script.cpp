@@ -395,7 +395,7 @@ namespace dmGameObject
      * @name go.get
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to retrieve (hash|string)
-     * @return the value of the specified property (number|hash|url|vector3|vector4|quaternion|boolean)
+     * @return the value of the specified property (any)
      * @examples
      * <p>Get a property "speed" from a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -475,7 +475,7 @@ namespace dmGameObject
      * @name go.set
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to set (hash|string)
-     * @param value the value to set (number|hash|url|vector3|vector4|quaternion|boolean)
+     * @param value the value to set (any)
      * @examples
      * <p>Set a property "speed" of a script "player", the property must be declared in the player-script:</p>
      * <pre>

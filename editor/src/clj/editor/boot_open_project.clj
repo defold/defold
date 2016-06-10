@@ -20,6 +20,7 @@
             [editor.collection :as collection]
             [editor.atlas :as atlas]
             [editor.platformer :as platformer]
+            [editor.prefs :as prefs]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
             [editor.switcher :as switcher]
@@ -46,7 +47,7 @@
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
-            [javafx.scene.control Button TextArea]))
+            [javafx.scene.control Button TextArea SplitPane]))
 
 (set! *warn-on-reflection* true)
 
@@ -117,6 +118,7 @@
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (Stage.)
         scene      (Scene. root)]
+
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
                   (when (true? new-val)
@@ -126,12 +128,20 @@
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
+
+    (when-let [dims (prefs/get-prefs prefs app-view/prefs-window-dimensions nil)]
+      (.setX stage (:x dims))
+      (.setY stage (:y dims))
+      (.setWidth stage (:width dims))
+      (.setHeight stage (:height dims)))
+
     (ui/show! stage)
 
-    (let [close-handler (ui/event-handler event
-                                          (g/transact
-                                           (g/delete-node project)))]
-      (.setOnCloseRequest stage close-handler))
+    (ui/on-close-request! stage
+                          (fn [_]
+                            (g/transact
+                             (g/delete-node project))))
+
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
@@ -142,6 +152,9 @@
           next-console         (.lookup root "#next-console")
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
+          splits               [(.lookup root "#main-split")
+                                (.lookup root "#center-split")
+                                (.lookup root "#right-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -153,11 +166,19 @@
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]
+
+      (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
+        (doall (map (fn [^SplitPane sp pos]
+                      (when (and sp pos)
+                        (.setDividerPositions sp (into-array Double/TYPE pos))))
+                    splits div-pos)))
+
       (console/setup-console! {:text   console
                                :search search-console
                                :clear  clear-console
                                :next   next-console
                                :prev   prev-console})
+
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
@@ -166,7 +187,9 @@
                          :workspace     (g/node-value project :workspace)
                          :outline-view  outline-view
                          :web-server    web-server
-                         :changes-view  changes-view}]
+                         :changes-view  changes-view
+                         :main-stage    stage
+                         :splits        splits}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
        (concat
