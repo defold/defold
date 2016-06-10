@@ -252,8 +252,8 @@ class FacebookJNI {
                     o = new JSONObject(paramsJson);
                     Iterator iter = o.keys();
                     while (iter.hasNext()) {
-                        String key = (String) iter.next();
-                        String value = (String) o.get(key);
+                        String key = iter.next().toString();
+                        String value = o.get(key).toString();
                         params.putString(key, value);
                     }
                 } catch (Exception e) {

@@ -132,12 +132,26 @@ namespace dmConfigFile
     static void EatSpace(Context* context)
     {
         int c;
+        bool comment = false;
+        bool line_start = true;
         do
         {
             c = GetChar(context);
+            if (line_start && (c == '#' || c == ';'))
+            {
+                comment = true;
+            }
             if (c == '\n')
+            {
                 context->m_Line++;
-        } while (isspace(c));
+                comment = false;
+                line_start = true;
+            }
+            else
+            {
+                line_start = false;
+            }
+        } while (comment || isspace(c));
 
         BufferUngetChar(c, context);
     }
@@ -483,7 +497,7 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
-        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0);
         if (client == 0x0)
         {
             return RESULT_FILE_NOT_FOUND;
@@ -527,7 +541,7 @@ namespace dmConfigFile
         if (r != dmURI::RESULT_OK)
             return RESULT_INVALID_URI;
 
-        if (strcmp(uri_parts.m_Scheme, "http") == 0)
+        if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
         {
             return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
         }
