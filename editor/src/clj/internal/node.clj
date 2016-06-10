@@ -352,7 +352,7 @@
     result))
 
 (defn make-evaluation-context
-  [cache basis ignore-errors skip-validation caching?]
+  [cache basis ignore-errors skip-validation caching? in-transaction?]
   {:local           (atom {})
    :cache           (when caching? cache)
    :snapshot        (if caching? (c/cache-snapshot cache) {})
@@ -361,7 +361,8 @@
    :in-production   #{}
    :ignore-errors   ignore-errors
    :skip-validation skip-validation
-   :caching?        caching?})
+   :caching?        caching?
+   :in-transaction? in-transaction?})
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -371,7 +372,7 @@
   maybe cache the value that was produced, and return it."
   [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation in-transaction?] :or {ignore-errors 0} :as options}]
   (let [caching?           (and (not (:no-cache options)) cache)
-        evaluation-context (make-evaluation-context cache basis ignore-errors skip-validation caching?)]
+        evaluation-context (make-evaluation-context cache basis ignore-errors skip-validation caching? in-transaction?)]
     (node-value* node-or-node-id label evaluation-context)))
 
 (def ^:dynamic *suppress-schema-warnings* false)
