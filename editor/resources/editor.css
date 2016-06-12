@@ -137,6 +137,10 @@ Defold Orange       #fd6623             Guides etc
   -fx-text-fill: #f0f2f6;
   -fx-background-insets: 1; }
 
+.toggle-button:selected {
+  -fx-background-color: -defold-green;
+}
+
 #topbar {
   -fx-background-color: linear-gradient(to bottom, #33393f, #272b30);
   -fx-padding: 1em; }
@@ -295,6 +299,14 @@ Defold Orange       #fd6623             Guides etc
 .button-large {
   -fx-padding: 10px 25px;
   -fx-min-width: 200px; }
+
+.embedded-properties-button,
+.embedded-properties-button:selected,
+.embedded-properties-button:armed {
+  -fx-border-radius: 0;
+  -fx-padding: 5px 3px;
+  -fx-background-insets: 0;
+}
 
 .clear-button {
   -fx-background-radius: 0;
