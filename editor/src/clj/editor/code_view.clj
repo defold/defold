@@ -374,7 +374,6 @@
          :line line}))))
 
 (defn make-view [graph ^Parent parent code-node opts]
-  (println :code-node code-node)
   (let [source-viewer (setup-source-viewer opts true)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
