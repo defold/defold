@@ -98,24 +98,6 @@
      ns-elements
      namespaces)))
 
-(def ^:private the-documentation (atom nil))
-
-(defn- documentation []
-  (when (nil? @the-documentation)
-    (reset! the-documentation (load-documentation)))
-  @the-documentation)
-
-(defn filter-elements [elements prefix]
-  (filter #(.startsWith (str/lower-case (.getName ^ScriptDoc$Element %)) prefix) elements))
-
-(defn get-documentation [{:keys [namespace function]}]
-  (let [namespace (str/lower-case namespace)
-        function (str/lower-case function)
-        qualified (if (str/blank? namespace) function (format "%s.%s" namespace function))
-        elements (filter-elements (get (documentation) namespace) qualified)
-        sorted-elements (sort #(compare (str/lower-case (.getName ^ScriptDoc$Element %1)) (str/lower-case (.getName ^ScriptDoc$Element %2))) elements)]
-    (into-array ScriptDoc$Element sorted-elements)))
-
 (defn- element-additional-info [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (str/join
