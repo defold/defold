@@ -87,14 +87,14 @@ static void RunCallback(lua_State*L, NSError* error)
     }
 }
 
-@interface WebViewDelegate : UIViewController <UIWebViewDelegate>
+@interface AdTruthWebViewDelegate : UIViewController <UIWebViewDelegate>
 {
     UIWebView *m_WebView;
 }
 @end
 
 
-@implementation WebViewDelegate
+@implementation AdTruthWebViewDelegate
 
 - (void)webViewDidFinishLoad:(UIWebView *)webView
 {
@@ -116,7 +116,7 @@ static void Init()
     if (at->m_WebView == 0) {
         UIWebView* view = [[UIWebView alloc] initWithFrame:CGRectZero];
         view.suppressesIncrementalRendering = YES;
-        WebViewDelegate* delegate = [WebViewDelegate alloc];
+        AdTruthWebViewDelegate* delegate = [AdTruthWebViewDelegate alloc];
         view.delegate = delegate;
         at->m_WebView = view;
         at->m_WebViewDelegate = delegate;
