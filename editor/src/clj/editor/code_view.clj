@@ -370,8 +370,8 @@
             line (.get document line-offset (- offset line-offset))
             code-node-id (-> this (.getTextWidget) (code-node))
             completions (g/node-value code-node-id :completions)]
-        (println (assist-fn completions (cvx/text this) offset line))
-        (assist-fn completions (cvx/text this) offset line)))))
+        {:proposals (assist-fn completions (cvx/text this) offset line)
+         :line line}))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (println :code-node code-node)
