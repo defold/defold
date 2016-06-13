@@ -57,9 +57,9 @@
     {:vars parsed-names :requires require-info}))
 
 (defmethod xform-node :function [k node]
-  (let [[_ _ [_ funcname] funcbody] node
+  (let [[_ _ funcname funcbody] node
         [_ _  [_  namelist]] funcbody]
-    {:functions {funcname {:params (parse-namelist namelist)}}}))
+    {:functions {(apply str (rest funcname)) {:params (parse-namelist namelist)}}}))
 
 (defmethod xform-node :functioncall [k node]
   (let [zexpr (zip/seq-zip node)]

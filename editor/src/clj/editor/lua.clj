@@ -204,8 +204,19 @@
    {}
    (load-documentation)))
 
+
+(defn filter-proposals [completions ^String text offset ^String line]
+  (try
+    (let
+        [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
+         items (if namespace (get completions (str/lower-case namespace)) (get completions ""))
+         pattern (re-pattern (str/lower-case function))]
+      (filter (fn [i] (re-find pattern (:name i))) items))
+    (catch Exception e
+      (.printStackTrace e))))
+
 (defn compute-proposals [^String text offset ^String line]
-  (try 
+  (try
     (when-let [parse-result (or (parse-line line) (default-parse-result))]
       (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
     (catch Exception e
@@ -310,5 +321,5 @@
               {:type :default :class "default"}
               ]}
             ]}
-          :assist compute-proposals
+          :assist filter-proposals
           })

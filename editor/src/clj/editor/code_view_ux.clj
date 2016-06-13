@@ -791,14 +791,16 @@
       (replace-text-and-caret selection np 0 key-typed (inc np)))))
 
 (defn show-proposals [selection]
-  (let [proposals (propose selection)
-        screen-position (screen-position selection)
-        offset (caret selection)
-        result (promise)
-        ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
-        replace-text-fn (fn [] (when (and (realized? result) @result)
-                                (replace! selection offset 0 (:replacement (first @result)))))]
-    (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))
+  (let [proposals (propose selection)]
+    (println :proposals (count proposals))
+    (when (pos? (count proposals))
+     (let [screen-position (screen-position selection)
+           offset (caret selection)
+           result (promise)
+           ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
+           replace-text-fn (fn [] (when (and (realized? result) @result)
+                                   (replace! selection offset 0 (:display-string (first @result)))))]
+       (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))))
 
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))

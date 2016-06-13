@@ -2,6 +2,7 @@
   (:require [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -118,14 +119,18 @@
                                mod-node (project/get-resource-node (project/get-project _node-id) path)]
                            (g/node-value mod-node :build-targets))) modules)}])
 
+
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
+
+  (input module-completions g/Any :array)
 
   (property code g/Str (dynamic visible (g/always false)))
   (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
   (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
 
+  ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
   (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))
   (output user-properties g/Properties :cached produce-user-properties)
@@ -138,9 +143,12 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
 
+  (output defold-completions g/Any :cached (g/fnk [] (lua/defold-documentation)))
   (output completion-info g/Any :cached (g/fnk [code resource]
                                                (assoc (lua-parser/lua-info code)
-                                                      :namespace (first (string/split (resource/resource-name resource) #"\."))))))
+                                                      :namespace (first (string/split (resource/resource-name resource) #"\.")))))
+  (output completions g/Any :cached (g/fnk [_node-id defold-completions completion-info]
+                                           (code-completion/combine-completions _node-id defold-completions completion-info))))
 
 (defn load-script [project self resource]
   (g/set-property self :code (slurp resource)))
