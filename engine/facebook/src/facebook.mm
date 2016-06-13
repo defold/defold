@@ -725,10 +725,19 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
     AppendArray(L, permissions, 1);
 
-    [g_Facebook.m_Login setDefaultAudience: audience];
-    [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
-    }];
+    @try {
+        [g_Facebook.m_Login setDefaultAudience: audience];
+        [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            RunCallback(main_thread, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
+        dmLogFatal("%s", [errorMessage UTF8String]);
+
+        NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+    }
 
     assert(top == lua_gettop(L));
     return 0;
