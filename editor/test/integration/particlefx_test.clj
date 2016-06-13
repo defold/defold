@@ -34,7 +34,7 @@
                    node-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
                    outline (g/node-value node-id :node-outline)]
                (is (= 4 (count (:children outline))))
-               (let [mod-drag (get-in outline [:children 2 :node-id])
+               (let [mod-drag (get-in outline [:children 1 :node-id])
                      props (:properties (g/node-value mod-drag :_properties))]
                  (doseq [key [:magnitude :max-distance]]
                    (is (not= nil (get-in props [key :value])))))))))

@@ -1,5 +1,6 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.colors :as colors]
@@ -26,6 +27,7 @@
             [editor.types :as types])
   (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
+            Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType]
            [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -113,14 +115,21 @@
 (def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
 (def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
+(def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
+                           :modifier-type-drag [:modifier-key-magnitude]
+                           :modifier-type-radial [:modifier-key-magnitude :modifier-key-max-distance]
+                           :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
+
 (g/defnk produce-modifier-pb
   [position ^Quat4d rotation-q4 type magnitude max-distance]
-  (let [properties (mapv (fn [[key p]]
-                           {:key key
-                            :points (:points p)
-                            :spread (:spread p)})
-                         {:modifier-key-magnitude magnitude
-                          :modifier-key-max-distance max-distance})]
+  (let [values {:modifier-key-magnitude magnitude
+                :modifier-key-max-distance max-distance}
+        properties (->> (mod-type->properties type)
+                     (map (fn [key] [key (get values key)]))
+                     (mapv (fn [[key p]]
+                               {:key key
+                                :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals p))
+                                :spread (:spread p)})))]
     {:position position
      :rotation (math/vecmath->clj rotation-q4)
      :type type
@@ -397,14 +406,19 @@
             (map (fn [kw] [kw (get-property properties kw)])
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
                   :inherit-velocity :max-particle-count :type :start-delay])
-            [[:properties (mapv (fn [kw] (let [v (get-in properties [kw :value])]
-                                           (assoc v :key kw)))
-                                (filter (fn [kw] (.startsWith (name kw) "emitter-key"))
-                                        (keys (g/declared-properties EmitterProperties))))]
-             [:particle-properties (mapv (fn [kw] (let [v (get-in properties [kw :value])]
-                                                    (assoc v :key kw)))
-                                         (filter (fn [kw] (.startsWith (name kw) "particle-key"))
-                                                 (keys (g/declared-properties ParticleProperties))))]]))))
+            [[:properties (->> (protobuf/enum-values Particle$EmitterKey)
+                            butlast
+                            (map first)
+                            (mapv (fn [kw] (let [v (get-in properties [kw :value])]
+                                            {:key kw
+                                             :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))
+                                             :spread (:spread v)}))))]
+             [:particle-properties (->> (protobuf/enum-values Particle$ParticleKey)
+                                     butlast
+                                     (map first)
+                                     (mapv (fn [kw] (let [v (get-in properties [kw :value])]
+                                                     {:key kw
+                                                      :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))}))))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat
@@ -603,9 +617,13 @@
                [:node-outline :child-outlines]
                [:scene :child-scenes]
                [:pb-msg :emitter-msgs]
-               [:emitter-sim-data :emitter-sim-data]]]
+               [:emitter-sim-data :emitter-sim-data]
+               [:id :ids]]]
     (for [[from to] conns]
       (g/connect emitter-id from self-id to))))
+
+(defn- label-sort-by-fn [v]
+  [(not (g/node-instance? ModifierNode (:node-id v))) (str/lower-case (:label v))])
 
 (g/defnode ParticleFXNode
   (inherits project/ResourceNode)
@@ -615,6 +633,7 @@
   (input modifier-msgs g/Any :array)
   (input child-scenes g/Any :array)
   (input emitter-sim-data g/Any :array)
+  (input ids g/Str :array)
 
   (output save-data g/Any :cached produce-save-data)
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
@@ -627,9 +646,12 @@
                                                      {:node-id _node-id
                                                       :label "ParticleFX"
                                                       :icon particle-fx-icon
-                                                      :children child-outlines
+                                                      :children (vec (sort-by label-sort-by-fn child-outlines))
                                                       :child-reqs [{:node-type EmitterNode
-                                                                    :tx-attach-fn attach-emitter}
+                                                                    :tx-attach-fn (fn [self-id child-id]
+                                                                                    (concat
+                                                                                      (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                                                                      (attach-emitter self-id child-id)))}
                                                                    {:node-type ModifierNode
                                                                     :tx-attach-fn (fn [self-id child-id]
                                                                                     (attach-modifier self-id self-id child-id))}]}))
@@ -663,10 +685,10 @@
                                                        (:properties modifier)))]
                       (concat
                         (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
-                                                              (props/map->CurveSpread (:modifier-key-magnitude mod-properties))
+                                                              (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
                                                               props/default-curve-spread))
                         (g/set-property mod-node :max-distance (if-let [prop (:modifier-key-max-distance mod-properties)]
-                                                                 (props/map->Curve (:modifier-key-max-distance mod-properties))
+                                                                 (props/->curve (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)))
                                                                  props/default-curve))))
                     (attach-modifier self parent-id mod-node)
                     (if select?
@@ -725,12 +747,18 @@
                                    :type (:type emitter) :start-delay (:start-delay emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (keys (g/declared-properties EmitterProperties))
-                            :when (contains? emitter-properties key)]
-                        (g/set-property emitter-node key (props/map->CurveSpread (get emitter-properties key)))))
+                            :when (contains? emitter-properties key)
+                            :let [p (get emitter-properties key)
+                                  curve (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %]
+                                                                      [x y t-x t-y]) (:points p)) (:spread p))]]
+                        (g/set-property emitter-node key curve)))
                     (let [particle-properties (into {} (map #(do [(:key %) (select-keys % [:points])]) (:particle-properties emitter)))]
                       (for [key (keys (g/declared-properties ParticleProperties))
-                            :when (contains? particle-properties key)]
-                        (g/set-property emitter-node key (props/map->Curve (get particle-properties key)))))
+                            :when (contains? particle-properties key)
+                            :let [p (get particle-properties key)
+                                  curve (props/->curve (map #(let [{:keys [x y t-x t-y]} %]
+                                                               [x y t-x t-y]) (:points p)))]]
+                        (g/set-property emitter-node key curve)))
                     (attach-emitter self emitter-node)
                     (for [modifier (:modifiers emitter)]
                       (make-modifier self emitter-node modifier))

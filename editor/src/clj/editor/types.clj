@@ -207,3 +207,10 @@
      :node-ref (s/maybe Long)
      :commands [(s/maybe (:schema @OutlineCommand))]
      :children [(s/maybe s/Any)]})
+
+(defprotocol GeomCloud
+  (geom-aabbs [this ids])
+  (geom-insert [this positions])
+  (geom-delete [this ids])
+  (geom-update [this ids f])
+  (geom-transform [this ids ^Matrix4d transform]))

@@ -7,6 +7,10 @@ namespace dmSound
 
     Result PlatformFinalize();
 
+    bool PlatformAcquireAudioFocus();
+
+    bool PlatformReleaseAudioFocus();
+
     bool PlatformIsMusicPlaying();
 }
 

@@ -43,6 +43,15 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    bool PlatformAcquireAudioFocus() {
+        return true;
+    }
+
+    bool PlatformReleaseAudioFocus()
+    {
+        return true;
+    }
+
     bool PlatformIsMusicPlaying()
     {
         UInt32 other_playing;
