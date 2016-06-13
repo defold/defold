@@ -5,6 +5,7 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.defold-project :as project]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
            [javafx.scene Parent]
@@ -366,10 +367,14 @@
             offset (cvx/caret this)
             line-no (.getLineOfOffset document offset)
             line-offset (.getLineOffset document line-no)
-            line (.get document line-offset (- offset line-offset))]
-        (assist-fn (cvx/text this) offset line)))))
+            line (.get document line-offset (- offset line-offset))
+            code-node-id (-> this (.getTextWidget) (code-node))
+            completions (g/node-value code-node-id :completions)]
+        (println (assist-fn completions (cvx/text this) offset line))
+        (assist-fn completions (cvx/text this) offset line)))))
 
 (defn make-view [graph ^Parent parent code-node opts]
+  (println :code-node code-node)
   (let [source-viewer (setup-source-viewer opts true)
         view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
