@@ -11,7 +11,8 @@
             [editor.types :as types]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.id-vec :as iv])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
@@ -24,7 +25,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos Point2D]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField TextInputControl Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
@@ -165,40 +166,85 @@
         box          (doto (HBox.)
                        (.setAlignment (Pos/BASELINE_LEFT)))
         update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map (fn [f t] [t (str (properties/unify-values
-                                                                               (map #(get-in % (:path f)) values)))])
+                       (doseq [[^TextInputControl t v] (map (fn [f t]
+                                                              (let [get-fn (or (:get-fn f)
+                                                                               #(get-in % (:path f)))]
+                                                                [t (str (properties/unify-values
+                                                                          (map get-fn values)))]))
                                                             fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
                        (update-field-message text-fields message))]
     (doseq [[t f] (map (fn [f t]
-                         [t (fn [_]
-                              (let [v            (to-double (.getText ^TextField t))
-                                    current-vals (properties/values (property-fn))]
-                                (if v
-                                  (properties/set-values! (property-fn) (mapv #(assoc-in % (:path f) v) current-vals))
-                                  (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                (properties/read-only? (property-fn))))))])
+                         (let [set-fn (or (:set-fn f)
+                                          (fn [e v] (assoc-in e (:path f) v)))]
+                           [t (fn [_]
+                               (let [v            (to-double (.getText ^TextField t))
+                                     current-vals (properties/values (property-fn))]
+                                 (if v
+                                   (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
+                                   (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                 (properties/read-only? (property-fn))))))]))
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
     (doseq [[t f] (map vector text-fields fields)
-            :let  [children (if (:label f)
-                              [(Label. (:label f)) t]
-                              [t])]]
+            :let  [children (cond-> []
+                              (:label f) (conj (Label. (:label f)))
+                              (:control f) (conj (:control f))
+                              true (conj t))]]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (-> (.getChildren box)
         (.add (create-property-component children))))
     [box update-ui-fn]))
 
+(def ^:private ^:dynamic *programmatic-setting* nil)
+
+(defn- make-curve-toggler ^ToggleButton [property-fn]
+  (let [^ToggleButton toggle-button (doto (ToggleButton. nil (jfx/get-image-view "icons/32/Icons_X_03_Bezier.png" 12.0))
+                                    (ui/add-styles! ["embedded-properties-button"]))]
+    (doto toggle-button
+      (ui/on-action! (fn [_]
+                       (let [selected (.isSelected toggle-button)
+                             vals (mapv (fn [curve] (let [v (-> curve
+                                                              properties/curve-vals
+                                                              first)]
+                                                      (assoc curve :points (iv/iv-vec (cond-> [v]
+                                                                                        selected
+                                                                                        (conj (assoc v 0 1.0)))))))
+                                        (properties/values (property-fn)))]
+                         (properties/set-values! (property-fn) vals)))))))
+
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
-  (let [fields [{:label "Value" :path [:points 0 :y]} {:label "Spread" :path [:spread]}]]
-    (create-multi-keyed-textfield! fields property-fn)))
+  (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
+        fields [{:label "Value"
+                 :get-fn (fn [c] (second (first (properties/curve-vals c))))
+                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c)))
+                 :control toggle-button}
+                {:label "Spread" :path [:spread]}]
+        [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
+        ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
+        update-ui-fn (fn [values message read-only?]
+                       (update-ui-fn values message read-only?)
+                       (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
+                         (.setSelected toggle-button curved?)
+                         (ui/disable! text-field curved?)))]
+    [box update-ui-fn]))
 
 (defmethod create-property-control! Curve [_ _ property-fn]
-  (let [fields [{:path [:points 0 :y]}]]
-    (create-multi-keyed-textfield! fields property-fn)))
+  (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
+        fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
+                 :set-fn (fn [c v] (properties/->curve [[0 v 1 0]]))
+                 :control toggle-button}]
+        [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
+          ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
+          update-ui-fn (fn [values message read-only?]
+                         (update-ui-fn values message read-only?)
+                         (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
+                           (.setSelected toggle-button curved?)
+                           (ui/disable! text-field curved?)))]
+    [box update-ui-fn]))
 
 (defmethod create-property-control! types/Color [_ _ property-fn]
  (let [color-picker (ColorPicker.)
@@ -214,8 +260,6 @@
                                              v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                          (properties/set-values! (property-fn) (repeat v)))))
    [color-picker update-ui-fn]))
-
-(def ^:private ^:dynamic *programmatic-setting* nil)
 
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
   (let [options (:options edit-type)
