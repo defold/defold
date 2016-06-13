@@ -37,7 +37,8 @@ namespace dmGraphics
 
     struct VertexDeclaration
     {
-        VertexElement m_Elements[MAX_VERTEX_STREAM_COUNT];
+        uint32_t        m_Count;
+        VertexElement   m_Elements[MAX_VERTEX_STREAM_COUNT];
     };
 
     struct VertexBuffer
