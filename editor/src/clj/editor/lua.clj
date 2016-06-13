@@ -150,51 +150,6 @@
                   ")"])))]
     (str/join [base rest])))
 
-(defn doc-element-to-hint [{:keys [in-function namespace function start end]} offset element]
-  (let [display-string (element-display-string element)
-        additional-info (element-additional-info element)
-        image "icons/32/Icons_29-AT-Unkown.png"
-        complete-length (+ (count namespace) (count function) 1)
-        cursor-position (- (count display-string) complete-length)]
-    (if in-function
-      {:replacement ""
-       :offset offset
-       :length 0
-       :position 0
-       :image image
-       :display-string display-string
-       :additional-info additional-info}
-      ;; logic for replacement offsets etc as lifted from old editor was borked so below is also broken and just for testing
-      ;; probably need prefix length info etc from saner parsing
-      (if (str/blank? namespace)
-        (let [match-length (- end start) 
-              replacement-offset offset
-              replacement-length 0
-              replacement-string (subs display-string match-length)
-              new-cursor-position (+ cursor-position 1)]
-          {:replacement replacement-string
-           :offset replacement-offset
-           :length replacement-length
-           :position new-cursor-position
-           :image image
-           :display-string display-string
-           :additional-info additional-info})
-        (let [match-length (- end start)
-              replacement-offset offset
-              replacement-length 0
-              replacement-string (subs display-string (+ (count namespace) 1))
-              new-cursor-position (+ cursor-position (count function))]
-          {:replacement replacement-string
-           :offset replacement-offset
-           :length replacement-length
-           :position new-cursor-position
-           :image image
-           :display-string display-string
-           :additional-info additional-info})))))
-
-(defn- doc-elements-to-hints [elements parse-result offset]
-  (map (partial doc-element-to-hint parse-result offset) elements))
-
 (defn defold-documentation []
   (reduce
    (fn [result [ns elements]]
@@ -215,12 +170,6 @@
     (catch Exception e
       (.printStackTrace e))))
 
-(defn compute-proposals [^String text offset ^String line]
-  (try
-    (when-let [parse-result (or (parse-line line) (default-parse-result))]
-      (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
-    (catch Exception e
-      (.printStackTrace e))))
 
 (def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
                 "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
