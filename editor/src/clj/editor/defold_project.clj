@@ -498,9 +498,9 @@
 
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
+  (property sub-selection g/Any)
 
   (input selected-node-ids g/Any :array)
-  (input selected-nodes g/Any :array)
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-types g/Any)
@@ -510,8 +510,10 @@
   (input display-profiles g/Any)
 
   (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
-  (output selected-nodes g/Any :cached (g/fnk [selected-nodes] selected-nodes))
   (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
+  (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
+                                             (let [nids (set selected-node-ids)]
+                                               (filterv (comp nids first) sub-selection))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (g/fnk [settings] settings))
@@ -608,27 +610,34 @@
       (concat
         (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
           (g/disconnect node-id label project-id :selected-node-ids))
-        (for [[node-id label] (g/sources-of project-id :selected-nodes)]
-          (g/disconnect node-id label project-id :selected-nodes))
         (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
           (g/disconnect node-id label project-id :selected-node-properties))
         (for [node-id node-ids]
           (concat
             (g/connect node-id :_node-id    project-id :selected-node-ids)
-            (g/connect node-id :_node-id         project-id :selected-nodes)
             (g/connect node-id :_properties project-id :selected-node-properties))))))
 
 (defn select!
   ([project node-ids]
     (select! project node-ids (gensym)))
   ([project node-ids op-seq]
-    (let [old-nodes (g/node-value project :selected-nodes)]
+    (let [old-nodes (g/node-value project :selected-node-ids)]
       (when (not= node-ids old-nodes)
         (g/transact
           (concat
             (g/operation-sequence op-seq)
             (g/operation-label "Select")
             (select project node-ids)))))))
+
+(defn sub-select!
+  ([project sub-selection]
+    (sub-select! project sub-selection (gensym)))
+  ([project sub-selection op-seq]
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Select")
+        (g/set-property project :sub-selection sub-selection)))))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener

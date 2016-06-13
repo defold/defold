@@ -111,7 +111,7 @@ namespace dmRender
      * over them with pairs() or ipairs().
      * 
      * @name render.constant_buffer
-     * @return new constant buffer
+     * @return new constant buffer (constant_buffer)
      * @examples
      * <p>Set a "tint" constant in a constant buffer in the render script:</p>
      * <pre>
@@ -409,6 +409,11 @@ namespace dmRender
      * @param y bottom corner (number)
      * @param width viewport width (number)
      * @param height viewport height (number)
+     * @examples
+     * <pre>
+     * -- Set the viewport to the window dimensions.
+     * render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+     * </pre>
      */
     int RenderScript_SetViewport(lua_State* L)
     {
@@ -499,7 +504,8 @@ namespace dmRender
      */
 
     /*# creates a new render target
-     *
+     * Creates a new render target according to the supplied
+     * specification table.
      * Available keys for the render target parameters table:
      * <table>
      *   <th>Keys</th><th>Values</th>
@@ -541,6 +547,23 @@ namespace dmRender
      * @param name render target name (string)
      * @param parameters table of all parameters, see the description for available keys and values (table)
      * @return new render target (render_target)
+     * @examples
+     * <pre>
+     * -- Set up render target
+     * local color_params = { format = render.FORMAT_RGBA,
+     *                        width = render.get_window_width(),
+     *                        height = render.get_window_height(),
+     *                        min_filter = render.FILTER_LINEAR,
+     *                        mag_filter = render.FILTER_LINEAR,
+     *                        u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                        v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     * local depth_params = { format = render.FORMAT_DEPTH,
+     *                        width = render.get_window_width(),
+     *                        height = render.get_window_height(),
+     *                        u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                        v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     * self.my_render_target = render.render_target("my_target", {[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
+     * </pre>
      */
     int RenderScript_RenderTarget(lua_State* L)
     {
@@ -738,6 +761,10 @@ namespace dmRender
      * @param unit texture unit to enable texture for (number)
      * @param render_target render target from which to enable the specified texture unit (render_target)
      * @param buffer_type buffer type from which to enable the texture (constant)
+     * @examples
+     * <pre>
+     * render.enable_texture(0, self.my_render_target, render.BUFFER_COLOR_BIT)
+     * </pre>
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
@@ -784,8 +811,9 @@ namespace dmRender
     /*# retrieve a buffer width from a render target
      *
      * @name render.get_render_target_width
-     * @param render_target render target from which to retrieve the buffer width
-     * @param buffer_type which type of buffer to retrieve the width from
+     * @param render_target render target from which to retrieve the buffer width (render_target)
+     * @param buffer_type which type of buffer to retrieve the width from (constant)
+     * @return the width of the render target buffer texture (number)
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
     {
@@ -825,8 +853,9 @@ namespace dmRender
     /*# retrieve a buffer height from a render target
      *
      * @name render.get_render_target_height
-     * @param render_target render target from which to retrieve the buffer height
-     * @param buffer_type which type of buffer to retrieve the height from
+     * @param render_target render target from which to retrieve the buffer height (render_target)
+     * @param buffer_type which type of buffer to retrieve the height from (constant)
+     * @return the height of the render target buffer texture (number)
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
     {
@@ -882,7 +911,8 @@ namespace dmRender
      * Clear buffers in the currently enabled render target with specified value.
      *
      * @name render.clear
-     * @param buffers Table with keys specifying which buffers to clear and values set to clear values. Available keys are:
+     * @param buffers Table with keys specifying which buffers to clear and values set to clear values. (table)
+     * Available keys are:
      * <ul>
      *     <li><code>render.BUFFER_COLOR_BIT</code></li>
      *     <li><code>render.BUFFER_DEPTH_BIT</code></li>
@@ -955,7 +985,7 @@ namespace dmRender
      * 
      * @name render.draw
      * @param predicate predicate to draw for (predicate)
-     * @param constants optional constants to use while rendering (constants buffer)
+     * @param constants optional constants to use while rendering (constants_buffer)
      * @examples
      * <pre>
      * function init(self)
@@ -993,7 +1023,7 @@ namespace dmRender
     }
 
     /*# draws all 3d debug graphics
-     *
+     * Draws all 3d debug graphics such as lines drawn with "draw_line" messages and physics visualization.
      * @name render.draw_debug3d
      */
     int RenderScript_DrawDebug3d(lua_State* L)
@@ -1008,6 +1038,7 @@ namespace dmRender
     /*# draws all 2d debug graphics (Deprecated)
      *
      * @name render.draw_debug2d
+     * @deprecated Use render.draw_debug3d() to draw visual debug info.
      */
     int RenderScript_DrawDebug2d(lua_State* L)
     {
@@ -1019,9 +1050,33 @@ namespace dmRender
     }
 
     /*# sets the view matrix
-     *
+     * Sets the view matrix to use when rendering.
      * @name render.set_view
      * @param matrix view matrix to set (matrix4)
+     * @examples
+     * <pre>
+     * function init(self)
+     *   ...
+     *   self.view = vmath.matrix4()
+     *   self.projection = vmath.matrix4()
+     *   ...
+     * end
+     * 
+     * function update(self)
+     *   ...
+     *   -- Set the view to the stored view value
+     *   render.set_view(self.view)
+     *   ..
+     * end
+     *
+     * function on_message(self, message_id, message)
+     *   if message_id == hash("set_view_projection") then
+     *      -- Camera view and projection arrives here.
+     *      self.view = message.view
+     *      self.projection = message.projection
+     *   end
+     * end
+     * </pre>
      */
     int RenderScript_SetView(lua_State* L)
     {
@@ -1037,9 +1092,15 @@ namespace dmRender
     }
 
     /*# sets the projection matrix
+     * Sets the projection matrix to use when rendering.
      *
      * @name render.set_projection
      * @param matrix projection matrix (matrix4)
+     * @examples
+     * <pre>
+     * -- Set the projection to orthographic with world origo at lower left.
+     * render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1, 1))
+     * </pre>
      */
     int RenderScript_SetProjection(lua_State* L)
     {
@@ -1150,8 +1211,12 @@ namespace dmRender
      * </ul>
      *
      * @name render.set_blend_func
-     * @param source_factor source factor
-     * @param destination_factor destination factor
+     * @param source_factor source factor (constant)
+     * @param destination_factor destination factor (constant)
+     * @examples
+     * <pre>
+     * render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+     * </pre>
      */
     int RenderScript_SetBlendFunc(lua_State* L)
     {
@@ -1671,7 +1736,7 @@ namespace dmRender
     }
 
     /*# disables the currently enabled material
-     *
+     * If a material is currently enabled, disable it.
      * @name render.disable_material
      */
     int RenderScript_DisableMaterial(lua_State* L)
