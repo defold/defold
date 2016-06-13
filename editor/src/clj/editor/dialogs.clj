@@ -544,9 +544,11 @@
                                            (= code (KeyCode/SHIFT)) true
 
                                            (= code (KeyCode/BACK_SPACE))
-                                           (do
-                                             (swap! filter-text #(apply str (drop-last %)))
-                                             (update-items))
+                                           (if (empty? @filter-text)
+                                             (close nil)
+                                             (do
+                                               (swap! filter-text #(apply str (drop-last %)))
+                                               (update-items)))
 
                                            (or (.isLetterKey code) (.isDigitKey code) (= code (KeyCode/MINUS)) (= code (KeyCode/MINUS)))
                                            (do

@@ -1,5 +1,6 @@
 (ns editor.code-completion
   (:require [clojure.string :as string]
+            [editor.defold-project :as project]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.resource :as resource]
@@ -20,15 +21,24 @@
     (vec (concat vars fns))))
 
 
-(defn combine-completions [defold-docs resource-completions]
- (let [base (-> {:script [] :shader []}
-                (assoc :script defold-docs))
-       rcompletions (zipmap (map :namespace resource-completions)
-                         (map make-completions resource-completions))]
-       (update-in base [:script] merge rcompletions)))
+(defn find-node-for-module [node-id module-name]
+  (let [project-node (project/get-project node-id)
+        resource-node-pairs (g/node-value project-node :nodes-by-resource-path)
+        results (filter #(re-find (re-pattern module-name) (first %)) resource-node-pairs)]
+    (when (= 1 (count results))
+      (let [[_ result-node-id] (first results)]
+        (when  (= "editor.script/ScriptNode" (-> result-node-id (g/node-by-id) (g/node-type) :name))
+          result-node-id)))))
 
-(g/defnode CodeCompletionNode
-  (input resource-completions g/Any :array)
-  (output defold-docs g/Any :cached (g/fnk [] (lua/defold-documentation)))
-  (output completions g/Any :cached (g/fnk [defold-docs resource-completions]
-                                           (combine-completions defold-docs resource-completions))))
+
+(defn gather-requires [node-id ralias rname]
+  (let [rnode (find-node-for-module node-id rname)
+        rcompletion-info (g/node-value rnode :completion-info)]
+    {ralias (make-completions rcompletion-info)}))
+
+
+(defn combine-completions [_node-id defold-docs completion-info]
+ (let [base (merge defold-docs {"" (make-completions completion-info)})
+       require-info (or (:requires completion-info) {})
+       require-completions (apply merge (map (fn [[ralias rname]] (gather-requires _node-id ralias rname)) require-info))]
+   (merge base require-completions)))

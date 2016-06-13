@@ -49,6 +49,9 @@
   (testing "global function with no params"
     (let [code "function oadd() return num1 end"]
       (is (= {"oadd" {:params []}} (:functions (lua-info code))))))
+  (testing "global function with namespace"
+    (let [code "function foo.oadd() return num1 end"]
+      (is (= {"foo.oadd" {:params []}} (:functions (lua-info code))))))
   (testing "global function with params"
     (let [code "function oadd(num1, num2) return num1 end"]
       (is (= {"oadd" {:params ["num1" "num2"]}} (:functions (lua-info code))))))
