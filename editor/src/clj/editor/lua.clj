@@ -148,7 +148,7 @@
     (let
         [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
          items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
-         pattern (re-pattern (string/lower-case function))]
+         pattern (re-pattern (string/lower-case (if function function namespace)))]
       (filter (fn [i] (re-find pattern (:name i))) items))
     (catch Exception e
       (.printStackTrace e))))
