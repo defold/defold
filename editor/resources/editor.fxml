@@ -146,7 +146,7 @@
                                           </AnchorPane>
                                       </content>
                                   </Tab>
-                                  <Tab text="Curve Editor">
+                                  <Tab id="curve-editor-tab" text="Curve Editor">
                                     <content>
                                       <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0" />
                                     </content>

@@ -132,7 +132,7 @@
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu))))
 
-(defn- make-current ^GLContext [^GLAutoDrawable drawable]
+(defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
     (let [result (.makeCurrent context)]
       (if (= result GLContext/CONTEXT_NOT_CURRENT)
@@ -141,7 +141,7 @@
           nil)
         context))))
 
-(defn- make-drawable ^GLOffscreenAutoDrawable [w h]
+(defn make-drawable ^GLOffscreenAutoDrawable [w h]
   (let [profile (GLProfile/getDefault)
         factory (GLDrawableFactory/getFactory profile)
         caps    (doto (GLCapabilities. profile)
@@ -151,7 +151,7 @@
                   (.setStencilBits 8))]
     ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
 
-(defn- make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
+(defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
   (let [context ^GLContext (make-current drawable)
         gl ^GL2 (.getGL context)
         [w h] (vp-dims viewport)
@@ -206,7 +206,7 @@
 (defn- render-sort [renderables camera viewport]
   (sort-by :render-key renderables))
 
-(defn- generic-render-args [viewport camera]
+(defn generic-render-args [viewport camera]
   (let [view (c/camera-view-matrix camera)
         proj (c/camera-projection-matrix camera)
         view-proj (doto (Matrix4d. proj) (.mul view))
@@ -541,7 +541,7 @@
               ((g/node-value node-id label) node-id action user-data)))
           action input-handlers))
 
-(defn- register-event-handler! [^Parent parent view-id]
+(defn register-event-handler! [^Parent parent view-id]
   (let [tool-user-data (atom [])
         event-handler   (ui/event-handler e
                           (profiler/profile "input" -1
@@ -555,7 +555,8 @@
                                                 (let [s (g/node-value view-id :selected-tool-renderables)]
                                                   (reset! tool-user-data s)))
                                               (g/transact (g/set-property view-id :tool-picking-rect picking-rect))
-                                              (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))] (.setOnMousePressed parent event-handler)
+                                              (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))]
+    (.setOnMousePressed parent event-handler)
     (.setOnMouseReleased parent event-handler)
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)

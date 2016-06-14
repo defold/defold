@@ -213,8 +213,9 @@
   [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
   (let [focus ^Vector4d (:focus-point camera)
         point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        world (camera-unproject camera viewport evt-x evt-y (.z point))
-        delta (camera-unproject camera viewport last-x last-y (.z point))]
+        screen-z (.z point)
+        world (camera-unproject camera viewport evt-x evt-y screen-z)
+        delta (camera-unproject camera viewport last-x last-y screen-z)]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
@@ -306,16 +307,6 @@
     (camera-set-center aabb)
     (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))))
 
-(defn reframe-camera-tx [id local-camera viewport aabb]
-  (if aabb
-    (let [local-camera (camera-orthographic-frame-aabb local-camera viewport aabb)]
-      (g/transact
-       (concat
-        (g/set-property id :local-camera local-camera)
-        (g/set-property id :reframe false)))
-      local-camera)
-    local-camera))
-
 (g/defnk produce-camera [_node-id local-camera viewport]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
@@ -327,11 +318,12 @@
 (defn handle-input [self action user-data]
   (let [viewport          (g/node-value self :viewport)
         movements-enabled (g/node-value self :movements-enabled)
-        ui-state          (g/node-value self :ui-state)]
+        ui-state          (g/node-value self :ui-state)
+        camera            (g/node-value self :camera)]
     (case (:type action)
       :scroll (if (contains? movements-enabled :dolly)
                 (let [dy (:delta-y action)]
-                  (g/transact (g/update-property self :local-camera dolly (* -0.002 dy)))
+                  (g/transact (g/set-property self :local-camera (dolly camera (* -0.002 dy))))
                   nil)
                 action)
       :mouse-pressed (let [movement (get movements-enabled (camera-movement action) :idle)]
@@ -352,9 +344,9 @@
                        (do
                          (g/transact
                            (case movement
-                             :dolly  (g/update-property self :local-camera dolly (* -0.002 (- y last-y)))
-                             :track  (g/update-property self :local-camera track viewport last-x last-y x y)
-                             :tumble (g/update-property self :local-camera tumble last-x last-y x y)
+                             :dolly  (g/set-property self :local-camera (dolly camera (* -0.002 (- y last-y))))
+                             :track  (g/set-property self :local-camera (track camera viewport last-x last-y x y))
+                             :tumble (g/set-property self :local-camera (tumble camera last-x last-y x y))
                              nil))
                          (swap! ui-state assoc
                                 :last-x x
