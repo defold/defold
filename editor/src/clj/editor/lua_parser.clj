@@ -2,7 +2,8 @@
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
             [clojure.zip :as zip]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn]
+            [clojure.set :as set]))
 
 (def lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
 
@@ -44,11 +45,11 @@
   (if (and (> (count node) 2) (string? (nth node 2)) (= "function") (nth node 2))
    (let [[_ _ _ funcname funcbody] node
          [_ _  [_  namelist]] funcbody]
-     {:functions {funcname {:params (parse-namelist namelist)}}})
+     {:local-functions {funcname {:params (parse-namelist namelist)}}})
    (let [[_ _ namelist _ exprlist] node
          parsed-names (parse-namelist namelist)
          require-info (collect-require parsed-names exprlist)]
-     {:vars parsed-names :requires require-info})))
+     {:local-vars parsed-names :requires require-info})))
 
 (defmethod xform-node :varlist [k node]
   (let [[_ varlist _ exprlist] node
@@ -84,9 +85,13 @@
 
 (defn lua-info [code]
   (let [info (-> code lua-parser zip/seq-zip collect-info)
-        locals-info (into #{} (apply concat (map :vars info)))
+        local-vars-info (into #{} (apply concat (map :local-vars info)))
+        vars-info (set/difference (into #{} (apply concat (map :vars info))) local-vars-info)
         functions-info (or (apply merge (map :functions info)) {})
+        local-functions-info (or (apply merge (map :local-functions info)) {})
         requires-info (or (apply merge (map :requires info)) {})]
-    {:vars locals-info
+    {:vars vars-info
+     :local-vars local-vars-info
      :functions functions-info
+     :local-functions local-functions-info
      :requires requires-info}))
