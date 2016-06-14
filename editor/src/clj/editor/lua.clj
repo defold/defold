@@ -141,6 +141,7 @@
    {}
    (load-documentation)))
 
+(def defold-docs (atom (defold-documentation)))
 
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
