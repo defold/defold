@@ -45,8 +45,6 @@ public class DebugPreferencePage extends FieldEditorPreferencePage implements IW
             runInDebuggerField.setEnabled(false, getFieldEditorParent());
             autoRunDebuggerField.setEnabled(false, getFieldEditorParent());
         }
-
-        addField(new BooleanFieldEditor(PreferenceConstants.P_QUIT_ON_ESC, "Quit on Esc key press", getFieldEditorParent()));
     }
 
     @Override
