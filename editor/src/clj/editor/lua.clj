@@ -135,9 +135,11 @@
 (defn defold-documentation []
   (reduce
    (fn [result [ns elements]]
-     (assoc result ns (mapv (fn [e] {:name (.getName ^ScriptDoc$Element e)
-                                    :display-string (element-display-string e)
-                                    :doc (element-additional-info e)}) elements)))
+     (let [global-results (get result "" [])
+           new-result (assoc result ns (mapv (fn [e] {:name (.getName ^ScriptDoc$Element e)
+                                          :display-string (element-display-string e)
+                                          :doc (element-additional-info e)}) elements))]
+       (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
    {}
    (load-documentation)))
 
@@ -147,9 +149,12 @@
   (try
     (let
         [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
+         _ (println "namespace is " namespace)
+         _ (println (if namespace "there is one" "it is nil"))
          items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
-         pattern (re-pattern (string/lower-case (if function function namespace)))]
-      (filter (fn [i] (re-find pattern (:name i))) items))
+         pattern (string/lower-case (if function function namespace))]
+      (println "pattern " pattern)
+      (filter (fn [i] (string/starts-with? (:name i) pattern)) items))
     (catch Exception e
       (.printStackTrace e))))
 
