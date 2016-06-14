@@ -25,10 +25,11 @@
   [camera :- Camera]
   (let [near   (.z-near camera)
         far    (.z-far camera)
-        aspect (.aspect camera)
-        fov    (.fov camera)
+        fov-x  (.fov-x camera)
+        fov-y  (.fov-y camera)
+        aspect (/ fov-x fov-y)
 
-        ymax (* near (Math/tan (/ (* fov Math/PI) 360.0)))
+        ymax (* near (Math/tan (/ (* fov-y Math/PI) 360.0)))
         ymin (- ymax)
         xmin (* ymin aspect)
         xmax (* ymax aspect)
@@ -65,10 +66,10 @@
   [camera :- Camera]
   (let [near   (.z-near camera)
         far    (.z-far camera)
-        right  (/ (.fov camera) 2.0)
+        right  (/ (.fov-x camera) 2.0)
         left   (- right)
-        bottom (/ left (.aspect camera))
-        top    (/ right (.aspect camera))
+        top    (/ (.fov-y camera) 2.0)
+        bottom (- top)
 
         m      (Matrix4d.)]
     (set! (. m m00) (/ 2.0 (- right left)))
@@ -103,16 +104,18 @@
 (g/s-defn make-camera :- Camera
   ([] (make-camera :perspective))
   ([t :- (g/enum :perspective :orthographic)]
+    (make-camera t identity))
+  ([t :- (g/enum :perspective :orthographic) filter-fn :- Runnable]
     (let [distance 10000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (types/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0)))))
+      (types/->Camera t position rotation 1 2000 30 30 (Vector4d. 0 0 0 1.0) filter-fn))))
 
 (g/s-defn set-orthographic :- Camera
-  [camera :- Camera fov :- g/Num aspect :- g/Num z-near :- g/Num z-far :- g/Num]
+  [camera :- Camera fov-x :- g/Num fov-y :- g/Num z-near :- g/Num z-far :- g/Num]
   (assoc camera
-         :fov fov
-         :aspect aspect
+         :fov-x fov-x
+         :fov-y fov-y
          :z-near z-near
          :z-far z-far))
 
@@ -205,9 +208,10 @@
 
 (defn dolly
   [camera delta]
-  (update-in camera [:fov]
-             (fn [fov]
-               (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))))
+  (let [dolly-fn (fn [fov] (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))]
+    (-> camera
+      (update :fov-x dolly-fn)
+      (update :fov-y dolly-fn))))
 
 (defn track
   [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
@@ -283,76 +287,88 @@
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
   (if (= aabb (geom/null-aabb))
-    (:fov camera)
+    [(:fov-x camera) (:fov-y camera)]
     (let [min-proj    (camera-project camera viewport (.. aabb min))
           max-proj    (camera-project camera viewport (.. aabb max))
           proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
           proj-height (Math/abs (- (.y max-proj) (.y min-proj)))]
       (if (or (< proj-width math/epsilon) (< proj-height math/epsilon))
-        (:fov camera)
+        [(:fov-x camera) (:fov-y camera)]
         (let [w (- (.right viewport) (.left viewport))
               h (- (.bottom viewport) (.top viewport))
-              aspect (/ w h)
               factor-x    (/ proj-width w)
               factor-y    (/ proj-height h)
-              fov-x-prim  (* factor-x (:fov camera))
-              fov-y-prim  (* (* factor-y (:fov camera)) aspect)
-              fov-prim (Math/max fov-y-prim fov-x-prim)]
-          (* 1.1 fov-prim))))))
+              fov-x-prim  (* factor-x (:fov-x camera))
+              fov-y-prim  (* factor-y (:fov-y camera))]
+          [(* 1.1 fov-x-prim) (* 1.1 fov-y-prim)])))))
 
 (g/s-defn camera-orthographic-frame-aabb :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
-  (-> camera
-    (camera-set-center aabb)
-    (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))))
+  (let [aspect (/ (:fov-x camera) (:fov-y camera))
+        [^double fov-x ^double fov-y] (camera-fov-from-aabb camera viewport aabb)
+        [fov-x fov-y] (if (> (/ fov-x aspect) (* aspect fov-y))
+                        [fov-x (/ fov-x aspect)]
+                        [(* aspect fov-y) fov-y])
+        filter-fn (or (:filter-fn camera) identity)]
+    (-> camera
+      (camera-set-center aabb)
+      (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
+      filter-fn)))
 
 (g/defnk produce-camera [_node-id local-camera viewport]
   (let [w (- (:right viewport) (:left viewport))
-       h (- (:bottom viewport) (:top viewport))]
-   (if (and (> w 0) (> h 0))
-     (let [aspect (/ (double w) h)]
-       (set-orthographic local-camera (:fov local-camera) aspect -100000 100000))
-     local-camera)))
+        h (- (:bottom viewport) (:top viewport))]
+    (if (and (> w 0) (> h 0))
+      (let [aspect (/ (double w) h)
+            filter-fn (or (:filter-fn local-camera) identity)]
+        (-> local-camera
+          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) -100000 100000)
+          filter-fn))
+      local-camera)))
 
 (defn handle-input [self action user-data]
-  (let [viewport          (g/node-value self :viewport)
-        movements-enabled (g/node-value self :movements-enabled)
-        ui-state          (g/node-value self :ui-state)
-        camera            (g/node-value self :camera)]
-    (case (:type action)
-      :scroll (if (contains? movements-enabled :dolly)
-                (let [dy (:delta-y action)]
-                  (g/transact (g/set-property self :local-camera (dolly camera (* -0.002 dy))))
-                  nil)
-                action)
-      :mouse-pressed (let [movement (get movements-enabled (camera-movement action) :idle)]
-                       (swap! ui-state assoc
-                              :last-x (:x action)
-                              :last-y (:y action)
-                              :movement movement)
+  (let [viewport                   (g/node-value self :viewport)
+        movements-enabled          (g/node-value self :movements-enabled)
+        ui-state                   (g/node-value self :ui-state)
+        {:keys [last-x last-y]}    @ui-state
+        {:keys [x y type delta-y]} action
+        movement                   (if (= type :mouse-pressed)
+                                     (get movements-enabled (camera-movement action) :idle)
+                                     (:movement @ui-state))
+        camera                     (g/node-value self :camera)
+        filter-fn                  (or (:filter-fn camera) identity)
+        camera                     (cond-> camera
+                                     (and (= type :scroll)
+                                          (contains? movements-enabled :dolly))
+                                     (dolly (* -0.002 delta-y))
+
+                                     (and (= type :mouse-moved)
+                                          (not (= :idle movement)))
+                                     (cond->
+                                       (= :dolly movement)
+                                       (dolly (* -0.002 (- y last-y)))
+                                       (= :track movement)
+                                       (track viewport last-x last-y x y)
+                                       (= :tumble movement)
+                                       (tumble last-x last-y x y))
+
+                                     true
+                                     filter-fn)]
+    (g/set-property! self :local-camera camera)
+    (case type
+      :scroll (if (contains? movements-enabled :dolly) nil action)
+      :mouse-pressed (do
+                       (swap! ui-state assoc :last-x x :last-y y :movement movement)
                        (if (= movement :idle) action nil))
-      :mouse-released (let [movement (:movement @ui-state)]
-                        (swap! ui-state assoc
-                               :last-x nil
-                               :last-y nil
-                               :movement :idle)
+      :mouse-released (do
+                        (swap! ui-state assoc :last-x nil :last-y nil :movement :idle)
                         (if (= movement :idle) action nil))
-      :mouse-moved (let [{:keys [movement last-x last-y]} @ui-state
-                         {:keys [x y]} action]
-                     (if (not (= :idle movement))
-                       (do
-                         (g/transact
-                           (case movement
-                             :dolly  (g/set-property self :local-camera (dolly camera (* -0.002 (- y last-y))))
-                             :track  (g/set-property self :local-camera (track camera viewport last-x last-y x y))
-                             :tumble (g/set-property self :local-camera (tumble camera last-x last-y x y))
-                             nil))
-                         (swap! ui-state assoc
-                                :last-x x
-                                :last-y y)
-                         nil)
-                       action))
+      :mouse-moved (if (not (= :idle movement))
+                     (do
+                       (swap! ui-state assoc :last-x x :last-y y)
+                       nil)
+                     action)
       action)))
 
 (g/defnode CameraController
@@ -373,11 +389,14 @@
     (+ a (* t d))))
 
 (defn interpolate ^Camera [^Camera from ^Camera to ^double t]
-  (types/->Camera (:type to)
-            (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
-            (doto (Quat4d.) (.interpolate ^Quat4d (:rotation from) ^Quat4d (:rotation to) t))
-            (lerp (:z-near from) (:z-near to) t)
-            (lerp (:z-far from) (:z-far to) t)
-            (lerp (:aspect from) (:aspect to) t)
-            (lerp (:fov from) (:fov to) t)
-            (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))))
+  (let [filter-fn (or (:filter-fn from) identity)
+        ^Camera to (filter-fn to)]
+    (types/->Camera (:type to)
+                    (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
+                    (doto (Quat4d.) (.interpolate ^Quat4d (:rotation from) ^Quat4d (:rotation to) t))
+                    (lerp (:z-near from) (:z-near to) t)
+                    (lerp (:z-far from) (:z-far to) t)
+                    (lerp (:fov-x from) (:fov-x to) t)
+                    (lerp (:fov-y from) (:fov-y to) t)
+                    (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
+                    filter-fn)))

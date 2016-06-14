@@ -243,7 +243,7 @@
                                 :selected (some? selected-id)
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) world-transform)
+                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world)
                                 :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
@@ -484,7 +484,7 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn- frame-selection [view animate?]
+(defn frame-selection [view animate?]
   (let [graph (g/node-id->graph-id view)
         camera (g/graph-value graph :camera)
         aabb (g/node-value view :selected-aabb)

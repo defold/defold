@@ -117,6 +117,26 @@
         (.setImage image-view nil)
         (throw e)))))
 
+(defn frame-selection [view animate?]
+  (let [graph (g/node-id->graph-id view)
+        camera (g/graph-value graph :camera)
+        aabb (or (g/node-value view :selected-aabb)
+                 (-> (geom/null-aabb)
+                   (geom/aabb-incorporate 0.0 0.0 0.0)
+                   (geom/aabb-incorporate 1.0 1.0 0.0)))
+        viewport (g/node-value view :viewport)
+        local-cam (g/node-value camera :local-camera)
+        end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
+    (if animate?
+      (let [duration 0.5]
+        (ui/anim! duration
+                  (fn [t] (let [t (- (* t t 3) (* t t t 2))
+                                cam (c/interpolate local-cam end-camera t)]
+                            (g/transact
+                              (g/set-property camera :local-camera cam))))
+                  (fn [])))
+      (g/transact (g/set-property camera :local-camera end-camera)))))
+
 (defn make-gl-pane [view-id parent opts]
   (let [image-view (doto (ImageView.)
                      (.setScaleY -1.0))
@@ -159,7 +179,7 @@
                               (concat
                                (g/set-property view-id :drawable drawable)
                                (g/set-property view-id :async-copier (scene/make-copier image-view drawable viewport)))))
-                           #_(frame-selection view-id false)))))
+                           (frame-selection view-id false)))))
                    (proxy-super layoutChildren))))]
     (.add (.getChildren pane) image-view)
     (g/set-property! view-id :image-view image-view)
@@ -180,6 +200,15 @@
     (ui/user-data! parent ::node-id nil)
     (ui/children! parent [])))
 
+(defn- camera-filter-fn [camera]
+  (let [^Point3d p (:position camera)
+        y (.y p)
+        z (.z p)]
+    (assoc camera
+           :position (Point3d. 0.5 y z)
+           :focus-point (Vector4d. 0.5 y z 1.0)
+           :fov-x 1.2)))
+
 (defn make-view!
   ([graph ^Parent parent opts]
     (reset! view-state {:graph graph :parent parent :opts opts})
@@ -188,7 +217,7 @@
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    CurveView
                                                        background background/Gradient
-                                                       camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
+                                                       camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       grid/Grid]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
                                                 (g/set-graph-value graph :camera camera)
