@@ -14,13 +14,11 @@
           [script-node] (tx-nodes (g/make-node world script/ScriptNode
                                                      :resource var-resource
                                                      :code (slurp var-resource)))
-          defold-docs (g/node-value script-node :defold-completions)
           completions (g/node-value script-node :completions)
           go-names (set (map :name (get completions "go")))
           var-names (set (map :name (get completions "")))]
-      (is (= "go.set_position" (get-in defold-docs ["go" 2 :name])))
       (is (contains? go-names "go.set_position"))
-      (is (= #{"a" "b" "c" "d"} var-names)))))
+      (is (= #{"a" "b" "c" "d" "x"} var-names)))))
 
 
 (deftest script-node-with-required-modules
@@ -38,5 +36,5 @@
           foo-names (set (map :name (get completions "")))
           mymath-names (set (map :name (get completions "foo")))]
       (is (= #{"x" "foo"} foo-names))
-      (is (= #{"mymath.add" "mymath.sub" "mymath"} mymath-names)))))
+      (is (= #{"mymath.add" "mymath.sub"} mymath-names)))))
 
