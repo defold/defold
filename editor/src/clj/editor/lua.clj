@@ -1,5 +1,5 @@
 (ns editor.lua
-  (:require [clojure.string :as str]
+  (:require [clojure.string :as string]
             [clojure.java.io :as io]
             [editor.code :as code])
 
@@ -71,7 +71,7 @@
       (.printStackTrace e)
       {})))
 
-(def ^:private docs (str/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
+(def ^:private docs (string/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
@@ -100,7 +100,7 @@
 
 (defn- element-additional-info [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-    (str/join
+    (string/join
      (concat
       [(.getDescription element)]
       ["<br><br>"]
@@ -123,14 +123,14 @@
 (defn- element-display-string [^ScriptDoc$Element element]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-               (str/join
+               (string/join
                 (concat
                  ["("
-                  (str/join ", "
+                  (string/join ", "
                             (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                               [(.getName parameter)]))
                   ")"])))]
-    (str/join [base rest])))
+    (string/join [base rest])))
 
 (defn defold-documentation []
   (reduce
@@ -147,11 +147,17 @@
   (try
     (let
         [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
-         items (if namespace (get completions (str/lower-case namespace)) (get completions ""))
-         pattern (re-pattern (str/lower-case function))]
+         items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
+         pattern (re-pattern (string/lower-case function))]
       (filter (fn [i] (re-find pattern (:name i))) items))
     (catch Exception e
       (.printStackTrace e))))
+
+(defn lua-module->path [module]
+  (str "/" (string/replace module #"\." "/") ".lua"))
+
+(defn lua-module->build-path [module]
+  (str (lua-module->path module) "c"))
 
 
 (def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
