@@ -484,11 +484,44 @@ TEST_F(dmRenderScriptTest, TestLuaTransform)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestLuaDraw)
+TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
 {
     const char* script =
     "function init(self)\n"
     "    self.test_pred = render.predicate({\"one\", \"two\"})\n"
+    "    render.draw(self.test_pred)\n"
+    "    render.draw_debug3d()\n"
+    "    render.draw_debug2d()\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(3u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, command->m_Type);
+    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+
+    command = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
+
+    command = &commands[2];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG2D, command->m_Type);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
+{
+    const char* script =
+    "function init(self)\n"
+    "    self.test_pred = render.predicate({hash(\"one\"), hash(\"two\")})\n"
     "    render.draw(self.test_pred)\n"
     "    render.draw_debug3d()\n"
     "    render.draw_debug2d()\n"
