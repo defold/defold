@@ -88,11 +88,6 @@
   {:resource resource
    :content code})
 
-(defn- lua-module->path [module]
-  (str "/" (string/replace module #"\." "/") ".lua"))
-
-(defn- lua-module->build-path [module]
-  (str (lua-module->path module) "c"))
 
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
@@ -106,7 +101,7 @@
                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
                                                                :filename (resource/proj-path (:resource resource))}
                                                       :modules modules
-                                                      :resources (mapv lua-module->build-path modules)
+                                                      :resources (mapv lua/lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
 (g/defnk produce-build-targets [_node-id resource code user-properties modules]
@@ -115,7 +110,7 @@
     :build-fn  build-script
     :user-data {:content code :user-properties user-properties :modules modules}
     :deps      (mapcat (fn [mod]
-                         (let [path     (lua-module->path mod)
+                         (let [path     (lua/lua-module->path mod)
                                mod-node (project/get-resource-node (project/get-project _node-id) path)]
                            (g/node-value mod-node :build-targets))) modules)}])
 

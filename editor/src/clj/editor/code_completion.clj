@@ -24,7 +24,7 @@
 (defn find-node-for-module [node-id module-name]
   (let [project-node (project/get-project node-id)
         resource-node-pairs (g/node-value project-node :nodes-by-resource-path)
-        results (filter #(re-find (re-pattern module-name) (first %)) resource-node-pairs)]
+        results (filter #(= (lua/lua-module->path module-name) (first %)) resource-node-pairs)]
     (when (= 1 (count results))
       (let [[_ result-node-id] (first results)]
         (when  (= "editor.script/ScriptNode" (-> result-node-id (g/node-by-id) (g/node-type) :name))
