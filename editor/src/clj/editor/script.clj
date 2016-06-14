@@ -143,12 +143,11 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
 
-  (output defold-completions g/Any :cached (g/fnk [] (lua/defold-documentation)))
   (output completion-info g/Any :cached (g/fnk [code resource]
                                                (assoc (lua-parser/lua-info code)
                                                       :namespace (first (string/split (resource/resource-name resource) #"\.")))))
-  (output completions g/Any :cached (g/fnk [_node-id defold-completions completion-info]
-                                           (code-completion/combine-completions _node-id defold-completions completion-info))))
+  (output completions g/Any :cached (g/fnk [_node-id completion-info]
+                                           (code-completion/combine-completions _node-id @lua/defold-docs completion-info))))
 
 (defn load-script [project self resource]
   (g/set-property self :code (slurp resource)))
