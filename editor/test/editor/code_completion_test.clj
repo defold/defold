@@ -40,7 +40,7 @@
           foo-names (set (map :name (get completions "")))
           mymath-names (set (map :name (get completions "foo")))]
       (is (= #{"x" "foo"} foo-names))
-      (is (= #{"mymath.add" "mymath.sub"} mymath-names))
+      (is (= #{"foo.add" "foo.sub"} mymath-names))
       (is (= 1 @project-search-count))
       (testing "searches in connected modules first before looking in the project "
         (g/transact (g/set-property script-node :code (str foo-code "\n y=3")))
@@ -49,4 +49,15 @@
                                  (g/node-value script-node :completions))
               foo-names (set (map :name (get completions "")))]
           (is (= #{"x" "foo" "y"} foo-names))
+          (is (= 1 @project-search-count))))
+
+      (testing "bare requires"
+        (g/transact (g/set-property script-node :code "require(\"mymath\")"))
+        (let [completions  (with-redefs [find-module-node-in-project test-find-in-project
+                                             resource-node-path (constantly "/mymath.lua")]
+                                 (g/node-value script-node :completions))
+              var-names (set (map :name (get completions "")))
+              mymath-names (set (map :name (get completions "mymath")))]
+          (is (= #{} var-names))
+          (is (= #{"mymath.add" "mymath.sub"} mymath-names))
           (is (= 1 @project-search-count)))))))

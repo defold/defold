@@ -7,7 +7,10 @@
             [editor.resource :as resource]
             [dynamo.graph :as g]))
 
-(defn make-completions [resource-completion include-locals?]
+(defn replace-alias [s alias]
+  (string/replace s #".*\." (str alias ".")))
+
+(defn make-completions [resource-completion include-locals? namespace-alias]
   (let [{:keys [vars local-vars functions local-functions]} resource-completion
         var-info (if include-locals? (set/union vars local-vars) vars)
         vars (map (fn [v] {:name v
@@ -16,11 +19,12 @@
                   var-info)
         fn-info (if include-locals? (merge functions local-functions) functions)
         fns  (map (fn [[fname {:keys [params]}]]
-                    {:name fname
-                     :display-string (str fname "("
-                                          (apply str (interpose "," (map #(str "[\"" % "\"]") params)))
-                                          ")")
-                     :additional-info ""})
+                    (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)]
+                     {:name n
+                      :display-string (str n "("
+                                           (apply str (interpose "," (map #(str "[\"" % "\"]") params)))
+                                           ")")
+                      :additional-info ""}))
                   fn-info)]
     (vec (concat vars fns))))
 
@@ -48,11 +52,12 @@
 
 (defn gather-requires [node-id ralias rname module-nodes]
   (let [rnode (find-module-node node-id rname module-nodes)
+        module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
         rcompletion-info (g/node-value rnode :completion-info)]
-    {ralias (make-completions rcompletion-info false)}))
+    {(or module-name "") (make-completions rcompletion-info false module-name)}))
 
 (defn combine-completions [_node-id system-docs completion-info module-nodes]
- (let [base (merge system-docs {"" (make-completions completion-info true)})
+ (let [base (merge system-docs {"" (make-completions completion-info true nil)})
        require-info (or (:requires completion-info) {})
        require-completions (apply merge
                                   (map (fn [[ralias rname]] (gather-requires _node-id ralias rname module-nodes)) require-info))]
