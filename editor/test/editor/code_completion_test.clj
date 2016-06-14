@@ -18,7 +18,7 @@
           go-names (set (map :name (get completions "go")))
           var-names (set (map :name (get completions "")))]
       (is (contains? go-names "go.set_position"))
-      (is (= #{"a" "b" "c" "d" "x"} var-names)))))
+      (is (= #{"a" "b" "c" "d" "x" } var-names)))))
 
 
 (deftest script-node-with-required-modules

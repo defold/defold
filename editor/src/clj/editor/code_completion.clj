@@ -15,7 +15,7 @@
         var-info (if include-locals? (set/union vars local-vars) vars)
         vars (map (fn [v] {:name v
                           :display-string v
-                          :additional-info ""})
+                          :do ""})
                   var-info)
         fn-info (if include-locals? (merge functions local-functions) functions)
         fns  (map (fn [[fname {:keys [params]}]]
@@ -24,7 +24,7 @@
                       :display-string (str n "("
                                            (apply str (interpose "," (map #(str "[\"" % "\"]") params)))
                                            ")")
-                      :additional-info ""}))
+                      :doc ""}))
                   fn-info)]
     (vec (concat vars fns))))
 
@@ -54,14 +54,14 @@
   (let [rnode (find-module-node node-id rname module-nodes)
         module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
         rcompletion-info (g/node-value rnode :completion-info)]
-    {(or module-name "") (make-completions rcompletion-info false module-name)
+    {module-name (make-completions rcompletion-info false module-name)
      "" [{:name module-name
            :display-string module-name
-           :additional-info ""}]}))
+           :doc ""}]}))
 
 (defn combine-completions [_node-id system-docs completion-info module-nodes]
- (let [base (merge system-docs {"" (make-completions completion-info true nil)})
+ (let [local-completions {"" (make-completions completion-info true nil)}
        require-info (or (:requires completion-info) {})
        require-completions (apply merge
                                   (map (fn [[ralias rname]] (gather-requires _node-id ralias rname module-nodes)) require-info))]
-   (merge base require-completions)))
+   (merge-with into system-docs local-completions require-completions)))
