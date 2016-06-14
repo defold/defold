@@ -54,7 +54,10 @@
   (let [rnode (find-module-node node-id rname module-nodes)
         module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
         rcompletion-info (g/node-value rnode :completion-info)]
-    {(or module-name "") (make-completions rcompletion-info false module-name)}))
+    {(or module-name "") (make-completions rcompletion-info false module-name)
+     "" [{:name module-name
+           :display-string module-name
+           :additional-info ""}]}))
 
 (defn combine-completions [_node-id system-docs completion-info module-nodes]
  (let [base (merge system-docs {"" (make-completions completion-info true nil)})
