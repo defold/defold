@@ -558,7 +558,7 @@
                                            :default (close nil)))))
 
     (.initOwner stage (ui/main-stage))
-    (.initModality stage Modality/WINDOW_MODAL)
+    (.initModality stage Modality/NONE)
     (.setScene stage scene)
     (ui/show! stage)
     stage))
