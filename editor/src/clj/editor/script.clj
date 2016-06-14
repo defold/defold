@@ -118,12 +118,12 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (input module-completions g/Any :array)
-
   (property code g/Str (dynamic visible (g/always false)))
   (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
   (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
+
+  (input module-nodes g/Any :array)
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
@@ -139,10 +139,12 @@
   (output build-targets g/Any :cached produce-build-targets)
 
   (output completion-info g/Any :cached (g/fnk [code resource]
-                                               (assoc (lua-parser/lua-info code)
-                                                      :namespace (first (string/split (resource/resource-name resource) #"\.")))))
-  (output completions g/Any :cached (g/fnk [_node-id completion-info]
-                                           (code-completion/combine-completions _node-id @lua/defold-docs completion-info))))
+                                               (lua-parser/lua-info code)))
+  (output completions g/Any :cached (g/fnk [_node-id completion-info module-nodes]
+                                           (code-completion/combine-completions _node-id
+                                                                                @lua/defold-docs
+                                                                                completion-info
+                                                                                module-nodes))))
 
 (defn load-script [project self resource]
   (g/set-property self :code (slurp resource)))

@@ -24,8 +24,7 @@
                   fn-info)]
     (vec (concat vars fns))))
 
-
-(defn find-node-for-module [node-id module-name]
+(defn find-module-node-in-project [node-id module-name]
   (let [project-node (project/get-project node-id)
         resource-node-pairs (g/node-value project-node :nodes-by-resource-path)
         results (filter #(= (lua/lua-module->path module-name) (first %)) resource-node-pairs)]
@@ -34,15 +33,27 @@
         (when  (= "editor.script/ScriptNode" (-> result-node-id (g/node-by-id) (g/node-type) :name))
           result-node-id)))))
 
+(defn resource-node-path [nid]
+  (resource/proj-path (g/node-value nid :resource)))
 
-(defn gather-requires [node-id ralias rname]
-  (let [rnode (find-node-for-module node-id rname)
+(defn find-module-node [node-id module-name module-nodes]
+  (when module-name
+   (let [rpath (lua/lua-module->path module-name)
+         module-node-id (some (fn [nid] (if (= rpath (resource-node-path nid)) nid)) module-nodes)]
+     (if module-node-id
+       module-node-id
+       (when-let [nid (find-module-node-in-project node-id module-name)]
+         (g/transact (g/connect nid :_node-id node-id :module-nodes))
+         nid)))))
+
+(defn gather-requires [node-id ralias rname module-nodes]
+  (let [rnode (find-module-node node-id rname module-nodes)
         rcompletion-info (g/node-value rnode :completion-info)]
     {ralias (make-completions rcompletion-info false)}))
 
-
-(defn combine-completions [_node-id defold-docs completion-info]
- (let [base (merge defold-docs {"" (make-completions completion-info true)})
+(defn combine-completions [_node-id system-docs completion-info module-nodes]
+ (let [base (merge system-docs {"" (make-completions completion-info true)})
        require-info (or (:requires completion-info) {})
-       require-completions (apply merge (map (fn [[ralias rname]] (gather-requires _node-id ralias rname)) require-info))]
+       require-completions (apply merge
+                                  (map (fn [[ralias rname]] (gather-requires _node-id ralias rname module-nodes)) require-info))]
    (merge base require-completions)))

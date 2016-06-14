@@ -24,17 +24,29 @@
 (deftest script-node-with-required-modules
   (with-clean-system
     (let [foo-resource (FileResource. world (io/file (io/resource "lua/foo.lua")) nil)
+          foo-code (slurp foo-resource)
           mymath-resource (FileResource. world (io/file (io/resource "lua/mymath.lua")) nil)
           [script-node mymath-node] (tx-nodes [(g/make-node world script/ScriptNode
                                                             :resource foo-resource
-                                                            :code (slurp foo-resource))
+                                                            :code foo-code)
                                                (g/make-node world script/ScriptNode
                                                             :resource mymath-resource
                                                             :code (slurp mymath-resource))])
-          completions (with-redefs [find-node-for-module (constantly mymath-node)]
+          project-search-count (atom 0)
+          test-find-in-project (constantly (do (swap! project-search-count inc) mymath-node))
+          completions (with-redefs [find-module-node-in-project test-find-in-project
+                                    resource-node-path (constantly "mymath.lua")]
                         (g/node-value script-node :completions))
           foo-names (set (map :name (get completions "")))
           mymath-names (set (map :name (get completions "foo")))]
       (is (= #{"x" "foo"} foo-names))
-      (is (= #{"mymath.add" "mymath.sub"} mymath-names)))))
-
+      (is (= #{"mymath.add" "mymath.sub"} mymath-names))
+      (is (= 1 @project-search-count))
+      (testing "searches in connected modules first before looking in the project "
+        (g/transact (g/set-property script-node :code (str foo-code "\n y=3")))
+        (let [completions  (with-redefs [find-module-node-in-project test-find-in-project
+                                             resource-node-path (constantly "/mymath.lua")]
+                                 (g/node-value script-node :completions))
+              foo-names (set (map :name (get completions "")))]
+          (is (= #{"x" "foo" "y"} foo-names))
+          (is (= 1 @project-search-count)))))))
