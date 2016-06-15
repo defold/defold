@@ -9,8 +9,7 @@
             [editor.script :as script]
             [editor.gl.shader :as shader]
             [editor.code-view-test :as cvt :refer [setup-code-view-nodes]]
-            [support.test-support :refer [with-clean-system tx-nodes]])
-  (:import [editor.resource FileResource]))
+            [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (defn- toggle-comment! [source-viewer]
   (handler/run :toggle-comment [{:name :code-view :env {:selection source-viewer}}]{}))
