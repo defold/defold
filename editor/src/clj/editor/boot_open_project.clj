@@ -157,7 +157,7 @@
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
-          curve-view           (curve-view/make-view! *view-graph*
+          curve-view           (curve-view/make-view! project *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       {:tab (some #(and (= "curve-editor-tab" (.getId ^Tab %)) %)
                                                                   (.getTabs tool-tabs))})]

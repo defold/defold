@@ -8,6 +8,8 @@
             [editor.core :as core]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
@@ -22,6 +24,8 @@
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
             [editor.scene :as scene]
+            [editor.properties :as properties]
+            [util.id-vec :as iv]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
@@ -52,8 +56,48 @@
 
 (set! *warn-on-reflection* true)
 
+; Line shader
+
+(vtx/defvertex color-vtx
+  (vec3 position)
+  (vec4 color))
+
+(shader/defshader line-vertex-shader
+  (attribute vec4 position)
+  (attribute vec4 color)
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_color color)))
+
+(shader/defshader line-fragment-shader
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_FragColor var_color)))
+
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
+
+(defn render-lines [^GL2 gl render-args renderables rcount]
+  (let [camera (:camera render-args)
+        viewport (:viewport render-args)
+        #_scale-f #_(scale-factor camera viewport)]
+    (doseq [renderable renderables
+            :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
+                  vb-world (get-in renderable [:user-data :geom-data-world] [])
+                  vcount (count vb-world)]
+            :when (> vcount 0)]
+      (let [world-transform (:world-transform renderable)
+            #_color #_(-> (if (:selected renderable) selected-color color)
+                       (conj 1))
+            #_vs #_(geom/transf-p world-transform (concat
+                                                   #_(geom/scale [scale-f scale-f 1] vs-screen)
+                                                   vs-world))
+            vertex-binding (vtx/use-with ::lines vb-world line-shader)]
+        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 (defn- render! [^Region viewport ^GLAutoDrawable drawable camera renderables ^GLContext context ^GL2 gl]
   (let [render-args (scene/generic-render-args viewport camera)]
@@ -65,7 +109,7 @@
       (scene/setup-pass context gl pass camera viewport)
       (scene/batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier]
+(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables]
   (when async-copier
     #_(profiler/profile "updatables" -1
                        ; Fixed dt for deterministic playback
@@ -76,13 +120,58 @@
                                        context (assoc context
                                                       :world-transform (:world-transform updatable))]]
                            ((get-in updatable [:updatable :update-fn]) context))))
-    (profiler/profile "render" -1
+    (profiler/profile "render-curves" -1
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
                           (.beginFrame async-copier gl)
-                          (render! viewport drawable camera renderables context gl)
+                          (render! viewport drawable camera (merge-with into renderables curve-renderables) context gl)
+                          (scene-cache/prune-object-caches! gl)
                           (.endFrame async-copier gl)
                           :ok)))))
+
+(defn- curve? [[_ p]]
+  (let [v (:value p)]
+    (when (satisfies? types/GeomCloud v)
+      (< 1 (count (properties/curve-vals v))))))
+
+(g/defnk produce-curve-renderables [curves]
+  (let [splines (mapv (fn [{:keys [node-id propery curve]}] (->> curve
+                                                              (mapv second)
+                                                              (properties/->spline))) curves)
+        steps 128
+        scount (count splines)
+        colors (map-indexed (fn [i s] (let [h (* (+ i 0.5) (/ 360.0 scount))
+                                            s 1.0
+                                            l 0.7]
+                                        (colors/hsl->rgba h s l)))
+                    splines)
+        xs (->> (range steps)
+             (map #(/ % (- steps 1)))
+             (partition 2 1)
+             (apply concat))
+        vs (mapcat (fn [spline color](let [[r g b a] color]
+                                       (mapv #(let [[x y] (properties/spline-cp spline %)]
+                                                [x y 0.0 r g b a]) xs))) splines colors)
+        vcount (count vs)
+        vb-world (when (< 0 vcount)
+                   (let [vb (->color-vtx vcount)]
+                     (doseq [v vs]
+                       (conj! vb v))
+                     (persistent! vb)))
+        renderables [{:render-fn render-lines
+                     :batch-key nil
+                     :user-data {:geom-data-screen [] #_((:geom-data-screen mod-type) magnitude max-distance)
+                                 :geom-data-world vb-world}}]]
+    (into {} (map #(do [% renderables]) [pass/outline pass/selection]))))
+
+(g/defnk produce-curves [selected-node-properties]
+  (let [curves (mapcat (fn [p] (->> (:properties p)
+                                 (filter curve?)
+                                 (map (fn [[k p]] {:node-id (:node-id p)
+                                                   :property k
+                                                   :curve (iv/iv-mapv identity (:points (:value p)))}))))
+                       selected-node-properties)]
+    curves))
 
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
@@ -98,8 +187,11 @@
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
+  (input selected-node-properties g/Any)
 
-  (output async-frame g/Keyword :cached produce-async-frame))
+  (output async-frame g/Keyword :cached produce-async-frame)
+  (output curves g/Any :cached produce-curves)
+  (output curve-renderables g/Any :cached produce-curve-renderables))
 
 (defonce view-state (atom nil))
 
@@ -195,7 +287,8 @@
         (let [gl (.getGL drawable)]
           (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
             (.dispose copier gl))
-        (.destroy drawable))))
+          (scene-cache/drop-context! gl false)
+          (.destroy drawable))))
     (g/transact (g/delete-node node-id))
     (ui/user-data! parent ::node-id nil)
     (ui/children! parent [])))
@@ -210,10 +303,10 @@
            :fov-x 1.2)))
 
 (defn make-view!
-  ([graph ^Parent parent opts]
-    (reset! view-state {:graph graph :parent parent :opts opts})
-    (make-view! graph parent opts false))
-  ([graph ^Parent parent opts reloading?]
+  ([project graph ^Parent parent opts]
+    (reset! view-state {:project project :graph graph :parent parent :opts opts})
+    (make-view! project graph parent opts false))
+  ([project graph ^Parent parent opts reloading?]
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    CurveView
                                                        background background/Gradient
@@ -230,7 +323,9 @@
                                                 (g/connect view-id :viewport camera :viewport)
                                                 (g/connect grid :renderable view-id :aux-renderables)
                                                 (g/connect background :_node-id view-id :background-id)
-                                                (g/connect background :renderable view-id :aux-renderables))))
+                                                (g/connect background :renderable view-id :aux-renderables)
+
+                                                (g/connect project :selected-node-properties view-id :selected-node-properties))))
           ^Node pane (make-gl-pane node-id parent opts)]
       (ui/fill-control pane)
       (ui/children! parent [pane])
@@ -239,9 +334,9 @@
 
 (defn- reload-curve-view []
   (when @view-state
-    (let [{:keys [graph ^Parent parent opts]} @view-state]
+    (let [{:keys [project graph ^Parent parent opts]} @view-state]
       (ui/run-now
         (destroy-view! parent)
-        (make-view! graph parent opts true)))))
+        (make-view! project graph parent opts true)))))
 
 (reload-curve-view)
