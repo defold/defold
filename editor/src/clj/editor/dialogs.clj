@@ -534,6 +534,8 @@
     (ui/items! list-view proposals)
     (.select (.getSelectionModel list-view) 0)
     (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)}))
+    (ui/on-focus! list-view (fn [got-focus] (when-not got-focus (close nil))))
+    (.setOnMouseClicked list-view (ui/event-handler e (close (ui/selection list-view))))
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
