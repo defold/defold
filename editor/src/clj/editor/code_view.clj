@@ -5,7 +5,6 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.defold-project :as project]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
            [javafx.scene Parent]
@@ -299,7 +298,14 @@
       (.getString this))))
 
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?))
+  (try
+   (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?)
+   (catch Exception e
+     ;;do nothing there is a bug in the StyledTextSkin that creates
+     ;;null pointers due to the skin rendered completely yet not being created yet (the skin
+     ;;is created on the ui pulse) Eventually we should consider
+     ;;rewriting the Skin class and porting it to Clojure
+     )))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
