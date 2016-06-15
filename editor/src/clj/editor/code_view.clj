@@ -301,6 +301,7 @@
   (try
    (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?)
    (catch Exception e
+     (println "ignoring source-viewer-set-caret! failure")
      ;;do nothing there is a bug in the StyledTextSkin that creates
      ;;null pointers due to the skin rendered completely yet not being created yet (the skin
      ;;is created on the ui pulse) Eventually we should consider
