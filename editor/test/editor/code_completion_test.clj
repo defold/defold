@@ -47,7 +47,7 @@
       (testing "searches in connected modules first before looking in the project "
         (g/transact (g/set-property script-node :code (str foo-code "\n y=3")))
         (let [completions  (with-redefs [find-module-node-in-project test-find-in-project
-                                             resource-node-path (constantly "/mymath.lua")]
+                                         resource-node-path (constantly "/mymath.lua")]
                                  (g/node-value script-node :completions))
               var-names (set (map :name (get completions "")))]
           (is (=  #{"x" "foo" "y"} (set (filter  #{"x" "foo" "y"} var-names))))
@@ -56,7 +56,7 @@
       (testing "bare requires"
         (g/transact (g/set-property script-node :code "require(\"mymath\")"))
         (let [completions  (with-redefs [find-module-node-in-project test-find-in-project
-                                             resource-node-path (constantly "/mymath.lua")]
+                                         resource-node-path (constantly "/mymath.lua")]
                                  (g/node-value script-node :completions))
               mymath-names (set (map :name (get completions "mymath")))]
           (is (= #{"mymath.add" "mymath.sub"} mymath-names))
