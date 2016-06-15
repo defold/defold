@@ -370,7 +370,7 @@
   [ctx node-id node property old-value new-value]
   (let [basis (:basis ctx)
         node-type (gt/node-type node basis)
-        value-type (some-> (in/property-type node-type property) deref :schema s/maybe)]
+        value-type (some-> (in/property-type node-type property) deref in/schema s/maybe)]
    (if-let [validation-error (and value-type (s/check value-type new-value))]
      (do
        (in/warn-output-schema node-id node-type property new-value value-type validation-error)

@@ -27,7 +27,7 @@
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
@@ -197,7 +197,7 @@
         key           (keyword fqs)]
     `(do
        (in/register-value-type '~fqs ~key)
-       (def ~symb (in/register-value-type ~key (in/->ValueTypeImpl ~key ~@body))))))
+       (def ~symb (in/register-value-type ~key (in/make-value-type '~symb ~key ~@body))))))
 
 (deftype Any        s/Any)
 (deftype Bool       s/Bool)
