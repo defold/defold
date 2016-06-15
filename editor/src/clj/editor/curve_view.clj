@@ -25,6 +25,7 @@
             [editor.ui :as ui]
             [editor.scene :as scene]
             [editor.properties :as properties]
+            [editor.camera :as camera]
             [util.id-vec :as iv]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -80,24 +81,23 @@
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
 
-(defn render-lines [^GL2 gl render-args renderables rcount]
+(defn render-curves [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
         #_scale-f #_(scale-factor camera viewport)]
     (doseq [renderable renderables
-            :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
-                  vb-world (get-in renderable [:user-data :geom-data-world] [])
-                  vcount (count vb-world)]
-            :when (> vcount 0)]
-      (let [world-transform (:world-transform renderable)
-            #_color #_(-> (if (:selected renderable) selected-color color)
-                       (conj 1))
-            #_vs #_(geom/transf-p world-transform (concat
-                                                   #_(geom/scale [scale-f scale-f 1] vs-screen)
-                                                   vs-world))
-            vertex-binding (vtx/use-with ::lines vb-world line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
+            :let [screen-tris (get-in renderable [:user-data :screen-tris])
+                  world-lines (get-in renderable [:user-data :world-lines])]]
+      (when world-lines
+        (let [vcount (count world-lines)
+              vertex-binding (vtx/use-with ::lines world-lines line-shader)]
+          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))
+      (when screen-tris
+        (let [vcount (count screen-tris)
+              vertex-binding (vtx/use-with ::tris screen-tris line-shader)]
+          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 (defn- render! [^Region viewport ^GLAutoDrawable drawable camera renderables ^GLContext context ^GL2 gl]
   (let [render-args (scene/generic-render-args viewport camera)]
@@ -109,7 +109,7 @@
       (scene/setup-pass context gl pass camera viewport)
       (scene/batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables]
+(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables]
   (when async-copier
     #_(profiler/profile "updatables" -1
                        ; Fixed dt for deterministic playback
@@ -124,7 +124,7 @@
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
                           (.beginFrame async-copier gl)
-                          (render! viewport drawable camera (merge-with into renderables curve-renderables) context gl)
+                          (render! viewport drawable camera (merge-with into renderables curve-renderables cp-renderables) context gl)
                           (scene-cache/prune-object-caches! gl)
                           (.endFrame async-copier gl)
                           :ok)))))
@@ -135,9 +135,9 @@
       (< 1 (count (properties/curve-vals v))))))
 
 (g/defnk produce-curve-renderables [curves]
-  (let [splines (mapv (fn [{:keys [node-id propery curve]}] (->> curve
-                                                              (mapv second)
-                                                              (properties/->spline))) curves)
+  (let [splines (mapv (fn [{:keys [node-id property curve]}] (->> curve
+                                                               (mapv second)
+                                                               (properties/->spline))) curves)
         steps 128
         scount (count splines)
         colors (map-indexed (fn [i s] (let [h (* (+ i 0.5) (/ 360.0 scount))
@@ -149,20 +149,51 @@
              (map #(/ % (- steps 1)))
              (partition 2 1)
              (apply concat))
-        vs (mapcat (fn [spline color](let [[r g b a] color]
-                                       (mapv #(let [[x y] (properties/spline-cp spline %)]
-                                                [x y 0.0 r g b a]) xs))) splines colors)
-        vcount (count vs)
-        vb-world (when (< 0 vcount)
-                   (let [vb (->color-vtx vcount)]
-                     (doseq [v vs]
-                       (conj! vb v))
-                     (persistent! vb)))
-        renderables [{:render-fn render-lines
+        curve-vs (mapcat (fn [spline color](let [[r g b a] color]
+                                             (mapv #(let [[x y] (properties/spline-cp spline %)]
+                                                      [x y 0.0 r g b a]) xs))) splines colors)
+        curve-vcount (count curve-vs)
+        world-lines (when (< 0 curve-vcount)
+                      (let [vb (->color-vtx curve-vcount)]
+                        (doseq [v curve-vs]
+                          (conj! vb v))
+                        (persistent! vb)))
+        renderables [{:render-fn render-curves
+                      :batch-key nil
+                      :user-data {:world-lines world-lines}}]]
+    (into {} (map #(do [% renderables]) [pass/transparent]))))
+
+(g/defnk produce-cp-renderables [curves viewport camera]
+  (let [scale (camera/scale-factor camera viewport)
+        splines (mapv (fn [{:keys [node-id property curve]}] (->> curve
+                                                               (mapv second)
+                                                               (properties/->spline))) curves)
+        scount (count splines)
+        colors (map-indexed (fn [i s] (let [h (* (+ i 0.5) (/ 360.0 scount))
+                                            s 1.0
+                                            l 0.7]
+                                        (colors/hsl->rgba h s l)))
+                    splines)
+        cp-r 4.0
+        quad (let [[v0 v1 v2 v3] (vec (for [x [(- cp-r) cp-r]
+                                            y [(- cp-r) cp-r]]
+                                        [x y 0.0]))]
+               (geom/scale scale [v0 v1 v2 v2 v1 v3]))
+        cp-vs (mapcat (fn [spline color] (let [[r g b a] color]
+                                           (->> spline
+                                             (mapcat (fn [[x y tx ty]] (geom/transl [x y 0.0] quad)))
+                                             (map (fn [[x y z]] [x y z r g b a])))))
+                      splines colors)
+        cp-vcount (count cp-vs)
+        screen-tris (when (< 0 cp-vcount)
+                      (let [vb (->color-vtx cp-vcount)]
+                        (doseq [v cp-vs]
+                          (conj! vb v))
+                        (persistent! vb)))
+        renderables [{:render-fn render-curves
                      :batch-key nil
-                     :user-data {:geom-data-screen [] #_((:geom-data-screen mod-type) magnitude max-distance)
-                                 :geom-data-world vb-world}}]]
-    (into {} (map #(do [% renderables]) [pass/outline pass/selection]))))
+                     :user-data {:screen-tris screen-tris}}]]
+    (into {} (map #(do [% renderables]) [pass/transparent]))))
 
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
@@ -170,7 +201,10 @@
                                  (map (fn [[k p]] {:node-id (:node-id p)
                                                    :property k
                                                    :curve (iv/iv-mapv identity (:points (:value p)))}))))
-                       selected-node-properties)]
+                       selected-node-properties)
+        ccount (count curves)
+        hue-f (/ 360.0 ccount)
+        curves (map-indexed (fn [i c] (assoc c :hue (* (+ i 0.5) hue-f))) curves)]
     curves))
 
 (g/defnode CurveView
@@ -191,7 +225,8 @@
 
   (output async-frame g/Keyword :cached produce-async-frame)
   (output curves g/Any :cached produce-curves)
-  (output curve-renderables g/Any :cached produce-curve-renderables))
+  (output curve-renderables g/Any :cached produce-curve-renderables)
+  (output cp-renderables g/Any :cached produce-cp-renderables))
 
 (defonce view-state (atom nil))
 

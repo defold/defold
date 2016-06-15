@@ -400,3 +400,14 @@
                     (lerp (:fov-y from) (:fov-y to) t)
                     (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
                     filter-fn)))
+
+(defn scale-factor [camera viewport]
+  (let [inv-view (doto (Matrix4d. (camera-view-matrix camera)) (.invert))
+        x-axis   (Vector4d.)
+        _        (.getColumn inv-view 0 x-axis)
+        y-axis   (Vector4d.)
+        _        (.getColumn inv-view 1 y-axis)
+        cp0      (camera-project camera viewport (Point3d.))
+        cpx      (camera-project camera viewport (Point3d. (.x x-axis) (.y x-axis) (.z x-axis)))
+        cpy      (camera-project camera viewport (Point3d. (.x y-axis) (.y y-axis) (.z y-axis)))]
+    [(/ 1.0 (Math/abs (- (.x cp0) (.x cpx)))) (/ 1.0 (Math/abs (- (.y cp0) (.y cpy)))) 1.0]))
