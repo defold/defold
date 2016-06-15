@@ -2,6 +2,7 @@ package com.defold.sound;
 
 import android.content.Context;
 import android.media.AudioManager;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 public class SoundManager {
@@ -33,11 +34,13 @@ public class SoundManager {
     };
 
     private SoundManager.AudioFocusListener listener = null;
+    private TelephonyManager telephonyManager = null;
     private AudioManager audioManager = null;
 
     public SoundManager(Context context) {
         try {
             this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            this.telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
             this.listener = new SoundManager.AudioFocusListener();
         } catch (Exception e) {
             Log.e("Sound", "An exception occurred while creating AudioManager", e);
@@ -89,6 +92,18 @@ public class SoundManager {
 
         // Assume music is playing in case something goes wrong.
         return true;
+    }
+
+    public boolean isPhonePlaying() {
+        if (this.telephonyManager != null) {
+            int callState = this.telephonyManager.getCallState();
+            if (callState == TelephonyManager.CALL_STATE_RINGING
+                || callState == TelephonyManager.CALL_STATE_OFFHOOK) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public boolean releaseAudioFocus() {

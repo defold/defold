@@ -109,6 +109,7 @@ namespace dmSound
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value);
 
     bool IsMusicPlaying();
+    bool IsPhonePlaying();
 
 }
 

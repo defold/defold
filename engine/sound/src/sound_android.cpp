@@ -18,6 +18,7 @@ struct SoundManager
     jobject m_SoundManager;
     jmethodID m_AcquireAudioFocus;
     jmethodID m_IsMusicPlaying;
+    jmethodID m_IsPhonePlaying;
     jmethodID m_ReleaseAudioFocus;
 
 };
@@ -87,6 +88,7 @@ namespace dmSound
         g_SoundManager.m_AcquireAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "acquireAudioFocus", "()Z");
         g_SoundManager.m_ReleaseAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "releaseAudioFocus", "()Z");
         g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
+        g_SoundManager.m_IsPhonePlaying          = environment->GetMethodID(jni_class_SoundManager, "isPhonePlaying", "()Z");
 
         environment->DeleteLocalRef(jni_string_SoundManager);
         return (::CheckException(environment) && ::Detach(environment)) ? RESULT_OK : RESULT_INIT_ERROR;
@@ -112,5 +114,10 @@ namespace dmSound
     bool PlatformIsMusicPlaying()
     {
         return ::CallZ(g_SoundManager.m_IsMusicPlaying, false);
+    }
+
+    bool PlatformIsPhonePlaying()
+    {
+        return ::CallZ(g_SoundManager.m_IsPhonePlaying, true);
     }
 }

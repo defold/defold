@@ -4,6 +4,12 @@
 
 #include <AudioToolbox/AudioSession.h>
 
+#import <CoreTelephony/CTCallCenter.h>
+#import <CoreTelephony/CTCall.h>
+
+CTCallCenter* g_call_center = NULL;
+dmSound::CallStatus g_call_status = dmSound::CALL_STATUS_UNKNOWN;
+
 namespace dmSound
 {
     bool AudioSessionInitialized = false;
@@ -12,6 +18,26 @@ namespace dmSound
             const InitializeParams* params)
     {
         // NOTE: We actually ignore errors here. "Should never happen"
+
+        g_call_center = [[CTCallCenter alloc] init];
+        g_call_center.callEventHandler = ^(CTCall *call) {
+            if ([call.callState isEqualToString: CTCallStateConnected])
+            {
+                g_call_status = dmSound::CALL_STATUS_CONNECTED;
+            }
+            else if ([call.callState isEqualToString: CTCallStateDialing])
+            {
+                g_call_status = dmSound::CALL_STATUS_CALLING;
+            }
+            else if ([call.callState isEqualToString: CTCallStateDisconnected])
+            {
+                g_call_status = dmSound::CALL_STATUS_DISCONNECTED;
+            }
+            else if ([call.callState isEqualToString: CTCallStateIncoming])
+            {
+                g_call_status = dmSound::CALL_STATUS_CALLING;
+            }
+        };
 
         OSStatus status = 0;
         if (!AudioSessionInitialized) {
@@ -58,6 +84,11 @@ namespace dmSound
         UInt32 size = sizeof(other_playing);
         AudioSessionGetProperty(kAudioSessionProperty_OtherAudioIsPlaying, &size, &other_playing);
         return (bool) other_playing;
+    }
+
+    bool PlatformIsPhonePlaying()
+    {
+        return g_call_status != dmSound::CALL_STATUS_DISCONNECTED;
     }
 
 }

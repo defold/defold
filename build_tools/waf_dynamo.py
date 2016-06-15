@@ -63,7 +63,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 

@@ -27,4 +27,9 @@ namespace dmSound
     {
         return false;
     }
+
+    bool PlatformIsPhonePlaying()
+    {
+        return false;
+    }
 }

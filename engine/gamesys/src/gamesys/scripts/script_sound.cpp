@@ -202,6 +202,14 @@ namespace dmGameSystem
         return 1;
     }
 
+    int Sound_IsPhonePlaying(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        lua_pushboolean(L, (int) dmSound::IsPhonePlaying());
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg SOUND_FUNCTIONS[] =
     {
         {"is_music_playing", Sound_IsMusicPlaying},
@@ -211,6 +219,7 @@ namespace dmGameSystem
         {"get_group_gain", Sound_GetGroupGain},
         {"get_groups", Sound_GetGroups},
         {"get_group_name", Sound_GetGroupName},
+        {"is_phone_playing", Sound_IsPhonePlaying},
         {0, 0}
     };
 

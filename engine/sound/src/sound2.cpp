@@ -998,9 +998,17 @@ namespace dmSound
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
-            if (instance->m_Playing || instance->m_FrameCount > 0) {
-                MixInstance(mix_context, instance);
-                result = RESULT_OK;
+            if (instance->m_Playing || instance->m_FrameCount > 0)
+            {
+                if (dmMath::EqFloat(instance->m_Gain.m_Current, 0.0f))
+                {
+                    dmLogInfo("Skipping instance because it's silent!");
+                }
+                else
+                {
+                    MixInstance(mix_context, instance);
+                    result = RESULT_OK;
+                }
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
@@ -1130,6 +1138,11 @@ namespace dmSound
     bool IsMusicPlaying()
     {
         return PlatformIsMusicPlaying();
+    }
+
+    bool IsPhonePlaying()
+    {
+        return PlatformIsPhonePlaying();
     }
 
 }

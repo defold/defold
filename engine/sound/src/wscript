@@ -32,8 +32,8 @@ def build(bld):
         defines = 'TREMOLO_SCORE=10'
 
     if re.match('arm.*?darwin', bld.env['PLATFORM']):
-        source.append('sound_ios.cpp')
-        source2.append('sound_ios.cpp')
+        source.append('sound_ios.mm')
+        source2.append('sound_ios.mm')
         defines = 'TREMOLO_SCORE=10'
     elif re.match('arm.*?android', bld.env['PLATFORM']):
         source.append('sound_android.cpp')
