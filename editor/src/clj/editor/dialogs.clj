@@ -1,5 +1,6 @@
 (ns editor.dialogs
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -510,17 +511,17 @@
     (ui/show! stage)
     stage))
 
-(defn make-proposal-dialog [result caret screen-point proposals]
+(defn make-proposal-dialog [result caret screen-point proposals line]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals" "proposals-box"])
         close (fn [v] (do (deliver result v) (.close stage)))
         ^ListView list-view  (:proposals controls)
-        filter-text (atom "")
-        keep-fn (fn [prop] (when (re-find (re-pattern @filter-text) (:display-string prop)) prop))
+        filter-text (atom line)
+        filter-fn (fn [i] (string/starts-with? (:name i) @filter-text))
         update-items (fn [] (try
-                              (ui/items! list-view (keep keep-fn proposals))
+                              (ui/items! list-view (filter filter-fn proposals))
                               (.select (.getSelectionModel list-view) 0)
                               (catch Exception e (do
                                                 (println "Proposal filter bad filter pattern " @filter-text)
@@ -558,7 +559,7 @@
                                            :default (close nil)))))
 
     (.initOwner stage (ui/main-stage))
-    (.initModality stage Modality/NONE)
+    (.initModality stage  Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show! stage)
     stage))
