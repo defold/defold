@@ -15,18 +15,18 @@
         var-info (if include-locals? (set/union vars local-vars) vars)
         vars (map (fn [v] {:name v
                           :display-string v
-                          :do ""})
+                          :doc ""})
                   var-info)
         fn-info (if include-locals? (merge functions local-functions) functions)
         fns  (map (fn [[fname {:keys [params]}]]
                     (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)]
-                     {:name n
-                      :display-string (str n "("
-                                           (apply str (interpose "," (map #(str "[\"" % "\"]") params)))
-                                           ")")
-                      :doc ""}))
+                      {:name n
+                       :display-string (str n "("
+                                            (apply str (interpose ", " (map #(str "[\"" % "\"]") params)))
+                                            ")")
+                       :doc ""}))
                   fn-info)]
-    (vec (concat vars fns))))
+    (set (concat vars fns))))
 
 (defn find-module-node-in-project [node-id module-name]
   (let [project-node (project/get-project node-id)
@@ -55,9 +55,10 @@
         module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
         rcompletion-info (g/node-value rnode :completion-info)]
     {module-name (make-completions rcompletion-info false module-name)
-     "" [{:name module-name
-           :display-string module-name
-           :doc ""}]}))
+     "" #{{:name module-name
+            :display-string module-name
+            :doc ""}}}))
+
 
 (defn combine-completions [_node-id system-docs completion-info module-nodes]
  (let [local-completions {"" (make-completions completion-info true nil)}
