@@ -150,7 +150,9 @@
     (let
         [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
          items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
-         pattern (string/lower-case (if function function namespace))
+         pattern (string/lower-case (if (= "" (or namespace ""))
+                                      function
+                                      (str namespace "." function)))
          results (filter (fn [i] (string/starts-with? (:name i) pattern)) items)]
       (->> results (sort-by :display-string) (partition-by :display-string) (mapv first)))
     (catch Exception e
