@@ -16,6 +16,7 @@
            [clojure.lang Named]
            [schema.core Maybe Either]))
 
+
 ;; TODO - replace use of 'transform' as a variable name with 'label'
 
 (set! *warn-on-reflection* true)
@@ -156,22 +157,33 @@
 ;;; ----------------------------------------
 ;;; Value type definition
 
-(defprotocol ValueType)
+(defprotocol ValueType
+  (dispatch-value [this])
+  (schema [this] "Returns a schema.core/Schema that can conform values of this type"))
 
-(defrecord ValueTypeImpl [name schema]
+(defrecord SchemaType [dispatch-value schema]
   ValueType
+  (dispatch-value [_] dispatch-value)
+  (schema         [_] schema)
+
   Type
-  (describe* [this] (s/explain schema))
+  (describe* [this] (s/explain schema)))
 
-  schema.core/Schema
-  (spec [this] (s/spec schema))
-  (explain [this] (s/explain schema)))
+(defrecord ClassType [dispatch-value ^Class class]
+  ValueType
+  (dispatch-value [_] dispatch-value)
+  (schema         [_] class)
 
-(extend-protocol ValueType java.lang.Class)
+  Type
+  (describe* [this] (.getName class)))
 
-(extend-protocol Type
-  java.lang.Class
-  (describe* [this] (.getName this)))
+(defrecord ProtocolType [dispatch-value schema]
+  ValueType
+  (dispatch-value [_] dispatch-value)
+  (schema         [_] schema)
+
+  Type
+  (describe* [this] dispatch-value))
 
 (defn value-type? [x] (satisfies? ValueType x))
 
@@ -186,41 +198,26 @@
   Ref
   (ref-key [this] k)
 
-  schema.core/Schema
-  (spec [this] (s/spec (deref this)))
-  (explain [this] (s/explain (deref this)))
-
   clojure.lang.IDeref
   (deref [this]
     (value-type-resolve k)))
 
-(prefer-method clojure.core/print-method ValueTypeRef clojure.lang.IDeref)
-
-(defn- mangle
-  "Convert a Clojure symbol into a (hypothetical) class name"
-  [x]
-  (if-let [ns (namespace x)]
-    (let [pkg (str/replace ns #"-" "_")]
-      (symbol (str pkg "." (name x))))
-    x))
-
-(defn- class-or-protocol? [x]
-  (cond
-    (class? x)                    x
-    (util/protocol? x)            x
-    (and (symbol? x) (resolve x)) (class-or-protocol? (resolve x))
-    (symbol? x)                   (class-or-protocol? (resolve (mangle x)))
-    (and (var? x) (var-get x))    (class-or-protocol? (var-get x))))
-
 (defn register-value-type
   [k value-type]
-  (let [real-value-type (cond
-                          (value-type? value-type)    value-type
-                          (named? value-type)         value-type
-                          (util/protocol? value-type) (:on-interface value-type)
-                          (util/schema? value-type)   value-type)]
-    (assert real-value-type)
-    (->ValueTypeRef (register-type value-type-registry-ref k real-value-type))))
+  (assert value-type)
+  (->ValueTypeRef (register-type value-type-registry-ref k value-type)))
+
+(defn- make-protocol-value-type
+  [dispatch-value name]
+  (->ProtocolType dispatch-value (eval (list `s/protocol name))))
+
+(defn make-value-type
+  [name key body]
+  (let [dispatch-value (->ValueTypeRef key)]
+    (cond
+      (class? body)         (->ClassType dispatch-value body)
+      (util/protocol? body) (make-protocol-value-type dispatch-value name)
+      (util/schema? body)   (->SchemaType dispatch-value body))))
 
 (defn unregister-value-type
   [k]
@@ -229,20 +226,10 @@
 (defn k->s [k] (symbol (namespace k) (name k)))
 
 (defn value-type-resolve [k]
-  (or
-   (type-resolve (value-type-registry) k)
-   (when-let [v (class-or-protocol? (k->s k))]
-     (deref (register-value-type k v)))))
+  (type-resolve (value-type-registry) k))
 
-(defn- vt->s [vt]
-  (if (class? vt) vt (:schema vt)))
-
-(defn value-type-schema
-  [vtr]
-  (cond
-    (class? vtr)   vtr
-    (ref? vtr)     (vt->s @vtr)
-    (keyword? vtr) (vt->s (value-type-resolve vtr))))
+(defn value-type-schema         [vtr] (when (ref? vtr) (some-> vtr deref schema)))
+(defn value-type-dispatch-value [vtr] (when (ref? vtr) (some-> vtr deref dispatch-value)))
 
 ;;; ----------------------------------------
 ;;; Construction support
@@ -269,7 +256,7 @@
     (let [beh (behavior node-type label)]
       (assert beh (str "No such output, input, or property " label
                             " exists for node " (gt/node-id this)
-                            " of type " (:name node-type)
+                            " of type " (:name @node-type)
                             "\nIn production: " (get evaluation-context :in-production)))
       (when *node-value-debug*
         (println (nodevalstr this node-type label)))
@@ -557,15 +544,6 @@
 
 (def assert-symbol (partial util/assert-form-kind "defnode" "symbol" symbol?))
 
-(defn assert-value-type
-  [where form]
-  (let [pred (fn [f]
-               (let [val (if (symbol? f) (util/vgr f) f)]
-                 (value-type? (value-type-resolve val))))]
-    (util/assert-form-kind "defnode" "registered value type"
-                           pred
-                           where form)))
-
 ;;; ----------------------------------------
 ;;; Parsing defnode forms
 
@@ -711,25 +689,38 @@
         :else                 [flags options args])
       [flags options args])))
 
+(defn- protocol-symbol->vtr
+  [sym]
+  (let [pval (util/vgr sym)]
+    (register-value-type (keyword (canonicalize sym)) (make-protocol-value-type pval sym))))
+
 (defn- class-symbol->vtr
   [sym]
+  ;; note: this occurs in type position of a defnode clause. we use
+  ;; the class itself as the dispatch value so multimethods can be
+  ;; expressed most naturally.
+  ;;
+  ;; if you define a node type with a Java class (or Clojure record),
+  ;; then you use that class or record for multimethod dispatch.
+  ;;
+  ;; otoh, if you define a node type with a deftype'd type, then you
+  ;; use the typeref as the multimethod dispatch value.
   (let [cls (resolve sym)]
-    (register-value-type (keyword (.getName ^Class cls)) cls)))
+    (register-value-type (keyword (.getName ^Class cls)) (->ClassType cls cls))))
 
-(defn- clj-symbol->vtr
-  [sym]
-  (->ValueTypeRef (keyword (canonicalize sym))))
+(defn- named->vtr
+  [symbol-or-keyword]
+  (->ValueTypeRef (keyword (canonicalize symbol-or-keyword))))
 
 (defn parse-type-form
   [where original-form]
   (let [multivalued? (vector? original-form)
         form         (if multivalued? (first original-form) original-form)
         type         (cond
-                       (ref? form)                   form
-                       (and (symbol? form)
-                            (class? (resolve form))) (class-symbol->vtr form)
-                       (named? form)                 (clj-symbol->vtr form)
-                       :else                         nil)]
+                       (ref? form)                  form
+                       (util/protocol-symbol? form) (protocol-symbol->vtr form)
+                       (util/class-symbol? form)    (class-symbol->vtr form)
+                       (named? form)                (named->vtr form))]
     (assert (not (nil? type))
             (str "defnode " where " requires a value type but was supplied with '"
                  original-form "' which cannot be used as a type"))
