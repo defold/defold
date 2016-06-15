@@ -10,8 +10,7 @@
 
 (g/deftype Int s/Int)
 
-(defn- vtr [x] (in/->ValueTypeRef x))
-(def int-ref (vtr :internal.defnode-test/Int))
+(def int-ref (in/->ValueTypeRef :internal.defnode-test/Int))
 
 (deftest parsing-type-forms
   (testing "aliases for the same type ref"
@@ -33,29 +32,135 @@
       'NoSuchSymbol
       `NoSuchSymbol)))
 
+(defprotocol Prot
+  (a-method [this]))
+(defrecord   Rec [])
+
+(g/deftype W s/Any)
+(g/deftype X java.lang.String)
+(g/deftype Y Prot)
+(g/deftype Z Rec)
+
+(g/defnode DispatchValuesNode
+  (property any-deftyped      W)
+  (property string-deftyped   X)
+  (property string-direct     String)
+  (property protocol-deftyped Y)
+  (property protocol-direct   Prot)
+  (property record-deftyped   Z)
+  (property record-direct     Rec))
+
+(deftest dispatch-values-depend-on-usage
+  (are [expected tp] (= expected (g/value-type-dispatch-value tp))
+    W W
+    X X
+    Y Y
+    Z Z)
+  (are [expected prop] (= expected (-> @DispatchValuesNode :property prop :value-type g/value-type-dispatch-value))
+    W      :any-deftyped
+    X      :string-deftyped
+    String :string-direct
+    Y      :protocol-deftyped
+    Prot   :protocol-direct
+    Z      :record-deftyped
+    Rec    :record-direct))
+
+(g/defnode JavaClassesTypeNode
+  (input an-input java.util.concurrent.BlockingDeque)
+  (property a-property java.util.Vector)
+  (output an-output java.util.concurrent.BlockingDeque (g/fnk [an-input] an-input)))
+
+(defmulti class-based-dispatch (fn [value-type] (in/value-type-dispatch-value value-type)))
+
+(defmethod class-based-dispatch java.util.Collection [_] :collection)
+(defmethod class-based-dispatch java.util.concurrent.BlockingDeque [_] :blocking-deque)
+(defmethod class-based-dispatch java.util.AbstractList [_] :abstract-list)
+(defmethod class-based-dispatch :default [_] :fail)
+
 (deftest java-classes-are-types
   (testing "classes can appear as type forms"
     (is (= (in/->ValueTypeRef :java.lang.String)
            (:value-type (in/parse-type-form (str 'java-classes-are-types) 'java.lang.String)))))
+
   (testing "classes are registered after parsing"
     (in/unregister-value-type :java.util.concurrent.BlockingDeque)
-    (let [tp (in/parse-type-form (str 'java-classes-are-types) 'java.util.concurrent.BlockingDeque)]
-      (is (= java.util.concurrent.BlockingDeque (in/value-type-resolve :java.util.concurrent.BlockingDeque)))))
-  (testing "classes are registered automatically by resolving"
-    (in/unregister-value-type :java.util.concurrent.BlockingDeque)
-    (is (= java.util.concurrent.BlockingDeque (in/value-type-resolve :java.util.concurrent.BlockingDeque)))))
+    (let [{:keys [value-type]} (in/parse-type-form (str 'java-classes-are-types) 'java.util.concurrent.BlockingDeque)]
+      (is (= java.util.concurrent.BlockingDeque (in/value-type-schema value-type)))))
+
+  (testing "classes can be used as inputs, outputs, and properties"
+    (are [expected kind label] (= expected (-> @JavaClassesTypeNode kind label :value-type in/value-type-schema))
+      java.util.concurrent.BlockingDeque :input    :an-input
+      java.util.concurrent.BlockingDeque :output   :an-output
+      java.util.Vector                   :property :a-property))
+
+  (testing "classes can be used as multimethod dispatch values"
+    (are [expected kind label] (= expected (class-based-dispatch (-> @JavaClassesTypeNode kind label :value-type)))
+      :blocking-deque :input    :an-input
+      :blocking-deque :output   :an-output
+      :abstract-list  :property :a-property)))
 
 (defprotocol CustomProtocol)
+(defrecord CustomProtocolImplementerA []
+  CustomProtocol)
+(defrecord CustomProtocolImplementerB []
+  CustomProtocol)
+(defrecord CustomProtocolImplementerC []
+  CustomProtocol)
+
+(g/defnode ProtocolTypeNode
+  (input an-input CustomProtocolImplementerA)
+  (property a-property CustomProtocol)
+  (output an-output CustomProtocol (g/fnk [an-input] an-input)))
+
+(defmulti protocol-based-dispatch (fn [value-type] (in/value-type-dispatch-value value-type)))
+
+(defmethod protocol-based-dispatch CustomProtocol [_] :protocol)
+(defmethod protocol-based-dispatch CustomProtocolImplementerA [_] :a)
+(defmethod protocol-based-dispatch CustomProtocolImplementerB [_] :b)
+(defmethod protocol-based-dispatch :default [_] :fail)
 
 (deftest protocols-are-types
-  (in/unregister-value-type :internal.defnode-test/CustomProtocol)
-  (is (= (:on-interface CustomProtocol) (in/value-type-resolve :internal.defnode-test/CustomProtocol))))
+  (testing "protocols can appear as type forms"
+    (is (= (in/->ValueTypeRef :internal.defnode-test/CustomProtocol)
+           (:value-type (in/parse-type-form (str 'protocols-are-types) 'internal.defnode-test/CustomProtocol)))))
+
+  (testing "protocols are registered after parsing"
+    (in/unregister-value-type :internal.defnode-test/CustomProtocol)
+    (let [{:keys [value-type]} (in/parse-type-form (str 'protocols-are-types) 'internal.defnode-test/CustomProtocol)]
+      (is (satisfies? schema.core/Schema (in/value-type-schema value-type)))
+      (is (instance? schema.core.Protocol (in/value-type-schema value-type)))
+      (is (= internal.defnode-test/CustomProtocol (:p (in/value-type-schema value-type))))))
+
+  (testing "protocols can be used as inputs, outputs, and properties"
+    (are [expected kind label] (= expected (-> @ProtocolTypeNode kind label :value-type in/value-type-schema :p))
+      CustomProtocol :output   :an-output
+      CustomProtocol :property :a-property)
+
+    (are [expected kind label] (= expected (-> @ProtocolTypeNode kind label :value-type in/value-type-schema))
+      CustomProtocolImplementerA :input    :an-input))
+
+  (testing "protocols can be used as multimethod dispatch values"
+    (are [expected kind label] (= expected (protocol-based-dispatch (-> @ProtocolTypeNode kind label :value-type)))
+      :a        :input    :an-input
+      :protocol :output   :an-output
+      :protocol :property :a-property)))
 
 (defrecord CustomRecord [])
 
 (deftest records-are-types
-  (in/unregister-value-type :internal.defnode-test/CustomRecord)
-  (is (= CustomRecord (in/value-type-resolve :internal.defnode-test/CustomRecord))))
+  (testing "records can appear as type forms"
+    (is (= (in/->ValueTypeRef :internal.defnode_test.CustomRecord)
+           (:value-type (in/parse-type-form (str 'records-are-types) 'internal.defnode_test.CustomRecord))))))
+
+(g/deftype Str java.lang.String)
+
+(defmulti type-based-dispatch (fn [x] (in/value-type-dispatch-value x)))
+(defmethod type-based-dispatch Str [_] :str)
+(defmethod type-based-dispatch java.lang.String [_] :java.lang.String)
+(defmethod type-based-dispatch :default [_] :fail)
+
+(deftest deftypes-with-classes-dispatch-as-type-not-class
+  (is (= :str (type-based-dispatch Str))))
 
 (defn substitute-value-fn [& _] "substitute value")
 

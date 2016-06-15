@@ -109,9 +109,10 @@
   ImageHolder
   (contents [this] contents))
 
-(g/deftype AnimationPlayback (s/enum :playback-none :playback-once-forward :playback-once-backward
+(def ^:private playback-modes (s/enum :playback-none :playback-once-forward :playback-once-backward
                                      :playback-once-pingpong :playback-loop-forward :playback-loop-backward
                                      :playback-loop-pingpong))
+(g/deftype AnimationPlayback playback-modes)
 
 (s/defrecord Animation
   [id              :- s/Str
@@ -119,7 +120,7 @@
    fps             :- Int32
    flip-horizontal :- s/Bool
    flip-vertical   :- s/Bool
-   playback        :- AnimationPlayback])
+   playback        :- playback-modes])
 
 (s/defrecord TexturePacking
   [aabb         :- Rect
@@ -159,7 +160,7 @@
    fps             :- Int32
    flip-horizontal :- s/Int
    flip-vertical   :- s/Int
-   playback        :- AnimationPlayback
+   playback        :- playback-modes
    frames          :- [TextureSetAnimationFrame]])
 
 (s/defrecord TextureSet

@@ -92,7 +92,7 @@
                (let [properties (g/node-value n1 :_properties)]
                  (is (not (empty? (:properties properties))))
 
-                 (is (every? util/schema? (map (comp :schema deref :type val) (:properties properties))))
+                 (is (every? in/value-type? (map (comp deref :type) (vals (:properties properties)))))
                  (is (empty? (filter (fn [k] (some k #{:_output-jammers :_node-id})) (keys (:properties properties)))))
                  (is (not (empty? (:display-order properties))))))))
 

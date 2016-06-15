@@ -138,6 +138,11 @@
        (let [x' (vgr x)]
          (and (map? x') (contains? x' :on-interface)))))
 
+(defn class-symbol?
+  [x]
+  (and (symbol? x)
+       (class? (resolve x))))
+
 (defn assert-form-kind [place required-kind-label required-kind-pred label form]
   (assert (not (nil? form))
           (str place " " label " requires a " required-kind-label " but got nil"))
