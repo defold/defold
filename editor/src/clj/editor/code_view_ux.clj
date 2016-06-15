@@ -796,7 +796,7 @@
      (let [screen-position (screen-position selection)
            offset (caret selection)
            result (promise)
-           ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals)
+           ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals line)
            replace-text-fn (fn [] (when (and (realized? result) @result)
                                    (let [replacement (:display-string (first @result))]
                                      (if (= 0 (string/index-of replacement line))
