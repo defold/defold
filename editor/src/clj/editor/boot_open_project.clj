@@ -42,6 +42,7 @@
             [dynamo.graph :as g]
             [editor.display-profiles :as display-profiles]
             [editor.web-profiler :as web-profiler]
+            [editor.login :as login]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
@@ -220,7 +221,7 @@
         _            (render-progress! (swap! progress progress/advance 1 "Updating dependencies"))
         _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
         _            (workspace/update-dependencies! workspace
-                                                     (progress/nest-render-progress render-progress! @progress))
+                                                     (progress/nest-render-progress render-progress! @progress) (partial login/login prefs))
         _            (render-progress! (swap! progress progress/advance 1 "Reloading dependencies"))
         _            (workspace/resource-sync! workspace true []
                                                (progress/nest-render-progress render-progress! @progress))

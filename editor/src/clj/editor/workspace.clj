@@ -183,7 +183,12 @@ ordinary paths."
     (g/set-property! workspace :dependencies library-urls)
     library-urls))
 
-(defn update-dependencies! [workspace render-progress!]
+(defn- has-dependencies? [workspace]
+  (not-empty (g/node-value workspace :dependencies)))
+
+(defn update-dependencies! [workspace render-progress! login-fn]
+  (when (and (has-dependencies? workspace) login-fn)
+    (login-fn))
   (library/update-libraries! (project-path workspace)
                              (g/node-value workspace :dependencies)
                              library/default-http-resolver
