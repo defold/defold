@@ -549,14 +549,19 @@
                                            (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
                                            (= code (KeyCode/ENTER)) (close (ui/selection list-view))
                                            (= code (KeyCode/TAB)) (close (ui/selection list-view))
-                                           (= code (KeyCode/SHIFT)) true
 
-                                           (= code (KeyCode/BACK_SPACE))
+                                           (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
+                                           (do
+                                             (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))
+                                             (close nil))
+
+                                           (or (= code (KeyCode/BACK_SPACE)) (= code (KeyCode/DELETE)))
                                            (if (empty? @filter-text)
                                              (close nil)
                                              (do
                                                (swap! filter-text #(apply str (drop-last %)))
-                                               (update-items)))
+                                               (update-items)
+                                               (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))))
 
                                            :default true))))
     (.addEventFilter scene KeyEvent/KEY_TYPED
