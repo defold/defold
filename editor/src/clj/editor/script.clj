@@ -142,7 +142,6 @@
                                                (lua-parser/lua-info code)))
   (output completions g/Any :cached (g/fnk [_node-id completion-info module-nodes]
                                            (code-completion/combine-completions _node-id
-                                                                                @lua/defold-docs
                                                                                 completion-info
                                                                                 module-nodes))))
 
