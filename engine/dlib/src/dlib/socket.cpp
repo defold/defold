@@ -795,7 +795,7 @@ namespace dmSocket
         struct addrinfo* res;
 
         memset(&hints, 0x0, sizeof(hints));
-        hints.ai_family = PF_UNSPEC;
+        hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
 
         // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.
