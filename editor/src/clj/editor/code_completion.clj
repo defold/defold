@@ -22,7 +22,6 @@
                           display-string (str n "(" (string/join "," params)  ")")]
                       (code/create-hint n display-string display-string "")))
                   fn-info)]
-    (println :fns fns)
     (set (concat vars fns))))
 
 (defn find-module-node-in-project [node-id module-name]
@@ -52,7 +51,7 @@
         module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
         rcompletion-info (g/node-value rnode :completion-info)]
     {module-name (make-completions rcompletion-info false module-name)
-     "" #{(code/create-hint module-name "")}}))
+     "" #{(code/create-hint module-name)}}))
 
 
 (defn combine-completions [_node-id completion-info module-nodes]

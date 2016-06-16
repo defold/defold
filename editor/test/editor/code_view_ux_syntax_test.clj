@@ -61,12 +61,27 @@
     (let [code ""
           source-viewer (setup-source-viewer lua/lua false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "global package"
-        (set-completion-code! source-viewer "g")
-        (is (= ["go" "gui"] (map :name (:proposals (propose source-viewer))))))
-      (testing "go package function"
+      (testing "global lua std lib"
+        (set-completion-code! source-viewer "asser")
+        (let [result (:proposals (propose source-viewer))]
+         (is (= ["assert"] (map :name result)))
+         (is (= ["assert(v[,message])"] (map :display-string result)))
+         (is (= ["assert(v)"] (map :insert-string result)))))
+      (testing "global defold package"
+        (set-completion-code! source-viewer "go")
+        (is (= ["go"] (map :name (:proposals (propose source-viewer))))))
+      (testing "go.property function - required params"
         (set-completion-code! source-viewer "go.proper")
-        (is (= ["go.property"] (map :name (:proposals (propose source-viewer))))))
+        (let [result (:proposals (propose source-viewer))]
+         (is (= ["go.property"] (map :name result)))
+         (is (= ["go.property(name,value)"] (map :display-string result)))
+         (is (= ["go.property(name,value)"] (map :insert-string result)))))
+      (testing "go.delete functions - required params"
+        (set-completion-code! source-viewer "go.delete")
+        (let [result (:proposals (propose source-viewer))]
+         (is (= ["go.delete" "go.delete_all"] (map :name result)))
+         (is (= ["go.delete([id])" "go.delete_all([ids])"] (map :display-string result)))
+         (is (= ["go.delete()" "go.delete_all()"] (map :insert-string result)))))
       (testing "local var"
         (set-completion-code! source-viewer "local foo=1 \n fo")
         (is (= ["foo"] (map :name (:proposals (propose source-viewer))))))
