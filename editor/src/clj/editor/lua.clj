@@ -53,7 +53,7 @@
       (parse-unscoped-line line)))
 
 (defn- load-sdoc [path]
-  (try 
+  (try
     (with-open [in (io/input-stream (io/resource path))]
       (let [doc (-> (ScriptDoc$Document/newBuilder)
                   (.mergeFrom in)
@@ -134,9 +134,9 @@
    (fn [result [ns elements]]
      (let [global-results (get result "" [])
            new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
-                                                                     (element-display-string e true)
-                                                                     (element-display-string e false)
-                                                                     (element-additional-info e))) elements)))]
+                                                                          (element-display-string e true)
+                                                                          (element-display-string e false)
+                                                                          (element-additional-info e))) elements)))]
        (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
    {}
    (load-documentation)))
@@ -144,9 +144,16 @@
 (def defold-docs (atom (defold-documentation)))
 
 (defn lua-std-libs-documentation []
-  (->  (io/resource "lua-stdlib-completions.edn")
-       slurp
-       edn/read-string))
+  (let [base-items (->  (io/resource "lua-standard-libs.edn")
+                        slurp
+                        edn/read-string)
+        hints (for [item base-items]
+                (code/create-hint
+                 (first (string/split item #"\("))
+                 item
+                 (string/replace item #"\[.*\]" "")
+                 ""))]
+    (group-by #(first (string/split (:name %) #"\.")) hints)))
 
 (def lua-std-libs-docs (atom (lua-std-libs-documentation)))
 
