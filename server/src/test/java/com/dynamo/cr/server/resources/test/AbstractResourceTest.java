@@ -156,6 +156,22 @@ public class AbstractResourceTest {
         return client.resource(uri);
     }
 
+    WebResource createBaseResource(User user, String password) {
+        DefaultClientConfig clientConfig = new DefaultClientConfig();
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
+
+        Client client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(user.getEmail(), password));
+
+        int port = injector.getInstance(Configuration.class).getServicePort();
+
+        URI uri = UriBuilder.fromUri("http://localhost/").port(port).build();
+        return client.resource(uri);
+    }
+
     WebResource createAnonymousResource(String baseURI) {
         DefaultClientConfig clientConfig = new DefaultClientConfig();
         clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
