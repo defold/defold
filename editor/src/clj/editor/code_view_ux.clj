@@ -778,7 +778,6 @@
       (toggle-region-comment selection)
       (toggle-line-comment selection))))
 
-
 (defn enter-key-text [selection key-typed]
   (let [c (caret selection)
         doc (text selection)
@@ -787,21 +786,20 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (inc np)))))
 
-(defn show-proposals [selection]
-  (let [{:keys [proposals line]} (propose selection)]
-    (when (pos? (count proposals))
-     (let [screen-position (screen-position selection)
-           offset (caret selection)
-           result (promise)
-           ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals line (text-area selection))
-           replace-text-fn (fn [] (when (and (realized? result) @result)
-                                   (let [replacement (:insert-string (first @result))
-                                         idx (string/index-of replacement line)
-                                         offset-diff (- (caret selection) offset)]
-                                     (if (= 0 idx)
-                                       (replace! selection offset offset-diff (subs replacement (count line)))
-                                       (replace! selection offset offset-diff replacement)))))]
-       (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))))
+(defn show-proposals [selection {:keys [proposals line]}]
+  (when (pos? (count proposals))
+    (let [screen-position (screen-position selection)
+          offset (caret selection)
+          result (promise)
+          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals line (text-area selection))
+          replace-text-fn (fn [] (when (and (realized? result) @result)
+                                  (let [replacement (:insert-string (first @result))
+                                        idx (string/index-of replacement line)
+                                        offset-diff (- (caret selection) offset)]
+                                    (if (= 0 idx)
+                                      (replace! selection offset offset-diff (subs replacement (count line)))
+                                      (replace! selection offset offset-diff replacement)))))]
+      (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
@@ -811,7 +809,7 @@
            (code/not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
       (when (contains? proposal-key-triggers key-typed)
-        (show-proposals selection)))))
+        (show-proposals selection (propose selection))))))
 
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
@@ -841,4 +839,10 @@
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (show-proposals selection)))
+    (let [{:keys [proposals line] :as proposal-data} (propose selection)]
+      (if (= 1 (count proposals))
+        (let [replacement (:insert-string (first proposals))]
+          (if (= 0 (string/index-of replacement line))
+            (replace! selection (caret selection) 0 (subs replacement (count line)))
+            (replace! selection (caret selection) 0 replacement)))
+        (show-proposals selection proposal-data)))))
