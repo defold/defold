@@ -147,7 +147,7 @@ def build(bld):
                                   uselib_local = 'sound embedded_wavs embedded_oggs',
                                   exported_symbols = exported_symbols,
                                   target = 'test_sound',
-                                  source = 'test_sound2.cpp')
+                                  source = 'test_sound.cpp')
 
     test_sound.install_path = None
 
