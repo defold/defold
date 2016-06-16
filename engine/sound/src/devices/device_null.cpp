@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include "sound.h"
-#include "sound2.h"
 
 namespace dmDeviceNull
 {

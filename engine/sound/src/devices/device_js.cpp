@@ -8,7 +8,6 @@
 #include <dlib/profile.h>
 
 #include "sound.h"
-#include "sound2.h"
 
 extern "C" {
     // Implementation in library_sound.js

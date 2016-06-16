@@ -7,7 +7,6 @@
 #include <dlib/time.h>
 #include <dlib/profile.h>
 #include "sound.h"
-#include "sound2.h"
 
 #if defined(__MACH__)
 #include <OpenAL/al.h>

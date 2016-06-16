@@ -9,7 +9,6 @@
 #include <dlib/time.h>
 #include <dlib/math.h>
 #include "../sound.h"
-#include "../sound2.h"
 #include "../sound_codec.h"
 #include "../stb_vorbis/stb_vorbis.h"
 

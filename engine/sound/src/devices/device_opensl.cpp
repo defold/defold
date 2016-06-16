@@ -8,7 +8,6 @@
 #include <dlib/time.h>
 #include <dlib/profile.h>
 #include "sound.h"
-#include "sound2.h"
 
 #include <android_native_app_glue.h>
 
