@@ -153,7 +153,8 @@
                  item
                  (string/replace item #"\[.*\]" "")
                  ""))]
-    (group-by #(first (string/split (:name %) #"\.")) hints)))
+    (group-by #(let [names (string/split (:name %) #"\.")]
+                 (if (= 2 (count names)) (first names) "")) hints)))
 
 (def lua-std-libs-docs (atom (lua-std-libs-documentation)))
 
