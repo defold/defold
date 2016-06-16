@@ -1,21 +1,5 @@
 package com.dynamo.cr.server.auth;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.security.Principal;
-
-import javax.inject.Inject;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.SecurityContext;
-import javax.ws.rs.core.UriInfo;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -23,19 +7,39 @@ import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.container.MappableContainerException;
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
+import javax.inject.Inject;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
+import javax.ws.rs.core.UriInfo;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.security.Principal;
+import java.util.Objects;
 
 public class SecurityFilter implements ContainerRequestFilter {
 
-    protected static Logger logger = LoggerFactory.getLogger(SecurityFilter.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SecurityFilter.class);
+    private static final String REALM = "HTTPS Example authentication";
 
     @Context
     UriInfo uriInfo;
 
-    private static final String REALM = "HTTPS Example authentication";
+    @Context
+    HttpServletRequest httpServletRequest;
 
     @Inject
     private EntityManagerFactory emf;
+
+    @Inject
+    private AccessTokenAuthenticator accessTokenAuthenticator;
 
     @Override
     public ContainerRequest filter(ContainerRequest request) {
@@ -77,20 +81,18 @@ public class SecurityFilter implements ContainerRequestFilter {
             try {
                 email = URLDecoder.decode(email, "UTF-8");
                 User user = ModelUtil.findUserByEmail(em, email);
-                if (user != null && AuthToken.auth(email, authToken)) {
+                if (user != null && accessTokenAuthenticator.authenticate(user, authToken, httpServletRequest.getRemoteAddr())) {
                     return user;
                 } else {
                     throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
                 }
-
             } catch (UnsupportedEncodingException e) {
                 throw new RuntimeException(e);
             }
         }
 
         // Extract authentication credentials
-        String authentication = request
-                .getHeaderValue(ContainerRequest.AUTHORIZATION);
+        String authentication = request.getHeaderValue(ContainerRequest.AUTHORIZATION);
 
         if (authentication != null && authentication.startsWith("Basic ")) {
             /*
@@ -102,8 +104,7 @@ public class SecurityFilter implements ContainerRequestFilter {
              */
 
             authentication = authentication.substring("Basic ".length());
-            String[] values = new String(Base64.base64Decode(authentication))
-                    .split(":");
+            String[] values = Base64.base64Decode(authentication).split(":");
             if (values.length < 2) {
                 throw new WebApplicationException(400);
                 // "Invalid syntax for username and password"
@@ -119,7 +120,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             User user = ModelUtil.findUserByEmail(em, username);
             if (user != null && user.authenticate(password)) {
                 return user;
-            } else if (user != null && AuthToken.auth(username, password)) {
+            } else if (user != null && accessTokenAuthenticator.authenticate(user, password, httpServletRequest.getRemoteAddr())) {
                 // NOTE: This is rather messy. We also support
                 // auth-cookie login using http basic auth.
                 // Should perhaps deprecate X-Auth and use basic auth for
@@ -128,7 +129,7 @@ public class SecurityFilter implements ContainerRequestFilter {
                 // are used in tests
                 return user;
             } else {
-                logger.warn("User authentication failed");
+                LOGGER.warn("User authentication failed");
                 throw new MappableContainerException(new AuthenticationException(
                         "Invalid username or password", REALM));
             }
@@ -147,12 +148,11 @@ public class SecurityFilter implements ContainerRequestFilter {
         }
     }
 
-    public class Authorizer implements SecurityContext {
+    private class Authorizer implements SecurityContext {
+        private final User user;
+        private final Principal principal;
 
-        private User user;
-        private Principal principal;
-
-        public Authorizer(final User user) {
+        Authorizer(User user) {
             this.user = user;
             this.principal = new UserPrincipal(user);
         }
@@ -164,28 +164,29 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         @Override
         public boolean isUserInRole(String role) {
-            if (role.equals("admin")) {
-                return user.getRole() == Role.ADMIN;
-            }
-            else if (role.equals("owner")) {
-                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                for (Project p : user.getProjects()) {
-                    if (p.getId().longValue() == projectId && p.getOwner().getId() == user.getId())
-                        return true;
+            switch (role) {
+                case "admin":
+                    return user.getRole() == Role.ADMIN;
+                case "owner": {
+                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                    for (Project p : user.getProjects()) {
+                        if (p.getId() == projectId && Objects.equals(p.getOwner().getId(), user.getId()))
+                            return true;
+                    }
+                    break;
                 }
-            }
-            else if (role.equals("member")) {
-                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                for (Project p : user.getProjects()) {
-                    if (p.getId().longValue() == projectId)
-                        return true;
+                case "member": {
+                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                    for (Project p : user.getProjects()) {
+                        if (p.getId() == projectId)
+                            return true;
+                    }
+                    break;
                 }
-            }
-            else if (role.equals("user")) {
-                return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
-            }
-            else if (role.equals("anonymous")) {
-                return true;
+                case "user":
+                    return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
+                case "anonymous":
+                    return true;
             }
             return false;
         }
