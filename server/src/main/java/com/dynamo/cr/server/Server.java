@@ -5,6 +5,7 @@ import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
@@ -16,6 +17,7 @@ import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.resources.*;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.PersistFilter;
 import com.dynamo.inject.persist.jpa.JpaPersistModule;
 import com.google.inject.Guice;
@@ -66,7 +68,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
     private static final int MAX_ACTIVE_LOGINS = 1024;
 
@@ -82,7 +83,6 @@ public class Server {
     private int openRegistrationMaxUsers;
 
     public static class Config extends GuiceServletContextListener {
-
         private final Server server;
 
         public Config(Server server) {
@@ -100,7 +100,7 @@ public class Server {
                     for (Entry<Object, Object> e : System.getProperties().entrySet()) {
                         props.put(e.getKey(), e.getValue());
                     }
-                    // TODO: Why this one AND EntityManagerFactoryProvider!?
+
                     install(new JpaPersistModule(server.getConfiguration().getPersistenceUnitName()).properties(props));
 
                     bind(Server.class).toInstance(server);
@@ -159,15 +159,31 @@ public class Server {
         }
     }
 
-    private HttpServer createHttpServer() throws IOException {
+    @Inject
+    public Server(EntityManagerFactory emf, Configuration configuration, IMailProcessor mailProcessor, AccessTokenAuthenticator accessTokenAuthenticator)
+            throws IOException {
+
+        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
+        this.emf = emf;
+        this.configuration = configuration;
+        this.mailProcessor = mailProcessor;
+
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e1) {
+            throw new RuntimeException(e1);
+        }
+
+        bootStrapUsers();
+
         // Manually create server to be able to tweak timeouts
         HttpServer server = new HttpServer();
         ServerConfiguration serverConfig = server.getServerConfiguration();
         serverConfig.addHttpHandler(new StaticHttpHandler("/"), "/");
         NetworkListener listener = new NetworkListener("grizzly", NetworkListener.DEFAULT_NETWORK_HOST, new PortRange(
-                configuration.getServicePort()));
-        if (configuration.hasGrizzlyIdleTimeout()) {
-            listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
+                this.configuration.getServicePort()));
+        if (this.configuration.hasGrizzlyIdleTimeout()) {
+            listener.getKeepAlive().setIdleTimeoutInSeconds(this.configuration.getGrizzlyIdleTimeout());
         }
         server.addListener(listener);
 
@@ -201,31 +217,7 @@ public class Server {
 
         server.getServerConfiguration().addHttpHandler(handler, "/*");
         server.start();
-        return server;
-    }
-
-    public Server() {}
-
-    @Inject
-    public Server(EntityManagerFactory emf,
-                  Configuration configuration,
-                  IMailProcessor mailProcessor) throws IOException {
-
-        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
-
-        this.emf = emf;
-        this.configuration = configuration;
-        this.mailProcessor = mailProcessor;
-
-        try {
-            secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        } catch (NoSuchAlgorithmException e1) {
-            throw new RuntimeException(e1);
-        }
-
-        bootStrapUsers();
-
-        httpServer = createHttpServer();
+        httpServer = server;
 
         // TODO File caches are temporarily disabled to avoid two bugs:
         // * Content-type is incorrect for cached files:
@@ -260,8 +252,7 @@ public class Server {
         gitServlet.addReceivePackFilter(receiveFilter);
 
         ServletHandler gitHandler = new ServletHandler(gitServlet);
-
-        gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
+        gitHandler.addFilter(new GitSecurityFilter(emf, accessTokenAuthenticator), "gitAuth", null);
 
         gitHandler.addInitParameter("base-path", basePath);
         gitHandler.addInitParameter("export-all", "1");
@@ -273,6 +264,14 @@ public class Server {
         this.mailProcessor.start();
 
         this.executorService = Executors.newSingleThreadExecutor();
+
+        /*
+            TEMP ACCESS TOKEN HACK (onetime thing, this should be removed after first release of this code)
+         */
+        UserService userService = new UserService(emf.createEntityManager());
+        List<User> users = userService.findAll();
+        users.stream().forEach(accessTokenAuthenticator::createLifetimeTokenForExistingUser);
+        // ---------------------------------------------------
     }
 
     private ExecutorService getExecutorService() {
