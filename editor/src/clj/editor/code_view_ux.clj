@@ -798,7 +798,8 @@
            result (promise)
            ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals line)
            replace-text-fn (fn [] (when (and (realized? result) @result)
-                                   (let [replacement (:display-string (first @result))]
+                                   (println "carin result " result)
+                                   (let [replacement (:insert-string (first @result))]
                                      (if (= 0 (string/index-of replacement line))
                                        (replace! selection offset 0 (subs replacement (count line)))
                                        (replace! selection offset 0 replacement)))))]

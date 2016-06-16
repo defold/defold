@@ -1,6 +1,7 @@
 (ns editor.code-completion
   (:require [clojure.string :as string]
             [clojure.set :as set]
+            [editor.code :as code]
             [editor.defold-project :as project]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
@@ -13,19 +14,15 @@
 (defn make-completions [resource-completion include-locals? namespace-alias]
   (let [{:keys [vars local-vars functions local-functions]} resource-completion
         var-info (if include-locals? (set/union vars local-vars) vars)
-        vars (map (fn [v] {:name v
-                          :display-string v
-                          :doc ""})
+        vars (map (fn [v]  (code/create-hint v))
                   var-info)
         fn-info (if include-locals? (merge functions local-functions) functions)
         fns  (map (fn [[fname {:keys [params]}]]
-                    (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)]
-                      {:name n
-                       :display-string (str n "("
-                                            (apply str (interpose ", " (map #(str "[\"" % "\"]") params)))
-                                            ")")
-                       :doc ""}))
+                    (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)
+                          display-string (str n "(" (string/join "," params)  ")")]
+                      (code/create-hint n display-string display-string "")))
                   fn-info)]
+    (println :fns fns)
     (set (concat vars fns))))
 
 (defn find-module-node-in-project [node-id module-name]
@@ -55,14 +52,16 @@
         module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
         rcompletion-info (g/node-value rnode :completion-info)]
     {module-name (make-completions rcompletion-info false module-name)
-     "" #{{:name module-name
-            :display-string module-name
-            :doc ""}}}))
+     "" #{(code/create-hint module-name "")}}))
 
 
-(defn combine-completions [_node-id system-docs completion-info module-nodes]
+(defn combine-completions [_node-id completion-info module-nodes]
  (let [local-completions {"" (make-completions completion-info true nil)}
        require-info (or (:requires completion-info) {})
        require-completions (apply merge
                                   (map (fn [[ralias rname]] (gather-requires _node-id ralias rname module-nodes)) require-info))]
-   (merge-with into system-docs local-completions require-completions)))
+   (merge-with into
+               @lua/defold-docs
+               @lua/lua-std-libs-docs
+               local-completions
+               require-completions)))
