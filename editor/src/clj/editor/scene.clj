@@ -351,15 +351,16 @@
       (let [gl ^GL2 (.getGL context)
             render-args (generic-render-args viewport camera)
             selection-set (set selection)]
-        (flatten
-          (for [pass pass/selection-passes
-                :let [render-args (assoc render-args :pass pass)]]
-            (do
-              (begin-select gl select-buffer)
-              (setup-pass context gl pass camera viewport picking-rect)
-              (let [renderables (get renderables pass)
-                    batches (batch-render gl render-args renderables true :select-batch-key)]
-                (render-sort (end-select gl select-buffer renderables batches) camera viewport))))))
+        (->> (for [pass pass/selection-passes
+                   :let [render-args (assoc render-args :pass pass)]]
+               (do
+                 (begin-select gl select-buffer)
+                 (setup-pass context gl pass camera viewport picking-rect)
+                 (let [renderables (get renderables pass)
+                       batches (batch-render gl render-args renderables true :select-batch-key)]
+                   (render-sort (end-select gl select-buffer renderables batches) camera viewport))))
+          flatten
+          (map :node-id)))
       (finally
         (.release context)))
     []))

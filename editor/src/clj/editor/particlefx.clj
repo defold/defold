@@ -147,7 +147,7 @@
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
-        scale-f (scale-factor camera viewport)]
+        scale-f (camera/scale-factor camera viewport)]
     (doseq [renderable renderables
             :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
                   vs-world (get-in renderable [:user-data :geom-data-world] [])

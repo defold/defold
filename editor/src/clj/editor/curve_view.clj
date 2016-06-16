@@ -109,7 +109,7 @@
       (scene/setup-pass context gl pass camera viewport)
       (scene/batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables]
+(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables tool-renderables]
   (when async-copier
     #_(profiler/profile "updatables" -1
                        ; Fixed dt for deterministic playback
@@ -124,7 +124,7 @@
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
                           (.beginFrame async-copier gl)
-                          (render! viewport drawable camera (merge-with into renderables curve-renderables cp-renderables) context gl)
+                          (render! viewport drawable camera (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables)) context gl)
                           (scene-cache/prune-object-caches! gl)
                           (.endFrame async-copier gl)
                           :ok)))))
@@ -207,6 +207,54 @@
         curves (map-indexed (fn [i c] (assoc c :hue (* (+ i 0.5) hue-f))) curves)]
     curves))
 
+(defn- handle-input [self action user-data]
+  (prn "action" action)
+  #_(let [viewport                   (g/node-value self :viewport)
+         movements-enabled          (g/node-value self :movements-enabled)
+         ui-state                   (g/node-value self :ui-state)
+         {:keys [last-x last-y]}    @ui-state
+         {:keys [x y type delta-y]} action
+         movement                   (if (= type :mouse-pressed)
+                                      (get movements-enabled (camera-movement action) :idle)
+                                      (:movement @ui-state))
+         camera                     (g/node-value self :camera)
+         filter-fn                  (or (:filter-fn camera) identity)
+         camera                     (cond-> camera
+                                      (and (= type :scroll)
+                                           (contains? movements-enabled :dolly))
+                                      (dolly (* -0.002 delta-y))
+
+                                      (and (= type :mouse-moved)
+                                           (not (= :idle movement)))
+                                      (cond->
+                                        (= :dolly movement)
+                                        (dolly (* -0.002 (- y last-y)))
+                                        (= :track movement)
+                                        (track viewport last-x last-y x y)
+                                        (= :tumble movement)
+                                        (tumble last-x last-y x y))
+
+                                      true
+                                      filter-fn)]
+     (g/set-property! self :local-camera camera)
+     (case type
+       :scroll (if (contains? movements-enabled :dolly) nil action)
+       :mouse-pressed (do
+                        (swap! ui-state assoc :last-x x :last-y y :movement movement)
+                        (if (= movement :idle) action nil))
+       :mouse-released (do
+                         (swap! ui-state assoc :last-x nil :last-y nil :movement :idle)
+                         (if (= movement :idle) action nil))
+       :mouse-moved (if (not (= :idle movement))
+                      (do
+                        (swap! ui-state assoc :last-x x :last-y y)
+                        nil)
+                      action)
+       action)))
+
+(g/defnode CurveController
+  (output input-handler Runnable :cached (g/fnk [] handle-input)))
+
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
 
@@ -214,19 +262,20 @@
   (property viewport Region (default (types/->Region 0 0 0 0)))
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
-  (property tool-picking-rect Rect)
-  (property selected-tool-renderables g/Any)
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
   (input selected-node-properties g/Any)
+  (input tool-renderables pass/RenderData :array)
+  (input picking-rect Rect)
 
   (output async-frame g/Keyword :cached produce-async-frame)
   (output curves g/Any :cached produce-curves)
   (output curve-renderables g/Any :cached produce-curve-renderables)
-  (output cp-renderables g/Any :cached produce-cp-renderables))
+  (output cp-renderables g/Any :cached produce-cp-renderables)
+  (output picking-selection g/Any (g/fnk [picking-rect] (prn "pick" picking-rect) ["hej hej"])))
 
 (defonce view-state (atom nil))
 
@@ -344,6 +393,8 @@
   ([project graph ^Parent parent opts reloading?]
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    CurveView
+                                                       #_controller #_CurveController
+                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (prn "sub-sel" selection))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       grid/Grid]
@@ -359,8 +410,15 @@
                                                 (g/connect grid :renderable view-id :aux-renderables)
                                                 (g/connect background :_node-id view-id :background-id)
                                                 (g/connect background :renderable view-id :aux-renderables)
+                                                #_(g/connect controller :input-handler view-id :input-handlers)
 
-                                                (g/connect project :selected-node-properties view-id :selected-node-properties))))
+                                                (g/connect project :selected-node-properties view-id :selected-node-properties)
+
+                                                (g/connect selection            :renderable                view-id          :tool-renderables)
+                                                (g/connect selection            :input-handler             view-id          :input-handlers)
+                                                (g/connect selection            :picking-rect              view-id          :picking-rect)
+                                                (g/connect view-id              :picking-selection         selection        :picking-selection)
+                                                #_(g/connect view-id              :selection                 selection        :selection))))
           ^Node pane (make-gl-pane node-id parent opts)]
       (ui/fill-control pane)
       (ui/children! parent [pane])
