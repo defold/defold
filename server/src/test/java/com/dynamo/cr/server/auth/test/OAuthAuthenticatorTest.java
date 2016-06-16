@@ -2,11 +2,9 @@ package com.dynamo.cr.server.auth.test;
 
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator.Authentication;
-import com.dynamo.cr.server.model.User;
 import com.google.api.client.http.HttpRequestFactory;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -25,19 +23,6 @@ public class OAuthAuthenticatorTest {
         authenticator = new OAuthAuthenticator(MAX_ACTIVE_LOGINS);
     }
 
-    @After
-    public void tearDown() throws Exception {
-    }
-
-    @Test
-    public void testGetAuthToken() throws Exception {
-        User user = new User();
-        user.setEmail("bob@coder.com");
-
-        String token = authenticator.getAuthToken(user);
-        assertEquals(40, token.length());
-    }
-
     @Test
     public void testExchangeToken() throws Exception {
         String loginToken = authenticator.newLoginToken();
@@ -51,7 +36,7 @@ public class OAuthAuthenticatorTest {
 
         HttpRequestFactory mockFactory = new MockHttpTransport.Builder().setLowLevelHttpResponse(mockResponse).build().createRequestFactory();
 
-        authenticator.authenticate(mockFactory, loginToken, accessToken, "test_jwt");
+        authenticator.authenticate(mockFactory, loginToken, accessToken);
 
         Authentication authentication = authenticator.exchange(loginToken);
         assertEquals(accessToken, authentication.accessToken);

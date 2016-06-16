@@ -66,6 +66,7 @@ dependencies {
     compile 'org.apache.derby:derby:10.11.1.1'
     compile 'commons-configuration:commons-configuration:1.10'
     compile 'com.google.guava:guava:19.0'
+    compile 'org.mindrot:jbcrypt:0.3m'
 
     testCompile 'org.mockito:mockito-all:1.10.19'
     testCompile 'org.apache.derby:derby:10.11.1.1'
