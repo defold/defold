@@ -1,6 +1,7 @@
 (ns editor.code-view-ux
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code :as code]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui])
@@ -23,7 +24,8 @@
   (caret! [this offset select?])
   (editable? [this])
   (editable! [this val])
-  (screen-position [this]))
+  (screen-position [this])
+  (text-area [this]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -776,11 +778,6 @@
       (toggle-region-comment selection)
       (toggle-line-comment selection))))
 
-(defn- not-ascii-or-delete [key-typed]
- ;; ascii control chars like Enter are all below 32
-  ;; delete is an exception and is 127
-  (let [n (.charAt ^String key-typed 0)]
-    (and (> (int n) 31) (not= (int n) 127))))
 
 (defn enter-key-text [selection key-typed]
   (let [c (caret selection)
@@ -796,13 +793,14 @@
      (let [screen-position (screen-position selection)
            offset (caret selection)
            result (promise)
-           ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals line)
+           ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals line (text-area selection))
            replace-text-fn (fn [] (when (and (realized? result) @result)
-                                   (println "carin result " result)
-                                   (let [replacement (:insert-string (first @result))]
-                                     (if (= 0 (string/index-of replacement line))
-                                       (replace! selection offset 0 (subs replacement (count line)))
-                                       (replace! selection offset 0 replacement)))))]
+                                   (let [replacement (:insert-string (first @result))
+                                         idx (string/index-of replacement line)
+                                         offset-diff (- (caret selection) offset)]
+                                     (if (= 0 idx)
+                                       (replace! selection offset offset-diff (subs replacement (count line)))
+                                       (replace! selection offset offset-diff replacement)))))]
        (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))))
 
 (handler/defhandler :key-typed :code-view
@@ -810,7 +808,7 @@
   (run [selection key-typed]
     (when (and (editable? selection)
            (pos? (count key-typed))
-           (not-ascii-or-delete key-typed))
+           (code/not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
       (when (contains? proposal-key-triggers key-typed)
         (show-proposals selection)))))

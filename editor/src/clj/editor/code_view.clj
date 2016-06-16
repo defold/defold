@@ -339,6 +339,8 @@
         caret-pos (cvx/caret this)
         p (.getLocationAtOffset tw caret-pos)]
       (.localToScreen tw p)))
+  (text-area [this]
+    (.getTextWidget this))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)

@@ -1,6 +1,12 @@
 (ns editor.code
   (:require [clojure.string :as string]))
 
+(defn not-ascii-or-delete [key-typed]
+ ;; ascii control chars like Enter are all below 32
+  ;; delete is an exception and is 127
+  (let [n (.charAt ^String key-typed 0)]
+    (and (> (int n) 31) (not= (int n) 127))))
+
 (defn- remove-optional-params [s]
   (string/replace s #"\[.*\]" ""))
 
