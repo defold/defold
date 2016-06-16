@@ -195,7 +195,7 @@ namespace dmDeviceOpenSL
         JNIEnv* env;
         g_AndroidApp->activity->vm->AttachCurrentThread(&env, NULL);
 
-        jclass sound_class = LoadClass(env, "com.defold.sound.Sound2");
+        jclass sound_class = LoadClass(env, "com.defold.sound.Sound");
 
         jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
         assert(get_sample_rate);

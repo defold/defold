@@ -205,4 +205,9 @@ namespace dmSound
     {
         return false;
     }
+
+    bool IsPhonePlaying()
+    {
+        return false;
+    }
 }
