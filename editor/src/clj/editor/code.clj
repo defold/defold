@@ -1,4 +1,17 @@
-(ns editor.code)
+(ns editor.code
+  (:require [clojure.string :as string]))
+
+(defn- remove-optional-params [s]
+  (string/replace s #"\[.*\]" ""))
+
+(defn create-hint
+  ([name]
+   (create-hint name name name ""))
+  ([name display-string insert-string doc]
+   {:name name
+    :display-string display-string
+    :insert-string insert-string
+    :doc doc}))
 
 (defn match-while [body p]
   (loop [body body

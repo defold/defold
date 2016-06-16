@@ -1,8 +1,8 @@
 (ns editor.lua
   (:require [clojure.string :as string]
             [clojure.java.io :as io]
+            [clojure.edn :as edn]
             [editor.code :as code])
-
   (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
 
 (set! *warn-on-reflection* true)
@@ -120,30 +120,35 @@
          ["&#160;&#160;&#160;&#160;<b>"]
          [(.getReturn element)]))))))
 
-(defn- element-display-string [^ScriptDoc$Element element]
+(defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-               (string/join
-                (concat
-                 ["("
-                  (string/join ", "
-                            (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-                              [(.getName parameter)]))
-                  ")"])))]
-    (string/join [base rest])))
+               (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
+                              (.getName parameter))
+                     display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
+                 (str "(" (string/join "," display-params) ")")))]
+    (str base rest)))
 
 (defn defold-documentation []
   (reduce
    (fn [result [ns elements]]
      (let [global-results (get result "" [])
-           new-result (assoc result ns (set (map (fn [e] {:name (.getName ^ScriptDoc$Element e)
-                                                         :display-string (element-display-string e)
-                                                         :doc (element-additional-info e)}) elements)))]
+           new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
+                                                                     (element-display-string e true)
+                                                                     (element-display-string e false)
+                                                                     (element-additional-info e))) elements)))]
        (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
    {}
    (load-documentation)))
 
 (def defold-docs (atom (defold-documentation)))
+
+(defn lua-std-libs-documentation []
+  (->  (io/resource "lua-stdlib-completions.edn")
+       slurp
+       edn/read-string))
+
+(def lua-std-libs-docs (atom (lua-std-libs-documentation)))
 
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
