@@ -118,6 +118,7 @@ public class Server {
                     bind(LoginResource.class);
                     bind(LoginOAuthResource.class);
                     bind(ProspectsResource.class);
+                    bind(AccessTokenResource.class);
 
                     Map<String, String> params = new HashMap<>();
                     params.put("com.sun.jersey.config.property.resourceConfigClass",
