@@ -127,21 +127,19 @@
 
 (defn- create-property-component [ctrls]
   (let [box (doto (GridPane.)
-          (ui/add-style! "property-component")
-          (ui/children! ctrls))]
+              (.setPrefWidth 5000)
+              (ui/add-style! "property-component")
+              (ui/children! ctrls))]
     (doall (map-indexed (fn [idx c]
-                          (GridPane/setConstraints c idx 0)
-                          (if (even? idx)
-                            (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                                                (.setFillWidth false))))
-                            (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                                                (.setFillWidth true)
-                                                                (.setHgrow Priority/ALWAYS))))))
+                          (GridPane/setConstraints c idx 0))
                         ctrls))
     box))
 
 (defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv (fn [l] (TextField.)) labels)
+  (let [text-fields  (mapv (fn [l] (doto (TextField.)
+                                     (.setPrefWidth 5000)
+                                     (GridPane/setFillWidth true)))
+                           labels)
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
@@ -164,11 +162,12 @@
       (ui/on-action! ^TextField t f)
       (auto-commit! t f))
     (doall (map-indexed (fn [idx [t label]]
-                          (let [comp (create-property-component [(Label. label) t])]
+                          (let [comp (create-property-component [(doto (Label. label)
+                                                                   (.setMinWidth 25))
+                                                                 t])]
                             (ui/add-child! box comp)
                             (GridPane/setConstraints comp idx 0)
-                            (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                                                (.setFillWidth true))))))
+                            (GridPane/setFillWidth comp true)))
                         (map vector text-fields labels)))
     [box update-ui-fn]))
 
@@ -179,16 +178,17 @@
   (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
-  (let [text-fields  (mapv (fn [_] (TextField.)) fields)
-        box          (doto (HBox.)
-                       (.setPrefWidth Double/MAX_VALUE)
-                       (.setAlignment (Pos/BASELINE_LEFT)))
+  (let [text-fields  (mapv (fn [_] (doto (TextField.)
+                                     (.setPrefWidth 5000)))
+                           fields)
+        box          (doto (GridPane.)
+                       (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
                        (doseq [[^TextInputControl t v] (map (fn [f t]
                                                               (let [get-fn (or (:get-fn f)
                                                                                #(get-in % (:path f)))]
                                                                 [t (str (properties/unify-values
-                                                                          (map get-fn values)))]))
+                                                                         (map get-fn values)))]))
                                                             fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
@@ -197,24 +197,26 @@
                          (let [set-fn (or (:set-fn f)
                                           (fn [e v] (assoc-in e (:path f) v)))]
                            [t (fn [_]
-                               (let [v            (to-double (.getText ^TextField t))
-                                     current-vals (properties/values (property-fn))]
-                                 (if v
-                                   (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
-                                   (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                 (properties/read-only? (property-fn))))))]))
+                                (let [v            (to-double (.getText ^TextField t))
+                                      current-vals (properties/values (property-fn))]
+                                  (if v
+                                    (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
+                                    (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                  (properties/read-only? (property-fn))))))]))
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
-    (doseq [[t f] (map vector text-fields fields)
-            :let  [children (cond-> []
-                              (:label f) (conj (Label. (:label f)))
-                              (:control f) (conj (:control f))
-                              true (conj t))]]
-      (HBox/setHgrow ^TextField t Priority/SOMETIMES)
-      (.setPrefWidth ^TextField t 60)
-      (-> (.getChildren box)
-        (.add (create-property-component children))))
+    (doall (map-indexed (fn [idx [t f]]
+                          (let [children (cond-> []
+                                           (:label f)   (conj (doto (Label. (:label f))
+                                                                (.setMinWidth 60)))
+                                           (:control f) (conj (:control f))
+                                           true         (conj (doto t (GridPane/setFillWidth true))))
+                                comp     (create-property-component children)]
+                            (ui/add-child! box comp)
+                            (GridPane/setConstraints comp idx 0)
+                            (GridPane/setFillWidth comp true)))
+                        (map vector text-fields fields)))
     [box update-ui-fn]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
@@ -315,8 +317,10 @@
   (let [box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         button       (doto (Button. "...")
+                       (.setMinWidth 40)
                        (ui/add-style! "small-button"))
-        text         (TextField.)
+        text         (doto (TextField.)
+                       (GridPane/setFillWidth true))
         from-type    (or (:from-type edit-type) identity)
         to-type      (or (:to-type edit-type) identity)
         dialog-opts  (if (:ext edit-type) {:ext (:ext edit-type)} {})
@@ -337,11 +341,7 @@
     (GridPane/setConstraints button 1 0)
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
                                         (.setFillWidth true)
-                                        (.setPercentWidth 90)
                                         (.setHgrow Priority/ALWAYS))))
-    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                        (.setFillWidth true)
-                                        (.setPercentWidth 10))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! :slider [edit-type workspace property-fn]
@@ -508,7 +508,7 @@
                (.setVgap grid-vgap))
         cc1  (doto (ColumnConstraints.) (.setFillWidth true) (.setHgrow Priority/SOMETIMES))
         cc2  (doto (ColumnConstraints.) (.setFillWidth true) (.setHgrow Priority/NEVER))
-        cc3  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 70) (.setHgrow Priority/ALWAYS))]
+        cc3  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 75) (.setHgrow Priority/ALWAYS))]
     (.. grid getColumnConstraints (add cc1))
     (.. grid getColumnConstraints (add cc2))
     (.. grid getColumnConstraints (add cc3))
