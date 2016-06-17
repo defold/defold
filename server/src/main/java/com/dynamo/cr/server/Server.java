@@ -5,10 +5,7 @@ import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
-import com.dynamo.cr.server.auth.GitSecurityFilter;
-import com.dynamo.cr.server.auth.OAuthAuthenticator;
-import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.auth.*;
 import com.dynamo.cr.server.git.GitGcReceiveFilter;
 import com.dynamo.cr.server.git.archive.ArchiveCache;
 import com.dynamo.cr.server.git.archive.GitArchiveProvider;
@@ -270,13 +267,12 @@ public class Server {
             TEMP ACCESS TOKEN HACK (onetime thing, this should be removed after first release of this code)
          */
         try {
-            EntityManager entityManager = emf.createEntityManager();
-            entityManager.getTransaction().begin();
-            UserService userService = new UserService(entityManager);
+            LOGGER.info("Creating access tokens for existing users...");
+            UserService userService = new UserService(emf.createEntityManager());
             List<User> users = userService.findAll();
+            LOGGER.info("{} users found.", users.size());
             users.stream().forEach(accessTokenAuthenticator::createLifetimeTokenForExistingUser);
-            entityManager.getTransaction().commit();
-            entityManager.close();
+            LOGGER.info("User tokens created.");
         } catch (Exception e) {
             LOGGER.error("Failed to create access tokens for existing users", e);
         }
