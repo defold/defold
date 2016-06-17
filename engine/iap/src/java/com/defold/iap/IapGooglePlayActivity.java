@@ -28,6 +28,7 @@ public class IapGooglePlayActivity extends Activity {
 
     private boolean hasPendingPurchases = false;
     private boolean autoFinishTransactions = true;
+    private boolean isDone = false;
     private Messenger messenger;
     ServiceConnection serviceConn;
     IInAppBillingService service;
@@ -247,6 +248,12 @@ public class IapGooglePlayActivity extends Activity {
     }
 
     @Override
+    public void finish() {
+        super.finish();
+        this.isDone = true;
+    }
+
+    @Override
     protected void onDestroy() {
         if (hasPendingPurchases) {
             // Not sure connection is up so need to check here.
@@ -256,6 +263,17 @@ public class IapGooglePlayActivity extends Activity {
                 }
             }
             hasPendingPurchases = false;
+        }
+
+        if( !isDone )
+        {
+            Intent intent = getIntent();
+            
+            if( intent != null && intent.getComponent().getClassName().equals( getClass().getName() ) )
+            {
+                Log.v(IapGooglePlay.TAG, "We still have an intent left: " + intent.getAction() );
+                sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ERROR);
+            }
         }
 
         super.onDestroy();

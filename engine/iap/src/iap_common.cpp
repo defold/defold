@@ -55,3 +55,18 @@ char* IAP_List_CreateBuffer(lua_State* L)
     assert(top == lua_gettop(L));
     return buf;
 }
+
+void IAP_PushError(lua_State* L, const char* error, int reason)
+{
+    if (error != 0) {
+        lua_newtable(L);
+        lua_pushstring(L, "error");
+        lua_pushstring(L, error);
+        lua_rawset(L, -3);
+        lua_pushstring(L, "reason");
+        lua_pushnumber(L, reason);
+        lua_rawset(L, -3);
+    } else {
+        lua_pushnil(L);
+    }
+}
