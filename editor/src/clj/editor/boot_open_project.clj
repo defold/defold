@@ -13,6 +13,7 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.hot-reload :as hotload]
             [editor.console :as console]
             [editor.cubemap :as cubemap]
             [editor.image :as image]
@@ -163,7 +164,8 @@
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
-          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
+          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
+                                                            hotload/url-prefix (hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]
