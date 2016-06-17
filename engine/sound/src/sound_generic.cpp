@@ -28,7 +28,7 @@ namespace dmSound
         return false;
     }
 
-    bool PlatformIsPhonePlaying()
+    bool PlatformIsPhoneCallActive()
     {
         return false;
     }

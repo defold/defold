@@ -7,11 +7,15 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('openal')
 
-    source  = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
-    source += 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
+    source        = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
+    source_null   = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound_common.cpp sound_null.cpp sound_generic.cpp'.split()
+    decoders      = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
 
     if bld.env['PLATFORM'] not in ['js-web', 'win32']:
-        source += 'decoders/decoder_tremolo.cpp'.split()
+        decoders += 'decoders/decoder_tremolo.cpp'.split()
+
+    source       += decoders
+    source_null  += decoders
 
     defines, include = ('', '')
     if re.match('arm.*?android', bld.env['PLATFORM']):
@@ -45,10 +49,17 @@ def build(bld):
                              target = 'sound',
                              source = source)
 
+    sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                                  includes = '.',
+                                  defines = defines,
+                                  target = 'sound_null',
+                                  source = source_null)
+
     bld.install_files('${PREFIX}/include/sound', 'sound.h')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         sound.defines = '_XBOX'
+        sound_null.defines = '_XBOX'
 
     bld.add_subdirs('test')

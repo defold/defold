@@ -179,7 +179,8 @@ namespace dmSound
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
 
-        bool                    m_IsActive;
+        bool                    m_IsSoundActive;
+        bool                    m_IsPhoneCallActive;
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -268,7 +269,8 @@ namespace dmSound
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
-        sound->m_IsActive = false;
+        sound->m_IsSoundActive = false;
+        sound->m_IsPhoneCallActive = false;
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
         dmSoundCodec::NewCodecContextParams codec_params;
@@ -1012,11 +1014,7 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
-                if (dmMath::EqFloat(instance->m_Gain.m_Current, 0.0f))
-                {
-                    dmLogInfo("Skipping instance because it's silent!");
-                }
-                else
+                if (!dmMath::EqFloat(instance->m_Gain.m_Current, 0.0f))
                 {
                     MixInstance(mix_context, instance);
                     result = RESULT_OK;
@@ -1102,6 +1100,23 @@ namespace dmSound
         DM_PROFILE(Sound, "Update")
         SoundSystem* sound = g_SoundSystem;
 
+        if (!sound->m_IsPhoneCallActive && IsPhoneCallActive())
+        {
+            sound->m_IsPhoneCallActive = true;
+            sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+        }
+        else if (sound->m_IsPhoneCallActive && !IsPhoneCallActive())
+        {
+            sound->m_IsPhoneCallActive = false;
+            sound->m_DeviceType->m_DeviceRestart(sound->m_Device);
+        }
+
+        if (sound->m_IsPhoneCallActive)
+        {
+            // We can't play sounds when the phone is active.
+            return RESULT_OK;
+        }
+
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
         if (free_slots > 0) {
             StepGroupValues();
@@ -1115,9 +1130,9 @@ namespace dmSound
             Result result = MixInstances(&mix_context);
             if (result == RESULT_OK)
             {
-                if (sound->m_IsActive == false)
+                if (sound->m_IsSoundActive == false)
                 {
-                    sound->m_IsActive = true;
+                    sound->m_IsSoundActive = true;
                     (void) PlatformAcquireAudioFocus();
                 }
 
@@ -1138,9 +1153,9 @@ namespace dmSound
             free_slots--;
         }
 
-        if (sound->m_IsActive == true && sound->m_InstancesPool.Size() == 0)
+        if (sound->m_IsSoundActive == true && sound->m_InstancesPool.Size() == 0)
         {
-            sound->m_IsActive = false;
+            sound->m_IsSoundActive = false;
             (void) PlatformReleaseAudioFocus();
         }
 
@@ -1152,9 +1167,9 @@ namespace dmSound
         return PlatformIsMusicPlaying();
     }
 
-    bool IsPhonePlaying()
+    bool IsPhoneCallActive()
     {
-        return PlatformIsPhonePlaying();
+        return PlatformIsPhoneCallActive();
     }
 
 }

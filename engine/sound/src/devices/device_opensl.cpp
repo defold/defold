@@ -431,6 +431,16 @@ cleanup_sl:
         info->m_MixRate = opensl->m_MixRate;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo);
+    void DeviceOpenSLRestart(dmSound::HDevice device)
+    {
+
+    }
+
+    void DeviceOpenSLStop(dmSound::HDevice device)
+    {
+
+    }
+
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLRestart, DeviceOpenSLStop);
 }
 

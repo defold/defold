@@ -333,6 +333,16 @@ void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info
     info->m_MixRate = 44100;
 }
 
+void DeviceLoopbackRestart(dmSound::HDevice device)
+{
+
+}
+
+void DeviceLoopbackStop(dmSound::HDevice device)
+{
+
+}
+
 TEST_P(dmSoundVerifyTest, Mix)
 {
     TestParams params = GetParam();
@@ -968,7 +978,7 @@ INSTANTIATE_TEST_CASE_P(dmSoundMixerTest,
                         ));
 
 
-DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo);
+DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
 
 int main(int argc, char **argv)
 {

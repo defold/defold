@@ -109,7 +109,7 @@ namespace dmSound
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value);
 
     bool IsMusicPlaying();
-    bool IsPhonePlaying();
+    bool IsPhoneCallActive();
 
 }
 
@@ -190,6 +190,18 @@ namespace dmSound
         void (*m_DeviceInfo)(HDevice device, DeviceInfo* info);
 
         /**
+         * Enable device context
+         * @param device
+         */
+        void (*m_DeviceRestart)(HDevice device);
+
+        /**
+         * Disable device context
+         * @param device
+         */
+        void (*m_DeviceStop)(HDevice device);
+
+        /**
          * Internal
          */
         DeviceType* m_Next;
@@ -224,7 +236,7 @@ namespace dmSound
     /**
      * Declare a new sound device
      */
-    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, device_info) \
+    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, device_info, enable, disable) \
             dmSound::DeviceType DM_SOUND_PASTE2(symbol, __LINE__) = { \
                     name, \
                     open, \
@@ -232,6 +244,8 @@ namespace dmSound
                     queue, \
                     free_buffer_slots, \
                     device_info, \
+                    enable, \
+                    disable, \
                     0 \
             };\
         DM_REGISTER_SOUND_DEVICE(symbol, DM_SOUND_PASTE2(symbol, __LINE__))

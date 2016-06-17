@@ -14,7 +14,7 @@ namespace dmSound
 
     bool PlatformIsMusicPlaying();
 
-    bool PlatformIsPhonePlaying();
+    bool PlatformIsPhoneCallActive();
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H
