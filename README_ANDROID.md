@@ -113,10 +113,60 @@ create message being sent (onCreate/android_main). The normal case is for the ap
 
 ### Android debugging
 
-* Go to application bundle-dir in build/default/...,  e.g. build/default/examples/simple_gles2.android
-* Install and launch application
-* Run ndk-gdb from android ndk
-* Debug
+There are two alternatives to debug native code on Android;
+
+1. through the `ndk-gdb` script available in the Android NDK
+2. starting a `gdbserver` and connecting manually
+
+The first option is the preferred and easiest solution, but due to bugs with certain Android versions `ndk-gdb` does not always work. ([Android 4.2.2 and 4.3 are known to have issues.](http://visualgdb.com/KB/?ProblemID=nopkg))
+
+#### Using ndk-gdb
+* Go to the build directory for the engine subsystem, `engine/engine/build/default/src/dmengine.android/`
+* This directory includes the debug app APK, `dmengine.apk` and has a structure that `ndk-gdb` understands.
+* Install (`adb install dmengine.apk`) and launch the application.
+* Run `ndk-gdb` from Android NDK; `android-ndk-r10b/ndk-gdb --start`
+
+If you are having problems with `ndk-gdb` try running it with `--verbose` for troubleshooting.
+
+#### Using gdbserver
+You need to have a executable binary of `gdbserver` available on the device. There are ways to transfer such binary (`adb put gdbserver ...`) to device, and then setting it executable (`adb shell "chmod +x ..."`), but the easiest way is to just rely on the `gdbserver` bundled together with `dmengine.apk`.
+
+To get debug symbols you will need to download the system libraries from the device, like this:
+
+    $ mkdir system_libs
+    $ cd system_libs
+    $ adb pull /system/lib
+    $ cd ..
+    $ mkdir vendor_libs
+    $ cd vendor_libs
+    $ adb pull /vendor/lib
+    $ cd ..
+    $ adb pull /system/bin/linker
+
+Once you an executable gdbserver on the device, and downloaded the system libraries, do the following:
+
+    $ adb pull /system/bin/app_process
+This fetches the `app_process` binary from the Android device to your machine which you will need in `gdb` later on.
+
+    $ adb forward tcp:5039 tcp:5039
+This forwards the port 5039 from the Android device to your local machine.
+
+Start your application on the device, find out its PID.
+
+    $ adb shell "run-as <your-app-package-name> /data/data/com.defold.dmengine/lib/gdbserver :5039 --attach <PID>"
+This will start the gdbserver (which in this case is located inside dmengine.apk) on port 5039 and attach to the running process id.
+
+Next you will need to start a local gdb instance and connect to the gdbserver. The correct gdb binaries are located in the Android NDK, something like this:
+
+    $ android-ndk-r10b/toolchains/arm-linux-androideabi-4.6/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb app_process
+    ...
+    (gdb) target remote :5039
+    ...
+    (gdb) set solib-search-path ./system_libs/:<path-to-dir-with-libdmengine.so>
+    ...
+    (gdb) continue
+
+This will connect to your locally forwarded port, thus connecting to the gdbserver on device. Then you specify where the libraries can be found, which will give you symbols for easier debugging. Finally you continue the execution (it will be paused when you first connect).
 
 ### Life-cycle and GLFW
 
