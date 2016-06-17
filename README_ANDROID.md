@@ -126,7 +126,10 @@ The first option is the preferred and easiest solution, but due to bugs with cer
 * Install (`adb install dmengine.apk`) and launch the application.
 * Run `ndk-gdb` from Android NDK; `android-ndk-r10b/ndk-gdb --start`
 
-If you are having problems with `ndk-gdb` try running it with `--verbose` for troubleshooting.
+If you are having problems with `ndk-gdb` try running it with `--verbose` for troubleshooting. If you encounter the error below it might be easier to go with the `gdbserver` solution.
+
+    ERROR: Could not extract package's data directory. Are you sure that
+        your installed application is debuggable?
 
 #### Using gdbserver
 You need to have a executable binary of `gdbserver` available on the device. There are ways to transfer such binary (`adb put gdbserver ...`) to device, and then setting it executable (`adb shell "chmod +x ..."`), but the easiest way is to just rely on the `gdbserver` bundled together with `dmengine.apk`.
