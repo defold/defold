@@ -55,7 +55,7 @@ public class AccessTokenAuthenticator {
             String token = AuthToken.login(user.getEmail());
             String tokenHash = accessTokenFactory.generateTokenHash(token);
             AccessToken accessToken = new AccessToken(user, tokenHash, null, timeSource.currentDate(), timeSource.currentDate(), null);
-            accessTokenStore.store(accessToken);
+            accessTokenStore.storeInTransaction(accessToken);
         }
     }
 
