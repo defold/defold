@@ -269,9 +269,17 @@ public class Server {
         /*
             TEMP ACCESS TOKEN HACK (onetime thing, this should be removed after first release of this code)
          */
-        UserService userService = new UserService(emf.createEntityManager());
-        List<User> users = userService.findAll();
-        users.stream().forEach(accessTokenAuthenticator::createLifetimeTokenForExistingUser);
+        try {
+            EntityManager entityManager = emf.createEntityManager();
+            entityManager.getTransaction().begin();
+            UserService userService = new UserService(entityManager);
+            List<User> users = userService.findAll();
+            users.stream().forEach(accessTokenAuthenticator::createLifetimeTokenForExistingUser);
+            entityManager.getTransaction().commit();
+            entityManager.close();
+        } catch (Exception e) {
+            LOGGER.error("Failed to create access tokens for existing users", e);
+        }
         // ---------------------------------------------------
     }
 
