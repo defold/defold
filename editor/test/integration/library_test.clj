@@ -8,6 +8,7 @@
             [editor.workspace :as workspace]
             [editor.progress :as progress]
             [editor.game-project-core :as gpc]
+            [editor.gui :as gui]
             [integration.test-util :as test-util]
             [service.log :as log])
   (:import [java.net URL]
@@ -105,12 +106,6 @@
                          gpc/settings-with-value
                          gpc/settings->str))))
 
-#_(defn- read-dependencies [game-project-resource]
-   (-> (slurp game-project-resource)
-     gpc/string-reader
-     gpc/parse-settings
-     (gpc/get-setting ["project" "dependencies"])))
-
 (deftest open-project
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "resources/test_project")
@@ -121,44 +116,13 @@
       (write-deps! game-project-res url)
       (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
             ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
-            int-gui (test-util/resource-node project "/gui/external_template.gui")]
+            int-gui (test-util/resource-node project "/gui/empty.gui")]
         (is (some? ext-gui))
         (is (some? int-gui))
+        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template)]
+          (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
+                                                    :overrides {}}))
         (let [original (:node-id (test-util/outline ext-gui [0 0]))
               or (:node-id (test-util/outline int-gui [0 0 0]))]
           (is (= [or] (g/overrides original)))))
-      #_(let [project (project/make-project world workspace)
-                project (project/load-project project (g/node-value project :resources) progress/null-render-progress!)
-                ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
-                int-gui (test-util/resource-node project "/gui/external_template.gui")]
-            (prn ext-gui int-gui))
-      #_(let [progress (atom (progress/make "Updating dependencies" 3))
-             render-progress! progress/null-render-progress!
-             game-project-resource game-project-res
-             login-fn nil
-             graph world]
-         (render-progress! @progress)
-         (workspace/set-project-dependencies! workspace (read-dependencies game-project-resource))
-         (workspace/update-dependencies! workspace (progress/nest-render-progress render-progress! @progress) login-fn)
-         (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
-         (workspace/resource-sync! workspace false [] (progress/nest-render-progress render-progress! @progress))
-         (render-progress! (swap! progress progress/advance 1 "Loading project"))
-         (let [project (project/make-project graph workspace)]
-           (project/load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))))
-      #_(do
-         (workspace/set-project-dependencies! workspace url)
-         (let [deps (workspace/update-dependencies! workspace progress/null-render-progress! nil)
-               dep (->> deps
-                     (filter #(= (URL. url) (:url %)))
-                     first)]
-           (is (= :up-to-date (:status dep)))
-           (is (.exists ^File (:file dep))))
-         (workspace/resource-sync! workspace false [] progress/null-render-progress!)
-         (let [project (project/make-project world workspace)
-               project (project/load-project project (g/node-value project :resources) progress/null-render-progress!)
-               ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
-               int-gui (test-util/resource-node project "/gui/external_template.gui")]
-           (prn ext-gui int-gui)))
       (test-util/kill-lib-server server))))
-
-(open-project)
