@@ -4,3 +4,5 @@ title = Library test project
 [bootstrap]
 main_collection = /main/main.collectionc
 
+[library]
+include_dirs = lib_resource_project
