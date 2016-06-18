@@ -35,16 +35,16 @@
     (catch IllegalArgumentException e
       nil)))
 
-(defrecord FileResource [workspace ^File file children]
+(defrecord FileResource [workspace root ^File file children]
   Resource
   (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
   (source-type [this] (if (.isDirectory file) :folder :file))
   (read-only? [this] (not (.canWrite file)))
-  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (g/node-value workspace :root)) file)))
+  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
-  (url [this] (relative-path (File. ^String (g/node-value workspace :root)) file))
+  (url [this] (relative-path (File. ^String root) file))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
@@ -59,7 +59,7 @@
  "file-resource"
  (transit/read-handler
   (fn [{:keys [workspace ^String file children]}]
-    (FileResource. workspace (File. file) children))))
+    (FileResource. workspace (g/node-value workspace :root) (File. file) children))))
 
 (core/register-write-handler!
  FileResource
