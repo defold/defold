@@ -107,6 +107,8 @@ public class Server {
                     bind(ArchiveCache.class).in(Singleton.class);
                     bind(Configuration.class).toInstance(server.getConfiguration());
 
+                    bind(UserService.class);
+
                     bind(RepositoryResource.class);
                     bind(ProjectResource.class);
                     bind(ProjectsResource.class);
@@ -329,14 +331,6 @@ public class Server {
             throw new ServerException(String.format("No such project %s", id));
 
         return project;
-    }
-
-    public User getUser(EntityManager em, String userId) throws ServerException {
-        User user = em.find(User.class, Long.parseLong(userId));
-        if (user == null)
-            throw new ServerException(String.format("No such user %s", userId), javax.ws.rs.core.Response.Status.NOT_FOUND);
-
-        return user;
     }
 
     public InvitationAccount getInvitationAccount(EntityManager em, String userId) throws ServerException {
