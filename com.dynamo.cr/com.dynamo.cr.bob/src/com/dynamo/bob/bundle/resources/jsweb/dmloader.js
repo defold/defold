@@ -487,11 +487,11 @@ var Module = {
         if (Module._preLoadDone) {
             return;
         }
+        Module._preLoadDone = true;
         for (var i = 0; i < Module._filesToPreload.length; ++i) {
             var item = Module._filesToPreload[i];
             FS.createPreloadedFile("", item.path, item.data, true, true);
         }
-        Module._preLoadDone = true;
     },
 
     // Tries to do a MEM->IDB sync
@@ -559,7 +559,11 @@ var Module = {
 
             Module.preloadAll();
             Progress.removeProgress();
-            Module.callMain(Module.arguments);
+            if (Module.callMain === undefined) {
+                Module.noInitialRun = false;
+            } else {
+                Module.callMain(Module.arguments);
+            }
         }
     },
 

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <new>
 
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -572,7 +573,7 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        const char* name = luaL_checkstring(L, 1);
+        dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
 
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 2, LUA_TTABLE);
@@ -655,7 +656,7 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
-        RegisterRenderTarget(i->m_RenderContext, render_target, dmHashString64(name));
+        RegisterRenderTarget(i->m_RenderContext, render_target, namehash);
 
         lua_pushlightuserdata(L, (void*)render_target);
 
@@ -989,7 +990,7 @@ namespace dmRender
      * @examples
      * <pre>
      * function init(self)
-     *     self.tile_pred = render.predicate({"tile"})
+     *     self.tile_pred = render.predicate({hash("tile")})
      *     ...
      * end
      *
@@ -1655,11 +1656,11 @@ namespace dmRender
     /*# creates a new render predicate
      *
      * @name render.predicate
-     * @param predicates table of tags that the predicate should match (table)
+     * @param predicates table of tags that the predicate should match (table). The tags can be either (hash|string)
      * @return new predicate (predicate)
      * @examples
      * <pre>
-     * local p = render.predicate({"opaque", "smoke"})
+     * local p = render.predicate({hash("opaque"), hash("smoke")})
      * </pre>
      */
     int RenderScript_Predicate(lua_State* L)
@@ -1676,8 +1677,7 @@ namespace dmRender
             lua_pushnil(L);  /* first key */
             while (lua_next(L, 1) != 0)
             {
-                const char* tag = luaL_checkstring(L, -1);
-                predicate->m_Tags[predicate->m_TagCount++] = dmHashString32(tag);
+                predicate->m_Tags[predicate->m_TagCount++] = dmScript::CheckHashOrString(L, -1);
                 lua_pop(L, 1);
                 if (predicate->m_TagCount == dmRender::Predicate::MAX_TAG_COUNT)
                     break;
@@ -1706,12 +1706,18 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (!lua_isnil(L, 1))
         {
-            const char* material_id = luaL_checkstring(L, 1);
-            dmRender::HMaterial* mat = i->m_Materials.Get(dmHashString64(material_id));
+            dmhash_t material_id = dmScript::CheckHashOrString(L, 1);
+            dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
             if (mat == 0x0)
             {
+                const char* material_name = 0;
+                if( lua_type(L, 1) == LUA_TSTRING )
+                    material_name = lua_tostring(L, 1);
                 assert(top == lua_gettop(L));
-                return luaL_error(L, "Could not find material '%s'.", material_id);
+
+                char buffer[256];
+                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", material_name ? material_name : "", material_id); // since lua doesn't support proper format arguments
+                return luaL_error(L, buffer);
             }
             else
             {

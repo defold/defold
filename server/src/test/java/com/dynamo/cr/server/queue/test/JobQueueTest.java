@@ -1,69 +1,40 @@
 package com.dynamo.cr.server.queue.test;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.File;
-import java.util.HashMap;
+import com.dynamo.cr.server.queue.ConstantBackoff;
+import com.dynamo.cr.server.queue.ExponentialBackoff;
+import com.dynamo.cr.server.queue.JobQueue;
+import com.dynamo.cr.server.test.EntityManagerRule;
+import com.google.common.base.Function;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
-import org.eclipse.persistence.config.PersistenceUnitProperties;
-import org.eclipse.persistence.jpa.PersistenceProvider;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.cr.server.queue.ConstantBackoff;
-import com.dynamo.cr.server.queue.ExponentialBackoff;
-import com.dynamo.cr.server.queue.JobQueue;
-import com.dynamo.cr.server.test.Util;
-import com.google.common.base.Function;
+import static org.junit.Assert.assertEquals;
 
 public class JobQueueTest {
 
-    private static final String PERSISTENCE_UNIT_NAME = "unit-test";
+    @Rule
+    public EntityManagerRule entityManagerRule = new EntityManagerRule();
+
     private EntityManagerFactory factory;
 
     @Before
     public void setUp() throws Exception {
-        // "drop-and-create-tables" can't handle model changes correctly. We
-        // need to drop all tables first.
-        // Eclipse-link only drops tables currently specified. When the model
-        // change the table set also change.
-        File tmp_testdb = new File("tmp/testdb");
-        if (tmp_testdb.exists()) {
-            getClass().getClassLoader().loadClass(
-                    "org.apache.derby.jdbc.EmbeddedDriver");
-            Util.dropAllTables();
-        }
-
-        HashMap<String, Object> props = new HashMap<String, Object>();
-        props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass()
-                .getClassLoader());
-        // NOTE: JPA-PersistenceUnits: unit-test in plug-in MANIFEST.MF has to
-        // be set. Otherwise the persistence unit is not found.
-        System.setProperty(PersistenceUnitProperties.ECLIPSELINK_PERSISTENCE_XML, "META-INF/test_persistence.xml");
-        factory = new PersistenceProvider().createEntityManagerFactory(PERSISTENCE_UNIT_NAME, props);
+        factory = entityManagerRule.getFactory();
     }
 
-    @After
-    public void tearDown() {
-        // NOTE: Important to close the factory if the tables should be dropped
-        // and created in setUp above (drop-and-create-tables in
-        // persistance.xml)
-        factory.close();
-    }
-
-    static class Sum implements Function<byte[], Void> {
+    private static class Sum implements Function<byte[], Void> {
         int sum = 0;
         int delay;
 
-        public Sum() {
+        Sum() {
             this.delay = 0;
         }
 
-        public Sum(int delay) {
+        Sum(int delay) {
             this.delay = delay;
         }
 
@@ -81,7 +52,7 @@ public class JobQueueTest {
         }
     }
 
-    static class AlwaysFail implements Function<byte[], Void> {
+    private static class AlwaysFail implements Function<byte[], Void> {
         int count;
 
         @Override
@@ -91,7 +62,7 @@ public class JobQueueTest {
         }
     }
 
-    void process(JobQueue jobQueue, Function<byte[], Void> f) {
+    private void process(JobQueue jobQueue, Function<byte[], Void> f) {
         EntityManager em = factory.createEntityManager();
         em.getTransaction().begin();
         jobQueue.process(em, f);
@@ -99,7 +70,7 @@ public class JobQueueTest {
         em.close();
     }
 
-    void newJob(JobQueue jobQueue, byte[] data) {
+    private void newJob(JobQueue jobQueue, byte[] data) {
         EntityManager em = factory.createEntityManager();
         em.getTransaction().begin();
         jobQueue.newJob(em, data);
@@ -107,7 +78,7 @@ public class JobQueueTest {
         em.close();
     }
 
-    int queueLength(JobQueue jobQueue) {
+    private int queueLength(JobQueue jobQueue) {
         EntityManager em = factory.createEntityManager();
         try {
             return jobQueue.getQueueLength(em);
@@ -229,11 +200,12 @@ public class JobQueueTest {
         assertEquals(0, queueLength(jobQueue));
     }
 
-    class Producer extends Thread {
+    private class Producer extends Thread {
         private JobQueue jobQueue;
         private int n;
         private int delay;
-        public Producer(JobQueue jobQueue, int n, int delay) {
+
+        Producer(JobQueue jobQueue, int n, int delay) {
             this.jobQueue = jobQueue;
             this.n = n;
             this.delay = delay;

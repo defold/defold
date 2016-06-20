@@ -9,6 +9,9 @@ import java.util.Set;
 
 @Entity
 @Table(name="users")
+@NamedQueries({
+        @NamedQuery(name = "User.findAll", query = "SELECT u FROM User u")
+})
 public class User {
 
     public enum Role {

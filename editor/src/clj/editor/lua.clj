@@ -1,5 +1,5 @@
 (ns editor.lua
-  (:require [clojure.string :as str]
+  (:require [clojure.string :as string]
             [clojure.java.io :as io]
             [editor.code :as code])
 
@@ -71,12 +71,12 @@
       (.printStackTrace e)
       {})))
 
-(def ^:private docs (str/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
+(def ^:private docs (string/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
 
-(defn- load-documentation []
+(defn load-documentation []
   (let [ns-elements (reduce
                      (fn [sofar doc]
                        (merge-with concat sofar (load-sdoc (sdoc-path doc))))
@@ -98,27 +98,9 @@
      ns-elements
      namespaces)))
 
-(def ^:private the-documentation (atom nil))
-
-(defn- documentation []
-  (when (nil? @the-documentation)
-    (reset! the-documentation (load-documentation)))
-  @the-documentation)
-
-(defn filter-elements [elements prefix]
-  (filter #(.startsWith (str/lower-case (.getName ^ScriptDoc$Element %)) prefix) elements))
-
-(defn get-documentation [{:keys [namespace function]}]
-  (let [namespace (str/lower-case namespace)
-        function (str/lower-case function)
-        qualified (if (str/blank? namespace) function (format "%s.%s" namespace function))
-        elements (filter-elements (get (documentation) namespace) qualified)
-        sorted-elements (sort #(compare (str/lower-case (.getName ^ScriptDoc$Element %1)) (str/lower-case (.getName ^ScriptDoc$Element %2))) elements)]
-    (into-array ScriptDoc$Element sorted-elements)))
-
 (defn- element-additional-info [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-    (str/join
+    (string/join
      (concat
       [(.getDescription element)]
       ["<br><br>"]
@@ -141,66 +123,47 @@
 (defn- element-display-string [^ScriptDoc$Element element]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-               (str/join
+               (string/join
                 (concat
                  ["("
-                  (str/join ", "
+                  (string/join ", "
                             (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                               [(.getName parameter)]))
                   ")"])))]
-    (str/join [base rest])))
+    (string/join [base rest])))
 
-(defn doc-element-to-hint [{:keys [in-function namespace function start end]} offset element]
-  (let [display-string (element-display-string element)
-        additional-info (element-additional-info element)
-        image "icons/32/Icons_29-AT-Unkown.png"
-        complete-length (+ (count namespace) (count function) 1)
-        cursor-position (- (count display-string) complete-length)]
-    (if in-function
-      {:replacement ""
-       :offset offset
-       :length 0
-       :position 0
-       :image image
-       :display-string display-string
-       :additional-info additional-info}
-      ;; logic for replacement offsets etc as lifted from old editor was borked so below is also broken and just for testing
-      ;; probably need prefix length info etc from saner parsing
-      (if (str/blank? namespace)
-        (let [match-length (- end start) 
-              replacement-offset offset
-              replacement-length 0
-              replacement-string (subs display-string match-length)
-              new-cursor-position (+ cursor-position 1)]
-          {:replacement replacement-string
-           :offset replacement-offset
-           :length replacement-length
-           :position new-cursor-position
-           :image image
-           :display-string display-string
-           :additional-info additional-info})
-        (let [match-length (- end start)
-              replacement-offset offset
-              replacement-length 0
-              replacement-string (subs display-string (+ (count namespace) 1))
-              new-cursor-position (+ cursor-position (count function))]
-          {:replacement replacement-string
-           :offset replacement-offset
-           :length replacement-length
-           :position new-cursor-position
-           :image image
-           :display-string display-string
-           :additional-info additional-info})))))
+(defn defold-documentation []
+  (reduce
+   (fn [result [ns elements]]
+     (let [global-results (get result "" [])
+           new-result (assoc result ns (set (map (fn [e] {:name (.getName ^ScriptDoc$Element e)
+                                                         :display-string (element-display-string e)
+                                                         :doc (element-additional-info e)}) elements)))]
+       (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
+   {}
+   (load-documentation)))
 
-(defn- doc-elements-to-hints [elements parse-result offset]
-  (map (partial doc-element-to-hint parse-result offset) elements))
+(def defold-docs (atom (defold-documentation)))
 
-(defn compute-proposals [^String text offset ^String line]
-  (try 
-    (when-let [parse-result (or (parse-line line) (default-parse-result))]
-      (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
+(defn filter-proposals [completions ^String text offset ^String line]
+  (try
+    (let
+        [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
+         items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
+         pattern (string/lower-case (if (= "" (or namespace ""))
+                                      function
+                                      (str namespace "." function)))
+         results (filter (fn [i] (string/starts-with? (:name i) pattern)) items)]
+      (->> results (sort-by :display-string) (partition-by :display-string) (mapv first)))
     (catch Exception e
       (.printStackTrace e))))
+
+(defn lua-module->path [module]
+  (str "/" (string/replace module #"\." "/") ".lua"))
+
+(defn lua-module->build-path [module]
+  (str (lua-module->path module) "c"))
+
 
 (def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
                 "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
@@ -301,5 +264,5 @@
               {:type :default :class "default"}
               ]}
             ]}
-          :assist compute-proposals
+          :assist filter-proposals
           })
