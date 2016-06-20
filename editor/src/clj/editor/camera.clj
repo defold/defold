@@ -4,7 +4,8 @@
             [editor.ui :as ui]
             [editor.geom :as geom]
             [editor.math :as math]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.graph-util :as gu])
   (:import [editor.types Camera Region AABB]
            [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
 
@@ -372,7 +373,7 @@
 
   (input viewport Region)
 
-  (output viewport Region (g/fnk [viewport] viewport))
+  (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
 
   (output input-handler Runnable :cached (g/fnk [] handle-input)))

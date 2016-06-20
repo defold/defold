@@ -22,7 +22,8 @@
             [editor.scene :as scene]
             [editor.outline :as outline]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -307,7 +308,7 @@
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
   (output anim-data        g/Any               :cached produce-anim-data)
-  (output anim-ids         g/Any               :cached (g/fnk [animation-ids] animation-ids))
+  (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id
                                                                                          :label "Atlas"
                                                                                          :children (sort-by atlas-outline-sort-by-fn child-outlines)

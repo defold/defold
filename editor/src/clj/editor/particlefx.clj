@@ -448,7 +448,7 @@
 
   (property tile-source resource/Resource
             (dynamic label (g/fnk [] "Image"))
-            (value (g/fnk [tile-source-resource] tile-source-resource))
+            (value (gu/passthrough tile-source-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :tile-source-resource]
@@ -465,7 +465,7 @@
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
 
   (property material resource/Resource
-            (value (g/fnk [material-resource] material-resource))
+            (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
@@ -639,7 +639,7 @@
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
                                        {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
-  (output emitter-sim-data g/Any :cached (g/fnk [emitter-sim-data] emitter-sim-data))
+  (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]

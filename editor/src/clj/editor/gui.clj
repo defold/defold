@@ -388,7 +388,7 @@
             (dynamic visible no-override?))
   (property generated-id g/Str
             (dynamic label (g/fnk [] "Id"))
-            (value (g/fnk [id] id))
+            (value (gu/passthrough id))
             (dynamic read-only? (g/fnk [] true))
             (dynamic visible override?))
   (property size types/Vec3 (default [0 0 0])
@@ -422,7 +422,7 @@
 
   (input parent g/Str)
   (input layer-ids IDMap)
-  (output layer-ids IDMap (g/fnk [layer-ids] layer-ids))
+  (output layer-ids IDMap (gu/passthrough layer-ids))
   (input layer-input g/Str)
   (input layer-index g/Int)
   (input child-scenes g/Any :array)
@@ -452,7 +452,7 @@
                   :outline-overridden? outline-overridden?}))
   (output pb-msg g/Any :cached produce-node-msg)
   (output pb-msgs g/Any :cached (g/fnk [pb-msg] [pb-msg]))
-  (output rt-pb-msgs g/Any (g/fnk [pb-msgs] pb-msgs))
+  (output rt-pb-msgs g/Any (gu/passthrough pb-msgs))
   (output aabb g/Any :abstract)
   (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
   (output scene-renderable g/Any :abstract)
@@ -488,7 +488,7 @@
   (input material-shader ShaderLifecycle)
   (input gpu-texture g/Any)
 
-  (output aabb-size g/Any (g/fnk [size] size))
+  (output aabb-size g/Any (gu/passthrough size))
   (output aabb g/Any :cached (g/fnk [pivot aabb-size]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
@@ -680,7 +680,7 @@
   (property line-break g/Bool (default false))
   (property font g/Str
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
-    (value (g/fnk [font-input] font-input))
+    (value (gu/passthrough font-input))
     (set (fn [basis self _ new-value]
            (let [font-ids (g/node-value self :font-ids :basis basis)]
              (concat
@@ -822,7 +822,7 @@
   (input scene-pb-msg g/Any)
   (input scene-rt-pb-msg g/Any)
   (input scene-build-targets g/Any)
-  (output scene-build-targets g/Any (g/fnk [scene-build-targets] scene-build-targets))
+  (output scene-build-targets g/Any (gu/passthrough scene-build-targets))
 
   (input template-resource resource/Resource :cascade-delete)
   (input template-outline outline/OutlineData)
@@ -831,11 +831,11 @@
   (output template-prefix g/Str (g/fnk [id] (str id "/")))
 
   (input texture-ids IDMap)
-  (output texture-ids IDMap (g/fnk [texture-ids] texture-ids))
+  (output texture-ids IDMap (gu/passthrough texture-ids))
   (input font-ids IDMap)
-  (output font-ids IDMap (g/fnk [font-ids] font-ids))
+  (output font-ids IDMap (gu/passthrough font-ids))
   (input current-layout g/Str)
-  (output current-layout g/Str (g/fnk [current-layout] current-layout))
+  (output current-layout g/Str (gu/passthrough current-layout))
   ; Overloaded outputs
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [template-outline current-layout]
                                                                      (get-in template-outline [:children 0 :children])))
@@ -876,7 +876,7 @@
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
-  (output packed-image BufferedImage (g/fnk [image] image))
+  (output packed-image BufferedImage (gu/passthrough image))
   (output anim-data g/Any (g/fnk [^BufferedImage image]
                             {nil {:width (.getWidth image)
                                   :height (.getHeight image)
@@ -888,7 +888,7 @@
 
   (property name g/Str)
   (property texture resource/Resource
-            (value (g/fnk [texture-resource] texture-resource))
+            (value (gu/passthrough texture-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-resource]
@@ -906,7 +906,7 @@
   (input samplers [g/KeywordMap])
 
   (input dep-build-targets g/Any)
-  (output dep-build-targets g/Any (g/fnk [dep-build-targets] dep-build-targets))
+  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
                                          (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
@@ -930,7 +930,7 @@
   (inherits outline/OutlineNode)
   (property name g/Str)
   (property font resource/Resource
-            (value (g/fnk [font-resource] font-resource))
+            (value (gu/passthrough font-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter
                     basis self old-value new-value
@@ -949,7 +949,7 @@
   (input gpu-texture g/Any)
 
   (input dep-build-targets g/Any)
-  (output dep-build-targets g/Any :cached (g/fnk [dep-build-targets] dep-build-targets))
+  (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
@@ -958,10 +958,10 @@
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
-  (output font-map g/Any (g/fnk [font-map] font-map))
-  (output font-data font/FontData (g/fnk [font-data] font-data))
-  (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
-  (output font-shader ShaderLifecycle (g/fnk [font-shader] font-shader))
+  (output font-map g/Any (gu/passthrough font-map))
+  (output font-data font/FontData (gu/passthrough font-data))
+  (output gpu-texture g/Any (gu/passthrough gpu-texture))
+  (output font-shader ShaderLifecycle (gu/passthrough font-shader))
   (output font-id IDMap (g/fnk [_node-id name] {name _node-id})))
 
 (g/defnode LayerNode
@@ -992,7 +992,7 @@
   (property name g/Str)
   (property nodes g/Any
             (dynamic visible (g/fnk [] false))
-            (value (g/fnk [layout-overrides] layout-overrides))
+            (value (gu/passthrough layout-overrides))
             (set (fn [basis self _ new-value]
                    (let [scene (ffirst (g/targets-of basis self :_node-id))
                          node-tree (g/node-value scene :node-tree :basis basis)
@@ -1035,7 +1035,7 @@
   (input node-tree-scene g/Any)
   (output layout-scene g/Any (g/fnk [name node-tree-scene] [name node-tree-scene]))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix)))
+  (output id-prefix g/Str (gu/passthrough id-prefix)))
 
 (defn- gen-outline-fnk-data [label order sort-children? child-reqs _node-id child-outlines]
   {:node-id _node-id
@@ -1084,11 +1084,11 @@
   (input node-ids IDMap :array)
   (output node-ids IDMap :cached (g/fnk [node-ids] (into {} node-ids)))
   (input layer-ids IDMap)
-  (output layer-ids IDMap (g/fnk [layer-ids] layer-ids))
+  (output layer-ids IDMap (gu/passthrough layer-ids))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix))
+  (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
-  (output current-layout g/Str (g/fnk [current-layout] current-layout))
+  (output current-layout g/Str (gu/passthrough current-layout))
 )
 
 
@@ -1227,7 +1227,7 @@
   (inherits project/ResourceNode)
 
   (property script resource/Resource
-            (value (g/fnk [script-resource] script-resource))
+            (value (gu/passthrough script-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter
                     basis self old-value new-value
@@ -1237,7 +1237,7 @@
 
 
   (property material resource/Resource
-            (value (g/fnk [material-resource] material-resource))
+            (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter
                     basis self old-value new-value
@@ -1269,11 +1269,11 @@
   (input current-layout g/Str)
   (output current-layout g/Str (g/fnk [current-layout visible-layout] (or current-layout visible-layout)))
   (input node-msgs g/Any)
-  (output node-msgs g/Any (g/fnk [node-msgs] node-msgs))
+  (output node-msgs g/Any (gu/passthrough node-msgs))
   (input node-rt-msgs g/Any)
   (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs] (map #(dissoc % :index) (flatten (sort-by #(get-in % [0 :index]) node-rt-msgs)))))
   (input node-overrides g/Any)
-  (output node-overrides g/Any :cached (g/fnk [node-overrides] node-overrides))
+  (output node-overrides g/Any :cached (gu/passthrough node-overrides))
   (input font-msgs g/Any :array)
   (input texture-msgs g/Any :array)
   (input layer-msgs g/Any :array)
@@ -1281,7 +1281,7 @@
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
   (input node-ids IDMap)
-  (output node-ids IDMap (g/fnk [node-ids] node-ids))
+  (output node-ids IDMap (gu/passthrough node-ids))
   (input texture-names g/Str :array)
   (input font-names g/Str :array)
   (input layer-names g/Str :array)
@@ -1293,9 +1293,9 @@
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input samplers [g/KeywordMap])
-  (output samplers [g/KeywordMap] (g/fnk [samplers] samplers))
+  (output samplers [g/KeywordMap] (gu/passthrough samplers))
   (output aabb AABB :cached (g/fnk [scene-dims child-scenes]
                                              (let [w (:width scene-dims)
                                                    h (:height scene-dims)
@@ -1329,12 +1329,12 @@
                                               (let [w (get project-settings ["display" "width"])
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
-  (output layers [g/Str] :cached (g/fnk [layers] layers))
+  (output layers [g/Str] :cached (gu/passthrough layers))
   (output texture-ids IDMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
   (output font-ids IDMap :cached (g/fnk [font-ids] (into {} font-ids)))
   (output layer-ids IDMap :cached (g/fnk [layer-ids] (into {} layer-ids)))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix)))
+  (output id-prefix g/Str (gu/passthrough id-prefix)))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))

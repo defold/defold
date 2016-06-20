@@ -253,7 +253,7 @@
   (inherits project/ResourceNode)
 
   (property image resource/Resource
-    (value (g/fnk [image-resource] image-resource))
+    (value (gu/passthrough image-resource))
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
                                         [:resource :image-resource]
@@ -276,7 +276,7 @@
   (property tile-spacing g/Int (default 0))
 
   (property collision resource/Resource ; optional
-    (value (g/fnk [collision-resource] collision-resource))
+    (value (gu/passthrough collision-resource))
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
                                         [:resource :collision-resource]
@@ -309,7 +309,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output anim-data g/Any :cached produce-anim-data)
-  (output anim-ids g/Any :cached (g/fnk [animation-ids] animation-ids)))
+  (output anim-ids g/Any :cached (gu/passthrough animation-ids)))
 
 (defn- int->boolean [i]
   (not= 0 i))

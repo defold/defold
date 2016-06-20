@@ -584,7 +584,7 @@
   (inherits project/ResourceNode)
 
   (property spine-json resource/Resource
-            (value (g/fnk [spine-json-resource] spine-json-resource))
+            (value (gu/passthrough spine-json-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :spine-json-resource]
@@ -593,7 +593,7 @@
                              (validation/resource :spine-json spine-json "Missing spine json"))))
 
   (property atlas resource/Resource
-            (value (g/fnk [atlas-resource] atlas-resource))
+            (value (gu/passthrough atlas-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :atlas-resource]
@@ -660,7 +660,7 @@
   (inherits project/ResourceNode)
 
   (property spine-scene resource/Resource
-            (value (g/fnk [spine-scene-resource] spine-scene-resource))
+            (value (gu/passthrough spine-scene-resource))
             (set (fn [basis self old-value new-value]
                      (project/resource-setter basis self old-value new-value
                                                   [:resource :spine-scene-resource]
@@ -676,7 +676,7 @@
                                     :options (zipmap (map first options)
                                                      (map (comp :display-name second) options))}))))
   (property material resource/Resource
-            (value (g/fnk [material-resource] material-resource))
+            (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource]
@@ -700,14 +700,14 @@
   (input aabb AABB)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input sampler-data g/KeywordMap)
-  (output sampler-data g/KeywordMap (g/fnk [sampler-data] sampler-data))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene] spine-scene-scene))
+  (output sampler-data g/KeywordMap (gu/passthrough sampler-data))
+  (output scene g/Any :cached (gu/passthrough spine-scene-scene))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-data g/Any :cached produce-model-save-data)
   (output build-targets g/Any :cached produce-model-build-targets)
-  (output aabb AABB (g/fnk [aabb] aabb)))
+  (output aabb AABB (gu/passthrough aabb)))
 
 (defn load-spine-model [project self resource]
   (let [resolve-fn (partial workspace/resolve-resource resource)
