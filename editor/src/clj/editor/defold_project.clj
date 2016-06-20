@@ -14,6 +14,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [service.log :as log]
+            [editor.graph-util :as gu]
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
@@ -509,15 +510,15 @@
   (input settings g/Any)
   (input display-profiles g/Any)
 
-  (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
-  (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
+  (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
+  (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
   (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
                                              (let [nids (set selected-node-ids)]
                                                (filterv (comp nids first) sub-selection))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
-  (output settings g/Any :cached (g/fnk [settings] settings))
-  (output display-profiles g/Any :cached (g/fnk [display-profiles] display-profiles)))
+  (output settings g/Any :cached (gu/passthrough settings))
+  (output display-profiles g/Any :cached (gu/passthrough display-profiles)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))

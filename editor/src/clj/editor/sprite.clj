@@ -224,7 +224,7 @@
   (inherits project/ResourceNode)
 
   (property image resource/Resource
-            (value (g/fnk [image-resource] image-resource))
+            (value (gu/passthrough image-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :image-resource]
@@ -239,7 +239,7 @@
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/Resource
-            (value (g/fnk [material-resource] material-resource))
+            (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]

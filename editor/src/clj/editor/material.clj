@@ -182,7 +182,7 @@
   (property def g/Any (dynamic visible (g/fnk [] false)))
   (property vertex-program resource/Resource
     (dynamic visible (g/fnk [] false))
-    (value (g/fnk [vertex-resource] vertex-resource))
+    (value (gu/passthrough vertex-resource))
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
                                         [:resource :vertex-resource]
@@ -191,7 +191,7 @@
 
   (property fragment-program resource/Resource
     (dynamic visible (g/fnk [] false))
-    (value (g/fnk [fragment-resource] fragment-resource))
+    (value (gu/passthrough fragment-resource))
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
                                         [:resource :fragment-resource]

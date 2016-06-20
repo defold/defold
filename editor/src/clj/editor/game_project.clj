@@ -51,7 +51,7 @@
 
 (g/defnode GameProjectSettingsProxy
   (input settings-map g/Any :substitute settings-map-substitute)
-  (output settings-map g/Any :cached (g/fnk [settings-map] settings-map)))
+  (output settings-map g/Any :cached (gu/passthrough settings-map)))
 
 (def ^:private path->property {["display" "display_profiles"] :display-profiles
                                ["bootstrap" "main_collection"] :main-collection
@@ -147,7 +147,7 @@
 (g/defnode GameProjectRefs
   (property display-profiles resource/Resource
           (dynamic visible false)
-          (value (g/fnk [display-profiles-resource] display-profiles-resource))
+          (value (gu/passthrough display-profiles-resource))
           (set (fn [basis self old-value new-value]
                  (project/resource-setter basis self old-value new-value
                                               [:resource :display-profiles-resource]
@@ -155,35 +155,35 @@
                                               [:profile-data :display-profiles-data]))))
   (property main-collection resource/Resource
             (dynamic visible false)
-            (value (g/fnk [main-collection-resource] main-collection-resource))
+            (value (gu/passthrough main-collection-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :main-collection-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property render resource/Resource
             (dynamic visible false)
-            (value (g/fnk [render-resource] render-resource))
+            (value (gu/passthrough render-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :render-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property texture-profiles resource/Resource
             (dynamic visible false)
-            (value (g/fnk [texture-profiles-resource] texture-profiles-resource))
+            (value (gu/passthrough texture-profiles-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-profiles-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property gamepads resource/Resource
             (dynamic visible false)
-            (value (g/fnk [gamepads-resource] gamepads-resource))
+            (value (gu/passthrough gamepads-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :gamepads-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property input-binding resource/Resource
             (dynamic visible false)
-            (value (g/fnk [input-binding-resource] input-binding-resource))
+            (value (gu/passthrough input-binding-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :input-binding-resource]
@@ -197,7 +197,7 @@
   (input gamepads-resource resource/Resource)
   (input input-binding-resource resource/Resource)
 
-  (output display-profiles-data g/Any (g/fnk [display-profiles-data] display-profiles-data))
+  (output display-profiles-data g/Any (gu/passthrough display-profiles-data))
 
   (output ref-settings g/Any (g/fnk [_declared-properties]
                                     (let [p (-> (:properties _declared-properties)
