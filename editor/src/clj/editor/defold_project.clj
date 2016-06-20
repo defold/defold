@@ -13,6 +13,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.validation :as validation]
+            [editor.game-project-core :as gpc]
             [service.log :as log]
             ;; TODO - HACK
             [internal.graph.types :as gt]
@@ -660,6 +661,23 @@
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
+
+(defn- read-dependencies [game-project-resource]
+  (-> (slurp game-project-resource)
+    gpc/string-reader
+    gpc/parse-settings
+    (gpc/get-setting ["project" "dependencies"])))
+
+(defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
+  (let [progress (atom (progress/make "Updating dependencies" 3))]
+    (render-progress! @progress)
+    (workspace/set-project-dependencies! workspace-id (read-dependencies game-project-resource))
+    (workspace/update-dependencies! workspace-id (progress/nest-render-progress render-progress! @progress) login-fn)
+    (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
+    (workspace/resource-sync! workspace-id false [] (progress/nest-render-progress render-progress! @progress))
+    (render-progress! (swap! progress progress/advance 1 "Loading project"))
+    (let [project (make-project graph workspace-id)]
+      (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress)))))
 
 (defn gen-resource-setter
   ([connections]
