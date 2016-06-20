@@ -761,3 +761,42 @@
   (with-clean-system
     (let [[nid] (tx-nodes (g/make-node world InheritingSetter))]
       (g/set-property! nid :string-property "bang!"))))
+
+(defmacro fnk-generator
+  ([x]
+   `(g/fnk [] ~x))
+  ([x y]
+   `(g/fnk [~x] ~y))
+  ([x y z]
+   `(g/fnk [~x ~y] ~z)))
+
+(g/defnode MacroMembers
+  (input input-one g/Any)
+  (input input-two g/Any)
+  (input input-three g/Any)
+
+  (property a-property g/Any
+            (default (fnk-generator false))
+            (validate (fnk-generator input-three (nil? input-three)))
+            (value   (fnk-generator input-two (inc input-two))))
+
+  (output an-output g/Any
+          (fnk-generator input-one a-property :ok)))
+
+(deftest fnks-from-macros
+  (testing "as output"
+    (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :an-output)
+      :input-one
+      :input-two
+#_      :input-three
+      :a-property))
+
+  #_(testing "as property"
+    (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :a-property)
+      :input-two
+      :input-three)
+
+    (are [x] (not (contains? (get (g/input-dependencies MacroMembers) x) :a-property))
+      :input-one
+      :_properties
+      :_declared-properties)))

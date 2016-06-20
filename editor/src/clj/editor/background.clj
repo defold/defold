@@ -3,8 +3,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.colors :as colors]
-            [editor.gl.pass :as p]
-            [plumbing.core :refer [fnk]])
+            [editor.gl.pass :as p])
   (:import [javax.media.opengl GL2]))
 
 (set! *warn-on-reflection* true)
@@ -26,4 +25,4 @@
       (gl/gl-vertex-2f x0 y0))))
 
 (g/defnode Gradient
-  (output renderable p/RenderData (fnk [this] {p/background [{:world-transform geom/Identity4d :render-fn render-gradient}]})))
+  (output renderable p/RenderData (g/fnk [] {p/background [{:world-transform geom/Identity4d :render-fn render-gradient}]})))
