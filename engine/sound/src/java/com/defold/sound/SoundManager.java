@@ -43,7 +43,7 @@ public class SoundManager {
             this.telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
             this.listener = new SoundManager.AudioFocusListener();
         } catch (Exception e) {
-            Log.e("Sound", "An exception occurred while creating AudioManager", e);
+            Log.e("Sound", "An exception occurred while retrieving system services", e);
         }
     }
 

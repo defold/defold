@@ -150,5 +150,3 @@ def build(bld):
                                   source = 'test_sound.cpp')
 
     test_sound.install_path = None
-
-
