@@ -733,24 +733,40 @@
     {:value-type type
      :flags (if multivalued? #{:collection} #{})}))
 
+(defn macro-expression?
+  [f]
+  (when-let [term (and (seq? f) (symbol? (first f)) (first f))]
+    (let [v (resolve term)]
+      (and (var? v) (.isMacro v)))))
+
+(defn fnk-expression?
+  [f]
+  (when-let [term (and (seq? f) (symbol? (first f)) (first f))]
+    (or (= "#'dynamo.graph/fnk" (str (resolve term))))))
+
+(defn maybe-macroexpand
+  [f]
+  (if (and (macro-expression? f) (not (fnk-expression? f)))
+    (macroexpand-1 f)
+    f))
+
 (defmulti process-property-form first)
 
 (defmethod process-property-form 'dynamic [[_ label forms]]
   (assert-symbol "dynamic" label)
-  {:dynamics {(keyword label) {:fn forms}}})
+  {:dynamics {(keyword label) {:fn (maybe-macroexpand forms)}}})
 
 (defmethod process-property-form 'value [[_ form]]
-  {:value {:fn form}})
+  {:value {:fn (maybe-macroexpand form)}})
 
 (defmethod process-property-form 'set [[_ form]]
-  {:setter {:fn form}})
+  {:setter {:fn (maybe-macroexpand form)}})
 
 (defmethod process-property-form 'default [[_ form]]
-
-  {:default {:fn form}})
+  {:default {:fn (maybe-macroexpand form)}})
 
 (defmethod process-property-form 'validate [[_ form]]
-  {:validate {:fn form}})
+  {:validate {:fn (maybe-macroexpand form)}})
 
 (defn process-property-forms
   [[type-form & body-forms]]
@@ -803,7 +819,7 @@
                              :options options
                              :fn      (if abstract?
                                         (abstract-function label type-form)
-                                        (first fn-forms))})}}))
+                                        (maybe-macroexpand (first fn-forms)))})}}))
 
 (def ^:private input-flags   #{:inject :array :cascade-delete})
 (def ^:private input-options #{:substitute})
@@ -833,8 +849,8 @@
 
 (defn group-node-type-forms
   [forms]
-  (let [parse (for [f forms :when (seq? f)] (process-as f))]
-    (def parse* parse)
+  (let [parse (for [f forms :when (seq? f)]
+                (process-as f))]
     (apply merge-with into parse)))
 
 (defn node-type-merge

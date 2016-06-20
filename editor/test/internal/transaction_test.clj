@@ -3,14 +3,13 @@
             [dynamo.graph :as g]
             [support.test-support :refer :all]
             [internal.util :refer :all]
-            [internal.transaction :as it]
-            [plumbing.core :refer [defnk fnk]]))
+            [internal.transaction :as it]))
 
-(defnk upcase-a [a] (.toUpperCase a))
+(g/defnk upcase-a [a] (.toUpperCase a))
 
 (g/defnode Resource
   (input a g/Str)
-  (output b g/Keyword (fnk [] :ok))
+  (output b g/Keyword (g/fnk [] :ok))
   (output c g/Str upcase-a)
   (property d g/Str (default ""))
   (property marker g/Int))
@@ -92,18 +91,18 @@
   (input first-name g/Str)
   (input surname g/Str)
 
-  (output friendly-name g/Str (fnk [first-name] first-name))
-  (output full-name g/Str (fnk [first-name surname] (str first-name " " surname)))
-  (output age Date (fnk [date-of-birth] date-of-birth)))
+  (output friendly-name g/Str (g/fnk [first-name] first-name))
+  (output full-name g/Str (g/fnk [first-name surname] (str first-name " " surname)))
+  (output age Date (g/fnk [date-of-birth] date-of-birth)))
 
 (g/defnode Receiver
   (input generic-input g/Any)
   (property touched g/Bool (default false))
-  (output passthrough g/Any (fnk [generic-input] generic-input)))
+  (output passthrough g/Any (g/fnk [generic-input] generic-input)))
 
 (g/defnode FocalNode
   (input aggregator g/Any :array)
-  (output aggregated [g/Any] (fnk [aggregator] aggregator)))
+  (output aggregated [g/Any] (g/fnk [aggregator] aggregator)))
 
 (defn- build-network
   [world]
@@ -162,8 +161,8 @@
 (g/defnode CachedOutputInvalidation
   (property a-property g/Str (default "a-string"))
 
-  (output ordinary g/Str :cached (fnk [a-property] a-property))
-  (output self-dependent g/Str :cached (fnk [ordinary] ordinary)))
+  (output ordinary g/Str :cached (g/fnk [a-property] a-property))
+  (output self-dependent g/Str :cached (g/fnk [ordinary] ordinary)))
 
 (deftest invalidated-properties-noted-by-transaction
   (with-clean-system
@@ -179,7 +178,7 @@
         (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
 
 (g/defnode CachedValueNode
-  (output cached-output g/Str :cached (fnk [] "an-output-value")))
+  (output cached-output g/Str :cached (g/fnk [] "an-output-value")))
 
 (defn cache-peek
   [system node-id output]
@@ -196,11 +195,11 @@
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
 (g/defnode OriginalNode
-  (output original-output g/Str :cached (fnk [] "original-output-value")))
+  (output original-output g/Str :cached (g/fnk [] "original-output-value")))
 
 (g/defnode ReplacementNode
-  (output original-output g/Str (fnk [] "original-value-replaced"))
-  (output additional-output g/Str :cached (fnk [] "new-output-added")))
+  (output original-output g/Str (g/fnk [] "original-value-replaced"))
+  (output additional-output g/Str :cached (g/fnk [] "new-output-added")))
 
 (deftest become-interacts-with-caching
   (testing "newly uncacheable values are evicted"
