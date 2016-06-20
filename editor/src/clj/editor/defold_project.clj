@@ -36,7 +36,7 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/fnk [] []))
+  (output build-targets g/Any (g/always []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
                                 {:node-id _node-id
@@ -76,9 +76,7 @@
 
 (defn- load-nodes! [project node-ids render-progress!]
   (g/transact
-   (let [x (load-resource-nodes project node-ids render-progress!)]
-     (def load-nodes* x)
-     x)))
+    (load-resource-nodes project node-ids render-progress!)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]

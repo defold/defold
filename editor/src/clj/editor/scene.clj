@@ -392,7 +392,7 @@
   (inherits SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (g/fnk [] (types/->Region 0 0 0 0))))
+  (property viewport Region (default (g/always (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
@@ -726,7 +726,7 @@
   (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (Matrix4d. rotation-q4 position-v3 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/fnk [] (geom/null-aabb))))
+  (output aabb AABB :cached (g/always (geom/null-aabb))))
 
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position :basis basis)))

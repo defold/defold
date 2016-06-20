@@ -6,13 +6,13 @@
 
 (g/defnode OutputNode
   (property can-change-prop g/Bool (default false))
-  (output true-output g/Bool (g/fnk [] true))
-  (output false-output g/Bool (g/fnk [] false)))
+  (output true-output g/Bool (g/always true))
+  (output false-output g/Bool (g/always false)))
 
 (g/defnode VisibilityTestNode
   (input a-input g/Bool)
-  (property hidden-prop g/Str (dynamic visible (g/fnk [] false)))
-  (property visible-prop g/Str (dynamic visible (g/fnk [] true)))
+  (property hidden-prop g/Str (dynamic visible (g/always false)))
+  (property visible-prop g/Str (dynamic visible (g/always true)))
   (property a-prop g/Str (dynamic visible (g/fnk [a-input] a-input))))
 
 (defn- property-visible [node key]
@@ -51,8 +51,8 @@
 
 (g/defnode EnablementTestNode
   (input a-input g/Bool)
-  (property disabled-prop g/Str (dynamic enabled (g/fnk [] false)))
-  (property enabled-prop g/Str (dynamic enabled (g/fnk [] true)))
+  (property disabled-prop g/Str (dynamic enabled (g/always false)))
+  (property enabled-prop g/Str (dynamic enabled (g/always true)))
   (property a-prop g/Str (dynamic enabled (g/fnk [a-input] a-input))))
 
 (defn- property-enabled [node key]

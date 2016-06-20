@@ -244,7 +244,7 @@
 
 (g/defnode RichNode
   (property deep-value StructuredValue
-            (default (g/fnk [] (->StructuredValue 1 2 3)))))
+            (default (g/always (->StructuredValue 1 2 3)))))
 
 (defn rich-value-fragment [world]
   (let [[node] (ts/tx-nodes (g/make-node world RichNode))]

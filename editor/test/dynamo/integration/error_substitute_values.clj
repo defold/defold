@@ -8,7 +8,7 @@
 (g/deftype StrArray [(s/maybe s/Str)])
 
 (g/defnode SimpleOutputNode
-  (output my-output g/Str (g/fnk [] "scones")))
+  (output my-output g/Str (g/always "scones")))
 
 (g/defnode SimpleTestNode
   (input my-input g/Str)
@@ -52,7 +52,7 @@
         (is (= ["scones"] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode NilOutputNode
-  (output my-output g/Str (g/fnk [] nil)))
+  (output my-output g/Str (g/always nil)))
 
 (deftest test-producing-values-with-nils
   (testing "values with nils"
@@ -88,7 +88,7 @@
         (is (= [nil] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode ErrorOutputNode
-  (output my-output g/Str (g/fnk [] (g/error-severe "I am an error!"))))
+  (output my-output g/Str (g/always (g/error-severe "I am an error!"))))
 
 (defn thrown-for-reason?
   [node output reason]

@@ -248,11 +248,11 @@
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
-            (dynamic edit-type (g/fnk []
-                                      (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
-                                        {:type :choicebox
-                                         :options (zipmap (map first options)
-                                                          (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/always
+                                (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
+                                  {:type :choicebox
+                                   :options (zipmap (map first options)
+                                                    (map (comp :display-name second) options))}))))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any)
@@ -266,8 +266,8 @@
                                          (let [hw (* 0.5 (:width animation))
                                                hh (* 0.5 (:height animation))]
                                            (-> (geom/null-aabb)
-                                               (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                               (geom/aabb-incorporate (Point3d. hw hh 0))))
+                                             (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
+                                             (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
   (output save-data g/Any :cached produce-save-data)
   (output scene g/Any :cached produce-scene)
