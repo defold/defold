@@ -152,9 +152,11 @@
                  (first (string/split item #"\("))
                  item
                  (string/replace item #"\[.*\]" "")
-                 ""))]
-    (group-by #(let [names (string/split (:name %) #"\.")]
-                 (if (= 2 (count names)) (first names) "")) hints)))
+                 ""))
+        completions (group-by #(let [names (string/split (:name %) #"\.")]
+                                         (if (= 2 (count names)) (first names) "")) hints)
+        package-completions {"" (map code/create-hint(remove #(= "" %) (keys completions)))}]
+    (merge-with into completions package-completions)))
 
 (def lua-std-libs-docs (atom (lua-std-libs-documentation)))
 

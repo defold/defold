@@ -70,6 +70,9 @@
       (testing "global defold package"
         (set-completion-code! source-viewer "go")
         (is (= ["go"] (map :name (:proposals (propose source-viewer))))))
+      (testing "global lua std lib package"
+        (set-completion-code! source-viewer "mat")
+        (is (= ["math"] (map :name (:proposals (propose source-viewer))))))
       (testing "go.property function - required params"
         (set-completion-code! source-viewer "go.proper")
         (let [result (:proposals (propose source-viewer))]
