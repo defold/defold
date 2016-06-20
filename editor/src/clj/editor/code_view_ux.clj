@@ -848,8 +848,8 @@
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (let [{:keys [proposals line] :as proposal-data} (propose selection)]
+    (let [proposals (propose selection)]
       (if (= 1 (count proposals))
-        (let [replacement (:insert-string (first proposals))]
+        (let [replacement (first proposals)]
           (do-proposal-replacement selection replacement))
-        (show-proposals selection proposal-data)))))
+        (show-proposals selection proposals)))))
