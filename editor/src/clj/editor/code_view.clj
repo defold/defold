@@ -11,14 +11,14 @@
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView]
+           [javafx.scene.control ListView ListCell]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
-           [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection]
+           [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection StyledTextLayoutContainer]
            [org.eclipse.fx.ui.controls.styledtext.behavior StyledTextBehavior]
-           [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin]
+           [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin StyledTextSkin$LineCell]
            [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
            [org.eclipse.jface.text.rules FastPartitioner ICharacterScanner IPredicateRule IRule IToken IWhitespaceDetector
             IWordDetector MultiLineRule RuleBasedScanner RuleBasedPartitionScanner SingleLineRule Token WhitespaceRule WordRule]))
@@ -244,7 +244,24 @@
                                   (callActionForEvent [key-event]
                                     ;;do nothing we are handling all
                                     ;;the events
-                                    ))]
+                                    )
+                                  (updateCursor [^MouseEvent event visible-cells selection]
+                                    (println "Carin event y " (.getY event))
+                                    (println "doc len" (.getCharCount ^StyledTextArea text-area))
+                                    (let [vcells (into [] visible-cells)
+                                          doc-len (.getCharCount ^StyledTextArea text-area)
+                                          caret-at-point-fn (fn [c]
+                                                              (when-let [^StyledTextLayoutContainer n (.getGraphic ^ListCell c)]
+                                                                {:caret-idx  (.getCaretIndexAtPoint n (.sceneToLocal n (.getSceneX event) (.getSceneY event)))
+                                                                 :start-offset (.getStartOffset n)}))
+                                          found-cells (filter #(when-let [idx (:caret-idx %)] (not= -1 idx)) (mapv caret-at-point-fn vcells))
+                                          last-cell (last (sort-by (fn [c] (.getMinY (.getBoundsInParent ^StyledTextSkin$LineCell c))) vcells))]
+                                      (if-let [fcell (first found-cells)]
+                                        (do (println "Found and selecting!" fcell)
+                                            (.impl_setCaretOffset text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection))
+                                        (do (println "Defaulting to the end of the doc")
+                                            (.impl_setCaretOffset text-area doc-len selection)
+                                            )))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
