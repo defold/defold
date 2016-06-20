@@ -23,12 +23,6 @@
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
     (g/error-aggregate errors)))
 
-(defmacro positive
-  ([field] (positive field (str "Property " (name field) " must be positive")))
-  ([field message]
-   `(when (neg? ~field)
-      (g/error-severe ~message))))
-
 (defmacro validate-positive [field message]
   `(g/fnk [~field]
      (when (neg? ~field)

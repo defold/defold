@@ -669,7 +669,7 @@
                                                   [:build-targets :dep-build-targets]))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
-            (dynamic edit-type (g/fnk []
+            (dynamic edit-type (g/always
                                  (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
                                    {:type :choicebox
                                     :options (zipmap (map first options)

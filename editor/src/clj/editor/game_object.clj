@@ -40,10 +40,10 @@
   ([id position ^Quat4d rotation-q4 path]
     (gen-ref-ddf id position rotation-q4 path {}))
   ([id position ^Quat4d rotation-q4 path ddf-properties ddf-property-decls]
-      {:id id
-       :position position
-       :rotation (math/vecmath->clj rotation-q4)
-       :component (resource/resource->proj-path path)
+    {:id id
+     :position position
+     :rotation (math/vecmath->clj rotation-q4)
+     :component (resource/resource->proj-path path)
      :properties ddf-properties
      :property-decls ddf-property-decls}))
 
@@ -87,7 +87,7 @@
   (property id g/Str)
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
-            (dynamic read-only? (g/fnk [] true)))
+            (dynamic read-only? (g/always true)))
 
   (display-order [:id :url :path scene/SceneNode])
 
@@ -128,7 +128,7 @@
 
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 save-data]
-                                           (gen-embed-ddf id position rotation-q4 save-data)))
+                                              (gen-embed-ddf id position rotation-q4 save-data)))
   (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
                                                   (merge-with into _declared-properties source-properties))))
 
@@ -147,41 +147,41 @@
                                                     ddf-properties))}))
             (set (fn [basis self old-value new-value]
                    (concat
-                    (if-let [old-source (g/node-value self :source-id :basis basis)]
-                      (g/delete-node old-source)
-                      [])
-                    (let [new-resource (:resource new-value)
-                          resource-type (and new-resource (resource/resource-type new-resource))
-                          override? (contains? (:tags resource-type) :overridable-properties)]
-                      (if override?
-                        (let [project (project/get-project self)]
-                          (project/connect-resource-node project new-resource self []
-                                                         (fn [comp-node]
+                     (if-let [old-source (g/node-value self :source-id :basis basis)]
+                       (g/delete-node old-source)
+                       [])
+                     (let [new-resource (:resource new-value)
+                           resource-type (and new-resource (resource/resource-type new-resource))
+                           override? (contains? (:tags resource-type) :overridable-properties)]
+                       (if override?
+                         (let [project (project/get-project self)]
+                           (project/connect-resource-node project new-resource self []
+                                                          (fn [comp-node]
                                                             (let [override (g/override basis comp-node {:traverse? (constantly true)})
-                                                                 id-mapping (:id-mapping override)
-                                                                 or-node (get id-mapping comp-node)]
-                                                             (concat
-                                                              (:tx-data override)
-                                                              (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                (for [[from to] [[:_node-id :source-id]
-                                                                                 [:resource :source-resource]
-                                                                                 [:node-outline :source-outline]
-                                                                                 [:_properties :source-properties]
-                                                                                 [:scene :scene]
-                                                                                 [:build-targets :build-targets]]
-                                                                      :when (contains? outputs from)]
-                                                                  (g/connect or-node from self to)))
-                                                              (for [[label value] (:overrides new-value)]
-                                                                (g/set-property or-node label value)))))))
-                        (project/resource-setter basis self (:resource old-value) (:resource new-value)
-                                                 [:resource :source-resource]
-                                                 [:node-outline :source-outline]
-                                                 [:user-properties :user-properties]
-                                                 [:scene :scene]
-                                                 [:build-targets :build-targets]))))))
+                                                                  id-mapping (:id-mapping override)
+                                                                  or-node (get id-mapping comp-node)]
+                                                              (concat
+                                                                (:tx-data override)
+                                                                (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                                                  (for [[from to] [[:_node-id :source-id]
+                                                                                   [:resource :source-resource]
+                                                                                   [:node-outline :source-outline]
+                                                                                   [:_properties :source-properties]
+                                                                                   [:scene :scene]
+                                                                                   [:build-targets :build-targets]]
+                                                                        :when (contains? outputs from)]
+                                                                    (g/connect or-node from self to)))
+                                                                (for [[label value] (:overrides new-value)]
+                                                                  (g/set-property or-node label value)))))))
+                         (project/resource-setter basis self (:resource old-value) (:resource new-value)
+                                                  [:resource :source-resource]
+                                                  [:node-outline :source-outline]
+                                                  [:user-properties :user-properties]
+                                                  [:scene :scene]
+                                                  [:build-targets :build-targets]))))))
             (validate (g/fnk [path]
-                             (when (nil? path)
-                               (g/error-warning "Missing component")))))
+                        (when (nil? path)
+                          (g/error-warning "Missing component")))))
 
   (input source-id g/NodeID :cascade-delete)
   (output ddf-properties g/Any :cached
@@ -241,11 +241,11 @@
 (defn- attach-component [self-id comp-id ddf-input]
   (concat
     (for [[from to] [[:node-outline :child-outlines]
-               [:_node-id :nodes]
-               [:build-targets :dep-build-targets]
+                     [:_node-id :nodes]
+                     [:build-targets :dep-build-targets]
                      [:ddf-message ddf-input]
                      [:component-id :component-ids]
-               [:scene :child-scenes]]]
+                     [:scene :child-scenes]]]
       (g/connect comp-id from self-id to))
     (for [[from to] [[:base-url :base-url]]]
       (g/connect self-id from comp-id to))))
@@ -313,18 +313,18 @@
 (defn add-component-file [go-id resource]
   (let [project (project/get-project go-id)
         id (gen-component-id go-id (:ext (resource/resource-type resource)))
-            op-seq (gensym)
-            [comp-node] (g/tx-nodes-added
-                          (g/transact
-                            (concat
-                              (g/operation-label "Add Component")
-                              (g/operation-sequence op-seq)
+        op-seq (gensym)
+        [comp-node] (g/tx-nodes-added
+                      (g/transact
+                        (concat
+                          (g/operation-label "Add Component")
+                          (g/operation-sequence op-seq)
                           (add-component go-id project resource id [0 0 0] [0 0 0] {}))))]
-        ; Selection
-        (g/transact
-          (concat
-            (g/operation-sequence op-seq)
-            (g/operation-label "Add Component")
+    ;; Selection
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Add Component")
         (project/select project [comp-node])))))
 
 (defn add-component-handler [workspace go-id]

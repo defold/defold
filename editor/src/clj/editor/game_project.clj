@@ -146,7 +146,7 @@
 
 (g/defnode GameProjectRefs
   (property display-profiles resource/Resource
-          (dynamic visible false)
+          (dynamic visible (g/always false))
           (value (gu/passthrough display-profiles-resource))
           (set (fn [basis self old-value new-value]
                  (project/resource-setter basis self old-value new-value
@@ -154,35 +154,35 @@
                                               [:build-targets :dep-build-targets]
                                               [:profile-data :display-profiles-data]))))
   (property main-collection resource/Resource
-            (dynamic visible false)
+            (dynamic visible (g/always false))
             (value (gu/passthrough main-collection-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :main-collection-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property render resource/Resource
-            (dynamic visible false)
+            (dynamic visible (g/always false))
             (value (gu/passthrough render-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :render-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property texture-profiles resource/Resource
-            (dynamic visible false)
+            (dynamic visible (g/always false))
             (value (gu/passthrough texture-profiles-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-profiles-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property gamepads resource/Resource
-            (dynamic visible false)
+            (dynamic visible (g/always false))
             (value (gu/passthrough gamepads-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :gamepads-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property input-binding resource/Resource
-            (dynamic visible false)
+            (dynamic visible (g/always false))
             (value (gu/passthrough input-binding-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -208,8 +208,8 @@
   (inherits project/ResourceNode)
   (inherits GameProjectRefs)
 
-  (property raw-settings g/Any (dynamic visible false))
-  (property meta-info g/Any (dynamic visible false))
+  (property raw-settings g/Any (dynamic visible (g/always false)))
+  (property meta-info g/Any (dynamic visible (g/always false)))
 
   (output raw-settings g/Any
           (g/fnk [raw-settings meta-info ref-settings]

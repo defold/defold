@@ -93,7 +93,7 @@
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
 
-  (property order g/Int (dynamic visible (g/fnk [] false)) (default 0))
+  (property order g/Int (dynamic visible (g/always false)) (default 0))
   (input src-resource resource/Resource)
   (input src-image BufferedImage)
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
@@ -158,7 +158,7 @@
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
-            (dynamic edit-type (g/fnk []
+            (dynamic edit-type (g/always
                                  (let [options (protobuf/enum-values Tile$Playback)]
                                    {:type :choicebox
                                     :options (zipmap (map first options)

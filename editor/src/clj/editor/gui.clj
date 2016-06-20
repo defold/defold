@@ -379,17 +379,17 @@
   (inherits scene/ScalableSceneNode)
   (inherits outline/OutlineNode)
 
-  (property index g/Int (dynamic visible (g/fnk [] false)) (default 0))
-  (property type g/Keyword (dynamic visible (g/fnk [] false)))
-  (property animation g/Str (dynamic visible (g/fnk [] false)) (default ""))
+  (property index g/Int (dynamic visible (g/always false)) (default 0))
+  (property type g/Keyword (dynamic visible (g/always false)))
+  (property animation g/Str (dynamic visible (g/always false)) (default ""))
 
   (input id-prefix g/Str)
   (property id g/Str (default "")
             (dynamic visible no-override?))
   (property generated-id g/Str
-            (dynamic label (g/fnk [] "Id"))
+            (dynamic label (g/always "Id"))
             (value (gu/passthrough id))
-            (dynamic read-only? (g/fnk [] true))
+            (dynamic read-only? (g/always true))
             (dynamic visible override?))
   (property size types/Vec3 (default [0 0 0])
             (dynamic visible (g/fnk [type] (not= type :type-template))))
@@ -400,7 +400,7 @@
                    (if (nil? new-value)
                      (g/clear-property self :color)
                      (g/update-property self :color (fn [v] (assoc v 3 new-value))))))
-            (dynamic edit-type (g/fnk [] {:type :slider
+            (dynamic edit-type (g/always {:type :slider
                                           :min 0.0
                                           :max 1.0
                                           :precision 0.01})))
@@ -475,15 +475,15 @@
   (inherits GuiNode)
 
   (property blend-mode g/Keyword (default :blend-mode-alpha)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
   (property pivot g/Keyword (default :pivot-center)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
   (property x-anchor g/Keyword (default :xanchor-none)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$XAnchor))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$XAnchor))))
   (property y-anchor g/Keyword (default :yanchor-none)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
   (input material-shader ShaderLifecycle)
   (input gpu-texture g/Any)
@@ -523,7 +523,7 @@
                                                              (= :size-mode-auto size-mode)))))
   (property size-mode g/Keyword (default :size-mode-auto)
             (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (keys texture-ids)))))
             (value (g/fnk [texture-input animation]
@@ -545,7 +545,7 @@
                          []))))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
 
@@ -605,7 +605,7 @@
   (inherits ShapeNode)
 
   (property outer-bounds g/Keyword (default :piebounds-ellipse)
-            (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
   (property inner-radius g/Num (default 0.0))
   (property perimeter-vertices g/Num (default 10.0))
   (property pie-fill-angle g/Num (default 360.0))
@@ -698,7 +698,7 @@
     (value (g/fnk [outline] (get outline 3)))
     (set (fn [basis self _ new-value]
           (g/update-property self :outline (fn [v] (assoc v 3 new-value)))))
-    (dynamic edit-type (g/fnk [] {:type :slider
+    (dynamic edit-type (g/always {:type :slider
                                   :min 0.0
                                   :max 1.0
                                   :precision 0.01})))
@@ -707,7 +707,7 @@
     (value (g/fnk [shadow] (get shadow 3)))
     (set (fn [basis self _ new-value]
           (g/update-property self :shadow (fn [v] (assoc v 3 new-value)))))
-    (dynamic edit-type (g/fnk [] {:type :slider
+    (dynamic edit-type (g/always {:type :slider
                                   :min 0.0
                                   :max 1.0
                                   :precision 0.01})))
@@ -739,9 +739,7 @@
   (output text-data g/KeywordMap (g/fnk [text font-data line-break outline shadow size pivot text-leading text-tracking]
                                         {:text text :font-data font-data
                                          :line-break line-break :outline outline :shadow shadow :max-width (first size)
-                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)}))
-
-)
+                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)})))
 
 ;; Template nodes
 
@@ -765,7 +763,7 @@
 
   (property template TemplateData
             (dynamic read-only? override?)
-            (dynamic edit-type (g/fnk [] {:type resource/Resource
+            (dynamic edit-type (g/always {:type resource/Resource
                                           :ext "gui"
                                           :to-type (fn [v] (:resource v))
                                           :from-type (fn [r] {:resource r :overrides {}})}))
@@ -842,7 +840,7 @@
   (output outline-overridden? g/Bool :cached (g/fnk [template-outline]
                                                     (let [children (get-in template-outline [:children 0 :children])]
                                                       (boolean (some :outline-overridden? children)))))
-  (output node-outline-reqs g/Any :cached (g/fnk [] []))
+  (output node-outline-reqs g/Any :cached (g/always []))
   (output pb-msgs g/Any :cached (g/fnk [id pb-msg scene-pb-msg]
                                        (into [pb-msg] (map #(-> %
                                                               (assoc :template-node-child true)
@@ -909,19 +907,19 @@
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
-                                         (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
+                                    (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output node-outline outline/OutlineData (g/fnk [_node-id name]
-                                                  {:node-id _node-id
-                                                   :label name
-                                                   :icon texture-icon}))
+                                             {:node-id _node-id
+                                              :label name
+                                              :icon texture-icon}))
   (output pb-msg g/Any (g/fnk [name texture-resource]
-                              {:name name
-                               :texture (proj-path texture-resource)}))
+                         {:name name
+                          :texture (proj-path texture-resource)}))
   (output texture-id IDMap :cached (g/fnk [_node-id anim-ids name]
-                                          (let [texture-ids (if anim-ids
-                                                              (map #(format "%s/%s" name %) anim-ids)
-                                                              [name])]
-                                            (zipmap texture-ids (repeat _node-id)))))
+                                                     (let [texture-ids (if anim-ids
+                                                                         (map #(format "%s/%s" name %) anim-ids)
+                                                                         [name])]
+                                                       (zipmap texture-ids (repeat _node-id)))))
   (output gpu-texture g/Any :cached (g/fnk [_node-id image samplers]
                                            (let [params (material/sampler->tex-params (first samplers))]
                                              (texture/set-params (texture/image-texture _node-id image) params)))))
@@ -967,7 +965,7 @@
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (property index g/Int (dynamic visible (g/fnk [] false)) (default 0))
+  (property index g/Int (dynamic visible (g/always false)) (default 0))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name index]
                                                           {:node-id _node-id
                                                            :label name
@@ -991,7 +989,7 @@
   (inherits outline/OutlineNode)
   (property name g/Str)
   (property nodes g/Any
-            (dynamic visible (g/fnk [] false))
+            (dynamic visible (g/always false))
             (value (gu/passthrough layout-overrides))
             (set (fn [basis self _ new-value]
                    (let [scene (ffirst (g/targets-of basis self :_node-id))
@@ -1049,8 +1047,8 @@
                child-outlines)})
 
 (g/defnode NodeTree
-  (property id g/Str (default (g/fnk [] ""))
-            (dynamic visible (g/fnk [] false)))
+  (property id g/Str (default (g/always ""))
+            (dynamic visible (g/always false)))
 
   (inherits outline/OutlineNode)
 
@@ -1088,8 +1086,7 @@
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
-  (output current-layout g/Str (gu/passthrough current-layout))
-)
+  (output current-layout g/Str (gu/passthrough current-layout)))
 
 
 (g/defnode TexturesNode
@@ -1237,22 +1234,22 @@
 
 
   (property material resource/Resource
-            (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter
-                    basis self old-value new-value
-                    [:resource :material-resource]
-                    [:shader :material-shader]
-                    [:samplers :samplers]
-                    [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource material)))
+    (value (gu/passthrough material-resource))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter
+            basis self old-value new-value
+            [:resource :material-resource]
+            [:shader :material-shader]
+            [:samplers :samplers]
+            [:build-targets :dep-build-targets])))
+    (validate (validation/validate-resource material)))
 
-  (property adjust-reference g/Keyword (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
-  (property pb g/Any (dynamic visible (g/fnk [] false)))
-  (property def g/Any (dynamic visible (g/fnk [] false)))
-  (property background-color types/Color (dynamic visible (g/fnk [] false)) (default [1 1 1 1]))
-  (property visible-layout g/Str (default (g/fnk [] ""))
-            (dynamic visible (g/fnk [] false))
+  (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
+  (property pb g/Any (dynamic visible (g/always false)))
+  (property def g/Any (dynamic visible (g/always false)))
+  (property background-color types/Color (dynamic visible (g/always false)) (default [1 1 1 1]))
+  (property visible-layout g/Str (default (g/always ""))
+            (dynamic visible (g/always false))
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
 
@@ -1297,12 +1294,12 @@
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
   (output aabb AABB :cached (g/fnk [scene-dims child-scenes]
-                                             (let [w (:width scene-dims)
-                                                   h (:height scene-dims)
-                                                   scene-aabb (-> (geom/null-aabb)
-                                                                  (geom/aabb-incorporate 0 0 0)
-                                                                  (geom/aabb-incorporate w h 0))]
-                                               (reduce geom/aabb-union scene-aabb (map :aabb child-scenes)))))
+                                   (let [w (:width scene-dims)
+                                         h (:height scene-dims)
+                                         scene-aabb (-> (geom/null-aabb)
+                                                      (geom/aabb-incorporate 0 0 0)
+                                                      (geom/aabb-incorporate w h 0))]
+                                     (reduce geom/aabb-union scene-aabb (map :aabb child-scenes)))))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
   (output save-data g/Any :cached produce-save-data)
