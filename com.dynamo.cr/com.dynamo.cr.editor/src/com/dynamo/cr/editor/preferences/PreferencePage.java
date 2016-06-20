@@ -39,6 +39,8 @@ public class PreferencePage
 
         enableTextureProfiles = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_PROFILES, "Enable texture profiles", getFieldEditorParent());
         addField(enableTextureProfiles);
+
+        addField(new BooleanFieldEditor(PreferenceConstants.P_QUIT_ON_ESC, "Quit application on Esc key press", getFieldEditorParent()));
 	}
 
 	@Override
