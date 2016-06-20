@@ -2,6 +2,7 @@
   (:require [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -14,7 +15,8 @@
             [editor.resource :as resource]
             [editor.pipeline.lua-scan :as lua-scan]
             [editor.gl.pass :as pass]
-            [editor.lua :as lua])
+            [editor.lua :as lua]
+            [editor.lua-parser :as lua-parser])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]
@@ -83,11 +85,6 @@
   {:resource resource
    :content code})
 
-(defn- lua-module->path [module]
-  (str "/" (string/replace module #"\." "/") ".lua"))
-
-(defn- lua-module->build-path [module]
-  (str (lua-module->path module) "c"))
 
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
@@ -101,7 +98,7 @@
                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
                                                                :filename (resource/proj-path (:resource resource))}
                                                       :modules modules
-                                                      :resources (mapv lua-module->build-path modules)
+                                                      :resources (mapv lua/lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
 (g/defnk produce-build-targets [_node-id resource code user-properties modules]
@@ -110,9 +107,10 @@
     :build-fn  build-script
     :user-data {:content code :user-properties user-properties :modules modules}
     :deps      (mapcat (fn [mod]
-                         (let [path     (lua-module->path mod)
+                         (let [path     (lua/lua-module->path mod)
                                mod-node (project/get-resource-node (project/get-project _node-id) path)]
                            (g/node-value mod-node :build-targets))) modules)}])
+
 
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
@@ -122,6 +120,9 @@
   (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
 
+  (input module-nodes g/Any :array)
+
+  ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
   (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))
   (output user-properties g/Properties :cached produce-user-properties)
@@ -132,7 +133,15 @@
                                                     (g/error? user-properties) user-properties
                                                     true (merge-with into _declared-properties user-properties))))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+
+  (output completion-info g/Any :cached (g/fnk [code resource]
+                                               (lua-parser/lua-info code)))
+  (output completions g/Any :cached (g/fnk [_node-id completion-info module-nodes]
+                                           (code-completion/combine-completions _node-id
+                                                                                @lua/defold-docs
+                                                                                completion-info
+                                                                                module-nodes))))
 
 (defn load-script [project self resource]
   (g/set-property self :code (slurp resource)))

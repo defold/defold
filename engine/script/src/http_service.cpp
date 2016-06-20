@@ -19,9 +19,16 @@
 namespace dmHttpService
 {
     #define HTTP_SOCKET_NAME "@http"
+
+    // The stack size was increased from 0x10000 to 0x20000 due to
+    // a crash happening on older Android devices (< 4.3).
+    // (Reason: Our HTTP service threads call getaddrinfo() which
+    //  resulted in a writes outside the stack space inside libc.)
+    const uint32_t THREAD_STACK_SIZE = 0x20000;
     const uint32_t THREAD_COUNT = 4;
     const uint32_t DEFAULT_RESPONSE_BUFFER_SIZE = 64 * 1024;
     const uint32_t DEFAULT_HEADER_BUFFER_SIZE = 16 * 1024;
+
 
     struct HttpService;
 
@@ -352,11 +359,11 @@ namespace dmHttpService
             worker->m_Run = true;
             service->m_Workers.Push(worker);
 
-            dmThread::Thread t = dmThread::New(&Loop, 0x10000, worker, "http");
+            dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
             worker->m_Thread = t;
         }
 
-        dmThread::Thread t = dmThread::New(&LoadBalancer, 0x10000, service, "http_balance");
+        dmThread::Thread t = dmThread::New(&LoadBalancer, THREAD_STACK_SIZE, service, "http_balance");
         service->m_Balancer = t;
 
         return service;

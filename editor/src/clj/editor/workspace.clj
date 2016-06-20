@@ -77,7 +77,7 @@ ordinary paths."
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
   (sort-resource-tree
-   (FileResource. _node-id (io/as-file root) (:resources resource-snapshot))))
+   (FileResource. _node-id root (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
   (resource/resource-seq resource-tree))
@@ -150,7 +150,8 @@ ordinary paths."
           (get default-icons (resource/source-type resource))))))
 
 (defn file-resource [workspace path]
-  (FileResource. workspace (File. (str (g/node-value workspace :root) path)) []))
+  (let [root (g/node-value workspace :root)]
+    (FileResource. workspace root (File. (str root path)) [])))
 
 (defn find-resource [workspace proj-path]
   (get (g/node-value workspace :resource-map) proj-path))
@@ -183,7 +184,12 @@ ordinary paths."
     (g/set-property! workspace :dependencies library-urls)
     library-urls))
 
-(defn update-dependencies! [workspace render-progress!]
+(defn- has-dependencies? [workspace]
+  (not-empty (g/node-value workspace :dependencies)))
+
+(defn update-dependencies! [workspace render-progress! login-fn]
+  (when (and (has-dependencies? workspace) login-fn)
+    (login-fn))
   (library/update-libraries! (project-path workspace)
                              (g/node-value workspace :dependencies)
                              library/default-http-resolver

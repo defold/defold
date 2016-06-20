@@ -13,6 +13,7 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.hot-reload :as hotload]
             [editor.console :as console]
             [editor.cubemap :as cubemap]
             [editor.image :as image]
@@ -42,6 +43,7 @@
             [dynamo.graph :as g]
             [editor.display-profiles :as display-profiles]
             [editor.web-profiler :as web-profiler]
+            [editor.login :as login]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
@@ -160,7 +162,8 @@
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
-          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
+          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
+                                                            hotload/url-prefix (hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]
@@ -207,21 +210,10 @@
 
 (defn open-project
   [^File game-project-file prefs render-progress!]
-  (let [progress     (atom (progress/make "Loading project" 3))
-        _            (render-progress! @progress)
-        project-path (.getPath (.getParentFile game-project-file))
+  (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
-        project      (project/make-project *project-graph* workspace)
-        project      (project/load-project project
-                                           (g/node-value project :resources)
-                                           (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Updating dependencies"))
-        _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-        _            (workspace/update-dependencies! workspace
-                                                     (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Reloading dependencies"))
-        _            (workspace/resource-sync! workspace true []
-                                               (progress/nest-render-progress render-progress! @progress))
+        game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))]
     (workspace/update-version-on-disk! *workspace-graph*)

@@ -42,6 +42,7 @@
                        integration.build-test
                        integration.collection-test
                        integration.game-project-test
+                       integration.hot-reload-test
                        integration.outline-test
                        integration.reload-test
                        integration.save-test

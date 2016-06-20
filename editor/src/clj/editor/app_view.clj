@@ -451,14 +451,14 @@
   (enabled? [] true)
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
-(defn- fetch-libraries [workspace project]
+(defn- fetch-libraries [workspace project prefs]
   (workspace/set-project-dependencies! workspace (project/project-dependencies project))
   (future
     (ui/with-disabled-ui
       (ui/with-progress [render-fn ui/default-render-progress!]
-        (workspace/update-dependencies! workspace render-fn)
+        (workspace/update-dependencies! workspace render-fn (partial login/login prefs))
         (workspace/resource-sync! workspace true [] render-fn)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] true)
-  (run [workspace project] (fetch-libraries workspace project)))
+  (run [workspace project prefs] (fetch-libraries workspace project prefs)))
