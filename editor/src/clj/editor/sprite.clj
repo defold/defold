@@ -231,11 +231,10 @@
                                             [:anim-data :anim-data]
                                             [:gpu-texture :gpu-texture]
                                             [:build-targets :dep-build-targets])))
-            (validate (g/fnk [image] (validation/resource :image image))))
+            (validate (validation/validate-resource image)))
 
   (property default-animation g/Str
-            (validate (g/fnk [default-animation anim-data]
-                             (validation/animation default-animation anim-data)))
+            (validate (validation/validate-animation default-animation anim-data))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/Resource
@@ -244,11 +243,11 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets])))
-            (validate (g/fnk [material] (validation/resource :material material))))
+            (validate (validation/validate-resource material)))
 
 
   (property blend-mode g/Any (default :blend_mode_alpha)
-            (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode)))
+            (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/fnk []
                                       (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                         {:type :choicebox

@@ -455,11 +455,11 @@
                                                 [:texture-set-data :texture-set-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:anim-data :anim-data])))
-            (validate (g/fnk [tile-source texture-set-data gpu-texture anim-data]
-                        (validation/resource :tile-source tile-source (str "Missing image"[texture-set-data gpu-texture anim-data])))))
+            (validate (validation/validate-resource tile-source "Missing image"
+                                                    [texture-set-data gpu-texture anim-data])))
 
   (property animation g/Str
-            (validate (g/fnk [animation anim-data] (validation/animation animation anim-data)))
+            (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
@@ -469,10 +469,10 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
-            (validate (g/fnk [material] (validation/resource :material material))))
+            (validate (validation/validate-resource material)))
 
   (property blend-mode g/Keyword
-            (dynamic tip (g/fnk [blend-mode] (validation/blend-mode-tip blend-mode Particle$BlendMode)))
+            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
             (dynamic edit-type (g/fnk [] (->choicebox Particle$BlendMode))))
 
   (property particle-orientation g/Keyword (dynamic edit-type (g/fnk [] (->choicebox Particle$ParticleOrientation))))
