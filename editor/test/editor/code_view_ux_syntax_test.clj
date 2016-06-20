@@ -120,3 +120,25 @@
             (testing "module var require with local var"
               (set-completion-code! source-viewer "local bar = require(\"mymodule\") \n ba")
               (is (= ["bar"] (map :name (:proposals (propose source-viewer))))))))))))
+
+(deftest test-do-proposal-replacement
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "basic replace"
+        (do-proposal-replacement source-viewer {:insert-string "foo"})
+        (is (= "foo" (text source-viewer))))
+      (testing "with partial completion"
+        (set-completion-code! source-viewer "go.set")
+        (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
+        (is (= "go.set_property()" (text source-viewer))))
+      (testing "with partial completion and whitespace"
+        (set-completion-code! source-viewer "   go.set")
+        (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
+        (is (= "   go.set_property()" (text source-viewer))))
+      (testing "with whole completion"
+        (set-completion-code! source-viewer "   go.set_property()")
+        (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
+        (is (= "   go.set_property()" (text source-viewer)))))))
