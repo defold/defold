@@ -10,30 +10,11 @@
 namespace dmSound
 {
     bool AudioSessionInitialized = false;
-    CTCallCenter* g_callcenter = NULL;
-    bool g_call_active = false;
 
     Result PlatformInitialize(dmConfigFile::HConfig config,
             const InitializeParams* params)
     {
         // NOTE: We actually ignore errors here. "Should never happen"
-
-        g_callcenter = [[CTCallCenter alloc] init];
-        // Check the initial state, whether a phone call is active when the
-        // application is being initialized or not.
-        for (CTCall* call in g_callcenter.currentCalls)
-        {
-            if (call.callState != CTCallStateDisconnected)
-            {
-                g_call_active = true;
-                break;
-            }
-        }
-
-        g_callcenter.callEventHandler = ^(CTCall* call) {
-            g_call_active = !([call.callState isEqualToString: CTCallStateDisconnected]);
-        };
-
         OSStatus status = 0;
         if (!AudioSessionInitialized) {
             status = AudioSessionInitialize(0, 0, 0, 0);
@@ -83,7 +64,16 @@ namespace dmSound
 
     bool PlatformIsPhoneCallActive()
     {
-        return g_call_active;
+        CTCallCenter* callCenter = [[[CTCallCenter alloc] init] autorelease];
+        for (CTCall* call in callCenter.currentCalls)  {
+            if (call.callState == CTCallStateConnected
+                || call.callState == CTCallStateDialing
+                || call.callState == CTCallStateIncoming) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 }
