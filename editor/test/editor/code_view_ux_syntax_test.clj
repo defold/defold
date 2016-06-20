@@ -63,40 +63,40 @@
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "global lua std lib"
         (set-completion-code! source-viewer "asser")
-        (let [result (:proposals (propose source-viewer))]
+        (let [result (propose source-viewer)]
          (is (= ["assert"] (map :name result)))
          (is (= ["assert(v[,message])"] (map :display-string result)))
          (is (= ["assert(v)"] (map :insert-string result)))))
       (testing "global defold package"
         (set-completion-code! source-viewer "go")
-        (is (= ["go"] (map :name (:proposals (propose source-viewer))))))
+        (is (= ["go"] (map :name (propose source-viewer)))))
       (testing "global lua std lib package"
         (set-completion-code! source-viewer "mat")
-        (is (= ["math"] (map :name (:proposals (propose source-viewer))))))
+        (is (= ["math"] (map :name (propose source-viewer)))))
       (testing "go.property function - required params"
         (set-completion-code! source-viewer "go.proper")
-        (let [result (:proposals (propose source-viewer))]
+        (let [result (propose source-viewer)]
          (is (= ["go.property"] (map :name result)))
          (is (= ["go.property(name,value)"] (map :display-string result)))
          (is (= ["go.property(name,value)"] (map :insert-string result)))))
       (testing "go.delete functions - required params"
         (set-completion-code! source-viewer "go.delete")
-        (let [result (:proposals (propose source-viewer))]
+        (let [result (propose source-viewer)]
          (is (= ["go.delete" "go.delete_all"] (map :name result)))
          (is (= ["go.delete([id])" "go.delete_all([ids])"] (map :display-string result)))
          (is (= ["go.delete()" "go.delete_all()"] (map :insert-string result)))))
       (testing "local var"
         (set-completion-code! source-viewer "local foo=1 \n fo")
-        (is (= ["foo"] (map :name (:proposals (propose source-viewer))))))
+        (is (= ["foo"] (map :name (propose source-viewer)))))
       (testing "globar var"
         (set-completion-code! source-viewer "bar=1 \n ba")
-        (is (= ["bar"] (map :name (:proposals (propose source-viewer))))))
+        (is (= ["bar"] (map :name (propose source-viewer)))))
       (testing "local function"
         (set-completion-code! source-viewer "local function cake(x,y) return x end\n cak")
-        (is (= ["cake"] (map :name (:proposals (propose source-viewer))))))
+        (is (= ["cake"] (map :name (propose source-viewer)))))
       (testing "global function"
         (set-completion-code! source-viewer "function ice_cream(x,y) return x end\n ice")
-        (is (= ["ice_cream"] (map :name (:proposals (propose source-viewer))))))
+        (is (= ["ice_cream"] (map :name (propose source-viewer)))))
       (testing "requires"
         (with-redefs [code-completion/resource-node-path (constantly "/mymodule.lua")]
           (let [module-code "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
@@ -104,22 +104,22 @@
             (g/connect! module-node :_node-id code-node :module-nodes)
             (testing "bare requires"
               (set-completion-code! source-viewer "require(\"mymodule\") \n mymodule.")
-              (is (= ["mymodule.add"] (map :name (:proposals (propose source-viewer))))))
+              (is (= ["mymodule.add"] (map :name (propose source-viewer)))))
             (testing "require with global var"
               (set-completion-code! source-viewer "foo = require(\"mymodule\") \n foo.")
-              (is (= ["foo.add"] (map :name (:proposals (propose source-viewer))))))
+              (is (= ["foo.add"] (map :name (propose source-viewer)))))
             (testing "require with local var"
               (set-completion-code! source-viewer "local bar = require(\"mymodule\") \n bar.")
-              (is (= ["bar.add"] (map :name (:proposals (propose source-viewer))))))
+              (is (= ["bar.add"] (map :name (propose source-viewer)))))
             (testing "module var bare requires"
               (set-completion-code! source-viewer "require(\"mymodule\") \n mymod")
-              (is (= ["mymodule"] (map :name (:proposals (propose source-viewer))))))
+              (is (= ["mymodule"] (map :name (propose source-viewer)))))
             (testing "module var require with global var"
               (set-completion-code! source-viewer "foo = require(\"mymodule\") \n fo")
-              (is (= ["foo"] (map :name (:proposals (propose source-viewer))))))
+              (is (= ["foo"] (map :name (propose source-viewer)))))
             (testing "module var require with local var"
               (set-completion-code! source-viewer "local bar = require(\"mymodule\") \n ba")
-              (is (= ["bar"] (map :name (:proposals (propose source-viewer))))))))))))
+              (is (= ["bar"] (map :name (propose source-viewer)))))))))))
 
 (deftest test-do-proposal-replacement
   (with-clean-system
@@ -142,3 +142,19 @@
         (set-completion-code! source-viewer "   go.set_property()")
         (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
         (is (= "   go.set_property()" (text source-viewer)))))))
+
+(defn- propose! [source-viewer]
+  (handler/run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest test-single-value-proposals
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "single result gets automatically inserted"
+        (set-completion-code! source-viewer "math.ab")
+        (propose! source-viewer)
+        (is (= "math.abs(x)" (text source-viewer)))))))
+
+
