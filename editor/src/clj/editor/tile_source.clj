@@ -258,8 +258,8 @@
            (project/resource-setter basis self old-value new-value
                                         [:resource :image-resource]
                                         [:content :image-content])))
-    (validate (g/fnk [image-resource image-content]
-                     (validation/resource :image-resource image-resource "Missing image"))))
+    (validate (validation/validate-resource image-resource "Missing image"
+                                            [image-content])))
 
   (property tile-width g/Int
             (default 0)

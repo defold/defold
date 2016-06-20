@@ -516,7 +516,7 @@
                                                         (g/connect self from or-node to))
                                                       (for [[comp-id label value] component-overrides]
                                                         (g/set-property comp-id label value)))))))))))
-    (validate (g/fnk [path scene] (validation/resource :path path "Missing prototype"))))
+    (validate (validation/validate-resource path "Missing prototype" [scene])))
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 

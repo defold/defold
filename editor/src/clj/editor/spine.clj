@@ -589,8 +589,8 @@
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :spine-json-resource]
                                                 [:content :spine-scene])))
-            (validate (g/fnk [spine-json spine-scene]
-                             (validation/resource :spine-json spine-json "Missing spine json"))))
+            (validate (validation/validate-resource spine-json "Missing spine json"
+                                                    [spine-scene])))
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
@@ -600,8 +600,8 @@
                                                 [:anim-data :anim-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
-            (validate (g/fnk [atlas anim-data]
-                             (validation/resource :atlas atlas "Missing atlas"))))
+            (validate (validation/validate-resource atlas "Missing atlas"
+                                                    [anim-data])))
 
   (property sample-rate g/Num)
 
@@ -668,8 +668,7 @@
                                                   [:aabb :aabb]
                                                   [:build-targets :dep-build-targets]))))
   (property blend-mode g/Any (default :blend_mode_alpha)
-            (dynamic tip (g/fnk [blend-mode]
-                                (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode)))
+            (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/fnk []
                                  (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
                                    {:type :choicebox
@@ -684,13 +683,11 @@
                                                 [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets]))))
   (property default-animation g/Str
-            #_(validate (g/fnk [default-animation anim-data]
-                             (validation/animation default-animation anim-data)))
+            #_(validate (validation/validate-animation default-animation anim-data))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property skin g/Str
-            #_(validate (g/fnk [default-animation anim-data]
-                             (validation/animation default-animation anim-data)))
+            #_(validate (validation/validate-animation default-animation anim-data))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
 
