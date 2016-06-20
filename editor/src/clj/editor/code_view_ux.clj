@@ -792,7 +792,7 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (inc np)))))
 
-(defn- do-proposal-replacement [selection replacement]
+(defn do-proposal-replacement [selection replacement]
   (let [replacement (:insert-string replacement)
         line-text (line selection)
         new-line-text (string/replace-first line-text (string/triml line-text) replacement)]
