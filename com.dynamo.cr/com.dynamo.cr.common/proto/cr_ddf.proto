@@ -51,6 +51,10 @@ message Configuration
     optional int32 git_gc_interval = 44 [default=1440];
     // Garbage collect unused object expiration for pruning
     optional string git_prune_expiration = 45 [default="2 weeks ago"];
+
+    // Discourse SSO configuration
+    required string discourse_url = 46;
+    required string discourse_sso_key = 47;
 }
 
 message EMailTemplate
