@@ -19,6 +19,10 @@
   (caret [this])
   (caret! [this offset select?]))
 
+(defprotocol TextLine
+  (line [this])
+  (line-offset [this]))
+
 (defprotocol TextView
   (text-selection [this])
   (text-selection! [this offset length])
@@ -788,19 +792,22 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (inc np)))))
 
-(defn show-proposals [selection {:keys [proposals line]}]
+(defn- do-proposal-replacement [selection replacement]
+  (let [replacement (:insert-string replacement)
+        line-text (line selection)
+        new-line-text (string/replace-first line-text (string/triml line-text) replacement)]
+    (replace! selection (line-offset selection) (count line-text) new-line-text)))
+
+(defn show-proposals [selection proposals]
   (when (pos? (count proposals))
     (let [screen-position (screen-position selection)
           offset (caret selection)
           result (promise)
-          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals line (text-area selection))
+          current-line (line selection)
+          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals current-line (text-area selection))
           replace-text-fn (fn [] (when (and (realized? result) @result)
-                                  (let [replacement (:insert-string (first @result))
-                                        idx (string/index-of replacement line)
-                                        offset-diff (- (caret selection) offset)]
-                                    (if (= 0 idx)
-                                      (replace! selection offset offset-diff (subs replacement (count line)))
-                                      (replace! selection offset offset-diff replacement)))))]
+                                  (do-proposal-replacement selection (first @result))
+                                  ))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :key-typed :code-view
@@ -844,7 +851,5 @@
     (let [{:keys [proposals line] :as proposal-data} (propose selection)]
       (if (= 1 (count proposals))
         (let [replacement (:insert-string (first proposals))]
-          (if (= 0 (string/index-of replacement line))
-            (replace! selection (caret selection) 0 (subs replacement (count line)))
-            (replace! selection (caret selection) 0 replacement)))
+          (do-proposal-replacement selection replacement))
         (show-proposals selection proposal-data)))))

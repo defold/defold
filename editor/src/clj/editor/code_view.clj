@@ -420,18 +420,26 @@
                              (when selection-changed?
                                [(g/set-property code-node-id :selection-offset selection-offset)
                                 (g/set-property code-node-id :selection-length selection-length)])))))))
+  cvx/TextLine
+  (line [this]
+    (let [document (.getDocument this)
+          offset (cvx/caret this)
+          line-no (.getLineOfOffset document offset)
+          line-offset (.getLineOffset document line-no)]
+      (.get document line-offset (- offset line-offset))))
+  (line-offset [this]
+    (let [document (.getDocument this)
+          offset (cvx/caret this)
+          line-no (.getLineOfOffset document offset)]
+      (.getLineOffset document line-no)))
   cvx/TextProposals
   (propose [this]
     (when-let [assist-fn (assist this)]
-      (let [document (.getDocument this)
-            offset (cvx/caret this)
-            line-no (.getLineOfOffset document offset)
-            line-offset (.getLineOffset document line-no)
-            line (.get document line-offset (- offset line-offset))
+      (let [offset (cvx/caret this)
+            line (cvx/line this)
             code-node-id (-> this (.getTextWidget) (code-node))
             completions (g/node-value code-node-id :completions)]
-        {:proposals (assist-fn completions (cvx/text this) offset line)
-         :line line}))))
+        (assist-fn completions (cvx/text this) offset line)))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
