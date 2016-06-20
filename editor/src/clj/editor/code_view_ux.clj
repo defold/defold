@@ -15,13 +15,15 @@
   (text [this])
   (replace! [this offset length s]))
 
+(defprotocol TextCaret
+  (caret [this])
+  (caret! [this offset select?]))
+
 (defprotocol TextView
   (text-selection [this])
   (text-selection! [this offset length])
   (selection-offset [this])
   (selection-length [this])
-  (caret [this])
-  (caret! [this offset select?])
   (editable? [this])
   (editable! [this val])
   (screen-position [this])
