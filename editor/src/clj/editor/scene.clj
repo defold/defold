@@ -21,7 +21,8 @@
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
-            [service.log :as log])
+            [service.log :as log]
+            [editor.graph-util :as gu])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -405,11 +406,11 @@
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
-  (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
+  (output active-tool g/Keyword (gu/passthrough active-tool))
   (output active-updatables g/Any (g/fnk [updatables active-updatable-ids]
                                          (mapv updatables (filter #(contains? updatables %) active-updatable-ids))))
 
-  (output selection g/Any (g/fnk [selection] selection))
+  (output selection g/Any (gu/passthrough selection))
   (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]
                                                        (reduce (partial merge-with into) renderables tool-renderables)))
   (output async-frame g/Keyword :cached produce-async-frame)
@@ -643,9 +644,9 @@
   (input picking-rect Rect)
   (input tool-renderables pass/RenderData :array)
 
-  (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
+  (output active-tool g/Keyword (gu/passthrough active-tool))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
-  (output selection g/Any (g/fnk [selection] selection))
+  (output selection g/Any (gu/passthrough selection))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)

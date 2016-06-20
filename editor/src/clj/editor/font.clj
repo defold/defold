@@ -322,14 +322,14 @@
   (inherits project/ResourceNode)
 
   (property font resource/Resource
-            (value (g/fnk [font-resource] font-resource))
+            (value (gu/passthrough font-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :font-resource])))
             (validate (g/fnk [font] (validation/resource :font font))))
 
   (property material resource/Resource
-            (value (g/fnk [material-resource] material-resource))
+            (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
@@ -390,7 +390,7 @@
                                                  channels (:glyph-channels font-map)]
                                              (texture/empty-texture _node-id w h channels
                                                                    (material/sampler->tex-params (first material-samplers)) 0))))
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
                                             {:type type

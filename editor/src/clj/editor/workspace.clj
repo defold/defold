@@ -7,8 +7,8 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
-            [editor.library :as library])
-
+            [editor.library :as library]
+            [editor.graph-util :as gu])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]
@@ -248,7 +248,7 @@ ordinary paths."
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map)
-  (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))
+  (output resource-types g/Any :cached (gu/passthrough resource-types)))
 
 (defn make-workspace [graph project-path]
   (g/make-node! graph Workspace

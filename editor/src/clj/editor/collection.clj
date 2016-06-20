@@ -176,11 +176,11 @@
 
   (input ddf-component-properties g/Any :substitute [])
   (input source-outline outline/OutlineData :substitute source-outline-subst)
-  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+  (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
-  (output node-outline-label g/Str (g/fnk [id] id))
+  (output node-outline-label g/Str (gu/passthrough id))
   (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
                                                                              [(assoc target :instance-data {:resource (:resource target)
                                                                                                             :instance-msg ddf-message
@@ -204,7 +204,7 @@
 
   (property overrides g/Any
               (dynamic visible (g/fnk [] false))
-              (value (g/fnk [ddf-component-properties] ddf-component-properties))
+              (value (gu/passthrough ddf-component-properties))
               (set (fn [basis self old-value new-value]
                      (let [go (g/node-value self :source-id :basis basis)
                            component-ids (g/node-value go :component-ids :basis basis)]
@@ -414,7 +414,7 @@
   (input go-inst-ids g/Any :array)
   (input ddf-properties g/Any :array)
 
-  (output base-url g/Str (g/fnk [base-url] base-url))
+  (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
@@ -527,7 +527,7 @@
   (input go-inst-ids g/Any)
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
-  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+  (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any :cached (g/fnk [id source-resource position ^Quat4d rotation-q4 scale ddf-properties]
