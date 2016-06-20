@@ -61,7 +61,7 @@ namespace
     {
         assert(method != 0);
         JNIEnv* environment = ::Attach();
-        bool result = environment->CallObjectMethod(g_SoundManager.m_SoundManager, method);
+        bool result = environment->CallBooleanMethod(g_SoundManager.m_SoundManager, method);
         return (::CheckException(environment) && ::Detach(environment)) ? result : _default;
     }
 
@@ -88,7 +88,7 @@ namespace dmSound
         g_SoundManager.m_AcquireAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "acquireAudioFocus", "()Z");
         g_SoundManager.m_ReleaseAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "releaseAudioFocus", "()Z");
         g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
-        g_SoundManager.m_IsPhoneCallActive       = environment->GetMethodID(jni_class_SoundManager, "isPhonePlaying", "()Z");
+        g_SoundManager.m_IsPhoneCallActive       = environment->GetMethodID(jni_class_SoundManager, "isPhoneCallActive", "()Z");
 
         environment->DeleteLocalRef(jni_string_SoundManager);
         return (::CheckException(environment) && ::Detach(environment)) ? RESULT_OK : RESULT_INIT_ERROR;

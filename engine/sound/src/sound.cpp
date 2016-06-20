@@ -1100,15 +1100,17 @@ namespace dmSound
         DM_PROFILE(Sound, "Update")
         SoundSystem* sound = g_SoundSystem;
 
-        if (!sound->m_IsPhoneCallActive && IsPhoneCallActive())
+        bool currentIsPhoneCallActive = IsPhoneCallActive();
+        if (!sound->m_IsPhoneCallActive && currentIsPhoneCallActive)
         {
             sound->m_IsPhoneCallActive = true;
             sound->m_DeviceType->m_DeviceStop(sound->m_Device);
         }
-        else if (sound->m_IsPhoneCallActive && !IsPhoneCallActive())
+        else if (sound->m_IsPhoneCallActive && !currentIsPhoneCallActive)
         {
             sound->m_IsPhoneCallActive = false;
             sound->m_DeviceType->m_DeviceRestart(sound->m_Device);
+            (void) PlatformAcquireAudioFocus();
         }
 
         if (sound->m_IsPhoneCallActive)

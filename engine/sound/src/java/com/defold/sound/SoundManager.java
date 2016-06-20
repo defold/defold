@@ -94,7 +94,7 @@ public class SoundManager {
         return true;
     }
 
-    public boolean isPhonePlaying() {
+    public boolean isPhoneCallActive() {
         if (this.telephonyManager != null) {
             int callState = this.telephonyManager.getCallState();
             if (callState == TelephonyManager.CALL_STATE_RINGING
