@@ -226,6 +226,43 @@
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
 
+(defprotocol TextPointer
+  (caret-at-point [this x y]))
+
+(extend-type ListCell
+  TextPointer
+  (caret-at-point [this x y]
+    (let [bip (.getBoundsInParent this)
+          de (.getDomainElement ^StyledTextSkin$LineCell this)
+          ^StyledTextLayoutContainer n (.getGraphic this)
+          base {:min-x (.getMinX bip)
+                :min-y (.getMinY bip)
+                :max-x (.getMaxX bip)
+                :max-y (.getMaxY bip)}]
+     (cond-> base
+
+      de
+      (merge {:line-offset (.getLineOffset de)
+              :line-length (.getLineLength de)})
+
+      n
+       (merge {:caret-idx  (.getCaretIndexAtPoint n (.sceneToLocal n ^double x ^double y))
+               :start-offset (.getStartOffset n)})))))
+
+(extend-type StyledTextArea
+  cvx/TextCaret
+  (caret! [this offset select?]
+    (try
+      (.impl_setCaretOffset this offset select?)
+      (catch Exception e
+        (println "caret! failure")
+        ;;do nothing there is a bug in the StyledTextSkin that creates
+        ;;null pointers due to the skin rendered completely yet not being created yet (the skin
+        ;;is created on the ui pulse) Eventually we should consider
+        ;;rewriting the Skin class and porting it to Clojure
+        )))
+  (caret [this] (.getCaretOffset this)))
+
 (defn setup-source-viewer [opts use-custom-skin?]
   (let [source-viewer (SourceViewer.)
         source-viewer-config (create-viewer-config source-viewer opts)
@@ -242,26 +279,27 @@
     (let [text-area (.getTextWidget source-viewer)
           styled-text-behavior  (proxy [StyledTextBehavior] [text-area]
                                   (callActionForEvent [key-event]
-                                    ;;do nothing we are handling all
-                                    ;;the events
+                                    ;;do nothing we are handling all the events
                                     )
                                   (updateCursor [^MouseEvent event visible-cells selection]
-                                    (println "Carin event y " (.getY event))
-                                    (println "doc len" (.getCharCount ^StyledTextArea text-area))
                                     (let [vcells (into [] visible-cells)
                                           doc-len (.getCharCount ^StyledTextArea text-area)
-                                          caret-at-point-fn (fn [c]
-                                                              (when-let [^StyledTextLayoutContainer n (.getGraphic ^ListCell c)]
-                                                                {:caret-idx  (.getCaretIndexAtPoint n (.sceneToLocal n (.getSceneX event) (.getSceneY event)))
-                                                                 :start-offset (.getStartOffset n)}))
-                                          found-cells (filter #(when-let [idx (:caret-idx %)] (not= -1 idx)) (mapv caret-at-point-fn vcells))
-                                          last-cell (last (sort-by (fn [c] (.getMinY (.getBoundsInParent ^StyledTextSkin$LineCell c))) vcells))]
+                                          event-y (.getY event)
+                                          scene-event-x (.getSceneX event)
+                                          scene-event-y (.getSceneY event)
+                                          caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
+                                          found-cells (filter #(when-let [idx (:caret-idx %)]
+                                                                 (not= -1 idx)) caret-cells)]
                                       (if-let [fcell (first found-cells)]
-                                        (do (println "Found and selecting!" fcell)
-                                            (.impl_setCaretOffset text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection))
-                                        (do (println "Defaulting to the end of the doc")
-                                            (.impl_setCaretOffset text-area doc-len selection)
-                                            )))))]
+                                        (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
+                                        (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)]
+                                          (cond
+
+                                            (:line-offset closest-cell)
+                                            (cvx/caret! text-area (+ (:line-offset closest-cell) (:line-length closest-cell)) selection)
+
+                                            true
+                                            (cvx/caret! text-area doc-len selection)))))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
@@ -315,15 +353,7 @@
       (.getString this))))
 
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (try
-   (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?)
-   (catch Exception e
-     (println "ignoring source-viewer-set-caret! failure")
-     ;;do nothing there is a bug in the StyledTextSkin that creates
-     ;;null pointers due to the skin rendered completely yet not being created yet (the skin
-     ;;is created on the ui pulse) Eventually we should consider
-     ;;rewriting the Skin class and porting it to Clojure
-     )))
+  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer) offset select?))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
@@ -338,14 +368,15 @@
       (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s))
       (catch Exception e
         (println "Replace failed at offset" offset))))
+  cvx/TextCaret
+  (caret! [this offset select?]
+    (source-viewer-set-caret! this offset select?))
+  (caret [this] (cvx/caret(.getTextWidget this)))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
   (selection-length [this]
     (.-length ^TextSelection (-> this (.getTextWidget) (.getSelection))))
-  (caret! [this offset select?]
-    (source-viewer-set-caret! this offset select?))
-  (caret [this] (.getCaretOffset (.getTextWidget this)))
   (text-selection [this]
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
