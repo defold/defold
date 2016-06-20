@@ -317,7 +317,10 @@
   (text [this]
     (.get (.getDocument this)))
   (replace! [this offset length s]
-    (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s)))
+    (try
+      (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s))
+      (catch Exception e
+        (println "Replace failed at offset" offset))))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))

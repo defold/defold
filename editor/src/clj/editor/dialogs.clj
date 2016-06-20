@@ -11,7 +11,7 @@
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
-           [javafx.event ActionEvent EventHandler]
+           [javafx.event Event ActionEvent EventHandler]
            [javafx.collections FXCollections ObservableList]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Point2D]
