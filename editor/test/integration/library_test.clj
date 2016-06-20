@@ -1,10 +1,14 @@
 (ns integration.library-test
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.library :as library]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
+            [editor.progress :as progress]
+            [editor.game-project-core :as gpc]
+            [editor.gui :as gui]
             [integration.test-util :as test-util]
             [service.log :as log])
   (:import [java.net URL]
@@ -12,10 +16,13 @@
 
 (def ^:dynamic *project-path* "resources/empty_project")
 
-(defn- setup-scratch [ws-graph]
-  (let [workspace (test-util/setup-scratch-workspace! ws-graph *project-path*)
-        project (test-util/setup-project! workspace)]
-    [workspace project]))
+(defn- setup-scratch
+  ([ws-graph]
+    (setup-scratch ws-graph *project-path*))
+  ([ws-graph project-path]
+    (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
+          project (test-util/setup-project! workspace)]
+      [workspace project])))
 
 (def ^:private url-string "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus")
 (def ^:private urls (library/parse-library-urls url-string))
@@ -88,3 +95,34 @@
           (is (= 3 (count files)))
           (is (= 4 (count states)))
           (is (every? (fn [state] (= (:tag state) "tag")) (filter :file states))))))))
+
+(defn- write-deps! [game-project deps]
+  (let [settings (-> (slurp game-project)
+                   gpc/string-reader
+                   gpc/parse-settings)]
+    (spit game-project (->
+                         settings
+                         (gpc/set-setting {} ["project" "dependencies"] deps)
+                         gpc/settings-with-value
+                         gpc/settings->str))))
+
+(deftest open-project
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "resources/test_project")
+          ^File project-directory (workspace/project-path workspace)
+          server (test-util/->lib-server)
+          url (test-util/lib-server-url server "lib_resource_project")
+          game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
+      (write-deps! game-project-res url)
+      (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
+            ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
+            int-gui (test-util/resource-node project "/gui/empty.gui")]
+        (is (some? ext-gui))
+        (is (some? int-gui))
+        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template)]
+          (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
+                                                    :overrides {}}))
+        (let [original (:node-id (test-util/outline ext-gui [0 0]))
+              or (:node-id (test-util/outline int-gui [0 0 0]))]
+          (is (= [or] (g/overrides original)))))
+      (test-util/kill-lib-server server))))

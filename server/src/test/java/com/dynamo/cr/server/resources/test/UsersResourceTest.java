@@ -8,6 +8,7 @@ import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.providers.JsonProviders;
 import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.dynamo.cr.server.services.UserService;
 import com.google.api.client.auth.oauth2.AuthorizationCodeRequestUrl;
 import com.sun.jersey.api.client.*;
 import com.sun.jersey.api.client.ClientResponse.Status;
@@ -572,7 +573,8 @@ public class UsersResourceTest extends AbstractResourceTest {
         // Delete inviter
         em.getTransaction().begin();
         // Get managed entity
-        User inviter = server.getUser(em, joeUser.getId().toString());
+        UserService userService = new UserService(em);
+        User inviter = userService.find(joeUser.getId()).orElseThrow(RuntimeException::new);
         // Delete
         ModelUtil.removeUser(em, inviter);
         em.getTransaction().commit();
