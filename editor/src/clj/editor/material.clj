@@ -187,7 +187,7 @@
            (project/resource-setter basis self old-value new-value
                                         [:resource :vertex-resource]
                                         [:full-source :vertex-source])))
-    (validate (g/fnk [vertex-program] (validation/resource vertex-program))))
+    (validate (validation/validate-resource vertex-program)))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/fnk [] false))
@@ -196,7 +196,7 @@
            (project/resource-setter basis self old-value new-value
                                         [:resource :fragment-resource]
                                         [:full-source :fragment-source])))
-    (validate (g/fnk [fragment-program] (validation/resource :fragment-program fragment-program))))
+    (validate (validation/validate-resource fragment-program)))
 
   (output form-data g/Any :cached produce-form-data)
 

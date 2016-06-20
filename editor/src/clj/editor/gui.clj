@@ -896,7 +896,7 @@
                                                 [:anim-data :anim-data]
                                                 [:anim-ids :anim-ids]
                                                 [:build-targets :dep-build-targets])))
-            (validate (g/fnk [texture] (validation/resource :texture texture))))
+            (validate (validation/validate-resource texture)))
 
   (input texture-resource resource/Resource)
   (input image BufferedImage)
@@ -940,7 +940,7 @@
                     [:gpu-texture :gpu-texture]
                     [:material-shader :font-shader]
                     [:build-targets :dep-build-targets])))
-            (validate (g/fnk [font] (validation/resource :font font))))
+            (validate (validation/validate-resource font)))
 
   (input font-resource resource/Resource)
   (input font-map g/Any)
@@ -1233,7 +1233,7 @@
                     basis self old-value new-value
                     [:resource :script-resource]
                     [:build-targets :dep-build-targets])))
-            (validate (g/fnk [script] (validation/resource :script script))))
+            (validate (validation/validate-resource script)))
 
 
   (property material resource/Resource
@@ -1245,7 +1245,7 @@
                     [:shader :material-shader]
                     [:samplers :samplers]
                     [:build-targets :dep-build-targets])))
-            (validate (g/fnk [material] (validation/resource :material material))))
+            (validate (validation/validate-resource material)))
 
   (property adjust-reference g/Keyword (dynamic edit-type (g/fnk [] (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/fnk [] false)))
