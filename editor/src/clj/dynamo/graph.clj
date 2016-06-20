@@ -191,6 +191,8 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
+(defmacro always [v] `(dynamo.graph/fnk [] ~v))
+
 (defmacro deftype
   [symb & body]
   (let [fqs           (symbol (str *ns*) (str symb))
@@ -244,108 +246,6 @@
   (construct GravityModifier :acceleration 16)"
   [node-type-ref & {:as args}]
   (in/construct node-type-ref args))
-
-(defmacro defnode
-  "Given a name and a specification of behaviors, creates a node,
-   and attendant functions.
-
-  Allowed clauses are:
-
-  (inherits _symbol_)
-
-  Compose the behavior from the named node type
-
-  (input _symbol_ _schema_ [:array]? [:inject]?)
-
-  Define an input with the name, whose values must match the schema.
-
-  If the :inject flag is present, then this input is available for
-  dependency injection.
-
-  If the :array flag is present, then this input can have multiple
-  outputs connected to it. Without the :array flag, this input can
-  only have one incoming connection from an output.
-
-  (property _symbol_ _property-type_ & _options_)
-
-  Define a property with schema and, possibly, default value and
-  constraints. The property type must be a Java class or Prismatic schema. The allowed property options are:
-    (default _value_)
-    Set a default value for the property. If no default is set, then the property will be nil.
-
-    (value _getter_)
-    Define a custom getter. It must be an fnk. The fnk's arguments are magically wired the same as an output producer.
-
-    (dynamic _label_ _evaluator_)
-    Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
-
-    (set (fn [this basis oldvalue newvalue]))
-    Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
-
-  (output _symbol_ _type_ (:cached)? _producer_)
-
-  Define an output to produce values of type. The ':cached' flag is
-  optional. _producer_ may be a var that names an fn, or fnk.  It may
-  also be a function tail as [arglist] + forms.
-
-  Values produced on an output with the :cached flag will be cached in
-  memory until the node is affected by some change in inputs or
-  properties. At that time, the cached value will be sent for
-  disposal.
-
-  Example (from [[editors.atlas]]):
-
-    (defnode TextureCompiler
-      (input    textureset TextureSet)
-      (property texture-filename Str (default \"\"))
-      (output   texturec Any compile-texturec)))
-
-    (defnode TextureSetCompiler
-      (input    textureset TextureSet)
-      (property textureset-filename Str (default \"\"))
-      (output   texturesetc Any compile-texturesetc)))
-
-    (defnode AtlasCompiler
-      (inherit TextureCompiler)
-      (inherit TextureSetCompiler))
-
-  This will produce a record `AtlasCompiler`. `defnode` merges the
-  behaviors appropriately.
-
-    A node may also implement protocols or interfaces, using a syntax
-  identical to `deftype` or `defrecord`. A node may implement any
-  number of such protocols.
-
-  Every node always implements dynamo.graph/Node."
-  [symb & body]
-  #_(let [[symb forms] (ctm/name-with-attributes symb body)
-        record-name  (in/classname-for symb)
-        ctor-name    (symbol (str 'map-> record-name))]
-    `(do
-       (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-forms symb (concat node-intrinsics forms))
-             replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
-                               (when (satisfies? NodeType x#) x#))
-             basis#          (is/basis @*the-system*)
-             all-graphs#     (util/map-vals deref (is/graphs @*the-system*))
-             to-be-replaced# (when (and all-graphs# replacing#)
-                               (filterv #(and (= replacing# (node-type basis# %)) (nil? (gt/original %))) (mapcat ig/node-values (vals all-graphs#))))
-             ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))
-             type# (in/make-node-type (assoc description# :dynamo.graph/ctor ctor#))]
-         (def ~symb type#)
-         (doseq [super-type# (gt/supertypes type#)]
-           (derive type# super-type#))
-         (in/declare-node-value-function-names '~symb ~symb)
-         (in/define-node-record  '~record-name '~symb ~symb)
-         (in/define-node-value-functions '~record-name '~symb ~symb)
-         (in/define-print-method '~record-name '~symb ~symb)
-         (when (< 0 (count to-be-replaced#))
-           (transact
-            (mapcat (fn [r#]
-                      (let [new# (construct ~symb)]
-                        (become r# new#)))
-                    (mapv node-id to-be-replaced#))))
-         (var ~symb)))))
 
 (defn- var-it [it] (list `var it))
 

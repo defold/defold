@@ -19,7 +19,7 @@
 
 (g/defnode StrPropReadOnly
   (property my-prop g/Str
-            (dynamic read-only? (g/fnk [] true))))
+            (dynamic read-only? (g/always true))))
 
 (g/defnode LinkedProps
   (property multi-properties g/Any

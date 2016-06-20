@@ -60,7 +60,7 @@
 (g/defnode GameObjectNode
   (inherits ResourceNode)
   (output node-outline OutlineData :cached (g/fnk [_node-id child-outlines]
-                                                  {:node-id _node-id :children child-outlines})))
+                                             {:node-id _node-id :children child-outlines})))
 
 (g/defnode ComponentNode
   (inherits OutlineNode)

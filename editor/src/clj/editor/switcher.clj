@@ -262,7 +262,7 @@
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
 
-  (property blocks       g/Any (dynamic visible (g/fnk [] false)))
+  (property blocks       g/Any (dynamic visible (g/always false)))
   (property width        g/Int (default 1))
   (property height       g/Int (default 1))
 
@@ -270,7 +270,7 @@
   (input gpu-texture g/Any)
 
   (output level g/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
-  (output aabb  AABB (g/fnk [width height]
+  (output aabb AABB (g/fnk [width height]
                            (let [half-width (* 0.5 cell-size width)
                                  half-height (* 0.5 cell-size height)]
                              (types/->AABB (Point3d. (- half-width) (- half-height) 0)

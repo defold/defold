@@ -156,4 +156,4 @@
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box
                                                                                     :user-data {:start start :current current}}]}))
-  (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
+  (output input-handler Runnable :cached (g/always handle-selection-input)))

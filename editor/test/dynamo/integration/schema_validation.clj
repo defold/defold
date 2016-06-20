@@ -10,11 +10,11 @@
   (input sub-str-input g/Str :substitute "String substitute")
   (input sub-int-input g/Int :substitute 2675)
 
-  (output str-output g/Str (g/fnk [] "I am a string."))
-  (output int-output g/Int (g/fnk [] 99))
+  (output str-output g/Str (g/always "I am a string."))
+  (output int-output g/Int (g/always 99))
 
-  (output bad-str-output g/Str (g/fnk [] 133))
-  (output bad-int-output g/Int (g/fnk [] "I should be an Int."))
+  (output bad-str-output g/Str (g/always 133))
+  (output bad-int-output g/Int (g/always "I should be an Int."))
 
   (output str-pass-through g/Str (g/fnk [str-input] str-input))
   (output int-pass-through g/Int (g/fnk [int-input] int-input))
@@ -156,4 +156,3 @@
     (binding [internal.node/*suppress-schema-warnings* true]
       (let [[bsn] (tx-nodes (g/make-nodes world [bsn [BadSchemaPropNode]]))]
         (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value bsn :bad-schema-prop)))))))
-

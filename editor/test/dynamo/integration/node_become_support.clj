@@ -5,7 +5,7 @@
 
 (g/defnode NodeA
   (input input-a g/Str)
-  (output output-a g/Str (g/fnk [] "a")))
+  (output output-a g/Str (g/always "a")))
 
 (g/defnode NodeB
   (input input-b g/Str)

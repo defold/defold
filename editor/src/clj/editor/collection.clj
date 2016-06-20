@@ -53,11 +53,11 @@
 (defn- gen-embed-ddf [id child-ids position ^Quat4d rotation-q4 scale proto-msg ddf-component-properties]
   (let [proto-msg (-> proto-msg
                     (update :components strip-properties))]
-  {:id id
-   :children child-ids
+    {:id id
+     :children child-ids
      :data (protobuf/map->str GameObject$PrototypeDesc proto-msg)
-   :position position
-   :rotation (math/vecmath->clj rotation-q4)
+     :position position
+     :rotation (math/vecmath->clj rotation-q4)
      :scale3 scale
      :component-properties ddf-component-properties}))
 
@@ -84,14 +84,14 @@
   (property id g/Str)
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
-            (dynamic read-only? (g/fnk [] true)))
+            (dynamic read-only? (g/always true)))
   (input base-url g/Str)
   (input source-id g/Any :cascade-delete))
 
 (defn- child-go-go [go-id child-id]
   (for [[from to] [[:id :child-ids]
-               [:node-outline :child-outlines]
-               [:scene :child-scenes]]]
+                   [:node-outline :child-outlines]
+                   [:scene :child-scenes]]]
     (g/connect child-id from go-id to)))
 
 (defn- child-coll-any [coll-id child-id]
@@ -103,7 +103,7 @@
   (concat
     (for [[from to] [[:_node-id :nodes]
                      [:ddf-message ddf-label]
-               [:build-targets :dep-build-targets]
+                     [:build-targets :dep-build-targets]
                      [:id :ids]
                      [:go-inst-ids :go-inst-ids]
                      [:ddf-properties :ddf-properties]]]
@@ -121,7 +121,7 @@
   (concat
     (for [[from to] [[:_node-id :nodes]
                      [:ddf-message :ref-coll-ddf]
-               [:id :ids]
+                     [:id :ids]
                      [:build-targets :sub-build-targets]
                      [:go-inst-ids :go-inst-ids]
                      [:sub-ddf-properties :ddf-properties]]]
@@ -141,19 +141,19 @@
     (-> source-outline
       (merge {:node-id _node-id
               :label node-outline-label
-                        :icon game-object/game-object-icon
+              :icon game-object/game-object-icon
               :children (into (vec (sort-by label-sort-by-fn (:children source-outline))) child-outlines)})
       (update :child-reqs (fn [c] (conj (if c c [])
                                         {:node-type ReferencedGOInstanceNode
-                               :tx-attach-fn (fn [self-id child-id]
-                                               (concat
-                                                (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         :tx-attach-fn (fn [self-id child-id]
+                                                         (concat
+                                                           (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                                            (attach-coll-ref-go coll-id child-id)
                                                            (child-go-go self-id child-id)))}
                                         {:node-type EmbeddedGOInstanceNode
-                               :tx-attach-fn (fn [self-id child-id]
-                                               (concat
-                                                (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         :tx-attach-fn (fn [self-id child-id]
+                                                         (concat
+                                                           (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                                            (attach-coll-embedded-go coll-id child-id)
                                                            (child-go-go self-id child-id)))}))))))
 
@@ -203,7 +203,7 @@
   (inherits GameObjectInstanceNode)
 
   (property overrides g/Any
-              (dynamic visible (g/fnk [] false))
+              (dynamic visible (g/always false))
               (value (gu/passthrough ddf-component-properties))
               (set (fn [basis self old-value new-value]
                      (let [go (g/node-value self :source-id :basis basis)
@@ -331,7 +331,7 @@
               (update :instances clean-inst-ddfs)
               (update :embedded-instances clean-inst-ddfs)
               (update :collection-instances clean-coll-inst-ddfs))]
-  {:resource resource
+    {:resource resource
      :content (protobuf/map->str GameObject$CollectionDesc msg)}))
 
 (defn- externalize [inst-data resources]
@@ -458,7 +458,7 @@
                                                                        (% source-id child-id))))
                             ; TODO - temp blocked because of risk for graph cycles
                             ; If it's dropped on another instance referencing the same collection, it blows up
-                                (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs))))))
+                            (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs))))))
 
 (defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or
@@ -559,11 +559,11 @@
 (defn- make-ref-go [self project source-resource id position rotation scale child? overrides]
   (let [path {:resource source-resource
               :overrides overrides}]
-  (g/make-nodes (g/node-id->graph-id self)
+    (g/make-nodes (g/node-id->graph-id self)
                   [go-node [ReferencedGOInstanceNode :id id :path path :position position :rotation rotation :scale scale]]
-                (attach-coll-ref-go self go-node)
-                (if child?
-                  (child-coll-any self go-node)
+                  (attach-coll-ref-go self go-node)
+                  (if child?
+                    (child-coll-any self go-node)
                     []))))
 
 (defn- single-selection? [selection]
@@ -579,19 +579,19 @@
 (defn add-game-object-file [coll-node resource]
   (let [project (project/get-project coll-node)
         base (FilenameUtils/getBaseName (resource/resource-name resource))
-            id (gen-instance-id coll-node base)
-            op-seq (gensym)
-            [go-node] (g/tx-nodes-added
-                       (g/transact
-                        (concat
-                         (g/operation-label "Add Game Object")
-                         (g/operation-sequence op-seq)
+        id (gen-instance-id coll-node base)
+        op-seq (gensym)
+        [go-node] (g/tx-nodes-added
+                    (g/transact
+                      (concat
+                        (g/operation-label "Add Game Object")
+                        (g/operation-sequence op-seq)
                         (make-ref-go coll-node project resource id [0 0 0] [0 0 0] [1 1 1] true {}))))]
-        ; Selection
-        (g/transact
-         (concat
-          (g/operation-sequence op-seq)
-          (g/operation-label "Add Game Object")
+    ;; Selection
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Add Game Object")
         (project/select project [go-node])))))
 
 (handler/defhandler :add-from-file :global
@@ -617,9 +617,9 @@
         [])
       (let [tx-data (project/make-resource-node graph project resource true
                                                 {go-node [[:_node-id :source-id]
-                                                                                      [:node-outline :source-outline]
+                                                          [:node-outline :source-outline]
                                                           [:proto-msg :proto-msg]
-                                                                                      [:build-targets :build-targets]
+                                                          [:build-targets :build-targets]
                                                           [:scene :scene]
                                                           [:ddf-component-properties :ddf-component-properties]]
                                                  self [[:_node-id :nodes]]}
