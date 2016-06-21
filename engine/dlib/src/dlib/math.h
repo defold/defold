@@ -11,8 +11,6 @@
 #undef _USE_MATH_DEFINES
 #endif
 
-#include <cfloat>
-
 /**
  * Collection of math functions.
  */
@@ -161,14 +159,6 @@ namespace dmMath
     inline float Rand11(uint32_t* seed)
     {
         return 2.0f * Rand01(seed) - 1.0f;
-    }
-
-    /**
-     * Return true if the two floats differs less than EPSILON
-     */
-    inline bool EqFloat(float a, float b) {
-        float difference = a - b;
-        return (difference < DBL_EPSILON) && (-difference < DBL_EPSILON);
     }
 
 }

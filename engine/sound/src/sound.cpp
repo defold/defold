@@ -10,6 +10,30 @@
 #include "sound_codec.h"
 #include "sound_private.h"
 
+#include <math.h>
+#include <cfloat>
+
+namespace
+{
+
+    /**
+     * Return true if the two floats differs less than EPSILON.
+     *
+     * @note Precision cannot be guaranteed for really small numbers.
+     * @see http://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html
+     *
+     * @param a Float to compare
+     * @param b Float to compare
+     * @return true if the two floats differs less than DBL_EPSILON (as defined
+     * by IEEE), false otherwise.
+     */
+    inline bool EqFloat(float a, float b) {
+        // C99 does not have fabs for float, but only implements it for double.
+        // Double has greater precision than float, so no problem casting.
+        double difference = fabs((double) (a - b));
+        return difference < DBL_EPSILON;
+    }
+}
 
 /**
  * Defold simple sound system
@@ -1014,7 +1038,7 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
-                if (!dmMath::EqFloat(instance->m_Gain.m_Current, 0.0f))
+                if (!::EqFloat(instance->m_Gain.m_Current, 0.0f))
                 {
                     MixInstance(mix_context, instance);
                     result = RESULT_OK;
