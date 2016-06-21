@@ -118,7 +118,7 @@
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
     (let
-        [{:keys [namespace function] :as parse-result} (or (code/parse-line line) (default-parse-result))
+        [{:keys [namespace function] :as parse-result} (or (code/parse-line line) (code/default-parse-result))
          items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
          pattern (string/lower-case (code/proposal-filter-pattern namespace function))
          results (filter (fn [i] (string/starts-with? (:name i) pattern)) items)]
@@ -178,15 +178,25 @@
       (when-let [match-body (code/match-until-eol (:body match-open))]
         (code/combine-matches match-open match-body)))))
 
+(defn increase-indent? [s]
+  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
+
+(defn decrease-indent? [s]
+  (re-find #"^\s*(elseif|else|end|\})\s*$"
+
 ;; TODO: splitting into partitions using multiline (MultiLineRule) in combination with FastPartitioner does not work properly when
 ;; :eof is false. The initial "/*" does not start a comment partition, and when the ending "*/" is added (on another line) the document
 ;; is repartitioned only from the beginning of that final line - meaning the now complete multiline comment is not detected as a partition.
 ;; After inserting some text on the opening ("/*" ) line, the partition is detected however.
-;; Workaround: the whole language is treated as one single default partition type.
+;; Workaround: the whole language is treated as one single default
+;; partition type.
 
 (def lua {:language "lua"
           :syntax
           {:line-comment "-- "
+           :indentation {:indent-chars "\t"
+                         :increase? increase-indent?
+                         :decrease? decrease-indent?}
            :scanner
            [#_{:partition "__multicomment"
                :type :multiline

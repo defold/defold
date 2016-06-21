@@ -20,6 +20,7 @@
   (caret! [this offset select?]))
 
 (defprotocol TextLine
+  (prev-line [this])
   (line [this])
   (line-offset [this]))
 
@@ -790,7 +791,7 @@
         np (adjust-bounds doc c)]
     (if (pos? (selection-length selection))
       (replace-text-selection selection key-typed)
-      (replace-text-and-caret selection np 0 key-typed (inc np)))))
+      (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
 (defn do-proposal-replacement [selection replacement]
   (let [replacement (:insert-string replacement)
@@ -830,12 +831,38 @@
     (when (editable? selection)
       (enter-key-text selection "\t"))))
 
+(defn- get-indentation [line]
+  (re-find #"^\s+" line))
+
+(defn indentation [selection line line-sep]
+  (when-let [indentation-data (:indentation (syntax selection))]
+    (let [{:keys [indent-chars increase? decrease?]} indentation-data
+          current-indentation (get-indentation line)]
+      (cond
+        (decrease? line)
+        (let [line-above (prev-line selection)
+              line-above-indent (get-indentation line-above)
+              new-line-text (if (= (count current-indentation) (dec (count line-above-indent)))
+                              line
+                              (string/replace-first line (re-pattern indent-chars) ""))
+              new-indent (get-indentation new-line-text)]
+          (str new-line-text line-sep new-indent (when (increase? line) indent-chars)))
+
+        (increase? line)
+        (str line line-sep current-indentation indent-chars)
+
+        :else
+        (str line line-sep current-indentation)))))
+
 (handler/defhandler :enter :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (let [line-seperator (System/getProperty "line.separator")]
-        (enter-key-text selection line-seperator)))))
+      (let [line-seperator (System/getProperty "line.separator")
+            current-line (line selection)
+            line-offset (line-offset selection)
+            indent-text (indentation selection current-line line-seperator)]
+        (replace-text-and-caret selection line-offset (count current-line) indent-text (+ line-offset (count indent-text)))))))
 
 (handler/defhandler :undo :code-view
   (enabled? [selection] selection)
