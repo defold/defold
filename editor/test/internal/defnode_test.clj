@@ -182,11 +182,11 @@
   (inherits MixinNode))
 
 (deftest inheritance
-  (is (= #{IRootNode}                      (g/supertypes ChildNode)))
+  (is (= [IRootNode]                       (g/supertypes ChildNode)))
   (is (= ChildNode                         (g/node-type (g/construct ChildNode))))
-  (is (= #{ChildNode IRootNode}            (g/supertypes GChild)))
+  (is (= [ChildNode IRootNode]             (g/supertypes GChild)))
   (is (= GChild                            (g/node-type (g/construct GChild))))
-  (is (= #{ChildNode MixinNode IRootNode}  (g/supertypes GGChild)))
+  (is (= [ChildNode MixinNode IRootNode]   (g/supertypes GGChild)))
   (is (= GGChild                           (g/node-type (g/construct GGChild))))
   (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
   (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
