@@ -795,7 +795,12 @@
 (defn do-proposal-replacement [selection replacement]
   (let [replacement (:insert-string replacement)
         line-text (line selection)
-        new-line-text (string/replace-first line-text (string/triml line-text) replacement)]
+        parsed-line (code/parse-line line-text)
+        replacement-in-line? (string/index-of line-text replacement)
+        pattern (if replacement-in-line?
+                  replacement
+                 (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
+        new-line-text (string/replace-first line-text pattern replacement)]
     (replace! selection (line-offset selection) (count line-text) new-line-text)))
 
 (defn show-proposals [selection proposals]
@@ -806,8 +811,7 @@
           current-line (line selection)
           ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals current-line (text-area selection))
           replace-text-fn (fn [] (when (and (realized? result) @result)
-                                  (do-proposal-replacement selection (first @result))
-                                  ))]
+                                  (do-proposal-replacement selection (first @result))))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :key-typed :code-view
