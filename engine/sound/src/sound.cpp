@@ -24,14 +24,12 @@ namespace
      *
      * @param a Float to compare
      * @param b Float to compare
-     * @return true if the two floats differs less than DBL_EPSILON (as defined
+     * @return true if the two floats differs less than FLT_EPSILON (as defined
      * by IEEE), false otherwise.
      */
     inline bool EqFloat(float a, float b) {
-        // C99 does not have fabs for float, but only implements it for double.
-        // Double has greater precision than float, so no problem casting.
-        double difference = fabs((double) (a - b));
-        return difference < DBL_EPSILON;
+        float difference = fabsf(a - b);
+        return difference < FLT_EPSILON;
     }
 }
 
