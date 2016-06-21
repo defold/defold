@@ -78,7 +78,7 @@
    :start start
    :end end})
 
-(defn- default-parse-result []
+(defn default-parse-result []
   {:namespace ""
    :function ""
    :in-function false
