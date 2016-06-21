@@ -7,51 +7,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)")
-(def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)")
-
-(defn- make-parse-result [namespace function in-function start end]
-  {:namespace namespace
-   :function function
-   :in-function in-function
-   :start start
-   :end end})
-
-(defn- default-parse-result []
-  {:namespace ""
-   :function ""
-   :in-function false
-   :start 0
-   :end 0})
-
-(defn- parse-unscoped-line [line]
-  (let [matcher1 (re-matcher pattern1 line)]
-    (loop [match (re-find matcher1)
-           result nil]
-      (if-not match
-        result
-        (let [in-function (> (count (nth match 2)) 0)
-              start (.start matcher1)
-              end (- (.start matcher1) (if in-function 1 0))]
-          (recur (re-find matcher1)
-                 (make-parse-result "" (nth match 1) in-function start end)))))))
-
-(defn- parse-scoped-line [line]
-  (let [matcher2 (re-matcher pattern2 line)]
-        (loop [match (re-find matcher2)
-               result nil]
-          (if-not match
-            result
-            (let [in-function (> (count (nth match 3)) 0)
-                  start (.start matcher2)
-                  end (- (.end matcher2) (if in-function 1 0))]
-              (recur (re-find matcher2)
-                     (make-parse-result (nth match 1) (nth match 2) in-function start end)))))))
-
-(defn parse-line [line]
-  (or (parse-scoped-line line)
-      (parse-unscoped-line line)))
-
 (defn- load-sdoc [path]
   (try
     (with-open [in (io/input-stream (io/resource path))]
@@ -163,11 +118,9 @@
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
     (let
-        [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
+        [{:keys [namespace function] :as parse-result} (or (code/parse-line line) (default-parse-result))
          items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
-         pattern (string/lower-case (if (= "" (or namespace ""))
-                                      function
-                                      (str namespace "." function)))
+         pattern (string/lower-case (code/proposal-filter-pattern namespace function))
          results (filter (fn [i] (string/starts-with? (:name i) pattern)) items)]
       (->> results (sort-by :display-string) (partition-by :display-string) (mapv first)))
     (catch Exception e

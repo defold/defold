@@ -131,17 +131,25 @@
         (do-proposal-replacement source-viewer {:insert-string "foo"})
         (is (= "foo" (text source-viewer))))
       (testing "with partial completion"
-        (set-completion-code! source-viewer "go.set")
-        (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
-        (is (= "go.set_property()" (text source-viewer))))
+        (let [code "go.set"]
+          (set-completion-code! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
+          (is (= "go.set_property()" (text source-viewer)))))
       (testing "with partial completion and whitespace"
-        (set-completion-code! source-viewer "   go.set")
-        (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
-        (is (= "   go.set_property()" (text source-viewer))))
+        (let [code "   go.set"]
+          (set-completion-code! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
+          (is (= "   go.set_property()" (text source-viewer)))))
       (testing "with whole completion"
-        (set-completion-code! source-viewer "   go.set_property()")
-        (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
-        (is (= "   go.set_property()" (text source-viewer)))))))
+        (let [code "   go.set_property()"]
+          (set-completion-code! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
+          (is (= "   go.set_property()" (text source-viewer)))))
+      (testing "with whole completion within other function"
+        (let [code "   assert(math.a"]
+          (set-completion-code! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "math.abs()"})
+          (is (= "   assert(math.abs()" (text source-viewer))))))))
 
 (defn- propose! [source-viewer]
   (handler/run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
