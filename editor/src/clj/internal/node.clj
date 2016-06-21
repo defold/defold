@@ -492,13 +492,7 @@
   becomes [:x :y :a :b :c :z]"
   [coll]
   (flatten
-   (map #(cond
-           (ref? %)    (property-display-order %)
-           (named? %)  (if-let [nt (node-type-resolve (keyword (canonicalize %)))]
-                         (:property-display-order nt)
-                         %)
-           :else       %)
-        coll)))
+   (map #(if (ref? %) (property-display-order %) %) coll)))
 
 (defn node-type-name? [x]
   (node-type-resolve (keyword (and (named? x) (canonicalize x)))))
@@ -522,8 +516,8 @@
      (if-let [elem (first left)]
        (let [elem (if (node-type-name? elem) (canonicalize elem) elem)]
          (cond
-           (node-type-name? elem)
-           (recur result (concat (expand-node-types [elem]) (next left)) right)
+           (ref? elem)
+           (recur result (concat (property-display-order elem) (next left)) right)
 
            (keyword? elem)
            (recur (conj result elem) (next left) (remove #{elem} right))
@@ -531,7 +525,7 @@
            (sequential? elem)
            (let [header (first elem)
                  group  (next elem)]
-             (if (some node-type-name? elem)
+             (if (some ref? elem)
                (recur result (cons (expand-node-types elem) (next left)) right)
                (let [group-label   header
                      group-member? (set group)]
@@ -737,7 +731,7 @@
   [f]
   (when-let [term (and (seq? f) (symbol? (first f)) (first f))]
     (let [v (resolve term)]
-      (and (var? v) (.isMacro v)))))
+      (and (var? v) (.isMacro ^clojure.lang.Var v)))))
 
 (defn fnk-expression?
   [f]
@@ -785,7 +779,7 @@
 
 (defmethod process-as 'property [[_ label & forms]]
   (assert-symbol "property" label)
-  (let [klabel   (keyword label)
+  (let [klabel  (keyword label)
         propdef (cond-> (process-property-forms forms)
                   (contains? internal-keys klabel)
                   (update :flags #(conj (or % #{}) :internal)))
@@ -835,17 +829,16 @@
 
 (defmethod process-as 'inherits [[_ & forms]]
   {:supertypes
-   (set
-    (for [f forms]
-      (do
-        (assert-symbol "inherits" f)
-        (let [typeref (util/vgr f)]
-          (assert (node-type-resolve typeref)
-                  (str "Cannot inherit from " f " it cannot be resolved in this context (from namespace " *ns* ".)"))
-          typeref))))})
+   (for [f forms]
+     (do
+       (assert-symbol "inherits" f)
+       (let [typeref (util/vgr f)]
+         (assert (node-type-resolve typeref)
+                 (str "Cannot inherit from " f " it cannot be resolved in this context (from namespace " *ns* ".)"))
+         typeref)))})
 
-(defmethod process-as 'display-order [[_ & decl]]
-  {:display-order-decl (vec (first decl))})
+(defmethod process-as 'display-order [[_ decl]]
+  {:display-order-decl decl})
 
 (defn group-node-type-forms
   [forms]
@@ -857,30 +850,26 @@
   ([] {})
   ([l] l)
   ([l r]
-   {:property            (merge-with merge (:property l)     (:property r))
-    :input               (merge-with merge (:input l)        (:input r))
-    :output              (merge-with merge (:output l)       (:output r))
-    :supertypes          (set (into (:supertypes l)          (:supertypes r)))
-    ;; note special cases for property- and display-order-decl.
-    ;; property-order-decl : new elements should be on the right
-    :property-order-decl (vec (into (:property-order-decl r) (:property-order-decl l)))
-    ;; display-order-decl : last one wins
-    :display-order-decl  (or (:display-order-decl l) (:display-order-decl r))})
+   {:property            (merge-with merge (:property l) (:property r))
+    :input               (merge-with merge (:input l)    (:input r))
+    :output              (merge-with merge (:output l)   (:output r))
+    :supertypes          (into (:supertypes l)           (:supertypes r))
+    ;; Display order gets resolved at runtime
+    :property-order-decl (:property-order-decl r)
+    :display-order-decl  (:display-order-decl r)})
   ([l r & more]
    (reduce node-type-merge (node-type-merge l r) more)))
 
 (defn merge-left
   [tree selector]
-  (let [vals (map deref (get tree selector []))]
-    (node-type-merge (apply node-type-merge vals) tree)))
+  (let [supertypes (map deref (get tree selector []))]
+    (node-type-merge (apply node-type-merge supertypes) tree)))
 
-(defn resolve-display-order
+(defn defer-display-order-resolution
   [tree]
-  (-> tree
-      (assoc  :property-display-order
-              (apply merge-display-order (:display-order-decl tree) (:property-order-decl tree)
-                     (map (comp :property-display-order deref) (:supertypes tree))))
-      (dissoc :property-order-decl :display-order-decl)))
+  (assoc tree :property-display-order
+         `(merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
+                                 ~@(map property-display-order (:supertypes tree)))))
 
 (defn- wrap-when
   [tree key-pred val-pred xf]
@@ -943,7 +932,7 @@
       (assoc :name (str fqs))
       (assoc :key (keyword fqs))
       wrap-constant-fns
-      resolve-display-order
+      defer-display-order-resolution
       extract-fn-arguments
       merge-property-arguments
       attach-declared-properties
