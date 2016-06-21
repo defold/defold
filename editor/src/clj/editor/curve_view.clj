@@ -163,11 +163,16 @@
                       :user-data {:world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
-(g/defnk produce-cp-renderables [curves viewport camera]
-  (let [scale (camera/scale-factor camera viewport)
-        splines (mapv (fn [{:keys [node-id property curve]}] (->> curve
-                                                               (mapv second)
-                                                               (properties/->spline))) curves)
+(g/defnk produce-cp-renderables [curves viewport camera sub-selection]
+  (prn "c" curves)
+  (prn "sub" sub-selection)
+  (let [sub-sel (into {} (mapv (fn [] []) sub-selection))
+        scale (camera/scale-factor camera viewport)
+        splines (mapv (fn [{:keys [node-id property curve]}]
+                        (let [subs (filterv (fn []) sub-selection)]
+                          (->> curve
+                           (mapv second)
+                           (properties/->spline)))) curves)
         scount (count splines)
         colors (map-indexed (fn [i s] (let [h (* (+ i 0.5) (/ 360.0 scount))
                                             s 1.0
@@ -255,6 +260,12 @@
 (g/defnode CurveController
   (output input-handler Runnable :cached (g/fnk [] handle-input)))
 
+(defn- aabb-contains? [^AABB aabb ^Point3d p]
+  (let [min-p (types/min-p aabb)
+        max-p (types/max-p aabb)]
+    (and (<= (.x min-p) (.x p) (.x max-p))
+         (<= (.y min-p) (.y p) (.y max-p)))))
+
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
 
@@ -262,6 +273,7 @@
   (property viewport Region (default (types/->Region 0 0 0 0)))
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
+  (property tool-picking-rect Rect)
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
@@ -270,12 +282,30 @@
   (input selected-node-properties g/Any)
   (input tool-renderables pass/RenderData :array)
   (input picking-rect Rect)
+  (input sub-selection g/Any)
 
   (output async-frame g/Keyword :cached produce-async-frame)
   (output curves g/Any :cached produce-curves)
   (output curve-renderables g/Any :cached produce-curve-renderables)
   (output cp-renderables g/Any :cached produce-cp-renderables)
-  (output picking-selection g/Any (g/fnk [picking-rect] (prn "pick" picking-rect) ["hej hej"])))
+  (output picking-selection g/Any
+          (g/fnk [curves picking-rect camera viewport]
+                 (let [aabb (geom/rect->aabb picking-rect)]
+                   (keep identity
+                         (mapv (fn [c]
+                                 (let [curve (:curve c)
+                                       selected (->> curve
+                                                  (filterv (fn [[idx cp]]
+                                                             (let [[x y] cp
+                                                                   p (doto (->> (Point3d. x y 0.0)
+                                                                             (camera/camera-project camera viewport))
+                                                                       (.setZ 0.0))]
+                                                               (aabb-contains? aabb p))))
+                                                  (mapv first))]
+                                   (when (not (empty? selected))
+                                     [(:node-id c) (:property c) selected])))
+                               curves)))))
+  (output selected-tool-renderables g/Any :cached (g/fnk [] {})))
 
 (defonce view-state (atom nil))
 
@@ -394,7 +424,7 @@
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    CurveView
                                                        #_controller #_CurveController
-                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (prn "sub-sel" selection))]
+                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       grid/Grid]
@@ -413,6 +443,7 @@
                                                 #_(g/connect controller :input-handler view-id :input-handlers)
 
                                                 (g/connect project :selected-node-properties view-id :selected-node-properties)
+                                                (g/connect project :sub-selection view-id :sub-selection)
 
                                                 (g/connect selection            :renderable                view-id          :tool-renderables)
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
