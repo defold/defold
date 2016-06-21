@@ -67,6 +67,12 @@
          (is (= ["assert"] (map :name result)))
          (is (= ["assert(v[,message])"] (map :display-string result)))
          (is (= ["assert(v)"] (map :insert-string result)))))
+      (testing "global lua base functions"
+        (set-code-and-caret! source-viewer "if")
+        (let [result (propose source-viewer)]
+         (is (= ["if"] (map :name result)))
+         (is (= ["if"] (map :display-string result)))
+         (is (= ["if cond then\n\t--do things\nend"] (map :insert-string result)))))
       (testing "global defold package"
         (set-code-and-caret! source-viewer "go")
         (is (= ["go"] (map :name (propose source-viewer)))))
@@ -86,7 +92,7 @@
          (is (= ["go.delete([id])" "go.delete_all([ids])"] (map :display-string result)))
          (is (= ["go.delete()" "go.delete_all()"] (map :insert-string result)))))
       (testing "local var"
-        (set-code-and-caret! source-viewer "local foo=1 \n fo")
+        (set-code-and-caret! source-viewer "local foo=1 \n foo")
         (is (= ["foo"] (map :name (propose source-viewer)))))
       (testing "globar var"
         (set-code-and-caret! source-viewer "bar=1 \n ba")
@@ -115,7 +121,7 @@
               (set-code-and-caret! source-viewer "require(\"mymodule\") \n mymod")
               (is (= ["mymodule"] (map :name (propose source-viewer)))))
             (testing "module var require with global var"
-              (set-code-and-caret! source-viewer "foo = require(\"mymodule\") \n fo")
+              (set-code-and-caret! source-viewer "foo = require(\"mymodule\") \n foo")
               (is (= ["foo"] (map :name (propose source-viewer)))))
             (testing "module var require with local var"
               (set-code-and-caret! source-viewer "local bar = require(\"mymodule\") \n ba")
