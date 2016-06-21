@@ -862,7 +862,9 @@
             current-line (line selection)
             line-offset (line-offset selection)
             indent-text (indentation selection current-line line-seperator)]
-        (replace-text-and-caret selection line-offset (count current-line) indent-text (+ line-offset (count indent-text)))))))
+        (if indent-text
+          (replace-text-and-caret selection line-offset (count current-line) indent-text (+ line-offset (count indent-text)))
+          (enter-key-text selection line-seperator))))))
 
 (handler/defhandler :undo :code-view
   (enabled? [selection] selection)

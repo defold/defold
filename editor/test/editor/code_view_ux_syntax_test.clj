@@ -51,7 +51,7 @@
   (testing "glsl syntax"
     (do-toggle-region-comment shader/ShaderNode (:code shader/glsl-opts) "// ")))
 
-(defn- set-completion-code! [source-viewer code]
+(defn- set-code-and-caret! [source-viewer code]
   (text! source-viewer code)
   (caret! source-viewer (count code) false)
   (changes! source-viewer))
@@ -62,40 +62,40 @@
           source-viewer (setup-source-viewer lua/lua false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "global lua std lib"
-        (set-completion-code! source-viewer "asser")
+        (set-code-and-caret! source-viewer "asser")
         (let [result (propose source-viewer)]
          (is (= ["assert"] (map :name result)))
          (is (= ["assert(v[,message])"] (map :display-string result)))
          (is (= ["assert(v)"] (map :insert-string result)))))
       (testing "global defold package"
-        (set-completion-code! source-viewer "go")
+        (set-code-and-caret! source-viewer "go")
         (is (= ["go"] (map :name (propose source-viewer)))))
       (testing "global lua std lib package"
-        (set-completion-code! source-viewer "mat")
+        (set-code-and-caret! source-viewer "mat")
         (is (= ["math"] (map :name (propose source-viewer)))))
       (testing "go.property function - required params"
-        (set-completion-code! source-viewer "go.proper")
+        (set-code-and-caret! source-viewer "go.proper")
         (let [result (propose source-viewer)]
          (is (= ["go.property"] (map :name result)))
          (is (= ["go.property(name,value)"] (map :display-string result)))
          (is (= ["go.property(name,value)"] (map :insert-string result)))))
       (testing "go.delete functions - required params"
-        (set-completion-code! source-viewer "go.delete")
+        (set-code-and-caret! source-viewer "go.delete")
         (let [result (propose source-viewer)]
          (is (= ["go.delete" "go.delete_all"] (map :name result)))
          (is (= ["go.delete([id])" "go.delete_all([ids])"] (map :display-string result)))
          (is (= ["go.delete()" "go.delete_all()"] (map :insert-string result)))))
       (testing "local var"
-        (set-completion-code! source-viewer "local foo=1 \n fo")
+        (set-code-and-caret! source-viewer "local foo=1 \n fo")
         (is (= ["foo"] (map :name (propose source-viewer)))))
       (testing "globar var"
-        (set-completion-code! source-viewer "bar=1 \n ba")
+        (set-code-and-caret! source-viewer "bar=1 \n ba")
         (is (= ["bar"] (map :name (propose source-viewer)))))
       (testing "local function"
-        (set-completion-code! source-viewer "local function cake(x,y) return x end\n cak")
+        (set-code-and-caret! source-viewer "local function cake(x,y) return x end\n cak")
         (is (= ["cake"] (map :name (propose source-viewer)))))
       (testing "global function"
-        (set-completion-code! source-viewer "function ice_cream(x,y) return x end\n ice")
+        (set-code-and-caret! source-viewer "function ice_cream(x,y) return x end\n ice")
         (is (= ["ice_cream"] (map :name (propose source-viewer)))))
       (testing "requires"
         (with-redefs [code-completion/resource-node-path (constantly "/mymodule.lua")]
@@ -103,22 +103,22 @@
                 [module-node] (tx-nodes (g/make-node world script/ScriptNode :code module-code))]
             (g/connect! module-node :_node-id code-node :module-nodes)
             (testing "bare requires"
-              (set-completion-code! source-viewer "require(\"mymodule\") \n mymodule.")
+              (set-code-and-caret! source-viewer "require(\"mymodule\") \n mymodule.")
               (is (= ["mymodule.add"] (map :name (propose source-viewer)))))
             (testing "require with global var"
-              (set-completion-code! source-viewer "foo = require(\"mymodule\") \n foo.")
+              (set-code-and-caret! source-viewer "foo = require(\"mymodule\") \n foo.")
               (is (= ["foo.add"] (map :name (propose source-viewer)))))
             (testing "require with local var"
-              (set-completion-code! source-viewer "local bar = require(\"mymodule\") \n bar.")
+              (set-code-and-caret! source-viewer "local bar = require(\"mymodule\") \n bar.")
               (is (= ["bar.add"] (map :name (propose source-viewer)))))
             (testing "module var bare requires"
-              (set-completion-code! source-viewer "require(\"mymodule\") \n mymod")
+              (set-code-and-caret! source-viewer "require(\"mymodule\") \n mymod")
               (is (= ["mymodule"] (map :name (propose source-viewer)))))
             (testing "module var require with global var"
-              (set-completion-code! source-viewer "foo = require(\"mymodule\") \n fo")
+              (set-code-and-caret! source-viewer "foo = require(\"mymodule\") \n fo")
               (is (= ["foo"] (map :name (propose source-viewer)))))
             (testing "module var require with local var"
-              (set-completion-code! source-viewer "local bar = require(\"mymodule\") \n ba")
+              (set-code-and-caret! source-viewer "local bar = require(\"mymodule\") \n ba")
               (is (= ["bar"] (map :name (propose source-viewer)))))))))))
 
 (deftest test-do-proposal-replacement
@@ -132,22 +132,22 @@
         (is (= "foo" (text source-viewer))))
       (testing "with partial completion"
         (let [code "go.set"]
-          (set-completion-code! source-viewer code)
+          (set-code-and-caret! source-viewer code)
           (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
           (is (= "go.set_property()" (text source-viewer)))))
       (testing "with partial completion and whitespace"
         (let [code "   go.set"]
-          (set-completion-code! source-viewer code)
+          (set-code-and-caret! source-viewer code)
           (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
           (is (= "   go.set_property()" (text source-viewer)))))
       (testing "with whole completion"
         (let [code "   go.set_property()"]
-          (set-completion-code! source-viewer code)
+          (set-code-and-caret! source-viewer code)
           (do-proposal-replacement source-viewer {:insert-string "go.set_property()"})
           (is (= "   go.set_property()" (text source-viewer)))))
       (testing "with whole completion within other function"
         (let [code "   assert(math.a"]
-          (set-completion-code! source-viewer code)
+          (set-code-and-caret! source-viewer code)
           (do-proposal-replacement source-viewer {:insert-string "math.abs()"})
           (is (= "   assert(math.abs()" (text source-viewer))))))))
 
@@ -161,8 +161,89 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "single result gets automatically inserted"
-        (set-completion-code! source-viewer "math.ab")
+        (set-code-and-caret! source-viewer "math.ab")
         (propose! source-viewer)
         (is (= "math.abs(x)" (text source-viewer)))))))
 
+(defn- enter! [source-viewer]
+  (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
 
+(deftest lua-enter-indentation-functions
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "indentation for functions"
+        (testing "no indentation level"
+          (set-code-and-caret! source-viewer "function test(x)")
+          (enter! source-viewer)
+          (is (= "function test(x)\n\t" (text source-viewer))))
+        (testing "some indentation exists"
+          (set-code-and-caret! source-viewer "\tfunction test(x)")
+          (enter! source-viewer)
+          (is (= "\tfunction test(x)\n\t\t" (text source-viewer))))
+        (testing "maintains level in the function"
+          (set-code-and-caret! source-viewer "function test(x)\n\tfoo")
+          (enter! source-viewer)
+          (is (= "function test(x)\n\tfoo\n\t" (text source-viewer))))
+        (testing "end deindents"
+          (set-code-and-caret! source-viewer "function test(x)\n\tend")
+          (enter! source-viewer)
+          (is (= "function test(x)\nend\n" (text source-viewer))))))))
+
+(deftest lua-enter-indentation-if-else
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "indentation for if else"
+        (testing "if indents"
+          (set-code-and-caret! source-viewer "if true")
+          (enter! source-viewer)
+          (is (= "if true\n\t" (text source-viewer))))
+        (testing "elseif dedents and indents the next level"
+          (set-code-and-caret! source-viewer "if true\n\telseif")
+          (enter! source-viewer)
+          (is (= "if true\nelseif\n\t" (text source-viewer))))
+        (testing "else dedents and indents to the next level"
+          (set-code-and-caret! source-viewer "if true\n\telse")
+          (enter! source-viewer)
+          (is (= "if true\nelse\n\t" (text source-viewer))))
+        (testing "end dedents"
+          (set-code-and-caret! source-viewer "if true\n\tend")
+          (enter! source-viewer)
+          (is (= "if true\nend\n" (text source-viewer))))))))
+
+(deftest lua-enter-indentation-while
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "indentation for while"
+        (testing "while indents"
+          (set-code-and-caret! source-viewer "while true")
+          (enter! source-viewer)
+          (is (= "while true\n\t" (text source-viewer))))
+        (testing "end dedents"
+          (set-code-and-caret! source-viewer "while true\n\tend")
+          (enter! source-viewer)
+          (is (= "while true\nend\n" (text source-viewer))))))))
+
+(deftest lua-enter-indentation-tables
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "indentation for tables"
+        (testing "{ indents"
+          (set-code-and-caret! source-viewer "x = {")
+          (enter! source-viewer)
+          (is (= "x = {\n\t" (text source-viewer))))
+        (testing "} dedents"
+          (set-code-and-caret! source-viewer "x = {\n\t1\n\t}")
+          (enter! source-viewer)
+          (is (= "x = {\n\t1\n}\n" (text source-viewer))))))))
