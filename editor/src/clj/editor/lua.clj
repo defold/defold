@@ -113,7 +113,18 @@
         package-completions {"" (map code/create-hint(remove #(= "" %) (keys completions)))}]
     (merge-with into completions package-completions)))
 
-(def lua-std-libs-docs (atom (lua-std-libs-documentation)))
+(defn lua-base-documentation []
+  {"" [(code/create-hint "if" "if" "if cond then\n\t--do things\nend" "")
+       (code/create-hint "else" "else" "else\n\t--do things\nend" "")
+       (code/create-hint "elseif" "elseif" "elseif\n\t--do things\nend" "")
+       (code/create-hint "while" "while" "while cond\n\t--do things\nend" "")
+       (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "")
+       (code/create-hint "function" "function" "function function_name(...)\n\t--do things\nend" "")
+       (code/create-hint "local" "local" "local local_name = local_value" "")
+       (code/create-hint "for" "for" "for i=1,10 do\n\t--dothings\nend" "")]})
+
+(def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
+
 
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
@@ -182,7 +193,7 @@
   (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
 
 (defn decrease-indent? [s]
-  (re-find #"^\s*(elseif|else|end|\})\s*$"
+  (re-find #"^\s*(elseif|else|end|\})\s*$" s))
 
 ;; TODO: splitting into partitions using multiline (MultiLineRule) in combination with FastPartitioner does not work properly when
 ;; :eof is false. The initial "/*" does not start a comment partition, and when the ending "*/" is added (on another line) the document
