@@ -1,5 +1,5 @@
-#ifndef IAP_COMMON_H
-#define IAP_COMMON_H
+#ifndef IAP_PRIVATE_H
+#define IAP_PRIVATE_H
 
 #include <script/script.h>
 

@@ -271,7 +271,7 @@ public class IapGooglePlayActivity extends Activity {
             
             if( intent != null && intent.getComponent().getClassName().equals( getClass().getName() ) )
             {
-                Log.v(IapGooglePlay.TAG, "We still have an intent left: " + intent.getAction() );
+                Log.v(IapGooglePlay.TAG, "There's still an intent left: " + intent.getAction() );
                 sendBuyError(IapJNI.BILLING_RESPONSE_RESULT_ERROR);
             }
         }

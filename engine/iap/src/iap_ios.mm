@@ -3,7 +3,7 @@
 #include <extension/extension.h>
 #include <script/script.h>
 #include "iap.h"
-#include "iap_common.h"
+#include "iap_private.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>

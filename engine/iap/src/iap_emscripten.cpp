@@ -7,7 +7,7 @@
 #include <script/script.h>
 #include <extension/extension.h>
 #include "iap.h"
-#include "iap_common.h"
+#include "iap_private.h"
 
 #define LIB_NAME "iap"
 
