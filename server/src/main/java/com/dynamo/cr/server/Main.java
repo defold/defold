@@ -1,23 +1,12 @@
 package com.dynamo.cr.server;
 
-import java.io.File;
-import java.net.URL;
-import java.util.logging.Handler;
-import java.util.logging.LogManager;
-
-import javax.inject.Singleton;
-import javax.persistence.EntityManagerFactory;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.bridge.SLF4JBridgeHandler;
-
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;
 import ch.qos.logback.core.joran.spi.JoranException;
 import ch.qos.logback.core.util.StatusPrinter;
-
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
+import com.dynamo.cr.server.auth.AccessTokenStore;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
@@ -26,6 +15,17 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
+
+import javax.inject.Singleton;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import java.io.File;
+import java.net.URL;
+import java.util.logging.Handler;
+import java.util.logging.LogManager;
 
 public class Main {
 
@@ -49,6 +49,9 @@ public class Main {
             bind(IMailer.class).to(SmtpMailer.class).in(Singleton.class);
             bind(EntityManagerFactory.class).toProvider(EntityManagerFactoryProvider.class).in(Singleton.class);
             bind(Server.class).in(Singleton.class);
+            bind(EntityManager.class).toProvider(EntityManagerProvider.class);
+            bind(AccessTokenStore.class).in(Singleton.class);
+            bind(AccessTokenAuthenticator.class).in(Singleton.class);
         }
     }
 
@@ -107,11 +110,8 @@ public class Main {
         Module module = new Module(serverConfig);
         final Injector injector = Guice.createInjector(module);
 
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                server = injector.getInstance(Server.class);
-            }
+        Thread t = new Thread(() -> {
+            server = injector.getInstance(Server.class);
         });
         t.start();
     }

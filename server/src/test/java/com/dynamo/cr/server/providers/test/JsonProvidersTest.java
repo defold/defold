@@ -1,24 +1,22 @@
 package com.dynamo.cr.server.providers.test;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.ext.MessageBodyReader;
-
+import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
+import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.State;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.server.providers.JsonProviders.ProtobufMessageBodyReader;
+import com.dynamo.cr.server.providers.JsonProviders.ProtobufMessageBodyWriter;
+import com.google.protobuf.Message;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Test;
 
-import com.dynamo.cr.server.providers.JsonProviders.ProtobufMessageBodyReader;
-import com.dynamo.cr.server.providers.JsonProviders.ProtobufMessageBodyWriter;
-import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.State;
-import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
-import com.google.protobuf.Message;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.ext.MessageBodyReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+
+import static org.junit.Assert.assertEquals;
 
 public class JsonProvidersTest {
 
@@ -84,5 +82,4 @@ public class JsonProvidersTest {
         Message message2 = (Message) reader.readFrom(message.getClass(), null, null, null, null, inStream);
         assertEquals(message, message2);
     }
-
 }

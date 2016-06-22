@@ -1,28 +1,21 @@
 package com.dynamo.cr.server.resources;
 
-import java.util.List;
-
-import javax.inject.Inject;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.Cookie;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.NewCookie;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.server.ServerException;
-import com.dynamo.cr.server.auth.AuthToken;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.dynamo.inject.persist.Transactional;
+
+import javax.inject.Inject;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.*;
+import javax.ws.rs.core.Response.Status;
+import java.util.List;
 
 @Path("/login")
 public class LoginResource extends BaseResource {
@@ -30,10 +23,12 @@ public class LoginResource extends BaseResource {
     @Inject
     protected OAuthAuthenticator authenticator;
 
-    protected static Logger logger = LoggerFactory.getLogger(LoginResource.class);
+    @Inject
+    private AccessTokenAuthenticator accessTokenAuthenticator;
 
     @GET
-    public Response login(@Context HttpHeaders headers) {
+    @Transactional
+    public Response login(@Context HttpHeaders headers, @Context HttpServletRequest request) {
 
         String email = headers.getRequestHeaders().getFirst("X-Email");
         String password = headers.getRequestHeaders().getFirst("X-Password");
@@ -45,7 +40,7 @@ public class LoginResource extends BaseResource {
         User user = ModelUtil.findUserByEmail(em, email);
         if (user != null && user.authenticate(password)) {
 
-            String cookie = AuthToken.login(email);
+            String accessToken = accessTokenAuthenticator.createSessionToken(user, request.getRemoteAddr());
 
             MediaType type;
             List<MediaType> acceptableMediaTypes = headers.getAcceptableMediaTypes();
@@ -61,23 +56,21 @@ public class LoginResource extends BaseResource {
             }
 
             LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
-                .setEmail(email)
-                .setUserId(user.getId())
-                .setAuthToken(cookie)
-                .setFirstName(user.getFirstName())
-                .setLastName(user.getLastName());
+                    .setEmail(email)
+                    .setUserId(user.getId())
+                    .setAuthToken(accessToken)
+                    .setFirstName(user.getFirstName())
+                    .setLastName(user.getLastName());
 
             return Response
-                .status(Status.OK)
-                // TODO: What does "secure" means? the "false" argument
-                .type(type)
-                .cookie(new NewCookie(new Cookie("auth", cookie, "/", null), "", 60 * 60 * 24, false),
-                        new NewCookie(new Cookie("email", email, "/", null), "", 60 * 60 * 24, false))
-                .entity(loginInfoBuilder.build()).build();
-        }
-        else {
+                    .status(Status.OK)
+                    // TODO: What does "secure" means? the "false" argument
+                    .type(type)
+                    .cookie(new NewCookie(new Cookie("auth", accessToken, "/", null), "", 60 * 60 * 24, false),
+                            new NewCookie(new Cookie("email", email, "/", null), "", 60 * 60 * 24, false))
+                    .entity(loginInfoBuilder.build()).build();
+        } else {
             throw new ServerException(Status.UNAUTHORIZED.toString(), Status.UNAUTHORIZED);
         }
     }
-
 }

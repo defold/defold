@@ -89,7 +89,7 @@
             <Insets />
          </VBox.margin>
       </HBox>
-      <SplitPane dividerPositions="0.228595178719867, 0.7406483790523691" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+      <SplitPane id="main-split" dividerPositions="0.228595178719867, 0.7406483790523691" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
           <AnchorPane prefHeight="100.0" prefWidth="160.0">
                <children>
@@ -106,11 +106,11 @@
             </AnchorPane>
           <AnchorPane prefHeight="160.0" prefWidth="100.0">
                <children>
-                  <SplitPane dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <SplitPane id="center-split" dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                     <items>
                       <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
-                              <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="400.0" minWidth="400.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                              <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="200.0" minWidth="200.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                            </children>
                         </AnchorPane>
                       <AnchorPane prefHeight="100.0" prefWidth="160.0">
@@ -230,7 +230,7 @@
             </AnchorPane>
           <AnchorPane prefHeight="160.0" prefWidth="100.0">
                <children>
-                  <SplitPane dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                     <items>
                         <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
@@ -249,7 +249,7 @@
                            <children>
                               <TitledPane animated="false" collapsible="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                 <content>
-                                    <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
+                                    <ScrollPane prefViewportHeight="325.0" prefViewportWidth="269.0" fitToWidth="true" fitToHeight="true">
                                        <content>
                                         <AnchorPane id="properties" prefHeight="180.0" prefWidth="200.0" />
                                        </content>

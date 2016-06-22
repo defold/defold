@@ -13,6 +13,7 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.hot-reload :as hotload]
             [editor.console :as console]
             [editor.cubemap :as cubemap]
             [editor.image :as image]
@@ -20,6 +21,7 @@
             [editor.collection :as collection]
             [editor.atlas :as atlas]
             [editor.platformer :as platformer]
+            [editor.prefs :as prefs]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
             [editor.switcher :as switcher]
@@ -41,12 +43,13 @@
             [dynamo.graph :as g]
             [editor.display-profiles :as display-profiles]
             [editor.web-profiler :as web-profiler]
+            [editor.login :as login]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
-            [javafx.scene.control Button TextArea]))
+            [javafx.scene.control Button TextArea SplitPane]))
 
 (set! *warn-on-reflection* true)
 
@@ -117,6 +120,7 @@
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (Stage.)
         scene      (Scene. root)]
+
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
                   (when (true? new-val)
@@ -126,12 +130,20 @@
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
+
+    (when-let [dims (prefs/get-prefs prefs app-view/prefs-window-dimensions nil)]
+      (.setX stage (:x dims))
+      (.setY stage (:y dims))
+      (.setWidth stage (:width dims))
+      (.setHeight stage (:height dims)))
+
     (ui/show! stage)
 
-    (let [close-handler (ui/event-handler event
-                                          (g/transact
-                                           (g/delete-node project)))]
-      (.setOnCloseRequest stage close-handler))
+    (ui/on-close-request! stage
+                          (fn [_]
+                            (g/transact
+                             (g/delete-node project))))
+
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
@@ -142,6 +154,9 @@
           next-console         (.lookup root "#next-console")
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
+          splits               [(.lookup root "#main-split")
+                                (.lookup root "#center-split")
+                                (.lookup root "#right-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -149,15 +164,24 @@
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
-          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
+          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
+                                                            hotload/url-prefix (hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]
+
+      (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
+        (doall (map (fn [^SplitPane sp pos]
+                      (when (and sp pos)
+                        (.setDividerPositions sp (into-array Double/TYPE pos))))
+                    splits div-pos)))
+
       (console/setup-console! {:text   console
                                :search search-console
                                :clear  clear-console
                                :next   next-console
                                :prev   prev-console})
+
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view      app-view
                          :project       project
@@ -166,7 +190,9 @@
                          :workspace     (g/node-value project :workspace)
                          :outline-view  outline-view
                          :web-server    web-server
-                         :changes-view  changes-view}]
+                         :changes-view  changes-view
+                         :main-stage    stage
+                         :splits        splits}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
        (concat
@@ -186,21 +212,10 @@
 
 (defn open-project
   [^File game-project-file prefs render-progress!]
-  (let [progress     (atom (progress/make "Loading project" 3))
-        _            (render-progress! @progress)
-        project-path (.getPath (.getParentFile game-project-file))
+  (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
-        project      (project/make-project *project-graph* workspace)
-        project      (project/load-project project
-                                           (g/node-value project :resources)
-                                           (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Updating dependencies"))
-        _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-        _            (workspace/update-dependencies! workspace
-                                                     (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Reloading dependencies"))
-        _            (workspace/resource-sync! workspace true []
-                                               (progress/nest-render-progress render-progress! @progress))
+        game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))]
     (workspace/update-version-on-disk! *workspace-graph*)
