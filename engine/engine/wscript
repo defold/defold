@@ -66,7 +66,7 @@ namespace dmEngineVersion
     operating_sys = build_util.get_target_os()
     architecture = build_util.get_target_architecture()
 
-    sound_lib = 'sound2'
+    sound_lib = 'sound'
     if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
@@ -116,6 +116,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
+    conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'

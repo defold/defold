@@ -542,6 +542,7 @@ TEST_F(dmTrackingTest, TestSimpleEvent)
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
 }
 
+#ifndef __x86_64__  // Reenable when we can run LuaJIT on 64 bit again
 TEST_F(dmTrackingTest, TestEscaping)
 {
     StartAndProvideConfigAndStid("stid-1234");
@@ -555,6 +556,7 @@ TEST_F(dmTrackingTest, TestEscaping)
     lua_pushstring(m_LuaState, type);
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
 }
+#endif
 
 TEST_F(dmTrackingTest, TestEventBatching)
 {

@@ -3,11 +3,18 @@
 
 namespace dmSound
 {
+
     Result PlatformInitialize(dmConfigFile::HConfig config, const InitializeParams* params);
 
     Result PlatformFinalize();
 
+    bool PlatformAcquireAudioFocus();
+
+    bool PlatformReleaseAudioFocus();
+
     bool PlatformIsMusicPlaying();
+
+    bool PlatformIsPhoneCallActive();
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H
