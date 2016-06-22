@@ -422,26 +422,23 @@
                                 (g/set-property code-node-id :selection-length selection-length)])))))))
   cvx/TextLine
   (line [this]
-    (let [document (.getDocument this)
+    (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
-          line-no (.getLineOfOffset document offset)
-          line-offset (.getLineOffset document line-no)]
-      (.get document line-offset (- offset line-offset))))
+          line-no (.getLineAtOffset text-area-content offset)]
+      (.getLine text-area-content line-no)))
   (prev-line [this]
-    (let [document (.getDocument this)
+    (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
-          line-no (.getLineOfOffset document offset)
-          line-offset (.getLineOffset document line-no)
+          line-no (.getLineAtOffset text-area-content offset)
           prev-line-num (dec line-no)]
       (if (neg? prev-line-num)
         ""
-        (let [prev-line-offset (.getLineOffset document prev-line-num)]
-         (.get document prev-line-offset (- line-offset prev-line-offset))))))
+        (.getLine text-area-content prev-line-num))))
   (line-offset [this]
-    (let [document (.getDocument this)
+    (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
-          line-no (.getLineOfOffset document offset)]
-      (.getLineOffset document line-no)))
+          line-no (.getLineAtOffset text-area-content offset)]
+      (.getOffsetAtLine text-area-content line-no)))
   cvx/TextProposals
   (propose [this]
     (when-let [assist-fn (assist this)]

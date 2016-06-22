@@ -36,12 +36,24 @@
     (let [code "line1\nline2\nline3\nline4"
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
-      (testing "toggle region comment"
-        (text-selection! source-viewer 8 9)
+      (testing "toggle region comment selecting down"
+        (caret! source-viewer 8 false)
+        (caret! source-viewer 17 true)
         (is (= "ne2\nline3" (text-selection source-viewer)))
         (toggle-comment! source-viewer)
         (is (= (str "line1\n" comment-str "line2\n" comment-str "line3\nline4") (text source-viewer)))
-        (text-selection! source-viewer 11 12)
+        (caret! source-viewer 8 false)
+        (caret! source-viewer 17 true)
+        (toggle-comment! source-viewer)
+        (is (= code (text source-viewer))))
+      (testing "toggle region comment selecting up"
+        (caret! source-viewer 17 false)
+        (caret! source-viewer 8 true)
+        (is (= "ne2\nline3" (text-selection source-viewer)))
+        (toggle-comment! source-viewer)
+        (is (= (str "line1\n" comment-str "line2\n" comment-str "line3\nline4") (text source-viewer)))
+        (caret! source-viewer 17 false)
+        (caret! source-viewer 8 true)
         (toggle-comment! source-viewer)
         (is (= code (text source-viewer)))))))
 
