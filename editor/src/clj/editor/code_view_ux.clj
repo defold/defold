@@ -51,17 +51,17 @@
   :Left                  {:command :left}
   :Right                 {:command :right}
 
-  :Ctrl+Right            {:command :next-word               :label "Move to Next Word"               :group "Movement" :order 1}
+  :Ctrl+Right            {:command :next-word}
   :Alt+Right             {:command :next-word}
-  :Ctrl+Left             {:command :prev-word               :label "Move to Prev Word"               :group "Movement" :order 2}
+  :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
-  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 3}
+  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
   :Ctrl+A                {:command :line-begin}
-  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 4}
+  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
   :Ctrl+E                {:command :line-end}
-  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 5}
-  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 6}
-  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 7}
+  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 3}
+  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 4}
+  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 5}
 
   ;; select
   :Double-Click          {:command :select-word}
