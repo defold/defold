@@ -6,7 +6,7 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.util.Log;
 
-public class Sound2 {
+public class Sound {
 
     public static int getSampleRate(Context context) {
         if (Build.VERSION.SDK_INT >= 17) {

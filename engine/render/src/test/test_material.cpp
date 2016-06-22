@@ -18,7 +18,7 @@ TEST(dmMaterialTest, TestTags)
 
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
-    uint32_t tags[] = {dmHashString32("tag1"), dmHashString32("tag2")};
+    dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};
     uint32_t mask = dmRender::ConvertMaterialTagsToMask(tags, 1);
     ASSERT_NE(0u, mask);
     dmRender::AddMaterialTag(material, tags[0]);
