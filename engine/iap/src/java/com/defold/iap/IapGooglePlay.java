@@ -326,11 +326,16 @@ public class IapGooglePlay implements Handler.Callback {
             JSONObject p = new JSONObject(purchase);
             p.put("ident", p.get("productId"));
             p.put("state", IapJNI.TRANS_STATE_PURCHASED);
+
+            // We check if orderId is actually set here, otherwise we return a blank string.
+            // This is what Google used to do, but after some updates around June/May 2016
+            // they stopped to include the orderId key at all for test purchases. See: DEF-1940
             if (p.has("orderId")) {
                 p.put("trans_ident", p.get("orderId"));
             } else {
                 p.put("trans_ident", "");
             }
+
             p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
             // Receipt is the complete json data
             // http://robertomurray.co.uk/blog/2013/server-side-google-play-in-app-billing-receipt-validation-and-testing/
