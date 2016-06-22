@@ -537,7 +537,7 @@
           doc (text selection)
           np (adjust-bounds doc c)
           word-end (re-find regex (subs doc np))
-          text-before (->> (subs doc 0 (inc np)) (reverse) (rest) (apply str))
+          text-before (->> (subs doc 0 (adjust-bounds doc (inc np))) (reverse) (rest) (apply str))
           word-begin (re-find regex text-before)
           start-pos (- np (count word-begin))
           end-pos (+ np (count word-end))
@@ -747,36 +747,38 @@
         doc (text selection)
         np (adjust-bounds doc c)
         line-comment (:line-comment (syntax selection))
-        lbefore (lines-before doc np)
-        lafter (lines-after doc np)
-        toggled-text (do-toggle-line doc lbefore lafter line-comment)
-        new-lines (concat (butlast lbefore)
-                          [toggled-text]
-                          (rest lafter))
-        new-doc (apply str (interpose "\n" new-lines))]
-    (text! selection new-doc)))
+        line-text (line selection)
+        loffset (line-offset selection)]
+    (replace! selection loffset (count line-text) (toggle-comment line-text line-comment))))
 
 (defn toggle-region-comment [selection]
   (let [c (caret selection)
         doc (text selection)
+        line-text (line selection)
+        loffset (line-offset selection)
         line-comment (:line-comment (syntax selection))
-        region-start (selection-offset selection)
         region-len (selection-length selection)
-        region-end (+ region-start region-len)
-        lbefore (lines-before doc region-start)
-        lafter (lines-after doc region-end)
-        region-lines (string/split (text-selection selection) #"\n")
-        toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
-        first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
-        last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
-        new-lines (flatten (conj []
-                                 (butlast lbefore)
-                                 [first-toggled-line]
-                                 toggled-region-lines
-                                 [last-toggled-line]
-                                 (rest lafter)))
-        new-doc (apply str (interpose "\n" new-lines))]
-    (text! selection new-doc)))
+        region-start (selection-offset selection)
+        region-end (+ region-start region-len)]
+    (cond
+      (and (>= region-start loffset) (<= region-end (+ loffset (count line-text))))
+      (toggle-line-comment selection)
+
+      :else
+      (let [lbefore (lines-before doc region-start)
+            lafter (lines-after doc region-end)
+            region-lines (string/split (text-selection selection) #"\n")
+            toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
+            first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
+            last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
+            new-lines (remove nil? (flatten (conj []
+                                                  (butlast lbefore)
+                                                  [first-toggled-line]
+                                                  toggled-region-lines
+                                                  [last-toggled-line]
+                                                  (rest lafter))))
+            new-doc (apply str (interpose "\n" new-lines))]
+        (text! selection new-doc)))))
 
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
