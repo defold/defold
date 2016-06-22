@@ -326,7 +326,11 @@ public class IapGooglePlay implements Handler.Callback {
             JSONObject p = new JSONObject(purchase);
             p.put("ident", p.get("productId"));
             p.put("state", IapJNI.TRANS_STATE_PURCHASED);
-            p.put("trans_ident", p.get("orderId"));
+            if (p.has("orderId")) {
+                p.put("trans_ident", p.get("orderId"));
+            } else {
+                p.put("trans_ident", "");
+            }
             p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
             // Receipt is the complete json data
             // http://robertomurray.co.uk/blog/2013/server-side-google-play-in-app-billing-receipt-validation-and-testing/

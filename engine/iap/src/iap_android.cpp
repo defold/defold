@@ -378,17 +378,23 @@ void HandlePurchaseResult(const Command* cmd)
     }
 
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
-        dmJson::Document doc;
-        dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
-        if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-            dmScript::JsonToLua(L, &doc, 0);
-            lua_pushnil(L);
+        if (cmd->m_Data1 != 0) {
+            dmJson::Document doc;
+            dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
+            if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+                dmScript::JsonToLua(L, &doc, 0);
+                lua_pushnil(L);
+            } else {
+                dmLogError("Failed to parse purchase response (%d)", r);
+                lua_pushnil(L);
+                IAP_PushError(L, "failed to parse purchase response", REASON_UNSPECIFIED);
+            }
+            dmJson::Free(&doc);
         } else {
-            dmLogError("Failed to parse purchase response (%d)", r);
+            dmLogError("IAP error, purchase response was null");
             lua_pushnil(L);
-            IAP_PushError(L, "failed to parse purchase response", REASON_UNSPECIFIED);
+            IAP_PushError(L, "purchase response was null", REASON_UNSPECIFIED);
         }
-        dmJson::Free(&doc);
     } else if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_USER_CANCELED) {
         lua_pushnil(L);
         IAP_PushError(L, "user canceled purchase", REASON_USER_CANCELED);
