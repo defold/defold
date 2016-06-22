@@ -863,7 +863,9 @@
       (let [line-seperator (System/getProperty "line.separator")
             current-line (line selection)
             line-offset (line-offset selection)
-            indent-text (indentation selection current-line line-seperator)]
+            line-text (line selection)
+            at-end-of-line? (= (caret selection) (+ line-offset (count line-text)))
+            indent-text (when at-end-of-line? (indentation selection current-line line-seperator))]
         (if indent-text
           (replace-text-and-caret selection line-offset (count current-line) indent-text (+ line-offset (count indent-text)))
           (enter-key-text selection line-seperator))))))
