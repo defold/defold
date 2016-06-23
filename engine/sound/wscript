@@ -28,6 +28,7 @@ def configure(conf):
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
 
     platform = conf.env['PLATFORM']
@@ -35,7 +36,7 @@ def configure(conf):
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
     elif platform == "armv7-darwin" or platform == "arm64-darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox', '-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])

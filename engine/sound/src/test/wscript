@@ -134,7 +134,7 @@ def build(bld):
     if use_tremolo:
         test_sound_perf = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
-                                      uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs ,
+                                      uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL EXTENSION' + extra_libs ,
                                       uselib_local = 'sound embedded_wavs embedded_oggs',
                                       exported_symbols = exported_symbols,
                                       target = 'test_sound_perf',
@@ -143,7 +143,7 @@ def build(bld):
 
     test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
+                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL EXTENSION' + extra_libs,
                                   uselib_local = 'sound embedded_wavs embedded_oggs',
                                   exported_symbols = exported_symbols,
                                   target = 'test_sound',
