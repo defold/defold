@@ -164,31 +164,34 @@
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
 (g/defnk produce-cp-renderables [curves viewport camera sub-selection]
-  (prn "c" curves)
-  (prn "sub" sub-selection)
-  (let [sub-sel (into {} (mapv (fn [] []) sub-selection))
+  (let [sub-sel (into {} (mapv (fn [[nid prop ids]] [[nid prop] ids]) sub-selection))
         scale (camera/scale-factor camera viewport)
         splines (mapv (fn [{:keys [node-id property curve]}]
-                        (let [subs (filterv (fn []) sub-selection)]
-                          (->> curve
-                           (mapv second)
-                           (properties/->spline)))) curves)
+                        (let [sel (get sub-sel [node-id property])]
+                          [(->> curve
+                             (mapv second)
+                             (properties/->spline)) (set sel)])) curves)
         scount (count splines)
-        colors (map-indexed (fn [i s] (let [h (* (+ i 0.5) (/ 360.0 scount))
-                                            s 1.0
-                                            l 0.7]
-                                        (colors/hsl->rgba h s l)))
-                    splines)
+        color-hues (map-indexed (fn [i _] (* (+ i 0.5) (/ 360.0 scount)))
+                        splines)
         cp-r 4.0
         quad (let [[v0 v1 v2 v3] (vec (for [x [(- cp-r) cp-r]
                                             y [(- cp-r) cp-r]]
                                         [x y 0.0]))]
                (geom/scale scale [v0 v1 v2 v2 v1 v3]))
-        cp-vs (mapcat (fn [spline color] (let [[r g b a] color]
-                                           (->> spline
-                                             (mapcat (fn [[x y tx ty]] (geom/transl [x y 0.0] quad)))
-                                             (map (fn [[x y z]] [x y z r g b a])))))
-                      splines colors)
+        cp-vs (mapcat (fn [[spline sel] hue]
+                        (let [s 0.7
+                              l 0.5]
+                          (->> spline
+                            (map-indexed (fn [i [x y tx ty]]
+                                           (let [v (geom/transl [x y 0.0] quad)
+                                                 selected? (contains? sel (inc i))
+                                                 s (if selected? 1.0 s)
+                                                 l (if selected? 0.9 l)
+                                                 c (colors/hsl->rgba hue s l)]
+                                             (mapv (fn [v] (reduce conj v c)) v))))
+                            (mapcat identity))))
+                      splines color-hues)
         cp-vcount (count cp-vs)
         screen-tris (when (< 0 cp-vcount)
                       (let [vb (->color-vtx cp-vcount)]
@@ -449,11 +452,13 @@
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
                                                 (g/connect selection            :picking-rect              view-id          :picking-rect)
                                                 (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                #_(g/connect view-id              :selection                 selection        :selection))))
-          ^Node pane (make-gl-pane node-id parent opts)]
-      (ui/fill-control pane)
-      (ui/children! parent [pane])
-      (ui/user-data! parent ::node-id node-id)
+                                                #_(g/connect view-id              :selection                 selection        :selection))))]
+      (when parent
+        (let [^Node pane (make-gl-pane node-id parent opts)]
+          (prn "WHY??" parent)
+          (ui/fill-control pane)
+          (ui/children! parent [pane])
+          (ui/user-data! parent ::node-id node-id)))
       node-id)))
 
 (defn- reload-curve-view []
@@ -462,5 +467,3 @@
       (ui/run-now
         (destroy-view! parent)
         (make-view! project graph parent opts true)))))
-
-(reload-curve-view)

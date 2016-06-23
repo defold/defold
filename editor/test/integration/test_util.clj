@@ -98,8 +98,11 @@
 (g/defnode DummyAppView
   (property active-tool g/Keyword))
 
+(defn make-view-graph! []
+  (g/make-graph! :history false :volatility 2))
+
 (defn setup-app-view! []
-  (let [view-graph (g/make-graph! :history false :volatility 2)
+  (let [view-graph (make-view-graph!)
         app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph DummyAppView :active-tool :move))))]
     app-view))
 
