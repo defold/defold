@@ -6,7 +6,8 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
+            DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
@@ -18,7 +19,7 @@
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
            [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection StyledTextLayoutContainer]
            [org.eclipse.fx.ui.controls.styledtext.behavior StyledTextBehavior]
-           [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin StyledTextSkin$LineCell]
+           [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin]
            [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
            [org.eclipse.jface.text.rules FastPartitioner ICharacterScanner IPredicateRule IRule IToken IWhitespaceDetector
             IWordDetector MultiLineRule RuleBasedScanner RuleBasedPartitionScanner SingleLineRule Token WhitespaceRule WordRule]))
@@ -233,7 +234,7 @@
   TextPointer
   (caret-at-point [this x y]
     (let [bip (.getBoundsInParent this)
-          de (.getDomainElement ^StyledTextSkin$LineCell this)
+          de (.getDomainElement ^DefoldStyledTextSkin$LineCell this)
           ^StyledTextLayoutContainer n (.getGraphic this)
           base {:min-x (.getMinX bip)
                 :min-y (.getMinY bip)
@@ -264,7 +265,7 @@
   (caret [this] (.getCaretOffset this)))
 
 (defn setup-source-viewer [opts use-custom-skin?]
-  (let [source-viewer (SourceViewer.)
+  (let [source-viewer (DefoldSourceViewer.)
         source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
         partitioner (make-partitioner opts)]
@@ -277,11 +278,12 @@
     (.setDocument source-viewer document)
 
     (let [text-area (.getTextWidget source-viewer)
-          styled-text-behavior  (proxy [StyledTextBehavior] [text-area]
+          styled-text-behavior  (proxy [DefoldStyledTextBehavior] [text-area]
                                   (callActionForEvent [key-event]
                                     ;;do nothing we are handling all the events
                                     )
-                                  (updateCursor [^MouseEvent event visible-cells selection]
+                                  (defoldUpdateCursor [^MouseEvent event visible-cells selection]
+                                    (println "Carin!")
                                     (let [vcells (into [] visible-cells)
                                           doc-len (.getCharCount ^StyledTextArea text-area)
                                           event-y (.getY event)
