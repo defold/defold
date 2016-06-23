@@ -1317,7 +1317,7 @@
 (defn collect-property-values
   [self-name ctx-name beh-sym description nodeid-sym value-sym forms]
   (let [props (:property description)]
-    `(let [~value-sym ~(apply merge
+    `(let [~value-sym ~(apply merge {}
                               (for [[p _] (filter (comp external-property? val) props)]
                                 {p `((get-in ~beh-sym [~p :fn]) ~self-name ~ctx-name)}))]
        ~forms)))
