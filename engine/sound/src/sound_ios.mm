@@ -2,7 +2,7 @@
 #include "sound.h"
 #include "sound_private.h"
 
-#include <extension/extension.h>
+#include <graphics/glfw/glfw.h>
 
 #include <AudioToolbox/AudioSession.h>
 
@@ -75,7 +75,7 @@ namespace dmSound
     {
         // NOTE: We actually ignore errors here. "Should never happen"
         ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
-        dmExtension::RegisterUIApplicationDelegate(::g_soundApplicationDelegate);
+        glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
 
         ::g_callCenter = [[CTCallCenter alloc] init];
         ::g_phoneCallActive = ::checkPhoneCallActive();
@@ -112,7 +112,7 @@ namespace dmSound
 
     Result PlatformFinalize()
     {
-        dmExtension::UnregisterUIApplicationDelegate(::g_soundApplicationDelegate);
+        glfwUnregisterUIApplicationDelegate(::g_soundApplicationDelegate);
         [::g_soundApplicationDelegate release];
         return RESULT_OK;
     }
