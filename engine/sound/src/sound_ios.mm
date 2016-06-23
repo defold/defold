@@ -2,11 +2,70 @@
 #include "sound.h"
 #include "sound_private.h"
 
+#include <graphics/glfw/glfw.h>
+
 #include <AudioToolbox/AudioSession.h>
 
+#import <UIKit/UIKit.h>
 #import <CoreTelephony/CTCallCenter.h>
 #import <CoreTelephony/CTCall.h>
 
+// ---------------------------------------------------------------------------
+// Anonymous namespace
+// ---------------------------------------------------------------------------
+namespace {
+
+    CTCallCenter* g_callCenter = NULL;
+    bool g_phoneCallActive = false;
+    id<UIApplicationDelegate> g_soundApplicationDelegate;
+
+    bool checkPhoneCallActive() {
+        for (CTCall* call in ::g_callCenter.currentCalls)  {
+            if (call.callState == CTCallStateConnected
+                || call.callState == CTCallStateDialing
+                || call.callState == CTCallStateIncoming) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+};
+
+// ---------------------------------------------------------------------------
+// SoundApplicationDelegate, iOS specific delegate
+// ---------------------------------------------------------------------------
+@interface SoundApplicationDelegate : NSObject <UIApplicationDelegate>
+
+    - (void) applicationDidBecomeActive:(UIApplication *) application;
+
+@end
+
+@implementation SoundApplicationDelegate
+
+    - (void) applicationDidBecomeActive:(UIApplication *) application {
+
+        if (::g_callCenter != NULL)
+        {
+            [::g_callCenter release];
+            ::g_callCenter = [[CTCallCenter alloc] init];
+            ::g_callCenter.callEventHandler = ^(CTCall *call) {
+                ::g_phoneCallActive = (call.callState == CTCallStateConnected
+                                        || call.callState == CTCallStateDialing
+                                        || call.callState == CTCallStateIncoming);
+            };
+        }
+
+        ::g_phoneCallActive = ::checkPhoneCallActive();
+    }
+
+@end
+
+
+// ---------------------------------------------------------------------------
+// dmSound namespace
+// ---------------------------------------------------------------------------
 namespace dmSound
 {
     bool AudioSessionInitialized = false;
@@ -15,6 +74,17 @@ namespace dmSound
             const InitializeParams* params)
     {
         // NOTE: We actually ignore errors here. "Should never happen"
+        ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
+        glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
+
+        ::g_callCenter = [[CTCallCenter alloc] init];
+        ::g_phoneCallActive = ::checkPhoneCallActive();
+        ::g_callCenter.callEventHandler = ^(CTCall *call) {
+            ::g_phoneCallActive = (call.callState == CTCallStateConnected
+                                    || call.callState == CTCallStateDialing
+                                    || call.callState == CTCallStateIncoming);
+        };
+
         OSStatus status = 0;
         if (!AudioSessionInitialized) {
             status = AudioSessionInitialize(0, 0, 0, 0);
@@ -42,6 +112,8 @@ namespace dmSound
 
     Result PlatformFinalize()
     {
+        glfwUnregisterUIApplicationDelegate(::g_soundApplicationDelegate);
+        [::g_soundApplicationDelegate release];
         return RESULT_OK;
     }
 
@@ -64,16 +136,7 @@ namespace dmSound
 
     bool PlatformIsPhoneCallActive()
     {
-        CTCallCenter* callCenter = [[[CTCallCenter alloc] init] autorelease];
-        for (CTCall* call in callCenter.currentCalls)  {
-            if (call.callState == CTCallStateConnected
-                || call.callState == CTCallStateDialing
-                || call.callState == CTCallStateIncoming) {
-                return true;
-            }
-        }
-
-        return false;
+        return ::g_phoneCallActive;
     }
 
 }
