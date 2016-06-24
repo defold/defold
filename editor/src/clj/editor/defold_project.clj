@@ -17,6 +17,7 @@
             [service.log :as log]
             ;; TODO - HACK
             [internal.graph.types :as gt]
+            [util.http-server :as http-server]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -29,6 +30,8 @@
 (def ^:dynamic *load-cache* nil)
 
 (def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+
+(def ^:const hot-reload-url-prefix "/build")
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -322,13 +325,17 @@
             (console/append-console-message! msg)
             (recur)))))))
 
-(defn- launch-engine [launch-dir]
+(defn- launch-engine [launch-dir webserver]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        pb     (doto (ProcessBuilder. ^java.util.List (list path))
+        url    (str (http-server/local-url webserver) hot-reload-url-prefix)
+        pb     (doto (ProcessBuilder. ^java.util.List
+                                      (list path
+                                            (str "--config=resource.uri=" url)
+                                            (str url "/game.projectc")))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
-    (let [p (.start pb)
+    (let [p  (.start pb)
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
 
@@ -534,27 +541,31 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
+(defn build-and-save-project [project]
+  (when-not @ongoing-build-save?
+    (reset! ongoing-build-save? true)
+    (let [workspace     (workspace project)
+          game-project  (get-resource-node project "/game.project")
+          old-cache-val @(g/cache)
+          cache         (atom old-cache-val)]
+      (future
+        (try
+          (ui/with-progress [render-fn ui/default-render-progress!]
+            (when-not (empty? (build-and-write project game-project
+                                               {:render-progress! render-fn
+                                                :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
+                                                :basis            (g/now)
+                                                :cache            cache}))
+              (update-system-cache! old-cache-val cache)))
+          (finally (reset! ongoing-build-save? false)))))))
+
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
-  (run [project]
-    (when-not @ongoing-build-save?
-      (reset! ongoing-build-save? true)
-      (let [workspace     (workspace project)
-            game-project  (get-resource-node project "/game.project")
-            launch-path   (workspace/project-path (g/node-value project :workspace))
-            old-cache-val @(g/cache)
-            cache         (atom old-cache-val)]
-        (future
-          (try
-            (ui/with-progress [render-fn ui/default-render-progress!]
-              (when-not (empty? (build-and-write project game-project
-                                                 {:render-progress! render-fn
-                                                  :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
-                                                  :basis            (g/now)
-                                                  :cache            cache}))
-                (update-system-cache! old-cache-val cache)
-                (launch-engine (io/file launch-path))))
-            (finally (reset! ongoing-build-save? false))))))))
+  (run [project web-server]
+    (let [build (build-and-save-project project)]
+      (when (and (future? build) @build)
+        (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
+                       web-server)))))
 
 (defn settings [project]
   (g/node-value project :settings))

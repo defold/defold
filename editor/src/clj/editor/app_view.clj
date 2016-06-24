@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
+            [editor.hot-reload :as hot-reload]
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
@@ -164,6 +165,16 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
+(handler/defhandler :hot-reload :global
+  (enabled? [app-view]
+            ;; TODO Also figure out if the engine running (somewhere)
+            (g/node-value app-view :active-resource))
+  (run [project app-view]
+    (when-let [resource (g/node-value app-view :active-resource)]
+      (let [build (project/build-and-save-project project)]
+        (when (and (future? build) @build)
+            (hot-reload/post-reload-resource resource))))))
+
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
@@ -225,6 +236,9 @@
                               :acc "Shift+Shortcut+F"
                               :command :search-in-files}
                              {:label :separator}
+                             {:label "Hot Reload"
+                              :acc "Shortcut+R"
+                              :command :hot-reload}
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
@@ -288,7 +302,10 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Close"
+                [{:label "Hot Reload"
+                  :acc "Shortcut+R"
+                  :command :hot-reload}
+                 {:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
                  {:label "Close Others"
