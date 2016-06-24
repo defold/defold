@@ -283,7 +283,6 @@
                                     ;;do nothing we are handling all the events
                                     )
                                   (defoldUpdateCursor [^MouseEvent event visible-cells selection]
-                                    (println "Carin!")
                                     (let [vcells (into [] visible-cells)
                                           doc-len (.getCharCount ^StyledTextArea text-area)
                                           event-y (.getY event)
