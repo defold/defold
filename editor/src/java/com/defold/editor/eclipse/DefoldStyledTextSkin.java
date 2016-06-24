@@ -136,8 +136,21 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 			@Override
 			public void changed(ObservableValue<? extends TextSelection> observable, TextSelection oldValue, TextSelection newValue) {
+				System.err.println("Selection changed!");
+				//int lineIndex = getSkinnable().getContent().getLineAtOffset(getSkinnable().getCaretOffset());
+				//getFlow().show(lineIndex);
+				//getSkinnable().requestFocus();
+				//getFlow().reconfigureCells();
+				//getFlow().rebuildCells();
+
+				
+				List<LineCell> vcells = getCurrentVisibleCells();
+				Map<LineCell,LineInfo > mymap = lineInfoMap;
+				Set<LineCell> mymapcells = mymap.keySet();
+				//System.err.println("vcells" + vcells.size() + "mymapcells " + mymapcells.size());
+				
 				if (newValue == null || newValue.length == 0) {
-					for (LineCell c : getCurrentVisibleCells()) {
+					for (LineCell c : mymapcells) {
 						if (c.getGraphic() != null) {
 							StyledTextLayoutContainer block = (StyledTextLayoutContainer) c.getGraphic();
 							block.setSelection(new TextSelection(0, 0));
@@ -145,11 +158,14 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 					}
 				} else {
 					TextSelection selection = newValue;
-					for (LineCell c : getCurrentVisibleCells()) {
+					for (LineCell c : mymapcells) {
 						if (c.getGraphic() != null) {
 							Line arg0 = c.domainElement;
 							StyledTextLayoutContainer block = (StyledTextLayoutContainer) c.getGraphic();
 							if (selection.length > 0 && block.intersectOffset(selection.offset, selection.offset + selection.length)) {
+								//System.err.println("selection.offset" + selection.offset + "selection.length" + selection.length);
+								//System.err.println("arg0.getLineOffset" + arg0.getLineOffset() + "arg0.getLineLenght" + arg0.getLineLength());
+
 								int start = Math.max(0, selection.offset - arg0.getLineOffset());
 
 								if (arg0.getLineOffset() + arg0.getLineLength() > selection.offset + selection.length) {
@@ -160,6 +176,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							} else {
 								block.setSelection(new TextSelection(0, 0));
 							}
+							System.err.println("Selection set to " + block.getSelection());
+							//getFlow().requestLayout();
 						}
 					}
 				}
@@ -756,7 +774,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			Set<Node> children = new HashSet<Node>(getChildren());
 			List<LineInfo> layouted = new ArrayList<>();
 			double maxWidth = 0;
-			for (LineCell c : getCurrentVisibleCells()) {
+			for (LineCell c : lineInfoMap.keySet()) {
 				if (c.isVisible()) {
 					LineInfo lineInfo = DefoldStyledTextSkin.this.lineInfoMap.get(c);
 					if (lineInfo != null) {
@@ -817,6 +835,25 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 	class MyVirtualFlow extends VirtualFlow<LineCell> {
 		public MyVirtualFlow() {
 		}
+		
+		@Override
+		protected void layoutChildren() {
+			super.layoutChildren();
+			
+			Platform.runLater(new Runnable() {
+
+				@Override
+				public void run() {
+					for (LineCell c : lineInfoMap.keySet()) {
+						if (c.getGraphic() != null) {
+							StyledTextLayoutContainer block = (StyledTextLayoutContainer) c.getGraphic();
+							block.requestLayout();
+						}
+					}
+					
+				}
+			});
+		}
 
 		@Override
 		protected void positionCell(LineCell cell, double position) {
@@ -843,6 +880,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 		@Override
 		public void rebuildCells() {
+			super.rebuildCells();
 			DefoldStyledTextSkin.this.lineRuler.skipRelayout = true;
 			Platform.runLater(new Runnable() {
 
@@ -852,7 +890,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 					DefoldStyledTextSkin.this.lineRuler.requestLayout();
 				}
 			});
-			super.rebuildCells();
 		}
 	}
 }
