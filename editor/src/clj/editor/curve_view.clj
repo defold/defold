@@ -83,8 +83,7 @@
 
 (defn render-curves [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
-        viewport (:viewport render-args)
-        #_scale-f #_(scale-factor camera viewport)]
+        viewport (:viewport render-args)]
     (doseq [renderable renderables
             :let [screen-tris (get-in renderable [:user-data :screen-tris])
                   world-lines (get-in renderable [:user-data :world-lines])]]
@@ -111,15 +110,6 @@
 
 (g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables tool-renderables]
   (when async-copier
-    #_(profiler/profile "updatables" -1
-                       ; Fixed dt for deterministic playback
-                       (let [dt 1/60
-                             context {:dt (if (= play-mode :playing) dt 0)}]
-                         (doseq [updatable active-updatables
-                                 :let [node-path (:node-path updatable)
-                                       context (assoc context
-                                                      :world-transform (:world-transform updatable))]]
-                           ((get-in updatable [:updatable :update-fn]) context))))
     (profiler/profile "render-curves" -1
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
@@ -164,13 +154,13 @@
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
 (g/defnk produce-cp-renderables [curves viewport camera sub-selection]
-  (let [sub-sel (into {} (mapv (fn [[nid prop ids]] [[nid prop] ids]) sub-selection))
+  (let [sub-sel (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx)))) {} sub-selection)
         scale (camera/scale-factor camera viewport)
         splines (mapv (fn [{:keys [node-id property curve]}]
                         (let [sel (get sub-sel [node-id property])]
                           [(->> curve
                              (mapv second)
-                             (properties/->spline)) (set sel)])) curves)
+                             (properties/->spline)) sel])) curves)
         scount (count splines)
         color-hues (map-indexed (fn [i _] (* (+ i 0.5) (/ 360.0 scount)))
                         splines)
@@ -215,54 +205,6 @@
         curves (map-indexed (fn [i c] (assoc c :hue (* (+ i 0.5) hue-f))) curves)]
     curves))
 
-(defn- handle-input [self action user-data]
-  (prn "action" action)
-  #_(let [viewport                   (g/node-value self :viewport)
-         movements-enabled          (g/node-value self :movements-enabled)
-         ui-state                   (g/node-value self :ui-state)
-         {:keys [last-x last-y]}    @ui-state
-         {:keys [x y type delta-y]} action
-         movement                   (if (= type :mouse-pressed)
-                                      (get movements-enabled (camera-movement action) :idle)
-                                      (:movement @ui-state))
-         camera                     (g/node-value self :camera)
-         filter-fn                  (or (:filter-fn camera) identity)
-         camera                     (cond-> camera
-                                      (and (= type :scroll)
-                                           (contains? movements-enabled :dolly))
-                                      (dolly (* -0.002 delta-y))
-
-                                      (and (= type :mouse-moved)
-                                           (not (= :idle movement)))
-                                      (cond->
-                                        (= :dolly movement)
-                                        (dolly (* -0.002 (- y last-y)))
-                                        (= :track movement)
-                                        (track viewport last-x last-y x y)
-                                        (= :tumble movement)
-                                        (tumble last-x last-y x y))
-
-                                      true
-                                      filter-fn)]
-     (g/set-property! self :local-camera camera)
-     (case type
-       :scroll (if (contains? movements-enabled :dolly) nil action)
-       :mouse-pressed (do
-                        (swap! ui-state assoc :last-x x :last-y y :movement movement)
-                        (if (= movement :idle) action nil))
-       :mouse-released (do
-                         (swap! ui-state assoc :last-x nil :last-y nil :movement :idle)
-                         (if (= movement :idle) action nil))
-       :mouse-moved (if (not (= :idle movement))
-                      (do
-                        (swap! ui-state assoc :last-x x :last-y y)
-                        nil)
-                      action)
-       action)))
-
-(g/defnode CurveController
-  (output input-handler Runnable :cached (g/fnk [] handle-input)))
-
 (defn- aabb-contains? [^AABB aabb ^Point3d p]
   (let [min-p (types/min-p aabb)
         max-p (types/max-p aabb)]
@@ -295,31 +237,26 @@
           (g/fnk [curves picking-rect camera viewport]
                  (let [aabb (geom/rect->aabb picking-rect)]
                    (keep identity
-                         (mapv (fn [c]
-                                 (let [curve (:curve c)
-                                       selected (->> curve
-                                                  (filterv (fn [[idx cp]]
-                                                             (let [[x y] cp
-                                                                   p (doto (->> (Point3d. x y 0.0)
-                                                                             (camera/camera-project camera viewport))
-                                                                       (.setZ 0.0))]
-                                                               (aabb-contains? aabb p))))
-                                                  (mapv first))]
-                                   (when (not (empty? selected))
-                                     [(:node-id c) (:property c) selected])))
+                         (mapcat (fn [c]
+                                   (let [curve (:curve c)
+                                         selected (->> curve
+                                                    (filterv (fn [[idx cp]]
+                                                               (let [[x y] cp
+                                                                     p (doto (->> (Point3d. x y 0.0)
+                                                                               (camera/camera-project camera viewport))
+                                                                         (.setZ 0.0))]
+                                                                 (aabb-contains? aabb p))))
+                                                    (mapv first))]
+                                     (when (not (empty? selected))
+                                       (mapv (fn [idx] [(:node-id c) (:property c) idx]) selected))))
                                curves)))))
   (output selected-tool-renderables g/Any :cached (g/fnk [] {})))
 
 (defonce view-state (atom nil))
 
 (defn- update-image-view! [^ImageView image-view dt]
-  #_(profiler/begin-frame)
   (let [view-id (ui/user-data image-view ::view-id)
         view-graph (g/node-id->graph-id view-id)]
-    ;; Explicitly invalidate frame while there are active updatables
-    #_(when (not (empty? (g/node-value view-id :active-updatables)))
-       (g/invalidate! [[view-id :async-frame]]))
-    #_(scene-cache/prune-object-caches! nil)
     (try
       (g/node-value view-id :async-frame)
       (catch Exception e
@@ -379,9 +316,7 @@
                              (ui/user-data! parent ::repainter repainter)
                              (ui/on-close tab
                                           (fn [e]
-                                            (ui/timer-stop! repainter)
-                                            #_(scene-view-dispose view-id)
-                                            #_(scene-cache/drop-context! nil true)))
+                                            (ui/timer-stop! repainter)))
                              (ui/timer-start! repainter))
                            (let [drawable (scene/make-drawable w h)]
                              (g/transact
@@ -426,7 +361,6 @@
   ([project graph ^Parent parent opts reloading?]
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    CurveView
-                                                       #_controller #_CurveController
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
@@ -443,7 +377,6 @@
                                                 (g/connect grid :renderable view-id :aux-renderables)
                                                 (g/connect background :_node-id view-id :background-id)
                                                 (g/connect background :renderable view-id :aux-renderables)
-                                                #_(g/connect controller :input-handler view-id :input-handlers)
 
                                                 (g/connect project :selected-node-properties view-id :selected-node-properties)
                                                 (g/connect project :sub-selection view-id :sub-selection)
@@ -452,10 +385,9 @@
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
                                                 (g/connect selection            :picking-rect              view-id          :picking-rect)
                                                 (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                #_(g/connect view-id              :selection                 selection        :selection))))]
+                                                (g/connect project              :sub-selection             selection        :selection))))]
       (when parent
         (let [^Node pane (make-gl-pane node-id parent opts)]
-          (prn "WHY??" parent)
           (ui/fill-control pane)
           (ui/children! parent [pane])
           (ui/user-data! parent ::node-id node-id)))
