@@ -123,9 +123,7 @@
           user-data (g/node-value view :selected-tool-renderables)
           action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
           action    (scene/augment-action view action)]
-      (doseq [[node-id label] handlers]
-        (let [handler-fn (g/node-value node-id label)]
-          (handler-fn node-id action user-data))))))
+      (scene/dispatch-input handlers action user-data))))
 
 (defn mouse-press!
   ([view x y]

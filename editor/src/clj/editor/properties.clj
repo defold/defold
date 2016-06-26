@@ -66,17 +66,27 @@
 
 (defn- curve-update [curve ids f]
   (let [ids (set ids)]
-    (assoc curve :points (iv/iv-mapv (fn [entry]
-                                       (let [[id v] entry]
-                                         (if (ids id) [id (f v)] entry))) (:points curve)))))
+    (update curve :points (partial iv/iv-update-ids f) ids)))
 
 (defn- curve-transform [curve ids ^Matrix4d transform]
-  (let [p (Point3d.)]
-    (t/geom-update curve ids (fn [v]
-                               (let [[x y] v]
-                                 (.set p x y 0.0)
-                                 (.transform transform p)
-                                 [(.getX p) (.getY p) 0.0])))))
+  (let [p (Point3d.)
+        cps (->> (:points curve) iv/iv-vals (mapv first) sort vec)
+        margin 0.01
+        limits (->> cps
+                 (partition 3 1)
+                 (mapv (fn [[min x max]] [x [(+ min margin) (- max margin)]]))
+                 (into {}))
+        limits (-> limits
+                 (assoc (first cps) [0.0 0.0]
+                        (last cps) [1.0 1.0]))]
+    (curve-update curve ids (fn [v]
+                              (let [[x y] v]
+                                (.set p x y 0.0)
+                                (.transform transform p)
+                                (let [[min-x max-x] (limits x)
+                                      x (max min-x (min max-x (.getX p)))
+                                      y (.getY p)]
+                                  (assoc v 0 x 1 y)))))))
 
 (defrecord Curve [points]
   Sampler

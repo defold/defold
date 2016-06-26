@@ -211,6 +211,95 @@
     (and (<= (.x min-p) (.x p) (.x max-p))
          (<= (.y min-p) (.y p) (.y max-p)))))
 
+(defn handle-input [self action user-data]
+  (let [^Point3d start      (g/node-value self :start)
+        ^Point3d current    (g/node-value self :current)
+        op-seq     (g/node-value self :op-seq)
+        command    (g/node-value self :command)
+        sub-selection (g/node-value self :sub-selection)
+        ^Point3d cursor-pos (:world-pos action)]
+    (case (:type action)
+      :mouse-pressed (let [basis (g/now)
+                           op-seq (gensym)
+                           [command data] (g/node-value self :curve-handle)
+                           sel-mods? (some #(get action %) selection/toggle-modifiers)]
+                       (if (and (some? command) (not sel-mods?))
+                         (let [sub-selection (if (not (contains? (set sub-selection) data))
+                                               (let [select-fn (g/node-value self :select-fn)
+                                                     sub-selection [data]]
+                                                 (select-fn sub-selection op-seq)
+                                                 sub-selection)
+                                               sub-selection)]
+                           (g/transact
+                             (concat
+                               (g/operation-sequence op-seq)
+                               (g/set-property self :op-seq op-seq)
+                               (g/set-property self :start cursor-pos)
+                               (g/set-property self :current cursor-pos)
+                               (g/set-property self :command command)
+                               (g/set-property self :_basis (atom basis))))
+                           nil)
+                         action))
+      :mouse-released (do
+                        (g/transact
+                          (concat
+                            (g/operation-sequence op-seq)
+                            (g/set-property self :start nil)
+                            (g/set-property self :current nil)
+                            (g/set-property self :op-seq nil)
+                            (g/set-property self :command nil)
+                            (g/set-property self :_basis nil)))
+                        (if command
+                          nil
+                          action))
+      :mouse-moved (case command
+                     :move (let [basis @(g/node-value self :_basis)
+                                 delta (doto (Vector3d.)
+                                         (.sub cursor-pos start))
+                                 trans (doto (Matrix4d.)
+                                         (.set delta))
+                                 ids (reduce (fn [ids [nid prop idx]]
+                                               (update ids [nid prop] (fn [v] (conj (or v []) idx))))
+                                             {} sub-selection)]
+                             (g/transact
+                               (concat
+                                 (g/operation-sequence op-seq)
+                                 (g/set-property self :current cursor-pos)
+                                 (for [[[nid prop] ids] ids
+                                       :let [curve (g/node-value nid prop :basis basis)]]
+                                   (g/set-property nid prop (types/geom-transform curve ids trans)))))
+                             nil)
+                     action)
+      action)))
+
+(g/defnode CurveController
+  (property command g/Keyword)
+  (property start Point3d)
+  (property current Point3d)
+  (property op-seq g/Any)
+  (property _basis g/Any)
+  (property select-fn Runnable)
+  (input sub-selection g/Any)
+  (input curve-handle g/Any)
+  (output input-handler Runnable :cached (g/always handle-input)))
+
+(defn- pick-control-points [curves picking-rect camera viewport]
+  (let [aabb (geom/rect->aabb picking-rect)]
+    (->> curves
+      (mapcat (fn [c]
+                (->> (:curve c)
+                  (filterv (fn [[idx cp]]
+                             (let [[x y] cp
+                                   p (doto (->> (Point3d. x y 0.0)
+                                             (camera/camera-project camera viewport))
+                                       (.setZ 0.0))]
+                               (aabb-contains? aabb p))))
+                  (mapv (fn [[idx _]] [(:node-id c) (:property c) idx])))))
+      (keep identity))))
+
+(g/defnk produce-picking-selection [curves picking-rect camera viewport]
+  (pick-control-points curves picking-rect camera viewport))
+
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
 
@@ -233,24 +322,12 @@
   (output curves g/Any :cached produce-curves)
   (output curve-renderables g/Any :cached produce-curve-renderables)
   (output cp-renderables g/Any :cached produce-cp-renderables)
-  (output picking-selection g/Any
-          (g/fnk [curves picking-rect camera viewport]
-                 (let [aabb (geom/rect->aabb picking-rect)]
-                   (keep identity
-                         (mapcat (fn [c]
-                                   (let [curve (:curve c)
-                                         selected (->> curve
-                                                    (filterv (fn [[idx cp]]
-                                                               (let [[x y] cp
-                                                                     p (doto (->> (Point3d. x y 0.0)
-                                                                               (camera/camera-project camera viewport))
-                                                                         (.setZ 0.0))]
-                                                                 (aabb-contains? aabb p))))
-                                                    (mapv first))]
-                                     (when (not (empty? selected))
-                                       (mapv (fn [idx] [(:node-id c) (:property c) idx]) selected))))
-                               curves)))))
-  (output selected-tool-renderables g/Any :cached (g/fnk [] {})))
+  (output picking-selection g/Any produce-picking-selection)
+  (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
+  (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport]
+                                            (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
+                                              [:move cp]
+                                              nil))))
 
 (defonce view-state (atom nil))
 
@@ -361,7 +438,8 @@
   ([project graph ^Parent parent opts reloading?]
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    CurveView
-                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection))]
+                                                       controller [CurveController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
+                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       grid/Grid]
@@ -380,6 +458,10 @@
 
                                                 (g/connect project :selected-node-properties view-id :selected-node-properties)
                                                 (g/connect project :sub-selection view-id :sub-selection)
+
+                                                (g/connect view-id :curve-handle controller :curve-handle)
+                                                (g/connect project :sub-selection controller :sub-selection)
+                                                (g/connect controller :input-handler view-id :input-handlers)
 
                                                 (g/connect selection            :renderable                view-id          :tool-renderables)
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
