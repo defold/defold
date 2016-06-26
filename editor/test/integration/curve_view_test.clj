@@ -74,9 +74,10 @@
 
 (defn- cp? [exp act]
   (let [delta (mapv - exp act)]
-    (->> (mapv * delta)
+    (->> (mapv * delta delta)
       (reduce +)
-      (> 1.0E-10))))
+      (Math/sqrt)
+      (> 1.0E-2))))
 
 (deftest move-control-point
   (with-clean-system
@@ -91,10 +92,18 @@
       (mouse-move! curve-view 0.0 0.0)
       (mouse-drag! curve-view 0.0 0.0 0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
+      ;; X limit for first control point
       (mouse-drag! curve-view 0.0 0.1 0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
       (mouse-drag! curve-view 0.0 0.1 -0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
-      (mouse-drag! curve-view 0.11 0.99 -0.1 0.99)
+      ;; Box selection
+      (mouse-drag! curve-view -1.0 -1.0 0.2 1.0)
+      ;; Multi-selection movement
+      (mouse-drag! curve-view 0.0 0.1 0.0 0.2)
+      (is (cp? [0.00 0.20] (cp emitter :particle-key-alpha 1)))
+      (is (cp? [0.11 1.09] (cp emitter :particle-key-alpha 2)))
+      ;; X limit for second control point
+      (mouse-drag! curve-view 0.11 1.09 -0.1 1.09)
       (is (< (first (cp emitter :particle-key-alpha 1))
              (first (cp emitter :particle-key-alpha 2)))))))
