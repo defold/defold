@@ -29,10 +29,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private lua-code-opts {:code lua/lua})
-(def ^:private go-prop-type->property-types (->> properties/go-prop-type->clj-type
-                                              (map (fn [[type clj-type]]
-                                                     [type (g/make-property-type (name type) clj-type)]))
-                                              (into {})))
+(def ^:private go-prop-type->property-types properties/go-prop-type->clj-type)
 
 (def script-defs [{:ext "script"
                    :label "Script"

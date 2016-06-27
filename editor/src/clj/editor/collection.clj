@@ -1,6 +1,7 @@
 (ns editor.collection
   (:require [clojure.java.io :as io]
             [editor.core :as core]
+            [schema.core :as s]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
@@ -175,11 +176,11 @@
 
   (input ddf-component-properties g/Any :substitute [])
   (input source-outline outline/OutlineData :substitute source-outline-subst)
-  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+  (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
-  (output node-outline-label g/Str (g/fnk [id] id))
+  (output node-outline-label g/Str (gu/passthrough id))
   (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
                                                                              [(assoc target :instance-data {:resource (:resource target)
                                                                                                             :instance-msg ddf-message
@@ -203,7 +204,7 @@
 
   (property overrides g/Any
               (dynamic visible (g/always false))
-              (value (g/fnk [ddf-component-properties] ddf-component-properties))
+              (value (gu/passthrough ddf-component-properties))
               (set (fn [basis self old-value new-value]
                      (let [go (g/node-value self :source-id :basis basis)
                            component-ids (g/node-value go :component-ids :basis basis)]
@@ -249,7 +250,7 @@
 
   (property path g/Any
             (dynamic edit-type (g/fnk [source-resource]
-                                      {:type (g/protocol resource/Resource)
+                                      {:type (s/protocol resource/Resource)
                                        :ext (some-> source-resource resource/resource-type :ext)
                                        :to-type (fn [v] (:resource v))
                                        :from-type (fn [r] {:resource r :overrides {}})}))
@@ -302,7 +303,7 @@
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (output node-outline-label g/Str (g/fnk [id source-resource] (format "%s (%s)" id (resource/resource->proj-path source-resource))))
   (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position ^Quat4d rotation-q4 scale ddf-component-properties]
                                            (gen-ref-ddf id child-ids position rotation-q4 scale source-resource ddf-component-properties))))
@@ -413,7 +414,7 @@
   (input go-inst-ids g/Any :array)
   (input ddf-properties g/Any :array)
 
-  (output base-url g/Str (g/fnk [base-url] base-url))
+  (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
@@ -519,14 +520,14 @@
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (input ddf-properties g/Any :substitute [])
   (input scene g/Any)
   (input build-targets g/Any)
   (input go-inst-ids g/Any)
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
-  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+  (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any :cached (g/fnk [id source-resource position ^Quat4d rotation-q4 scale ddf-properties]
@@ -586,7 +587,7 @@
                         (g/operation-label "Add Game Object")
                         (g/operation-sequence op-seq)
                         (make-ref-go coll-node project resource id [0 0 0] [0 0 0] [1 1 1] true {}))))]
-    ; Selection
+    ;; Selection
     (g/transact
       (concat
         (g/operation-sequence op-seq)

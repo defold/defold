@@ -25,7 +25,7 @@
   (output output-a g/Str (g/fnk [input-a] (str "new: " input-a))))
 
 (g/defnode CachedOutputNode
-  (property number g/Any (default (atom 0)))
+  (property number g/Any (default (g/always (atom 0))))
   (output output-a g/Str :cached (g/fnk [number] (str "val" (swap! number inc)))))
 
 (deftest test-become
@@ -36,8 +36,8 @@
             old-node (g/node-by-id node)
             _        (g/transact (g/become node (g/construct NewNode)))
             new-node (g/node-by-id node)]
-        (is (= "dynamo.integration.node-become/OriginalNode" (:name (g/node-type old-node))))
-        (is (= "dynamo.integration.node-become/NewNode" (:name (g/node-type new-node)))))))
+        (is (= "dynamo.integration.node-become/OriginalNode" (:name @(g/node-type old-node))))
+        (is (= "dynamo.integration.node-become/NewNode" (:name @(g/node-type new-node)))))))
 
   (testing "node id is is the same"
     (with-clean-system
@@ -59,7 +59,7 @@
       (let [[node] (tx-nodes (g/make-node world OriginalNode))]
         (is (= "zeee" (g/node-value node :z-property)))
         (g/transact (g/become node (g/construct NewNode)))
-        (is (thrown-with-msg? Exception #"No such output, input, or property"
+        (is (thrown-with-msg? AssertionError #"No such output, input, or property"
                               (g/node-value node :z-property))))))
 
   (testing "inputs from the original node are still connected if they exist on the new node"
@@ -82,7 +82,7 @@
         (is (= "original: Bread is tasty" (g/node-value node :output-b)))
         (is (g/connected? (g/now) io-node :output-b node :input-b))
         (g/transact (g/become node (g/construct NewNode)))
-        (is (thrown-with-msg? Exception #"No such output, input, or property"
+        (is (thrown-with-msg? AssertionError #"No such output, input, or property"
                               (g/node-value node :output-b)))
         (is (not (g/connected? (g/now) io-node :output-b node :input-b))))))
 
@@ -127,9 +127,9 @@
                                                            node-b NodeB]
                                         (g/connect node-a :output-a node-b :input-b)
                                         (g/connect node-b :output-b node-a :input-a)))
-            node-a-type (g/node-type* node-a)]
+            node-a-type @(g/node-type* node-a)]
         (is (g/node-instance? NodeA node-a))
         ;; RELOAD
         (require 'dynamo.integration.node-become-support :reload)
         (is (g/node-instance? NodeA node-a))
-        (is (not= node-a-type (g/node-type* node-a))))))
+        (is (not (identical? node-a-type @(g/node-type* node-a)))))))

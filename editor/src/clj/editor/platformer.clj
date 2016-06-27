@@ -10,6 +10,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]

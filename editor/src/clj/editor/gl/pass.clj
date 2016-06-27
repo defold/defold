@@ -1,5 +1,6 @@
 (ns editor.gl.pass
   (:require [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.types :as types])
   (:import [javax.media.opengl GL GL2]
            [javax.media.opengl.glu GLU]))
@@ -36,18 +37,18 @@
   icon-selection true false
   overlay-selection false false)
 
-(def RenderData {(g/optional-key background)            g/Any
-                 (g/optional-key opaque)                g/Any
-                 (g/optional-key transparent)           g/Any
-                 (g/optional-key icon-outline)          g/Any
-                 (g/optional-key outline)               g/Any
-                 (g/optional-key manipulator)           g/Any
-                 (g/optional-key overlay)               g/Any
-                 (g/optional-key overlay-selection)     g/Any
-                 (g/optional-key selection)             g/Any
-                 (g/optional-key manipulator-selection) g/Any
-                 (g/optional-key icon)                  g/Any
-                 (g/optional-key icon-selection)        g/Any})
+(g/deftype RenderData {(s/optional-key background)            s/Any
+                       (s/optional-key opaque)                s/Any
+                       (s/optional-key transparent)           s/Any
+                       (s/optional-key icon-outline)          s/Any
+                       (s/optional-key outline)               s/Any
+                       (s/optional-key manipulator)           s/Any
+                       (s/optional-key overlay)               s/Any
+                       (s/optional-key overlay-selection)     s/Any
+                       (s/optional-key selection)             s/Any
+                       (s/optional-key manipulator-selection) s/Any
+                       (s/optional-key icon)                  s/Any
+                       (s/optional-key icon-selection)        s/Any})
 
 (defmulti prepare-gl (fn [pass gl glu] pass))
 
