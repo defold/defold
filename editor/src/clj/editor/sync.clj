@@ -87,7 +87,6 @@
                                  (:untracked st))})))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
-  (println "advance" :pull state)
   (render-progress progress)
   (condp = state
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
