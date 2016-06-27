@@ -49,8 +49,15 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
 
     @Override
     public void setKey(String identity) {
+        this.setKey(identity, true);
+    }
+
+    @Override
+    public void setKey(String identity, boolean validate) {
         this.key = identity;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
     public String getKey() {
@@ -59,22 +66,35 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
 
     @Override
     public void setCertificate(String certificate) {
+        this.setCertificate(certificate, true);
+    }
+
+    @Override
+    public void setCertificate(String certificate, boolean validate) {
         this.certificate = certificate;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
     public String getCertificate() {
         return certificate;
     }
-    
+
     public boolean isReleaseMode() {
     	return releaseMode;
     }
 
     @Override
     public void releaseModeSelected(boolean selection) {
+        this.releaseModeSelected(selection, true);
+    }
+
+    public void releaseModeSelected(boolean selection, boolean validate) {
         this.releaseMode = selection;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
     public boolean shouldGenerateReport() {
@@ -83,8 +103,14 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
 
     @Override
     public void generateReportSelected(boolean selection) {
+        this.generateReportSelected(selection, true);
+    }
+
+    public void generateReportSelected(boolean selection, boolean validate) {
         this.generateReport = selection;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
 }

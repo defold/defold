@@ -99,7 +99,8 @@
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)
-          tag (or (first (get headers "ETag")) tag)]
+          etag-keys ["ETag" "Etag"] ; Java HttpServer "normalises" headers to capitalised
+          tag (or (first (some (partial get headers) etag-keys)) tag)]
       {:status status
        :stream (when (= status :stale) (.getInputStream connection))
        :tag tag})))
