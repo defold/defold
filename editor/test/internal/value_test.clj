@@ -28,37 +28,37 @@
   (contains? @cache [node-id label]))
 
 (g/defnode CacheTestNode
-  (input first-name String)
-  (input last-name  String)
-  (input operand    String)
+  (input first-name g/Str)
+  (input last-name  g/Str)
+  (input operand    g/Str)
 
   (property scalar g/Str)
 
-  (output uncached-value  String
+  (output uncached-value  g/Str
           (g/fnk [_node-id scalar]
                  (tally _node-id 'produce-simple-value)
                  scalar))
 
-  (output expensive-value String :cached
+  (output expensive-value g/Str :cached
           (g/fnk [_node-id]
                  (tally _node-id 'compute-expensive-value)
                  "this took a long time to produce"))
 
-  (output nickname String :cached
+  (output nickname g/Str :cached
           (g/fnk [_node-id first-name]
                  (tally _node-id 'passthrough-first-name)
                  first-name))
 
-  (output derived-value String :cached
+  (output derived-value g/Str :cached
           (g/fnk [_node-id first-name last-name]
                  (tally _node-id 'compute-derived-value)
                  (str first-name " " last-name)))
 
-  (output another-value String :cached
+  (output another-value g/Str :cached
           (g/fnk [_node-id]
                  "this is distinct from the other outputs"))
 
-  (output nil-value String :cached
+  (output nil-value g/Str :cached
           (g/fnk [this]
                  (tally this 'compute-nil-value)
                  nil)))
@@ -164,7 +164,7 @@
   (with-clean-system
     (let [[override jane] (build-override-project world)]
       (testing "requesting a non-existent label throws"
-        (is (thrown? clojure.lang.ExceptionInfo (g/node-value override :aint-no-thang)))))))
+        (is (thrown? AssertionError (g/node-value override :aint-no-thang)))))))
 
 (deftest update-sees-in-transaction-value
   (with-clean-system

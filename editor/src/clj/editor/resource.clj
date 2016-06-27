@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.core :as core])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
@@ -161,7 +162,7 @@
          (mapv (fn [x] (->zip-resources workspace "" x))))))
 
 (g/defnode ResourceNode
-  (extern resource (g/protocol Resource) (dynamic visible (g/always false))))
+  (extern resource Resource (dynamic visible (g/always false))))
 
 (defn- seq-children [resource]
   (seq (children resource)))
