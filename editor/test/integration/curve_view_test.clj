@@ -36,6 +36,13 @@
     (let [[x y] (world->screen view world-x world-y)]
       (test-util/mouse-click! view x y modifiers))))
 
+(defn- mouse-dbl-click!
+  ([view world-x world-y]
+    (mouse-dbl-click! view world-x world-y []))
+  ([view world-x world-y modifiers]
+    (let [[x y] (world->screen view world-x world-y)]
+      (test-util/mouse-dbl-click! view x y modifiers))))
+
 (defn- mouse-drag! [view world-x0 world-y0 world-x1 world-y1]
   (let [[x0 y0] (world->screen view world-x0 world-y0)
         [x1 y1] (world->screen view world-x1 world-y1)]
@@ -60,24 +67,26 @@
       (mouse-click! curve-view 0.11 0.99)
       (is (= [2] (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.0 0.0 [:shift])
-      (is (= [2 1] (sub-selection project emitter :particle-key-alpha)))
+      (is (= [1 2] (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.11 0.99 [:shift])
       (is (= [1] (sub-selection project emitter :particle-key-alpha))))))
 
 (defn- cp [nid property idx]
   (let [c (g/node-value nid property)]
-    (-> (g/node-value nid property)
+    (some-> (g/node-value nid property)
       (types/geom-aabbs [idx])
       (get idx)
       first
       (subvec 0 2))))
 
 (defn- cp? [exp act]
-  (let [delta (mapv - exp act)]
-    (->> (mapv * delta delta)
-      (reduce +)
-      (Math/sqrt)
-      (> 1.0E-2))))
+  (if act
+    (let [delta (mapv - exp act)]
+      (->> (mapv * delta delta)
+        (reduce +)
+        (Math/sqrt)
+        (> 1.0E-2)))
+    false))
 
 (deftest move-control-point
   (with-clean-system
@@ -107,3 +116,17 @@
       (mouse-drag! curve-view 0.11 1.09 -0.1 1.09)
       (is (< (first (cp emitter :particle-key-alpha 1))
              (first (cp emitter :particle-key-alpha 2)))))))
+
+(deftest add-delete-control-point
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          curve-view (doto (curve-view/make-view! project (test-util/make-view-graph!) nil {} false)
+                       (g/set-property! :viewport (types/->Region 0 800 0 400)))
+          node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+          emitter (:node-id (test-util/outline node-id [2]))]
+      (project/select! project [emitter])
+      (mouse-dbl-click! curve-view 0.05 0.5)
+      (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
+      (mouse-dbl-click! curve-view 0.05 0.62)
+      (is (nil? (cp emitter :particle-key-alpha 9))))))

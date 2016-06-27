@@ -31,14 +31,16 @@
 
 (defn spline-cp [spline x]
   (let [x (min (max x 0.0) 1.0)
-        [[cp0 cp1]] (filter (fn [[[x0] [x1]]] (and (<= x0 x) (<= x x1))) (partition 2 1 spline))]
+        [[cp0 cp1]] (filterv (fn [[[x0] [x1]]] (and (<= x0 x) (<= x x1))) (partition 2 1 spline))]
     (when (and cp0 cp1)
       (let [[x0 y0 s0 t0] cp0
             [x1 y1 s1 t1] cp1
             dx (- x1 x0)
-            t (/ (- x (first cp0)) (- (first cp1) (first cp0)))
-            y (math/hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)
-            ty (/ (math/hermite' y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t) dx)
+            t (/ (- x x0) (- x1 x0))
+            d0 (* dx (/ t0 s0))
+            d1 (* dx (/ t1 s1))
+            y (math/hermite y0 y1 d0 d1 t)
+            ty (/ (math/hermite' y0 y1 d0 d1 t) dx)
             l (Math/sqrt (+ 1.0 (* ty ty)))
             ty (/ ty l)
             tx (/ 1.0 l)]
