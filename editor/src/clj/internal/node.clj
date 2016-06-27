@@ -453,6 +453,9 @@
           (symbol (str n) (name x))
           x))
 
+    (util/class-symbol? x)
+    x
+
     (and (symbol? x) (not (namespace x)))
     (do
       (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
