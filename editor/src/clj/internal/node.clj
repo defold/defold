@@ -618,17 +618,6 @@
   [description]
   (assoc description :input-dependencies (description->input-dependencies description)))
 
-(defn input-dependencies-non-transitive
-  "Return a map from input to affected outputs, but without including
-  the transitive effects on other outputs within the same node
-  type. This is a specialized case and if it's not apparent what it
-  means, you should probably call input-dependencies instead."
-  [node-type]
-  (let [transforms (transforms node-type)]
-    (invert-map
-     (zipmap (keys transforms)
-             (map util/inputs-needed (vals transforms))))))
-
 (declare node-output-value-function)
 (declare declared-properties-function)
 (declare node-input-value-function)
