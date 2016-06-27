@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -90,7 +91,7 @@
 
   (display-order [:id :url :path scene/SceneNode])
 
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (input source-properties g/Properties :substitute {:properties {}})
   (input scene g/Any)
   (input build-targets g/Any)
@@ -98,14 +99,14 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
-  (output component-id [(g/one g/Str "id") (g/one g/NodeID "node-id")] (g/fnk [_node-id id] [id _node-id]))
+  (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id node-outline-label id source-outline source-properties]
       (let [source-outline (or source-outline {:icon unknown-icon})
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (assoc source-outline :node-id _node-id :label node-outline-label
                :outline-overridden? overridden?))))
-  (output node-outline-label g/Str (g/fnk [id] id))
+  (output node-outline-label g/Str (gu/passthrough id))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
@@ -136,7 +137,7 @@
 
   (property path g/Any
             (dynamic edit-type (g/fnk [source-resource]
-                                      {:type (g/protocol resource/Resource)
+                                      {:type (s/protocol resource/Resource)
                                        :ext (some-> source-resource resource/resource-type :ext)
                                        :to-type (fn [v] (:resource v))
                                        :from-type (fn [r] {:resource r :overrides {}})}))
@@ -172,12 +173,12 @@
                                                                     (g/connect or-node from self to)))
                                                                 (for [[label value] (:overrides new-value)]
                                                                   (g/set-property or-node label value)))))))
-                        (let [f (project/gen-resource-setter [[:resource :source-resource]
-                                                              [:node-outline :source-outline]
-                                                              [:user-properties :user-properties]
-                                                              [:scene :scene]
-                                                              [:build-targets :build-targets]])]
-                          (f basis self (:resource old-value) (:resource new-value))))))))
+                         (project/resource-setter basis self (:resource old-value) (:resource new-value)
+                                                  [:resource :source-resource]
+                                                  [:node-outline :source-outline]
+                                                  [:user-properties :user-properties]
+                                                  [:scene :scene]
+                                                  [:build-targets :build-targets]))))))
             (validate (g/fnk [path]
                         (when (nil? path)
                           (g/error-warning "Missing component")))))
@@ -272,17 +273,17 @@
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
   (input child-scenes g/Any :array)
-  (input component-ids [(g/one g/Str "id") (g/one g/NodeID "node-id")] :array)
+  (input component-ids g/IdPair :array)
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)
 
-  (output base-url g/Str (g/fnk [base-url] base-url))
+  (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
-  (output component-ids {g/Str g/NodeID} :cached (g/fnk [component-ids] (reduce conj {} component-ids)))
+  (output component-ids g/Dict :cached (g/fnk [component-ids] (reduce conj {} component-ids)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
                  (reduce (fn [props m]
@@ -319,7 +320,7 @@
                           (g/operation-label "Add Component")
                           (g/operation-sequence op-seq)
                           (add-component go-id project resource id [0 0 0] [0 0 0] {}))))]
-    ; Selection
+    ;; Selection
     (g/transact
       (concat
         (g/operation-sequence op-seq)

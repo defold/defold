@@ -15,6 +15,7 @@
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
             [service.log :as log]
+            [editor.graph-util :as gu]
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
@@ -397,7 +398,7 @@
   (when-let [resource (cond
                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace) path-or-resource)
                         (satisfies? resource/Resource path-or-resource) path-or-resource
-                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource")))]
+                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
     (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
       (get nodes-by-resource-path (resource/proj-path resource)))))
 
@@ -508,15 +509,15 @@
   (input settings g/Any)
   (input display-profiles g/Any)
 
-  (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
-  (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
+  (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
+  (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
   (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
                                              (let [nids (set selected-node-ids)]
                                                (filterv (comp nids first) sub-selection))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
-  (output settings g/Any :cached (g/fnk [settings] settings))
-  (output display-profiles g/Any :cached (g/fnk [display-profiles] display-profiles)))
+  (output settings g/Any :cached (gu/passthrough settings))
+  (output display-profiles g/Any :cached (gu/passthrough display-profiles)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -679,13 +680,8 @@
     (let [project (make-project graph workspace-id)]
       (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress)))))
 
-(defn gen-resource-setter
-  ([connections]
-    (gen-resource-setter connections nil))
-  ([connections attach-fn]
-    (fn [basis self old-value new-value]
-      (let [project (get-project self)
-            attach-fn (when attach-fn (fn [n] (attach-fn basis self n)))]
-        (concat
-          (when old-value (disconnect-resource-node project old-value self connections))
-          (when new-value (connect-resource-node project new-value self connections attach-fn)))))))
+(defn resource-setter [basis self old-value new-value & connections]
+  (let [project (get-project self)]
+    (concat
+     (when old-value (disconnect-resource-node project old-value self connections))
+     (when new-value (connect-resource-node project new-value self connections)))))

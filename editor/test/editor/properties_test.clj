@@ -33,7 +33,7 @@
   (into {} (map (fn [[k v]]
                   [k (assoc v
                             :node-id _node-id
-                            :type (g/make-property-type k v))])
+                            :type v)])
                 p)))
 
 (g/defnode UserProps
