@@ -1,10 +1,12 @@
 (ns internal.util-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
-            [internal.util :refer :all]))
+            [dynamo.graph :as g]
+            [internal.util :refer :all]
+            [schema.core :as s]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -52,3 +54,15 @@
     "2 Words"             :2-words
     "More Than Two Words" :more-than-two-words
     "More Than 2words"    :more-than2words))
+
+(g/defnk external-fnk [a b c d])
+
+(deftest determining-inputs-required
+  (testing "fnks"
+    (are [f i] (= i (inputs-needed f))
+      external-fnk                                                            #{:a :b :c :d}
+      #'external-fnk                                                          #{:a :b :c :d}
+      (g/fnk [one two three])                                                 #{:one :two :three}
+      '(g/fnk [one two three])                                                #{:one :two :three}
+      (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])  #{:commands :roles :blah}
+      '(g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}]) #{:commands :roles :blah})))

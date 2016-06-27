@@ -21,7 +21,8 @@
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
-            [service.log :as log])
+            [service.log :as log]
+            [editor.graph-util :as gu])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -392,7 +393,7 @@
   (inherits SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (types/->Region 0 0 0 0)))
+  (property viewport Region (default (g/always (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
@@ -406,11 +407,11 @@
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
-  (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
+  (output active-tool g/Keyword (gu/passthrough active-tool))
   (output active-updatables g/Any (g/fnk [updatables active-updatable-ids]
                                          (mapv updatables (filter #(contains? updatables %) active-updatable-ids))))
 
-  (output selection g/Any (g/fnk [selection] selection))
+  (output selection g/Any (gu/passthrough selection))
   (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]
                                                        (reduce (partial merge-with into) renderables tool-renderables)))
   (output async-frame g/Keyword :cached produce-async-frame)
@@ -645,9 +646,9 @@
   (input picking-rect Rect)
   (input tool-renderables pass/RenderData :array)
 
-  (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
+  (output active-tool g/Keyword (gu/passthrough active-tool))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
-  (output selection g/Any (g/fnk [selection] selection))
+  (output selection g/Any (gu/passthrough selection))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
@@ -719,7 +720,6 @@
                                 :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
-
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
   (property rotation types/Vec3 (default [0.0 0.0 0.0]))
@@ -730,12 +730,12 @@
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb))))
 
-(defmethod scene-tools/manip-move SceneNode [basis node-id delta]
+(defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position :basis basis)))
         p (doto (Vector3d. orig-p) (.add delta))]
     (g/set-property node-id :position [(.x p) (.y p) (.z p)])))
 
-(defmethod scene-tools/manip-rotate SceneNode [basis node-id delta]
+(defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
   (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (g/node-value node-id :rotation :basis basis))) (.mul delta))
         new-euler (math/quat->euler new-rotation)]
     (g/set-property node-id :rotation new-euler)))
@@ -761,7 +761,7 @@
   (output scale-v3 Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
   (output transform Matrix4d :cached produce-transform))
 
-(defmethod scene-tools/manip-scale ScalableSceneNode [basis node-id delta]
+(defmethod scene-tools/manip-scale ::ScalableSceneNode [basis node-id delta]
   (let [s (Vector3d. (double-array (g/node-value node-id :scale :basis basis)))
         ^Vector3d d delta]
     (.setX s (* (.x s) (.x d)))

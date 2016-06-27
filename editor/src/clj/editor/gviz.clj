@@ -37,7 +37,7 @@
 
 (defn- node-label [basis node-id]
   (when-let [t (g/node-type* basis node-id)]
-    (:name t)))
+    (:name @t)))
 
 (defn- flatten-arcs [arcs]
   (mapcat (fn [[nid label-arc]] (mapcat second label-arc)) arcs))

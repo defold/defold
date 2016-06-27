@@ -23,7 +23,8 @@
             [editor.validation :as validation]
             [editor.camera :as camera]
             [editor.handler :as handler]
-            [editor.core :as core])
+            [editor.core :as core]
+            [editor.types :as types])
   (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
@@ -283,7 +284,7 @@
     (g/fnk [_node-id type]
       (let [mod-type (mod-types type)]
         {:node-id _node-id :label (:label mod-type) :icon modifier-icon})))
-  (output aabb AABB (g/fnk [] (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+  (output aabb AABB (g/always (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -437,13 +438,15 @@
             (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/always "Emission Space")))
 
-  (property tile-source (g/protocol resource/Resource)
+  (property tile-source resource/Resource
             (dynamic label (g/always "Image"))
             (value (gu/passthrough tile-source-resource))
-            (set (project/gen-resource-setter [[:resource :tile-source-resource]
-                                               [:texture-set-data :texture-set-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:anim-data :anim-data]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :tile-source-resource]
+                                                [:texture-set-data :texture-set-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:anim-data :anim-data])))
             (validate (validation/validate-resource tile-source "Missing image"
                                                     [texture-set-data gpu-texture anim-data])))
 
@@ -453,9 +456,11 @@
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
 
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :material-resource])))
             (validate (validation/validate-resource material)))
 
   (property blend-mode g/Keyword
@@ -473,8 +478,8 @@
   (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
-  (input tile-source-resource (g/protocol resource/Resource))
-  (input material-resource (g/protocol resource/Resource))
+  (input tile-source-resource resource/Resource)
+  (input material-resource resource/Resource)
   (input texture-set-data g/Any)
   (input gpu-texture g/Any)
   (input anim-data g/Any)
@@ -626,7 +631,7 @@
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
                                        {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
-  (output emitter-sim-data g/Any :cached (g/fnk [emitter-sim-data] emitter-sim-data))
+  (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]

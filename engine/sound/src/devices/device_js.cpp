@@ -8,7 +8,6 @@
 #include <dlib/profile.h>
 
 #include "sound.h"
-#include "sound2.h"
 
 extern "C" {
     // Implementation in library_sound.js
@@ -56,5 +55,15 @@ namespace dmDeviceJS
         info->m_MixRate = 44100;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceJSOpen, DeviceJSClose, DeviceJSQueue, DeviceJSFreeBufferSlots, DeviceJSDeviceInfo);
+    void DeviceJSRestart(dmSound::HDevice device)
+    {
+
+    }
+
+    void DeviceJSStop(dmSound::HDevice device)
+    {
+
+    }
+
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceJSOpen, DeviceJSClose, DeviceJSQueue, DeviceJSFreeBufferSlots, DeviceJSDeviceInfo, DeviceJSRestart, DeviceJSStop);
 }

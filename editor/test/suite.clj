@@ -42,6 +42,7 @@
                        integration.build-test
                        integration.collection-test
                        integration.game-project-test
+                       integration.hot-reload-test
                        integration.outline-test
                        integration.reload-test
                        integration.save-test
@@ -59,7 +60,6 @@
                        internal.graph.error-values-test
                        internal.node-test
                        internal.paper-tape-test
-                       internal.property-test
                        internal.system-test
                        internal.value-test
                        internal.defnode-test

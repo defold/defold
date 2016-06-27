@@ -7,10 +7,8 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.9.3"]]
 
-  :pedantic?        :abort
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.5"]
-                     [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
                      [org.clojure/data.json                       "0.2.6"]
@@ -35,6 +33,7 @@
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
+                     [clj-antlr                                   "0.2.2"]
 
                      ;; Keep jna version in sync with bundle.py. See JNA_VERSION
                      [net.java.dev.jna/jna                        "4.1.0"]

@@ -9,6 +9,7 @@
             [editor.protobuf :as protobuf]
             [editor.validation :as validation]
             [editor.core :as core]
+            [schema.core :as s]
             [util.id-vec :as iv])
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d Point3d Matrix4d Vector3d]))
@@ -148,13 +149,17 @@
     {:points (curve-vals c)
      :spread (:spread c)})))
 
-(def go-prop-type->clj-type {:property-type-number g/Num
-                             :property-type-hash String
-                             :property-type-url String
-                             :property-type-vector3 t/Vec3
-                             :property-type-vector4 t/Vec4
-                             :property-type-quat t/Vec3
-                             :property-type-boolean g/Bool})
+(def default-curve (map->Curve {:points [{:x 0 :y 0 :t-x 1 :t-y 0}]}))
+
+(def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
+
+(def go-prop-type->clj-type {:property-type-number  s/Num
+                             :property-type-hash    s/Str
+                             :property-type-url     s/Str
+                             :property-type-vector3 (:schema @t/Vec3)
+                             :property-type-vector4 (:schema @t/Vec4)
+                             :property-type-quat    (:schema @t/Vec3)
+                             :property-type-boolean s/Bool})
 
 (defn- q-round [v]
   (let [f 10e6]
@@ -238,7 +243,7 @@
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
-      {:type (g/property-value-type (:type property))}))
+      {:type (:type property)}))
 
 (def ^:private links #{:link :override})
 

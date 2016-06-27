@@ -8,7 +8,6 @@
 #include <dlib/time.h>
 #include <dlib/profile.h>
 #include "sound.h"
-#include "sound2.h"
 
 #include <android_native_app_glue.h>
 
@@ -195,7 +194,7 @@ namespace dmDeviceOpenSL
         JNIEnv* env;
         g_AndroidApp->activity->vm->AttachCurrentThread(&env, NULL);
 
-        jclass sound_class = LoadClass(env, "com.defold.sound.Sound2");
+        jclass sound_class = LoadClass(env, "com.defold.sound.Sound");
 
         jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
         assert(get_sample_rate);
@@ -432,6 +431,16 @@ cleanup_sl:
         info->m_MixRate = opensl->m_MixRate;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo);
+    void DeviceOpenSLRestart(dmSound::HDevice device)
+    {
+
+    }
+
+    void DeviceOpenSLStop(dmSound::HDevice device)
+    {
+
+    }
+
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLRestart, DeviceOpenSLStop);
 }
 
