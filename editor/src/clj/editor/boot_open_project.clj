@@ -163,7 +163,7 @@
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hotload/url-prefix (hotload/build-handler project)})
+                                                            project/hot-reload-url-prefix (hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]
