@@ -1,54 +1,8 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-
-import javax.persistence.EntityManager;
-import javax.persistence.TypedQuery;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.UriBuilder;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.node.ObjectNode;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.InvalidRemoteException;
-import org.eclipse.jgit.api.errors.TransportException;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.protocol.proto.Protocol.NewProject;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
-import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
-import com.dynamo.cr.server.auth.AuthToken;
+import com.dynamo.cr.protocol.proto.Protocol.*;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
+import com.dynamo.cr.server.auth.AccessTokenStore;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
@@ -63,16 +17,46 @@ import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import com.sun.jersey.core.util.MultivaluedMapImpl;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ObjectNode;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.TransportException;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.inject.Inject;
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriBuilderException;
 import java.io.*;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
-import com.sun.jersey.core.util.MultivaluedMapImpl;
 
 public class ProjectsResourceTest extends AbstractResourceTest {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(ProjectsResourceTest.class);
     private static final int PORT = 6500;
 
@@ -559,10 +543,9 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         return cloneDir.getAbsolutePath();
     }
 
-    private static String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException, GitAPIException {
-
+    private String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException, GitAPIException {
         File cloneDir = Files.createTempDir();
-        UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, AuthToken.login(testUser.email));
+        UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, testUser.password);
         Git.cloneRepository()
             .setCredentialsProvider(provider)
             .setURI(projectInfo.getRepositoryUrl())
@@ -884,7 +867,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         String cloneDir = cloneRepoHttpAuth(joe, projectInfo);
         alterFile(cloneDir, "content/file1.txt", "some content");
 
-        UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(joeEmail, AuthToken.login(joeEmail));
+        UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(joeEmail, joePasswd);
         Git git = Git.open(new File(cloneDir));
         git.commit().setAll(true).setMessage("a commit").call();
         git.push().setCredentialsProvider(provider).call();

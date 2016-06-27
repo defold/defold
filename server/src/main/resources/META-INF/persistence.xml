@@ -13,8 +13,7 @@
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.Prospect</class>
-        <class>com.dynamo.cr.server.model.Product</class>
-        <class>com.dynamo.cr.server.model.UserSubscription</class>
+        <class>com.dynamo.cr.server.model.AccessToken</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://cr-production.ca6wkrihnffz.eu-west-1.rds.amazonaws.com/cr_production" />
@@ -41,8 +40,7 @@
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.Prospect</class>
-        <class>com.dynamo.cr.server.model.Product</class>
-        <class>com.dynamo.cr.server.model.UserSubscription</class>
+        <class>com.dynamo.cr.server.model.AccessToken</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://cr-dev.ca6wkrihnffz.eu-west-1.rds.amazonaws.com/cr_production" />
@@ -69,8 +67,7 @@
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.Prospect</class>
-        <class>com.dynamo.cr.server.model.Product</class>
-        <class>com.dynamo.cr.server.model.UserSubscription</class>
+        <class>com.dynamo.cr.server.model.AccessToken</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/local_developer" />
@@ -97,8 +94,7 @@
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.Prospect</class>
-        <class>com.dynamo.cr.server.model.Product</class>
-        <class>com.dynamo.cr.server.model.UserSubscription</class>
+        <class>com.dynamo.cr.server.model.AccessToken</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:derby:tmp/testdb;create=true" />
@@ -114,6 +110,5 @@
         </properties>
 
     </persistence-unit>
-
 
 </persistence>

@@ -568,7 +568,7 @@ namespace dmEngine
         dmHID::Init(engine->m_HidContext);
 
         // The attempt to fallback to other audio devices only has meaning if:
-        // - sound2 is being used
+        // - sound is being used
         // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
         static const char* audio_devices[] = {

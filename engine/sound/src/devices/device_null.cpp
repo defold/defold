@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include "sound.h"
-#include "sound2.h"
 
 namespace dmDeviceNull
 {
@@ -27,6 +26,16 @@ namespace dmDeviceNull
     {
     }
 
-    DM_DECLARE_SOUND_DEVICE(NullSoundDevice, "null", DeviceNullOpen, DeviceNullClose, DeviceNullQueue, DeviceNullFreeBufferSlots, DeviceNullDeviceInfo);
+    void DeviceNullRestart(dmSound::HDevice device)
+    {
+
+    }
+
+    void DeviceNullStop(dmSound::HDevice device)
+    {
+
+    }
+
+    DM_DECLARE_SOUND_DEVICE(NullSoundDevice, "null", DeviceNullOpen, DeviceNullClose, DeviceNullQueue, DeviceNullFreeBufferSlots, DeviceNullDeviceInfo, DeviceNullRestart, DeviceNullStop);
 }
 
