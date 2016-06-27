@@ -60,7 +60,7 @@
         (assoc :status (:code res)))))
 
 (deftest build-endpoint-test
-  (let [res  (handler-get (hotload/build-handler *project*) "/main/main.collection")
+  (let [res  (handler-get (hotload/build-handler *project*) "/main/main.collectionc")
         data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
     (is (= 200 (:status res)))
     (is (= "parallax" (:name data)))
