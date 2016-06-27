@@ -763,7 +763,7 @@
 
   (property template TemplateData
             (dynamic read-only? override?)
-            (dynamic edit-type (g/always {:type resource/Resource
+            (dynamic edit-type (g/always {:type resource/resource-edit-type
                                           :ext "gui"
                                           :to-type (fn [v] (:resource v))
                                           :from-type (fn [r] {:resource r :overrides {}})}))
