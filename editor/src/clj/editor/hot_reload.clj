@@ -17,7 +17,6 @@
                                      (when-let [r (:resource d)]
                                        [(resource/proj-path r) (:content d)]))
                                    res))]
-    (println "build-handler" node-name (boolean (get resources node-name)))
     (if-let [c (get resources node-name)]
       {:code    200
        :headers {"Content-Type" "application/octet-stream"}
