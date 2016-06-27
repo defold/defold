@@ -143,14 +143,6 @@
 
 (def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
 
-(def go-prop-type->clj-type {:property-type-number  s/Num
-                             :property-type-hash    s/Str
-                             :property-type-url     s/Str
-                             :property-type-vector3 (:schema @t/Vec3)
-                             :property-type-vector4 (:schema @t/Vec4)
-                             :property-type-quat    (:schema @t/Vec3)
-                             :property-type-boolean s/Bool})
-
 (defn- q-round [v]
   (let [f 10e6]
     (/ (Math/round (* v f)) f)))

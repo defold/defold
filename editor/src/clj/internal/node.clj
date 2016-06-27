@@ -453,6 +453,9 @@
           (symbol (str n) (name x))
           x))
 
+    (util/class-symbol? x)
+    x
+
     (and (symbol? x) (not (namespace x)))
     (do
       (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
@@ -683,7 +686,7 @@
         :else                 [flags options args])
       [flags options args])))
 
-(defn- protocol-symbol->vtr
+(defn protocol-symbol->vtr
   [sym]
   (let [pval (util/vgr sym)]
     (register-value-type (keyword (canonicalize sym)) (make-protocol-value-type pval sym))))
@@ -702,7 +705,7 @@
   (let [cls (resolve sym)]
     (register-value-type (keyword (.getName ^Class cls)) (->ClassType cls cls))))
 
-(defn- named->vtr
+(defn named->vtr
   [symbol-or-keyword]
   (->ValueTypeRef (keyword (canonicalize symbol-or-keyword))))
 

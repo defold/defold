@@ -27,6 +27,8 @@
   (workspace [this])
   (resource-hash [this]))
 
+(def resource-edit-type (g/named->vtr 'Resource))
+
 (defn relative-path [^File f1 ^File f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))
 
