@@ -10,11 +10,13 @@
             [integration.test-util :as test-util])
   (:import [java.io StringReader]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
-           [com.dynamo.gui.proto Gui$SceneDesc]))
+           [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.particle.proto Particle$ParticleFX]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
-                           "gui" Gui$SceneDesc})
+                           "gui" Gui$SceneDesc
+                           "particlefx" Particle$ParticleFX})
 
 (deftest save-all
   (let [queries ["**/level1.platformer"
@@ -30,7 +32,8 @@
                  "**/props.go"
                  "game.project"
                  "**/super_scene.gui"
-                 "**/scene.gui"]]
+                 "**/scene.gui"
+                 "**/fireworks_big.particlefx"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)

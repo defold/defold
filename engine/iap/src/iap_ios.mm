@@ -3,6 +3,7 @@
 #include <extension/extension.h>
 #include <script/script.h>
 #include "iap.h"
+#include "iap_private.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -16,18 +17,6 @@ struct IAP;
     @property IAP* m_IAP;
 @end
 
-struct IAPListener
-{
-    IAPListener()
-    {
-        m_L = 0;
-        m_Callback = LUA_NOREF;
-        m_Self = LUA_NOREF;
-    }
-    lua_State* m_L;
-    int        m_Callback;
-    int        m_Self;
-};
 
 struct IAP
 {
@@ -50,20 +39,7 @@ struct IAP
 
 IAP g_IAP;
 
-static void PushError(lua_State*L, NSError* error, NSInteger reason)
-{
-    if (error != 0) {
-        lua_newtable(L);
-        lua_pushstring(L, "error");
-        lua_pushstring(L, [error.localizedDescription UTF8String]);
-        lua_rawset(L, -3);
-        lua_pushstring(L, "reason");
-        lua_pushnumber(L, reason);
-        lua_rawset(L, -3);
-    } else {
-        lua_pushnil(L);
-    }
-}
+
 
 @interface SKProductsRequestDelegate : NSObject<SKProductsRequestDelegate>
     @property lua_State* m_LuaState;
@@ -177,7 +153,7 @@ static void PushError(lua_State*L, NSError* error, NSInteger reason)
     }
 
     lua_pushnil(L);
-    PushError(L, error, REASON_UNSPECIFIED);
+    IAP_PushError(L, [error.localizedDescription UTF8String], REASON_UNSPECIFIED);
 
     int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
     if (ret != 0) {
@@ -267,9 +243,9 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
     if (transaction.transactionState == SKPaymentTransactionStateFailed) {
         if (transaction.error.code == SKErrorPaymentCancelled) {
-            PushError(L, transaction.error, REASON_USER_CANCELED);
+            IAP_PushError(L, [transaction.error.localizedDescription UTF8String], REASON_USER_CANCELED);
         } else {
-            PushError(L, transaction.error, REASON_UNSPECIFIED);
+            IAP_PushError(L, [transaction.error.localizedDescription UTF8String], REASON_UNSPECIFIED);
         }
     } else {
         lua_pushnil(L);

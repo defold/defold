@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.resources;
 
+import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.Server;
@@ -9,6 +10,8 @@ import com.dynamo.cr.server.git.archive.GitArchiveProvider;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.services.ProjectService;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.Transactional;
 import com.sun.jersey.api.NotFoundException;
 import org.apache.commons.configuration.ConfigurationException;
@@ -111,12 +114,17 @@ public class ProjectResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectResource.class);
 
+    @Inject
     private ArchiveCache cachedArchives;
 
     @Inject
-    public void setArchiveCache(ArchiveCache cachedArchives) {
-        this.cachedArchives = cachedArchives;
-    }
+    private UserService userService;
+
+    @Inject
+    private ProjectService projectService;
+
+    @Inject
+    private Config.Configuration configuration;
 
     @HEAD
     @Path("/archive/{version}")
@@ -183,7 +191,7 @@ public class ProjectResource extends BaseResource {
     @Path("/members")
     @RolesAllowed(value = {"member"})
     @Transactional
-    public void addMember(@PathParam("project") String projectId,
+    public void addMember(@PathParam("project") Long projectId,
                           String memberEmail) {
         User user = getUser();
         User member = ModelUtil.findUserByEmail(em, memberEmail);
@@ -194,7 +202,9 @@ public class ProjectResource extends BaseResource {
         // Connect new member to owner (used in e.g. auto-completion)
         user.getConnections().add(member);
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
+
         project.getMembers().add(member);
         member.getProjects().add(project);
         em.persist(project);
@@ -205,13 +215,15 @@ public class ProjectResource extends BaseResource {
     @DELETE
     @Path("/members/{id}")
     @Transactional
-    public void removeMember(@PathParam("project") String projectId,
-                             @PathParam("id") String memberId) {
+    public void removeMember(@PathParam("project") Long projectId,
+                             @PathParam("id") Long memberId) {
         // Ensure user is valid
         User user = getUser();
-        User member = server.getUser(em, memberId);
+        User member = userService.find(memberId)
+                .orElseThrow(() -> new ServerException(String.format("No such user %s", memberId), Status.NOT_FOUND));
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
         if (!project.getMembers().contains(member)) {
             throw new NotFoundException(String.format("User %s is not a member of project %s", user.getId(), projectId));
@@ -230,9 +242,11 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/project_info")
-    public ProjectInfo getProjectInfo(@PathParam("project") String projectId) {
+    public ProjectInfo getProjectInfo(@PathParam("project") Long projectId) {
         User user = getUser();
-        Project project = server.getProject(em, projectId);
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
+
         return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
     }
 
@@ -240,8 +254,9 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = {"owner"})
     @Transactional
     @Path("/project_info")
-    public void updateProjectInfo(@PathParam("project") String projectId, ProjectInfo projectInfo) {
-        Project project = server.getProject(em, projectId);
+    public void updateProjectInfo(@PathParam("project") Long projectId, ProjectInfo projectInfo) {
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
         project.setName(projectInfo.getName());
         project.setDescription(projectInfo.getDescription());
     }
@@ -250,13 +265,14 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = {"owner"})
     @Transactional
     @Path("/change_owner")
-    public void changeOwner(@PathParam("project") String projectId, @QueryParam("newOwnerId") Long newOwnerId) {
+    public void changeOwner(@PathParam("project") Long projectId, @QueryParam("newOwnerId") Long newOwnerId) {
 
         if (newOwnerId == null) {
             throw new ServerException("Query parameter newOwnerId is missing.", Status.BAD_REQUEST);
         }
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
         if (!changeProjectOwner(project, newOwnerId)) {
             throw new ServerException("Could not change ownership: new owner must be a project member.", Status.FORBIDDEN);
@@ -265,7 +281,8 @@ public class ProjectResource extends BaseResource {
     }
 
     private boolean changeProjectOwner(Project project, long newOwnerId) {
-        User newOwner = server.getUser(em, Long.toString(newOwnerId));
+        User newOwner = userService.find(newOwnerId)
+                .orElseThrow(() -> new ServerException(String.format("No such user %s", newOwnerId), Status.NOT_FOUND));
         for (User member : project.getMembers()) {
             if (Objects.equals(member.getId(), newOwner.getId())) {
                 validateMaxProjectCount(newOwner);
@@ -296,8 +313,9 @@ public class ProjectResource extends BaseResource {
     @DELETE
     @RolesAllowed(value = {"owner"})
     @Transactional
-    public void deleteProject(@PathParam("project") String projectId) {
-        Project project = server.getProject(em, projectId);
+    public void deleteProject(@PathParam("project") Long projectId) {
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
         try {
             ModelUtil.removeProject(em, project);
             ResourceUtil.deleteProjectRepo(project, server.getConfiguration());
@@ -351,7 +369,7 @@ public class ProjectResource extends BaseResource {
     @GET
     @RolesAllowed(value = {"anonymous"})
     @Path("/engine/{platform}/{key}.ipa")
-    public Response downloadEngine(@PathParam("project") String projectId,
+    public Response downloadEngine(@PathParam("project") Long projectId,
                                    @PathParam("key") String key,
                                    @PathParam("platform") String platform) throws IOException {
 
@@ -360,14 +378,16 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
         }
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
+
         String actualKey = Server.getEngineDownloadKey(project);
 
         if (!key.equals(actualKey)) {
             throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
         }
 
-        final File file = Server.getEngineFile(server.getConfiguration(), projectId, platform);
+        final File file = Server.getEngineFile(server.getConfiguration(), String.valueOf(projectId), platform);
 
         StreamingOutput output = os -> {
             FileUtils.copyFile(file, os);
@@ -385,7 +405,7 @@ public class ProjectResource extends BaseResource {
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
     public String downloadEngineManifest(@PathParam("owner") String owner,
-                                         @PathParam("project") String projectId,
+                                         @PathParam("project") Long projectId,
                                          @PathParam("key") String key,
                                          @PathParam("platform") String platform,
                                          @Context UriInfo uriInfo) throws IOException {
@@ -395,7 +415,8 @@ public class ProjectResource extends BaseResource {
             throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
         }
 
-        Project project = server.getProject(em, projectId);
+        Project project = projectService.find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
         String actualKey = Server.getEngineDownloadKey(project);
 
         if (!key.equals(actualKey)) {
@@ -406,9 +427,9 @@ public class ProjectResource extends BaseResource {
         String manifest = IOUtils.toString(stream);
         stream.close();
 
-        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
+        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(String.valueOf(projectId)).path("engine").path(platform).path(key).build();
 
-        final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), projectId, platform);
+        final String ipaPath = Server.getEngineFilePath(server.getConfiguration(), String.valueOf(projectId), platform);
 
         String bundleid;
         try {

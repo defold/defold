@@ -203,3 +203,10 @@
    :node-ref Long
    :commands [OutlineCommand]
    :children [g/Any]})
+
+(defprotocol GeomCloud
+  (geom-aabbs [this ids])
+  (geom-insert [this positions])
+  (geom-delete [this ids])
+  (geom-update [this ids f])
+  (geom-transform [this ids ^Matrix4d transform]))
