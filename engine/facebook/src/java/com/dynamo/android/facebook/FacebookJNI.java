@@ -10,12 +10,16 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 import android.app.Activity;
+import android.net.Uri;
 import android.util.Log;
 import android.os.Bundle;
 
 import com.facebook.FacebookSdk;
 import com.facebook.appevents.AppEventsLogger;
+import com.facebook.applinks.AppLinkData;
 import com.facebook.login.DefaultAudience;
+
+import bolts.AppLinks;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -42,6 +46,28 @@ class FacebookAppJNI {
                 Log.d(TAG, s);
                 FacebookSdk.sdkInitialize( FacebookAppJNI.this.activity );
                 FacebookSdk.setApplicationId( FacebookAppJNI.this.appId );
+                
+                Log.d(TAG, "MAWE: FB SDK INITIALIZED  (deferred uses appid now)");
+
+                Uri targetUrl = AppLinks.getTargetUrlFromInboundIntent(FacebookAppJNI.this.activity, FacebookAppJNI.this.activity.getIntent());
+                if (targetUrl != null) {
+                    Log.d(TAG, "MAWE: App Link Target URL: " + targetUrl.toString());
+                }
+                //} else {
+                    AppLinkData.fetchDeferredAppLinkData( FacebookAppJNI.this.activity, FacebookAppJNI.this.appId,
+                        new AppLinkData.CompletionHandler() {
+                            @Override
+                            public void onDeferredAppLinkDataFetched(AppLinkData appLinkData) {
+                                //process applink data
+                                if( appLinkData != null ) {
+                                    Log.d(TAG, "MAWE: Deferred App Link URL: " + appLinkData.getTargetUri());
+                                } else {
+                                    Log.d(TAG, "MAWE: Deferred App Link was null");
+                                }
+                            }
+                        });
+                //}
+
                 latch.countDown();
             }
         });
@@ -137,14 +163,18 @@ class FacebookJNI {
 
     private Facebook facebook;
     private Activity activity;
+    private String appId;
 
     public FacebookJNI(Activity activity, String appId) {
         this.activity = activity;
         this.facebook = new Facebook(this.activity, appId);
+        this.appId = appId;
     }
 
     public void login(final long userData) {
         Log.d(TAG, "login");
+        final String appId = this.appId;
+        final Activity activity = this.activity;
         this.activity.runOnUiThread( new Runnable() {
 
             @Override
@@ -155,6 +185,21 @@ class FacebookJNI {
                     @Override
                     public void onDone( final int state, final String error) {
                         onLogin(userData, state, error);
+
+                        Log.d(TAG, "MAWE: Deferred App Link (AFTER LOGIN)");
+
+                        AppLinkData.fetchDeferredAppLinkData( activity, appId,
+                        new AppLinkData.CompletionHandler() {
+                            @Override
+                            public void onDeferredAppLinkDataFetched(AppLinkData appLinkData) {
+                                //process applink data
+                                if( appLinkData != null ) {
+                                    Log.d(TAG, "MAWE: Deferred App Link URL: " + appLinkData.getTargetUri());
+                                } else {
+                                    Log.d(TAG, "MAWE: Deferred App Link was null");
+                                }
+                            }
+                        });
                     }
 
                 });

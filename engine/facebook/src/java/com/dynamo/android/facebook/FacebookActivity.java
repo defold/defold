@@ -13,11 +13,8 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.net.Uri;
 
-import android.support.v4.app.FragmentActivity;
 import com.dynamo.android.DispatcherActivity.PseudoActivity;
-import android.content.Context;
 
-import com.facebook.FacebookSdk;
 import com.facebook.AccessToken;
 import com.facebook.CallbackManager;
 import com.facebook.FacebookCallback;
@@ -34,7 +31,6 @@ import com.facebook.share.widget.AppInviteDialog;
 import com.facebook.share.widget.GameRequestDialog;
 import com.facebook.GraphRequest;
 import com.facebook.GraphResponse;
-import com.facebook.HttpMethod;
 
 import org.json.JSONObject;
 
