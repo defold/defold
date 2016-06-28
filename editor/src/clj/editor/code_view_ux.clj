@@ -690,9 +690,8 @@
     (replace! selection found-idx tlen rtext)
     (caret! selection (adjust-bounds (text selection) (+ tlen-new found-idx)) false)
     (text-selection! selection found-idx tlen-new)
-    (refresh! selection)
     ;;Note:  trying to highlight the selection doensn't
-    ;; work due to rendering problems in the StyledTextSkin
+    ;; work quite right due to rendering problems in the StyledTextSkin
     ))
 
 (defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
@@ -797,16 +796,27 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
+(defn first-function-param-info [s]
+  (let [pattern #"\(.*?(,|\))"
+        start-idx (-> (string/split s pattern) first count inc)
+        len (-> (re-find pattern s) first count dec dec)]
+    {:param-start-idx start-idx :param-length len :found? (not (neg? len))}))
+
 (defn do-proposal-replacement [selection replacement]
   (let [replacement (:insert-string replacement)
         line-text (line selection)
+        loffset (line-offset selection)
         parsed-line (code/parse-line line-text)
         replacement-in-line? (string/index-of line-text replacement)
         pattern (if replacement-in-line?
                   replacement
                  (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
-        new-line-text (string/replace-first line-text pattern replacement)]
-    (replace! selection (line-offset selection) (count line-text) new-line-text)))
+        new-line-text (string/replace-first line-text pattern replacement)
+        {:keys [param-start-idx param-length found?]} (first-function-param-info new-line-text)]
+    (replace! selection (line-offset selection) (count line-text) new-line-text)
+    (when found?
+      (caret! selection (+ loffset param-start-idx param-length) false)
+      (text-selection! selection (+ loffset param-start-idx) param-length))))
 
 (defn show-proposals [selection proposals]
   (when (pos? (count proposals))
