@@ -1,6 +1,7 @@
 (ns editor.code-view-ux
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code :as code]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui])
@@ -14,16 +15,25 @@
   (text [this])
   (replace! [this offset length s]))
 
+(defprotocol TextCaret
+  (caret [this])
+  (caret! [this offset select?]))
+
+(defprotocol TextLine
+  (prev-line [this])
+  (line [this])
+  (line-offset [this]))
+
 (defprotocol TextView
   (text-selection [this])
   (text-selection! [this offset length])
   (selection-offset [this])
   (selection-length [this])
-  (caret [this])
-  (caret! [this offset select?])
   (editable? [this])
   (editable! [this val])
-  (screen-position [this]))
+  (screen-position [this])
+  (text-area [this])
+  (refresh! [this]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -42,17 +52,17 @@
   :Left                  {:command :left}
   :Right                 {:command :right}
 
-  :Ctrl+Right            {:command :next-word               :label "Move to Next Word"               :group "Movement" :order 1}
+  :Ctrl+Right            {:command :next-word}
   :Alt+Right             {:command :next-word}
-  :Ctrl+Left             {:command :prev-word               :label "Move to Prev Word"               :group "Movement" :order 2}
+  :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
-  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 3}
+  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
   :Ctrl+A                {:command :line-begin}
-  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 4}
+  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
   :Ctrl+E                {:command :line-end}
-  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 5}
-  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 6}
-  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 7}
+  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 3}
+  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 4}
+  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 5}
 
   ;; select
   :Double-Click          {:command :select-word}
@@ -528,7 +538,7 @@
           doc (text selection)
           np (adjust-bounds doc c)
           word-end (re-find regex (subs doc np))
-          text-before (->> (subs doc 0 (inc np)) (reverse) (rest) (apply str))
+          text-before (->> (subs doc 0 (adjust-bounds doc (inc np))) (reverse) (rest) (apply str))
           word-begin (re-find regex text-before)
           start-pos (- np (count word-begin))
           end-pos (+ np (count word-end))
@@ -679,7 +689,8 @@
   (when (<= 0 found-idx)
     (replace! selection found-idx tlen rtext)
     (caret! selection (adjust-bounds (text selection) (+ tlen-new found-idx)) false)
-    ;; (text-selection! selection found-idx tlen-new)
+    (text-selection! selection found-idx tlen-new)
+    (refresh! selection)
     ;;Note:  trying to highlight the selection doensn't
     ;; work due to rendering problems in the StyledTextSkin
     ))
@@ -738,36 +749,38 @@
         doc (text selection)
         np (adjust-bounds doc c)
         line-comment (:line-comment (syntax selection))
-        lbefore (lines-before doc np)
-        lafter (lines-after doc np)
-        toggled-text (do-toggle-line doc lbefore lafter line-comment)
-        new-lines (concat (butlast lbefore)
-                          [toggled-text]
-                          (rest lafter))
-        new-doc (apply str (interpose "\n" new-lines))]
-    (text! selection new-doc)))
+        line-text (line selection)
+        loffset (line-offset selection)]
+    (replace! selection loffset (count line-text) (toggle-comment line-text line-comment))))
 
 (defn toggle-region-comment [selection]
   (let [c (caret selection)
         doc (text selection)
+        line-text (line selection)
+        loffset (line-offset selection)
         line-comment (:line-comment (syntax selection))
-        region-start (selection-offset selection)
         region-len (selection-length selection)
-        region-end (+ region-start region-len)
-        lbefore (lines-before doc region-start)
-        lafter (lines-after doc region-end)
-        region-lines (string/split (text-selection selection) #"\n")
-        toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
-        first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
-        last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
-        new-lines (flatten (conj []
-                                 (butlast lbefore)
-                                 [first-toggled-line]
-                                 toggled-region-lines
-                                 [last-toggled-line]
-                                 (rest lafter)))
-        new-doc (apply str (interpose "\n" new-lines))]
-    (text! selection new-doc)))
+        region-start (selection-offset selection)
+        region-end (+ region-start region-len)]
+    (cond
+      (and (>= region-start loffset) (<= region-end (+ loffset (count line-text))))
+      (toggle-line-comment selection)
+
+      :else
+      (let [lbefore (lines-before doc region-start)
+            lafter (lines-after doc region-end)
+            region-lines (string/split (text-selection selection) #"\n")
+            toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
+            first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
+            last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
+            new-lines (remove nil? (flatten (conj []
+                                                  (butlast lbefore)
+                                                  [first-toggled-line]
+                                                  toggled-region-lines
+                                                  [last-toggled-line]
+                                                  (rest lafter))))
+            new-doc (apply str (interpose "\n" new-lines))]
+        (text! selection new-doc)))))
 
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
@@ -776,43 +789,45 @@
       (toggle-region-comment selection)
       (toggle-line-comment selection))))
 
-(defn- not-ascii-or-delete [key-typed]
- ;; ascii control chars like Enter are all below 32
-  ;; delete is an exception and is 127
-  (let [n (.charAt ^String key-typed 0)]
-    (and (> (int n) 31) (not= (int n) 127))))
-
 (defn enter-key-text [selection key-typed]
   (let [c (caret selection)
         doc (text selection)
         np (adjust-bounds doc c)]
     (if (pos? (selection-length selection))
       (replace-text-selection selection key-typed)
-      (replace-text-and-caret selection np 0 key-typed (inc np)))))
+      (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
-(defn show-proposals [selection]
-  (let [{:keys [proposals line]} (propose selection)]
-    (when (pos? (count proposals))
-     (let [screen-position (screen-position selection)
-           offset (caret selection)
-           result (promise)
-           ^Stage stage (dialogs/make-proposal-dialog result offset screen-position proposals line)
-           replace-text-fn (fn [] (when (and (realized? result) @result)
-                                   (let [replacement (:display-string (first @result))]
-                                     (if (= 0 (string/index-of replacement line))
-                                       (replace! selection offset 0 (subs replacement (count line)))
-                                       (replace! selection offset 0 replacement)))))]
-       (.setOnHidden stage (ui/event-handler e (replace-text-fn)))))))
+(defn do-proposal-replacement [selection replacement]
+  (let [replacement (:insert-string replacement)
+        line-text (line selection)
+        parsed-line (code/parse-line line-text)
+        replacement-in-line? (string/index-of line-text replacement)
+        pattern (if replacement-in-line?
+                  replacement
+                 (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
+        new-line-text (string/replace-first line-text pattern replacement)]
+    (replace! selection (line-offset selection) (count line-text) new-line-text)))
+
+(defn show-proposals [selection proposals]
+  (when (pos? (count proposals))
+    (let [screen-position (screen-position selection)
+          offset (caret selection)
+          result (promise)
+          current-line (line selection)
+          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals current-line (text-area selection))
+          replace-text-fn (fn [] (when (and (realized? result) @result)
+                                  (do-proposal-replacement selection (first @result))))]
+      (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
     (when (and (editable? selection)
            (pos? (count key-typed))
-           (not-ascii-or-delete key-typed))
+           (code/not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
       (when (contains? proposal-key-triggers key-typed)
-        (show-proposals selection)))))
+        (show-proposals selection (propose selection))))))
 
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
@@ -820,12 +835,42 @@
     (when (editable? selection)
       (enter-key-text selection "\t"))))
 
+(defn- get-indentation [line]
+  (re-find #"^\s+" line))
+
+(defn indentation [selection line line-sep]
+  (when-let [indentation-data (:indentation (syntax selection))]
+    (let [{:keys [indent-chars increase? decrease?]} indentation-data
+          current-indentation (get-indentation line)]
+      (cond
+        (decrease? line)
+        (let [line-above (prev-line selection)
+              line-above-indent (get-indentation line-above)
+              new-line-text (if (= (count current-indentation) (dec (count line-above-indent)))
+                              line
+                              (string/replace-first line (re-pattern indent-chars) ""))
+              new-indent (get-indentation new-line-text)]
+          (str new-line-text line-sep new-indent (when (increase? line) indent-chars)))
+
+        (increase? line)
+        (str line line-sep current-indentation indent-chars)
+
+        :else
+        (str line line-sep current-indentation)))))
+
 (handler/defhandler :enter :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (let [line-seperator (System/getProperty "line.separator")]
-        (enter-key-text selection line-seperator)))))
+      (let [line-seperator (System/getProperty "line.separator")
+            current-line (line selection)
+            line-offset (line-offset selection)
+            line-text (line selection)
+            at-end-of-line? (= (caret selection) (+ line-offset (count line-text)))
+            indent-text (when at-end-of-line? (indentation selection current-line line-seperator))]
+        (if indent-text
+          (replace-text-and-caret selection line-offset (count current-line) indent-text (+ line-offset (count indent-text)))
+          (enter-key-text selection line-seperator))))))
 
 (handler/defhandler :undo :code-view
   (enabled? [selection] selection)
@@ -842,4 +887,8 @@
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (show-proposals selection)))
+    (let [proposals (propose selection)]
+      (if (= 1 (count proposals))
+        (let [replacement (first proposals)]
+          (do-proposal-replacement selection replacement))
+        (show-proposals selection proposals)))))
