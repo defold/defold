@@ -393,6 +393,10 @@
       (.localToScreen tw p)))
   (text-area [this]
     (.getTextWidget this))
+  (refresh! [this]
+    (let [text-area (.getTextWidget this)]
+      (.requestFocus text-area)
+      (.requestLayout text-area)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
