@@ -5,17 +5,18 @@
             [support.test-support :as ts]
             [internal.util :as u]
             [internal.graph.types :as gt]
+            [internal.state :as state]
             [internal.system :as is]))
 
 (g/defnode Root
   (property where g/Str)
   (property touched g/Num))
 
-(defn graphs        []    (is/graphs        @g/*the-system*))
-(defn graph         [gid] (is/graph         @g/*the-system* gid))
-(defn graph-ref     [gid] (is/graph-ref     @g/*the-system* gid))
-(defn graph-time    [gid] (is/graph-time    @g/*the-system* gid))
-(defn graph-history [gid] (is/graph-history @g/*the-system* gid))
+(defn graphs        []    (is/graphs        @state/*the-system*))
+(defn graph         [gid] (is/graph         @state/*the-system* gid))
+(defn graph-ref     [gid] (is/graph-ref     @state/*the-system* gid))
+(defn graph-time    [gid] (is/graph-time    @state/*the-system* gid))
+(defn graph-history [gid] (is/graph-history @state/*the-system* gid))
 
 (defn history-states
   [gid]
@@ -88,7 +89,7 @@
                                       (g/operation-label "Increment touch count")])
             undos-after  (is/undo-stack (graph-history pgraph-id))
             redos-after  (is/redo-stack (graph-history pgraph-id))
-            snapshot     @g/*the-system*]
+            snapshot     @state/*the-system*]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
         (is/undo-history (graph-history pgraph-id) snapshot)

@@ -2,8 +2,7 @@
   (:require [clojure.set :as set]
             [internal.graph.types :as gt]
             [schema.core :as s]
-            [internal.util :as util]
-            [internal.node :as in]))
+            [internal.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -396,7 +395,6 @@
           tgt-node      (node tgt-graph tgt-id)
           tgt-type      (gt/node-type tgt-node this)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
-      (assert (in/has-input? tgt-type tgt-label) (str "No label " tgt-label " exists on node " tgt-node))
       (if (= src-gid tgt-gid)
         (update this :graphs assoc
                 src-gid (-> src-graph
@@ -456,8 +454,10 @@
 
 (defn- input-deps [basis node-id]
   (or (some-> (gt/node-by-id-at basis node-id)
-        (gt/node-type basis)
-        in/input-dependencies) {}))
+              (gt/node-type basis)
+              deref
+              :input-dependencies)
+      {}))
 
 (defn update-successors
   [basis changes]

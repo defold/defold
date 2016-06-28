@@ -10,6 +10,7 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [internal.node :as in]
+            [internal.state :as state]
             [internal.system :as is]
             [internal.transaction :as it]
             [plumbing.core :as pc]
@@ -40,9 +41,6 @@
 ;; State handling
 ;; ---------------------------------------------------------------------------
 
-;; Only marked dynamic so tests can rebind. Should never be rebound "for real".
-(defonce ^:dynamic *the-system* (atom nil))
-
 (def ^:dynamic *tps-debug* nil)
 
 (namespaces/import-vars [internal.system system-cache cache-disposal-queue deleted-disposal-queue])
@@ -50,14 +48,14 @@
 (defn now
   "The basis at the current point in time"
   []
-  (is/basis @*the-system*))
+  (is/basis @state/*the-system*))
 
 (defn node-by-id
   "Returns a node given its id. If the basis is provided, it returns the value of the node using that basis.
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/node (is/graph @*the-system* graph-id) node-id)))
+     (ig/node (is/graph @state/*the-system* graph-id) node-id)))
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
@@ -78,11 +76,11 @@
 
 (defn cache "The system cache of node values"
   []
-  (is/system-cache @*the-system*))
+  (is/system-cache @state/*the-system*))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
-  (is/graph @*the-system* graph-id))
+  (is/graph @state/*the-system* graph-id))
 
 (defn- has-history? [sys graph-id] (not (nil? (is/graph-history sys graph-id))))
 (def ^:private meaningful-change? contains?)
@@ -141,13 +139,13 @@
   [txs]
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
-  (let [basis     (is/basis @*the-system*)
-        id-gens   (is/id-generators @*the-system*)
+  (let [basis     (is/basis @state/*the-system*)
+        id-gens   (is/id-generators @state/*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
       (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
-       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))))
+       (merge-graphs @state/*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
+       (c/cache-invalidate (is/system-cache @state/*the-system*) (:outputs-modified tx-result))))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -370,7 +368,7 @@
   (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
   (let [locals (take-nth 2 binding-expr)
         ctors  (take-nth 2 (next binding-expr))
-        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~graph-id))]
+        ids    (repeat (count locals) `(internal.system/next-node-id @state/*the-system* ~graph-id))]
     `(let [~@(interleave locals ids)]
        (concat
         ~@(map
@@ -397,7 +395,7 @@
 
 (defn- construct-node-with-id
   [graph-id node-type args]
-  (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
+  (apply construct node-type :_node-id (is/next-node-id @state/*the-system* graph-id) (mapcat identity args)))
 
 (defn make-node
   "Returns the transaction step for creating a new node.
@@ -1009,7 +1007,7 @@
 
 (defn- make-override-node
   [graph-id override-id original-node-id]
-  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
+  (in/make-override-node override-id (is/next-node-id @state/*the-system* graph-id) original-node-id {}))
 
 (defn override
   ([root-id]
@@ -1021,7 +1019,7 @@
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)
           node-ids (ig/pre-traverse basis [root-id] traverse-fn)
-          override-id (is/next-override-id @*the-system* graph-id)
+          override-id (is/next-override-id @state/*the-system* graph-id)
           overrides (mapv (partial make-override-node graph-id override-id) node-ids)
           new-node-ids (map gt/node-id overrides)
           orig->new (zipmap node-ids new-node-ids)
@@ -1033,7 +1031,7 @@
        :tx-data (concat new-tx-data override-tx-data)})))
 
 (defn transfer-overrides [from-node-id to-node-id]
-  (it/transfer-overrides from-node-id to-node-id (partial is/next-node-id @*the-system* (node-id->graph-id to-node-id))))
+  (it/transfer-overrides from-node-id to-node-id (partial is/next-node-id @state/*the-system* (node-id->graph-id to-node-id))))
 
 (defn overrides
   ([root-id]
@@ -1060,7 +1058,7 @@
 (defn initialize!
   "Set up the initial system including graphs, caches, and dispoal queues"
   [config]
-  (reset! *the-system* (is/make-system config)))
+  (reset! state/*the-system* (is/make-system config)))
 
 (defn- make-graph
   [& {:as options}]
@@ -1076,18 +1074,18 @@
   `(make-graph! :history true :volatility 1)`"
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+        s (swap! state/*the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
     (:last-graph s)))
 
 (defn last-graph-added
   "Retuns the last graph added to the system"
   []
-  (is/last-graph @*the-system*))
+  (is/last-graph @state/*the-system*))
 
 (defn graph-version
   "Returns the latest version of a graph id"
   [graph-id]
-  (is/graph-time @*the-system* graph-id))
+  (is/graph-time @state/*the-system* graph-id))
 
 (defn delete-graph!
   "Given a `graph-id`, deletes it from the system
@@ -1096,9 +1094,9 @@
 
   ` (delete-graph! agraph-id)`"
   [graph-id]
-  (when-let [graph (is/graph @*the-system* graph-id)]
+  (when-let [graph (is/graph @state/*the-system* graph-id)]
     (transact (mapv it/delete-node (ig/node-ids graph)))
-    (swap! *the-system* is/detach-graph graph-id)))
+    (swap! state/*the-system* is/detach-graph graph-id)))
 
 (defn undo!
   "Given a `graph-id` resets the graph back to the last _step_ in time.
@@ -1107,14 +1105,14 @@
 
   (undo gid)"
   [graph-id]
-  (let [snapshot @*the-system*]
+  (let [snapshot @state/*the-system*]
     (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
   [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+  (let [undo-stack (is/undo-stack (is/graph-history @state/*the-system* graph-id))]
     (not (empty? undo-stack))))
 
 (defn redo!
@@ -1122,14 +1120,14 @@
 
   Example: `(redo gid)`"
   [graph-id]
-  (let [snapshot @*the-system*]
+  (let [snapshot @state/*the-system*]
     (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
   [graph-id]
-  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph-id))]
+  (let [redo-stack (is/redo-stack (is/graph-history @state/*the-system* graph-id))]
     (not (empty? redo-stack))))
 
 (defn reset-undo!
@@ -1138,7 +1136,7 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (is/clear-history (is/graph-history @*the-system* graph-id)))
+  (is/clear-history (is/graph-history @state/*the-system* graph-id)))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1147,6 +1145,6 @@
   Example:
   `(cancel! gid :a)`"
   [graph-id sequence-id]
-  (let [snapshot @*the-system*]
+  (let [snapshot @state/*the-system*]
     (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
       (invalidate! ks))))
