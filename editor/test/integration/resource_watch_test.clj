@@ -37,7 +37,7 @@
 (defn- non-builtin-resources [resources]
   (filter #(not (.startsWith (resource/proj-path %) "/builtins")) resources))
 
-(def ^:private directory-resources #{"/" "/game.project" "/main" "/main/main.collection"})
+(def ^:private directory-resources #{"/" "/game.project" "/main" "/main/main.collection" "/lib_resource_project" "/lib_resource_project/simple.gui"})
 (def ^:private scriptlib-resources #{"/scripts" "/scripts/main.script"})
 (def ^:private imagelib1-resources #{"/images" "/images/paddle.png" "/images/pow.png"})
 (def ^:private imagelib2-resources #{"/images" "/images/ball.png" "/images/pow.png"})

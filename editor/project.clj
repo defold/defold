@@ -7,10 +7,8 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.9.3"]]
 
-  :pedantic?        :abort
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.5"]
-                     [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
                      [org.clojure/data.json                       "0.2.6"]

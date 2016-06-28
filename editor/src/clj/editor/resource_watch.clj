@@ -3,7 +3,8 @@
             [clojure.string :as str]
             [editor.game-project-core :as game-project-core]
             [editor.library :as library]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [dynamo.graph :as g])
   (:import [java.io File]
            [editor.resource Resource FileResource ZipResource]))
 
@@ -58,7 +59,7 @@
 
 (defn- make-file-tree [workspace ^File root]
   (let [children (if (.isFile root) [] (mapv #(make-file-tree workspace %) (filter file-resource-filter (.listFiles root))))]
-    (resource/FileResource. workspace root children)))
+    (FileResource. workspace (g/node-value workspace :root) root children)))
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)

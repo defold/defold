@@ -218,7 +218,7 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onPageFinished(JNIEnv*
     QueueCommand(&cmd);
 }
 
-JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onReceivedError__Ljava_lang_String_2(JNIEnv* env, jobject, jstring url, jint webview_id, jint request_id, jstring errorMessage)
+JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onReceivedError(JNIEnv* env, jobject, jstring url, jint webview_id, jint request_id, jstring errorMessage)
 {
     Command cmd;
     cmd.m_Type = CMD_LOAD_ERROR;

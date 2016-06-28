@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.core :as core]
+            [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.jfx :as jfx]
@@ -27,7 +28,7 @@
            [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
+           [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority ColumnConstraints]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
            [javafx.util Callback StringConverter]
@@ -40,8 +41,8 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private grid-hgap 4)
-(def ^:private grid-vgap 6)
+(def ^{:private true :const true} grid-hgap 4)
+(def ^{:private true :const true} grid-vgap 6)
 
 (defn- to-int [s]
   (try
@@ -69,15 +70,19 @@
                                          (update-fn nil)))))
   (ui/on-edit! node (fn [old new] (ui/user-data! node ::auto-commit? true))))
 
-(defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
+(defmulti create-property-control! (fn [edit-type _ property-fn]
+                                     (or (some-> edit-type :type g/value-type-dispatch-value)
+                                         (:type edit-type))))
 
-(defmethod create-property-control! String [_ _ property-fn]
+(defmethod create-property-control! g/Str [_ _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text)
         update-fn    (fn [_]
                        (properties/set-values! (property-fn) (repeat (.getText text))))]
-    (ui/on-action! text update-fn)
-    (auto-commit! text update-fn)
+    (doto text
+      (.setPrefWidth Double/MAX_VALUE)
+      (ui/on-action! update-fn)
+      (auto-commit! update-fn))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
@@ -90,8 +95,10 @@
                            (update-ui-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property)))))]
-    (ui/on-action! text update-fn)
-    (auto-commit! text update-fn)
+    (doto text
+      (.setPrefWidth Double/MAX_VALUE)
+      (ui/on-action! update-fn)
+      (auto-commit! update-fn))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
@@ -101,8 +108,10 @@
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
                                              (properties/validation-message (property-fn)))))]
-    (ui/on-action! text update-fn)
-    (auto-commit! text update-fn)
+    (doto text
+      (.setPrefWidth Double/MAX_VALUE)
+      (ui/on-action! update-fn)
+      (auto-commit! update-fn))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
@@ -120,14 +129,22 @@
     [check update-ui-fn]))
 
 (defn- create-property-component [ctrls]
-  (doto (HBox.)
-    (ui/add-style! "property-component")
-    (ui/children! ctrls)))
+  (let [box (doto (GridPane.)
+              (.setPrefWidth 5000)
+              (ui/add-style! "property-component")
+              (ui/children! ctrls))]
+    (doall (map-indexed (fn [idx c]
+                          (GridPane/setConstraints c idx 0))
+                        ctrls))
+    box))
 
 (defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv (fn [l] (TextField.)) labels)
-        box          (doto (HBox.)
-                       (.setAlignment (Pos/BASELINE_LEFT)))
+  (let [text-fields  (mapv (fn [l] (doto (TextField.)
+                                     (.setPrefWidth 5000)
+                                     (GridPane/setFillWidth true)))
+                           labels)
+        box          (doto (GridPane.)
+                       (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
                        (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
                                                                       [t (str (properties/unify-values
@@ -147,11 +164,14 @@
                                text-fields)]
       (ui/on-action! ^TextField t f)
       (auto-commit! t f))
-    (doseq [[t label] (map vector text-fields labels)]
-      (HBox/setHgrow ^TextField t Priority/SOMETIMES)
-      (.setPrefWidth ^TextField t 60)
-      (.add (.getChildren box) (create-property-component [(Label. label) t])))
-
+    (doall (map-indexed (fn [idx [t label]]
+                          (let [comp (create-property-component [(doto (Label. label)
+                                                                   (.setMinWidth 25))
+                                                                 t])]
+                            (ui/add-child! box comp)
+                            (GridPane/setConstraints comp idx 0)
+                            (GridPane/setFillWidth comp true)))
+                        (map vector text-fields labels)))
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec3 [_ _ property-fn]
@@ -161,15 +181,17 @@
   (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
-  (let [text-fields  (mapv (fn [_] (TextField.)) fields)
-        box          (doto (HBox.)
-                       (.setAlignment (Pos/BASELINE_LEFT)))
+  (let [text-fields  (mapv (fn [_] (doto (TextField.)
+                                     (.setPrefWidth 5000)))
+                           fields)
+        box          (doto (GridPane.)
+                       (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
                        (doseq [[^TextInputControl t v] (map (fn [f t]
                                                               (let [get-fn (or (:get-fn f)
                                                                                #(get-in % (:path f)))]
                                                                 [t (str (properties/unify-values
-                                                                          (map get-fn values)))]))
+                                                                         (map get-fn values)))]))
                                                             fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
@@ -178,24 +200,26 @@
                          (let [set-fn (or (:set-fn f)
                                           (fn [e v] (assoc-in e (:path f) v)))]
                            [t (fn [_]
-                               (let [v            (to-double (.getText ^TextField t))
-                                     current-vals (properties/values (property-fn))]
-                                 (if v
-                                   (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
-                                   (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                 (properties/read-only? (property-fn))))))]))
+                                (let [v            (to-double (.getText ^TextField t))
+                                      current-vals (properties/values (property-fn))]
+                                  (if v
+                                    (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
+                                    (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                  (properties/read-only? (property-fn))))))]))
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
-    (doseq [[t f] (map vector text-fields fields)
-            :let  [children (cond-> []
-                              (:label f) (conj (Label. (:label f)))
-                              (:control f) (conj (:control f))
-                              true (conj t))]]
-      (HBox/setHgrow ^TextField t Priority/SOMETIMES)
-      (.setPrefWidth ^TextField t 60)
-      (-> (.getChildren box)
-        (.add (create-property-component children))))
+    (doall (map-indexed (fn [idx [t f]]
+                          (let [children (cond-> []
+                                           (:label f)   (conj (doto (Label. (:label f))
+                                                                (.setMinWidth 60)))
+                                           (:control f) (conj (:control f))
+                                           true         (conj (doto t (GridPane/setFillWidth true))))
+                                comp     (create-property-component children)]
+                            (ui/add-child! box comp)
+                            (GridPane/setConstraints comp idx 0)
+                            (GridPane/setFillWidth comp true)))
+                        (map vector text-fields fields)))
     [box update-ui-fn]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
@@ -246,32 +270,35 @@
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Color [_ _ property-fn]
- (let [color-picker (ColorPicker.)
-       update-ui-fn (fn [values message read-only?]
-                      (let [v (properties/unify-values values)]
-                        (if (nil? v)
-                          (.setValue color-picker nil)
-                          (let [[r g b a] v]
-                            (.setValue color-picker (Color. r g b a)))))
-                      (update-field-message [color-picker] message)
-                      (ui/editable! color-picker (not read-only?)))]
-   (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
-                                             v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
-                                         (properties/set-values! (property-fn) (repeat v)))))
-   [color-picker update-ui-fn]))
+  (let [color-picker (doto (ColorPicker.)
+                       (.setPrefWidth Double/MAX_VALUE))
+        update-ui-fn  (fn [values message read-only?]
+                        (let [v (properties/unify-values values)]
+                          (if (nil? v)
+                            (.setValue color-picker nil)
+                            (let [[r g b a] v]
+                              (.setValue color-picker (Color. r g b a)))))
+                        (update-field-message [color-picker] message)
+                        (ui/editable! color-picker (not read-only?)))]
+
+    (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
+                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
+                                          (properties/set-values! (property-fn) (repeat v)))))
+    [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
-  (let [options (:options edit-type)
-        inv-options (clojure.set/map-invert options)
-        converter (proxy [StringConverter] []
-                    (toString [value]
-                      (get options value (str value)))
-                    (fromString [s]
-                      (inv-options s)))
-        cb (doto (ComboBox.)
-             (.setConverter converter)
-             (ui/cell-factory! (fn [val]  {:text (options val)}))
-             (-> (.getItems) (.addAll (object-array (map first options)))))
+  (let [options      (:options edit-type)
+        inv-options  (clojure.set/map-invert options)
+        converter    (proxy [StringConverter] []
+                       (toString [value]
+                         (get options value (str value)))
+                       (fromString [s]
+                         (inv-options s)))
+        cb           (doto (ComboBox.)
+                       (.setPrefWidth Double/MAX_VALUE)
+                       (.setConverter converter)
+                       (ui/cell-factory! (fn [val]  {:text (options val)}))
+                       (-> (.getItems) (.addAll (object-array (map first options)))))
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
@@ -289,13 +316,17 @@
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol resource/Resource) [edit-type workspace property-fn]
-  (let [box (HBox.)
-        button (doto (Button. "...") (ui/add-style! "small-button"))
-        text (TextField.)
-        from-type (or (:from-type edit-type) identity)
-        to-type (or (:to-type edit-type) identity)
-        dialog-opts (if (:ext edit-type) {:ext (:ext edit-type)} {})
+(defmethod create-property-control! resource/Resource [edit-type workspace property-fn]
+  (let [box          (doto (GridPane.)
+                       (.setPrefWidth Double/MAX_VALUE))
+        button       (doto (Button. "...")
+                       (.setMinWidth 40)
+                       (ui/add-style! "small-button"))
+        text         (doto (TextField.)
+                       (GridPane/setFillWidth true))
+        from-type    (or (:from-type edit-type) identity)
+        to-type      (or (:to-type edit-type) identity)
+        dialog-opts  (if (:ext edit-type) {:ext (:ext edit-type)} {})
         update-ui-fn (fn [values message read-only?]
                        (let [val (properties/unify-values (map to-type values))]
                          (ui/text! text (when val (resource/proj-path val))))
@@ -305,14 +336,20 @@
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
                                      (properties/set-values! (property-fn) (repeat (from-type resource))))))
-    (ui/on-action! text (fn [_] (let [path (ui/text text)
+    (ui/on-action! text (fn [_] (let [path     (ui/text text)
                                       resource (workspace/resolve-workspace-resource workspace path)]
                                   (properties/set-values! (property-fn) (repeat (from-type resource))))))
     (ui/children! box [text button])
+    (GridPane/setConstraints text 0 0)
+    (GridPane/setConstraints button 1 0)
+    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                        (.setFillWidth true)
+                                        (.setHgrow Priority/ALWAYS))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! :slider [edit-type workspace property-fn]
-  (let [box (HBox. 4.0)
+  (let [box (doto (GridPane.)
+              (.setPrefWidth Double/MAX_VALUE))
         [^TextField textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
@@ -329,7 +366,6 @@
                            (.setDisable slider true))
                          (update-field-message [slider] message)
                          (ui/editable! slider (not read-only?))))]
-    (HBox/setHgrow slider Priority/ALWAYS)
     (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
     (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
                                                   (ui/user-data! slider ::op-seq (gensym))))
@@ -340,11 +376,20 @@
                                                         new-val)]
                                               (properties/set-values! (property-fn) (repeat val) (ui/user-data slider ::op-seq))))))
     (ui/children! box [textfield slider])
+    (GridPane/setConstraints textfield 0 0)
+    (GridPane/setConstraints slider 1 0)
+    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                        (.setFillWidth true)
+                                        (.setPercentWidth 20))))
+    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                        (.setFillWidth true)
+                                        (.setPercentWidth 80))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! :default [_ _ _]
-  (let [text (TextField.)
-        wrapper (HBox.)
+  (let [text         (TextField.)
+        wrapper      (doto (HBox.)
+                       (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
                        (ui/text! text (properties/unify-values (map str values)))
                        (update-field-message [wrapper] message)
@@ -422,7 +467,8 @@
 
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
   (let [label (create-property-label (properties/label property))
-        [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
+        [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace
+                                                                 (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (.setVisible (properties/overridden? property))
                     (ui/add-styles! ["clear-button" "small-button"])
@@ -439,58 +485,74 @@
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
 
-    (GridPane/setConstraints label 1 row)
-    (GridPane/setConstraints reset-btn 2 row)
-    (GridPane/setConstraints control 3 row)
+    (GridPane/setConstraints label 0 row)
+    (GridPane/setConstraints reset-btn 1 row)
+    (GridPane/setConstraints control 2 row)
 
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
     (.add (.getChildren grid) reset-btn)
 
-    #_(update-ui-fn property)
+    (GridPane/setFillWidth label true)
+    (GridPane/setFillWidth reset-btn true)
+    (GridPane/setFillWidth control true)
 
     [key update-ui-fn]))
 
 (defn- create-properties [workspace grid properties property-fn]
   ; TODO - add multi-selection support for properties view
-  (doall (map-indexed (fn [row [key property]] (create-properties-row workspace grid key property row property-fn)) properties)))
+  (doall (map-indexed (fn [row [key property]]
+                        (create-properties-row workspace grid key property row property-fn))
+                      properties)))
 
 (defn- make-grid [parent workspace properties property-fn]
-  (let [grid (GridPane.)]
-      (.setHgap grid grid-hgap)
-      (.setVgap grid grid-vgap)
-      (ui/add-child! parent grid)
-      (ui/add-style! grid "form")
-      (create-properties workspace grid properties property-fn)))
+  (let [grid (doto (GridPane.)
+               (.setHgap grid-hgap)
+               (.setVgap grid-vgap))
+        cc1  (doto (ColumnConstraints.) (.setFillWidth true) (.setHgrow Priority/SOMETIMES))
+        cc2  (doto (ColumnConstraints.) (.setFillWidth true) (.setHgrow Priority/NEVER))
+        cc3  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 75) (.setHgrow Priority/ALWAYS))]
+    (.. grid getColumnConstraints (add cc1))
+    (.. grid getColumnConstraints (add cc2))
+    (.. grid getColumnConstraints (add cc3))
+
+    (ui/add-child! parent grid)
+    (ui/add-style! grid "form")
+    (create-properties workspace grid properties property-fn)))
 
 (defn- create-category-label [label]
   (doto (Label. label) (ui/add-style! "property-category")))
 
 (defn- make-pane [parent workspace properties]
-  (let [vbox (VBox. (double 10.0))]
-      (.setPadding vbox (Insets. 10 10 10 10))
+  (let [vbox (doto (VBox. (double 10.0))
+               (.setPadding (Insets. 10 10 10 10))
+               (.setFillWidth true)
+               (AnchorPane/setBottomAnchor 0.0)
+               (AnchorPane/setLeftAnchor 0.0)
+               (AnchorPane/setRightAnchor 0.0)
+               (AnchorPane/setTopAnchor 0.0))]
       (ui/user-data! vbox ::properties properties)
-      (let [property-fn (fn [key]
-                          (let [properties (:properties (ui/user-data vbox ::properties))]
-                            (get properties key)))
+      (let [property-fn   (fn [key]
+                            (let [properties (:properties (ui/user-data vbox ::properties))]
+                              (get properties key)))
             display-order (:display-order properties)
-            properties (:properties properties)
-            generics [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
-            categories (mapv (fn [order]
-                               [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
-                             (filter properties/category? display-order))
-            update-fns (loop [sections (cons generics categories)
-                              result []]
-                         (if-let [[category properties] (first sections)]
-                           (let [update-fns (if (empty? properties)
-                                              []
-                                              (do
-                                                (when category
-                                                  (let [label (create-category-label category)]
-                                                    (ui/add-child! vbox label)))
-                                                (make-grid vbox workspace properties property-fn)))]
-                             (recur (rest sections) (into result update-fns)))
-                           result))]
+            properties    (:properties properties)
+            generics      [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
+            categories    (mapv (fn [order]
+                                  [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
+                                (filter properties/category? display-order))
+            update-fns    (loop [sections (cons generics categories)
+                                 result   []]
+                            (if-let [[category properties] (first sections)]
+                              (let [update-fns (if (empty? properties)
+                                                 []
+                                                 (do
+                                                   (when category
+                                                     (let [label (create-category-label category)]
+                                                       (ui/add-child! vbox label)))
+                                                   (make-grid vbox workspace properties property-fn)))]
+                                (recur (rest sections) (into result update-fns)))
+                              result))]
         ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
         (ui/user-data! parent ::update-fns (into {} update-fns)))
       (ui/children! parent [vbox])

@@ -23,15 +23,24 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
     public interface IPresenter {
         public void start();
         public void setKey(String key);
+        public void setKey(String key, boolean validate);
         public void setCertificate(String certificate);
+        public void setCertificate(String certificate, boolean validate);
         public void releaseModeSelected(boolean selection);
+        public void releaseModeSelected(boolean selection, boolean validate);
         public void generateReportSelected(boolean selection);
+        public void generateReportSelected(boolean selection, boolean validate);
     }
 
     private Button packageApplication;
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
+
+    private static String persistentCertificate = null;
+    private static String persistentKey = null;
+    private static boolean persistentReleaseMode = false;
+    private static boolean persistentGenerateReport = false;
 
     public BundleAndroidDialog(Shell parentShell) {
         super(parentShell);
@@ -68,6 +77,10 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         final Text certificateText = new Text(container, SWT.BORDER);
         certificateText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
         certificateText.setEditable(false);
+        if (persistentCertificate != null) {
+            certificateText.setText(persistentCertificate);
+            presenter.setCertificate(persistentCertificate, false);
+        }
 
         Button selectCertificateButton = new Button(container, SWT.FLAT);
         GridData gd = new GridData(SWT.LEFT, SWT.FILL, false, false, 1, 1);
@@ -79,6 +92,7 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
                 FileDialog fileDialog = new FileDialog(getShell());
                 String certificate = fileDialog.open();
                 if (certificate != null) {
+                    persistentCertificate = certificate;
                     certificateText.setText(certificate);
                     presenter.setCertificate(certificate);
                 }
@@ -92,6 +106,10 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         final Text keyText = new Text(container, SWT.BORDER);
         keyText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
         keyText.setEditable(false);
+        if (persistentKey != null) {
+            keyText.setText(persistentKey);
+            presenter.setKey(persistentKey, false);
+        }
 
         Button selectKeyButton = new Button(container, SWT.FLAT);
         gd = new GridData(SWT.LEFT, SWT.FILL, false, false, 1, 1);
@@ -103,6 +121,7 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
                 FileDialog fileDialog = new FileDialog(getShell());
                 String key = fileDialog.open();
                 if (key != null) {
+                    persistentKey = key;
                     keyText.setText(key);
                     presenter.setKey(key);
                 }
@@ -113,20 +132,30 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         releaseMode = new Button(container, SWT.CHECK);
         releaseMode.setText("Release mode");
         releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentReleaseMode == true) {
+            releaseMode.setSelection(persistentReleaseMode);
+            presenter.releaseModeSelected(persistentReleaseMode, false);
+        }
         releaseMode.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                presenter.releaseModeSelected(releaseMode.getSelection());
+                persistentReleaseMode = releaseMode.getSelection();
+                presenter.releaseModeSelected(persistentReleaseMode);
             }
         });
 
         generateReport = new Button(container, SWT.CHECK);
         generateReport.setText("Generate build report");
         generateReport.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentGenerateReport == true) {
+            generateReport.setSelection(persistentGenerateReport);
+            presenter.generateReportSelected(persistentGenerateReport, false);
+        }
         generateReport.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                presenter.generateReportSelected(generateReport.getSelection());
+                persistentGenerateReport = generateReport.getSelection();
+                presenter.generateReportSelected(persistentGenerateReport);
             }
         });
 
