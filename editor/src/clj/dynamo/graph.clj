@@ -219,10 +219,7 @@
                              s/Keyword                             s/Any}}
      (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
 
-(def node-intrinsics
-  [(list 'extern '_node-id :dynamo.graph/NodeID)
-   (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)])
+
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -324,7 +321,7 @@
   [symb & body]
   (let [[symb forms]  (ctm/name-with-attributes symb body)
         fqs           (symbol (str *ns*) (str symb))
-        node-type-def (in/process-node-type-forms fqs (concat node-intrinsics forms))
+        node-type-def (in/process-node-type-forms fqs forms)
         fn-paths      (in/extract-functions node-type-def)
         fn-defs       (for [[path func] fn-paths]
                         (list `def (in/dollar-name symb path) func))

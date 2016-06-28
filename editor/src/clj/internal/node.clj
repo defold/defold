@@ -736,6 +736,17 @@
     (macroexpand-1 f)
     f))
 
+(def node-intrinsics
+  [(list 'extern '_node-id :dynamo.graph/NodeID)
+   (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
+   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)])
+
+(defn maybe-inject-intrinsics
+  [forms]
+  (if (some #(= 'inherits %) (map first forms))
+    forms
+    (concat node-intrinsics forms)))
+
 (defmulti process-property-form first)
 
 (defmethod process-property-form 'dynamic [[_ label forms]]
@@ -939,7 +950,8 @@
 
 (defn process-node-type-forms
   [fqs forms]
-  (-> (group-node-type-forms forms)
+  (-> (maybe-inject-intrinsics forms)
+      group-node-type-forms
       (merge-left :supertypes)
       (assoc :name (str fqs))
       (assoc :key (keyword fqs))
