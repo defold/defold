@@ -283,24 +283,26 @@
                                     ;;do nothing we are handling all the events
                                     )
                                   (defoldUpdateCursor [^MouseEvent event visible-cells selection]
-                                    (let [vcells (into [] visible-cells)
-                                          doc-len (.getCharCount ^StyledTextArea text-area)
-                                          event-y (.getY event)
-                                          scene-event-x (.getSceneX event)
-                                          scene-event-y (.getSceneY event)
-                                          caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
-                                          found-cells (filter #(when-let [idx (:caret-idx %)]
-                                                                 (not= -1 idx)) caret-cells)]
-                                      (if-let [fcell (first found-cells)]
-                                        (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
-                                        (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)]
-                                          (cond
+                                    (try
+                                      (let [vcells (into [] visible-cells)
+                                           doc-len (.getCharCount ^StyledTextArea text-area)
+                                           event-y (.getY event)
+                                           scene-event-x (.getSceneX event)
+                                           scene-event-y (.getSceneY event)
+                                           caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
+                                           found-cells (filter #(when-let [idx (:caret-idx %)]
+                                                                  (not= -1 idx)) caret-cells)]
+                                       (if-let [fcell (first found-cells)]
+                                         (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
+                                         (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)]
+                                           (cond
 
-                                            (:line-offset closest-cell)
-                                            (cvx/caret! text-area (+ (:line-offset closest-cell) (:line-length closest-cell)) selection)
+                                             (:line-offset closest-cell)
+                                             (cvx/caret! text-area (+ (:line-offset closest-cell) (:line-length closest-cell)) selection)
 
-                                            true
-                                            (cvx/caret! text-area doc-len selection)))))))]
+                                             true
+                                             (cvx/caret! text-area doc-len selection)))))
+                                      (catch Exception e (println "error updating cursor")))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
