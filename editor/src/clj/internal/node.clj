@@ -599,7 +599,7 @@
      (fn [dependencies argument]
        (conj
         (if (not (seen argument))
-          (if-let [recursive (get-in desc [:output argument :arguments])]
+          (if-let [recursive (get-in desc [:output argument :dependencies])]
             (into dependencies (dependency-seq desc (conj seen argument) recursive))
             dependencies)
           dependencies)
@@ -611,7 +611,7 @@
 (defn description->input-dependencies
   [{:keys [output] :as description}]
   (let [outputs (zipmap (keys output)
-                        (map #(dependency-seq description (:arguments %)) (vals output)))]
+                        (map #(dependency-seq description (:dependencies %)) (vals output)))]
     (invert-map outputs)))
 
 (defn attach-input-dependencies
@@ -881,12 +881,17 @@
              (fn [v] (not (or (seq? v) (util/pfnksymbol? v) (util/pfnkvar? v))))
              (fn [v] `(dynamo.graph/fnk [] ~(if (symbol? v) (resolve v) v)))))
 
+(defn- into-set [x v] (into (or x #{}) v))
+
 (defn extract-fn-arguments
   [tree]
   (walk/postwalk
    (fn [f]
      (if (and (map? f) (contains? f :fn))
-       (assoc f :arguments (util/inputs-needed (:fn f)))
+       (let [args (util/inputs-needed (:fn f))]
+         (-> f
+             (update :arguments #(into-set % args))
+             (update :dependencies #(into-set % args))))
        f))
    tree))
 
@@ -897,25 +902,40 @@
   [description]
   (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) internal-keys)]
     (assoc-in description [:output :_declared-properties]
-              {:value-type (->ValueTypeRef :dynamo.graph/Properties)
-               :arguments  publics})))
+              {:value-type   (->ValueTypeRef :dynamo.graph/Properties)
+               :arguments    publics
+               :dependencies publics})))
 
 (defn attach-declared-properties-behavior
   [description]
   (assoc-in description [:behavior :_declared-properties :fn]
             (declared-properties-function description)))
 
-(defn merge-property-arguments
+(defn- recursive-filter
+  [m k]
+  (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
+
+(defn- all-subtree-dependencies
+  [tree]
+  (apply set/union (map :dependencies (recursive-filter tree :dependencies))))
+
+(defn merge-property-dependencies
   [tree]
   (update tree :property
-          #(util/map-vals
-            (fn [prop]
-              (let [allargs (-> #{}
-                                (into (-> prop :arguments))
-                                (into (->> prop :dynamics vals (mapcat :arguments)))
-                                (into (->> prop :validate :arguments)))]
-                (assoc prop :arguments allargs)))
-            %)))
+          (fn [properties]
+            (reduce-kv
+             (fn [props pname pdef]
+               (update-in props [pname :dependencies] #(disj (into-set % (all-subtree-dependencies pdef)) pname)))
+             properties
+             properties))))
+
+(defn apply-property-dependencies-to-outputs
+  [tree]
+  (reduce-kv
+   (fn [tree pname pdef]
+     (update-in tree [:output pname :dependencies] #(into-set % (:dependencies pdef))))
+   tree
+   (:property tree)))
 
 (defn process-node-type-forms
   [fqs forms]
@@ -926,7 +946,8 @@
       wrap-constant-fns
       defer-display-order-resolution
       extract-fn-arguments
-      merge-property-arguments
+      merge-property-dependencies
+      apply-property-dependencies-to-outputs
       attach-declared-properties
       attach-input-dependencies
       attach-output-behaviors
@@ -1201,7 +1222,7 @@
 (defn detect-cycles [ctx-name nodeid-sym transform description forms]
   `(do
      (assert (not (contains? (:in-production ~ctx-name) [~nodeid-sym ~transform]))
-             (format "Cycle Detected on node type %s and output %s" ~(:name description) ~transform))
+             (format "Cycle detected on node type %s and output %s" ~(:name description) ~transform))
      ~forms))
 
 (defn mark-in-production [ctx-name nodeid-sym transform forms]
