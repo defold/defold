@@ -110,6 +110,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			@Override
 			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
 				int lineIndex = getSkinnable().getContent().getLineAtOffset(newValue.intValue());
+                                if (lineIndex === null){
+                                    return;
+                                }
 				Line lineObject = DefoldStyledTextSkin.this.lineList.get(lineIndex);
 				getFlow().show(lineIndex);
 
@@ -821,11 +824,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 	class MyVirtualFlow extends VirtualFlow<LineCell> {
 		public MyVirtualFlow() {
 		}
-		
+
 		@Override
 		protected void layoutChildren() {
 			super.layoutChildren();
-			
+
 			Platform.runLater(new Runnable() {
 
 				@Override
@@ -836,7 +839,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							block.requestLayout();
 						}
 					}
-					
+
 				}
 			});
 		}
