@@ -1,15 +1,17 @@
 (ns editor.camera
   (:require [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.ui :as ui]
             [editor.geom :as geom]
             [editor.math :as math]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.graph-util :as gu])
   (:import [editor.types Camera Region AABB]
            [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
-(g/s-defn camera-view-matrix :- Matrix4d
+(s/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
   (let [pos (Vector3d. (types/position camera))
         m   (Matrix4d.)]
@@ -21,7 +23,7 @@
     (.setColumn m 3 (.x pos) (.y pos) (.z pos) 1.0)
     m))
 
-(g/s-defn camera-perspective-projection-matrix :- Matrix4d
+(s/defn camera-perspective-projection-matrix :- Matrix4d
   [camera :- Camera]
   (let [near   (.z-near camera)
         far    (.z-far camera)
@@ -61,7 +63,7 @@
     (set! (. m m33) 0.0)
     m))
 
-(g/s-defn camera-orthographic-projection-matrix :- Matrix4d
+(s/defn camera-orthographic-projection-matrix :- Matrix4d
   [camera :- Camera]
   (let [near   (.z-near camera)
         far    (.z-far camera)
@@ -92,7 +94,7 @@
     (set! (. m m33) 1.0)
     m))
 
-(g/s-defn camera-projection-matrix :- Matrix4d
+(s/defn camera-projection-matrix :- Matrix4d
   [camera :- Camera]
   (case (:type camera)
     :perspective  (camera-perspective-projection-matrix camera)
@@ -100,35 +102,35 @@
 
 
 
-(g/s-defn make-camera :- Camera
+(s/defn make-camera :- Camera
   ([] (make-camera :perspective))
-  ([t :- (g/enum :perspective :orthographic)]
+  ([t :- (s/enum :perspective :orthographic)]
     (let [distance 10000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
       (types/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0)))))
 
-(g/s-defn set-orthographic :- Camera
-  [camera :- Camera fov :- g/Num aspect :- g/Num z-near :- g/Num z-far :- g/Num]
+(s/defn set-orthographic :- Camera
+  [camera :- Camera fov :- s/Num aspect :- s/Num z-near :- s/Num z-far :- s/Num]
   (assoc camera
          :fov fov
          :aspect aspect
          :z-near z-near
          :z-far z-far))
 
-(g/s-defn camera-rotate :- Camera
+(s/defn camera-rotate :- Camera
   [camera :- Camera q :- Quat4d]
   (assoc camera :rotation (doto (Quat4d. (types/rotation camera)) (.mul (doto (Quat4d. q) (.normalize))))))
 
-(g/s-defn camera-move :- Camera
-  [camera :- Camera x :- g/Num y :- g/Num z :- g/Num]
+(s/defn camera-move :- Camera
+  [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
   (assoc camera :position (doto (Point3d. x y z) (.add (types/position camera)))))
 
-(g/s-defn camera-set-position :- Camera
-  [camera :- Camera x :- g/Num y :- g/Num z :- g/Num]
+(s/defn camera-set-position :- Camera
+  [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
   (assoc camera :position (Point3d. x y z)))
 
-(g/s-defn camera-set-center :- Camera
+(s/defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
   (let [center (geom/aabb-center bounds)
         view-matrix (camera-view-matrix camera)]
@@ -137,7 +139,7 @@
     (.transform ^Matrix4d (geom/invert view-matrix) center)
     (camera-set-position camera (.x center) (.y center) (.z center))))
 
-(g/s-defn camera-project :- Point3d
+(s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
   [camera :- Camera viewport :- Region point :- Point3d]
@@ -172,8 +174,8 @@
                 (/ (.z ~v) (.w ~v))
                 1.0)))
 
-(g/s-defn camera-unproject :- Vector4d
-  [camera :- Camera viewport :- Region win-x :- g/Num win-y :- g/Num win-z :- g/Num]
+(s/defn camera-unproject :- Vector4d
+  [camera :- Camera viewport :- Region win-x :- s/Num win-y :- s/Num win-z :- s/Num]
   (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
         in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
                             (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
@@ -188,7 +190,7 @@
     (.transform a in out)
     (normalize-vector out)))
 
-(g/s-defn viewproj-frustum-planes :- [Vector4d]
+(s/defn viewproj-frustum-planes :- [Vector4d]
   [camera :- Camera]
   (let [view-proj   (doto (camera-projection-matrix camera)
                       (.mul (camera-view-matrix camera)))
@@ -277,7 +279,7 @@
       (button-interpretation key :idle))))
 
 
-(g/s-defn camera-fov-from-aabb :- g/Num
+(s/defn camera-fov-from-aabb :- s/Num
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
@@ -299,7 +301,7 @@
               fov-prim (Math/max fov-y-prim fov-x-prim)]
           (* 1.1 fov-prim))))))
 
-(g/s-defn camera-orthographic-frame-aabb :- Camera
+(s/defn camera-orthographic-frame-aabb :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (-> camera
@@ -371,7 +373,7 @@
 
   (input viewport Region)
 
-  (output viewport Region (g/fnk [viewport] viewport))
+  (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
 
   (output input-handler Runnable :cached (g/always handle-input)))

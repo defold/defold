@@ -29,10 +29,14 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private lua-code-opts {:code lua/lua})
-(def ^:private go-prop-type->property-types (->> properties/go-prop-type->clj-type
-                                              (map (fn [[type clj-type]]
-                                                     [type (g/make-property-type (name type) clj-type)]))
-                                              (into {})))
+(def ^:private go-prop-type->property-types
+  {:property-type-number  g/Num
+   :property-type-hash    g/Str
+   :property-type-url     g/Str
+   :property-type-vector3 t/Vec3
+   :property-type-vector4 t/Vec4
+   :property-type-quat    t/Vec3
+   :property-type-boolean g/Bool})
 
 (def script-defs [{:ext "script"
                    :label "Script"
@@ -75,7 +79,7 @@
                                            (assoc :node-id _node-id
                                                   :type (go-prop-type->property-types type)
                                                   :validation-problems (status-errors (:status p))
-                                                  :edit-type {:type (properties/go-prop-type->clj-type type)}
+                                                  :edit-type {:type (go-prop-type->property-types type)}
                                                   :go-prop-type type
                                                   :read-only? (nil? (g/override-original _node-id))))]
                                 [(prop->key p) prop]))
