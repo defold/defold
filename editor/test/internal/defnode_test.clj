@@ -827,3 +827,24 @@
       :input-one
       :_properties
       :_declared-properties)))
+
+(g/defnode CustomPropertiesOutput
+  (output _properties g/Properties :cached
+          (g/fnk [_declared-properties]
+                 (assoc-in _declared-properties [:properties :from-custom-output] {:node-id 0
+                                                                                   :type    g/Bool
+                                                                                   :value true}))))
+
+(g/defnode InheritFromCustomProperties
+  (inherits CustomPropertiesOutput))
+
+(deftest inheriting-properties-output
+  (testing "custom _properties function is invoked"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world CustomPropertiesOutput))]
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
+
+  (testing "inherited function is invoked"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world InheritFromCustomProperties))]
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value))))))
