@@ -5,19 +5,19 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.defold-project :as project]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin]
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
+            DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView]
+           [javafx.scene.control ListView ListCell]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
            [org.eclipse.fx.text.ui.source SourceViewer SourceViewerConfiguration]
-           [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection]
+           [org.eclipse.fx.ui.controls.styledtext StyledTextArea StyleRange TextSelection StyledTextLayoutContainer]
            [org.eclipse.fx.ui.controls.styledtext.behavior StyledTextBehavior]
            [org.eclipse.fx.ui.controls.styledtext.skin StyledTextSkin]
            [org.eclipse.jface.text DocumentEvent IDocument IDocumentListener IDocumentPartitioner]
@@ -62,8 +62,8 @@
       ;; There is a bug somewhere in the e(fx)clipse that doesn't
       ;; display the text selection property after you change the text programatically
       ;; when it's resolved uncomment
-      ;(cvx/text-selection! source-viewer selection-offset selection-length)
       (cvx/caret! source-viewer caret-position false)
+      (cvx/text-selection! source-viewer selection-offset selection-length)
     )
     (cvx/caret! source-viewer caret-position false))
   [code-node code caret-position])
@@ -227,8 +227,45 @@
       (FastPartitioner. (make-partition-scanner partitions)
                         (into-array String legal-content-types)))))
 
+(defprotocol TextPointer
+  (caret-at-point [this x y]))
+
+(extend-type ListCell
+  TextPointer
+  (caret-at-point [this x y]
+    (let [bip (.getBoundsInParent this)
+          de (.getDomainElement ^DefoldStyledTextSkin$LineCell this)
+          ^StyledTextLayoutContainer n (.getGraphic this)
+          base {:min-x (.getMinX bip)
+                :min-y (.getMinY bip)
+                :max-x (.getMaxX bip)
+                :max-y (.getMaxY bip)}]
+     (cond-> base
+
+      de
+      (merge {:line-offset (.getLineOffset de)
+              :line-length (.getLineLength de)})
+
+      n
+       (merge {:caret-idx  (.getCaretIndexAtPoint n (.sceneToLocal n ^double x ^double y))
+               :start-offset (.getStartOffset n)})))))
+
+(extend-type StyledTextArea
+  cvx/TextCaret
+  (caret! [this offset select?]
+    (try
+      (.impl_setCaretOffset this offset select?)
+      (catch Exception e
+        (println "caret! failure")
+        ;;do nothing there is a bug in the StyledTextSkin that creates
+        ;;null pointers due to the skin rendered completely yet not being created yet (the skin
+        ;;is created on the ui pulse) Eventually we should consider
+        ;;rewriting the Skin class and porting it to Clojure
+        )))
+  (caret [this] (.getCaretOffset this)))
+
 (defn setup-source-viewer [opts use-custom-skin?]
-  (let [source-viewer (SourceViewer.)
+  (let [source-viewer (DefoldSourceViewer.)
         source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
         partitioner (make-partitioner opts)]
@@ -241,11 +278,29 @@
     (.setDocument source-viewer document)
 
     (let [text-area (.getTextWidget source-viewer)
-          styled-text-behavior  (proxy [StyledTextBehavior] [text-area]
+          styled-text-behavior  (proxy [DefoldStyledTextBehavior] [text-area]
                                   (callActionForEvent [key-event]
-                                    ;;do nothing we are handling all
-                                    ;;the events
-                                    ))]
+                                    ;;do nothing we are handling all the events
+                                    )
+                                  (defoldUpdateCursor [^MouseEvent event visible-cells selection]
+                                    (let [vcells (into [] visible-cells)
+                                          doc-len (.getCharCount ^StyledTextArea text-area)
+                                          event-y (.getY event)
+                                          scene-event-x (.getSceneX event)
+                                          scene-event-y (.getSceneY event)
+                                          caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
+                                          found-cells (filter #(when-let [idx (:caret-idx %)]
+                                                                 (not= -1 idx)) caret-cells)]
+                                      (if-let [fcell (first found-cells)]
+                                        (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
+                                        (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)]
+                                          (cond
+
+                                            (:line-offset closest-cell)
+                                            (cvx/caret! text-area (+ (:line-offset closest-cell) (:line-length closest-cell)) selection)
+
+                                            true
+                                            (cvx/caret! text-area doc-len selection)))))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
@@ -299,7 +354,7 @@
       (.getString this))))
 
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (.impl_setCaretOffset (.getTextWidget ^SourceViewer source-viewer) offset select?))
+  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer) offset select?))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
@@ -310,15 +365,19 @@
   (text [this]
     (.get (.getDocument this)))
   (replace! [this offset length s]
-    (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s)))
+    (try
+      (-> this (.getTextWidget) (.getContent) (.replaceTextRange offset length s))
+      (catch Exception e
+        (println "Replace failed at offset" offset))))
+  cvx/TextCaret
+  (caret! [this offset select?]
+    (source-viewer-set-caret! this offset select?))
+  (caret [this] (cvx/caret(.getTextWidget this)))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
   (selection-length [this]
     (.-length ^TextSelection (-> this (.getTextWidget) (.getSelection))))
-  (caret! [this offset select?]
-    (source-viewer-set-caret! this offset select?))
-  (caret [this] (.getCaretOffset (.getTextWidget this)))
   (text-selection [this]
     (.get (.getDocument this) (cvx/selection-offset this) (cvx/selection-length this)))
   (text-selection! [this offset length]
@@ -332,6 +391,12 @@
         caret-pos (cvx/caret this)
         p (.getLocationAtOffset tw caret-pos)]
       (.localToScreen tw p)))
+  (text-area [this]
+    (.getTextWidget this))
+  (refresh! [this]
+    (let [text-area (.getTextWidget this)]
+      (.requestFocus text-area)
+      (.requestLayout text-area)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
@@ -360,18 +425,33 @@
                              (when selection-changed?
                                [(g/set-property code-node-id :selection-offset selection-offset)
                                 (g/set-property code-node-id :selection-length selection-length)])))))))
+  cvx/TextLine
+  (line [this]
+    (let [text-area-content (.getContent (.getTextWidget this))
+          offset (cvx/caret this)
+          line-no (.getLineAtOffset text-area-content offset)]
+      (.getLine text-area-content line-no)))
+  (prev-line [this]
+    (let [text-area-content (.getContent (.getTextWidget this))
+          offset (cvx/caret this)
+          line-no (.getLineAtOffset text-area-content offset)
+          prev-line-num (dec line-no)]
+      (if (neg? prev-line-num)
+        ""
+        (.getLine text-area-content prev-line-num))))
+  (line-offset [this]
+    (let [text-area-content (.getContent (.getTextWidget this))
+          offset (cvx/caret this)
+          line-no (.getLineAtOffset text-area-content offset)]
+      (.getOffsetAtLine text-area-content line-no)))
   cvx/TextProposals
   (propose [this]
     (when-let [assist-fn (assist this)]
-      (let [document (.getDocument this)
-            offset (cvx/caret this)
-            line-no (.getLineOfOffset document offset)
-            line-offset (.getLineOffset document line-no)
-            line (.get document line-offset (- offset line-offset))
+      (let [offset (cvx/caret this)
+            line (cvx/line this)
             code-node-id (-> this (.getTextWidget) (code-node))
             completions (g/node-value code-node-id :completions)]
-        {:proposals (assist-fn completions (cvx/text this) offset line)
-         :line line}))))
+        (assist-fn completions (cvx/text this) offset line)))))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
