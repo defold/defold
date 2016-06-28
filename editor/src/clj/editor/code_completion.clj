@@ -30,7 +30,7 @@
         results (filter #(= (lua/lua-module->path module-name) (first %)) resource-node-pairs)]
     (when (= 1 (count results))
       (let [[_ result-node-id] (first results)]
-        (when  (= "editor.script/ScriptNode" (-> result-node-id (g/node-by-id) (g/node-type) :name))
+        (when  (= "editor.script/ScriptNode" (-> result-node-id (g/node-by-id) (g/node-type) deref :name))
           result-node-id)))))
 
 (defn resource-node-path [nid]
