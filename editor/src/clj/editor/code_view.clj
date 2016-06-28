@@ -7,7 +7,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
-            DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer]
+            DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
            [javafx.scene Parent]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
@@ -235,7 +235,7 @@
   (caret-at-point [this x y]
     (let [bip (.getBoundsInParent this)
           de (.getDomainElement ^DefoldStyledTextSkin$LineCell this)
-          ^StyledTextLayoutContainer n (.getGraphic this)
+          ^DefoldStyledTextLayoutContainer n (.getGraphic this)
           base {:min-x (.getMinX bip)
                 :min-y (.getMinY bip)
                 :max-x (.getMaxX bip)
