@@ -863,9 +863,9 @@
   ([l r & more]
    (reduce node-type-merge (node-type-merge l r) more)))
 
-(defn merge-left
-  [tree selector]
-  (let [supertypes (map deref (get tree selector []))]
+(defn merge-supertypes
+  [tree]
+  (let [supertypes (map deref (get tree :supertypes []))]
     (node-type-merge (apply node-type-merge supertypes) tree)))
 
 (defn defer-display-order-resolution
@@ -952,7 +952,7 @@
   [fqs forms]
   (-> (maybe-inject-intrinsics forms)
       group-node-type-forms
-      (merge-left :supertypes)
+      merge-supertypes
       (assoc :name (str fqs))
       (assoc :key (keyword fqs))
       wrap-constant-fns
