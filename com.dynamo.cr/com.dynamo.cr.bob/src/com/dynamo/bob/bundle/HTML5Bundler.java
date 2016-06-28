@@ -147,8 +147,9 @@ public class HTML5Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
+        Boolean debug = project.hasOption("debug") || project.option("local-launch", "false").equals("true");
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String js = Bob.getDmengineExe(Platform.JsWeb, project.hasOption("debug"));
+        String js = Bob.getDmengineExe(Platform.JsWeb, debug);
         String engine = title + '.' + FilenameUtils.getExtension(js);
 
         String jsMemInit = js + ".mem";
