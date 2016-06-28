@@ -838,6 +838,10 @@
 (g/defnode InheritFromCustomProperties
   (inherits CustomPropertiesOutput))
 
+(g/defnode InheritAndOverrideProperties
+  (output _properties g/Properties
+          (g/fnk [_declared-properties] _declared-properties)))
+
 (deftest inheriting-properties-output
   (testing "custom _properties function is invoked"
     (with-clean-system
@@ -847,4 +851,8 @@
   (testing "inherited function is invoked"
     (with-clean-system
       (let [[n] (tx-nodes (g/make-node world InheritFromCustomProperties))]
-        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value))))))
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
+
+  (testing "cached flag is not inherited"
+    (is (contains? (-> @CustomPropertiesOutput :output :_properties :flags) :cached))
+    (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
