@@ -32,7 +32,8 @@
   (editable? [this])
   (editable! [this val])
   (screen-position [this])
-  (text-area [this]))
+  (text-area [this])
+  (refresh! [this]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -689,6 +690,7 @@
     (replace! selection found-idx tlen rtext)
     (caret! selection (adjust-bounds (text selection) (+ tlen-new found-idx)) false)
     (text-selection! selection found-idx tlen-new)
+    (refresh! selection)
     ;;Note:  trying to highlight the selection doensn't
     ;; work due to rendering problems in the StyledTextSkin
     ))
