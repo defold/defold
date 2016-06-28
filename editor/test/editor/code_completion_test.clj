@@ -5,12 +5,14 @@
           [editor.script :as script]
           [editor.resource :as resource]
           [editor.code-completion :refer :all]
-          [support.test-support :refer [tx-nodes with-clean-system]])
+          [support.test-support :refer [tx-nodes with-clean-system]]
+          [integration.test-util :as test-util])
 (:import [editor.resource FileResource]))
 
 (deftest script-node-with-no-required-modules
   (with-clean-system
-    (let [var-resource (FileResource. world (io/file (io/resource "lua/variable_test.lua")) nil)
+    (let [workspace (test-util/setup-workspace! world)
+          var-resource (FileResource. workspace (g/node-value workspace :root) (io/file (io/resource "lua/variable_test.lua")) nil)
           [script-node] (tx-nodes (g/make-node world script/ScriptNode
                                                      :resource var-resource
                                                      :code (slurp var-resource)))
@@ -25,9 +27,10 @@
 
 (deftest script-node-with-required-modules
   (with-clean-system
-    (let [foo-resource (FileResource. world (io/file (io/resource "lua/foo.lua")) nil)
+    (let [workspace (test-util/setup-workspace! world)
+          foo-resource (FileResource. workspace (g/node-value workspace :root) (io/file (io/resource "lua/foo.lua")) nil)
           foo-code (slurp foo-resource)
-          mymath-resource (FileResource. world (io/file (io/resource "lua/mymath.lua")) nil)
+          mymath-resource (FileResource. workspace (g/node-value workspace :root) (io/file (io/resource "lua/mymath.lua")) nil)
           [script-node mymath-node] (tx-nodes [(g/make-node world script/ScriptNode
                                                             :resource foo-resource
                                                             :code foo-code)

@@ -4,6 +4,8 @@
             [internal.graph.types :as gt]
             [support.test-support :refer :all]
             [internal.util :refer :all]
+            [editor.resource :as resource]
+            [schema.core :as s]
             [dynamo.integration.override-test-support :as support])
   (:import  [javax.vecmath Vector3d]))
 
@@ -302,7 +304,7 @@
                  (g/transact (g/clear-property or-res :reference))
                  (is (= :node-a2 (g/node-value or-res :reference))))))))
 
-(def ^:private IDMap {g/Str g/NodeID})
+(g/deftype ^:private IDMap {s/Str s/Int})
 
 (defprotocol Resource
   (path [this]))
@@ -311,7 +313,7 @@
   Resource
   (path [this] path))
 
-(defn- properties->overrides [id properties]
+(defn properties->overrides [id properties]
   {id (->> (:properties properties)
         (filter (fn [[k v]] (contains? v :original-value)))
         (map (fn [[k v]] [k (:value v)]))
@@ -328,8 +330,9 @@
   (inherits Node)
   (property value g/Str))
 
+
 (g/defnode SceneResourceNode
-  (extern resource (g/protocol Resource)))
+  (extern resource Resource))
 
 (g/defnode NodeTree
   (input nodes g/NodeID :array :cascade-delete)
@@ -392,7 +395,7 @@
                                  (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
-  (input template-resource (g/protocol Resource) :cascade-delete)
+  (input template-resource Resource :cascade-delete)
   (input node-ids IDMap)
   (input instance g/NodeID)
   (input source-overrides g/Any)
@@ -414,7 +417,7 @@
                              node-tree (g/node-value scene :node-tree)
                              {:keys [id-mapping tx-data]} (g/override node-tree {})
                              node-tree-or (id-mapping node-tree)]
-                         (into tx-data
+                         (concat tx-data
                            (for [[from to] [[:_node-id :node-tree]]]
                              (g/connect node-tree-or from self to)))))))))
   (input node-tree g/NodeID :cascade-delete)
@@ -588,7 +591,7 @@
                                                   (-> _declared-properties
                                                     (update :properties dissoc :script-properties)
                                                     (update :properties merge (into {} (map (fn [[key value]] [key {:value value
-                                                                                                                    :type (g/make-property-type key (type value))
+                                                                                                                    :type (type value)
                                                                                                                     :node-id _node-id}]) script-properties)))
                                                     (update :display-order (comp vec (partial remove #{:script-properties})))))))
 
@@ -639,10 +642,14 @@
 
 ;; Overloaded outputs with different types
 
+(g/deftype XYZ [(s/one s/Num "x") (s/one s/Num "y") (s/one s/Num "z")])
+
+(g/deftype Complex {s/Keyword Vector3d})
+
 (g/defnode TypedOutputNode
-  (property value [(g/one g/Num "x") (g/one g/Num "y") (g/one g/Num "z")])
+  (property value XYZ)
   (output value Vector3d (g/fnk [value] (let [[x y z] value] (Vector3d. x y z))))
-  (output complex {g/Keyword Vector3d} (g/fnk [value] {:value value})))
+  (output complex Complex (g/fnk [value] {:value value})))
 
 (deftest overloaded-outputs-and-types
   (with-clean-system

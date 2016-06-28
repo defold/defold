@@ -17,7 +17,8 @@
             [editor.resource :as resource]
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.types :as types])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -582,26 +583,30 @@
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
-  (property spine-json (g/protocol resource/Resource)
+  (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
-            (set (project/gen-resource-setter [[:resource :spine-json-resource]
-                                               [:content :spine-scene]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :spine-json-resource]
+                                                [:content :spine-scene])))
             (validate (validation/validate-resource spine-json "Missing spine json"
                                                     [spine-scene])))
 
-  (property atlas (g/protocol resource/Resource)
+  (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
-            (set (project/gen-resource-setter [[:resource :atlas-resource]
-                                               [:anim-data :anim-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :atlas-resource]
+                                                [:anim-data :anim-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:build-targets :dep-build-targets])))
             (validate (validation/validate-resource atlas "Missing atlas"
                                                     [anim-data])))
 
   (property sample-rate g/Num)
 
-  (input spine-json-resource (g/protocol resource/Resource))
-  (input atlas-resource (g/protocol resource/Resource))
+  (input spine-json-resource resource/Resource)
+  (input atlas-resource resource/Resource)
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -654,12 +659,14 @@
 (g/defnode SpineModelNode
   (inherits project/ResourceNode)
 
-  (property spine-scene (g/protocol resource/Resource)
-            (value (g/fnk [spine-scene-resource] spine-scene-resource))
-            (set (project/gen-resource-setter [[:resource :spine-scene-resource]
-                                               [:scene :spine-scene-scene]
-                                               [:aabb :aabb]
-                                               [:build-targets :dep-build-targets]])))
+  (property spine-scene resource/Resource
+            (value (gu/passthrough spine-scene-resource))
+            (set (fn [basis self old-value new-value]
+                     (project/resource-setter basis self old-value new-value
+                                                  [:resource :spine-scene-resource]
+                                                  [:scene :spine-scene-scene]
+                                                  [:aabb :aabb]
+                                                  [:build-targets :dep-build-targets]))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/always
@@ -667,35 +674,37 @@
                                    {:type :choicebox
                                     :options (zipmap (map first options)
                                                      (map (comp :display-name second) options))}))))
-  (property material (g/protocol resource/Resource)
-            (value (g/fnk [material-resource] material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]
-                                               [:shader :material-shader]
-                                               [:sampler-data :sampler-data]
-                                               [:build-targets :dep-build-targets]])))
+  (property material resource/Resource
+            (value (gu/passthrough material-resource))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :material-resource]
+                                                [:shader :material-shader]
+                                                [:sampler-data :sampler-data]
+                                                [:build-targets :dep-build-targets]))))
   (property default-animation g/Str
             #_(validate (validation/validate-animation default-animation anim-data))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property skin g/Str
-            #_(validate (validation/validate-skin default-animation anim-data))
+            #_(validate (validation/validate-animation default-animation anim-data))
             #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                     :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
 
   (input dep-build-targets g/Any :array)
-  (input spine-scene-resource (g/protocol resource/Resource))
+  (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
   (input aabb AABB)
-  (input material-resource (g/protocol resource/Resource))
+  (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
-  (input sampler-data {g/Keyword g/Any})
-  (output sampler-data {g/Keyword g/Any} (g/fnk [sampler-data] sampler-data))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene] spine-scene-scene))
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input sampler-data g/KeywordMap)
+  (output sampler-data g/KeywordMap (gu/passthrough sampler-data))
+  (output scene g/Any :cached (gu/passthrough spine-scene-scene))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-data g/Any :cached produce-model-save-data)
   (output build-targets g/Any :cached produce-model-build-targets)
-  (output aabb AABB (g/fnk [aabb] aabb)))
+  (output aabb AABB (gu/passthrough aabb)))
 
 (defn load-spine-model [project self resource]
   (let [resolve-fn (partial workspace/resolve-resource resource)

@@ -7,7 +7,6 @@
 #include <dlib/time.h>
 #include <dlib/profile.h>
 #include "sound.h"
-#include "sound2.h"
 
 #if defined(__MACH__)
 #include <OpenAL/al.h>
@@ -181,6 +180,22 @@ namespace dmDeviceOpenAL
         info->m_MixRate = openal->m_MixRate;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo);
+    void DeviceOpenALRestart(dmSound::HDevice device)
+    {
+        OpenALDevice* openal = (OpenALDevice*) device;
+        if (!alcMakeContextCurrent(openal->m_Context)) {
+            dmLogError("Failed to restart OpenAL device, could not enable context!");
+        }
+    }
+
+    void DeviceOpenALStop(dmSound::HDevice device)
+    {
+        OpenALDevice* openal = (OpenALDevice*) device;
+        if (!alcMakeContextCurrent(NULL)) {
+            dmLogError("Failed to stop OpenAL device, could not disable context!");
+        }
+    }
+
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALRestart, DeviceOpenALStop);
 }
 

@@ -1,53 +1,14 @@
 package com.dynamo.cr.server.resources;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import javax.inject.Inject;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.GET;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-
-import org.apache.commons.codec.binary.Base64;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.DeserializationConfig.Feature;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.node.JsonNodeFactory;
-import org.codehaus.jackson.node.ObjectNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo.Type;
 import com.dynamo.cr.server.ServerException;
-import com.dynamo.cr.server.auth.AuthToken;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.auth.Identity;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator.Authentication;
-import com.dynamo.cr.server.model.Invitation;
-import com.dynamo.cr.server.model.InvitationAccount;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.NewUser;
-import com.dynamo.cr.server.model.Prospect;
-import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.*;
 import com.dynamo.inject.persist.Transactional;
 import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
 import com.google.api.client.auth.oauth2.AuthorizationCodeRequestUrl;
@@ -58,15 +19,39 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson.JacksonFactory;
 import com.google.api.client.util.store.MemoryDataStoreFactory;
+import org.apache.commons.codec.binary.Base64;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.map.DeserializationConfig.Feature;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.inject.Inject;
+import javax.persistence.Query;
+import javax.persistence.TypedQuery;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.*;
+import javax.ws.rs.core.*;
+import javax.ws.rs.core.Response.Status;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Path("/login/oauth")
 public class LoginOAuthResource extends BaseResource {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LoginOAuthResource.class);
 
     @Inject
     protected OAuthAuthenticator authenticator;
 
-
-    protected static Logger logger = LoggerFactory.getLogger(LoginOAuthResource.class);
+    @Inject
+    private AccessTokenAuthenticator accessTokenAuthenticator;
 
     // Lock for the flow. The locking scheme is from the google examples.
     // Uncertain if it's actually required as AuthorizationCodeFlow shoudl be thread safe
@@ -74,7 +59,7 @@ public class LoginOAuthResource extends BaseResource {
     private final Lock lock = new ReentrantLock();
     private AuthorizationCodeFlow flow;
 
-    protected AuthorizationCodeFlow initializeFlow() throws ServletException,
+    private AuthorizationCodeFlow initializeFlow() throws ServletException,
             IOException {
 
         // TODO: Couldn't find singleton method (getDefaultInstance)
@@ -104,7 +89,7 @@ public class LoginOAuthResource extends BaseResource {
                           @QueryParam("redirect_to") String redirectTo) throws ServletException, IOException {
 
         if (redirectTo == null) {
-            logger.warn("redirect_to set to null");
+            LOGGER.warn("redirect_to set to null");
             redirectTo = "/";
         }
 
@@ -157,23 +142,6 @@ public class LoginOAuthResource extends BaseResource {
         String action = "login";
         String loginToken = stateJson.get("login_token").getTextValue();
 
-        // ----------------------------------------------------------------
-        // NOTICE: This is temporary debug logging code, needs to removed
-        // as soon as we have figured out why we are loosing signups.
-        try {
-            if (loginToken != null) {
-                int takeLength = Math.min(10, loginToken.length());
-                logger.warn("loginToken: {}", loginToken.substring(0, takeLength));
-            } else {
-                logger.warn("loginToken was null");
-            }
-        } catch (Exception e) {
-            logger.warn("exception while printing loginToken");
-        } catch (Throwable e) {
-            logger.warn("throwable while printing loginToken");
-        }
-        // ----------------------------------------------------------------
-
         if (responseUrl.getError() != null) {
             action = "cancel";
         } else if (code == null) {
@@ -193,7 +161,7 @@ public class LoginOAuthResource extends BaseResource {
 
                 String accessToken = response.getAccessToken();
                 String jwt = response.getIdToken();
-                authenticator.authenticate(flow.getTransport().createRequestFactory(), loginToken, accessToken, jwt);
+                authenticator.authenticate(flow.getTransport().createRequestFactory(), loginToken, accessToken);
 
             } finally {
                 lock.unlock();
@@ -203,24 +171,6 @@ public class LoginOAuthResource extends BaseResource {
         String redirectTo = stateJson.get("redirect_to").getTextValue();
         redirectTo = redirectTo.replace("{token}", loginToken);
         redirectTo = redirectTo.replace("{action}", action);
-
-        // ----------------------------------------------------------------
-        // NOTICE: This is temporary debug logging code, needs to removed
-        // as soon as we have figured out why we are loosing signups.
-        try {
-            if (redirectTo != null) {
-                int takeLengthFrom = Math.min(50, redirectTo.length());
-                int takeLengthTo = Math.min(60, redirectTo.length());
-                logger.warn("redirectTo: {}", redirectTo.substring(takeLengthFrom, takeLengthTo));
-            } else {
-                logger.warn("redirectTo was null");
-            }
-        } catch (Exception e) {
-            logger.warn("exception while printing redirectTo");
-        } catch (Throwable e) {
-            logger.warn("throwable while printing redirectTo");
-        }
-        // ----------------------------------------------------------------
 
         UriBuilder uriBuilder = UriBuilder.fromUri(redirectTo);
 
@@ -240,7 +190,7 @@ public class LoginOAuthResource extends BaseResource {
 
         Authentication authentication = authenticator.exchange(token);
         if (authentication == null) {
-            logger.warn("no authenticaton for token found");
+            LOGGER.warn("no authenticaton for token found");
             throw new ServerException(Status.BAD_REQUEST.toString(), Status.BAD_REQUEST);
         }
 
@@ -260,7 +210,7 @@ public class LoginOAuthResource extends BaseResource {
             em.persist(user);
 
             tokenExchangeInfoBuilder.setType(Type.LOGIN);
-            tokenExchangeInfoBuilder.setAuthToken(authenticator.getAuthToken(user));
+            tokenExchangeInfoBuilder.setAuthToken(accessTokenAuthenticator.createSessionToken(user, "TODO"));
             tokenExchangeInfoBuilder.setUserId(user.getId());
 
         } else {
@@ -270,7 +220,7 @@ public class LoginOAuthResource extends BaseResource {
             Query deleteQuery = em.createQuery("delete from NewUser u where u.email = :email").setParameter("email", identity.email);
             int nDeleted = deleteQuery.executeUpdate();
             if (nDeleted > 0) {
-                logger.info("Removed old NewUser row for {}", identity.email);
+                LOGGER.info("Removed old NewUser row for {}", identity.email);
             }
 
             NewUser newUser = new NewUser();
@@ -294,7 +244,7 @@ public class LoginOAuthResource extends BaseResource {
             throw new ServerException("A registration key is required", Status.UNAUTHORIZED);
         }
 
-        int initialInvitationCount = 0;
+        int initialInvitationCount;
 
         String testKey = this.server.getConfiguration().getTestRegistrationKey();
         if (testKey.equals(key)) {
@@ -313,7 +263,7 @@ public class LoginOAuthResource extends BaseResource {
 
         List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
         if (list.size() == 0) {
-            logger.error("Unable to find NewUser row for {}", token);
+            LOGGER.error("Unable to find NewUser row for {}", token);
             throw new ServerException("Unable to register.", Status.BAD_REQUEST);
         }
 
@@ -344,9 +294,9 @@ public class LoginOAuthResource extends BaseResource {
         em.remove(newUser);
         em.flush();
 
-        logger.info("New user registred: {}", user.getEmail());
+        LOGGER.info("New user registered: {}", user.getEmail());
 
-        String authToken = AuthToken.login(user.getEmail());
+        String authToken = accessTokenAuthenticator.createSessionToken(user, null);
 
         LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
             .setEmail(user.getEmail())
