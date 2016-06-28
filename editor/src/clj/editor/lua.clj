@@ -119,7 +119,7 @@
        (code/create-hint "elseif" "elseif" "elseif\n\t--do things\nend" "")
        (code/create-hint "while" "while" "while cond\n\t--do things\nend" "")
        (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "")
-       (code/create-hint "function" "function" "function function_name(...)\n\t--do things\nend" "")
+       (code/create-hint "function" "function" "function function_name()\n\t--do things\nend" "")
        (code/create-hint "local" "local" "local local_name = local_value" "")
        (code/create-hint "for" "for" "for i=1,10 do\n\t--dothings\nend" "")]})
 
