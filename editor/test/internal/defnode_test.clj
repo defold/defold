@@ -795,15 +795,35 @@
     (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :an-output)
       :input-one
       :input-two
-#_      :input-three
-      :a-property))
+      :a-property)))
 
-  #_(testing "as property"
-    (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :a-property)
+(g/defnode PropertiesWithDynamics
+  (input input-one g/Any)
+  (input input-two g/Any)
+  (input input-three g/Any)
+
+  (property a-property g/Any
+            (default  (g/always false))
+            (validate (g/fnk [input-three] (nil? input-three)))
+            (value    (g/fnk [input-two] (inc input-two))))
+
+  (output an-output g/Any
+          (g/fnk [input-one a-property] :ok)))
+
+(defn- affected-by? [out in]
+  (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
+    (contains? affected-outputs out)))
+
+(deftest properties-depend-on-their-dynamic-inputs
+  (testing "as output"
+    (is (affected-by? :an-output :input-three)))
+
+  (testing "as property"
+    (are [input] (affected-by? :a-property input)
       :input-two
       :input-three)
 
-    (are [x] (not (contains? (get (g/input-dependencies MacroMembers) x) :a-property))
+    (are [input] (not (affected-by? :a-property input))
       :input-one
       :_properties
       :_declared-properties)))
