@@ -688,7 +688,7 @@
   (when (<= 0 found-idx)
     (replace! selection found-idx tlen rtext)
     (caret! selection (adjust-bounds (text selection) (+ tlen-new found-idx)) false)
-    ;; (text-selection! selection found-idx tlen-new)
+    (text-selection! selection found-idx tlen-new)
     ;;Note:  trying to highlight the selection doensn't
     ;; work due to rendering problems in the StyledTextSkin
     ))
