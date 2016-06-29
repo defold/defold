@@ -49,6 +49,7 @@ struct Push
         }
         m_SavedNotification = 0;
         m_SavedNotificationOrigin = DM_PUSH_EXTENSION_ORIGIN_LOCAL;
+        m_SavedNotificationState = false;
         m_ScheduledID = -1;
     }
 
@@ -59,6 +60,7 @@ struct Push
     PushListener         m_Listener;
     NSDictionary*        m_SavedNotification;
     int                  m_SavedNotificationOrigin;
+    bool                 m_SavedNotificationState;
 
     int m_ScheduledID;
 };
@@ -164,7 +166,7 @@ static void ObjCToLua(lua_State*L, id obj)
     }
 }
 
-static void RunListener(NSDictionary *userdata, bool local)
+static void RunListener(NSDictionary *userdata, bool local, bool state)
 {
     if (g_Push.m_Listener.m_Callback != LUA_NOREF)
     {
@@ -198,7 +200,10 @@ static void RunListener(NSDictionary *userdata, bool local)
             lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
         }
 
-        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        // Notification state
+        lua_pushboolean(L, state);
+
+        int ret = lua_pcall(L, 4, LUA_MULTRET, 0);
         if (ret != 0) {
             dmLogError("Error running push callback: %s", lua_tostring(L,-1));
             lua_pop(L, 1);
@@ -215,6 +220,7 @@ static void RunListener(NSDictionary *userdata, bool local)
         // but clicking on the notification
         g_Push.m_SavedNotification = [[NSDictionary alloc] initWithDictionary:userdata copyItems:YES];
         g_Push.m_SavedNotificationOrigin = (local ? DM_PUSH_EXTENSION_ORIGIN_LOCAL : DM_PUSH_EXTENSION_ORIGIN_REMOTE);
+        g_Push.m_SavedNotificationState = state;
     }
 }
 
@@ -225,11 +231,19 @@ static void RunListener(NSDictionary *userdata, bool local)
 @implementation PushAppDelegate
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
-    RunListener(userInfo, false);
+    bool fromNotification = (application.applicationState == UIApplicationStateInactive
+        || application.applicationState == UIApplicationStateBackground);
+    dmLogInfo("Application opened from notification (%d)", fromNotification);
+
+    RunListener(userInfo, false, fromNotification);
 }
 
 - (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification {
-    RunListener(notification.userInfo, true);
+    bool fromNotification = (application.applicationState == UIApplicationStateInactive
+        || application.applicationState == UIApplicationStateBackground);
+    dmLogInfo("Application opened from notification (%d)", fromNotification);
+
+    RunListener(notification.userInfo, true, fromNotification);
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
@@ -429,7 +443,7 @@ int Push_SetListener(lua_State* L)
     push->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     if (g_Push.m_SavedNotification) {
-        RunListener(g_Push.m_SavedNotification, g_Push.m_SavedNotificationOrigin == DM_PUSH_EXTENSION_ORIGIN_LOCAL);
+        RunListener(g_Push.m_SavedNotification, g_Push.m_SavedNotificationOrigin == DM_PUSH_EXTENSION_ORIGIN_LOCAL, g_Push.m_SavedNotificationState);
         [g_Push.m_SavedNotification release];
         g_Push.m_SavedNotification = 0;
     }
