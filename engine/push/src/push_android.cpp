@@ -31,6 +31,7 @@ struct Command
     int32_t  m_ResponseCode;
     void*    m_Data1;
     void*    m_Data2;
+    bool     m_State;
 };
 
 static JNIEnv* Attach()
@@ -464,7 +465,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
     }
 }
 
-JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, jobject, jstring json, int id)
+JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, jobject, jstring json, int id, bool state)
 {
     const char* j = 0;
 
@@ -479,6 +480,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, 
     Command cmd;
     cmd.m_Command = CMD_LOCAL_MESSAGE_RESULT;
     cmd.m_Data1 = strdup(j);
+    cmd.m_State = state;
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
@@ -574,7 +576,10 @@ void HandlePushMessageResult(const Command* cmd, bool local)
             lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
         }
 
-        dmScript::PCall(L, 3, LUA_MULTRET);
+        // Notification state
+        lua_pushboolean(L, cmd->m_State);
+
+        dmScript::PCall(L, 4, LUA_MULTRET);
     } else {
         dmLogError("Failed to parse push response (%d)", r);
     }

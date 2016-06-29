@@ -234,14 +234,14 @@ public class Push {
             r = new BufferedReader(new InputStreamReader(
                     context.openFileInput(SAVED_LOCAL_MESSAGE_NAME)));
             int id = Integer.parseInt(r.readLine());
+            boolean state = Boolean.parseBoolean(r.readLine());
             String json = "";
             String line = r.readLine();
             while (line != null) {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onLocalMessage(json, id);
-
+            this.listener.onLocalMessage(json, id, state);
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
             Log.e(Push.TAG, "Failed to read local message from disk", e);
@@ -304,9 +304,9 @@ public class Push {
         }
     }
 
-    void onLocalPush(String msg, int id) {
+    void onLocalPush(String msg, int id, boolean state) {
         if (listener != null) {
-            this.listener.onLocalMessage(msg, id);
+            this.listener.onLocalMessage(msg, id, state);
         }
 
     }
