@@ -127,9 +127,9 @@
        (code/create-hint "elseif" "elseif" "elseif cond\n\t--do things\nend" "" ["cond" "--do things" "end"])
        (code/create-hint "while" "while" "while cond\n\t--do things\nend" "" ["cond" "--do things"])
        (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "" ["--do things" "cond"])
-       (code/create-hint "function" "function" "function function_name(params)\n\t--do things\nend" "" ["function_name" "params" "--do things"])
+       (code/create-hint "function" "function" "function function_name(params)\n\t--do things\nend" "" ["function_name" "params" "--do things" "end"])
        (code/create-hint "local" "local" "local local_name = local_value" "" ["local_name" "local_value"])
-       (code/create-hint "for" "for" "for i=1,10 do\n\t--do things\nend" "" ["i" "1" "10" "--do things"])]})
+       (code/create-hint "for" "for" "for i=1,10 do\n\t--do things\nend" "" ["i" "1" "10" "--do things" "end"])]})
 
 (def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
 
