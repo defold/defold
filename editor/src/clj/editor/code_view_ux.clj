@@ -148,9 +148,19 @@
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
 (def prefer-offset (atom 0))
+(def tab-triggers (atom nil))
 
 (defn preferred-offset [] @prefer-offset)
 (defn preferred-offset! [val] (reset! prefer-offset val))
+
+(defn snippet-tab-triggers! [val] (reset! tab-triggers val))
+(defn has-snippet-tab-trigger? [] @tab-triggers)
+(defn next-snippet-tab-trigger! []
+  (let [trigger (or (first @tab-triggers) :end)]
+    (if (= trigger :end)
+      (reset! tab-triggers nil)
+      (swap! tab-triggers rest))
+    trigger))
 
 (defn- info [e]
   {:event e
@@ -796,14 +806,20 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
-(defn first-function-param-info [s]
-  (let [pattern #"\(.*?(,|\))"
-        start-idx (-> (string/split s pattern) first count inc)
-        len (-> (re-find pattern s) first count dec dec)]
-    {:param-start-idx start-idx :param-length len :found? (not (neg? len))}))
+(defn next-tab-trigger [selection pos]
+  (when (has-snippet-tab-trigger?)
+    (let [doc (text selection)
+          search-text (next-snippet-tab-trigger!)]
+      (if (= :end search-text)
+        (right selection)
+        (let [found-idx (string/index-of doc search-text pos)
+              tlen (count search-text)]
+          (when found-idx
+            (select-found-text selection doc found-idx tlen)))))))
 
 (defn do-proposal-replacement [selection replacement]
-  (let [replacement (:insert-string replacement)
+  (let [tab-triggers (:tab-triggers replacement)
+        replacement (:insert-string replacement)
         line-text (line selection)
         loffset (line-offset selection)
         parsed-line (code/parse-line line-text)
@@ -812,11 +828,10 @@
                   replacement
                  (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
         new-line-text (string/replace-first line-text pattern replacement)
-        {:keys [param-start-idx param-length found?]} (first-function-param-info new-line-text)]
+        snippet-tab-start (or (string/index-of new-line-text "(") 0)]
     (replace! selection (line-offset selection) (count line-text) new-line-text)
-    (when found?
-      (caret! selection (+ loffset param-start-idx param-length) false)
-      (text-selection! selection (+ loffset param-start-idx) param-length))))
+    (snippet-tab-triggers! tab-triggers)
+    (next-tab-trigger selection (+ loffset snippet-tab-start))))
 
 (defn show-proposals [selection proposals]
   (when (pos? (count proposals))
@@ -843,7 +858,12 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (enter-key-text selection "\t"))))
+      (if (has-snippet-tab-trigger?)
+        (let [caret (caret selection)
+              doc (text selection)
+              np (adjust-bounds doc caret)]
+          (next-tab-trigger selection np))
+        (enter-key-text selection "\t")))))
 
 (defn- get-indentation [line]
   (re-find #"^\s+" line))
