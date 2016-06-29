@@ -834,7 +834,9 @@
                   replacement
                  (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
         new-line-text (string/replace-first line-text pattern replacement)
-        snippet-tab-start (or (string/index-of new-line-text "(") 0)]
+        snippet-tab-start (or (string/index-of new-line-text "function_name")
+                              (string/index-of new-line-text "(")
+                              0)]
     (replace! selection (line-offset selection) (count line-text) new-line-text)
     (snippet-tab-triggers! tab-triggers)
     (next-tab-trigger selection (+ loffset snippet-tab-start))))
