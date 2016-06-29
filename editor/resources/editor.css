@@ -989,11 +989,6 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #aaaaff;
 }
 
-.lua.selection-marker,
-.glsl.selection-marker {
-    -fx-background-color: #8f9296;
-}
-
 .glsl.styled-text-area .directive {
     -styled-text-color: #fd6623;
 }
@@ -1026,6 +1021,10 @@ Defold Orange       #fd6623             Guides etc
 .styled-text-area .text-caret {
 	-fx-fill: white;
 	-fx-stroke: white;
+}
+
+.styled-text-area .selection-marker {
+	-fx-background-color:  rgba(172,148,120,0.3)
 }
 
 /*
