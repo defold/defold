@@ -183,6 +183,68 @@
         (propose! source-viewer)
         (is (= "math.abs(x)" (text source-viewer)))))))
 
+(defn- tab! [source-viewer]
+  (handler/run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- key-typed! [source-viewer key-typed]
+  (handler/run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+
+(deftest test-proposal-tab-triggers
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "single arg"
+        (set-code-and-caret! source-viewer "math.ab")
+        (propose! source-viewer)
+        (is (= "math.abs(x)" (text source-viewer)))
+        (is (= "x" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 11 (caret source-viewer))))
+      (testing "multiple arg"
+        (set-code-and-caret! source-viewer "string.sub")
+        (propose! source-viewer)
+        (is (= "string.sub(s,i)" (text source-viewer)))
+        (is (= "s" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "i" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 15 (caret source-viewer))))
+      (testing "no args"
+        (set-code-and-caret! source-viewer "go.delete_all")
+        (propose! source-viewer)
+        (is (= "go.delete_all()" (text source-viewer)))
+        (is (= "" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 15 (caret source-viewer))))
+      (testing "with typing for arg values"
+        (set-code-and-caret! source-viewer "string.sub")
+        (propose! source-viewer)
+        (is (= "string.sub(s,i)" (text source-viewer)))
+        (is (= "s" (text-selection source-viewer)))
+        (key-typed! source-viewer "1")
+        (tab! source-viewer)
+        (is (= "string.sub(1,i)" (text source-viewer)))
+        (is (= "i" (text-selection source-viewer)))
+        (key-typed! source-viewer "2")
+        (is (= "string.sub(1,2)" (text source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 15 (caret source-viewer))))
+      (testing "with if template"
+        (set-code-and-caret! source-viewer "if")
+        (propose! source-viewer)
+        (is (= "if cond then\n\t--do things\nend" (text source-viewer)))
+        (is (= "cond" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "--do things" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "end" (text-selection source-viewer)))))))
+
 (defn- enter! [source-viewer]
   (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
 
