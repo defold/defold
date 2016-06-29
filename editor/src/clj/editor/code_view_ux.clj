@@ -161,6 +161,7 @@
       (reset! tab-triggers nil)
       (swap! tab-triggers rest))
     trigger))
+(defn clear-snippet-tab-triggers! [] (reset! tab-triggers nil))
 
 (defn- info [e]
   {:event e
@@ -239,6 +240,7 @@
         cf (click-fn click-count)
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
+    (clear-snippet-tab-triggers!)
     (when cf (handler/run
                (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
@@ -276,16 +278,18 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (+ c (count selected-text)))
                    (adjust-bounds doc (inc c)))]
-      (caret! selection next-pos false)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos false)
+    (remember-caret-col selection next-pos)))
 
 (defn select-right [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (adjust-bounds doc (inc c))]
-      (caret! selection next-pos true)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos true)
+    (remember-caret-col selection next-pos)))
 
 (defn left [selection]
   (let [c (caret selection)
@@ -294,16 +298,18 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
-      (caret! selection next-pos false)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos false)
+    (remember-caret-col selection next-pos)))
 
 (defn select-left [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (adjust-bounds doc (dec c))]
-      (caret! selection next-pos true)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos true)
+    (remember-caret-col selection next-pos)))
 
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
@@ -858,6 +864,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
+      (println "Carin " (has-snippet-tab-trigger?) @tab-triggers)
       (if (has-snippet-tab-trigger?)
         (let [caret (caret selection)
               doc (text selection)
@@ -892,6 +899,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
+      (clear-snippet-tab-triggers!)
       (let [line-seperator (System/getProperty "line.separator")
             current-line (line selection)
             line-offset (line-offset selection)
