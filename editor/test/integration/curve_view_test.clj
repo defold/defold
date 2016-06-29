@@ -67,7 +67,7 @@
       (mouse-click! curve-view 0.11 0.99)
       (is (= [2] (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.0 0.0 [:shift])
-      (is (= [1 2] (sub-selection project emitter :particle-key-alpha)))
+      (is (= [2 1] (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.11 0.99 [:shift])
       (is (= [1] (sub-selection project emitter :particle-key-alpha))))))
 

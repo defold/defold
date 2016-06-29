@@ -27,7 +27,9 @@
     (subs 2)))
 
 (defn ->spline [points]
-  (sort-by first points))
+  (->> points
+    (sort-by first)
+    vec))
 
 (defn spline-cp [spline x]
   (let [x (min (max x 0.0) 1.0)

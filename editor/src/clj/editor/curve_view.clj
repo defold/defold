@@ -153,8 +153,10 @@
                       :user-data {:world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
-(g/defnk produce-cp-renderables [curves viewport camera sub-selection]
-  (let [sub-sel (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx)))) {} sub-selection)
+(def ^:private tangent-length 40)
+
+(g/defnk produce-cp-renderables [curves viewport camera sub-selection-map]
+  (let [sub-sel sub-selection-map
         scale (camera/scale-factor camera viewport)
         splines (mapv (fn [{:keys [node-id property curve]}]
                         (let [sel (get sub-sel [node-id property])
@@ -183,6 +185,32 @@
                                              (mapv (fn [v] (reduce conj v c)) v))))
                             (mapcat identity))))
                       splines color-hues)
+        [sx sy] scale
+        cp-vs (into cp-vs (let [s 1.0
+                                l 0.9]
+                            (mapcat (fn [[spline sel] hue]
+                                      (let [first-i 0
+                                            last-i (dec (count spline))
+                                            c (colors/hsl->rgba hue s l)]
+                                        (->> sel
+                                          (map (fn [i]
+                                                 (if-let [[x y tx ty] (get spline i)]
+                                                   (let [[tx ty] (let [v (doto (Vector3d. (/ tx sx) (/ ty sy) 0.0)
+                                                                           (.normalize)
+                                                                           (.scale tangent-length))]
+                                                                   [(* (.x v) sx) (* (.y v) sy)])
+                                                         v-base (geom/transl [x y 0.0] quad)
+                                                         v (concat
+                                                             (if (< i last-i)
+                                                               (geom/transl [tx ty 0.0] v-base)
+                                                               [])
+                                                             (if (> i first-i)
+                                                               (geom/transl [(- tx) (- ty) 0.0] v-base)
+                                                               []))]
+                                                     (mapv (fn [v] (reduce conj v c)) v))
+                                                   [])))
+                                          (mapcat identity))))
+                                   splines color-hues)))
         cp-vcount (count cp-vs)
         screen-tris (when (< 0 cp-vcount)
                       (let [vb (->color-vtx cp-vcount)]
@@ -230,43 +258,49 @@
         sub-selection (g/node-value self :sub-selection)
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
-      :mouse-pressed (if-let [[handle data] (g/node-value self :curve-handle)]
-                       (if (= 2 (:click-count action))
-                         (do
-                           (g/transact
-                             (concat
-                               (g/operation-sequence op-seq)
-                               (case handle
-                                 :control-point
-                                 (let [[nid property id] data]
-                                   (g/update-property nid property types/geom-delete [id]))
+      :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
+                                      (if (= 2 (:click-count action))
+                                        (do
+                                          (g/transact
+                                            (concat
+                                              (g/operation-sequence op-seq)
+                                              (case handle
+                                                :control-point
+                                                (let [[nid property id] data]
+                                                  (g/update-property nid property types/geom-delete [id]))
 
-                                 :curve
-                                 (let [[nid property ^Point3d p] data
-                                       p [(.x p) (.y p) (.z p)]]
-                                   (g/update-property nid property types/geom-insert [p])))))
-                           (reset-controller! self op-seq))
-                         (let [basis (g/now)
-                               op-seq (gensym)
-                               sel-mods? (some #(get action %) selection/toggle-modifiers)]
-                           (if (and (some? handle) (not sel-mods?))
-                             (let [sub-selection (if (not (contains? (set sub-selection) data))
-                                                   (let [select-fn (g/node-value self :select-fn)
-                                                         sub-selection [data]]
-                                                     (select-fn sub-selection op-seq)
-                                                     sub-selection)
-                                                   sub-selection)]
-                               (g/transact
-                                 (concat
-                                   (g/operation-sequence op-seq)
-                                   (g/set-property self :op-seq op-seq)
-                                   (g/set-property self :start cursor-pos)
-                                   (g/set-property self :current cursor-pos)
-                                   (g/set-property self :handle handle)
-                                   (g/set-property self :_basis (atom basis))))
-                               nil)
-                             action)))
-                       action)
+                                                :curve
+                                                (let [[nid property ^Point3d p] data
+                                                      p [(.x p) (.y p) (.z p)]
+                                                      new-curve (-> (g/node-value nid property)
+                                                                  (types/geom-insert [p]))
+                                                      id (last (iv/iv-ids (:points new-curve)))
+                                                      select-fn (g/node-value self :select-fn)]
+                                                  (select-fn [[nid property id]] op-seq)
+                                                  (g/set-property nid property new-curve)))))
+                                          (reset-controller! self op-seq)
+                                          true)
+                                        (when (or (= handle :control-point) (= handle :tangent))
+                                          (let [basis (g/now)
+                                                op-seq (gensym)
+                                                sel-mods? (some #(get action %) selection/toggle-modifiers)]
+                                            (when (not sel-mods?)
+                                              (when (and (= handle :control-point)
+                                                         (not (contains? (set sub-selection) data)))
+                                                (let [select-fn (g/node-value self :select-fn)
+                                                      sub-selection [data]]
+                                                  (select-fn sub-selection op-seq)))
+                                              (g/transact
+                                                (concat
+                                                  (g/operation-sequence op-seq)
+                                                  (g/set-property self :op-seq op-seq)
+                                                  (g/set-property self :start cursor-pos)
+                                                  (g/set-property self :current cursor-pos)
+                                                  (g/set-property self :handle handle)
+                                                  (g/set-property self :handle-data data)
+                                                  (g/set-property self :_basis (atom basis))))
+                                              true)))))]
+                       (if handled? nil action))
       :mouse-released (do
                         (reset-controller! self op-seq)
                         (if handle
@@ -289,11 +323,32 @@
                                                 :let [curve (g/node-value nid prop :basis basis)]]
                                             (g/set-property nid prop (types/geom-transform curve ids trans)))))
                                       nil)
+                     :tangent (let [basis @(g/node-value self :_basis)
+                                    [nid prop idx] (g/node-value self :handle-data)
+                                    new-curve (-> (g/node-value nid prop :basis basis)
+                                                (types/geom-update [idx]
+                                                                   (fn [cp]
+                                                                     (let [[x y tx ty] cp
+                                                                           t (doto (Vector3d. cursor-pos)
+                                                                               (.sub (Vector3d. x y 0.0))
+                                                                               (.setZ 0.0))]
+                                                                       (when (< (.x t) 0.0)
+                                                                         (.negate t))
+                                                                       (when (< (.x t) 0.001)
+                                                                         (.setX t 0.001))
+                                                                       (.normalize t)
+                                                                       [x y (.x t) (.y t)]))))]
+                                (g/transact
+                                  (concat
+                                    (g/operation-sequence op-seq)
+                                    (g/set-property nid prop new-curve)))
+                                nil)
                      action)
       action)))
 
 (g/defnode CurveController
   (property handle g/Keyword)
+  (property handle-data g/Any)
   (property start Point3d)
   (property current Point3d)
   (property op-seq g/Any)
@@ -316,6 +371,29 @@
                                (aabb-contains? aabb p))))
                   (mapv (fn [[idx _]] [(:node-id c) (:property c) idx])))))
       (keep identity))))
+
+(defn- pick-tangent [curves ^Rect picking-rect camera viewport sub-selection-map]
+  (let [aabb (geom/rect->aabb picking-rect)
+        [scale-x scale-y] (camera/scale-factor camera viewport)]
+    (some (fn [c]
+            (when-let [sel (get sub-selection-map [(:node-id c) (:property c)])]
+              (let [cps (filterv (comp sel first) (:curve c))]
+                (some (fn [[idx cp]]
+                        (let [[x y tx ty] cp
+                              t (doto (Vector3d. (/ tx scale-x) (/ (- ty) scale-y) 0.0)
+                                  (.normalize)
+                                  (.scale tangent-length))
+                              p (doto (camera/camera-project camera viewport (Point3d. x y 0.0))
+                                  (.setZ 0.0))
+                              p0 (doto (Point3d. p)
+                                     (.add t))
+                              p1 (doto (Point3d. p)
+                                     (.sub t))]
+                          (when (or (aabb-contains? aabb p0)
+                                    (aabb-contains? aabb p1))
+                            [(:node-id c) (:property c) idx])))
+                      cps))))
+          curves)))
 
 (defn- pick-closest-curve [curves ^Rect picking-rect camera viewport]
   (let [p (let [p (camera/camera-unproject camera viewport (.x picking-rect) (.y picking-rect) 0.0)]
@@ -366,12 +444,17 @@
   (output cp-renderables g/Any :cached produce-cp-renderables)
   (output picking-selection g/Any :cached produce-picking-selection)
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
-  (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport]
+  (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
+                                                 (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))
+                                                         {} sub-selection)))
+  (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport sub-selection-map]
                                             (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
                                               [:control-point cp]
-                                              (if-let [curve (pick-closest-curve curves tool-picking-rect camera viewport)]
-                                                [:curve curve]
-                                                nil)))))
+                                              (if-let [tangent (pick-tangent curves tool-picking-rect camera viewport sub-selection-map)]
+                                                [:tangent tangent]
+                                                (if-let [curve (pick-closest-curve curves tool-picking-rect camera viewport)]
+                                                  [:curve curve]
+                                                  nil))))))
 
 (defonce view-state (atom nil))
 
@@ -525,3 +608,5 @@
       (ui/run-now
         (destroy-view! parent)
         (make-view! project graph parent opts true)))))
+
+(reload-curve-view)
