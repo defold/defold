@@ -186,40 +186,47 @@
                             (mapcat identity))))
                       splines color-hues)
         [sx sy] scale
-        cp-vs (into cp-vs (let [s 1.0
-                                l 0.9]
-                            (mapcat (fn [[spline sel] hue]
-                                      (let [first-i 0
-                                            last-i (dec (count spline))
-                                            c (colors/hsl->rgba hue s l)]
-                                        (->> sel
-                                          (map (fn [i]
-                                                 (if-let [[x y tx ty] (get spline i)]
-                                                   (let [[tx ty] (let [v (doto (Vector3d. (/ tx sx) (/ ty sy) 0.0)
-                                                                           (.normalize)
-                                                                           (.scale tangent-length))]
-                                                                   [(* (.x v) sx) (* (.y v) sy)])
-                                                         v-base (geom/transl [x y 0.0] quad)
-                                                         v (concat
-                                                             (if (< i last-i)
-                                                               (geom/transl [tx ty 0.0] v-base)
-                                                               [])
-                                                             (if (> i first-i)
-                                                               (geom/transl [(- tx) (- ty) 0.0] v-base)
-                                                               []))]
-                                                     (mapv (fn [v] (reduce conj v c)) v))
-                                                   [])))
-                                          (mapcat identity))))
-                                   splines color-hues)))
+        [tangent-vs line-vs] (let [s 1.0
+                                l 0.9
+                                cps (mapcat (fn [[spline sel] hue]
+                                          (let [first-i 0
+                                                last-i (dec (count spline))
+                                                c (colors/hsl->rgba hue s l)]
+                                            (->> sel
+                                              (map (fn [i]
+                                                     (if-let [[x y tx ty] (get spline i)]
+                                                       (let [[tx ty] (let [v (doto (Vector3d. (/ tx sx) (/ ty sy) 0.0)
+                                                                               (.normalize)
+                                                                               (.scale tangent-length))]
+                                                                       [(* (.x v) sx) (* (.y v) sy)])]
+                                                         (cond-> []
+                                                           (< i last-i) (conj [[x y 0.0] [(+ x tx) (+ y ty) 0.0] c])
+                                                           (> i first-i) (conj [[x y 0.0] [(- x tx) (- y ty) 0.0] c])))
+                                                       [])))
+                                              (mapcat identity))))
+                                       splines color-hues)]
+                            [(mapcat (fn [[s cp c]]
+                                      (->> (geom/transl cp quad)
+                                        (mapv (fn [v] (reduce conj v c)))))
+                                    cps)
+                             (mapcat (fn [[s cp c]] [(reduce conj s c) (reduce conj cp c)]) cps)])
+        cp-vs (into cp-vs tangent-vs)
         cp-vcount (count cp-vs)
         screen-tris (when (< 0 cp-vcount)
                       (let [vb (->color-vtx cp-vcount)]
                         (doseq [v cp-vs]
                           (conj! vb v))
                         (persistent! vb)))
+        line-vcount (count line-vs)
+        world-lines (when (< 0 line-vcount)
+                      (let [vb (->color-vtx line-vcount)]
+                        (doseq [v line-vs]
+                          (conj! vb v))
+                        (persistent! vb)))
         renderables [{:render-fn render-curves
                      :batch-key nil
-                     :user-data {:screen-tris screen-tris}}]]
+                     :user-data {:screen-tris screen-tris
+                                 :world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
 (g/defnk produce-curves [selected-node-properties]
