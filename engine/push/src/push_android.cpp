@@ -253,7 +253,7 @@ int Push_Schedule(lua_State* L)
 
 static void RemoveNotification(int id)
 {
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -281,7 +281,7 @@ int Push_Cancel(lua_State* L)
 {
     int cancel_id = luaL_checkinteger(L, 1);
 
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -336,7 +336,7 @@ int Push_GetScheduled(lua_State* L)
     int get_id = luaL_checkinteger(L, 1);
     uint64_t cur_time = dmTime::GetTime();
 
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -362,7 +362,7 @@ int Push_GetAllScheduled(lua_State* L)
     uint64_t cur_time = dmTime::GetTime();
 
     lua_createtable(L, 0, 0);
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
