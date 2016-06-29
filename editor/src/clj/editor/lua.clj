@@ -84,6 +84,12 @@
                  (str "(" (string/join "," display-params) ")")))]
     (str base rest)))
 
+(defn- element-tab-triggers [^ScriptDoc$Element element]
+  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
+    (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
+                   (.getName parameter))]
+      (remove #(= \[ (first %)) params))))
+
 (defn defold-documentation []
   (reduce
    (fn [result [ns elements]]
@@ -91,7 +97,8 @@
            new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
                                                                           (element-display-string e true)
                                                                           (element-display-string e false)
-                                                                          (element-additional-info e))) elements)))]
+                                                                          (element-additional-info e)
+                                                                          (element-tab-triggers e))) elements)))]
        (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
    {}
    (load-documentation)))
@@ -107,21 +114,22 @@
                  (first (string/split item #"\("))
                  item
                  (string/replace item #"\[.*\]" "")
-                 ""))
+                 ""
+                 nil))
         completions (group-by #(let [names (string/split (:name %) #"\.")]
                                          (if (= 2 (count names)) (first names) "")) hints)
-        package-completions {"" (map code/create-hint(remove #(= "" %) (keys completions)))}]
+        package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
     (merge-with into completions package-completions)))
 
 (defn lua-base-documentation []
-  {"" [(code/create-hint "if" "if" "if cond then\n\t--do things\nend" "")
-       (code/create-hint "else" "else" "else\n\t--do things\nend" "")
-       (code/create-hint "elseif" "elseif" "elseif\n\t--do things\nend" "")
-       (code/create-hint "while" "while" "while cond\n\t--do things\nend" "")
-       (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "")
-       (code/create-hint "function" "function" "function function_name()\n\t--do things\nend" "")
-       (code/create-hint "local" "local" "local local_name = local_value" "")
-       (code/create-hint "for" "for" "for i=1,10 do\n\t--dothings\nend" "")]})
+  {"" [(code/create-hint "if" "if" "if cond then\n\t--do things\nend" "" ["cond" "--do things" "end"])
+       (code/create-hint "else" "else" "else\n\t--do things\nend" "" ["--do things" "end"])
+       (code/create-hint "elseif" "elseif" "elseif cond\n\t--do things\nend" "" ["cond" "--do things" "end"])
+       (code/create-hint "while" "while" "while cond\n\t--do things\nend" "" ["cond" "--do things"])
+       (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "" ["--do things" "cond"])
+       (code/create-hint "function" "function" "function function_name(params)\n\t--do things\nend" "" ["function_name" "params" "--do things"])
+       (code/create-hint "local" "local" "local local_name = local_value" "" ["local_name" "local_value"])
+       (code/create-hint "for" "for" "for i=1,10 do\n\t--do things\nend" "" ["i" "1" "10" "--do things"])]})
 
 (def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
 
