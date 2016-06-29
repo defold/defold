@@ -110,12 +110,15 @@
                         slurp
                         edn/read-string)
         hints (for [item base-items]
-                (code/create-hint
-                 (first (string/split item #"\("))
-                 item
-                 (string/replace item #"\[.*\]" "")
-                 ""
-                 nil))
+                (let [insert-string (string/replace item #"\[.*\]" "")
+                      params (re-find #"(\()(.*)(\))" insert-string)
+                      tab-triggers (when (< 3 (count params)) (remove #(= "" %) (string/split (nth params 2) #",")))]
+                  (code/create-hint
+                   (first (string/split item #"\("))
+                   item
+                   insert-string
+                   ""
+                   tab-triggers)))
         completions (group-by #(let [names (string/split (:name %) #"\.")]
                                          (if (= 2 (count names)) (first names) "")) hints)
         package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]

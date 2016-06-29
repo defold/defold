@@ -864,7 +864,6 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (println "Carin " (has-snippet-tab-trigger?) @tab-triggers)
       (if (has-snippet-tab-trigger?)
         (let [caret (caret selection)
               doc (text selection)
