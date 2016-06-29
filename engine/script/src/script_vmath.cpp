@@ -1008,8 +1008,8 @@ namespace dmScript
 
     /*# creates a new identity quaternion
      *
-     * Creates a new identity quartenion. The identity 
-     * quartenion is equal to:
+     * Creates a new identity quaternion. The identity 
+     * quaternion is equal to:
      * <p><code>vmath.quat(0, 0, 0, 1)</code></p>
      *
      * @name vmath.quat
@@ -1042,7 +1042,10 @@ namespace dmScript
      */
 
     /*# creates a new quaternion from its coordinates
-     *
+     * 
+     * Creates a new quartenion with the components set
+     * according to the supplied parameter values.
+     * 
      * @name vmath.quat
      * @param x x coordinate (number)
      * @param y y coordinate (number)
@@ -1106,7 +1109,7 @@ namespace dmScript
 
     /*# creates a quaternion to rotate around a unit-length vector
      *
-     * The resulting quaternion describes a rotatin of <code>angle</code>
+     * The resulting quaternion describes a rotation of <code>angle</code>
      * radians around the axis described by the unit length vector <code>v</code>.
      * 
      * @name vmath.quat_axis_angle
@@ -1132,7 +1135,7 @@ namespace dmScript
     /*# creates a quaternion from three base unit length vectors
      *
      * The resulting quaternion describes the rotation from the
-     * identity quartenion (no rotation) to the coordinate system
+     * identity quaternion (no rotation) to the coordinate system
      * as described by the given x, y and z base unit length vectors.
      *
      * @name vmath.quat_basis
@@ -1326,8 +1329,10 @@ namespace dmScript
     }
 
     /*# creates a look-at view matrix
-     * Creates a look-at view matrix.
-     * This is useful to construct a view matrix for a camera or rendering in general.
+     *
+     * The resulting matrix is created from the supplied look-at parameters.
+     * This is useful for constructing a view matrix for a camera or 
+     * rendering in general.
      *
      * @name vmath.matrix4_look_at
      * @param eye eye position (vector3)
@@ -1557,7 +1562,7 @@ namespace dmScript
 
     /*# calculates the inverse of an ortho-normal matrix.
      * The resulting matrix is the inverse of the supplied matrix.
-     * The supplied matrix has to be anortho-normal matrix, e.g. 
+     * The supplied matrix has to be an ortho-normal matrix, e.g. 
      * describe a regular object transformation.
      *
      * @note For matrices that are not ortho-normal
@@ -1717,9 +1722,9 @@ namespace dmScript
 
     /*# calculates the cross-product of two vectors
      *
-     * <p>Given two linearly independent vectors P and Q, the cross product,
+     * Given two linearly independent vectors P and Q, the cross product,
      * P &#x00D7; Q, is a vector that is perpendicular to both P and Q and 
-     * therefore normal to the plane containing them.</p>
+     * therefore normal to the plane containing them.
      *
      * <p>If the two vectors have the same direction (or have the exact 
      * opposite direction from one another, i.e. are not linearly independent)
