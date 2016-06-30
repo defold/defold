@@ -163,7 +163,7 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
-      (preferred-offset! 4)
+      (preferred-offset! source-viewer 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "moving down"
         (down! source-viewer)
@@ -194,14 +194,14 @@
         (let [new-code "line1\n\t2345"]
           (text! source-viewer new-code)
           (caret! source-viewer 3 false)
-          (preferred-offset! 4)
+          (preferred-offset! source-viewer 4)
           (is (= \e (get-char-at-caret source-viewer)))
           (down! source-viewer)
           (is (= \2 (get-char-at-caret source-viewer)))
           (up! source-viewer)
           (is (= \1 (get-char-at-caret source-viewer)))))
       (testing "with chunk of selected text, down takes cursor to end of chunk"
-        (preferred-offset! 0)
+        (preferred-offset! source-viewer 0)
         (text! source-viewer "line1\nline2\nline3")
         (caret! source-viewer 0 false)
         (text-selection! source-viewer 0 15)
@@ -211,7 +211,7 @@
         (is (= "" (text-selection source-viewer)))
         (is (= 15 (caret source-viewer))))
       (testing "with chunk of selected text, up takes cursor to start of chunk"
-        (preferred-offset! 0)
+        (preferred-offset! source-viewer 0)
         (text! source-viewer "line1\nline2\nline3")
         (caret! source-viewer 15 false)
         (text-selection! source-viewer 0 15)
@@ -234,7 +234,7 @@
           source-viewer (setup-source-viewer opts false)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
-      (preferred-offset! 4)
+      (preferred-offset! source-viewer 4)
       (is (= \1 (get-char-at-caret source-viewer)))
       (testing "select moving down"
         (select-down! source-viewer)
@@ -739,6 +739,14 @@
 (defn- redo! [source-viewer view-node code-node]
   (handler/run :redo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
 
+(defn- set-code-and-caret! [source-viewer code]
+  (text! source-viewer code)
+  (caret! source-viewer (count code) false)
+  (changes! source-viewer))
+
+(defn- propose! [source-viewer]
+  (handler/run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
+
 (deftest undo-redo-test
   (with-clean-system
     (let [pgraph-id  (g/make-graph! :history true)
@@ -755,4 +763,23 @@
         (undo! source-viewer viewer-node code-node)
         (is (= "h" (g/node-value code-node :code)))
         (redo! source-viewer viewer-node code-node)
-        (is (= "hi" (g/node-value code-node :code)))))))
+        (is (= "hi" (g/node-value code-node :code))))
+      (testing "preferred offset"
+        (text! source-viewer "helllo world")
+        (preferred-offset! source-viewer 4)
+        (changes! source-viewer)
+        (preferred-offset! source-viewer 0)
+        (changes! source-viewer)
+        (undo! source-viewer viewer-node code-node)
+        (is (= 4 (preferred-offset source-viewer))))
+      (testing "snippet-tab-triggers"
+        (set-code-and-caret! source-viewer "string.sub")
+        (propose! source-viewer)
+        (is (= "string.sub(s,i)" (text source-viewer)))
+        (is (= "s" (text-selection source-viewer)))
+        (changes! source-viewer)
+        (tab! source-viewer)
+        (changes! source-viewer)
+        (is (= "i" (text-selection source-viewer)))
+        (undo! source-viewer viewer-node code-node)
+        (is (= "s" (text-selection source-viewer)))))))
