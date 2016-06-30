@@ -265,10 +265,6 @@
       (.impl_setCaretOffset this offset select?)
       (catch Exception e
         (println "caret! failure")
-        ;;do nothing there is a bug in the StyledTextSkin that creates
-        ;;null pointers due to the skin rendered completely yet not being created yet (the skin
-        ;;is created on the ui pulse) Eventually we should consider
-        ;;rewriting the Skin class and porting it to Clojure
         )))
   (caret [this] (.getCaretOffset this)))
 
@@ -395,7 +391,10 @@
   cvx/TextCaret
   (caret! [this offset select?]
     (source-viewer-set-caret! this offset select?))
-  (caret [this] (cvx/caret(.getTextWidget this)))
+  (caret [this]
+    (let [c (cvx/caret (.getTextWidget this))
+          doc (cvx/text this)]
+      (cvx/adjust-bounds doc c)))
   cvx/TextView
   (selection-offset [this]
     (.-offset ^TextSelection (-> this (.getTextWidget) (.getSelection))))
