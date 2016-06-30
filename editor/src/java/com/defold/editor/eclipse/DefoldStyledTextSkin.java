@@ -108,6 +108,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			@Override
 			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
 				int lineIndex = getSkinnable().getContent().getLineAtOffset(newValue.intValue());
+                                if (lineIndex < 0){
+                                    return;
+                                 }
 				Line lineObject = DefoldStyledTextSkin.this.lineList.get(lineIndex);
                                 if (lineObject == null){
                                     return;
