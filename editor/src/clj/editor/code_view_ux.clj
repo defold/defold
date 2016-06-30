@@ -24,6 +24,17 @@
   (line [this])
   (line-offset [this]))
 
+(defprotocol TextOffset
+  (preferred-offset [this])
+  (preferred-offset! [this val]))
+
+(defprotocol TextSnippet
+  (snippet-tab-triggers [this])
+  (snippet-tab-triggers! [this val])
+  (has-snippet-tab-trigger? [this])
+  (next-snippet-tab-trigger! [this])
+  (clear-snippet-tab-triggers! [this]))
+
 (defprotocol TextView
   (text-selection [this])
   (text-selection! [this offset length])
@@ -147,21 +158,6 @@
 (def tab-size 4)
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
-(def prefer-offset (atom 0))
-(def tab-triggers (atom nil))
-
-(defn preferred-offset [] @prefer-offset)
-(defn preferred-offset! [val] (reset! prefer-offset val))
-
-(defn snippet-tab-triggers! [val] (reset! tab-triggers val))
-(defn has-snippet-tab-trigger? [] @tab-triggers)
-(defn next-snippet-tab-trigger! []
-  (let [trigger (or (first @tab-triggers) :end)]
-    (if (= trigger :end)
-      (reset! tab-triggers nil)
-      (swap! tab-triggers rest))
-    trigger))
-(defn clear-snippet-tab-triggers! [] (reset! tab-triggers nil))
 
 (defn- info [e]
   {:event e
@@ -233,14 +229,14 @@
         text-before (->> (last lbefore) (apply str))
         tab-count (tab-count text-before)
         caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
-    (preferred-offset! caret-col)))
+    (preferred-offset! selection caret-col)))
 
 (defn handle-mouse-clicked [^MouseEvent e source-viewer]
   (let [click-count (.getClickCount e)
         cf (click-fn click-count)
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
-    (clear-snippet-tab-triggers!)
+    (clear-snippet-tab-triggers! source-viewer)
     (when cf (handler/run
                (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
@@ -278,7 +274,7 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (+ c (count selected-text)))
                    (adjust-bounds doc (inc c)))]
-    (clear-snippet-tab-triggers!)
+    (clear-snippet-tab-triggers! selection)
     (caret! selection next-pos false)
     (remember-caret-col selection next-pos)))
 
@@ -287,7 +283,7 @@
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (adjust-bounds doc (inc c))]
-    (clear-snippet-tab-triggers!)
+    (clear-snippet-tab-triggers! selection)
     (caret! selection next-pos true)
     (remember-caret-col selection next-pos)))
 
@@ -298,7 +294,7 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
-    (clear-snippet-tab-triggers!)
+    (clear-snippet-tab-triggers! selection)
     (caret! selection next-pos false)
     (remember-caret-col selection next-pos)))
 
@@ -307,7 +303,7 @@
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (adjust-bounds doc (dec c))]
-    (clear-snippet-tab-triggers!)
+    (clear-snippet-tab-triggers! selection)
     (caret! selection next-pos true)
     (remember-caret-col selection next-pos)))
 
@@ -359,7 +355,7 @@
 (defn up [selection]
   (let [c (caret selection)
         doc (text selection)
-        preferred-offset (preferred-offset)
+        preferred-offset (preferred-offset selection)
         next-pos (if (pos? (selection-length selection))
                    (adjust-bounds doc (selection-offset selection))
                    (up-line doc c preferred-offset))]
@@ -368,14 +364,14 @@
 (defn select-up [selection]
   (let [c (caret selection)
         doc (text selection)
-        preferred-offset (preferred-offset)
+        preferred-offset (preferred-offset selection)
         next-pos (up-line doc c preferred-offset)]
     (caret! selection next-pos true)))
 
 (defn down [selection]
   (let [c (caret selection)
         doc (text selection)
-        preferred-offset (preferred-offset)
+        preferred-offset (preferred-offset selection)
         next-pos (if (pos? (selection-length selection))
                    (adjust-bounds doc (+ (selection-offset selection)
                                          (selection-length selection)))
@@ -385,7 +381,7 @@
 (defn select-down [selection]
   (let [c (caret selection)
         doc (text selection)
-        preferred-offset (preferred-offset)
+        preferred-offset (preferred-offset selection)
         next-pos (down-line doc c preferred-offset)]
       (caret! selection next-pos true)))
 
@@ -813,9 +809,9 @@
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
 (defn next-tab-trigger [selection pos]
-  (when (has-snippet-tab-trigger?)
+  (when (has-snippet-tab-trigger? selection)
     (let [doc (text selection)
-          search-text (next-snippet-tab-trigger!)]
+          search-text (next-snippet-tab-trigger! selection)]
       (if (= :end search-text)
         (right selection)
         (let [found-idx (string/index-of doc search-text pos)
@@ -838,7 +834,7 @@
                               (string/index-of new-line-text "(")
                               0)]
     (replace! selection (line-offset selection) (count line-text) new-line-text)
-    (snippet-tab-triggers! tab-triggers)
+    (snippet-tab-triggers! selection tab-triggers)
     (next-tab-trigger selection (+ loffset snippet-tab-start))))
 
 (defn show-proposals [selection proposals]
@@ -866,7 +862,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (if (has-snippet-tab-trigger?)
+      (if (has-snippet-tab-trigger? selection)
         (let [caret (caret selection)
               doc (text selection)
               np (adjust-bounds doc caret)]
@@ -900,7 +896,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (clear-snippet-tab-triggers!)
+      (clear-snippet-tab-triggers! selection)
       (let [line-seperator (System/getProperty "line.separator")
             current-line (line selection)
             line-offset (line-offset selection)
