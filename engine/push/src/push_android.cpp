@@ -444,7 +444,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onRegistration(JNIEnv* env, 
 }
 
 
-JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobject, jstring json)
+JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobject, jstring json, bool state)
 {
     const char* j = 0;
 
@@ -456,6 +456,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
     Command cmd;
     cmd.m_Command = CMD_PUSH_MESSAGE_RESULT;
     cmd.m_Data1 = strdup(j);
+    cmd.m_State = state;
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }

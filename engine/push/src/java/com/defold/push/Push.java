@@ -205,13 +205,14 @@ public class Push {
             // Read saved remote push notifications
             r = new BufferedReader(new InputStreamReader(
                     context.openFileInput(SAVED_PUSH_MESSAGE_NAME)));
+            boolean state = Boolean.parseBoolean(r.readLine());
             String json = "";
             String line = r.readLine();
             while (line != null) {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onMessage(json);
+            this.listener.onMessage(json, state);
 
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
@@ -290,13 +291,15 @@ public class Push {
             if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
                 JSONObject o = toJson(extras);
                 String msg = o.toString();
+                boolean state = !DefoldActivity.isActivityVisible();
                 Log.d(TAG, "message received: " + msg);
                 if (listener != null) {
                     Log.d(TAG, "forwarding message to application");
-                    listener.onMessage(msg);
+                    listener.onMessage(msg, state);
                 }
+                // else
                 Log.d(TAG, "creating notification for message");
-                sendNotification(context, extras);
+                sendNotification(context, extras, state);
             } else {
                 Log.i(TAG, String.format("unhandled message type: %s",
                         messageType));
@@ -311,13 +314,14 @@ public class Push {
 
     }
 
-    private void sendNotification(Context context, Bundle extras) {
+    private void sendNotification(Context context, Bundle extras, boolean state) {
 
         NotificationManager nm = (NotificationManager) context
                 .getSystemService(Context.NOTIFICATION_SERVICE);
 
         Intent intent = new Intent(context, PushDispatchActivity.class)
                 .setAction(ACTION_FORWARD_PUSH);
+        intent.putExtra("fromNotification", (byte) (state ? 1 : 0));
 
         if (DefoldActivity.isActivityVisible()) {
             // Send the push notification directly to the dispatch

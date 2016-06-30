@@ -6,7 +6,7 @@ public class PushJNI implements IPushListener {
     }
 
     @Override
-    public native void onMessage(String json);
+    public native void onMessage(String json, boolean state);
 
     @Override
     public native void onLocalMessage(String json, int id, boolean state);
