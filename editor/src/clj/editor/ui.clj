@@ -490,7 +490,13 @@
              ctxs []]
         (if-not node
           ctxs
-          (recur (.getParent node) (conj ctxs (user-data node ::context)))))
+          (let [ctx (if (instance? TabPane node)
+                      (let [^TabPane tab-pane node
+                            ^Tab tab (.getSelectedItem (.getSelectionModel tab-pane))]
+                        (or (and tab (.getContent tab) (user-data (.getContent tab) ::context))
+                            (user-data node ::context)))
+                      (user-data node ::context))]
+            (recur (.getParent node) (conj ctxs ctx)))))
       (remove nil?)
       (map (fn [ctx]
              (-> ctx

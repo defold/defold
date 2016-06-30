@@ -7,6 +7,7 @@
             [editor.scene :as scene]
             [editor.camera :as camera]
             [editor.types :as types]
+            [editor.handler :as handler]
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d]))
 
@@ -133,4 +134,8 @@
       (mouse-dbl-click! curve-view 0.05 0.5)
       (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
       (mouse-dbl-click! curve-view 0.05 0.62)
-      (is (nil? (cp emitter :particle-key-alpha 9))))))
+      (is (nil? (cp emitter :particle-key-alpha 9)))
+      ; Delete through handler
+      (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
+      (handler/run :delete [{:name :curve-view :env {:selection (g/node-value project :sub-selection)}}] {})
+      (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6))))))

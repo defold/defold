@@ -427,6 +427,10 @@
 (g/defnk produce-picking-selection [curves picking-rect camera viewport]
   (pick-control-points curves picking-rect camera viewport))
 
+(defn- sub-selection->map [sub-selection]
+  (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))
+          {} sub-selection))
+
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
 
@@ -452,8 +456,7 @@
   (output picking-selection g/Any :cached produce-picking-selection)
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
-                                                 (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))
-                                                         {} sub-selection)))
+                                                 (sub-selection->map sub-selection)))
   (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport sub-selection-map]
                                             (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
                                               [:control-point cp]
@@ -565,6 +568,10 @@
            :focus-point (Vector4d. 0.5 y z 1.0)
            :fov-x 1.2)))
 
+(defrecord SubSelectionProvider [project]
+  workspace/SelectionProvider
+  (selection [this] (g/node-value project :sub-selection)))
+
 (defn make-view!
   ([project graph ^Parent parent opts]
     (reset! view-state {:project project :graph graph :parent parent :opts opts})
@@ -604,6 +611,7 @@
                                                 (g/connect project              :sub-selection             selection        :selection))))]
       (when parent
         (let [^Node pane (make-gl-pane node-id parent opts)]
+          (ui/context! parent :curve-view {} (SubSelectionProvider. project))
           (ui/fill-control pane)
           (ui/children! parent [pane])
           (ui/user-data! parent ::node-id node-id)))
@@ -617,3 +625,13 @@
         (make-view! project graph parent opts true)))))
 
 (reload-curve-view)
+
+(defn- delete-cps [sub-selection]
+  (let [m (sub-selection->map sub-selection)]
+    (g/transact
+      (for [[[nid prop] idx] m]
+        (g/update-property nid prop types/geom-delete idx)))))
+
+(handler/defhandler :delete :curve-view
+  (enabled? [selection] (not (empty? selection)))
+  (run [selection] (delete-cps selection)))
