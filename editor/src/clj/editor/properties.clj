@@ -67,7 +67,13 @@
     (update curve :points iv/iv-into points)))
 
 (defn- curve-delete [curve ids]
-  (update curve :points iv/iv-remove-ids ids))
+  (let [include (->> (iv/iv-mapv identity (:points curve))
+                  (sort-by (comp first second))
+                  (map first)
+                  (drop 1)
+                  (butlast)
+                  (into #{}))]
+    (update curve :points iv/iv-remove-ids (filter include ids))))
 
 (defn- curve-update [curve ids f]
   (let [ids (set ids)]

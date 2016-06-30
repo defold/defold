@@ -67,7 +67,7 @@
       (mouse-click! curve-view 0.11 0.99)
       (is (= [2] (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.0 0.0 [:shift])
-      (is (= [2 1] (sub-selection project emitter :particle-key-alpha)))
+      (is (every? #{2 1} (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.11 0.99 [:shift])
       (is (= [1] (sub-selection project emitter :particle-key-alpha))))))
 
@@ -126,6 +126,10 @@
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [2]))]
       (project/select! project [emitter])
+      ; First control point can't be deleted
+      (mouse-dbl-click! curve-view 0.0 0.0)
+      (is (cp? [0.0 0.0] (cp emitter :particle-key-alpha 1)))
+      ; But second can
       (mouse-dbl-click! curve-view 0.05 0.5)
       (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
       (mouse-dbl-click! curve-view 0.05 0.62)
