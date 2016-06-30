@@ -12,7 +12,7 @@
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView ListCell]
+           [javafx.scene.control ListView ListCell Tab]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
@@ -49,7 +49,7 @@
        (finally
          (reset! ~a old-val#)))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length]
+(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length active-tab]
   (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
     (when (not= code (cvx/text source-viewer))
     (try
@@ -330,9 +330,13 @@
   (input caret-position g/Int)
   (input selection-offset g/Int)
   (input selection-length g/Int)
+  (input active-tab Tab)
+  (output new-tab-active g/Any :cached  (g/fnk [source-viewer active-tab]
+                                                  (cvx/refresh! source-viewer)
+                                                active-tab))
   (output new-content g/Any :cached update-source-viewer))
 
-(defn setup-code-view [view-id code-node initial-caret-position]
+(defn setup-code-view [app-view-id view-id code-node initial-caret-position]
   (g/transact
    (concat
     (g/connect code-node :_node-id view-id :code-node)
@@ -340,6 +344,7 @@
     (g/connect code-node :caret-position view-id :caret-position)
     (g/connect code-node :selection-offset view-id :selection-offset)
     (g/connect code-node :selection-length view-id :selection-length)
+    (g/connect app-view-id :active-tab view-id :active-tab)
     (g/set-property code-node :caret-position initial-caret-position)
     (g/set-property code-node :selection-offset 0)
     (g/set-property code-node :selection-length 0)))
@@ -457,12 +462,15 @@
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)
-        view-id (setup-code-view (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
+        view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
     (g/node-value view-id :new-content)
-    (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_] (cvx/changes! source-viewer)))
+    (g/node-value view-id :new-tab-active)
+    (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
+                                                                      (g/node-value view-id :new-tab-active)
+                                                                      (cvx/changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
