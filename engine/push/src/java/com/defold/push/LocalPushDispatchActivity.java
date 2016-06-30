@@ -18,17 +18,17 @@ public class LocalPushDispatchActivity extends Activity {
         try {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
-                String payload              = extras.getString("payload");
-                int uid                     = extras.getInt("uid");
-                boolean fromNotification    = extras.getByte("fromNotification") == 1 ? true : false;
+                String payload = extras.getString("payload");
+                int uid = extras.getInt("uid");
+                boolean wasActivated = (extras.getByte("wasActivated") == 1);
 
                 if (Push.getInstance().hasListener()) {
-                    Push.getInstance().onLocalPush(payload, uid, fromNotification);
+                    Push.getInstance().onLocalPush(payload, uid, wasActivated);
                 } else {
                     // need to save this to disk until a listener is set
                     os = new PrintStream(openFileOutput(Push.SAVED_LOCAL_MESSAGE_NAME, MODE_PRIVATE));
                     os.println(uid);
-                    os.print(fromNotification);
+                    os.println(wasActivated);
                     os.println(payload);
 
                     Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());

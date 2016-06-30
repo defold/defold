@@ -30,7 +30,7 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
         Intent new_intent = new Intent(context, LocalPushDispatchActivity.class).setAction("com.defold.push.FORWARD");
 
         Bundle extras = intent.getExtras();
-        extras.putByte("fromNotification", (byte) (DefoldActivity.isActivityVisible() ? 0 : 1));
+        extras.putByte("wasActivated", (byte) (DefoldActivity.isActivityVisible() ? 0 : 1));
         new_intent.putExtras(extras);
 
         new_intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
