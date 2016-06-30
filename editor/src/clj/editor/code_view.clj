@@ -490,7 +490,7 @@
   (snippet-tab-triggers [this] (when-let [tt (tab-triggers this)]
                                  @tt))
   (snippet-tab-triggers! [this val] (reset! (tab-triggers this) val))
-  (has-snippet-tab-trigger? [this] (tab-triggers this))
+  (has-snippet-tab-trigger? [this] (cvx/snippet-tab-triggers this))
   (next-snippet-tab-trigger! [this]
     (let [tt (tab-triggers this)
           trigger (or (first @tt) :end)]
