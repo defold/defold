@@ -297,7 +297,7 @@ public class Push {
                     Log.d(TAG, "forwarding message to application");
                     listener.onMessage(msg, wasActivated);
                 }
-                // else
+
                 Log.d(TAG, "creating notification for message");
                 sendNotification(context, extras, wasActivated);
             } else {
@@ -321,7 +321,7 @@ public class Push {
 
         Intent intent = new Intent(context, PushDispatchActivity.class)
                 .setAction(ACTION_FORWARD_PUSH);
-        intent.putExtra("fromNotification", (byte) (wasActivated ? 1 : 0));
+        intent.putExtra("wasActivated", (byte) (wasActivated ? 1 : 0));
 
         if (DefoldActivity.isActivityVisible()) {
             // Send the push notification directly to the dispatch
