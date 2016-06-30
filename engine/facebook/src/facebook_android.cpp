@@ -907,6 +907,7 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
     }
 
     // javaStatus should really be checked and an error returned if something is wrong.
+    (void)javaStatus;
     return dmExtension::RESULT_OK;
 }
 

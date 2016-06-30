@@ -6,9 +6,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Iterator;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
+import java.util.LinkedHashSet;
 
+import android.content.Intent;
 import android.app.Activity;
 import android.net.Uri;
 import android.util.Log;
@@ -30,8 +33,203 @@ class FacebookAppJNI {
 
     private static final String TAG = "defold.facebookapp";
 
+    private static final String KEY_AL_APPLINK_DATA_KEY = "al_applink_data";
+    private static final String KEY_NAME_EXTRAS = "extras";
+    private static final String KEY_NAME_REFERER_APP_LINK = "referer_app_link";
+
     private Activity activity;
     private String appId;
+
+    private Map<String, String> appLinkInfo;
+
+/*
+
+
+    public static final void processIntentForAppLink(Intent intent) {
+        GameLib.logInfo(tag, "processIntentForAppLink");
+
+        Uri targetUrl = AppLinks.getTargetUrlFromInboundIntent(ActivityHelper.getInstance().getActivity().getApplicationContext(), intent);
+        // in case of cancel the targetUrl isn't null, but "null"
+        if (targetUrl != null && targetUrl.getScheme() != null) {
+            AppLinkEventData appLinkEventData = createAppLinkEventData(targetUrl, intent.getExtras());
+            FacebookSdkWrapper.GetEventQueue().add(SdkEvent.create(appLinkEventData));
+        } else {
+            tryFetchDeferredAppLink();
+        }
+    }
+
+    private static final AppLinkEventData createAppLinkEventData(Uri targetUrl, Bundle bundle) {
+        GameLib.logInfo(tag, "createAppLinkEventData " + targetUrl + " " + bundle);
+        AppLinkEventData appLinkEventData = new AppLinkEventData();
+        appLinkEventData.url = targetUrl.toString();
+        appLinkEventData.refererUrl = "";
+        appLinkEventData.refererAppName = "";
+
+        ArrayList<KeyValuePair> keyValuePairs = new ArrayList<KeyValuePair>();
+        
+        for (String key : myGetQueryParameterNames(targetUrl)) {
+            String value = targetUrl.getQueryParameter(key);
+            KeyValuePair keyValuePair = new KeyValuePair();
+            keyValuePair.key = key;
+            keyValuePair.value = value;
+            keyValuePairs.add(keyValuePair);
+        }
+
+        if (bundle != null) {
+            Bundle appLinkData = bundle.getBundle(KEY_AL_APPLINK_DATA_KEY);
+            GameLib.logInfo(tag, "Got appLinkData " + appLinkData);
+            if (appLinkData != null) {
+                if (appLinkData.containsKey(KEY_NAME_EXTRAS)) {
+                    Bundle extras = appLinkData.getBundle(KEY_NAME_EXTRAS);
+                    for (String key : extras.keySet()) {
+                        KeyValuePair keyValuePair = new KeyValuePair();
+                        keyValuePair.key = key;
+                        keyValuePair.value = "" + extras.get(key);
+                        keyValuePairs.add(keyValuePair);
+                    }
+                }
+
+                if (appLinkData.containsKey(KEY_NAME_REFERER_APP_LINK)) {
+                    Bundle refererBundle = appLinkData.getBundle(KEY_NAME_REFERER_APP_LINK);
+                    if (refererBundle != null) {
+                        String url = refererBundle.getString("url");
+                        String appName = refererBundle.getString("app_name");
+
+                        if (url != null && appName != null) {
+                            appLinkEventData.refererUrl = url;
+                            appLinkEventData.refererAppName = appName;
+                        }
+                    }
+                }
+            }
+
+        }
+        appLinkEventData.data = keyValuePairs.toArray(new KeyValuePair[] {});
+
+        return appLinkEventData;
+    }
+
+
+    private static final void tryFetchDeferredAppLink() {
+        GameLib.logInfo(tag, "tryFetchDeferredAppLink");
+        final Activity activity = ActivityHelper.getInstance().getActivity();
+
+        AppLinkData.fetchDeferredAppLinkData(activity, new AppLinkData.CompletionHandler() {
+            @Override
+            public void onDeferredAppLinkDataFetched(AppLinkData appLinkData) {
+                GameLib.logInfo(tag, "onDeferredAppLinkDataFetched");
+                if (appLinkData != null) {
+                    Uri targetUrl = appLinkData.getTargetUri();
+                    AppLinkEventData appLinkEventData = createAppLinkEventData(targetUrl, appLinkData.getArgumentBundle());
+                    FacebookSdkWrapper.GetEventQueue().add(SdkEvent.create(appLinkEventData));
+                } else {
+                    GameLib.logInfo(tag, "no appLinkData available");
+                }
+            }
+        });
+    }
+*/
+
+    // Since this function isn't available until Api Level 11
+    // http://stackoverflow.com/questions/11642494/android-net-uri-getqueryparameternames-alternative
+    /**
+     * Returns a set of the unique names of all query parameters. Iterating
+     * over the set will return the names in order of their first occurrence.
+     *
+     * @throws UnsupportedOperationException if this isn't a hierarchical URI
+     *
+     * @return a set of decoded names
+     */
+    private static Set<String> getQueryParameterNames(Uri uri) {
+        if (uri.isOpaque()) {
+            throw new UnsupportedOperationException("This isn't a hierarchical URI.");
+        }
+
+        String query = uri.getEncodedQuery();
+        if (query == null) {
+            return Collections.emptySet();
+        }
+
+        Set<String> names = new LinkedHashSet<String>();
+        int start = 0;
+        do {
+            int next = query.indexOf('&', start);
+            int end = (next == -1) ? query.length() : next;
+
+            int separator = query.indexOf('=', start);
+            if (separator > end || separator == -1) {
+                separator = end;
+            }
+
+            String name = query.substring(start, separator);
+            names.add(Uri.decode(name));
+
+            // Move start to end of name.
+            start = end + 1;
+        } while (start < query.length());
+
+        return Collections.unmodifiableSet(names);
+    }
+
+    private void getAppLinkInfo(Uri targetUrl, Bundle bundle)
+    {
+        Log.d(TAG, "App Link Target URL: " + targetUrl);
+
+        // Of the form: https://fb.me/865035583600867
+        
+        for (String key : getQueryParameterNames(targetUrl)) {
+            String value = targetUrl.getQueryParameter(key);
+            Log.d(TAG, "MAWE: QUERY PARAMS: " + key + ": " + value);
+        }
+
+        if (bundle != null) {
+            Bundle appLinkData = bundle.getBundle(KEY_AL_APPLINK_DATA_KEY);
+            if (appLinkData != null) {
+                if (appLinkData.containsKey(KEY_NAME_EXTRAS)) {
+                    Bundle extras = appLinkData.getBundle(KEY_NAME_EXTRAS);
+                    for (String key : extras.keySet()) {
+                        String value = "" + extras.get(key);
+                        Log.d(TAG, "MAWE: EXTRAS: " + key + ": " + value);
+                    }
+                }
+
+                if (appLinkData.containsKey(KEY_NAME_REFERER_APP_LINK)) {
+                    Bundle referrerBundle = appLinkData.getBundle(KEY_NAME_REFERER_APP_LINK);
+                    if (referrerBundle != null) {
+                        String referrerUrl = referrerBundle.getString("url");
+                        String appName = referrerBundle.getString("app_name");
+                        Log.d(TAG, "MAWE: REFERRER URL: " + referrerUrl);
+                        Log.d(TAG, "MAWE: APP NAME: " + appName);
+                    }
+                }
+            }
+
+            String nativeUrl = null;
+            if (bundle.containsKey(AppLinkData.ARGUMENTS_NATIVE_URL)) {
+                nativeUrl = "" + bundle.get(AppLinkData.ARGUMENTS_NATIVE_URL);
+
+            }
+
+            Log.d(TAG, "MAWE: NATIVE URL: " + nativeUrl);
+        }
+
+        //appLinkInfo["url"] = targetUrl;
+        Log.d(TAG, "");
+
+        if (bundle != null ) {
+            String json = null;
+            try {
+                JSONObject obj = FacebookJNI.bundleToJson(bundle);
+                json = obj.toString();
+            } catch(JSONException e) {
+                json = "Error while converting dialog result to JSON: " + e.getMessage();
+            }
+            Log.d(TAG, "JSON:");
+            Log.d(TAG, json);
+        } else {
+            Log.d(TAG, "No bundle found!");
+        }
+    }
 
     public FacebookAppJNI(Activity activity, String appId) {
         this.activity = activity;
@@ -47,26 +245,49 @@ class FacebookAppJNI {
                 FacebookSdk.sdkInitialize( FacebookAppJNI.this.activity );
                 FacebookSdk.setApplicationId( FacebookAppJNI.this.appId );
                 
-                Log.d(TAG, "MAWE: FB SDK INITIALIZED  (deferred uses appid now)");
+Log.d(TAG, "MAWE: FB SDK INITIALIZED  (deferred uses appid now)");
 
-                Uri targetUrl = AppLinks.getTargetUrlFromInboundIntent(FacebookAppJNI.this.activity, FacebookAppJNI.this.activity.getIntent());
+                Intent intent = FacebookAppJNI.this.activity.getIntent();
+                Uri targetUrl = AppLinks.getTargetUrlFromInboundIntent(FacebookAppJNI.this.activity, intent);
                 if (targetUrl != null) {
-                    Log.d(TAG, "MAWE: App Link Target URL: " + targetUrl.toString());
-                }
-                //} else {
+                    Log.d(TAG, "App Link was found");
+                    getAppLinkInfo(targetUrl, intent.getExtras());
+                } else {
                     AppLinkData.fetchDeferredAppLinkData( FacebookAppJNI.this.activity, FacebookAppJNI.this.appId,
                         new AppLinkData.CompletionHandler() {
                             @Override
                             public void onDeferredAppLinkDataFetched(AppLinkData appLinkData) {
                                 //process applink data
                                 if( appLinkData != null ) {
-                                    Log.d(TAG, "MAWE: Deferred App Link URL: " + appLinkData.getTargetUri());
+                                    Log.d(TAG, "Deferred App Link was found");
+                                    getAppLinkInfo(appLinkData.getTargetUri(), appLinkData.getArgumentBundle());
+
+                                    String ref = appLinkData.getRef();
+                                    Log.d(TAG, "MAWE: REF: " + ref);
+
+                                    // http://stackoverflow.com/questions/20404170/will-the-user-receive-facebook-request-data-if-the-application-not-installed
+
+                                    Bundle refererBundle = appLinkData.getRefererData();
+
+                                    if (refererBundle != null ) {
+                                        String json = null;
+                                        try {
+                                            JSONObject obj = FacebookJNI.bundleToJson(refererBundle);
+                                            json = obj.toString();
+                                        } catch(JSONException e) {
+                                            json = "Error while converting dialog result to JSON: " + e.getMessage();
+                                        }
+                                        Log.d(TAG, "JSON refererBundle:");
+                                        Log.d(TAG, json);
+                                    } else {
+                                        Log.d(TAG, "No refererBundle found!");
+                                    }
                                 } else {
-                                    Log.d(TAG, "MAWE: Deferred App Link was null");
+                                    Log.d(TAG, "No App Link was found");
                                 }
                             }
                         });
-                //}
+                }
 
                 latch.countDown();
             }
@@ -148,7 +369,7 @@ class FacebookJNI {
     }
 
     // From http://stackoverflow.com/questions/21858528/convert-a-bundle-to-json
-    private static JSONObject bundleToJson(final Bundle in) throws JSONException {
+    public static JSONObject bundleToJson(final Bundle in) throws JSONException {
         JSONObject json = new JSONObject();
         if (in == null) {
             return json;
@@ -181,27 +402,10 @@ class FacebookJNI {
             public void run() {
                 Log.d(TAG, "java jni thread: " + Thread.currentThread().getId());
                 facebook.login( new Facebook.StateCallback() {
-
                     @Override
                     public void onDone( final int state, final String error) {
                         onLogin(userData, state, error);
-
-                        Log.d(TAG, "MAWE: Deferred App Link (AFTER LOGIN)");
-
-                        AppLinkData.fetchDeferredAppLinkData( activity, appId,
-                        new AppLinkData.CompletionHandler() {
-                            @Override
-                            public void onDeferredAppLinkDataFetched(AppLinkData appLinkData) {
-                                //process applink data
-                                if( appLinkData != null ) {
-                                    Log.d(TAG, "MAWE: Deferred App Link URL: " + appLinkData.getTargetUri());
-                                } else {
-                                    Log.d(TAG, "MAWE: Deferred App Link was null");
-                                }
-                            }
-                        });
                     }
-
                 });
             }
 
@@ -326,5 +530,4 @@ class FacebookJNI {
     public void disableEventUsage() {
         facebook.enableEventUsage();
     }
-
 }
