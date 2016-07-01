@@ -8,6 +8,7 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.targets :as targets]
@@ -572,15 +573,32 @@
         (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
                        web-server)))))
 
-(def selected-target (atom nil))
+(def ^:private selected-target (atom nil))
+
+(defn get-selected-target [prefs]
+  (let [targets     (targets/get-targets)
+        last-target (prefs/get-prefs prefs "last-target" nil)]
+    (cond
+      (and @selected-target (contains? targets @selected-target))
+      @selected-target
+
+      (and last-target (contains? targets last-target))
+      last-target
+
+      :else
+      targets/local-target)))
 
 (handler/defhandler :target :global
   (enabled? [] true)
   (active? [] true)
-  (run [user-data]
+  (run [user-data prefs]
     (when user-data
+      (prefs/set-prefs prefs "last-target" user-data)
       (reset! selected-target user-data)))
-  (state [user-data] (= user-data @selected-target))
+  (state [user-data prefs]
+         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+           (or (= user-data @selected-target)
+               (= user-data last-target))))
   (options [user-data]
            (when-not user-data
              (mapv (fn [target]
@@ -588,7 +606,7 @@
                       :command   :target
                       :check     true
                       :user-data target})
-                   @targets/targets))))
+                   (targets/get-targets)))))
 
 (defn settings [project]
   (g/node-value project :settings))

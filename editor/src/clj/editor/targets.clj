@@ -8,7 +8,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def targets (atom #{}))
+(def ^:private targets (atom #{}))
 (def ^:private descriptions (atom {}))
 (def ^:private last-search (atom 0))
 (def ^:private running (atom true))
@@ -46,6 +46,10 @@
        :url      (tag->val :defold:url tags)
        :log-port (tag->val :defold:logPort tags)})))
 
+(def local-target
+  {:name "localhost"
+   :url  "http://localhost:8001"})
+
 (defn- update-targets! [devices]
   (loop [[^DeviceInfo device & rest] devices
          blacklist                   #{}]
@@ -81,6 +85,7 @@
           (when search?
             (reset! last-search now))
           (when (and search? changed?)
+            (reset! targets #{})
             (update-targets! (.getDevices ssdp-service)))))
       (catch Exception e
         (println e))
@@ -93,3 +98,9 @@
 
 (defn start []
   (future (targets-worker)))
+
+(defn stop []
+  (reset! running false))
+
+(defn get-targets []
+  @targets)
