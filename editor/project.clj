@@ -46,9 +46,7 @@
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
 
-  :java-source-paths ["src/java"
-                      "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"
-                      "../engine/dlib/src/java/com/dynamo/upnp"]
+  :java-source-paths ["src/java"]
 
   :resource-paths    ["resources" "generated-resources"]
 
