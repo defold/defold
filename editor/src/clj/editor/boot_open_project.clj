@@ -28,6 +28,7 @@
             [editor.sprite :as sprite]
             [editor.gl.shader :as shader]
             [editor.tile-source :as tile-source]
+            [editor.targets :as targets]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.json :as json]
@@ -136,6 +137,7 @@
       (.setHeight stage (:height dims)))
 
     (ui/show! stage)
+    (targets/start)
 
     (ui/on-close-request! stage
                           (fn [_]

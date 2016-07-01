@@ -8,8 +8,10 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.targets :as targets]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.validation :as validation]
@@ -399,7 +401,10 @@
                               :acc "Shortcut+B"
                               :command :build}
                              {:label "Fetch Libraries"
-                              :command :fetch-libraries}]}])
+                              :command :fetch-libraries}
+                             {:label :separator}
+                             {:label "Target"
+                              :command :target}]}])
 
 (defn get-resource-node [project path-or-resource]
   (when-let [resource (cond
@@ -567,6 +572,41 @@
       (when (and (future? build) @build)
         (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
                        web-server)))))
+
+(def ^:private selected-target (atom nil))
+
+(defn get-selected-target [prefs]
+  (let [targets     (targets/get-targets)
+        last-target (prefs/get-prefs prefs "last-target" nil)]
+    (cond
+      (and @selected-target (contains? targets @selected-target))
+      @selected-target
+
+      (and last-target (contains? targets last-target))
+      last-target
+
+      :else
+      targets/local-target)))
+
+(handler/defhandler :target :global
+  (enabled? [] true)
+  (active? [] true)
+  (run [user-data prefs]
+    (when user-data
+      (prefs/set-prefs prefs "last-target" user-data)
+      (reset! selected-target user-data)))
+  (state [user-data prefs]
+         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+           (or (= user-data @selected-target)
+               (= user-data last-target))))
+  (options [user-data]
+           (when-not user-data
+             (mapv (fn [target]
+                     {:label     (:name target)
+                      :command   :target
+                      :check     true
+                      :user-data target})
+                   (targets/get-targets)))))
 
 (defn settings [project]
   (g/node-value project :settings))
