@@ -10,6 +10,7 @@
             [editor.ui :as ui]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.targets :as targets]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.validation :as validation]
@@ -399,7 +400,10 @@
                               :acc "Shortcut+B"
                               :command :build}
                              {:label "Fetch Libraries"
-                              :command :fetch-libraries}]}])
+                              :command :fetch-libraries}
+                             {:label :separator}
+                             {:label "Target"
+                              :command :target}]}])
 
 (defn get-resource-node [project path-or-resource]
   (when-let [resource (cond
@@ -567,6 +571,24 @@
       (when (and (future? build) @build)
         (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
                        web-server)))))
+
+(def selected-target (atom nil))
+
+(handler/defhandler :target :global
+  (enabled? [] true)
+  (active? [] true)
+  (run [user-data]
+    (when user-data
+      (reset! selected-target user-data)))
+  (state [user-data] (= user-data @selected-target))
+  (options [user-data]
+           (when-not user-data
+             (mapv (fn [target]
+                     {:label     (:name target)
+                      :command   :target
+                      :check     true
+                      :user-data target})
+                   @targets/targets))))
 
 (defn settings [project]
   (g/node-value project :settings))
