@@ -170,11 +170,11 @@
   (enabled? [app-view]
             ;; TODO Also figure out if the engine running (somewhere)
             (g/node-value app-view :active-resource))
-  (run [project app-view]
+  (run [project app-view prefs]
     (when-let [resource (g/node-value app-view :active-resource)]
       (let [build (project/build-and-save-project project)]
         (when (and (future? build) @build)
-            (hot-reload/post-reload-resource resource))))))
+            (hot-reload/post-reload-resource prefs resource))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
