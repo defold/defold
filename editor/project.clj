@@ -47,7 +47,8 @@
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
 
   :java-source-paths ["src/java"
-                      "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"]
+                      "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"
+                      "../engine/dlib/src/java/com/dynamo/upnp"]
 
   :resource-paths    ["resources" "generated-resources"]
 
@@ -82,7 +83,8 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults                  {:doc/format :markdown}}
 
-  :main ^:skip-aot com.defold.editor.Start
+  :jvm-opts          ["-Djava.net.preferIPv4Stack=true"]
+  :main ^:skip-aot   com.defold.editor.Start
 
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar {:prep-tasks   ["clean" "protobuf" "javac" ["run" "-m" " aot"] "compile"]
