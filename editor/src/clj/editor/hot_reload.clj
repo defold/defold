@@ -1,8 +1,10 @@
 (ns editor.hot-reload
   (:require [editor
              [defold-project :as project]
+             [dialogs :as dialogs]
              [protobuf :as protobuf]
-             [resource :as resource]])
+             [resource :as resource]
+             [ui :as ui]])
   (:import com.dynamo.resource.proto.Resource
            [java.net HttpURLConnection URL]))
 
@@ -25,9 +27,11 @@
 
 (defn post-reload-resource [resource]
   (future
-    (let [url  (URL. "http://localhost:8001/post/@resource/reload")
-          conn (doto ^HttpURLConnection (.openConnection url)
-                 (.setDoOutput true) (.setRequestMethod "POST"))]
+    (let [target (or (:url @project/selected-target)
+                     "http://localhost:8001")
+          url    (URL. (str target "/post/@resource/reload"))
+          conn   (doto ^HttpURLConnection (.openConnection url)
+                   (.setDoOutput true) (.setRequestMethod "POST"))]
       (try
         (let [os (.getOutputStream conn)]
           (.write os ^bytes (protobuf/map->bytes
@@ -40,6 +44,6 @@
           (.close is))
         (println "response done")
         (catch Exception e
-          (println e))
+          (ui/run-later (dialogs/make-alert-dialog (str "Error connecting to engine on " target))))
         (finally
           (.disconnect conn))))))
