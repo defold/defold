@@ -148,9 +148,20 @@
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
 (def prefer-offset (atom 0))
+(def tab-triggers (atom nil))
 
 (defn preferred-offset [] @prefer-offset)
 (defn preferred-offset! [val] (reset! prefer-offset val))
+
+(defn snippet-tab-triggers! [val] (reset! tab-triggers val))
+(defn has-snippet-tab-trigger? [] @tab-triggers)
+(defn next-snippet-tab-trigger! []
+  (let [trigger (or (first @tab-triggers) :end)]
+    (if (= trigger :end)
+      (reset! tab-triggers nil)
+      (swap! tab-triggers rest))
+    trigger))
+(defn clear-snippet-tab-triggers! [] (reset! tab-triggers nil))
 
 (defn- info [e]
   {:event e
@@ -229,6 +240,7 @@
         cf (click-fn click-count)
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
+    (clear-snippet-tab-triggers!)
     (when cf (handler/run
                (:command cf)
                [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
@@ -266,16 +278,18 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (+ c (count selected-text)))
                    (adjust-bounds doc (inc c)))]
-      (caret! selection next-pos false)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos false)
+    (remember-caret-col selection next-pos)))
 
 (defn select-right [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (adjust-bounds doc (inc c))]
-      (caret! selection next-pos true)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos true)
+    (remember-caret-col selection next-pos)))
 
 (defn left [selection]
   (let [c (caret selection)
@@ -284,16 +298,18 @@
         next-pos (if (pos? (count selected-text))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
-      (caret! selection next-pos false)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos false)
+    (remember-caret-col selection next-pos)))
 
 (defn select-left [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
         next-pos (adjust-bounds doc (dec c))]
-      (caret! selection next-pos true)
-      (remember-caret-col selection next-pos)))
+    (clear-snippet-tab-triggers!)
+    (caret! selection next-pos true)
+    (remember-caret-col selection next-pos)))
 
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
@@ -690,9 +706,8 @@
     (replace! selection found-idx tlen rtext)
     (caret! selection (adjust-bounds (text selection) (+ tlen-new found-idx)) false)
     (text-selection! selection found-idx tlen-new)
-    (refresh! selection)
     ;;Note:  trying to highlight the selection doensn't
-    ;; work due to rendering problems in the StyledTextSkin
+    ;; work quite right due to rendering problems in the StyledTextSkin
     ))
 
 (defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
@@ -797,16 +812,34 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
+(defn next-tab-trigger [selection pos]
+  (when (has-snippet-tab-trigger?)
+    (let [doc (text selection)
+          search-text (next-snippet-tab-trigger!)]
+      (if (= :end search-text)
+        (right selection)
+        (let [found-idx (string/index-of doc search-text pos)
+              tlen (count search-text)]
+          (when found-idx
+            (select-found-text selection doc found-idx tlen)))))))
+
 (defn do-proposal-replacement [selection replacement]
-  (let [replacement (:insert-string replacement)
+  (let [tab-triggers (:tab-triggers replacement)
+        replacement (:insert-string replacement)
         line-text (line selection)
+        loffset (line-offset selection)
         parsed-line (code/parse-line line-text)
         replacement-in-line? (string/index-of line-text replacement)
         pattern (if replacement-in-line?
                   replacement
                  (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
-        new-line-text (string/replace-first line-text pattern replacement)]
-    (replace! selection (line-offset selection) (count line-text) new-line-text)))
+        new-line-text (string/replace-first line-text pattern replacement)
+        snippet-tab-start (or (string/index-of new-line-text "function_name")
+                              (string/index-of new-line-text "(")
+                              0)]
+    (replace! selection (line-offset selection) (count line-text) new-line-text)
+    (snippet-tab-triggers! tab-triggers)
+    (next-tab-trigger selection (+ loffset snippet-tab-start))))
 
 (defn show-proposals [selection proposals]
   (when (pos? (count proposals))
@@ -833,7 +866,12 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (enter-key-text selection "\t"))))
+      (if (has-snippet-tab-trigger?)
+        (let [caret (caret selection)
+              doc (text selection)
+              np (adjust-bounds doc caret)]
+          (next-tab-trigger selection np))
+        (enter-key-text selection "\t")))))
 
 (defn- get-indentation [line]
   (re-find #"^\s+" line))
@@ -862,6 +900,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
+      (clear-snippet-tab-triggers!)
       (let [line-seperator (System/getProperty "line.separator")
             current-line (line selection)
             line-offset (line-offset selection)
