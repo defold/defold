@@ -12,12 +12,13 @@
 
 (defn create-hint
   ([name]
-   (create-hint name name name ""))
-  ([name display-string insert-string doc]
+   (create-hint name name name "" nil))
+  ([name display-string insert-string doc tab-triggers]
    {:name name
     :display-string display-string
     :insert-string insert-string
-    :doc doc}))
+    :doc doc
+    :tab-triggers (or tab-triggers [])}))
 
 (defn match-while [body p]
   (loop [body body
