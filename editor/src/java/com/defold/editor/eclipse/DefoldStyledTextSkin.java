@@ -11,8 +11,6 @@ import java.util.Set;
 import org.eclipse.fx.ui.controls.styledtext.StyleRange;
 import org.eclipse.fx.ui.controls.styledtext.StyledTextArea;
 import org.eclipse.fx.ui.controls.styledtext.StyledTextArea.StyledTextLine;
-import org.eclipse.fx.ui.controls.styledtext.StyledTextLayoutContainer;
-import org.eclipse.fx.ui.controls.styledtext.StyledTextNode;
 import org.eclipse.fx.ui.controls.styledtext.TextSelection;
 import org.eclipse.jdt.annotation.NonNull;
 
@@ -124,7 +122,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							DefoldStyledTextSkin.this.contentView.getSelectionModel().select(lineObject);
 						}
 
-						StyledTextLayoutContainer p = (StyledTextLayoutContainer) c.getGraphic();
+						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
 						p.requestLayout();
 
@@ -147,7 +145,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				if (newValue == null || newValue.length == 0) {
 					for (LineCell c : mymapcells) {
 						if (c.getGraphic() != null) {
-							StyledTextLayoutContainer block = (StyledTextLayoutContainer) c.getGraphic();
+							DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) c.getGraphic();
 							block.setSelection(new TextSelection(0, 0));
 						}
 					}
@@ -156,7 +154,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 					for (LineCell c : mymapcells) {
 						if (c.getGraphic() != null) {
 							Line arg0 = c.domainElement;
-							StyledTextLayoutContainer block = (StyledTextLayoutContainer) c.getGraphic();
+							DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) c.getGraphic();
 							if (selection.length > 0 && block.intersectOffset(selection.offset, selection.offset + selection.length)) {
 								int start = Math.max(0, selection.offset - arg0.getLineOffset());
 
@@ -237,9 +235,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		});
 	}
 
-	private StyledTextLayoutContainer currentActiveNode;
+	private DefoldStyledTextLayoutContainer currentActiveNode;
 
-	void updateCurrentCursorNode(StyledTextLayoutContainer node) {
+	void updateCurrentCursorNode(DefoldStyledTextLayoutContainer node) {
 		if (this.currentActiveNode != node) {
 			if (this.currentActiveNode != null) {
 				this.currentActiveNode.setCaretIndex(-1);
@@ -298,7 +296,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		Line lineObject = this.lineList.get(lineIndex);
 		for (LineCell c : getCurrentVisibleCells()) {
 			if (c.domainElement == lineObject) {
-				StyledTextLayoutContainer b = (StyledTextLayoutContainer) c.getGraphic();
+				DefoldStyledTextLayoutContainer b = (DefoldStyledTextLayoutContainer) c.getGraphic();
 				Point2D careLocation = b.getCareLocation(caretPosition - b.getStartOffset());
 				Point2D tmp = getSkinnable().sceneToLocal(b.localToScene(careLocation));
 				return new Point2D(tmp.getX(), getSkinnable().sceneToLocal(b.localToScene(0, b.getHeight())).getY());
@@ -426,12 +424,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				}
 				lineInfo.setLayoutY(getLayoutY());
 
-				StyledTextLayoutContainer block = (StyledTextLayoutContainer) getGraphic();
+				DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) getGraphic();
 
 				if (block == null) {
 					// System.err.println("CREATING NEW GRAPHIC BLOCK: " + this
 					// + " => " + this.domainElement);
-					block = new StyledTextLayoutContainer(getSkinnable().focusedProperty());
+					block = new DefoldStyledTextLayoutContainer(getSkinnable().focusedProperty());
 					block.getStyleClass().add("source-segment-container"); //$NON-NLS-1$
 					setGraphic(block);
 					// getSkinnable().requestLayout();
@@ -450,10 +448,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 				this.currentSegments = segments;
 
-				List<@NonNull StyledTextNode> texts = new ArrayList<>();
+				List<@NonNull DefoldStyledTextNode> texts = new ArrayList<>();
 
 				for (final Segment seg : this.currentSegments) {
-					StyledTextNode t = new StyledTextNode(seg.text);
+					DefoldStyledTextNode t = new DefoldStyledTextNode(seg.text);
 					if (seg.style.stylename != null) {
 						if (seg.style.stylename.contains(".")) { //$NON-NLS-1$
 							List<String> styles = new ArrayList<String>(Arrays.asList(seg.style.stylename.split("\\."))); //$NON-NLS-1$
@@ -474,7 +472,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				}
 
 				if (segments.isEmpty()) {
-					StyledTextNode t = new StyledTextNode(""); //$NON-NLS-1$
+					DefoldStyledTextNode t = new DefoldStyledTextNode(""); //$NON-NLS-1$
 					t.getStyleClass().setAll("source-segment"); //$NON-NLS-1$
 					block.getTextNodes().setAll(t);
 				} else {
@@ -836,7 +834,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				public void run() {
 					for (LineCell c : lineInfoMap.keySet()) {
 						if (c.getGraphic() != null) {
-							StyledTextLayoutContainer block = (StyledTextLayoutContainer) c.getGraphic();
+							DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) c.getGraphic();
 							block.requestLayout();
 						}
 					}
