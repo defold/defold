@@ -371,15 +371,18 @@
         (g/update-property node-id (first key) assoc-in (rest key) value)
         (g/set-property node-id (:key property) value)))))
 
+(defn keyword->name [kw]
+  (-> kw
+    name
+    camel/->Camel_Snake_Case_String
+    (clojure.string/replace "_" " ")))
+
 (defn label
   [property]
   (or (:label property)
       (let [k (:key property)
            k (if (vector? k) (last k) k)]
-       (-> k
-         name
-         camel/->Camel_Snake_Case_String
-         (clojure.string/replace "_" " ")))))
+       (keyword->name k))))
 
 (defn read-only? [property]
   (:read-only? property))

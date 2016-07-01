@@ -161,6 +161,8 @@
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! project *view-graph*
                                                       (.lookup root "#curve-editor-container")
+                                                      (.lookup root "#curve-editor-list")
+                                                      (.lookup root "#curve-editor-view")
                                                       {:tab (some #(and (= "curve-editor-tab" (.getId ^Tab %)) %)
                                                                   (.getTabs tool-tabs))})]
 

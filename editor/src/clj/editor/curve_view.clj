@@ -36,16 +36,19 @@
            [java.awt.image BufferedImage DataBufferByte DataBufferInt]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
+           [javafx.beans.property SimpleBooleanProperty]
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
            [javafx.geometry BoundingBox Pos VPos HPos]
            [javafx.scene Scene Group Node Parent]
-           [javafx.scene.control Tab Button]
+           [javafx.scene.control Tab Button ListView]
+           [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane Pane StackPane]
+           [javafx.util Callback]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
            [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
@@ -439,6 +442,8 @@
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property tool-picking-rect Rect)
+  (property list ListView)
+  (property hidden-curves g/Any)
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
@@ -464,7 +469,10 @@
                                                 [:tangent tangent]
                                                 (if-let [curve (pick-closest-curve curves tool-picking-rect camera viewport)]
                                                   [:curve curve]
-                                                  nil))))))
+                                                  nil)))))
+  (output update-list-view g/Any :cached (g/fnk [curves ^ListView list selected-node-properties]
+                                                (let [p (:properties (properties/coalesce selected-node-properties))]
+                                                  (ui/items! list (mapv (fn [c] (properties/label (get p (:property c)))) curves))))))
 
 (defonce view-state (atom nil))
 
@@ -526,7 +534,8 @@
                                  repainter     (ui/->timer "refresh-curve-view"
                                                 (fn [dt]
                                                   (when (.isSelected tab)
-                                                    (update-image-view! image-view dt))))]
+                                                    (update-image-view! image-view dt)
+                                                    (g/node-value view-id :update-list-view))))]
                              (ui/user-data! parent ::repainter repainter)
                              (ui/on-close tab
                                           (fn [e]
@@ -543,21 +552,20 @@
     (g/set-property! view-id :image-view image-view)
     pane))
 
-(defn destroy-view! [parent]
+(defn destroy-view! [parent view view-id]
   (when-let [repainter (ui/user-data parent ::repainter)]
     (ui/timer-stop! repainter)
     (ui/user-data! parent ::repainter nil))
-  (when-let [node-id (ui/user-data parent ::node-id)]
-    (when-let [scene (g/node-by-id node-id)]
-      (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
+  (when view-id
+    (when-let [scene (g/node-by-id view-id)]
+      (when-let [^GLAutoDrawable drawable (g/node-value view-id :drawable)]
         (let [gl (.getGL drawable)]
-          (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
+          (when-let [^AsyncCopier copier (g/node-value view-id :async-copier)]
             (.dispose copier gl))
           (scene-cache/drop-context! gl false)
           (.destroy drawable))))
-    (g/transact (g/delete-node node-id))
-    (ui/user-data! parent ::node-id nil)
-    (ui/children! parent [])))
+    (g/transact (g/delete-node view-id))
+    (ui/children! view [])))
 
 (defn- camera-filter-fn [camera]
   (let [^Point3d p (:position camera)
@@ -573,12 +581,13 @@
   (selection [this] (g/node-value project :sub-selection)))
 
 (defn make-view!
-  ([project graph ^Parent parent opts]
-    (reset! view-state {:project project :graph graph :parent parent :opts opts})
-    (make-view! project graph parent opts false))
-  ([project graph ^Parent parent opts reloading?]
+  ([project graph ^Parent parent ^ListView list ^AnchorPane view opts]
+    (let [view-id (make-view! project graph parent list view opts false)]
+      (reset! view-state {:project project :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
+      view-id))
+  ([project graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    CurveView
+                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        background background/Gradient
@@ -610,19 +619,27 @@
                                                 (g/connect view-id              :picking-selection         selection        :picking-selection)
                                                 (g/connect project              :sub-selection             selection        :selection))))]
       (when parent
-        (let [^Node pane (make-gl-pane node-id parent opts)]
+        (let [^Node pane (make-gl-pane node-id view opts)]
           (ui/context! parent :curve-view {} (SubSelectionProvider. project))
           (ui/fill-control pane)
-          (ui/children! parent [pane])
-          (ui/user-data! parent ::node-id node-id)))
+          (ui/children! view [pane])
+          (.setCellFactory list
+            (CheckBoxListCell/forListView
+              (reify Callback
+                (call ^ObservableValue [this item]
+                  (let [hidden-curves (g/node-value node-id :hidden-curves)]
+                    (doto (SimpleBooleanProperty. (not (contains? hidden-curves item)))
+                      (ui/observe (fn [observalbe old new]
+                                    (prn "change from" old new)))))))
+              #_(reify StringConverter)))))
       node-id)))
 
 (defn- reload-curve-view []
   (when @view-state
-    (let [{:keys [project graph ^Parent parent opts]} @view-state]
+    (let [{:keys [project graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
       (ui/run-now
-        (destroy-view! parent)
-        (make-view! project graph parent opts true)))))
+        (destroy-view! parent view view-id)
+        (make-view! project graph parent list view opts true)))))
 
 (reload-curve-view)
 
