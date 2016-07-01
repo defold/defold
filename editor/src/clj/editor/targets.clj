@@ -51,27 +51,28 @@
    :url  "http://localhost:8001"})
 
 (defn- update-targets! [devices]
-  (loop [[^DeviceInfo device & rest] devices
-         blacklist                   #{}]
-    (when device
-      (let [loc                 (.get (.headers device) "LOCATION")
-            ^URL url            (try (URL. loc) (catch Exception _))
-            ^String description (and url (not (contains? blacklist (.getHost url)))
-                                     (or (get @descriptions url)
-                                         (try (http-get url) (catch Exception _))))
-            desc                (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
-                                     (catch Exception _))
-            target              (desc->target desc)]
+  (let [res (reduce (fn [{:keys [blacklist targets] :as acc} ^DeviceInfo device]
+                      (let [loc                 (.get (.headers device) "LOCATION")
+                            ^URL url            (try (URL. loc) (catch Exception _))
+                            ^String description (and url (not (contains? blacklist (.getHost url)))
+                                                     (or (get @descriptions loc)
+                                                         (try (http-get url) (catch Exception _))))
+                            desc                (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
+                                                     (catch Exception _))
+                            target              (desc->target desc)]
 
-        (when desc
-          (swap! descriptions assoc url desc))
+                        (when desc
+                          (swap! descriptions assoc loc description))
 
-        (when target
-          (swap! targets conj target))
-
-        (if (and url (not desc))
-          (recur rest (conj blacklist (.getHost url)))
-          (recur rest blacklist))))))
+                        {:targets   (if target
+                                      (conj targets target)
+                                      targets)
+                         :blacklist (if (and url (not desc))
+                                      (conj blacklist (.getHost url))
+                                      blacklist)}))
+                    {:blacklist #{} :targets #{}}
+                    devices)]
+    (reset! targets (:targets res))))
 
 (defn- targets-worker []
   (when-let [ssdp-service (SSDP.)]
@@ -85,7 +86,6 @@
           (when search?
             (reset! last-search now))
           (when (and search? changed?)
-            (reset! targets #{})
             (update-targets! (.getDevices ssdp-service)))))
       (catch Exception e
         (println e))
