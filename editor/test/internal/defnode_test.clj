@@ -795,15 +795,64 @@
     (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :an-output)
       :input-one
       :input-two
-#_      :input-three
-      :a-property))
+      :a-property)))
 
-  #_(testing "as property"
-    (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :a-property)
+(g/defnode PropertiesWithDynamics
+  (input input-one g/Any)
+  (input input-two g/Any)
+  (input input-three g/Any)
+
+  (property a-property g/Any
+            (default  (g/always false))
+            (validate (g/fnk [input-three] (nil? input-three)))
+            (value    (g/fnk [input-two] (inc input-two))))
+
+  (output an-output g/Any
+          (g/fnk [input-one a-property] :ok)))
+
+(defn- affected-by? [out in]
+  (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
+    (contains? affected-outputs out)))
+
+(deftest properties-depend-on-their-dynamic-inputs
+  (testing "as output"
+    (is (affected-by? :an-output :input-three)))
+
+  (testing "as property"
+    (are [input] (affected-by? :a-property input)
       :input-two
       :input-three)
 
-    (are [x] (not (contains? (get (g/input-dependencies MacroMembers) x) :a-property))
+    (are [input] (not (affected-by? :a-property input))
       :input-one
       :_properties
       :_declared-properties)))
+
+(g/defnode CustomPropertiesOutput
+  (output _properties g/Properties :cached
+          (g/fnk [_declared-properties]
+                 (assoc-in _declared-properties [:properties :from-custom-output] {:node-id 0
+                                                                                   :type    g/Bool
+                                                                                   :value true}))))
+
+(g/defnode InheritFromCustomProperties
+  (inherits CustomPropertiesOutput))
+
+(g/defnode InheritAndOverrideProperties
+  (output _properties g/Properties
+          (g/fnk [_declared-properties] _declared-properties)))
+
+(deftest inheriting-properties-output
+  (testing "custom _properties function is invoked"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world CustomPropertiesOutput))]
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
+
+  (testing "inherited function is invoked"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world InheritFromCustomProperties))]
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
+
+  (testing "cached flag is not inherited"
+    (is (contains? (-> @CustomPropertiesOutput :output :_properties :flags) :cached))
+    (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))

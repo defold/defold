@@ -170,7 +170,7 @@
                                                        (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
           properties-modified-on-target (set (keep #(when (= (first %) target) (second %)) (:outputs-modified tx-result)))]
-      (is (= #{:_declared-properties :_properties} properties-modified-on-target)))))
+      (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
   (with-clean-system
@@ -189,7 +189,7 @@
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
             modified      (into #{} (map second enode-results))]
-        (is (= #{:_declared-properties :_properties} modified))))))
+        (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
   (with-clean-system

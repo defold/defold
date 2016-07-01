@@ -1,6 +1,5 @@
 (ns internal.graph
   (:require [clojure.set :as set]
-            [internal.util :refer [removev conjv map-vals stackify project]]
             [internal.graph.types :as gt]
             [schema.core :as s]
             [internal.util :as util]
@@ -29,7 +28,7 @@
                          all-graphs)
         all-arcs-filtered (filter (fn [^ArcBase arc] (= (gt/node-id->graph-id (.source arc)) gid)) all-arcs)]
     (reduce
-      (fn [sarcs arc] (update-in sarcs [(.source ^ArcBase arc) (.sourceLabel ^ArcBase arc)] conjv arc))
+      (fn [sarcs arc] (update-in sarcs [(.source ^ArcBase arc) (.sourceLabel ^ArcBase arc)] util/conjv arc))
       {}
       all-arcs-filtered)))
 
@@ -52,7 +51,7 @@
     (let [override-id (gt/override-id (get-in g [:nodes n]))
           override (get-in g [:overrides override-id])]
       (cond-> g
-        true (update-in [:node->overrides original] (partial removev #{n}))
+        true (update-in [:node->overrides original] (partial util/removev #{n}))
         (= original (:root-id override)) (update :overrides dissoc override-id)))
     g))
 
@@ -69,12 +68,12 @@
         (update :sarcs dissoc n)
         (update :sarcs (fn [s] (reduce (fn [s ^ArcBase arc]
                                          (update-in s [(.source arc) (.sourceLabel arc)]
-                                                    (fn [arcs] (removev (fn [^ArcBase arc] (= n (.target arc))) arcs))))
+                                                    (fn [arcs] (util/removev (fn [^ArcBase arc] (= n (.target arc))) arcs))))
                                        s tarcs)))
         (update :tarcs dissoc n)
         (update :tarcs (fn [s] (reduce (fn [s ^ArcBase arc]
                                          (update-in s [(.target arc) (.targetLabel arc)]
-                                                    (fn [arcs] (removev (fn [^ArcBase arc] (= n (.source arc))) arcs))))
+                                                    (fn [arcs] (util/removev (fn [^ArcBase arc] (= n (.source arc))) arcs))))
                                        s sarcs)))))))
 
 (defn transform-node
@@ -87,19 +86,19 @@
   [g source source-label target target-label]
   (let [from (node g source)]
     (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    (update-in g [:sarcs source source-label] conjv (arc source target source-label target-label))))
+    (update-in g [:sarcs source source-label] util/conjv (arc source target source-label target-label))))
 
 (defn connect-target
   [g source source-label target target-label]
   (let [to (node g target)]
     (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    (update-in g [:tarcs target target-label] conjv (arc source target source-label target-label))))
+    (update-in g [:tarcs target target-label] util/conjv (arc source target source-label target-label))))
 
 (defn disconnect-source
   [g source source-label target target-label]
   (update-in g [:sarcs source source-label]
           (fn [arcs]
-            (removev
+            (util/removev
              (fn [^ArcBase arc]
                (and (= source       (.source arc))
                     (= target       (.target arc))
@@ -111,7 +110,7 @@
   [g source source-label target target-label]
   (update-in g [:tarcs target target-label]
           (fn [arcs]
-            (removev
+            (util/removev
              (fn [^ArcBase arc]
                (and (= source       (.source arc))
                     (= target       (.target arc))
@@ -163,14 +162,14 @@
       (if (contains? seen nxt)
         (recur (pop stack) seen result)
         (let [seen (conj seen nxt)
-              nbrs (removev seen (succ basis nxt))]
+              nbrs (util/removev seen (succ basis nxt))]
           (recur (into (pop stack) nbrs)
                  seen (conj! result nxt))))
       (persistent! result))))
 
 (defn- arcs->tuples
   [arcs]
-  (project arcs [:source :sourceLabel :target :targetLabel]))
+  (util/project arcs [:source :sourceLabel :target :targetLabel]))
 
 (def ^:private sources-of (comp arcs->tuples gt/arcs-by-tail))
 
@@ -372,7 +371,7 @@
   (override-node
     [this original-node-id override-node-id]
     (let [gid      (gt/node-id->graph-id override-node-id)]
-      (update-in this [:graphs gid :node->overrides original-node-id] conjv override-node-id)))
+      (update-in this [:graphs gid :node->overrides original-node-id] util/conjv override-node-id)))
 
   (override-node-clear [this original-id]
     (let [gid (gt/node-id->graph-id original-id)]
@@ -430,7 +429,7 @@
 
   (dependencies
     [this outputs]
-    (pre-traverse this (stackify outputs) successors))
+    (pre-traverse this (util/stackify outputs) successors))
 
   (original-node [this node-id]
     (when-let [node (gt/node-by-id-at this node-id)]
