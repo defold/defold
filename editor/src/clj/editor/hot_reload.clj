@@ -25,10 +25,9 @@
        :body    c}
       {:code 404}))))
 
-(defn post-reload-resource [resource]
+(defn post-reload-resource [prefs resource]
   (future
-    (let [target (or (:url @project/selected-target)
-                     "http://localhost:8001")
+    (let [target (:url (project/get-selected-target prefs))
           url    (URL. (str target "/post/@resource/reload"))
           conn   (doto ^HttpURLConnection (.openConnection url)
                    (.setDoOutput true) (.setRequestMethod "POST"))]
@@ -42,7 +41,6 @@
           (while (not= -1 (.read is))
             (Thread/sleep 10))
           (.close is))
-        (println "response done")
         (catch Exception e
           (ui/run-later (dialogs/make-alert-dialog (str "Error connecting to engine on " target))))
         (finally
