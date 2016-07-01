@@ -15,7 +15,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.layout Region]
-           [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TabPane Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip]
            [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane HBox]
@@ -537,9 +537,11 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- make-menu-command [label icon acc command command-contexts user-data]
-  (let [menu-item (MenuItem. label)
-        key-combo (and acc (KeyCombination/keyCombination acc))]
+(defn- make-menu-command [label icon acc command command-contexts user-data check]
+  (let [^MenuItem menu-item (if check
+                              (CheckMenuItem. label)
+                              (MenuItem. label))
+        key-combo           (and acc (KeyCombination/keyCombination acc))]
     (when command
       (.setId menu-item (name command)))
     (when key-combo
@@ -562,12 +564,13 @@
       (if (= item-label :separator)
         (SeparatorMenuItem.)
         (let [command (:command item)
-              user-data (:user-data item)]
+              user-data (:user-data item)
+              check (:check item)]
           (when (handler/active? command command-contexts user-data)
             (let [label (or (handler/label command command-contexts user-data) item-label)]
               (if-let [options (handler/options command command-contexts user-data)]
                 (make-submenu label icon (make-menu-items options command-contexts))
-                (make-menu-command label icon (:acc item) command command-contexts user-data)))))))))
+                (make-menu-command label icon (:acc item) command command-contexts user-data check)))))))))
 
 (defn- make-menu-items [menu command-contexts]
   (let [menu-items (->> menu
@@ -626,9 +629,23 @@
 
 (defn- refresh-menu-state [^Menu menu command-contexts]
   (doseq [m (.getItems menu)]
-    (if (instance? Menu m)
+    (cond
+      (instance? Menu m)
       (refresh-menu-state m command-contexts)
-      (.setDisable ^MenuItem m (not (handler/enabled? (keyword (.getId ^MenuItem m)) command-contexts (user-data m ::menu-user-data)))))))
+
+      (instance? CheckMenuItem m)
+      (let [m         ^CheckMenuItem m
+            command   (keyword (.getId ^MenuItem m))
+            user-data (user-data m ::menu-user-data)]
+        (doto m
+          (.setDisable (not (handler/enabled? command command-contexts user-data)))
+          (.setSelected (boolean (handler/state command command-contexts user-data)))))
+
+      (instance? MenuItem m)
+      (let [m ^MenuItem m]
+        (.setDisable m (not (handler/enabled? (keyword (.getId m))
+                                              command-contexts
+                                              (user-data m ::menu-user-data))))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
   (doseq [m (.getMenus menubar)]
