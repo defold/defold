@@ -268,16 +268,22 @@ public class Server {
         /*
             TEMP ACCESS TOKEN HACK (onetime thing, this should be removed after first release of this code)
          */
-        try {
-            LOGGER.info("Creating access tokens for existing users...");
-            UserService userService = new UserService(emf.createEntityManager());
-            List<User> users = userService.findAll();
-            LOGGER.info("{} users found.", users.size());
-            users.stream().forEach(accessTokenAuthenticator::createLifetimeTokenForExistingUser);
-            LOGGER.info("User tokens created.");
-        } catch (Exception e) {
-            LOGGER.error("Failed to create access tokens for existing users", e);
-        }
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    LOGGER.info("Creating access tokens for existing users...");
+                    UserService userService = new UserService(emf.createEntityManager());
+                    List<User> users = userService.findAll();
+                    LOGGER.info("{} users found.", users.size());
+                    users.stream().forEach(accessTokenAuthenticator::createLifetimeTokenForExistingUser);
+                    LOGGER.info("User tokens created.");
+                } catch (Exception e) {
+                    LOGGER.error("Failed to create access tokens for existing users", e);
+                }
+            }
+        });
+        thread.start();
         // ---------------------------------------------------
     }
 
