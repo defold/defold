@@ -461,33 +461,32 @@
 
 (defn update-successors
   [basis changes]
-  (loop [basis basis
-         changes (sort changes)]
-    (if-let [change (first changes)]
-      (let [input-deps (partial input-deps basis)
-            node-id (first change)
-            gid (gt/node-id->graph-id node-id)
-            deps-by-label (input-deps node-id)
-            out-arcs (group-by first (map (fn [^ArcBase a] [(.sourceLabel a) (gt/tail a)])
-                                          (filter (fn [^ArcBase arc]
-                                                    (gt/node-by-id-at basis (.target arc)))
-                                                  (gt/arcs-by-head basis node-id))))
-            overrides (overrides basis node-id)
-            ; Inner loop over labels while the node-id is constant
-            [changes deps] (loop [changes changes
-                                  all-deps {}]
-                             (let [change (first changes)
-                                   [next-node-id label] change]
-                               (if (and next-node-id (= next-node-id node-id))
-                                 (let [deps (mapv vector (repeat node-id) (get deps-by-label label))
-                                       or-deps (for [[_ label] deps
-                                                     override overrides]
-                                                 [override label])
-                                       target-deps (mapcat (fn [[_ [id label]]] (mapv vector (repeat id) (get (input-deps id) label))) (get out-arcs label))
-                                       deps (reduce into #{} [deps or-deps target-deps])]
-                                   (recur (next changes) (assoc all-deps change deps)))
-                                 [changes all-deps])))
-            successors (let [s (transient (get-in basis [:graphs gid :successors] {}))]
-                         (persistent! (reduce conj! s deps)))]
-        (recur (assoc-in basis [:graphs gid :successors] successors) changes))
-      basis)))
+    (let [result (loop [basis basis
+                        changes changes]
+                   (if-let [[node-id labels] (first changes)]
+                     (if-let [node (gt/node-by-id-at basis node-id)]
+                       (let [labels (or labels (-> node (gt/node-type basis) in/output-labels))
+                             gid (gt/node-id->graph-id node-id)
+                             deps-by-label (input-deps basis node-id)
+                             out-arcs (group-by first (map (fn [^ArcBase a] [(.sourceLabel a) (gt/tail a)])
+                                                           (filter (fn [^ArcBase arc]
+                                                                     (gt/node-by-id-at basis (.target arc)))
+                                                                   (gt/arcs-by-head basis node-id))))
+                             overrides (overrides basis node-id)
+                             ; Inner loop over labels while the node-id is constant
+                             successors (get-in basis [:graphs gid :successors] {})
+                             successors (reduce (fn [all-deps label]
+                                                  (let [deps (mapv vector (repeat node-id) (get deps-by-label label))
+                                                        or-deps (for [[_ label] deps
+                                                                      override overrides]
+                                                                  [override label])
+                                                        target-deps (mapcat (fn [[_ [id label]]]
+                                                                              (mapv vector (repeat id) (get (input-deps basis id) label)))
+                                                                            (get out-arcs label))
+                                                        deps (reduce into #{} [deps or-deps target-deps])]
+                                                    (assoc all-deps [node-id label] deps)))
+                                                successors labels)]
+                         (recur (assoc-in basis [:graphs gid :successors] successors) (rest changes)))
+                       (recur basis (rest changes)))
+                     basis))]
+      result))

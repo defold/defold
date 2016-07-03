@@ -285,19 +285,29 @@
   (-> ctx
     (update :basis gt/add-override override-id (ig/make-override root-id traverse-fn))))
 
+(defn- flag-all-successors-changed [ctx nodes]
+  (let [succ (get ctx :successors-changed)]
+    (assoc ctx :successors-changed (reduce (fn [succ nid]
+                                             (assoc succ nid nil))
+                                           succ nodes))))
+
+(defn- flag-successors-changed [ctx changes]
+  (let [succ (get ctx :successors-changed)]
+    (assoc ctx :successors-changed (reduce (fn [succ [nid label]]
+                                             (if-let [node-succ (get succ nid #{})]
+                                               (assoc succ nid (conj node-succ label))
+                                               succ))
+                                           succ changes))))
+
 (defn- ctx-override-node [ctx original-id override-id]
   (let [basis (:basis ctx)
         original (gt/node-by-id-at basis original-id)
         all-originals (take-while some? (iterate (fn [nid] (some->> (gt/node-by-id-at basis nid)
-                                                             gt/original)) original-id))
-        all-outputs (-> original (gt/node-type basis) in/output-labels)]
+                                                             gt/original)) original-id))]
     (-> ctx
       (update :basis gt/override-node original-id override-id)
-      (update :successors-changed into (set (concat
-                                              (for [nid all-originals
-                                                    output all-outputs]
-                                                [nid output])
-                                              (mapcat #(gt/sources basis %) all-originals)))))))
+      (flag-all-successors-changed all-originals)
+      (flag-successors-changed (mapcat #(gt/sources basis %) all-originals)))))
 
 (defmethod perform :override-node
   [ctx {:keys [original-node-id override-node-id]}]
@@ -414,7 +424,7 @@
       (assoc :basis basis-after)
       (apply-defaults node)
       (update :nodes-added conj node-id)
-      (update :successors-changed into (map vector (repeat node-id) all-outputs))
+      (assoc-in [:successors-changed node-id] nil)
       (update :nodes-affected merge-nodes-affected node-id all-outputs))))
 
 (defmethod perform :create-node [ctx {:keys [node]}]
@@ -472,7 +482,7 @@
             (ctx-disconnect-single target target-id target-label)
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
-            (update :successors-changed conj [source-id source-label])
+            (flag-successors-changed [[source-id source-label]])
             (ctx-add-overrides source-id source source-label target target-label)))
       ctx)
     ctx))
@@ -507,7 +517,7 @@
       (-> ctx
         (mark-input-activated target-id target-label)
         (update :basis gt/disconnect source-id source-label target-id target-label)
-        (update :successors-changed conj [source-id source-label])
+        (flag-successors-changed [[source-id source-label]])
         (ctx-remove-overrides source source-label target target-label))
       ctx)
     ctx))
@@ -590,7 +600,7 @@
    :nodes-deleted       {}
    :outputs-modified    #{}
    :graphs-modified     #{}
-   :successors-changed  #{}
+   :successors-changed  {}
    :node-id-generators node-id-generators
    :completed           []
    :txid                (new-txid)
@@ -605,6 +615,8 @@
   ;; at this point, :outputs-modified contains [node-id output] pairs.
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
+  (when *tx-debug*
+    (prn "deps" (gt/dependencies (:basis ctx) (:outputs-modified ctx))))
   (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
 
 (defn apply-setters [ctx]
