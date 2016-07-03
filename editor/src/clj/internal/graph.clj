@@ -146,9 +146,12 @@
   (let [gid (gt/node-id->graph-id node-id)]
     (get-in basis [:graphs gid :node->overrides node-id])))
 
-(defn- successors
-  [basis output]
-  (get-in basis [:graphs (gt/node-id->graph-id (first output)) :successors output] #{}))
+(defn- successors-fn [basis]
+  (let [gid->succ (into {} (map (fn [[gid g]] [gid (:successors g)]) (:graphs basis)))]
+    (fn [basis output]
+      (-> gid->succ
+        (get (gt/node-id->graph-id (first output)))
+        (get output [])))))
 
 (defn pre-traverse
   "Traverses a graph depth-first preorder from start, successors being
@@ -157,15 +160,14 @@
   [basis start succ & {:keys [seen] :or {seen #{}}}]
   (loop [stack  start
          seen   seen
-         result (transient [])]
+         result []]
     (if-let [nxt (peek stack)]
       (if (contains? seen nxt)
         (recur (pop stack) seen result)
-        (let [seen (conj seen nxt)
-              nbrs (util/removev seen (succ basis nxt))]
-          (recur (into (pop stack) nbrs)
-                 seen (conj! result nxt))))
-      (persistent! result))))
+        (let [seen (conj seen nxt)]
+          (recur (reduce conj (pop stack) (filter (complement seen) (succ basis nxt)))
+                 seen (conj result nxt))))
+      result)))
 
 (defn- arcs->tuples
   [arcs]
@@ -429,7 +431,7 @@
 
   (dependencies
     [this outputs]
-    (pre-traverse this (util/stackify outputs) successors))
+    (pre-traverse this (util/stackify outputs) (successors-fn this)))
 
   (original-node [this node-id]
     (when-let [node (gt/node-by-id-at this node-id)]
@@ -465,15 +467,16 @@
         overrides (overrides basis node-id)
         partial-pair [node-id]]
     (map (fn [label]
-           (let [deps #{}
+           (let [deps []
                  dep-labels (get deps-by-label label)
                  deps (reduce conj deps (map (partial conj partial-pair) dep-labels))
                  deps (reduce conj deps (for [label dep-labels
 	                                             override overrides]
 	                                         [override label]))
-                 deps (reduce conj deps (mapcat (fn [[id label]]
-	                                                 (map vector (repeat id) (get (input-deps basis id) label)))
-	                                               (gt/targets basis node-id label)))]
+                 deps (reduce conj deps (->> (gt/targets basis node-id label)
+                                          (mapcat (fn [[id label]]
+                                                    (map vector (repeat id) (get (input-deps basis id) label))))
+                                          set))]
              [[node-id label] deps]))
          labels)))
 
