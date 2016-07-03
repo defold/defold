@@ -461,32 +461,37 @@
 
 (defn update-successors
   [basis changes]
-    (let [result (loop [basis basis
+  (let [succ-map (->> changes
+                   (map (comp gt/node-id->graph-id first))
+                   (into #{})
+                   (map (fn [gid] [gid (get-in basis [:graphs gid :successors] {})]))
+                   (into {}))
+        succ-map (loop [succ-map succ-map
                         changes changes]
                    (if-let [[node-id labels] (first changes)]
                      (if-let [node (gt/node-by-id-at basis node-id)]
                        (let [labels (or labels (-> node (gt/node-type basis) in/output-labels))
                              gid (gt/node-id->graph-id node-id)
                              deps-by-label (input-deps basis node-id)
-                             out-arcs (group-by first (map (fn [^ArcBase a] [(.sourceLabel a) (gt/tail a)])
-                                                           (filter (fn [^ArcBase arc]
-                                                                     (gt/node-by-id-at basis (.target arc)))
-                                                                   (gt/arcs-by-head basis node-id))))
                              overrides (overrides basis node-id)
                              ; Inner loop over labels while the node-id is constant
-                             successors (get-in basis [:graphs gid :successors] {})
-                             successors (reduce (fn [all-deps label]
-                                                  (let [deps (mapv vector (repeat node-id) (get deps-by-label label))
-                                                        or-deps (for [[_ label] deps
-                                                                      override overrides]
-                                                                  [override label])
-                                                        target-deps (mapcat (fn [[_ [id label]]]
-                                                                              (mapv vector (repeat id) (get (input-deps basis id) label)))
-                                                                            (get out-arcs label))
-                                                        deps (reduce into #{} [deps or-deps target-deps])]
-                                                    (assoc all-deps [node-id label] deps)))
-                                                successors labels)]
-                         (recur (assoc-in basis [:graphs gid :successors] successors) (rest changes)))
-                       (recur basis (rest changes)))
-                     basis))]
-      result))
+                             partial-pair [node-id]
+                             succ-map (update succ-map gid
+                                              (fn [succ]
+                                                (reduce (fn [succ label]
+                                                         (let [res #{}
+	                                                              dep-labels (get deps-by-label label)
+	                                                              res (reduce conj res (map (partial conj partial-pair) dep-labels))
+	                                                              res (reduce conj res (for [label dep-labels
+	                                                                                         override overrides]
+	                                                                                     [override label]))
+	                                                              res (reduce conj res (mapcat (fn [[id label]]
+	                                                                                             (map vector (repeat id) (get (input-deps basis id) label)))
+	                                                                                           (gt/targets basis node-id label)))
+	                                                              deps res]
+	                                                          (assoc succ [node-id label] deps)))
+                                                       succ labels)))]
+                         (recur succ-map (rest changes)))
+                       (recur succ-map (rest changes)))
+                     succ-map))]
+    (reduce (fn [basis [gid succ]] (assoc-in basis [:graphs gid :successors] succ)) basis succ-map)))
