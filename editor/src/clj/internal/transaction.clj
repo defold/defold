@@ -376,8 +376,8 @@
       (populate-overrides to-node-id))))
 
 (defn- property-default-setter
-  [basis node property _ new-value]
-  (first (gt/replace-node basis node (gt/set-property (gt/node-by-id-at basis node) basis property new-value))))
+  [basis node-id node property _ new-value]
+  (first (gt/replace-node basis node-id (gt/set-property node basis property new-value))))
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value]
@@ -396,7 +396,7 @@
                     :validation-error validation-error})))
      (let [setter-fn (in/setter-for node-type property)]
       (-> ctx
-        (update :basis property-default-setter node-id property old-value new-value)
+        (update :basis property-default-setter node-id node property old-value new-value)
         (cond->
           (not= old-value new-value)
           (->
@@ -408,7 +408,7 @@
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)]
     (loop [ctx ctx
-           props (util/key-set (in/public-properties (gt/node-type node (:basis ctx))))]
+           props (keys (in/public-properties (gt/node-type node (:basis ctx))))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
                     (invoke-setter ctx node-id node prop nil v)
@@ -568,7 +568,7 @@
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
-  (update ctx :nodes-modified #(set/union % (keys nodes-affected))))
+  (assoc ctx :nodes-modified (set (keys nodes-affected))))
 
 (defn map-vals-bargs
   [m f]
