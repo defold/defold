@@ -486,6 +486,22 @@
         (select-word! source-viewer)
         (is (= "" (text-selection source-viewer)))))))
 
+(defn- select-line! [source-viewer]
+  (handler/run :select-line [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest select-line-test
+  (with-clean-system
+    (let [code "line1\nline2"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "selects the line"
+        (select-line! source-viewer)
+        (is (= "line1" (text-selection source-viewer)))
+        (caret! source-viewer 7 false)
+        (select-line! source-viewer)
+        (is (= "line2" (text-selection source-viewer)))))))
+
 (defn- select-all! [source-viewer]
   (handler/run :select-all [{:name :code-view :env {:selection source-viewer}}]{}))
 
