@@ -8,7 +8,7 @@
 #import <FBSDKShareKit/FBSDKShareKit.h>
 #import <objc/runtime.h>
 
-#include "facebook.h"
+#include "facebook_private.h"
 #include "facebook_analytics.h"
 
 struct Facebook
@@ -546,6 +546,8 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
 // Lua API
 //
 
+namespace dmFacebook {
+
  /*# initiate a Facebook login
  *
  * This function opens a Facebook login dialog allowing the user to log into Facebook
@@ -636,7 +638,7 @@ int Facebook_Logout(lua_State* L)
  *   <li><code>"email"</code></li>
  *   <li><code>"user_friends"</code></li>
  * </ul>
- * A comprehensive list of permissions can be found at <a href='https://developers.facebook.com/docs/facebook-login/permissions/v2.4'>https://developers.facebook.com/docs/facebook-login/permissions/v2.4</a>
+ * A comprehensive list of permissions can be found at <a href='https://developers.facebook.com/docs/facebook-login/permissions/v2.6'>https://developers.facebook.com/docs/facebook-login/permissions/v2.6</a>
  * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
  * @examples
  * <pre>
@@ -997,7 +999,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *   <li><code>to</code> (table)</li>
  * </ul>
  *
- * Details for each parameter: <a href='https://developers.facebook.com/docs/games/requests/v2.4#params'>https://developers.facebook.com/docs/games/requests/v2.4#params</a>
+ * Details for each parameter: <a href='https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters'>https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters</a>
  *
  * <code>feed</code>
  *
@@ -1018,7 +1020,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *   <li><code>post_id</code> (string)</li>
  * </ul>
  *
- * Details for each parameter: <a href='https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params'>https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params</a>
+ * Details for each parameter: <a href='https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params'>https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params</a>
  *
  * <code>appinvite</code>
  *
@@ -1037,7 +1039,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  * @param param table with dialog parameters (table)
  * @param callback callback function with parameters (self, result, error) that is called when the dialog is closed. Result is table with an url-field set. (function)
  */
-static int Facebook_ShowDialog(lua_State* L)
+int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
@@ -1116,21 +1118,8 @@ static int Facebook_ShowDialog(lua_State* L)
     return 0;
 }
 
-static const luaL_reg Facebook_methods[] =
-{
-    {"login", Facebook_Login},
-    {"logout", Facebook_Logout},
-    {"access_token", Facebook_AccessToken},
-    {"permissions", Facebook_Permissions},
-    {"request_read_permissions", Facebook_RequestReadPermissions},
-    {"request_publish_permissions", Facebook_RequestPublishPermissions},
-    {"me", Facebook_Me},
-    {"post_event", Facebook_PostEvent},
-    {"enable_event_usage", Facebook_EnableEventUsage},
-    {"disable_event_usage", Facebook_DisableEventUsage},
-    {"show_dialog", Facebook_ShowDialog},
-    {0, 0}
-};
+} // namespace
+
 
 /*# The Facebook login session is open
  *
@@ -1385,7 +1374,7 @@ static const luaL_reg Facebook_methods[] =
   */
 
 
-dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
+static dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {
     const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
     if( !app_id )
@@ -1405,7 +1394,7 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
+static dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
     if(!g_Facebook.m_Login)
     {
@@ -1417,49 +1406,13 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result InitializeFacebook(dmExtension::Params* params)
+static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    lua_State*L = params->m_L;
-    int top = lua_gettop(L);
-    luaL_register(L, LIB_NAME, Facebook_methods);
-
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
-
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
-
-    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
-
-    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
-    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
-    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
-    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
-
-#undef SETCONSTANT
-
-    dmFacebook::Analytics::RegisterConstants(L);
-
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
-
+    dmFacebook::LuaInit(params->m_L);
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
+static dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
