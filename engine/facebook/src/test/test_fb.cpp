@@ -483,7 +483,7 @@ TEST_F(FBTest, LuaTableToJson)
     int size_needed = dmFacebook::LuaTableToJson(L, table_index, 0, 0);
     ASSERT_NE(0, size_needed);
 
-    char* json = (char*)malloc(size_needed + 1 + strlen("magic"));
+    char* json = (char*)malloc(size_needed + 1 + strlen("magic") + 1);
     strcpy(json + size_needed + 1, "magic");
 
     int size_written = dmFacebook::LuaTableToJson(L, table_index, json, size_needed+1);
