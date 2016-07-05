@@ -116,6 +116,7 @@
   :Alt+Backspace         {:command :delete-prev-word}  ;; the menu event does not get propagated back like the rest
   :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
   :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
+  :Ctrl+K                {:command :cut-to-end-of-line}
 
   ;; Comment
   :Shortcut+Slash        {:command :toggle-comment           :label "Toggle Comment"                  :group "Comment" :order 1}
@@ -123,6 +124,9 @@
   ;; Editing
   :Tab                   {:command :tab}
   :Enter                 {:command :enter}
+
+  ;; Paste
+  :Ctrl+Y                {:command :paste}
 
   ;;Completions
   :Ctrl+Space            {:command :proposals}
@@ -159,6 +163,7 @@
 (def tab-size 4)
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
+(def last-command (atom nil))
 
 (defn- info [e]
   {:event e
@@ -200,7 +205,8 @@
         (handler/run
           (:command kf)
           [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-          k-info)))))
+          k-info)
+        (reset! last-command (:command kf))))))
 
 (defn is-not-typable-modifier? [e]
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
@@ -241,10 +247,12 @@
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
     (clear-snippet-tab-triggers! source-viewer)
-    (when cf (handler/run
-               (:command cf)
-               [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-               e))
+    (reset! last-command nil)
+    (when cf
+      (handler/run
+        (:command cf)
+        [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
+        e))
     (.consume e)))
 
 (defn- replace-text-selection [selection s]
@@ -640,6 +648,21 @@
           line-end-offset (line-end-pos selection)
           new-doc (str (subs doc 0 np)
                        (subs doc line-end-offset))]
+      (text! selection new-doc))))
+
+(handler/defhandler :cut-to-end-of-line :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection clipboard]
+    (let [np (caret selection)
+          doc (text selection)
+          line-end-offset (line-end-pos selection)
+          consume-pos (if (= line-end-offset np) (adjust-bounds doc (inc line-end-offset)) line-end-offset)
+          new-doc (str (subs doc 0 np)
+                       (subs doc consume-pos))
+          clipboard-text (if (= :cut-to-end-of-line @last-command)
+                           (str (text clipboard) (subs doc np consume-pos))
+                           (subs doc np consume-pos))]
+      (text! clipboard clipboard-text)
       (text! selection new-doc))))
 
 (handler/defhandler :delete-to-start-of-line :code-view
