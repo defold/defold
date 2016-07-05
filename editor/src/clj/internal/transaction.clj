@@ -394,7 +394,7 @@
                     :expected         value-type
                     :actual           new-value
                     :validation-error validation-error})))
-     (let [setter-fn (in/setter-for node-type property)]
+     (let [setter-fn (in/property-setter node-type property)]
       (-> ctx
         (update :basis property-default-setter node-id node property old-value new-value)
         (cond->
@@ -443,7 +443,7 @@
   (let [basis (:basis ctx)
         old-value (gt/get-property node basis property)
         node-type (gt/node-type node basis)]
-    (if-let [setter-fn (in/setter-for node-type property)]
+    (if-let [setter-fn (in/property-setter node-type property)]
       (apply-tx ctx (setter-fn basis node-id old-value nil))
       ctx)))
 

@@ -147,27 +147,32 @@
     (get-in basis [:graphs gid :node->overrides node-id])))
 
 (defn- successors-fn [basis]
-  (let [gid->succ (into {} (map (fn [[gid g]] [gid (:successors g)]) (:graphs basis)))]
+  (let [gid (atom -1)
+        succ (atom nil)]
     (fn [basis output]
-      (-> gid->succ
-        (get (gt/node-id->graph-id (first output)))
-        (get output [])))))
+      (let [curr-gid (gt/node-id->graph-id (first output))
+            succ (if (not= @gid curr-gid)
+                   (do
+                     (reset! gid curr-gid)
+                     (reset! succ (get-in basis [:graphs curr-gid :successors] curr-gid)))
+                   @succ)]
+        (get succ output [])))))
 
 (defn pre-traverse
   "Traverses a graph depth-first preorder from start, successors being
   a function that returns direct successors for the node. Returns a
   lazy seq of nodes."
   [basis start succ & {:keys [seen] :or {seen #{}}}]
-  (loop [stack  start
-         seen   seen
-         result []]
+  (loop [stack start
+         seen seen
+         result (transient [])]
     (if-let [nxt (peek stack)]
       (if (contains? seen nxt)
         (recur (pop stack) seen result)
         (let [seen (conj seen nxt)]
           (recur (reduce conj (pop stack) (filter (complement seen) (succ basis nxt)))
-                 seen (conj result nxt))))
-      result)))
+                 seen (conj! result nxt))))
+      (persistent! result))))
 
 (defn- arcs->tuples
   [arcs]
@@ -318,31 +323,23 @@
 
   (sources
     [this node-id]
-    (mapv gt/head
-         (filter (fn [^ArcBase arc]
-                   (gt/node-by-id-at this (.source arc)))
-                 (gt/arcs-by-tail this node-id))))
+    (->> (gt/arcs-by-tail this node-id)
+      (mapv gt/head)))
 
   (sources
     [this node-id label]
-    (mapv gt/head
-          (filter (fn [^ArcBase arc]
-                    (gt/node-by-id-at this (.source arc)))
-                  (gt/arcs-by-tail this node-id label))))
+    (->> (gt/arcs-by-tail this node-id label)
+      (mapv gt/head)))
 
   (targets
     [this node-id]
-    (mapv gt/tail
-         (filter (fn [^ArcBase arc]
-                   (gt/node-by-id-at this (.target arc)))
-                 (gt/arcs-by-head this node-id))))
+    (->> (gt/arcs-by-head this node-id)
+      (mapv gt/tail)))
 
   (targets
     [this node-id label]
-    (mapv gt/tail
-          (filter (fn [^ArcBase arc]
-                    (gt/node-by-id-at this (.target arc)))
-                  (gt/arcs-by-head this node-id label))))
+    (->> (gt/arcs-by-head this node-id label)
+      (mapv gt/tail)))
 
   (add-node
     [this node]

@@ -86,6 +86,7 @@
 (defn property-display-order [nt]        (some-> nt deref :property-display-order))
 (defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
 (defn transform-types        [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
+(defn all-properties         [nt]        (some-> nt deref :property))
 (defn declared-properties    [nt]        (some-> nt deref :property (->> (remove (comp internal? val)) (into {})))) ;; deprecated
 (defn internal-properties    [nt]        (some-> nt deref :property (->> (filter (comp internal? val)) (into {}))))
 (defn declared-inputs        [nt]        (some-> nt deref :input))
@@ -101,6 +102,7 @@
 (defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
 (defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
 (defn externs                [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
+(defn property-setter        [nt label]  (some-> nt deref (get-in [:property label :setter :fn]) util/var-get-recursive))
 (defn property-type          [nt label]  (some-> nt deref (get-in [:property label :value-type])))
 (defn has-input?             [nt label]  (some-> nt deref (get :input) (contains? label)))
 (defn has-output?            [nt label]  (some-> nt deref (get :output) (contains? label)))
@@ -384,9 +386,6 @@
     (println "Output value:" value)
     (println "Should match:" (s/explain output-schema))
     (println "But:" error)))
-
-(defn setter-for [node-type property]
-  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -1515,9 +1514,9 @@
                 props         ((:fn beh) this evaluation-context)
                 original      (gt/node-by-id-at basis original-id)
                 orig-props    (:properties (gt/produce-value original output evaluation-context))
-                dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (public-properties type))))
+                static-props  (all-properties type)
                 props         (reduce-kv (fn [p k v]
-                                           (if (and (dynamic-props k)
+                                           (if (and (not (contains? static-props k))
                                                     (= original-id (:node-id v)))
                                              (cond-> p
                                                (contains? v :original-value)
@@ -1527,7 +1526,7 @@
             (reduce (fn [props [k v]]
                       (cond-> props
                         (and (= :_properties output)
-                             (dynamic-props k))
+                             (not (contains? static-props k)))
                         (assoc-in [:properties k :value] v)
 
                         (contains? orig-props k)
@@ -1541,7 +1540,7 @@
             ((:fn beh) this evaluation-context))
 
           true
-          (if (contains? (public-properties type) output)
+          (if (contains? (all-properties type) output)
             (get properties output)
             (node-value* (gt/node-by-id-at basis original-id) output evaluation-context))))))
 
