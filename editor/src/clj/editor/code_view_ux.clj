@@ -77,6 +77,7 @@
 
   ;; select
   :Double-Click          {:command :select-word}
+  :Triple-Click          {:command :select-line}
   :Shortcut+A            {:command :select-all}
 
   ;;movement with select
@@ -181,7 +182,10 @@
     (get mappings code)))
 
 (defn- click-fn [click-count]
-  (let [code (if (= click-count 2) :Double-Click :Single-Click)]
+  (let [code (case (int click-count)
+               3 :Triple-Click
+               2 :Double-Click
+               :Single-Click)]
     (get mappings code)))
 
 (defn- is-mac-os? []
@@ -210,7 +214,7 @@
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
         e))))
 
-(defn- adjust-bounds [s pos]
+(defn adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
 
 (defn tab-count [s]
@@ -551,6 +555,14 @@
           end-pos (+ np (count word-end))
           len (- end-pos start-pos)]
       (text-selection! selection start-pos len))))
+
+(handler/defhandler :select-line :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (let [regex #"^\w+"
+          line (line selection)
+          line-offset (line-offset selection)]
+      (text-selection! selection line-offset (count line)))))
 
 (handler/defhandler :select-all :code-view
   (enabled? [selection] selection)
