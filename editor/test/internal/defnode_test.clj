@@ -856,3 +856,6 @@
   (testing "cached flag is not inherited"
     (is (contains? (-> @CustomPropertiesOutput :output :_properties :flags) :cached))
     (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
+
+(deftest declared-properties-is-cached
+  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
