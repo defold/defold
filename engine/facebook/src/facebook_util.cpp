@@ -28,8 +28,9 @@ int dmFacebook::LuaValueToJsonValue(lua_State* L, int index, char* buffer, size_
     if (buffer && buffer_size < 1) {
         return 0;
     }
-    if( buffer )
+    if( buffer ) {
         buffer_size--;
+    }
 
     int top = lua_gettop(L);
     lua_pushvalue(L, index);
