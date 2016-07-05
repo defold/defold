@@ -601,7 +601,7 @@
 (defn- delete-to-start-of-line! [source-viewer]
   (handler/run :delete-to-start-of-line [{:name :code-view :env {:selection source-viewer}}]{}))
 
-(deftest delete-to-start-end-line
+(deftest delete-to-start-end-line-test
   (with-clean-system
     (let [code "blue duck"
           opts lua/lua
@@ -620,6 +620,31 @@
         (delete-to-start-of-line! source-viewer)
         (is (= "ck" (text source-viewer)))
         (is (= \c (get-char-at-caret source-viewer)))))))
+
+(defn- cut-to-end-of-line! [source-viewer clipboard]
+  (handler/run :cut-to-end-of-line [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
+
+(deftest cut-to-end-line-test
+  (with-clean-system
+    (let [code "line1\nline2\nline3"
+          clipboard (new TestClipboard (atom ""))
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "cutting to end of the line"
+        (caret! source-viewer 2 false)
+        (cut-to-end-of-line! source-viewer clipboard)
+        (is (= "li\nline2\nline3" (text source-viewer)))
+        (paste! source-viewer clipboard)
+        (is (= "line1\nline2\nline3" (text source-viewer))))
+      (testing "multiple kill lines work"
+        (caret! source-viewer 0 false)
+        (cut-to-end-of-line! source-viewer clipboard)
+        (is (= "\nline2\nline3" (text source-viewer)))
+        (cut-to-end-of-line! source-viewer clipboard)
+        (is (= "line2\nline3" (text source-viewer)))
+        (cut-to-end-of-line! source-viewer clipboard)
+        (is (= "\nline3" (text source-viewer)))))))
 
 (defn- find-text! [source-viewer text]
   ;; bypassing handler for the dialog handling
