@@ -243,7 +243,9 @@
         (tab! source-viewer)
         (is (= "--do things" (text-selection source-viewer)))
         (tab! source-viewer)
-        (is (= "end" (text-selection source-viewer)))))))
+        (is (= "end" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))))))
 
 (defn- enter! [source-viewer]
   (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
