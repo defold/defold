@@ -1,4 +1,4 @@
-#include "facebook.h"
+#include "facebook_private.h"
 #include "facebook_util.h"
 
 #include <dlib/dstrings.h>
@@ -7,6 +7,10 @@
 
 static int WriteString(char* dst, size_t dst_size, const char* src, size_t src_size)
 {
+    if (!dst) {
+        return src_size; // If we're only counting the number of characters needed
+    }
+
     if (dst_size < src_size) {
         return 0;
     }
@@ -21,10 +25,12 @@ static int WriteString(char* dst, size_t dst_size, const char* src, size_t src_s
 int dmFacebook::LuaValueToJsonValue(lua_State* L, int index, char* buffer, size_t buffer_size)
 {
     // need space for null term
-    if (buffer_size < 1) {
+    if (buffer && buffer_size < 1) {
         return 0;
     }
-    buffer_size--;
+    if( buffer ) {
+        buffer_size--;
+    }
 
     int top = lua_gettop(L);
     lua_pushvalue(L, index);
@@ -62,7 +68,9 @@ int dmFacebook::LuaValueToJsonValue(lua_State* L, int index, char* buffer, size_
             break;
     }
 
-    buffer[len] = '\0';
+    if (buffer) {
+        buffer[len] = '\0';
+    }
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
@@ -154,7 +162,7 @@ int dmFacebook::EscapeJsonString(const char* unescaped, char* escaped, char* end
 
 int dmFacebook::WriteEscapedJsonString(char* json, size_t json_size, const char* value, size_t value_len)
 {
-    if (json == NULL || value == NULL) {
+    if (value == NULL) {
         return 0;
     }
 
@@ -165,7 +173,10 @@ int dmFacebook::WriteEscapedJsonString(char* json, size_t json_size, const char*
     value_len = dmFacebook::EscapeJsonString(value, value_escaped, value_escaped+((1+value_len*2)*sizeof(char)));
 
     int wrote_len = 0;
-    if (value_len+3 <= json_size) {
+    if (json == 0) {
+        wrote_len = value_len + 2;
+    }
+    else if (value_len+2 <= json_size) {
         wrote_len += WriteString(json, json_size, "\"", 1);
         wrote_len += WriteString(json+1, json_size-1, (const char*)value_escaped, value_len);
         wrote_len += WriteString(json+1+value_len, json_size-1-value_len, "\"", 1);
@@ -206,13 +217,16 @@ int dmFacebook::LuaTableToJson(lua_State* L, int index, char* json_buffer, size_
     int top = lua_gettop(L);
 
     size_t cursor = 0;
-    if (json_buffer_size < 1) {
+    if (json_buffer && json_buffer_size < 1) {
         return 0;
     }
 
     bool is_array = dmFacebook::IsLuaArray(L, index);
 
-    json_buffer[cursor++] = is_array ? '[' : '{';
+    if(json_buffer) {
+        json_buffer[cursor] = is_array ? '[' : '{';
+    }
+    cursor++;
 
     lua_pushnil(L);
     int i = 0;
@@ -220,7 +234,7 @@ int dmFacebook::LuaTableToJson(lua_State* L, int index, char* json_buffer, size_
 
         // add commas
         if (i>0) {
-            if (!WriteString(json_buffer+cursor, json_buffer_size-cursor, ",", 1)) {
+            if (json_buffer && !WriteString(json_buffer+cursor, json_buffer_size-cursor, ",", 1)) {
                 lua_pop(L, 2);
                 assert(top == lua_gettop(L));
                 return 0;
@@ -231,11 +245,11 @@ int dmFacebook::LuaTableToJson(lua_State* L, int index, char* json_buffer, size_
         // write key (skipped if this is an array)
         if (!is_array) {
             lua_pushvalue(L, -2);
-            int r = LuaValueToJsonValue(L, lua_gettop(L), json_buffer+cursor, json_buffer_size-cursor);
+            int r = LuaValueToJsonValue(L, lua_gettop(L), json_buffer ? json_buffer+cursor : 0, json_buffer ? json_buffer_size-cursor : 0);
             lua_pop(L, 1);
             cursor+=r;
 
-            if (!WriteString(json_buffer+cursor, json_buffer_size-cursor, ":", 1)) {
+            if (json_buffer && !WriteString(json_buffer+cursor, json_buffer_size-cursor, ":", 1)) {
                 lua_pop(L, 2);
                 assert(top == lua_gettop(L));
                 return 0;
@@ -244,7 +258,7 @@ int dmFacebook::LuaTableToJson(lua_State* L, int index, char* json_buffer, size_
         }
 
         // write value
-        int r = LuaValueToJsonValue(L, lua_gettop(L), json_buffer+cursor, json_buffer_size-cursor);
+        int r = LuaValueToJsonValue(L, lua_gettop(L), json_buffer ? json_buffer+cursor : 0, json_buffer ? json_buffer_size-cursor : 0);
         if (!r) {
             lua_pop(L, 2);
             assert(top == lua_gettop(L));
@@ -259,7 +273,7 @@ int dmFacebook::LuaTableToJson(lua_State* L, int index, char* json_buffer, size_
 
     // write ending of json object or array
     const char* end = is_array ? (const char*)"]\0" : (const char*)"}\0";
-    if (!WriteString(json_buffer+cursor, json_buffer_size-cursor, end, 2)) {
+    if (json_buffer && !WriteString(json_buffer+cursor, json_buffer_size-cursor, end, 2)) {
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -349,6 +363,26 @@ int dmFacebook::DialogTableToEmscripten(lua_State* L, const char* dialog_type, i
                     lua_pushstring(L, "app_non_users");
                     lua_rawset(L, -3);
                     lua_setfield(L, to_index, "filters");
+                    break;
+            }
+        }
+        lua_pop(L, 1);
+
+        // need to convert "action_type" field from enum to string
+        lua_getfield(L, to_index, "action_type");
+        if (lua_type(L, lua_gettop(L)) == LUA_TNUMBER) {
+            switch (lua_tointeger(L, lua_gettop(L))) {
+                case GAMEREQUEST_ACTIONTYPE_SEND:
+                    lua_pushstring(L, "send");
+                    lua_setfield(L, to_index, "action_type");
+                    break;
+                case GAMEREQUEST_ACTIONTYPE_ASKFOR:
+                    lua_pushstring(L, "askfor");
+                    lua_setfield(L, to_index, "action_type");
+                    break;
+                case GAMEREQUEST_ACTIONTYPE_TURN:
+                    lua_pushstring(L, "turn");
+                    lua_setfield(L, to_index, "action_type");
                     break;
             }
         }
