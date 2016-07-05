@@ -33,7 +33,7 @@
 (defprotocol Ref
   (ref-key [this]))
 
-(defn ref? [x] (and (extends? Ref (class x)) x))
+(defn ref? [x] (and x (extends? Ref (class x))))
 
 (defprotocol Type
   (describe* [type])
@@ -1501,7 +1501,6 @@
   gt/Evaluation
   (produce-value       [this output evaluation-context]
     (let [basis    (:basis evaluation-context)
-          original (gt/node-by-id-at basis original-id)
           type     (gt/node-type this basis)]
       (when *node-value-debug*
         (println (nodevalstr this type output " (override node)")))
@@ -1514,6 +1513,7 @@
               (= :_properties output))
           (let [beh           (behavior type output)
                 props         ((:fn beh) this evaluation-context)
+                original      (gt/node-by-id-at basis original-id)
                 orig-props    (:properties (gt/produce-value original output evaluation-context))
                 dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (public-properties type))))
                 props         (reduce-kv (fn [p k v]
@@ -1541,10 +1541,9 @@
             ((:fn beh) this evaluation-context))
 
           true
-          (let [dyn-properties (node-value* original :_properties evaluation-context)]
-            (if (contains? (:properties dyn-properties) output)
-              (get properties output)
-              (node-value* original output evaluation-context)))))))
+          (if (contains? (public-properties type) output)
+            (get properties output)
+            (node-value* (gt/node-by-id-at basis original-id) output evaluation-context))))))
 
   gt/OverrideNode
   (clear-property [this basis property] (update this :properties dissoc property))
