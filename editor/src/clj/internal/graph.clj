@@ -164,15 +164,18 @@
   lazy seq of nodes."
   [basis start succ & {:keys [seen] :or {seen #{}}}]
   (loop [stack start
+         next []
          seen seen
          result (transient [])]
-    (if-let [nxt (peek stack)]
+    (if-let [nxt (first stack)]
       (if (contains? seen nxt)
-        (recur (pop stack) seen result)
+        (recur (rest stack) next seen result)
         (let [seen (conj seen nxt)]
-          (recur (reduce conj (pop stack) (filter (complement seen) (succ basis nxt)))
+          (recur (succ basis nxt) (conj next (rest stack))
                  seen (conj! result nxt))))
-      (persistent! result))))
+      (if-let [next-stack (peek next)]
+        (recur next-stack (pop next) seen result)
+        (persistent! result)))))
 
 (defn- arcs->tuples
   [arcs]
@@ -428,7 +431,7 @@
 
   (dependencies
     [this outputs]
-    (pre-traverse this (util/stackify outputs) (successors-fn this)))
+    (pre-traverse this outputs (successors-fn this)))
 
   (original-node [this node-id]
     (when-let [node (gt/node-by-id-at this node-id)]
