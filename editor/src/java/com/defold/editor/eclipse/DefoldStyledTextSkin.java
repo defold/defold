@@ -777,6 +777,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						children.remove(lineInfo);
 					}
 				}
+				if (c.getGraphic() != null) {
+					DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) c.getGraphic();
+					block.requestLayout();
+				}
 			}
 
 			for (LineInfo l : layouted) {
@@ -835,16 +839,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 				@Override
 				public void run() {
-					for (LineCell c : lineInfoMap.keySet()) {
-						if (c.getGraphic() != null) {
-							DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) c.getGraphic();
-							block.requestLayout();
-						}
-					}
-
+					DefoldStyledTextSkin.this.lineRuler.requestLayout();
 				}
 			});
+
 		}
+
 
 		@Override
 		protected void positionCell(LineCell cell, double position) {
@@ -854,13 +854,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				lineInfo.setDomainElement(cell.domainElement);
 				lineInfo.setLayoutY(cell.getLayoutY());
 			}
-			Platform.runLater(new Runnable() {
-
-				@Override
-				public void run() {
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
-				}
-			});
 
 		}
 
