@@ -17,10 +17,15 @@ import android.net.Uri;
 import android.util.Log;
 import android.os.Bundle;
 
+import android.os.Parcelable; // debug
+
+import com.facebook.AccessToken;
 import com.facebook.FacebookSdk;
 import com.facebook.appevents.AppEventsLogger;
 import com.facebook.applinks.AppLinkData;
 import com.facebook.login.DefaultAudience;
+import com.facebook.GraphRequest;
+import com.facebook.GraphResponse;
 
 import bolts.AppLinks;
 
@@ -194,12 +199,18 @@ class FacebookAppJNI {
                 }
 
                 if (appLinkData.containsKey(KEY_NAME_REFERER_APP_LINK)) {
-                    Bundle referrerBundle = appLinkData.getBundle(KEY_NAME_REFERER_APP_LINK);
-                    if (referrerBundle != null) {
-                        String referrerUrl = referrerBundle.getString("url");
-                        String appName = referrerBundle.getString("app_name");
-                        Log.d(TAG, "MAWE: REFERRER URL: " + referrerUrl);
-                        Log.d(TAG, "MAWE: APP NAME: " + appName);
+                    Bundle refererBundle = appLinkData.getBundle(KEY_NAME_REFERER_APP_LINK);
+                    if (refererBundle != null) {
+                        String url = refererBundle.getString("url");
+                        String appName = refererBundle.getString("app_name");
+
+                        Log.d(TAG, "MAWE: REFERRER URL: " + url);
+                        Log.d(TAG, "MAWE: REFERRER APP NAME: " + appName);
+
+                        if (url != null && appName != null) {
+                            //appLinkEventData.refererUrl = url;
+                            //appLinkEventData.refererAppName = appName;
+                        }
                     }
                 }
             }
@@ -209,26 +220,82 @@ class FacebookAppJNI {
                 nativeUrl = "" + bundle.get(AppLinkData.ARGUMENTS_NATIVE_URL);
 
             }
-
             Log.d(TAG, "MAWE: NATIVE URL: " + nativeUrl);
         }
 
-        //appLinkInfo["url"] = targetUrl;
-        Log.d(TAG, "");
+        PrintBundle(bundle, "getAppLinkInfo/bundle");
+    }
 
-        if (bundle != null ) {
-            String json = null;
-            try {
-                JSONObject obj = FacebookJNI.bundleToJson(bundle);
-                json = obj.toString();
-            } catch(JSONException e) {
-                json = "Error while converting dialog result to JSON: " + e.getMessage();
-            }
-            Log.d(TAG, "JSON:");
-            Log.d(TAG, json);
-        } else {
-            Log.d(TAG, "No bundle found!");
+
+    public static String intentToString(Intent intent) {
+        if (intent == null) {
+            return null;
         }
+
+        return intent.toString() + " " + bundleToString(intent.getExtras());
+    }
+
+    public static String bundleToString(Bundle bundle) {
+        StringBuilder out = new StringBuilder("Bundle[");
+
+        if (bundle == null) {
+            out.append("null");
+        } else {
+            boolean first = true;
+            for (String key : bundle.keySet()) {
+                if (!first) {
+                    out.append(", ");
+                }
+
+                out.append(key).append('=');
+
+                Object value = bundle.get(key);
+
+                if (value instanceof int[]) {
+                    out.append(Arrays.toString((int[]) value));
+                } else if (value instanceof byte[]) {
+                    out.append(Arrays.toString((byte[]) value));
+                } else if (value instanceof boolean[]) {
+                    out.append(Arrays.toString((boolean[]) value));
+                } else if (value instanceof short[]) {
+                    out.append(Arrays.toString((short[]) value));
+                } else if (value instanceof long[]) {
+                    out.append(Arrays.toString((long[]) value));
+                } else if (value instanceof float[]) {
+                    out.append(Arrays.toString((float[]) value));
+                } else if (value instanceof double[]) {
+                    out.append(Arrays.toString((double[]) value));
+                } else if (value instanceof String[]) {
+                    out.append(Arrays.toString((String[]) value));
+                } else if (value instanceof CharSequence[]) {
+                    out.append(Arrays.toString((CharSequence[]) value));
+                } else if (value instanceof Parcelable[]) {
+                    out.append(Arrays.toString((Parcelable[]) value));
+                } else if (value instanceof Bundle) {
+                    out.append(bundleToString((Bundle) value));
+                } else {
+                    out.append(value);
+                }
+
+                first = false;
+            }
+        }
+
+        out.append("]");
+        return out.toString();
+    }
+
+    private void PrintBundle(Bundle bundle, String name)
+    {
+        String json = null;
+        try {
+            JSONObject obj = FacebookJNI.bundleToJson(bundle);
+            json = obj.toString();
+        } catch(JSONException e) {
+            json = "Error while converting dialog result to JSON: " + e.getMessage();
+        }
+        Log.d(TAG, "JSON bundle: " + name);
+        Log.d(TAG, json);
     }
 
     public FacebookAppJNI(Activity activity, String appId) {
@@ -242,15 +309,32 @@ class FacebookAppJNI {
             public void run() {
                 String s = String.format("sdkInitialize: activity %s   appid: %s", FacebookAppJNI.this.activity, FacebookAppJNI.this.appId);
                 Log.d(TAG, s);
+                
+                Log.d(TAG, "sdkInitialize");
+                
                 FacebookSdk.sdkInitialize( FacebookAppJNI.this.activity );
+                Log.d(TAG, "setApplicationId");
                 FacebookSdk.setApplicationId( FacebookAppJNI.this.appId );
                 
 Log.d(TAG, "MAWE: FB SDK INITIALIZED  (deferred uses appid now)");
 
+                Log.d(TAG, "FacebookAppJNI.this.activity.getIntent()");
+                
                 Intent intent = FacebookAppJNI.this.activity.getIntent();
+
+                String intentstring = intentToString(intent);
+
+
+                Log.d(TAG, "AppLinks.getTargetUrlFromInboundIntent()");
+                Log.d(TAG, "MAWE: intent: " + intentstring);
+
                 Uri targetUrl = AppLinks.getTargetUrlFromInboundIntent(FacebookAppJNI.this.activity, intent);
                 if (targetUrl != null) {
-                    Log.d(TAG, "App Link was found");
+                    Log.d(TAG, "MAWE: App Link was found");
+                    String action = intent.getAction();
+                    //Uri data = intent.getData();
+                    //Log.d(TAG, "MAWE: getData(): " + data.toString());
+                    Log.d(TAG, "MAWE: getACtion(): " + action);
                     getAppLinkInfo(targetUrl, intent.getExtras());
                 } else {
                     AppLinkData.fetchDeferredAppLinkData( FacebookAppJNI.this.activity, FacebookAppJNI.this.appId,
@@ -259,31 +343,73 @@ Log.d(TAG, "MAWE: FB SDK INITIALIZED  (deferred uses appid now)");
                             public void onDeferredAppLinkDataFetched(AppLinkData appLinkData) {
                                 //process applink data
                                 if( appLinkData != null ) {
-                                    Log.d(TAG, "Deferred App Link was found");
+                                    Log.d(TAG, "MAWE: Deferred App Link was found");
+                                    //Uri data = FacebookAppJNI.this.activity.getIntent().getData();
+                                    //Log.d(TAG, "MAWE: getData(): " + data.toString());
+                                    
                                     getAppLinkInfo(appLinkData.getTargetUri(), appLinkData.getArgumentBundle());
 
+
+                                    PrintBundle(appLinkData.getArgumentBundle(), "getArgumentBundle");
+                                    PrintBundle(appLinkData.getRefererData(), "getRefererData");
+
+
                                     String ref = appLinkData.getRef();
-                                    Log.d(TAG, "MAWE: REF: " + ref);
+                                    Log.d(TAG, "MAWE: getRef(): " + (ref != null ? ref : "null"));
+
+                                    Bundle referrerBundle = appLinkData.getRefererData();
+                                    if (referrerBundle != null) {
+                                        String referrerUrl = referrerBundle.getString("fb_ref");
+                                        Log.d(TAG, "MAWE: getRefererData fb_ref: " + referrerUrl);
+                                    }
+                                    else
+                                    {
+                                        Log.d(TAG, "MAWE: getRefererData fb_ref: null");
+                                    }
 
                                     // http://stackoverflow.com/questions/20404170/will-the-user-receive-facebook-request-data-if-the-application-not-installed
 
-                                    Bundle refererBundle = appLinkData.getRefererData();
+                                    {
+                                        Bundle refererBundle = appLinkData.getRefererData();
 
-                                    if (refererBundle != null ) {
-                                        String json = null;
-                                        try {
-                                            JSONObject obj = FacebookJNI.bundleToJson(refererBundle);
-                                            json = obj.toString();
-                                        } catch(JSONException e) {
-                                            json = "Error while converting dialog result to JSON: " + e.getMessage();
+                                        if (refererBundle != null ) {
+                                            String json = null;
+                                            try {
+                                                JSONObject obj = FacebookJNI.bundleToJson(refererBundle);
+                                                json = obj.toString();
+                                            } catch(JSONException e) {
+                                                json = "Error while converting dialog result to JSON: " + e.getMessage();
+                                            }
+                                            Log.d(TAG, "JSON refererBundle:");
+                                            Log.d(TAG, json);
+                                        } else {
+                                            Log.d(TAG, "No refererBundle found!");
                                         }
-                                        Log.d(TAG, "JSON refererBundle:");
-                                        Log.d(TAG, json);
-                                    } else {
-                                        Log.d(TAG, "No refererBundle found!");
                                     }
+
+                                    {
+                                        Bundle appLinkData2 = appLinkData.getArgumentBundle().getBundle(KEY_AL_APPLINK_DATA_KEY);
+                                        if( appLinkData2 != null )
+                                        {
+                                            Bundle refererBundle = appLinkData2.getBundle(KEY_NAME_REFERER_APP_LINK);
+                                            if (refererBundle != null) {
+                                                String url = refererBundle.getString("url");
+                                                String appName = refererBundle.getString("app_name");
+                                                Log.d(TAG, "MAWE: referrer url: " + url);
+                                                Log.d(TAG, "MAWE: referrer appName: " + appName);
+                                            } else {
+                                                Log.d(TAG, "MAWE: appLinkData.getBundle(KEY_NAME_REFERER_APP_LINK): null");
+                                            }
+                                        } else {
+                                            Log.d(TAG, "MAWE: appLinkData.getArgumentBundle().getBundle(KEY_AL_APPLINK_DATA_KEY): null");
+                                        }
+                                    }
+
                                 } else {
                                     Log.d(TAG, "No App Link was found");
+
+                                    Log.d(TAG, "Activity Name: " + FacebookAppJNI.this.activity.getClass().toString());
+                                    PrintBundle(FacebookAppJNI.this.activity.getIntent().getExtras(), "main intent");
                                 }
                             }
                         });
@@ -405,6 +531,31 @@ class FacebookJNI {
                     @Override
                     public void onDone( final int state, final String error) {
                         onLogin(userData, state, error);
+
+                        GraphRequest request = GraphRequest.newGraphPathRequest(
+                              AccessToken.getCurrentAccessToken(),
+                              "/me/apprequests",
+                              new GraphRequest.Callback() {
+                                @Override
+                                public void onCompleted(GraphResponse response) {
+                                    // process the info received
+                                    if( response != null )
+                                    {
+                                        JSONObject obj = response.getJSONObject();
+                                        if( obj != null ) {
+                                            String json = obj.toString();
+                                            Log.d(TAG, "JSON GraphResponse:");
+                                            Log.d(TAG, json);
+                                        }
+
+                                        if (response.getError() != null) {
+                                            Log.d(TAG, "MAWE: Graph Response error: " + response.getError().getErrorMessage() );
+                                        }
+                                    }
+                                }
+                        });
+
+                        request.executeAsync();
                     }
                 });
             }
