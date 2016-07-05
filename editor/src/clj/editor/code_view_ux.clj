@@ -119,7 +119,7 @@
   :Ctrl+K                {:command :cut-to-end-of-line}
 
   ;; Comment
-  :Shortcut+Slash        {:command :toggle-comment           :label "Toggle Comment"                  :group "Comment" :order 1}
+  :Shortcut+Slash        {:command :toggle-comment          :label "Toggle Comment"                  :group "Comment" :order 1}
 
   ;; Editing
   :Tab                   {:command :tab}
@@ -130,6 +130,9 @@
 
   ;;Completions
   :Ctrl+Space            {:command :proposals}
+
+  ;;Indentation
+  :Shortcut+I            {:command :indent-line}
 
 })
 
@@ -199,6 +202,7 @@
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
+    (println "kf " kf)
     (when (not (.isConsumed e))
       (.consume e)
       (when (and (:command kf) (not (:label kf)))
@@ -897,6 +901,7 @@
   (when-let [indentation-data (:indentation (syntax selection))]
     (let [{:keys [indent-chars increase? decrease?]} indentation-data
           current-indentation (get-indentation line)]
+      (println :decrease (decrease? line) :increase (increase? line))
       (cond
         (decrease? line)
         (let [line-above (prev-line selection)
@@ -927,6 +932,60 @@
         (if indent-text
           (replace-text-and-caret selection line-offset (count current-line) indent-text (+ line-offset (count indent-text)))
           (enter-key-text selection line-seperator))))))
+
+(defn indent-line [selection line line-sep]
+  (when-let [indentation-data (:indentation (syntax selection))]
+    (let [{:keys [indent-chars increase? decrease?]} indentation-data
+          current-indentation (get-indentation line)
+          line-above (prev-line selection)]
+      (println :decrease (decrease? line) :increase (increase? line))
+      (cond
+        (decrease? line)
+        (let [_ (println "Decreasing")
+              line-above-indent (get-indentation line-above)
+              new-indent (string/replace-first line-above-indent (re-pattern indent-chars) "")
+              line-without-indent (string/replace-first line (re-pattern (str indent-chars "*")) "")]
+          (clojure.pprint/pprint {:line-above line-above})
+          (clojure.pprint/pprint {:line-above-indent line-above-indent})
+          (clojure.pprint/pprint {:line-above-indent-without line-without-indent})
+          (clojure.pprint/pprint {:new-indent new-indent})
+          (str new-indent line-without-indent))
+
+        (increase? line-above)
+        (let [_ (println "Increasing")
+              line-above-indent (get-indentation line-above)
+              line-without-indent (string/replace-first line (re-pattern (str indent-chars "*")) "")]
+          (clojure.pprint/pprint {:line-above line-above})
+          (clojure.pprint/pprint {:line-above-indent line-above-indent})
+          (clojure.pprint/pprint {:line-above-indent-without line-without-indent})
+          (str line-above-indent indent-chars line-without-indent))
+
+        :else
+        (let [_ (println "Else")
+              line-above-indent (get-indentation line-above)
+              line-without-indent (string/replace-first line (re-pattern (str indent-chars "*")) "")
+              line-above-increase? (increase? line-above)
+              new-indent (if line-above-increase? (str line-above-indent indent-chars) line-above-indent)]
+          (clojure.pprint/pprint {:line-above line-above})
+          (clojure.pprint/pprint {:line-above-increase? line-above-increase?})
+          (clojure.pprint/pprint {:line-above-indent line-above-indent})
+          (clojure.pprint/pprint {:line-above-indent-without line-without-indent})
+          (clojure.pprint/pprint {:new-indent new-indent})
+          (str new-indent line-without-indent))))))
+
+(handler/defhandler :indent-line :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection]
+    (println "indent-line!")
+    (when (editable? selection)
+      (let [current-line (line selection)
+            line-offset (line-offset selection)
+            line-text (line selection)
+            indent-text (indent-line selection current-line "")]
+        (clojure.pprint/pprint {:final indent-text})
+        (when indent-text
+          (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) indent-text))
+        ))))
 
 (handler/defhandler :undo :code-view
   (enabled? [selection] selection)
