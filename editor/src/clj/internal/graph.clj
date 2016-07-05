@@ -458,29 +458,25 @@
         (gt/node-type basis)
         in/input-dependencies) {}))
 
-(defn- node-output-successors [basis node-id labels]
+(defn- succ-output-successors [succ basis node-id labels]
   (let [gid (gt/node-id->graph-id node-id)
         deps-by-label (input-deps basis node-id)
-        overrides (overrides basis node-id)
-        partial-pair [node-id]]
-    (map (fn [label]
-           (let [deps []
-                 dep-labels (get deps-by-label label)
-                 deps (reduce conj deps (map (partial conj partial-pair) dep-labels))
-                 deps (reduce conj deps (for [label dep-labels
-	                                             override overrides]
-	                                         [override label]))
-                 deps (reduce conj deps (->> (gt/targets basis node-id label)
-                                          (mapcat (fn [[id label]]
-                                                    (map vector (repeat id) (get (input-deps basis id) label))))
-                                          set))]
-             [[node-id label] deps]))
-         labels)))
-
-(defn- succ-output-successors [succ basis node-id labels]
-  (->> labels
-    (node-output-successors basis node-id)
-    (reduce conj succ)))
+        overrides (overrides basis node-id)]
+    (loop [succ succ
+           labels labels]
+      (if-let [label (first labels)]
+        (let [deps []
+              dep-labels (get deps-by-label label)
+              deps (reduce conj deps (map (partial vector node-id) dep-labels))
+              deps (reduce conj deps (for [label dep-labels
+	                                          override overrides]
+	                                      [override label]))
+              deps (reduce conj deps (->> (gt/targets basis node-id label)
+                                       (mapcat (fn [[id label]]
+                                                 (map vector (repeat id) (get (input-deps basis id) label))))
+                                       set))]
+          (recur (assoc succ [node-id label] deps) (rest labels)))
+        succ))))
 
 (defn update-successors
   [basis changes]
