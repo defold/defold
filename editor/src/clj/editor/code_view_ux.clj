@@ -137,7 +137,7 @@
   :Ctrl+Space            {:command :proposals}
 
   ;;Indentation
-  :Shortcut+I            {:command :indent}
+  :Shortcut+I            {:command :indent                  :label "Indent"                           :group "Indent" :order 1}
 
 })
 
@@ -154,7 +154,8 @@
         find-commands (filter (fn [[k v]] (= "Find" (:group v))) mappings)
         replace-commands (filter (fn [[k v]] (= "Replace" (:group v))) mappings)
         delete-commands (filter (fn [[k v]] (= "Delete" (:group v))) mappings)
-        comment-commands (filter (fn [[k v]] (= "Comment" (:group v))) mappings)]
+        comment-commands (filter (fn [[k v]] (= "Comment" (:group v))) mappings)
+        indent-commands (filter (fn [[k v]] (= "Indent" (:group v))) mappings)]
     [{:label "Text Edit"
        :id ::text-edit
        :children (concat
@@ -166,7 +167,9 @@
                   [{:label :separator}]
                   (sort-by :order (map menu-data delete-commands))
                   [{:label :separator}]
-                  (sort-by :order (map menu-data comment-commands)))}]))
+                  (sort-by :order (map menu-data comment-commands))
+                  [{:label :separator}]
+                  (sort-by :order (map menu-data indent-commands)))}]))
 
 (def tab-size 4)
 (def last-find-text (atom ""))
@@ -748,11 +751,12 @@
     (let [np (caret selection)
           doc (text selection)
           ftext @last-find-text
-          found-idx (.indexOf ^String doc ^String ftext ^int np)
+          found-idx (string/index-of doc ftext np)
           tlen (count ftext)
           rtext @last-replace-text
           tlen-new (count rtext)]
-      (do-replace selection doc found-idx rtext tlen tlen-new np))))
+      (when found-idx
+        (do-replace selection doc found-idx rtext tlen tlen-new np)))))
 
 (defn toggle-comment [text line-comment]
   (let [pattern (re-pattern (str "^" line-comment))]
