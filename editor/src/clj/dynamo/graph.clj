@@ -325,6 +325,7 @@
         fn-paths      (in/extract-functions node-type-def)
         fn-defs       (for [[path func] fn-paths]
                         (list `def (in/dollar-name symb path) func))
+        fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
         node-type-def (util/update-paths node-type-def fn-paths
                                          (fn [path func curr]
                                            (assoc curr :fn (var-it (in/dollar-name symb path)))))
@@ -336,6 +337,7 @@
         runtime-definer (symbol (str symb "*"))]
     `(do
        (declare ~symb)
+       ~@fwd-decls
        ~@fn-defs
        (defn ~runtime-definer [] ~node-type-def)
        (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
