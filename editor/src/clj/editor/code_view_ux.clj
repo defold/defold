@@ -350,7 +350,8 @@
     (string/split (subs s np) #"\n")))
 
 (defn up-line [s pos preferred-offset]
-  (let [lines-before (lines-before s pos)
+  (let [line-before 1
+        lines-before (lines-before s pos)
         len-before (-> lines-before last count)
         prev-line-tabs (-> lines-before drop-last last tab-count)
         prev-line-len (-> lines-before drop-last last count)
@@ -777,11 +778,6 @@
 (defn- syntax [source-viewer]
   (ui/user-data source-viewer :editor.code-view/syntax))
 
-(defn do-toggle-line [doc lbefore lafter line-comment]
-  (let [text-after (first lafter)
-        text-before (->> (last lbefore) (apply str))]
-    (toggle-comment (str text-before text-after) line-comment)))
-
 (defn toggle-line-comment [selection]
   (let [np (caret selection)
         doc (text selection)
@@ -790,34 +786,25 @@
         loffset (line-offset selection)]
     (replace! selection loffset (count line-text) (toggle-comment line-text line-comment))))
 
-(defn toggle-region-comment [selection]
-  (let [c (caret selection)
-        doc (text selection)
-        line-text (line selection)
-        loffset (line-offset selection)
-        line-comment (:line-comment (syntax selection))
-        region-len (selection-length selection)
-        region-start (selection-offset selection)
-        region-end (+ region-start region-len)]
-    (cond
-      (and (>= region-start loffset) (<= region-end (+ loffset (count line-text))))
-      (toggle-line-comment selection)
+(defn do-toggle-line [selection line-comment line-num]
+  (let [current-line (line-at-num selection line-num)
+        line-offset (line-offset-at-num selection line-num)
+        toggle-text (toggle-comment current-line line-comment)]
+    (when toggle-text
+      (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) toggle-text))))
 
-      :else
-      (let [lbefore (lines-before doc region-start)
-            lafter (lines-after doc region-end)
-            region-lines (string/split (text-selection selection) #"\n")
-            toggled-region-lines (map #(toggle-comment % line-comment) (-> region-lines rest butlast))
-            first-toggled-line (do-toggle-line doc lbefore (lines-after doc region-start) line-comment)
-            last-toggled-line (do-toggle-line doc (lines-before doc region-end) lafter line-comment)
-            new-lines (remove nil? (flatten (conj []
-                                                  (butlast lbefore)
-                                                  [first-toggled-line]
-                                                  toggled-region-lines
-                                                  [last-toggled-line]
-                                                  (rest lafter))))
-            new-doc (apply str (interpose "\n" new-lines))]
-        (text! selection new-doc)))))
+(defn toggle-region-comment [selection]
+  (let [doc (text selection)
+        line-comment (:line-comment (syntax selection))
+        region-start (selection-offset selection)
+        region-len (selection-length selection)
+        region-end (+ region-start region-len)
+        start-line-num (line-num-at-offset selection region-start)
+        start-line-offset (line-offset-at-num selection start-line-num)
+        end-line-num (line-num-at-offset selection region-end)
+        end-line-offset (line-offset-at-num selection end-line-num)]
+    (doseq [i (range start-line-num (inc end-line-num))]
+      (do-toggle-line selection line-comment i))))
 
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
@@ -832,7 +819,6 @@
     (if (pos? (selection-length selection))
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
-
 
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
@@ -890,7 +876,6 @@
 
 (defn do-indent-region [selection region-start region-end]
   (let [doc (text selection)
-        line-comment (:line-comment (syntax selection))
         start-line-num (line-num-at-offset selection region-start)
         start-line-offset (line-offset-at-num selection start-line-num)
         end-line-num (line-num-at-offset selection region-end)
