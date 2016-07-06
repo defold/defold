@@ -118,7 +118,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 				getFlow().show(lineIndex);
 
-				for (LineCell c : getCurrentVisibleCells()) {
+				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
 						// Adjust the selection
 						if (DefoldStyledTextSkin.this.contentView.getSelectionModel().getSelectedItem() != c.domainElement) {
@@ -141,7 +141,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 			@Override
 			public void changed(ObservableValue<? extends TextSelection> observable, TextSelection oldValue, TextSelection newValue) {
-				List<LineCell> vcells = getCurrentVisibleCells();
 				Map<LineCell,LineInfo > mymap = lineInfoMap;
 				Set<LineCell> mymapcells = mymap.keySet();
 
