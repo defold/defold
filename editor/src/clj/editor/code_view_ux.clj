@@ -21,11 +21,13 @@
 
 (defprotocol TextLine
   (prev-line [this])
+  (next-line [this])
   (line [this])
   (line-offset [this])
   (line-num-at-offset [this offset])
   (line-at-num  [this line-num])
-  (line-offset-at-num [this line-num]))
+  (line-offset-at-num [this line-num])
+  (line-count [this]))
 
 (defprotocol TextOffset
   (preferred-offset [this])
@@ -233,16 +235,10 @@
   (let [tab-count (count (filter #(= \tab %) s))]
     tab-count))
 
-(defn lines-before [s pos]
-  (let [np (adjust-bounds s pos)]
-    ;; an extra char is put in to pick up mult newlines
-    (let [lines (string/split (str (subs s 0 np) "x") #"\n")
-          end (->> lines last drop-last (apply str))]
-      (conj (vec (butlast lines)) end))))
-
 (defn remember-caret-col [selection np]
-  (let [lbefore (lines-before (text selection) np)
-        text-before (->> (last lbefore) (apply str))
+  (let [line-offset (line-offset selection)
+        line-text (line selection)
+        text-before (subs line-text 0 (- np line-offset))
         tab-count (tab-count text-before)
         caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
     (preferred-offset! selection caret-col)))
@@ -345,63 +341,59 @@
   (run [selection]
     (select-left selection)))
 
-(defn lines-after [s pos]
-  (let [np (adjust-bounds s pos)]
-    (string/split (subs s np) #"\n")))
-
-(defn up-line [s pos preferred-offset]
-  (let [line-before 1
-        lines-before (lines-before s pos)
-        len-before (-> lines-before last count)
-        prev-line-tabs (-> lines-before drop-last last tab-count)
-        prev-line-len (-> lines-before drop-last last count)
+(defn up-line [selection preferred-offset]
+  (let [pos (caret selection)
+        line-offset (line-offset selection)
+        line-before (prev-line selection)
+        len-before (- pos line-offset)
+        prev-line-tabs (tab-count line-before)
+        prev-line-len (count line-before)
         preferred-next-pos (min preferred-offset (+ prev-line-len (* prev-line-tabs (dec tab-size))))
         actual-next-pos (- preferred-next-pos (* prev-line-tabs (dec tab-size)))
         adj-next-pos (+ (- pos len-before 1 prev-line-len)
                         (if (neg? actual-next-pos) 0 actual-next-pos))]
-      (adjust-bounds s adj-next-pos)))
+      (adjust-bounds (text selection) adj-next-pos)))
 
-(defn down-line [s pos preferred-offset]
-  (let [lines-after (lines-after s pos)
-        len-after (-> lines-after first count)
-        next-line-tabs (-> lines-after second tab-count)
-        next-line-len (-> lines-after second count)
+(defn down-line [selection preferred-offset]
+  (let [pos (caret selection)
+        line-offset (line-offset selection)
+        line-text-len (count (line selection))
+        len-after (- (+ line-text-len line-offset) pos)
+        line-after (next-line selection)
+        next-line-tabs (tab-count line-after)
+        next-line-len (count line-after)
         preferred-next-pos (min preferred-offset (+ next-line-len (* next-line-tabs (dec tab-size))))
         actual-next-pos (- preferred-next-pos (* next-line-tabs (dec tab-size)))
         adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))]
-      (adjust-bounds s adj-next-pos)))
+      (adjust-bounds (text selection) adj-next-pos)))
 
 (defn up [selection]
-  (let [c (caret selection)
-        doc (text selection)
+  (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (if (pos? (selection-length selection))
                    (adjust-bounds doc (selection-offset selection))
-                   (up-line doc c preferred-offset))]
+                   (up-line selection preferred-offset))]
     (caret! selection next-pos false)))
 
 (defn select-up [selection]
-  (let [c (caret selection)
-        doc (text selection)
+  (let [doc (text selection)
         preferred-offset (preferred-offset selection)
-        next-pos (up-line doc c preferred-offset)]
+        next-pos (up-line selection preferred-offset)]
     (caret! selection next-pos true)))
 
 (defn down [selection]
-  (let [c (caret selection)
-        doc (text selection)
+  (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (if (pos? (selection-length selection))
                    (adjust-bounds doc (+ (selection-offset selection)
                                          (selection-length selection)))
-                   (down-line doc c preferred-offset))]
+                   (down-line selection preferred-offset))]
       (caret! selection next-pos false)))
 
 (defn select-down [selection]
-  (let [c (caret selection)
-        doc (text selection)
+  (let [doc (text selection)
         preferred-offset (preferred-offset selection)
-        next-pos (down-line doc c preferred-offset)]
+        next-pos (down-line selection preferred-offset)]
       (caret! selection next-pos true)))
 
 (handler/defhandler :up :code-view
@@ -468,24 +460,16 @@
   (run [selection user-data]
     (prev-word selection true)))
 
-(defn line-begin-pos [selection]
-  (let [np (caret selection)
-        doc (text selection)
-        lines-before (lines-before doc np)
-        len-before (-> lines-before last count)]
-        (- np len-before)))
-
 (defn line-begin [selection select?]
-  (let [next-pos (line-begin-pos selection)]
+  (let [next-pos (line-offset selection)]
     (caret! selection next-pos select?)
     (remember-caret-col selection next-pos)))
 
 (defn line-end-pos [selection]
-  (let [np (caret selection)
-        doc (text selection)
-        lines-after (lines-after doc np)
-        len-after (-> lines-after first count)]
-    (+ np len-after)))
+  (let [doc (text selection)
+        line-text-len (count (line selection))
+        line-offset (line-offset selection)]
+    (+ line-offset line-text-len)))
 
 (defn line-end [selection select?]
   (let [next-pos (line-end-pos selection)]
@@ -537,13 +521,14 @@
 (defn go-to-line [selection line-number]
   (when line-number
     (try
-     (let [line  (Integer/parseInt line-number)
-           doc (text selection)
-           doc-lines (string/split doc #"\n")
-           target-lines (take (dec line) doc-lines)
-           np (+ (count target-lines) (reduce + (map count target-lines)))]
-       (caret! selection (adjust-bounds doc (if (zero? np) 0 np)) false))
-     (catch Exception e (println "Not a valid line number" line-number (.getMessage e))))))
+     (let [line (Integer/parseInt line-number)
+           line-count (line-count selection)
+           line-num (if (> 1 line) 0 (dec line))
+           np (if (>= line-count line-num)
+                (line-offset-at-num selection line-num)
+                (count (text selection)))]
+       (caret! selection np false))
+     (catch Throwable  e (println "Not a valid line number" line-number (.getMessage e))))))
 
 (handler/defhandler :goto-line :code-view
   (enabled? [selection] selection)
@@ -605,7 +590,7 @@
 (defn cut-line [selection clipboard]
   (let [np (caret selection)
         doc (text selection)
-        line-begin-offset (line-begin-pos selection)
+        line-begin-offset (line-offset selection)
         line-end-offset (line-end-pos selection)
         consume-pos (if (= line-end-offset (count doc))
                       line-end-offset
@@ -677,7 +662,7 @@
   (run [selection]
     (let [np (caret selection)
           doc (text selection)
-          line-begin-offset (line-begin-pos selection)
+          line-begin-offset (line-offset selection)
           new-doc (str (subs doc 0 line-begin-offset)
                        (subs doc np))]
       (text! selection new-doc)
@@ -820,15 +805,19 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
-(handler/defhandler :key-typed :code-view
-  (enabled? [selection] (editable? selection))
-  (run [selection key-typed]
-    (when (and (editable? selection)
-           (pos? (count key-typed))
-           (code/not-ascii-or-delete key-typed))
-      (enter-key-text selection key-typed)
-      (when (contains? proposal-key-triggers key-typed)
-        (show-proposals selection (propose selection))))))
+(defn next-tab-trigger [selection pos]
+  (when (has-snippet-tab-trigger? selection)
+    (let [doc (text selection)
+          np (caret selection)
+          search-text (next-snippet-tab-trigger! selection)]
+      (if (= :end search-text)
+        (do
+          (text-selection! selection np 0)
+          (right selection))
+        (let [found-idx (string/index-of doc search-text pos)
+              tlen (count search-text)]
+          (when found-idx
+            (select-found-text selection doc found-idx tlen)))))))
 
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
@@ -916,20 +905,6 @@
     (g/redo! (g/node-id->graph-id code-node))
     (g/node-value view-node :new-content)))
 
-(defn next-tab-trigger [selection pos]
-  (when (has-snippet-tab-trigger? selection)
-    (let [doc (text selection)
-          np (caret selection)
-          search-text (next-snippet-tab-trigger! selection)]
-      (if (= :end search-text)
-        (do
-          (text-selection! selection np 0)
-          (right selection))
-        (let [found-idx (string/index-of doc search-text pos)
-              tlen (count search-text)]
-          (when found-idx
-            (select-found-text selection doc found-idx tlen)))))))
-
 (defn do-proposal-replacement [selection replacement]
   (let [tab-triggers (:tab-triggers replacement)
         replacement (:insert-string replacement)
@@ -969,3 +944,13 @@
         (let [replacement (first proposals)]
           (do-proposal-replacement selection replacement))
         (show-proposals selection proposals)))))
+
+(handler/defhandler :key-typed :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection key-typed]
+    (when (and (editable? selection)
+           (pos? (count key-typed))
+           (code/not-ascii-or-delete key-typed))
+      (enter-key-text selection key-typed)
+      (when (contains? proposal-key-triggers key-typed)
+        (show-proposals selection (propose selection))))))
