@@ -262,9 +262,9 @@
           (enter! source-viewer)
           (is (= "function test(x)\n\t" (text source-viewer))))
         (testing "some indentation exists"
-          (set-code-and-caret! source-viewer "\tfunction test(x)")
+          (set-code-and-caret! source-viewer "if true then\n\tfunction test(x)")
           (enter! source-viewer)
-          (is (= "\tfunction test(x)\n\t\t" (text source-viewer))))
+          (is (= "if true then\n\tfunction test(x)\n\t\t" (text source-viewer))))
         (testing "maintains level in the function"
           (set-code-and-caret! source-viewer "function test(x)\n\tfoo")
           (enter! source-viewer)
