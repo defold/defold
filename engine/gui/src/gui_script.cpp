@@ -1352,11 +1352,16 @@ namespace dmGui
         return 0;
     }
 
-    /*# pause or unpause the node flipbook animation
-     * Pause or unpause the node flipbook animation.
+    /*# cancel a node flipbook animation
+     * Cancels any running flipbook animation on the specified node.
      *
      * @name gui.cancel_flipbook
      * @param node node cancel flipbook animation for (node)
+     * @examples
+     * <pre>
+     * local node = gui.get_node("anim_node")
+     * gui.cancel_flipbook(node)
+     * </pre>     
      */
     static int LuaCancelFlipbook(lua_State* L)
     {
