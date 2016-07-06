@@ -221,7 +221,7 @@ namespace dmScript
 
             if (buffer_end - buffer < 2)
             {
-                luaL_error(L, "buffer (%u bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
+                luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
             }
 
             (*buffer++) = (char) key_type;
@@ -234,7 +234,7 @@ namespace dmScript
 
                 if (buffer_end - buffer < int32_t(1 + key_len))
                 {
-                    luaL_error(L, "buffer (%u bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
+                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
                 }
                 memcpy(buffer, key, key_len);
                 buffer += key_len;
@@ -250,7 +250,7 @@ namespace dmScript
                 {
                     if (buffer_end - buffer < 1)
                     {
-                        luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
                     (*buffer++) = (char) lua_toboolean(L, -1);
                 }
@@ -265,7 +265,7 @@ namespace dmScript
 
                     if (buffer_end - buffer < align_size)
                     {
-                        luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
 
 #ifndef NDEBUG
@@ -275,7 +275,7 @@ namespace dmScript
 
                     if (buffer_end - buffer < int32_t(sizeof(lua_Number)) || buffer_end - buffer < align_size)
                     {
-                        luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
 
                     union
@@ -296,7 +296,7 @@ namespace dmScript
                     uint32_t value_len = strlen(value) + 1;
                     if (buffer_end - buffer < int32_t(value_len))
                     {
-                        luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
                     memcpy(buffer, value, value_len);
                     buffer += value_len;
@@ -307,7 +307,7 @@ namespace dmScript
                 {
                     if (buffer_end - buffer < 1)
                     {
-                        luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
 
                     char* sub_type = buffer++;
@@ -319,7 +319,7 @@ namespace dmScript
 
                     if (buffer_end - buffer < align_size)
                     {
-                        luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
 
 #ifndef NDEBUG
@@ -334,7 +334,7 @@ namespace dmScript
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 3))
                         {
-                            luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_VECTOR3;
@@ -350,7 +350,7 @@ namespace dmScript
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
                         {
-                            luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_VECTOR4;
@@ -367,7 +367,7 @@ namespace dmScript
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
                         {
-                            luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_QUAT;
@@ -384,7 +384,7 @@ namespace dmScript
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 16))
                         {
-                            luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_MATRIX4;
@@ -401,7 +401,7 @@ namespace dmScript
 
                         if (buffer_end - buffer < int32_t(hash_size))
                         {
-                            luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_HASH;
@@ -416,7 +416,7 @@ namespace dmScript
 
                         if (buffer_end - buffer < int32_t(url_size))
                         {
-                            luaL_error(L, "buffer (%u bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_URL;
@@ -467,7 +467,7 @@ namespace dmScript
 
             return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index);
         } else {
-            luaL_error(L, "buffer (%u bytes) too small for header (%u bytes)", buffer_size, sizeof(TableHeader));
+            luaL_error(L, "buffer (%d bytes) too small for header (%d bytes)", buffer_size, sizeof(TableHeader));
             return 0;
         }
     }
