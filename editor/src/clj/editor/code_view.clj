@@ -472,6 +472,15 @@
           offset (cvx/caret this)
           line-no (.getLineAtOffset text-area-content offset)]
       (.getOffsetAtLine text-area-content line-no)))
+  (line-num-at-offset [this offset]
+    (let [text-area-content (.getContent (.getTextWidget this))]
+      (.getLineAtOffset text-area-content offset)))
+  (line-at-num [this line-num]
+    (let [text-area-content (.getContent (.getTextWidget this))]
+      (.getLine text-area-content line-num)))
+  (line-offset-at-num [this line-num]
+    (let [text-area-content (.getContent (.getTextWidget this))]
+      (.getOffsetAtLine text-area-content line-num)))
   cvx/TextProposals
   (propose [this]
     (when-let [assist-fn (assist this)]
