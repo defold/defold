@@ -467,6 +467,17 @@
       (if (neg? prev-line-num)
         ""
         (.getLine text-area-content prev-line-num))))
+  (next-line [this]
+    (let [text-area-content (.getContent (.getTextWidget this))
+          offset (cvx/caret this)
+          line-no (.getLineAtOffset text-area-content offset)
+          line-offset (.getOffsetAtLine text-area-content line-no)
+          line-length (count (.getLine text-area-content line-no))
+          doc-length (count(cvx/text this))
+          end-of-doc? (<= doc-length (+ line-offset line-length))]
+      (if end-of-doc?
+        ""
+        (.getLine text-area-content (inc line-no)))))
   (line-offset [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
@@ -481,6 +492,9 @@
   (line-offset-at-num [this line-num]
     (let [text-area-content (.getContent (.getTextWidget this))]
       (.getOffsetAtLine text-area-content line-num)))
+  (line-count [this]
+    (let [text-area-content (.getContent (.getTextWidget this))]
+      (.getLineCount text-area-content)))
   cvx/TextProposals
   (propose [this]
     (when-let [assist-fn (assist this)]
