@@ -833,48 +833,6 @@
       (replace-text-selection selection key-typed)
       (replace-text-and-caret selection np 0 key-typed (+ np (count key-typed))))))
 
-(defn next-tab-trigger [selection pos]
-  (when (has-snippet-tab-trigger? selection)
-    (let [doc (text selection)
-          np (caret selection)
-          search-text (next-snippet-tab-trigger! selection)]
-      (if (= :end search-text)
-        (do
-          (text-selection! selection np 0)
-          (right selection))
-        (let [found-idx (string/index-of doc search-text pos)
-              tlen (count search-text)]
-          (when found-idx
-            (select-found-text selection doc found-idx tlen)))))))
-
-(defn do-proposal-replacement [selection replacement]
-  (let [tab-triggers (:tab-triggers replacement)
-        replacement (:insert-string replacement)
-        line-text (line selection)
-        loffset (line-offset selection)
-        parsed-line (code/parse-line line-text)
-        replacement-in-line? (string/index-of line-text replacement)
-        pattern (if replacement-in-line?
-                  replacement
-                 (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
-        new-line-text (string/replace-first line-text pattern replacement)
-        snippet-tab-start (or (string/index-of new-line-text "function_name")
-                              (string/index-of new-line-text "(")
-                              0)]
-    (replace! selection (line-offset selection) (count line-text) new-line-text)
-    (snippet-tab-triggers! selection tab-triggers)
-    (next-tab-trigger selection (+ loffset snippet-tab-start))))
-
-(defn show-proposals [selection proposals]
-  (when (pos? (count proposals))
-    (let [screen-position (screen-position selection)
-          offset (caret selection)
-          result (promise)
-          current-line (line selection)
-          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals current-line (text-area selection))
-          replace-text-fn (fn [] (when (and (realized? result) @result)
-                                  (do-proposal-replacement selection (first @result))))]
-      (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
@@ -972,6 +930,51 @@
   (run [view-node code-node]
     (g/redo! (g/node-id->graph-id code-node))
     (g/node-value view-node :new-content)))
+
+(defn next-tab-trigger [selection pos]
+  (when (has-snippet-tab-trigger? selection)
+    (let [doc (text selection)
+          np (caret selection)
+          search-text (next-snippet-tab-trigger! selection)]
+      (if (= :end search-text)
+        (do
+          (text-selection! selection np 0)
+          (right selection))
+        (let [found-idx (string/index-of doc search-text pos)
+              tlen (count search-text)]
+          (when found-idx
+            (select-found-text selection doc found-idx tlen)))))))
+
+(defn do-proposal-replacement [selection replacement]
+  (let [tab-triggers (:tab-triggers replacement)
+        replacement (:insert-string replacement)
+        line-text (line selection)
+        loffset (line-offset selection)
+        parsed-line (code/parse-line line-text)
+        replacement-in-line? (string/index-of line-text replacement)
+        pattern (if replacement-in-line?
+                  replacement
+                 (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
+        new-line-text (string/replace-first line-text pattern replacement)
+        snippet-tab-start (or (string/index-of new-line-text "function_name")
+                              (string/index-of new-line-text "(")
+                              0)
+        replace-len (count line-text)]
+    (replace! selection loffset replace-len new-line-text)
+    (do-indent-region selection loffset (+ loffset (count new-line-text)))
+    (snippet-tab-triggers! selection tab-triggers)
+    (next-tab-trigger selection (+ loffset snippet-tab-start))))
+
+(defn show-proposals [selection proposals]
+  (when (pos? (count proposals))
+    (let [screen-position (screen-position selection)
+          offset (caret selection)
+          result (promise)
+          current-line (line selection)
+          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals current-line (text-area selection))
+          replace-text-fn (fn [] (when (and (realized? result) @result)
+                                  (do-proposal-replacement selection (first @result))))]
+      (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)
