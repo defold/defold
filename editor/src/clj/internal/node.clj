@@ -1013,7 +1013,6 @@
 
 (declare fnk-argument-forms property-validation-exprs)
 
-;; TODO - check if these receive a map or a ref.
 (defn- desc-has-input?     [description argument] (contains? (:input description) argument))
 (defn- desc-has-property?  [description argument] (contains? (:property description) argument))
 (defn- desc-has-output?    [description argument] (contains? (:output description) argument))
@@ -1026,6 +1025,9 @@
 (defn has-singlevalued-input? [description input-label]
   (and (desc-has-input? description input-label)
        (not (has-multivalued-input? description input-label))))
+
+(defn has-substitute? [description input-label]
+  (contains? (get-in description [:input input-label :options]) :substitute))
 
 (defn property-overloads-output? [description argument output]
   (and (= output argument)
@@ -1084,18 +1086,38 @@
     (transient {})
     argument-schema)))
 
+(defn pull-first-input-value
+  [input node evaluation-context]
+  (let [basis                      (:basis evaluation-context)
+        [upstream-id output-label] (first (gt/sources basis (gt/node-id node) input))]
+     (when-let [upstream-node (and upstream-id (gt/node-by-id-at basis upstream-id))]
+       (gt/produce-value upstream-node output-label evaluation-context))))
+
+(defn pull-first-input-with-substitute
+  [input sub node evaluation-context]
+  ;; todo - invoke substitute
+  (pull-first-input-value input node evaluation-context))
+
 (defn first-input-value-form
-  [self-name ctx-name nodeid-sym input]
-  `(let [[upstream-node-id# output-label#] (first (gt/sources (:basis ~ctx-name) ~nodeid-sym ~input))]
-     (when-let [upstream-node# (and upstream-node-id# (gt/node-by-id-at (:basis ~ctx-name) upstream-node-id#))]
-       (gt/produce-value upstream-node# output-label# ~ctx-name))))
+  [self-name ctx-name input]
+  `(pull-first-input-value ~input ~self-name ~ctx-name))
+
+(defn pull-input-values
+  [input node evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (mapv (fn [[upstream-id output-label]]
+            (let [upstream-node (gt/node-by-id-at basis upstream-id)]
+              (gt/produce-value upstream-node output-label evaluation-context)))
+          (gt/sources basis (gt/node-id node) input))))
+
+(defn  pull-input-values-with-substitute
+  [input sub node evaluation-context]
+  ;; todo - invoke substitute
+  (pull-input-values input evaluation-context node))
 
 (defn input-value-forms
-  [self-name ctx-name nodeid-sym input]
-  `(mapv (fn [[upstream-node-id# output-label#]]
-           (let [upstream-node# (gt/node-by-id-at (:basis ~ctx-name) upstream-node-id#)]
-             (gt/produce-value upstream-node# output-label# ~ctx-name)))
-         (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input)))
+  [self-name ctx-name input]
+  `(pull-input-values ~input ~self-name ~ctx-name))
 
 (defn maybe-use-substitute [description input forms]
   (if-let [sub (get-in description [:input input :options :substitute])]
@@ -1104,6 +1126,10 @@
         (util/apply-if-fn ~sub input#)
         input#))
     forms))
+
+(defn filter-error-vals
+  [threshold m]
+  (ie/worse-than threshold (flatten (vals m))))
 
 (defn call-with-error-checked-fnky-arguments
   [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
@@ -1114,11 +1140,13 @@
                                                                 (fnk-argument-forms self-name ctx-name nodeid-sym label description %)))
                                             arglist))
         argument-forms (merge argument-forms supplied-arguments)]
-    `(let [arg-forms# ~argument-forms
-           bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals arg-forms#)))]
-       (if (empty? bad-errors#)
-         (~runtime-fnk-expr arg-forms#)
-         (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label)))))
+    (if (empty? argument-forms)
+      `(~runtime-fnk-expr {})
+      `(let [arg-forms# ~argument-forms
+             bad-errors# (filter-error-vals (:ignore-errors ~ctx-name) arg-forms#)]
+         (if (empty? bad-errors#)
+           (~runtime-fnk-expr arg-forms#)
+           (ie/error-aggregate bad-errors# :_node-id ~nodeid-sym :_label ~label))))))
 
 (defn collect-base-property-value
   [self-name ctx-name nodeid-sym description prop-name]
@@ -1128,9 +1156,7 @@
       `(gt/get-property ~self-name (:basis ~ctx-name) ~prop-name)
       (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop-name description
                                               (:arguments (:value property-definition))
-                                              `(let [nt# (deref (gt/node-type ~self-name (:basis ~ctx-name)))
-                                                     fn# (get-in nt# [:property ~prop-name :value :fn])]
-                                                 fn#)))))
+                                              `(var ~(symbol (dollar-name (:name description) [:property prop-name :value])))))))
 
 (defn collect-property-value
   [self-name ctx-name nodeid-sym description prop]
@@ -1178,12 +1204,12 @@
     (has-multivalued-input? description argument)
     (maybe-use-substitute
       description argument
-      (input-value-forms self-name ctx-name nodeid-sym argument))
+      (input-value-forms self-name ctx-name argument))
 
     (has-singlevalued-input? description argument)
     (maybe-use-substitute
      description argument
-     (first-input-value-form self-name ctx-name nodeid-sym argument))
+     (first-input-value-form self-name ctx-name argument))
 
     (desc-has-output? description argument)
     `(gt/produce-value  ~self-name ~argument ~ctx-name)
@@ -1255,24 +1281,23 @@
 
 (defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function forms]
   (let [arg-names       (get-in description [:output transform :arguments])
-        argument-forms  (zipmap arg-names (map #(fnk-argument-forms self-name ctx-name nodeid-sym transform description %) arg-names))]
+        argument-forms  (zipmap arg-names (map #(fnk-argument-forms self-name ctx-name nodeid-sym transform description %) arg-names))
+        argument-forms  (assoc argument-forms :_node-id nodeid-sym :basis `(:basis ~ctx-name))]
     (list `let
           [input-sym argument-forms]
           forms)))
 
-(defn input-error-check [self-name ctx-name description label input-sym tail]
+(defn input-error-check [self-name ctx-name description label nodeid-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(let [bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals ~input-sym)))]
+    `(let [bad-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
        (if (empty? bad-errors#)
          (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
            ~tail)
-         (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label)))))
+         (ie/error-aggregate bad-errors# :_node-id ~nodeid-sym :_label ~label)))))
 
 (defn call-production-function [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
-  `(let [production-function# (-> ~self-name (gt/node-type (:basis ~ctx-name)) transforms ~transform :fn)
-         ~input-sym           (assoc ~input-sym :_node-id ~nodeid-sym :basis (:basis ~ctx-name))
-         ~output-sym          (production-function# ~input-sym)]
+  `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
      ~forms))
 
 (defn cache-output [ctx-name description transform nodeid-sym output-sym forms]
@@ -1310,11 +1335,11 @@
     (let [validate-expr (property-validation-exprs self-name ctx-name description nodeid-sym transform)]
       `(if (or (:skip-validation ~ctx-name) (ie/error? ~output-sym))
          ~forms
-         (let [error# ~validate-expr
-               bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (if error# [error#] []))]
+         (let [error#       ~validate-expr
+               bad-errors# (if error# (filter-error-vals (:ignore-errors ~ctx-name) {:_ error#}) [])]
            (if (empty? bad-errors#)
              ~forms
-             (let [~output-sym (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~transform)]
+             (let [~output-sym (ie/error-aggregate bad-errors# :_node-id ~nodeid-sym :_label ~transform)]
                ~forms)))))
     forms))
 
@@ -1332,7 +1357,7 @@
                     (mark-in-production ctx-name nodeid-sym transform
                       (check-caches ctx-name nodeid-sym description transform
                         (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
-                          (input-error-check self-name ctx-name description transform input-sym
+                          (input-error-check self-name ctx-name description transform nodeid-sym input-sym
                             (call-production-function self-name ctx-name description transform input-sym nodeid-sym output-sym
                               (schema-check-output self-name ctx-name description transform nodeid-sym output-sym
                                 (validate-output self-name ctx-name description transform nodeid-sym output-sym
@@ -1361,12 +1386,12 @@
     (has-multivalued-input? description argument)
     (maybe-use-substitute
      description argument
-     (input-value-forms self-name ctx-name nodeid-sym argument))
+     (input-value-forms self-name ctx-name argument))
 
     (has-singlevalued-input? description argument)
     (maybe-use-substitute
      description argument
-     (first-input-value-form self-name ctx-name nodeid-sym argument))
+     (first-input-value-form self-name ctx-name argument))
 
     (= :this argument)
     `~'this
@@ -1382,10 +1407,10 @@
           argument-forms              (zipmap arglist (map #(create-validate-argument-form self-name ctx-name nodeid-sym description % ) arglist))
           argument-forms              (merge argument-forms supplied-arguments)]
       `(let [arg-forms# ~argument-forms
-             bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals arg-forms#)))]
+             bad-errors# (filter-error-vals (:ignore-errors ~ctx-name) arg-forms#)]
          (if (empty? bad-errors#)
            ((-> ~self-name (gt/node-type (:basis ~ctx-name)) declared-properties ~prop :validate :fn) arg-forms#)
-           (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~prop))))))
+           (ie/error-aggregate bad-errors# :_node-id ~nodeid-sym :_label ~prop))))))
 ;;; TODO: decorate with :production :validate?
 
 (defn collect-validation-problems
@@ -1449,15 +1474,32 @@
   [description input]
   (gensyms [self-name ctx-name nodeid-sym]
      `(fn [~self-name ~ctx-name]
-        (let [~nodeid-sym (gt/node-id ~self-name)]
-          ~(maybe-use-substitute
-            description input
-            (cond
-              (has-multivalued-input? description input)
-              (input-value-forms self-name ctx-name nodeid-sym input)
+        ~(maybe-use-substitute
+          description input
+          (cond
+            (has-multivalued-input? description input)
+            (input-value-forms self-name ctx-name input)
 
-              (has-singlevalued-input? description input)
-              (first-input-value-form self-name ctx-name nodeid-sym input)))))))
+            (has-singlevalued-input? description input)
+            (first-input-value-form self-name ctx-name input))))))
+
+
+(defn node-input-value-function
+  [description input]
+  (let [sub?   (has-substitute?        description input)
+        multi? (has-multivalued-input? description input)]
+    (cond
+      (and (not sub?) (not multi?))
+      `(partial pull-first-input-value ~input)
+
+      (and (not sub?) multi?)
+      `(partial pull-input-values ~input)
+
+      (not multi?)
+      `(partial pull-first-input-with-substitute ~input ~sub?)
+
+      :else
+      `(partial pull-input-values-with-substitute ~input ~sub?))))
 
 (defn property-dynamics
   [self-name ctx-name nodeid-sym description property-name property-type value-form]
