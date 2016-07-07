@@ -812,11 +812,18 @@
 (defn next-tab-trigger [selection pos]
   (when (has-snippet-tab-trigger? selection)
     (let [doc (text selection)
-          np (caret selection)
-          search-text (next-snippet-tab-trigger! selection)]
+          tab-trigger-info (next-snippet-tab-trigger! selection)
+          search-text (:trigger tab-trigger-info)
+          exit-text (:exit tab-trigger-info)]
+      (println :tab-trigger-info tab-trigger-info)
       (if (= :end search-text)
         (do
-          (text-selection! selection np 0)
+          (text-selection! selection pos 0)
+          (when exit-text
+            (let [found-idx (string/index-of doc exit-text pos)
+                  tlen (count exit-text)]
+              (when found-idx
+                (caret! selection (+ found-idx tlen) false))))
           (right selection))
         (let [found-idx (string/index-of doc search-text pos)
               tlen (count search-text)]
