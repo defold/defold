@@ -615,12 +615,19 @@
                                   (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
                                     (.consume event)))))
 
+(def ^:private invalidate-menus? (atom false))
+
+(defn invalidate-menus! []
+  (reset! invalidate-menus? true))
+
 (defn- refresh-menubar [md command-contexts]
  (let [menu (realize-menu (:menu-id md))
        control ^MenuBar (:control md)]
-   (when-not (and
-               (= menu (user-data control ::menu))
-               (= command-contexts (user-data control ::command-contexts)))
+   (when (or
+          @invalidate-menus?
+          (not= menu (user-data control ::menu))
+          (not= command-contexts (user-data control ::command-contexts)))
+     (reset! invalidate-menus? false)
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
      (.addAll (.getMenus control) (to-array (make-menu-items menu command-contexts)))
