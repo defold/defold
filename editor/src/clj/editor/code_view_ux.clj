@@ -580,7 +580,8 @@
     (if (pos? (selection-length selection))
       (replace-text-and-caret selection soffset slen "" soffset)
       (let [pos (adjust-bounds doc (dec np))]
-       (replace-text-and-caret selection pos 1 "" pos)))))
+       (when-not (zero? np)
+        (replace-text-and-caret selection pos 1 "" pos))))))
 
 (handler/defhandler :delete :code-view
   (enabled? [selection] (editable? selection))
