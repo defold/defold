@@ -574,11 +574,13 @@
 
 (defn delete [selection]
   (let [np (caret selection)
-        doc (text selection)]
+        doc (text selection)
+        slen (selection-length selection)
+        soffset (selection-offset selection)]
     (if (pos? (selection-length selection))
-      (replace-text-selection selection "")
-      (when-not (zero? np)
-       (replace-text-and-caret selection (dec np) 1 "" (dec np))))))
+      (replace-text-and-caret selection soffset slen "" soffset)
+      (let [pos (adjust-bounds doc (dec np))]
+       (replace-text-and-caret selection pos 1 "" pos)))))
 
 (handler/defhandler :delete :code-view
   (enabled? [selection] (editable? selection))
