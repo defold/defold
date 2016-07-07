@@ -7,13 +7,16 @@
             [editor.lua :as lua]
             [editor.script :as script]
             [editor.gl.shader :as shader]
+            [integration.test-util :refer [DummyAppView]]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (defn setup-code-view-nodes [world source-viewer code code-node-type]
-  (let [[code-node viewer-node] (tx-nodes (g/make-node world code-node-type)
+  (let [[app-view code-node viewer-node] (tx-nodes
+                                          (g/make-node world DummyAppView)
+                                          (g/make-node world code-node-type)
                                           (g/make-node world CodeView :source-viewer source-viewer))]
     (do (g/transact (g/set-property code-node :code code))
-        (setup-code-view viewer-node code-node 0)
+        (setup-code-view app-view viewer-node code-node 0)
         (g/node-value viewer-node :new-content)
         [code-node viewer-node])))
 
