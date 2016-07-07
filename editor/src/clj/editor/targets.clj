@@ -98,6 +98,17 @@
     (let [found-targets (:targets res)]
       (when (not-empty found-targets)
         (append-event-log (str "Found engine(s) " (into '() found-targets))))
+
+      (when (or
+             ;; We found new/different engines
+             (and (not-empty found-targets)
+                  (not= found-targets @targets))
+
+             ;; We didn't find any engines (but we had atleast one in the list)
+             (and (empty? found-targets)
+                  (not= @targets #{local-target})))
+        (ui/invalidate-menus!))
+
       (reset! targets (or (not-empty found-targets) #{local-target})))))
 
 (defn- targets-worker []
