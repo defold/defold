@@ -893,9 +893,12 @@
   (run [selection]
     (when (editable? selection)
       (clear-snippet-tab-triggers! selection)
-      (do-indent-line selection (line-num-at-offset selection (caret selection)))
-      (enter-key-text selection (System/getProperty "line.separator"))
-      (do-indent-line selection (line-num-at-offset selection (caret selection))))))
+      (if (= (caret selection) (line-end-pos selection))
+        (do
+          (do-indent-line selection (line-num-at-offset selection (caret selection)))
+          (enter-key-text selection (System/getProperty "line.separator"))
+          (do-indent-line selection (line-num-at-offset selection (caret selection))))
+        (enter-key-text selection (System/getProperty "line.separator"))))))
 
 (handler/defhandler :undo :code-view
   (enabled? [selection] selection)

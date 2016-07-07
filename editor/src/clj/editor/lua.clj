@@ -204,7 +204,7 @@
   (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
 
 (defn decrease-indent? [s]
-  (re-find #"^\s*(elseif|else|end|\})\s*$" s))
+  (re-find #"^\s*(elseif|else|end|\}).*$" s))
 
 ;; TODO: splitting into partitions using multiline (MultiLineRule) in combination with FastPartitioner does not work properly when
 ;; :eof is false. The initial "/*" does not start a comment partition, and when the ending "*/" is added (on another line) the document
