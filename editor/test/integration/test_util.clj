@@ -31,6 +31,7 @@
   (:import [java.io File FilenameFilter FileOutputStream FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
+           [javafx.scene.control Tab]
            [org.apache.commons.io FilenameUtils FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -98,7 +99,8 @@
     (not (nil? (some #{tgt-node-id} sel)))))
 
 (g/defnode DummyAppView
-  (property active-tool g/Keyword))
+  (property active-tool g/Keyword)
+  (property active-tab Tab))
 
 (defn setup-app-view! []
   (let [view-graph (g/make-graph! :history false :volatility 2)

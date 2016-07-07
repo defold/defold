@@ -181,7 +181,11 @@
       (testing "single result gets automatically inserted"
         (set-code-and-caret! source-viewer "math.ab")
         (propose! source-viewer)
-        (is (= "math.abs(x)" (text source-viewer)))))))
+        (is (= "math.abs(x)" (text source-viewer))))
+      (testing "proper indentation is put in"
+        (set-code-and-caret! source-viewer "function foo(x)\n\tif")
+        (propose! source-viewer)
+        (is (= "function foo(x)\n\tif cond then\n\t\t--do things\n\tend" (text source-viewer)))))))
 
 (defn- tab! [source-viewer]
   (handler/run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -243,7 +247,9 @@
         (tab! source-viewer)
         (is (= "--do things" (text-selection source-viewer)))
         (tab! source-viewer)
-        (is (= "end" (text-selection source-viewer)))))))
+        (is (= "end" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))))))
 
 (defn- enter! [source-viewer]
   (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -260,9 +266,9 @@
           (enter! source-viewer)
           (is (= "function test(x)\n\t" (text source-viewer))))
         (testing "some indentation exists"
-          (set-code-and-caret! source-viewer "\tfunction test(x)")
+          (set-code-and-caret! source-viewer "if true then\n\tfunction test(x)")
           (enter! source-viewer)
-          (is (= "\tfunction test(x)\n\t\t" (text source-viewer))))
+          (is (= "if true then\n\tfunction test(x)\n\t\t" (text source-viewer))))
         (testing "maintains level in the function"
           (set-code-and-caret! source-viewer "function test(x)\n\tfoo")
           (enter! source-viewer)
@@ -327,3 +333,23 @@
           (set-code-and-caret! source-viewer "x = {\n\t1\n\t}")
           (enter! source-viewer)
           (is (= "x = {\n\t1\n}\n" (text source-viewer))))))))
+
+(defn- indent! [source-viewer]
+  (handler/run :indent [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(deftest lua-enter-indent-line-and-region
+  (with-clean-system
+    (let [code ""
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "indent line"
+        (set-code-and-caret! source-viewer "if true then\nreturn 1")
+        (indent! source-viewer)
+        (is (= "if true then\n\treturn 1" (text source-viewer))))
+      (testing "indent region"
+        (let [code "if true then\nreturn 1\nif false then\nreturn 2\nend\nend"]
+          (set-code-and-caret! source-viewer code)
+          (text-selection! source-viewer 0 (count code))
+          (indent! source-viewer)
+          (is (= "if true then\n\treturn 1\n\tif false then\n\t\treturn 2\n\tend\nend" (text source-viewer))))))))
