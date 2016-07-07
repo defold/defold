@@ -821,12 +821,12 @@
       (if (= :end search-text)
         (do
           (text-selection! selection pos 0)
-          (when exit-text
+          (if exit-text
             (let [found-idx (string/index-of doc exit-text pos)
                   tlen (count exit-text)]
               (when found-idx
-                (caret! selection (+ found-idx tlen) false))))
-          (right selection))
+                (caret! selection (+ found-idx tlen) false)))
+            (right selection)))
         (let [found-idx (string/index-of doc search-text pos)
               tlen (count search-text)]
           (when found-idx
