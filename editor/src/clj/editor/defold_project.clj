@@ -404,7 +404,9 @@
                               :command :fetch-libraries}
                              {:label :separator}
                              {:label "Target"
-                              :command :target}]}])
+                              :command :target}
+                             {:label "Target Activity Log"
+                              :command :target-log}]}])
 
 (defn get-resource-node [project path-or-resource]
   (when-let [resource (cond
@@ -607,6 +609,11 @@
                       :check     true
                       :user-data target})
                    (targets/get-targets)))))
+
+(handler/defhandler :target-log :global
+  (enabled? [] true)
+  (run []
+    (ui/run-later (targets/make-target-log-dialog))))
 
 (defn settings [project]
   (g/node-value project :settings))
