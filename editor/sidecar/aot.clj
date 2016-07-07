@@ -53,9 +53,10 @@
 
 (defn compile-clj
   [namespaces]
-  (doseq [n namespaces]
-    (println "Compiling " n)
-    (compile n)))
+  (binding [*compiler-options* {:elide-meta #{:file :line :column}}]
+    (doseq [n namespaces]
+      (println "Compiling " n)
+      (compile n))))
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))
