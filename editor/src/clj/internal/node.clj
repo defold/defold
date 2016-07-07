@@ -914,6 +914,7 @@
   (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) internal-keys)]
     (assoc-in description [:output :_declared-properties]
               {:value-type   (->ValueTypeRef :dynamo.graph/Properties)
+               :flags        #{:cached}
                :arguments    publics
                :dependencies publics})))
 
