@@ -33,7 +33,7 @@
    :display-string "local name = value",
    :insert-string "local name = value",
    :doc "",
-   :tab-triggers {:select ["local_name" "local_value"]}}
+   :tab-triggers {:select ["name" "value"]}}
   {:name "for",
    :display-string "for i=1,10",
    :insert-string "for i=1,10 do\n\t--do things\nend",
