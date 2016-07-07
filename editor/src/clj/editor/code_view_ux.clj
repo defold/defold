@@ -815,7 +815,6 @@
           tab-trigger-info (next-snippet-tab-trigger! selection)
           search-text (:trigger tab-trigger-info)
           exit-text (:exit tab-trigger-info)]
-      (println :tab-trigger-info tab-trigger-info)
       (if (= :end search-text)
         (do
           (text-selection! selection pos 0)

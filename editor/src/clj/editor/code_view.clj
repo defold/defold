@@ -515,7 +515,6 @@
   (has-snippet-tab-trigger? [this] (cvx/snippet-tab-triggers this))
   (next-snippet-tab-trigger! [this]
     (let [tt (tab-triggers this)
-          _ (println "tt" @tt)
           triggers (:select @tt)
           trigger (or (first triggers) :end)
           exit-trigger (:exit @tt)]

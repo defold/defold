@@ -125,14 +125,9 @@
     (merge-with into completions package-completions)))
 
 (defn lua-base-documentation []
-  {"" [(code/create-hint "if" "if" "if cond then\n\t--do things\nend" "" {:select ["cond" "--do things" "end"]})
-       (code/create-hint "else" "else" "else\n\t--do things\nend" "" {:select ["--do things"] :exit "end"})
-       (code/create-hint "elseif" "elseif" "elseif cond then\n\t--do things\nend" "" {:select ["cond" "--do things" "end"]})
-       (code/create-hint "while" "while" "while cond\n\t--do things\nend" "" {:select ["cond" "--do things"] :exit "end"})
-       (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "" {:select ["--do things" "cond"]})
-       (code/create-hint "function" "function" "function function_name(params)\n\t--do things\nend" "" {:select ["function_name" "params" "--do things"] :exit "end"})
-       (code/create-hint "local" "local" "local local_name = local_value" "" {:select ["local_name" "local_value"]})
-       (code/create-hint "for" "for" "for i=1,10 do\n\t--do things\nend" "" {:select ["i" "1" "10" "--do things"] :exit "end"})]})
+  {"" (-> (io/resource "lua-base-snippets.edn")
+          slurp
+          edn/read-string)})
 
 (def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
 
