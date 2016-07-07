@@ -83,7 +83,7 @@
         (set-code-and-caret! source-viewer "if")
         (let [result (propose source-viewer)]
          (is (= ["if"] (map :name result)))
-         (is (= ["if"] (map :display-string result)))
+         (is (= ["if cond then"] (map :display-string result)))
          (is (= ["if cond then\n\t--do things\nend"] (map :insert-string result)))))
       (testing "global defold package"
         (set-code-and-caret! source-viewer "go")
@@ -249,7 +249,19 @@
         (tab! source-viewer)
         (is (= "end" (text-selection source-viewer)))
         (tab! source-viewer)
-        (is (= "" (text-selection source-viewer)))))))
+        (is (= "" (text-selection source-viewer))))
+      (testing "with function template"
+        (set-code-and-caret! source-viewer "function")
+        (propose! source-viewer)
+        (is (= "function function_name(params)\n\t--do things\nend"(text source-viewer)))
+        (is (= "function_name" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "params" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "--do things" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= (count "function function_name(params)\n\t--do things\nend") (caret source-viewer)))))))
 
 (defn- enter! [source-viewer]
   (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
