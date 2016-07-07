@@ -59,16 +59,30 @@
   {:name "Local"
    :url  "http://localhost:8001"})
 
+(defn- append-event-log [message]
+  (swap! event-log (fn [xs]
+                     (take 512 (conj xs (format "%s: %s"
+                                                (f/unparse (f/formatters :mysql) (t/now))
+                                                message))))))
+
 (defn- update-targets! [devices]
   (let [res (reduce (fn [{:keys [blacklist targets] :as acc} ^DeviceInfo device]
                       (let [loc                 (.get (.headers device) "LOCATION")
-                            ^URL url            (try (URL. loc) (catch Exception _))
+                            ^URL url            (try (URL. loc)
+                                                     (catch Exception _
+                                                       (append-event-log (format "[%s] not a valid URL" loc))))
                             ^String description (and url (not (contains? blacklist (.getHost url)))
                                                      (or (get @descriptions loc)
-                                                         (try (http-get url) (catch Exception _))))
+                                                         (try (http-get url)
+                                                              (catch Exception _
+                                                                (append-event-log (format "[%s] error getting XML description" loc))))))
                             desc                (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
-                                                     (catch Exception _))
+                                                     (catch Exception _
+                                                       (append-event-log (format "[%s] error parsing XML description" loc))))
                             target              (desc->target desc)]
+
+                        (when-not target
+                          (append-event-log (format "[%s] not a Defold target" url)))
 
                         (when desc
                           (swap! descriptions assoc loc description))
@@ -83,14 +97,11 @@
                     devices)]
     (let [found-targets (:targets res)]
       (when (not-empty found-targets)
-        (swap! event-log (fn [xs]
-                           (take 100 (conj xs (format "%s: Found engine(s) %s"
-                                                      (f/unparse (f/formatters :mysql) (t/now))
-                                                      (into '() found-targets)))))))
+        (append-event-log (str "Found engine(s) " (into '() found-targets))))
       (reset! targets (or (not-empty found-targets) #{local-target})))))
 
 (defn- targets-worker []
-  (when-let [ssdp-service (SSDP.)]
+  (when-let [ssdp-service (SSDP. append-event-log)]
     (try
       (println "Starting targets service")
       (while @running
