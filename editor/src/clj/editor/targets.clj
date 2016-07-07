@@ -46,8 +46,8 @@
        :url      (tag->val :defold:url tags)
        :log-port (tag->val :defold:logPort tags)})))
 
-(def local-target
-  {:name "localhost"
+(def ^:const local-target
+  {:name "Local"
    :url  "http://localhost:8001"})
 
 (defn- update-targets! [devices]
@@ -72,7 +72,7 @@
                                       blacklist)}))
                     {:blacklist #{} :targets #{}}
                     devices)]
-    (reset! targets (:targets res))))
+    (reset! targets (or (not-empty (:targets res)) #{local-target}))))
 
 (defn- targets-worker []
   (when-let [ssdp-service (SSDP.)]
