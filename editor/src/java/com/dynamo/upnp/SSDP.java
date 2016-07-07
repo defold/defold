@@ -18,11 +18,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Logger;
-
+import clojure.lang.IFn;
 
 public class SSDP implements ISSDP {
 
     private Logger logger = Logger.getLogger(SSDP.class.getCanonicalName());
+    private IFn eventLogger;
 
     private static final String SSDP_MCAST_ADDR_IP = "239.255.255.250";
     private static final int SSDP_MCAST_PORT = 1900;
@@ -60,7 +61,9 @@ public class SSDP implements ISSDP {
         return r;
     }
 
-    public SSDP() throws IOException {
+    public SSDP(IFn cljCallback) throws IOException {
+        eventLogger = cljCallback;
+        eventLogger.invoke("Starting SSDP service");
         buffer = new byte[1500];
         SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
 
@@ -155,6 +158,7 @@ public class SSDP implements ISSDP {
         Request request = Request.parse(data);
         if (request == null) {
             logger.warning("Invalid request: " + data);
+            eventLogger.invoke("[" + address + "] Invalid request: " + data);
             return;
         }
 
@@ -184,6 +188,7 @@ public class SSDP implements ISSDP {
                     }
                 } else {
                     logger.warning("Malformed NOTIFY response " + data);
+                    eventLogger.invoke("[" + address + "] Malformed NOTIFY response: " + data);
                 }
             }
         }
@@ -194,6 +199,7 @@ public class SSDP implements ISSDP {
         Response response = Response.parse(data);
         if (response == null) {
             logger.warning("Invalid response: " + data);
+            eventLogger.invoke("[" + address + "] Invalid response: " + data);
             return;
         }
 
@@ -216,6 +222,7 @@ public class SSDP implements ISSDP {
                     }
                 } else {
                     logger.warning("Malformed response " + data);
+                    eventLogger.invoke("[" + address + "] Malformed response: " + data);
                 }
             }
         }
