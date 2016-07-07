@@ -1,10 +1,18 @@
 (ns editor.targets
-  (:require [clojure.string :as str]
-            [clojure.xml :as xml])
+  (:require [clj-time
+             [core :as t]
+             [format :as f]]
+            [clojure
+             [string :as str]
+             [xml :as xml]]
+            [editor.ui :as ui])
   (:import [com.dynamo.upnp DeviceInfo SSDP]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.net URL URLConnection]
-           [java.io ByteArrayOutputStream ByteArrayInputStream]
-           [org.apache.commons.io IOUtils]))
+           [javafx.scene Parent Scene]
+           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.stage Modality Stage]
+           org.apache.commons.io.IOUtils))
 
 (set! *warn-on-reflection* true)
 
@@ -12,6 +20,7 @@
 (def ^:private descriptions (atom {}))
 (def ^:private last-search (atom 0))
 (def ^:private running (atom true))
+(def ^:private event-log (atom []))
 
 (def ^:const search-interval (* 60 1000))
 (def ^:const timeout 2000)
@@ -72,7 +81,13 @@
                                       blacklist)}))
                     {:blacklist #{} :targets #{}}
                     devices)]
-    (reset! targets (or (not-empty (:targets res)) #{local-target}))))
+    (let [found-targets (:targets res)]
+      (when (not-empty found-targets)
+        (swap! event-log (fn [xs]
+                           (take 100 (conj xs (format "%s: Found engine(s) %s"
+                                                      (f/unparse (f/formatters :mysql) (t/now))
+                                                      (into '() found-targets)))))))
+      (reset! targets (or (not-empty found-targets) #{local-target})))))
 
 (defn- targets-worker []
   (when-let [ssdp-service (SSDP.)]
@@ -104,3 +119,29 @@
 
 (defn get-targets []
   @targets)
+
+(defn make-target-log-dialog []
+  (let [root        ^Parent (ui/load-fxml "target-log.fxml")
+        stage       (Stage.)
+        scene       (Scene. root)
+        controls    (ui/collect-controls root ["message" "ok" "clear"])
+        get-message (fn [log] (apply str (interpose "\n" log)))]
+    (ui/title! stage "Engine Target Event Log")
+    (ui/text! (:message controls) (get-message @event-log))
+    (ui/on-action! (:ok controls) (fn [_] (.close stage)))
+    (ui/on-action! (:clear controls) (fn [_] (reset! event-log [])))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+      (ui/event-handler event
+                        (let [code (.getCode ^KeyEvent event)]
+                          (when (= code KeyCode/ESCAPE)
+                            (.close stage)))))
+
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+
+    (add-watch event-log :dialog (fn [_ _ _ log]
+                                   (ui/text! (:message controls) (get-message log))))
+
+    (ui/show-and-wait! stage)
+    (remove-watch event-log :dialog)))
