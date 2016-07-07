@@ -276,7 +276,12 @@
         (testing "end deindents"
           (set-code-and-caret! source-viewer "function test(x)\n\tend")
           (enter! source-viewer)
-          (is (= "function test(x)\nend\n" (text source-viewer))))))))
+          (is (= "function test(x)\nend\n" (text source-viewer))))
+        (testing "no enter identation if not at an end of the line"
+          (set-code-and-caret! source-viewer "function test(x)")
+          (caret! source-viewer 2 false)
+          (enter! source-viewer)
+          (is (= "fu\nnction test(x)" (text source-viewer))))))))
 
 (deftest lua-enter-indentation-if-else
   (with-clean-system
