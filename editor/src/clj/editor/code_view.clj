@@ -510,9 +510,9 @@
     (reset! (prefer-offset this) val))
   cvx/TextSnippet
   (snippet-tab-triggers [this] (when-let [tt (tab-triggers this)]
-                                 (:select @tt)))
+                                 @tt))
   (snippet-tab-triggers! [this val] (reset! (tab-triggers this) val))
-  (has-snippet-tab-trigger? [this] (cvx/snippet-tab-triggers this))
+  (has-snippet-tab-trigger? [this] (:select (cvx/snippet-tab-triggers this)))
   (next-snippet-tab-trigger! [this]
     (let [tt (tab-triggers this)
           triggers (:select @tt)
