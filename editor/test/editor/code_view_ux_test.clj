@@ -34,7 +34,14 @@
       (testing "making the text view non-editable prevents typing"
         (editable! source-viewer false)
         (key-typed! source-viewer "x")
-        (is (= "bhello" (text source-viewer)))))))
+        (is (= "bhello" (text source-viewer))))
+      (testing "automatch works"
+        (editable! source-viewer true)
+        (text! source-viewer "")
+        (key-typed! source-viewer "[")
+        (is (= "[]" (text source-viewer)))
+        (key-typed! source-viewer "1")
+        (is (= "[1]" (text source-viewer)))))))
 
 (defn- copy! [source-viewer clipboard]
   (handler/run :copy [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}] {}))
@@ -533,7 +540,17 @@
         (caret! source-viewer 0 false)
         (text-selection! source-viewer 0 2)
         (delete! source-viewer)
-        (is (= "e" (text source-viewer)))))))
+        (is (= "e" (text source-viewer))))
+      (testing "delete works with automatch"
+        (text! source-viewer "[]hello")
+        (caret! source-viewer 1 false)
+        (delete! source-viewer)
+        (is (= "hello" (text source-viewer))))
+      (testing "automatch delete doesn't invoke when second char is deleted"
+        (text! source-viewer "[]hello")
+        (caret! source-viewer 2 false)
+        (delete! source-viewer)
+        (is (= "[hello" (text source-viewer)))))))
 
 (defn- cut! [source-viewer clipboard]
   (handler/run :cut [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
