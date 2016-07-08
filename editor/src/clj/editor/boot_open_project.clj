@@ -123,9 +123,10 @@
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
                   (when (true? new-val)
-                    (ui/with-disabled-ui
-                      (ui/with-progress [render-fn ui/default-render-progress!]
-                        (editor.workspace/resource-sync! workspace true [] render-fn))))))
+                    (future
+                      (ui/with-disabled-ui
+                        (ui/with-progress [render-fn ui/default-render-progress!]
+                          (editor.workspace/resource-sync! workspace true [] render-fn)))))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
