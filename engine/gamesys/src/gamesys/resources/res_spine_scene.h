@@ -6,6 +6,7 @@
 #include <resource/resource.h>
 #include "res_textureset.h"
 #include "spine_ddf.h"
+#include "rig_ddf.h"
 
 namespace dmGameSystem
 {
@@ -26,7 +27,10 @@ namespace dmGameSystem
     struct SpineSceneResource
     {
         dmArray<SpineBone>              m_BindPose;
-        dmGameSystemDDF::SpineScene*    m_SpineScene;
+        dmGameSystemDDF::RigScene*      m_RigScene;
+        dmGameSystemDDF::Skeleton*      m_Skeleton;
+        dmGameSystemDDF::AnimationSet*  m_AnimationSet;
+        dmGameSystemDDF::MeshSet*       m_MeshSet;
         TextureSetResource*             m_TextureSet;
     };
 

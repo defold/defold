@@ -56,7 +56,7 @@ import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
 import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
-import com.dynamo.spine.proto.Spine.SpineScene;
+import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.TileGrid;
@@ -100,7 +100,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
         extToMessageClass.put(".particlefxc", ParticleFX.class);
         extToMessageClass.put(".spinemodelc", SpineModelDesc.class);
-        extToMessageClass.put(".spinescenec", SpineScene.class);
+        extToMessageClass.put(".rigscenec", RigScene.class);
         extToMessageClass.put(".cubemapc", Cubemap.class);
         extToMessageClass.put(".camerac", CameraDesc.class);
         extToMessageClass.put(".lightc", LightDesc.class);

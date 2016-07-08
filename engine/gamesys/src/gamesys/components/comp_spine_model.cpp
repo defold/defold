@@ -100,12 +100,12 @@ namespace dmGameSystem
         return false;
     }
 
-    static dmGameSystemDDF::SpineAnimation* FindAnimation(dmGameSystemDDF::AnimationSet* anim_set, dmhash_t animation_id)
+    static dmGameSystemDDF::RigAnimation* FindAnimation(dmGameSystemDDF::AnimationSet* anim_set, dmhash_t animation_id)
     {
         uint32_t anim_count = anim_set->m_Animations.m_Count;
         for (uint32_t i = 0; i < anim_count; ++i)
         {
-            dmGameSystemDDF::SpineAnimation* anim = &anim_set->m_Animations[i];
+            dmGameSystemDDF::RigAnimation* anim = &anim_set->m_Animations[i];
             if (anim->m_Id == animation_id)
             {
                 return anim;
@@ -157,7 +157,7 @@ namespace dmGameSystem
 
     static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
     {
-        dmGameSystemDDF::SpineAnimation* anim = FindAnimation(&component->m_Resource->m_Scene->m_SpineScene->m_AnimationSet, animation_id);
+        dmGameSystemDDF::RigAnimation* anim = FindAnimation(component->m_Resource->m_Scene->m_AnimationSet, animation_id);
         if (anim != 0x0)
         {
             if (blend_duration > 0.0f)
@@ -221,7 +221,7 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
         dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         component->m_Pose.SetCapacity(bone_count);
         component->m_Pose.SetSize(bone_count);
@@ -312,9 +312,9 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
-        dmGameSystemDDF::MeshSet* mesh_set = &component->m_Resource->m_Scene->m_SpineScene->m_MeshSet;
+        dmGameSystemDDF::MeshSet* mesh_set = component->m_Resource->m_Scene->m_MeshSet;
         AllocateMeshProperties(mesh_set, component->m_MeshProperties);
-        component->m_MeshEntry = FindMeshEntry(&component->m_Resource->m_Scene->m_SpineScene->m_MeshSet, component->m_Skin);
+        component->m_MeshEntry = FindMeshEntry(component->m_Resource->m_Scene->m_MeshSet, component->m_Skin);
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
 
@@ -622,7 +622,7 @@ namespace dmGameSystem
         }
     }
 
-    static void PostEventsInterval(dmMessage::URL* sender, dmMessage::URL* receiver, dmGameSystemDDF::SpineAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards, float blend_weight)
+    static void PostEventsInterval(dmMessage::URL* sender, dmMessage::URL* receiver, dmGameSystemDDF::RigAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards, float blend_weight)
     {
         const uint32_t track_count = animation->m_EventTracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti)
@@ -643,7 +643,7 @@ namespace dmGameSystem
         }
     }
 
-    static void PostEvents(SpinePlayer* player, dmMessage::URL* sender, dmMessage::URL* listener, dmGameSystemDDF::SpineAnimation* animation, float dt, float prev_cursor, float duration, bool completed, float blend_weight)
+    static void PostEvents(SpinePlayer* player, dmMessage::URL* sender, dmMessage::URL* listener, dmGameSystemDDF::RigAnimation* animation, float dt, float prev_cursor, float duration, bool completed, float blend_weight)
     {
         dmMessage::URL receiver = *listener;
         if (!dmMessage::IsSocketValid(receiver.m_Socket))
@@ -692,7 +692,7 @@ namespace dmGameSystem
         }
     }
 
-    static float GetCursorDuration(SpinePlayer* player, dmGameSystemDDF::SpineAnimation* animation)
+    static float GetCursorDuration(SpinePlayer* player, dmGameSystemDDF::RigAnimation* animation)
     {
         float duration = animation->m_Duration;
         if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
@@ -704,7 +704,7 @@ namespace dmGameSystem
 
     static void UpdatePlayer(SpineModelComponent* component, SpinePlayer* player, float dt, dmMessage::URL* listener, float blend_weight)
     {
-        dmGameSystemDDF::SpineAnimation* animation = player->m_Animation;
+        dmGameSystemDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0 || !player->m_Playing)
             return;
 
@@ -792,7 +792,7 @@ namespace dmGameSystem
 
     static void ApplyAnimation(SpinePlayer* player, dmArray<dmTransform::Transform>& pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t skin_id, bool draw_order)
     {
-        dmGameSystemDDF::SpineAnimation* animation = player->m_Animation;
+        dmGameSystemDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0)
             return;
         float duration = GetCursorDuration(player, animation);
@@ -957,7 +957,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || component->m_Pose.Empty() || !component->m_AddedToUpdate)
                 continue;
 
-            dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+            dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_Skeleton;
             const dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
             dmArray<dmTransform::Transform>& pose = component->m_Pose;
             // Reset pose
@@ -1374,21 +1374,22 @@ namespace dmGameSystem
 
     static void OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
     {
-        dmGameSystemDDF::SpineScene* scene = component->m_Resource->m_Scene->m_SpineScene;
+        dmGameSystem::SpineSceneResource* scene = component->m_Resource->m_Scene;
+        // dmGameSystemDDF::RigScene* scene = component->m_Resource->m_Scene->m_RigScene;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
-        AllocateMeshProperties(&scene->m_MeshSet, component->m_MeshProperties);
-        component->m_MeshEntry = FindMeshEntry(&scene->m_MeshSet, component->m_Skin);
+        AllocateMeshProperties(scene->m_MeshSet, component->m_MeshProperties);
+        component->m_MeshEntry = FindMeshEntry(scene->m_MeshSet, component->m_Skin);
         dmhash_t default_anim_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
         for (uint32_t i = 0; i < 2; ++i)
         {
             SpinePlayer* player = &component->m_Players[i];
             if (player->m_Playing)
             {
-                player->m_Animation = FindAnimation(&scene->m_AnimationSet, player->m_AnimationId);
+                player->m_Animation = FindAnimation(scene->m_AnimationSet, player->m_AnimationId);
                 if (player->m_Animation == 0x0)
                 {
                     player->m_AnimationId = default_anim_id;
-                    player->m_Animation = FindAnimation(&scene->m_AnimationSet, player->m_AnimationId);
+                    player->m_Animation = FindAnimation(scene->m_AnimationSet, player->m_AnimationId);
                 }
             }
         }
@@ -1431,7 +1432,7 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             dmGameSystemDDF::MeshEntry* mesh_entry = 0x0;
-            dmGameSystemDDF::MeshSet* mesh_set = &component->m_Resource->m_Scene->m_SpineScene->m_MeshSet;
+            dmGameSystemDDF::MeshSet* mesh_set = component->m_Resource->m_Scene->m_MeshSet;
             dmhash_t skin = params.m_Value.m_Hash;
             for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
             {

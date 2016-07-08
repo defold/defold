@@ -15,7 +15,7 @@ namespace dmGameSystem
     struct SpinePlayer
     {
         /// Currently playing animation
-        dmGameSystemDDF::SpineAnimation*    m_Animation;
+        dmGameSystemDDF::RigAnimation*      m_Animation;
         dmhash_t                            m_AnimationId;
         /// Playback cursor in the interval [0,duration]
         float                               m_Cursor;

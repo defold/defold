@@ -584,7 +584,7 @@ INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(inv
 
 /* Spine Scene */
 
-const char* valid_spine_scene_resources[] = {"/spine/valid.spinescenec"};
+const char* valid_spine_scene_resources[] = {"/spine/valid.rigscenec"};
 INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, ::testing::ValuesIn(valid_spine_scene_resources));
 
 /* Spine Model */

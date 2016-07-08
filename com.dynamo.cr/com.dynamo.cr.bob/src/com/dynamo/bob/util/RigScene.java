@@ -27,14 +27,14 @@ import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
-import com.dynamo.bob.util.SpineScene.AnimationTrack.Property;
+import com.dynamo.bob.util.RigScene.AnimationTrack.Property;
 
 /**
  * Convenience class for loading spine json data.
  *
  * Should preferably have been an extension to Bob rather than located inside it.
  */
-public class SpineScene {
+public class RigScene {
     @SuppressWarnings("serial")
     public static class LoadException extends Exception {
         public LoadException(String msg) {
@@ -745,8 +745,8 @@ public class SpineScene {
         }
     }
 
-    public static SpineScene loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
-        SpineScene scene = new SpineScene();
+    public static RigScene loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
+        RigScene scene = new RigScene();
         ObjectMapper m = new ObjectMapper();
         try {
             JsonNode node = m.readValue(new InputStreamReader(is, "UTF-8"), JsonNode.class);

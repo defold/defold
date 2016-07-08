@@ -179,7 +179,7 @@ def transform_sound(task, msg):
     return msg
 
 def transform_spine_model(task, msg):
-    msg.spine_scene = msg.spine_scene.replace('.spinescene', '.spinescenec')
+    msg.spine_scene = msg.spine_scene.replace('.spinescene', '.rigscenec')
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
@@ -449,15 +449,18 @@ def compile_spinescene(task):
     try:
         import google.protobuf.text_format
         import spine_ddf_pb2
+        import rig_ddf_pb2
         # NOTE: We can't use getattr. msg_type could of form "foo.bar"
         msg = spine_ddf_pb2.SpineSceneDesc() # Call constructor on message type
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
-        msg_out = spine_ddf_pb2.SpineScene()
-        msg_out.skeleton.CopyFrom(spine_ddf_pb2.Skeleton())
-        msg_out.animation_set.CopyFrom(spine_ddf_pb2.AnimationSet())
-        msg_out.mesh_set.CopyFrom(spine_ddf_pb2.MeshSet())
+        msg_out = rig_ddf_pb2.RigScene()
+
+        name = os.path.splitext(task.inputs[0].abspath())[0]
+        msg_out.skeleton = name + ".skeletonc"
+        msg_out.animation_set = name + ".animationsetc"
+        msg_out.mesh_set = name + ".meshsetc"
         msg_out.texture_set = transform_tilesource_name(msg.atlas)
 
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
@@ -475,6 +478,6 @@ task = Task.task_type_from_func('spinescene',
 def tileset_file(self, node):
     tileset = self.create_task('spinescene')
     tileset.set_inputs(node)
-    obj_ext = '.spinescenec'
+    obj_ext = '.rigscenec'
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)

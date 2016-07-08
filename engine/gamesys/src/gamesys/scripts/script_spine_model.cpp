@@ -193,7 +193,7 @@ namespace dmGameSystem
             return luaL_error(L, "bone_id must be either a hash or a string");
         }
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -272,7 +272,7 @@ namespace dmGameSystem
 
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_Skeleton;
         uint32_t ik_count = skeleton->m_Iks.m_Count;
         uint32_t ik_index = ~0u;
         for (uint32_t i = 0; i < ik_count; ++i)
@@ -343,7 +343,7 @@ namespace dmGameSystem
             return luaL_error(L, "ik_constraint_id must be either a hash or a string");
         }
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_Skeleton;
         uint32_t ik_count = skeleton->m_Iks.m_Count;
         uint32_t ik_index = ~0u;
         for (uint32_t i = 0; i < ik_count; ++i)

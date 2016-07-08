@@ -12,6 +12,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.render.proto.Font;
+import com.dynamo.rig.proto.Rig;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -95,10 +96,10 @@ public class ParseUtil {
                 return builder.build();
             }
         });
-        parseMap.put("spinescenec", new IParser() {
+        parseMap.put("rigscenec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return Spine.SpineScene.parseFrom(content);
+                return Rig.RigScene.parseFrom(content);
             }
         });
         parseMap.put("spinemodelc", new IParser() {

@@ -110,7 +110,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
-        REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineScenePreload, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
+        REGISTER_RESOURCE_TYPE("rigscenec", 0, ResSpineScenePreload, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
         REGISTER_RESOURCE_TYPE(SPINE_MODEL_EXT, 0, ResSpineModelPreload, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
         REGISTER_RESOURCE_TYPE("display_profilesc", render_context, 0, ResDisplayProfilesCreate, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate);
 
