@@ -88,7 +88,7 @@
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                    (.getName parameter))]
-      (remove #(= \[ (first %)) params))))
+      {:select (remove #(= \[ (first %)) params)})))
 
 (defn defold-documentation []
   (reduce
@@ -118,21 +118,16 @@
                    item
                    insert-string
                    ""
-                   tab-triggers)))
+                   {:select tab-triggers})))
         completions (group-by #(let [names (string/split (:name %) #"\.")]
                                          (if (= 2 (count names)) (first names) "")) hints)
         package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
     (merge-with into completions package-completions)))
 
 (defn lua-base-documentation []
-  {"" [(code/create-hint "if" "if" "if cond then\n\t--do things\nend" "" ["cond" "--do things" "end"])
-       (code/create-hint "else" "else" "else\n\t--do things\nend" "" ["--do things" "end"])
-       (code/create-hint "elseif" "elseif" "elseif cond\n\t--do things\nend" "" ["cond" "--do things" "end"])
-       (code/create-hint "while" "while" "while cond\n\t--do things\nend" "" ["cond" "--do things"])
-       (code/create-hint "repeat" "repeat" "repeat\n\t--do things\nuntil cond" "" ["--do things" "cond"])
-       (code/create-hint "function" "function" "function function_name(params)\n\t--do things\nend" "" ["function_name" "params" "--do things" "end"])
-       (code/create-hint "local" "local" "local local_name = local_value" "" ["local_name" "local_value"])
-       (code/create-hint "for" "for" "for i=1,10 do\n\t--do things\nend" "" ["i" "1" "10" "--do things" "end"])]})
+  {"" (-> (io/resource "lua-base-snippets.edn")
+          slurp
+          edn/read-string)})
 
 (def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
 
@@ -204,7 +199,7 @@
   (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
 
 (defn decrease-indent? [s]
-  (re-find #"^\s*(elseif|else|end|\})\s*$" s))
+  (re-find #"^\s*(elseif|else|end|\}).*$" s))
 
 ;; TODO: splitting into partitions using multiline (MultiLineRule) in combination with FastPartitioner does not work properly when
 ;; :eof is false. The initial "/*" does not start a comment partition, and when the ending "*/" is added (on another line) the document
