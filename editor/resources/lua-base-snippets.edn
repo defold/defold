@@ -28,7 +28,7 @@
    :insert-string "function function_name(self)\n\t--do things\nend",
    :doc "",
    :tab-triggers
-   {:select ["function_name" "params" "--do things"], :exit "end" :start "function"}}
+   {:select ["function_name" "self" "--do things"], :exit "end" :start "function"}}
   {:name "local",
    :display-string "local                             local name = value",
    :insert-string "local name = value",
