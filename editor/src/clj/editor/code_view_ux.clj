@@ -574,11 +574,14 @@
 
 (defn delete [selection]
   (let [np (caret selection)
-        doc (text selection)]
+        doc (text selection)
+        slen (selection-length selection)
+        soffset (selection-offset selection)]
     (if (pos? (selection-length selection))
-      (replace-text-selection selection "")
-      (when-not (zero? np)
-       (replace-text-and-caret selection (dec np) 1 "" (dec np))))))
+      (replace-text-and-caret selection soffset slen "" soffset)
+      (let [pos (adjust-bounds doc (dec np))]
+       (when-not (zero? np)
+        (replace-text-and-caret selection pos 1 "" pos))))))
 
 (handler/defhandler :delete :code-view
   (enabled? [selection] (editable? selection))
@@ -812,12 +815,18 @@
 (defn next-tab-trigger [selection pos]
   (when (has-snippet-tab-trigger? selection)
     (let [doc (text selection)
-          np (caret selection)
-          search-text (next-snippet-tab-trigger! selection)]
+          tab-trigger-info (next-snippet-tab-trigger! selection)
+          search-text (:trigger tab-trigger-info)
+          exit-text (:exit tab-trigger-info)]
       (if (= :end search-text)
         (do
-          (text-selection! selection np 0)
-          (right selection))
+          (text-selection! selection pos 0)
+          (if exit-text
+            (let [found-idx (string/index-of doc exit-text pos)
+                  tlen (count exit-text)]
+              (when found-idx
+                (caret! selection (+ found-idx tlen) false)))
+            (right selection)))
         (let [found-idx (string/index-of doc search-text pos)
               tlen (count search-text)]
           (when found-idx
@@ -893,9 +902,12 @@
   (run [selection]
     (when (editable? selection)
       (clear-snippet-tab-triggers! selection)
-      (do-indent-line selection (line-num-at-offset selection (caret selection)))
-      (enter-key-text selection (System/getProperty "line.separator"))
-      (do-indent-line selection (line-num-at-offset selection (caret selection))))))
+      (if (= (caret selection) (line-end-pos selection))
+        (do
+          (do-indent-line selection (line-num-at-offset selection (caret selection)))
+          (enter-key-text selection (System/getProperty "line.separator"))
+          (do-indent-line selection (line-num-at-offset selection (caret selection))))
+        (enter-key-text selection (System/getProperty "line.separator"))))))
 
 (handler/defhandler :undo :code-view
   (enabled? [selection] selection)
