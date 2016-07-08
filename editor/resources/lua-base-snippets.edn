@@ -1,0 +1,41 @@
+ [{:name "if",
+   :display-string "if cond then",
+   :insert-string "if cond then\n\t--do things\nend",
+   :doc "",
+   :tab-triggers {:select ["cond" "--do things" "end"]}}
+  {:name "else",
+   :display-string "else end",
+   :insert-string "else\n\t--do things\nend",
+   :doc "",
+   :tab-triggers {:select ["--do things"], :exit "end"}}
+  {:name "elsif",
+   :display-string "elseif cond end",
+   :insert-string "elseif cond then\n\t--do things\nend",
+   :doc "",
+   :tab-triggers {:select ["cond" "--do things" "end"]}}
+  {:name "while",
+   :display-string "while cond",
+   :insert-string "while cond\n\t--do things\nend",
+   :doc "",
+   :tab-triggers {:select ["cond" "--do things"], :exit "end"}}
+  {:name "repeat",
+   :display-string "repeat until cond",
+   :insert-string "repeat\n\t--do things\nuntil cond",
+   :doc "",
+   :tab-triggers {:select ["--do things" "cond"]}}
+  {:name "function",
+   :display-string "function",
+   :insert-string "function function_name(params)\n\t--do things\nend",
+   :doc "",
+   :tab-triggers
+   {:select ["function_name" "params" "--do things"], :exit "end"}}
+  {:name "local",
+   :display-string "local name = value",
+   :insert-string "local name = value",
+   :doc "",
+   :tab-triggers {:select ["name" "value"]}}
+  {:name "for",
+   :display-string "for i=1,10",
+   :insert-string "for i=1,10 do\n\t--do things\nend",
+   :doc "",
+   :tab-triggers {:select ["i" "1" "10" "--do things"], :exit "end"}}]
