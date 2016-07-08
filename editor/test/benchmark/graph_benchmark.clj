@@ -8,6 +8,7 @@
             [integration.test-util :as test-util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.state :as state]
             [internal.system :as isys]))
 
 
@@ -139,7 +140,7 @@
 (defn set-property-some-nodes []
   (with-clean-system
     (let [r               (load-test-project! world)
-          project-graph   (isys/graph @g/*the-system* (:project-graph r))
+          project-graph   (isys/graph @state/*the-system* (:project-graph r))
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
           chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (set (keys (-> node-id g/node-type g/public-properties))) :id)))) chosen-node-ids)]

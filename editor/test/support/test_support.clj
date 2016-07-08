@@ -1,6 +1,7 @@
 (ns support.test-support
   (:require [dynamo.graph :as g]
-            [internal.system :as is]))
+            [internal.system :as is]
+            [internal.state :as state]))
 
 (defmacro with-clean-system
   [& forms]
@@ -9,7 +10,7 @@
     `(let [~'system      (is/make-system ~configuration)
            ~'cache       (:cache ~'system)
            ~'world       (first (keys (is/graphs ~'system)))]
-       (binding [g/*the-system* (atom ~'system)]
+       (binding [state/*the-system* (atom ~'system)]
          ~@forms))))
 
 (defn tx-nodes [& txs]
@@ -35,8 +36,8 @@
 
 (defn undo-stack
   [graph]
-  (is/undo-stack (is/graph-history @g/*the-system* graph)))
+  (is/undo-stack (is/graph-history @state/*the-system* graph)))
 
 (defn redo-stack
   [graph]
-  (is/redo-stack (is/graph-history @g/*the-system* graph)))
+  (is/redo-stack (is/graph-history @state/*the-system* graph)))

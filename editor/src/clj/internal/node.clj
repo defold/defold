@@ -6,6 +6,8 @@
             [internal.cache :as c]
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
+            [internal.state :as state]
+            [internal.system :as is]
             [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf]
             [schema.core :as s]
@@ -1527,7 +1529,9 @@
   (set-property        [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
-      (assoc-in this [:properties property] value)))
+      (do
+        (c/cache-invalidate (is/system-cache @state/*the-system*) (gt/dependencies basis [[node-id :_properties]]))
+        (assoc-in this [:properties property] value))))
 
   gt/Evaluation
   (produce-value       [this output evaluation-context]
@@ -1578,7 +1582,9 @@
               (node-value* original output evaluation-context)))))))
 
   gt/OverrideNode
-  (clear-property [this basis property] (update this :properties dissoc property))
+  (clear-property [this basis property]
+    (c/cache-invalidate (is/system-cache @state/*the-system*) (gt/dependencies basis [[node-id :_properties]]))
+    (update this :properties dissoc property))
   (override-id    [this]                override-id)
   (original       [this]                original-id)
   (set-original   [this original-id]    (assoc this :original-id original-id)))
