@@ -124,7 +124,7 @@
                                                   <GridPane vgap="0.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                       <columnConstraints>
                                                           <ColumnConstraints hgrow="NEVER" maxWidth="86.0" minWidth="10.0" prefWidth="58.0" />
-                                                          <ColumnConstraints hgrow="SOMETIMES" maxWidth="410.0" minWidth="10.0" prefWidth="370.0" />
+                                                          <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="370.0" />
                                                           <ColumnConstraints hgrow="NEVER" maxWidth="104.0" minWidth="8.0" prefWidth="41.0" />
                                                           <ColumnConstraints hgrow="NEVER" maxWidth="81.0" minWidth="8.0" prefWidth="40.0" />
                                                           <ColumnConstraints hgrow="NEVER" maxWidth="120.0" minWidth="39.0" prefWidth="102.0" />
