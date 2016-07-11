@@ -12,7 +12,7 @@
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView ListCell Tab]
+           [javafx.scene.control ListView ListCell Tab Label]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
@@ -252,7 +252,8 @@
 
       de
       (merge {:line-offset (.getLineOffset de)
-              :line-length (.getLineLength de)})
+              :line-length (.getLineLength de)
+              :line-index (.getLineIndex de)})
 
       n
        (merge {:caret-idx  (.getCaretIndexAtPoint n (.sceneToLocal n ^double x ^double y))
@@ -286,33 +287,43 @@
                                   (callActionForEvent [key-event]
                                     ;;do nothing we are handling all the events
                                     )
-                                  (defoldUpdateCursor [^MouseEvent event visible-cells selection]
+                                  (defoldUpdateCursor [^MouseEvent event visible-cells selection line-label]
                                     (try
                                       (let [vcells (into [] visible-cells)
                                            doc-len (.getCharCount ^StyledTextArea text-area)
                                            event-y (.getY event)
                                            event-x (.getX event)
+                                           line-index (when line-label (.getText ^Label line-label))
                                            scene-event-x (.getSceneX event)
                                            scene-event-y (.getSceneY event)
                                            caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
                                            found-cells (filter #(when-let [idx (:caret-idx %)]
-                                                                  (not= -1 idx)) caret-cells)]
-                                       (if-let [fcell (first found-cells)]
-                                         (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
-                                         (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)
-                                               line-offset (:line-offset closest-cell)
-                                               line-length (:line-length closest-cell)
-                                               x-threshold 10]
-                                           (cond
+                                                                  (not= -1 idx)) caret-cells)
+                                           found-cells2 (when line-label
+                                                          (filter #(when-let [idx (:line-index %)]
+                                                                     (when line-index (= line-index (str (inc idx))))) caret-cells))]
 
-                                             (and line-offset (< event-x x-threshold))
-                                             (cvx/caret! text-area (+ line-offset) selection)
+                                        (if-let [fcell (first found-cells)]
+                                          (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
+                                          (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)
+                                                found-cell (first found-cells2)
+                                                fcell (or found-cell closest-cell)
+                                                line-offset (:line-offset fcell)
+                                                line-length (:line-length fcell)
+                                                x-threshold 10]
+                                            (cond
 
-                                             line-offset
-                                             (cvx/caret! text-area (+ line-offset line-length) selection)
+                                              (and line-offset line-label)
+                                              (cvx/caret! text-area (+ line-offset) selection)
 
-                                             true
-                                             (cvx/caret! text-area doc-len selection)))))
+                                              (and line-offset (< event-x x-threshold))
+                                              (cvx/caret! text-area (+ line-offset) selection)
+
+                                              line-offset
+                                              (cvx/caret! text-area (+ line-offset line-length) selection)
+
+                                              true
+                                              (cvx/caret! text-area doc-len selection)))))
                                       (catch Exception e (println "error updating cursor")))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
