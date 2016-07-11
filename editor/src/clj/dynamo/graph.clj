@@ -588,6 +588,10 @@
   (assert node-id)
   (it/clear-property node-id p))
 
+(defn clear-property!
+  [node-id p]
+  (transact (clear-property node-id p)))
+
 (defn update-graph-value [graph-id k f & args]
   (it/update-graph-value graph-id update (into [k f] args)))
 
