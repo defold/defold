@@ -57,7 +57,7 @@
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/node (is/graph @*the-system* graph-id) node-id)))
+     (ig/graph->node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
@@ -1038,7 +1038,7 @@
   ([root-id]
     (overrides (now) root-id))
   ([basis root-id]
-    (ig/overrides basis root-id)))
+    (ig/get-overrides basis root-id)))
 
 (defn override-original
   ([node-id]
