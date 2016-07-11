@@ -34,6 +34,7 @@
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
                      [clj-antlr                                   "0.2.2"]
+                     [clj-time                                    "0.12.0"]
 
                      ;; Keep jna version in sync with bundle.py. See JNA_VERSION
                      [net.java.dev.jna/jna                        "4.1.0"]
