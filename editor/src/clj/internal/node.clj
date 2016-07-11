@@ -254,6 +254,8 @@
                     property (:name node-type)))
     (assoc this property value))
 
+  (overridden-properties [this basis] {})
+
   gt/Evaluation
   (produce-value [this label evaluation-context]
     (let [beh (behavior node-type label)]
@@ -729,7 +731,8 @@
 (def node-intrinsics
   [(list 'extern '_node-id :dynamo.graph/NodeID)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)])
+   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'basis] (gt/overridden-properties ~'this ~'basis)))])
 
 (defn maybe-inject-intrinsics
   [forms]
@@ -1520,14 +1523,15 @@
 
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
-  (node-id             [this]                      node-id)
-  (node-type           [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
-  (get-property        [this basis property]
+  (node-id               [this]                      node-id)
+  (node-type             [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
+  (get-property          [this basis property]
     (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
-  (set-property        [this basis property value]
+  (set-property          [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
-      (assoc-in this [:properties property] value)))
+      (assoc-in this     [:properties property] value)))
+  (overridden-properties [this basis] (get this :properties))
 
   gt/Evaluation
   (produce-value       [this output evaluation-context]
