@@ -56,15 +56,22 @@ public class WelcomeEditor extends EditorPart {
     @Override
     public void createPartControl(Composite parent) {
         this.browser = new Browser(parent, SWT.NONE);
-        InputStream input = getClass().getResourceAsStream("welcome.html");
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        try {
-            IOUtils.copy(input, output);
-            this.browser.setText(output.toString("UTF-8"));
 
-        } catch (IOException e) {
-            IOUtils.closeQuietly(input);
-            throw new RuntimeException(e);
+        try {
+            this.browser.setUrl("http://www.defold.com/webviews/editor-welcome/");
+
+        } catch (Exception e) {
+
+            InputStream input = getClass().getResourceAsStream("welcome.html");
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try {
+                IOUtils.copy(input, output);
+                this.browser.setText(output.toString("UTF-8"));
+
+            } catch (IOException e2) {
+                IOUtils.closeQuietly(input);
+                throw new RuntimeException(e2);
+            }
         }
 
         this.browser.addLocationListener(new LocationAdapter() {
@@ -75,7 +82,6 @@ public class WelcomeEditor extends EditorPart {
                 Program.launch(event.location);
             }
         });
-
     }
 
     @Override
