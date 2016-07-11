@@ -196,11 +196,11 @@
   (testing "loading"
            ;; WARM-UP
            (dotimes [i 10]
-                      (test-load))
+             (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
              ; TODO - regression, should be faster
-             (is (< elapsed 1700))))
+             (is (< elapsed 1000))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
