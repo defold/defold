@@ -155,6 +155,12 @@
     (update ctx :nodes-affected assoc node-id (conj nodes-affected output-label))
     ctx))
 
+(defn- mark-outputs-activated
+  [ctx node-id output-labels]
+  (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
+    (update ctx :nodes-affected assoc node-id (reduce conj nodes-affected output-labels))
+    ctx))
+
 (defn- mark-all-outputs-activated
   [ctx node-id]
   (let [basis (:basis ctx)
@@ -402,7 +408,7 @@
         (cond->
           (not= old-value new-value)
           (->
-            (mark-output-activated node-id property)
+            (mark-outputs-activated node-id [property :_properties :_overridden-properties])
             (cond->
               (not (nil? setter-fn))
               (update :deferred-setters conj [setter-fn node-id old-value new-value])))))))))
@@ -454,7 +460,7 @@
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (do
         (-> ctx
-          (mark-output-activated node-id property)
+          (mark-outputs-activated node-id [property :_properties :_overridden-properties])
           (update :basis replace-node node-id (gt/clear-property node basis property))
           (ctx-set-property-to-nil node-id node property)))
       ctx)))
