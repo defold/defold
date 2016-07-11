@@ -531,14 +531,29 @@
                                  @tt))
   (snippet-tab-triggers! [this val] (reset! (tab-triggers this) val))
   (has-snippet-tab-trigger? [this] (:select (cvx/snippet-tab-triggers this)))
+  (has-prev-snippet-tab-trigger? [this] (:prev-select (cvx/snippet-tab-triggers this)))
   (next-snippet-tab-trigger! [this]
     (let [tt (tab-triggers this)
           triggers (:select @tt)
+          prev-triggers (or (:prev-select @tt) [])
           trigger (or (first triggers) :end)
           exit-trigger (:exit @tt)]
       (if (= trigger :end)
         (reset! tt nil)
-        (swap! tt assoc :select (rest triggers)))
+        (do
+          (swap! tt assoc :select (rest triggers))
+          (swap! tt assoc :prev-select (cons trigger prev-triggers))))
+      {:trigger trigger :exit exit-trigger}))
+  (prev-snippet-tab-trigger! [this]
+    (let [tt (tab-triggers this)
+          triggers (:select @tt)
+          prev-triggers (or (:prev-select @tt) [])
+          trigger (or (second prev-triggers) :begin)
+          next-trigger (first prev-triggers)
+          exit-trigger (:exit @tt)]
+      (when-not (= :begin trigger)
+        (swap! tt assoc :select (cons next-trigger triggers))
+        (swap! tt assoc :prev-select (rest prev-triggers)))
       {:trigger trigger :exit exit-trigger}))
   (clear-snippet-tab-triggers! [this]
     (reset! (tab-triggers this) nil)))
