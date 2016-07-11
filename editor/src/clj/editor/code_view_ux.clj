@@ -175,6 +175,13 @@
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
 (def last-command (atom nil))
+(def auto-matches {"\"" "\""
+                   "[" "]"
+                   "{" "}"
+                   "'" "'"
+                   "(" ")"})
+(def auto-match-set (into #{} (keys auto-matches)))
+(def auto-delete-set (into #{} (map (fn [[k v]] (str k v)) auto-matches)))
 
 (defn- info [e]
   {:event e
@@ -572,6 +579,11 @@
   (run [selection]
     (text-selection! selection 0 (count (text selection)))))
 
+(defn match-key-typed [selection key-typed]
+  (let [np (caret selection)
+        match (get auto-matches key-typed)]
+       (replace-text-and-caret selection np 0 match np)))
+
 (defn delete [selection]
   (let [np (caret selection)
         doc (text selection)
@@ -579,9 +591,12 @@
         soffset (selection-offset selection)]
     (if (pos? (selection-length selection))
       (replace-text-and-caret selection soffset slen "" soffset)
-      (let [pos (adjust-bounds doc (dec np))]
+      (let [pos (adjust-bounds doc (dec np))
+            target (subs doc pos (adjust-bounds doc (+ 2 pos)))]
        (when-not (zero? np)
-        (replace-text-and-caret selection pos 1 "" pos))))))
+         (if (contains? auto-delete-set target)
+           (replace-text-and-caret selection pos 2 "" pos)
+           (replace-text-and-caret selection pos 1 "" pos)))))))
 
 (handler/defhandler :delete :code-view
   (enabled? [selection] (editable? selection))
@@ -932,7 +947,8 @@
                   replacement
                  (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
         new-line-text (string/replace-first line-text pattern replacement)
-        snippet-tab-start (or (string/index-of new-line-text "function_name")
+        snippet-tab-start (or (when-let [start (:start tab-triggers)]
+                                (string/index-of new-line-text start))
                               (string/index-of new-line-text "(")
                               0)
         replace-len (count line-text)]
@@ -961,6 +977,11 @@
           (do-proposal-replacement selection replacement))
         (show-proposals selection proposals)))))
 
+(defn match-key-typed [selection key-typed]
+  (let [np (caret selection)
+        match (get auto-matches key-typed)]
+       (replace-text-and-caret selection np 0 match np)))
+
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
@@ -969,4 +990,6 @@
            (code/not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
       (when (contains? proposal-key-triggers key-typed)
-        (show-proposals selection (propose selection))))))
+        (show-proposals selection (propose selection)))
+      (when (contains? auto-match-set key-typed)
+        (match-key-typed selection key-typed)))))
