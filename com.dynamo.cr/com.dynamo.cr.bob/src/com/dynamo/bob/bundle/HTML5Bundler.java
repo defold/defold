@@ -147,7 +147,8 @@ public class HTML5Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
-        Boolean debug = project.hasOption("debug") || project.option("local-launch", "false").equals("true");
+        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+        Boolean debug = project.hasOption("debug") || localLaunch;
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String js = Bob.getDmengineExe(Platform.JsWeb, debug);
         String engine = title + '.' + FilenameUtils.getExtension(js);
@@ -183,9 +184,11 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        if (project.option("local-launch", "false").equals("true")) {
+        if (localLaunch) {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
+            infoData.put("DEFOLD_ENGINE_ARGUMENTS", "--verify-graphics-calls=false");
+            infoData.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
         } else {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
