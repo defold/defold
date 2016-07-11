@@ -408,6 +408,7 @@
         (cond->
           (not= old-value new-value)
           (->
+            ; Always invalidate both :_properties and :_overridden-properties in case property is dynamic
             (mark-outputs-activated node-id [property :_properties :_overridden-properties])
             (cond->
               (not (nil? setter-fn))
@@ -460,6 +461,7 @@
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (do
         (-> ctx
+          ; Always invalidate both :_properties and :_overridden-properties in case property is dynamic
           (mark-outputs-activated node-id [property :_properties :_overridden-properties])
           (update :basis replace-node node-id (gt/clear-property node basis property))
           (ctx-set-property-to-nil node-id node property)))
