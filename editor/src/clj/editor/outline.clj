@@ -55,10 +55,10 @@
   (input child-outlines OutlineData :array)
 
   (output node-outline OutlineData :abstract)
-  (output outline-overridden? g/Bool :cached (g/fnk [_properties child-outlines]
+  (output outline-overridden? g/Bool :cached (g/fnk [_overridden-properties child-outlines]
                                                     (boolean
-                                                      (or (some :outline-overridden child-outlines)
-                                                          (some (fn [[k v]] (contains? v :original-value)) (:properties _properties)))))))
+                                                      (or (not (empty? _overridden-properties))
+                                                          (some :outline-overridden child-outlines))))))
 
 (defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
   (and (g/node-instance? OutlineNode tgt-node)
