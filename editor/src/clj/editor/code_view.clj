@@ -291,6 +291,7 @@
                                       (let [vcells (into [] visible-cells)
                                            doc-len (.getCharCount ^StyledTextArea text-area)
                                            event-y (.getY event)
+                                           event-x (.getX event)
                                            scene-event-x (.getSceneX event)
                                            scene-event-y (.getSceneY event)
                                            caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
@@ -298,11 +299,17 @@
                                                                   (not= -1 idx)) caret-cells)]
                                        (if-let [fcell (first found-cells)]
                                          (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
-                                         (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)]
+                                         (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)
+                                               line-offset (:line-offset closest-cell)
+                                               line-length (:line-length closest-cell)
+                                               x-threshold 10]
                                            (cond
 
-                                             (:line-offset closest-cell)
-                                             (cvx/caret! text-area (+ (:line-offset closest-cell) (:line-length closest-cell)) selection)
+                                             (and line-offset (< event-x x-threshold))
+                                             (cvx/caret! text-area (+ line-offset) selection)
+
+                                             line-offset
+                                             (cvx/caret! text-area (+ line-offset line-length) selection)
 
                                              true
                                              (cvx/caret! text-area doc-len selection)))))
