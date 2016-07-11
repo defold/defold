@@ -199,8 +199,7 @@
              (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-             ; TODO - regression, should be faster
-             (is (< elapsed 1000))))
+             (is (< elapsed 750))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
@@ -214,8 +213,7 @@
                ;; GO!
                (let [elapsed (measure [i 500]
                                       (drag-pull-outline! node-id box i))]
-                 ; TODO - regression, should be faster
-                 (is (< elapsed 50)))))))
+                 (is (< elapsed 12)))))))
 
 (deftest gui-template-ids
   (with-clean-system
