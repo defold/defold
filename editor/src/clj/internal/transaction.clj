@@ -155,6 +155,12 @@
     (update ctx :nodes-affected assoc node-id (conj nodes-affected output-label))
     ctx))
 
+(defn- mark-outputs-activated
+  [ctx node-id output-labels]
+  (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
+    (update ctx :nodes-affected assoc node-id (reduce conj nodes-affected output-labels))
+    ctx))
+
 (defn- mark-all-outputs-activated
   [ctx node-id]
   (let [basis (:basis ctx)
@@ -382,7 +388,7 @@
   (first (gt/replace-node basis node-id (gt/set-property node basis property new-value))))
 
 (defn- invoke-setter
-  [ctx node-id node property old-value new-value]
+  [ctx node-id node property old-value new-value dynamic?]
   (let [basis (:basis ctx)
         node-type (gt/node-type node basis)
         value-type (some-> (in/property-type node-type property) deref in/schema s/maybe)]
@@ -402,7 +408,8 @@
         (cond->
           (not= old-value new-value)
           (->
-            (mark-output-activated node-id property)
+            (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
+                                              (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
             (cond->
               (not (nil? setter-fn))
               (update :deferred-setters conj [setter-fn node-id old-value new-value])))))))))
@@ -413,7 +420,7 @@
            props (keys (in/public-properties (gt/node-type node (:basis ctx))))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
-                    (invoke-setter ctx node-id node prop nil v)
+                    (invoke-setter ctx node-id node prop nil v false)
                     ctx)]
           (recur ctx (rest props)))
         ctx))))
@@ -437,8 +444,9 @@
     (when (nil? node-id) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [old-value (gt/get-property node basis property)
-            new-value (apply fn old-value args)]
-        (invoke-setter ctx node-id node property old-value new-value))
+            new-value (apply fn old-value args)
+            dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
+        (invoke-setter ctx node-id node property old-value new-value dynamic?))
       ctx)))
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
@@ -452,9 +460,10 @@
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
   (let [basis (:basis ctx)]
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (do
+      (let [dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
         (-> ctx
-          (mark-output-activated node-id property)
+          (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
+                                            (gt/property-overridden? node property) (conj :_overridden-properties)))
           (update :basis replace-node node-id (gt/clear-property node basis property))
           (ctx-set-property-to-nil node-id node property)))
       ctx)))

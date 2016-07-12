@@ -21,7 +21,7 @@
   (inherits SubType))
 
 (deftest type-fns
-  (is (= #{:_declared-properties :sub-out :sub-prop :_output-jammers :_properties :super-out :super-prop :_node-id}
+  (is (= #{:_declared-properties :_overridden-properties :sub-out :sub-prop :_output-jammers :_properties :super-out :super-prop :_node-id}
          (util/key-set (g/declared-outputs SubType))))
   (is (= #{:super-in :sub-in} (util/key-set (g/declared-inputs SubType))))
   (is (= #{:super-prop :sub-prop} (util/key-set (g/declared-properties SubType)))))
