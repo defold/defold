@@ -205,13 +205,14 @@ public class Push {
             // Read saved remote push notifications
             r = new BufferedReader(new InputStreamReader(
                     context.openFileInput(SAVED_PUSH_MESSAGE_NAME)));
+            boolean wasActivated = Boolean.parseBoolean(r.readLine());
             String json = "";
             String line = r.readLine();
             while (line != null) {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onMessage(json);
+            this.listener.onMessage(json, wasActivated);
 
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
@@ -234,14 +235,14 @@ public class Push {
             r = new BufferedReader(new InputStreamReader(
                     context.openFileInput(SAVED_LOCAL_MESSAGE_NAME)));
             int id = Integer.parseInt(r.readLine());
+            boolean wasActivated = Boolean.parseBoolean(r.readLine());
             String json = "";
             String line = r.readLine();
             while (line != null) {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onLocalMessage(json, id);
-
+            this.listener.onLocalMessage(json, id, wasActivated);
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
             Log.e(Push.TAG, "Failed to read local message from disk", e);
@@ -290,13 +291,15 @@ public class Push {
             if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
                 JSONObject o = toJson(extras);
                 String msg = o.toString();
+                boolean wasActivated = !DefoldActivity.isActivityVisible();
                 Log.d(TAG, "message received: " + msg);
                 if (listener != null) {
                     Log.d(TAG, "forwarding message to application");
-                    listener.onMessage(msg);
+                    listener.onMessage(msg, wasActivated);
                 }
+
                 Log.d(TAG, "creating notification for message");
-                sendNotification(context, extras);
+                sendNotification(context, extras, wasActivated);
             } else {
                 Log.i(TAG, String.format("unhandled message type: %s",
                         messageType));
@@ -304,20 +307,21 @@ public class Push {
         }
     }
 
-    void onLocalPush(String msg, int id) {
+    void onLocalPush(String msg, int id, boolean wasActivated) {
         if (listener != null) {
-            this.listener.onLocalMessage(msg, id);
+            this.listener.onLocalMessage(msg, id, wasActivated);
         }
 
     }
 
-    private void sendNotification(Context context, Bundle extras) {
+    private void sendNotification(Context context, Bundle extras, boolean wasActivated) {
 
         NotificationManager nm = (NotificationManager) context
                 .getSystemService(Context.NOTIFICATION_SERVICE);
 
         Intent intent = new Intent(context, PushDispatchActivity.class)
                 .setAction(ACTION_FORWARD_PUSH);
+        intent.putExtra("wasActivated", (byte) (wasActivated ? 1 : 0));
 
         if (DefoldActivity.isActivityVisible()) {
             // Send the push notification directly to the dispatch

@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.ui :as ui]
+            [editor.code :as code]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [service.log :as log]
@@ -10,7 +11,7 @@
   (:import [java.io File]
            [java.nio.file Path Paths]
            [javafx.beans.binding StringBinding]
-           [javafx.event ActionEvent EventHandler]
+           [javafx.event Event ActionEvent EventHandler]
            [javafx.collections FXCollections ObservableList]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Point2D]
@@ -511,21 +512,25 @@
     (ui/show! stage)
     stage))
 
-(defn make-proposal-dialog [result caret screen-point proposals line]
+(defn make-proposal-dialog [result screen-point proposals line text-area]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals" "proposals-box"])
         close (fn [v] (do (deliver result v) (.close stage)))
         ^ListView list-view  (:proposals controls)
-        filter-text (atom line)
+        filter-text (atom (string/triml (or line "")))
         filter-fn (fn [i] (string/starts-with? (:name i) @filter-text))
-        update-items (fn [] (try
-                              (ui/items! list-view (filter filter-fn proposals))
-                              (.select (.getSelectionModel list-view) 0)
-                              (catch Exception e (do
-                                                (println "Proposal filter bad filter pattern " @filter-text)
-                                                (swap! filter-text #(apply str (drop-last %)))))))]
+        update-items (fn [] (try (let [new-items (filter filter-fn proposals)]
+                                  (if (empty? new-items)
+                                    (close nil)
+                                    (do
+                                      (ui/items! list-view new-items)
+                                      (.select (.getSelectionModel list-view) 0))))
+                                (catch Exception e
+                                  (do
+                                    (println "Proposal filter bad filter pattern " @filter-text)
+                                    (swap! filter-text #(apply str (drop-last %)))))))]
     (.setFill scene nil)
     (.initStyle stage StageStyle/UNDECORATED)
     (.initStyle stage StageStyle/TRANSPARENT)
@@ -544,24 +549,36 @@
                                            (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
                                            (= code (KeyCode/ENTER)) (close (ui/selection list-view))
                                            (= code (KeyCode/TAB)) (close (ui/selection list-view))
-                                           (= code (KeyCode/SHIFT)) true
 
-                                           (= code (KeyCode/BACK_SPACE))
+                                           (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
+                                           (do
+                                             (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))
+                                             (close nil))
+
+                                           (or (= code (KeyCode/BACK_SPACE)) (= code (KeyCode/DELETE)))
                                            (if (empty? @filter-text)
                                              (close nil)
                                              (do
                                                (swap! filter-text #(apply str (drop-last %)))
-                                               (update-items)))
+                                               (update-items)
+                                               (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))))
 
-                                           (or (.isLetterKey code) (.isDigitKey code) (= code (KeyCode/MINUS)) (= code (KeyCode/MINUS)))
-                                           (do
-                                             (swap! filter-text str (.getText ^KeyEvent event))
-                                             (update-items))
+                                           :default true))))
+    (.addEventFilter scene KeyEvent/KEY_TYPED
+                     (ui/event-handler event
+                                      (let [key-typed (.getCharacter ^KeyEvent event)]
+                                        (cond
 
-                                           :default (close nil)))))
+                                          (and (not-empty key-typed) (code/not-ascii-or-delete key-typed))
+                                          (do
+                                            (swap! filter-text str key-typed)
+                                            (update-items)
+                                            (Event/fireEvent text-area (.copyFor event (.getSource event) text-area)))
+
+                                          :default true))))
 
     (.initOwner stage (ui/main-stage))
-    (.initModality stage  Modality/WINDOW_MODAL)
+    (.initModality stage Modality/NONE)
     (.setScene stage scene)
     (ui/show! stage)
     stage))

@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [internal.util :as util]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (g/defnode SuperType
@@ -20,18 +21,21 @@
   (inherits SubType))
 
 (deftest type-fns
-  (is (= #{:super-out :sub-out :_properties :_declared-properties} (set (keys (g/declared-outputs SubType)))))
-  (is (= #{:super-in :sub-in} (set (keys (g/declared-inputs SubType)))))
-  (is (= #{:super-prop :sub-prop :_output-jammers :_node-id} (set (keys (g/declared-properties SubType))))))
+  (is (= #{:_declared-properties :sub-out :sub-prop :_output-jammers :_properties :super-out :super-prop :_node-id}
+         (util/key-set (g/declared-outputs SubType))))
+  (is (= #{:super-in :sub-in} (util/key-set (g/declared-inputs SubType))))
+  (is (= #{:super-prop :sub-prop} (util/key-set (g/declared-properties SubType)))))
 
 (deftest input-prop-collision
-  (is (thrown? AssertionError (g/defnode InputPropertyCollision
-                                (input value g/Str)
-                                (property value g/Str)))))
+  (is (thrown? AssertionError (eval '(do (require '[dynamo.graph :as g])
+                                         (g/defnode InputPropertyCollision
+                                           (input value g/Str)
+                                           (property value g/Str)))))))
 
 (deftest output-arg-missing
-  (is (thrown? AssertionError (g/defnode OutputArgMissing
-                                (output out-value g/Str (g/fnk [missing-arg] nil))))))
+  (is (thrown? AssertionError (eval '(do (require '[dynamo.graph :as g])
+                                         (g/defnode OutputArgMissing
+                                           (output out-value g/Str (g/fnk [missing-arg] nil))))))))
 
 (deftest deep-inheritance
   (with-clean-system
@@ -44,8 +48,11 @@
   (inherits SuperType)
   (inherits SimpleNode))
 
+(defn node-type [val-ref]
+  (:key @val-ref))
+
 (deftest isa-node-types
-  (is (isa? SubSubType SubType))
-  (is (isa? SubSubType SuperType))
-  (is (isa? MultiInheritance SimpleNode))
-  (is (isa? MultiInheritance SuperType)))
+  (is (isa? (node-type SubSubType) (node-type SubType)))
+  (is (isa? (node-type SubSubType) (node-type SuperType)))
+  (is (isa? (node-type MultiInheritance) (node-type SimpleNode)))
+  (is (isa? (node-type MultiInheritance) (node-type SuperType))))

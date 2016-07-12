@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
+            [editor.hot-reload :as hot-reload]
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
@@ -12,6 +13,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.graph-util :as gu]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
@@ -49,8 +51,8 @@
   (input outline g/Any)
 
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
-  (output active-outline g/Any :cached (g/fnk [outline] outline))
-  (output active-resource (g/protocol resource/Resource) (g/fnk [^Tab active-tab]
+  (output active-outline g/Any :cached (gu/passthrough outline))
+  (output active-resource resource/Resource (g/fnk [^Tab active-tab]
                                                                  (when active-tab
                                                                    (ui/user-data active-tab ::resource))))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
@@ -164,6 +166,16 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
+(handler/defhandler :hot-reload :global
+  (enabled? [app-view]
+            ;; TODO Also figure out if the engine running (somewhere)
+            (g/node-value app-view :active-resource))
+  (run [project app-view prefs]
+    (when-let [resource (g/node-value app-view :active-resource)]
+      (let [build (project/build-and-save-project project)]
+        (when (and (future? build) @build)
+            (hot-reload/post-reload-resource prefs resource))))))
+
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
@@ -225,6 +237,9 @@
                               :acc "Shift+Shortcut+F"
                               :command :search-in-files}
                              {:label :separator}
+                             {:label "Hot Reload"
+                              :acc "Shortcut+R"
+                              :command :hot-reload}
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
@@ -288,7 +303,10 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Close"
+                [{:label "Hot Reload"
+                  :acc "Shortcut+R"
+                  :command :hot-reload}
+                 {:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
                  {:label "Close Others"
@@ -316,7 +334,7 @@
 (defn- refresh-views! [app-view]
   (let [auto-pulls (g/node-value app-view :auto-pulls)]
     (doseq [[node label] auto-pulls]
-      (profiler/profile "view" (:name (g/node-type* node))
+      (profiler/profile "view" (:name @(g/node-type* node))
                         (g/node-value node label)))))
 
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
