@@ -16,7 +16,7 @@ For Eclipse:
 ### Required Software
 
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
-* [Eclipse SDK 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
+* [Eclipse SDK 3.8.2](https://drive.google.com/a/king.com/file/d/0B1fYSwXgmBKXMTJzMmlhUmhaWTA/view?usp=sharing)
 * Python (on OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
 * Linux:
@@ -174,6 +174,7 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 
 ## Build and Run Editor
 
+* Ensure that `Java > Compiler > Compiler Compliance Level` is set to ´1.7´.
 * In the workspace, invoke `Project > Build All`
      - Generates Google Protocol Buffers etc
 * Refresh entire workspace
