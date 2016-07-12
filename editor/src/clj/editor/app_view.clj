@@ -359,8 +359,8 @@
     (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
-    (let [refresh-timers [(ui/->timer 2 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
-                          (ui/->timer 10 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
+    (let [refresh-timers [(ui/->timer 7 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
+                          (ui/->timer 13 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-close! stage timer)
         (ui/timer-start! timer)))
