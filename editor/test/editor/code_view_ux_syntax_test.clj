@@ -191,7 +191,7 @@
   (cvx/handler-run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (defn- shift-tab! [source-viewer]
-  (handler/run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (defn- key-typed! [source-viewer key-typed]
   (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
