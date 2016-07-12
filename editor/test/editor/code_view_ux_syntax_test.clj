@@ -190,6 +190,9 @@
 (defn- tab! [source-viewer]
   (handler/run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
 
+(defn- shift-tab! [source-viewer]
+  (handler/run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}]{}))
+
 (defn- key-typed! [source-viewer key-typed]
   (handler/run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
 
@@ -261,7 +264,25 @@
         (is (= "--do things" (text-selection source-viewer)))
         (tab! source-viewer)
         (is (= "" (text-selection source-viewer)))
-        (is (= (count "function function_name(self)\n\t--do things\nend") (caret source-viewer)))))))
+        (is (= (count "function function_name(self)\n\t--do things\nend") (caret source-viewer))))
+      (testing "shift tab backwards"
+        (set-code-and-caret! source-viewer "if")
+        (propose! source-viewer)
+        (is (= "if cond then\n\t--do things\nend" (text source-viewer)))
+        (is (= "cond" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "--do things" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "end" (text-selection source-viewer)))
+        (shift-tab! source-viewer)
+        (is (= "--do things" (text-selection source-viewer)))
+        (shift-tab! source-viewer)
+        (is (= "cond" (text-selection source-viewer)))
+        (shift-tab! source-viewer)
+        (is (= "cond" (text-selection source-viewer)))
+        (tab! source-viewer)
+        (is (= "--do things" (text-selection source-viewer)))
+))))
 
 (defn- enter! [source-viewer]
   (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
