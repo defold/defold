@@ -257,6 +257,7 @@
     (assoc this property value))
 
   (overridden-properties [this basis] {})
+  (property-overridden?  [this property] false)
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
@@ -311,10 +312,6 @@
 ;;; Evaluating outputs
 
 (defn without [s exclusions] (reduce disj s exclusions))
-
-(defn- all-properties
-  [node-type]
-  (declared-properties node-type))
 
 (defn- all-labels
   [node-type]
@@ -1530,7 +1527,8 @@
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
       (assoc-in this     [:properties property] value)))
-  (overridden-properties [this basis] (get this :properties))
+  (overridden-properties [this basis] properties)
+  (property-overridden?  [this property] (contains? properties property))
 
   gt/Evaluation
   (produce-value       [this output evaluation-context]
