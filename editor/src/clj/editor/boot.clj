@@ -1,7 +1,9 @@
 (ns editor.boot
   (:require [clojure.java.io :as io]
             [clojure.stacktrace :as stack]
+            [clojure.pprint :as pprint]
             [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
             [editor.import :as import]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -14,7 +16,8 @@
            [javafx.scene.layout VBox]
            [javafx.stage Stage]
            [javafx.util Callback]
-           [java.io File]))
+           [java.io File]
+           [java.util.concurrent.atomic AtomicReference]))
 
 (set! *warn-on-reflection* true)
 
@@ -99,11 +102,30 @@
 
 (def namespaces-loaded (promise))
 
+
+;; Exception alerting.
+
+;; keep track of last exception so we can alert only on new ones
+(def ^:private ^AtomicReference last-exception (AtomicReference.))
+
+(defn new-exception?
+  [ex-map]
+  (let [last (.getAndSet last-exception ex-map)]
+    (not= last ex-map)))
+
+(defn display-exception [ex]
+  (let [ex-map (Throwable->map ex)]
+    (when (new-exception? ex-map)
+      (let [message (with-out-str (clojure.pprint/pprint ex-map))]
+        (ui/run-now (dialogs/make-alert-dialog message))))))
+
+
 (defn main [args]
   (Thread/setDefaultUncaughtExceptionHandler
    (reify Thread$UncaughtExceptionHandler
      (uncaughtException [_ thread exception]
-       (log/error :exception exception :msg "uncaught exception"))))
+       (log/error :exception exception :msg "uncaught exception")
+       (display-exception exception))))
   (let [prefs (prefs/make-prefs "defold")]
     (if (= (count args) 0)
       (do
