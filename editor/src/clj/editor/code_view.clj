@@ -567,12 +567,17 @@
     (g/node-value view-id :new-content)
     (g/node-value view-id :new-tab-active)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                      (g/node-value view-id :new-tab-active)
                                                                       (cvx/changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
       (ui/timer-start! refresh-timer))
+    (let [tab-timer (ui/->timer "watch-for-active-tabs" (fn [_]
+                                                          (g/node-value view-id :new-tab-active)))
+          stage (ui/parent->stage parent)]
+      (ui/timer-stop-on-close! ^Tab (:tab opts) tab-timer)
+      (ui/timer-stop-on-close! stage tab-timer)
+      (ui/timer-start! tab-timer))
     view-id))
 
 (defn register-view-types [workspace]
