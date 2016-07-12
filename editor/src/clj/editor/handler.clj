@@ -25,12 +25,14 @@
   (f (:env command-context)))
 
 (defn- do-get-active [command command-context]
-  (->> (vals @*handlers*)
-    (filter #(when (and (= command (:command %)) (= (:name command-context) (:context %))) %))
+  (let [ctx-name (:name command-context)]
     (some (fn [handler]
-            (let [f (get-fnk handler :active?)]
-              (when (or (nil? f) (invoke-fnk f command-context))
-                [handler command-context]))))))
+            (when (and (= command (:command handler))
+                       (= ctx-name (:context handler)))
+              (let [f (get-fnk handler :active?)]
+                (when (or (nil? f) (invoke-fnk f command-context))
+                  [handler command-context]))))
+          (vals @*handlers*))))
 
 (defn- get-active [command command-contexts user-data]
   (some (fn [command-context] (do-get-active command (assoc-in command-context [:env :user-data] user-data))) command-contexts))
