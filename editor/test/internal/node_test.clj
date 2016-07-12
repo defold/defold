@@ -157,10 +157,10 @@
 
 (deftest invalidating-properties-output
   (expect-modified SimpleTestNode
-                   #{:_declared-properties :_properties :_overridden-properties :foo}
+                   #{:_declared-properties :_properties :foo}
                    (fn [node-id] (g/set-property    node-id :foo "two")))
   (expect-modified SimpleTestNode
-                   #{:_declared-properties :_properties :_overridden-properties :foo}
+                   #{:_declared-properties :_properties :foo}
                    (fn [node-id] (g/update-property node-id :foo str/reverse)))
   (expect-modified SimpleTestNode #{} (fn [node-id] (g/set-property    node-id :foo "one")))
   (expect-modified SimpleTestNode #{} (fn [node-id] (g/update-property node-id :foo identity))))

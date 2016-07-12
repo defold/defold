@@ -50,7 +50,7 @@
                ; Select the collection node
                (project/select! project [node-id])
                ; Run the add handler
-               (handler/run :add [{:name :global :env {:selection [node-id]}}] {})
+               (test-util/handler-run :add [{:name :global :env {:selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
