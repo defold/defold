@@ -377,7 +377,7 @@
 (defn- add-layout! [project scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (handler/run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+    (test-util/handler-run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))

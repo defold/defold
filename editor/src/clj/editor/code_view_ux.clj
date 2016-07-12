@@ -214,13 +214,17 @@
 (defn- is-mac-os? []
   (= "Mac OS X" (System/getProperty "os.name")))
 
+(defn handler-run [command command-contexts user-data]
+  (-> (handler/active command command-contexts user-data)
+    handler/run))
+
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
     (when (not (.isConsumed e))
       (.consume e)
       (when (and (:command kf) (not (:label kf)))
-        (handler/run
+        (handler-run
           (:command kf)
           [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
           k-info)
@@ -233,7 +237,7 @@
 (defn handle-key-typed [^KeyEvent e source-viewer]
   (let [key-typed (.getCharacter e)]
     (when-not (or (.isMetaDown ^KeyEvent e) (is-not-typable-modifier? e))
-      (handler/run
+      (handler-run
         :key-typed
         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
         e))))
@@ -261,7 +265,7 @@
     (clear-snippet-tab-triggers! source-viewer)
     (reset! last-command nil)
     (when cf
-      (handler/run
+      (handler-run
         (:command cf)
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
         e))

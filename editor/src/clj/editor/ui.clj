@@ -537,7 +537,7 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- make-menu-command [label icon acc command command-contexts user-data check]
+(defn- make-menu-command [label icon acc command handler-ctx check]
   (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))
@@ -549,8 +549,8 @@
       (swap! *menu-key-combos* conj key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
-    (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
-    (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
+    (.setDisable menu-item (not (handler/enabled? handler-ctx)))
+    (.setOnAction menu-item (event-handler event (handler/run handler-ctx)))
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
@@ -566,11 +566,11 @@
         (let [command (:command item)
               user-data (:user-data item)
               check (:check item)]
-          (when (handler/active? command command-contexts user-data)
-            (let [label (or (handler/label command command-contexts user-data) item-label)]
-              (if-let [options (handler/options command command-contexts user-data)]
+          (when-let [handler-ctx (handler/active command command-contexts user-data)]
+            (let [label (or (handler/label handler-ctx) item-label)]
+              (if-let [options (handler/options handler-ctx)]
                 (make-submenu label icon (make-menu-items options command-contexts))
-                (make-menu-command label icon (:acc item) command command-contexts user-data check)))))))))
+                (make-menu-command label icon (:acc item) command handler-ctx check)))))))))
 
 (defn- make-menu-items [menu command-contexts]
   (let [menu-items (->> menu
@@ -643,16 +643,18 @@
       (instance? CheckMenuItem m)
       (let [m         ^CheckMenuItem m
             command   (keyword (.getId ^MenuItem m))
-            user-data (user-data m ::menu-user-data)]
+            user-data (user-data m ::menu-user-data)
+            handler-ctx (handler/active command command-contexts user-data)]
         (doto m
-          (.setDisable (not (handler/enabled? command command-contexts user-data)))
-          (.setSelected (boolean (handler/state command command-contexts user-data)))))
+          (.setDisable (not (handler/enabled? handler-ctx)))
+          (.setSelected (boolean (handler/state handler-ctx)))))
 
       (instance? MenuItem m)
       (let [m ^MenuItem m]
-        (.setDisable m (not (handler/enabled? (keyword (.getId m))
-                                              command-contexts
-                                              (user-data m ::menu-user-data))))))))
+        (.setDisable m (not (-> (handler/active (keyword (.getId m))
+                                                command-contexts
+                                                (user-data m ::menu-user-data))
+                              handler/enabled?)))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
   (doseq [m (.getMenus menubar)]
@@ -677,12 +679,13 @@
                       (for [menu-item menu
                             :let [command (:command menu-item)
                                   user-data (:user-data menu-item)
-                                  separator? (= :separator (:label menu-item))]
-                            :when (or separator? (handler/active? command command-contexts user-data))]
+                                  separator? (= :separator (:label menu-item))
+                                  handler-ctx (handler/active command command-contexts user-data)]
+                            :when (or separator? handler-ctx)]
                         (let [^Control child (if separator?
                                                (doto (Separator. Orientation/VERTICAL)
                                                  (add-style! "separator"))
-                                               (if-let [opts (handler/options command command-contexts user-data)]
+                                               (if-let [opts (handler/options handler-ctx)]
                                                  (let [hbox (doto (HBox.)
                                                               (add-style! "cell"))
                                                        cb (doto (ChoiceBox.)
@@ -691,19 +694,20 @@
                                                                              (toString [v] (:label v)))))]
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
-                                                                                    (handler/run (:command new) command-contexts (:user-data new)))))
+                                                                                    (some-> (handler/active (:command new) command-contexts (:user-data new))
+                                                                                      handler/run))))
                                                    (doseq [opt opts]
                                                      (.add (.getItems cb) opt))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 22.5))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
-                                                 (let [button (ToggleButton. (or (handler/label command command-contexts user-data) (:label menu-item)))
+                                                 (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
                                                        icon (:icon menu-item)
                                                        selection-provider (:selection-provider td)]
                                                    (when icon
                                                      (.setGraphic button (jfx/get-image-view icon 22.5)))
                                                    (when command
-                                                     (on-action! button (fn [event] (handler/run command command-contexts user-data))))
+                                                     (on-action! button (fn [event] (handler/run handler-ctx))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
@@ -719,15 +723,16 @@
   (let [nodes (.getChildren toolbar)
         ids (map #(.getId ^Node %) nodes)]
     (doseq [^Node n nodes
-            :let [user-data (user-data n ::menu-user-data)]]
-      (disable! n (not (handler/enabled? (keyword (.getId n)) command-contexts user-data)))
+            :let [user-data (user-data n ::menu-user-data)
+                  handler-ctx (handler/active (keyword (.getId n)) command-contexts user-data)]]
+      (disable! n (not (handler/enabled? handler-ctx)))
       (when (instance? ToggleButton n)
-        (if (handler/state (keyword (.getId n)) command-contexts user-data)
+        (if (handler/state handler-ctx)
           (.setSelected ^Toggle n true)
           (.setSelected ^Toggle n false)))
       (when (instance? HBox n)
         (let [^HBox box n
-              state (handler/state (keyword (.getId n)) command-contexts user-data)
+              state (handler/state handler-ctx)
               ^ChoiceBox cb (.get (.getChildren box) 1)]
           (when (not (.isShowing cb))
             (-> (.getSelectionModel cb)
