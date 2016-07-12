@@ -38,20 +38,6 @@
                     (apply f prefix lib options))))
 
 
-(defmacro deferred
-   "Loads and runs a function dynamically to defer loading the namespace.
-    Usage: \"(deferred clojure.core/+ 1 2 3)\" returns 6.  There's no issue
-    calling require multiple times on an ns."
-   [fully-qualified-func & args]
-   (let [func (symbol (name fully-qualified-func))
-         space (symbol (namespace fully-qualified-func))]
-     `(do
-        (try (require '~space)
-          (catch Throwable t#
-                  (prn "Error requiring ns" t#)))
-        (let [v# (ns-resolve '~space '~func)]
-          (v# ~@args)))))
-
 (defn- add-to-recent-projects [prefs project-file]
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
                  (remove #(= % (str project-file)))
@@ -120,25 +106,26 @@
   ;; load the namespaces of the project with all the defnode
   ;; creation in the background
   (future
-    (deferred editor.boot-open-project/load-namespaces)))
+    (require 'editor.boot-open-project)))
 
 (defn- open-project-with-progress-dialog
   [namespace-loader prefs project]
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
-     (let [progress (atom (progress/make "Loading project" 733))]
+     (let [progress (atom (progress/make "Loading project" 733))
+           project-file (io/file project)]
        (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
        (render-progress! (swap! progress progress/message "Initializing project"))
-       ;; ensure the the namespaces have been loaded
+       ;; ensure that namespace loading has completed
        @namespace-loader
-       (deferred editor.boot-open-project/initialize-project)
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (add-to-recent-projects prefs project)
-       (deferred editor.boot-open-project/open-project (io/file project) prefs render-progress!)
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-progress!])
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs]
+  [prefs]
   (ui/run-later
    (open-welcome prefs
                  (fn [project]
