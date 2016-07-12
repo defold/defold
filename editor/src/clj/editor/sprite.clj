@@ -11,7 +11,8 @@
             [editor.workspace :as workspace]
             [editor.validation :as validation]
             [editor.resource :as resource]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.types :as types])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -222,22 +223,26 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol resource/Resource)
+  (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (project/gen-resource-setter [[:resource :image-resource]
-                                               [:anim-data :anim-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                            [:resource :image-resource]
+                                            [:anim-data :anim-data]
+                                            [:gpu-texture :gpu-texture]
+                                            [:build-targets :dep-build-targets])))
             (validate (validation/validate-resource image)))
 
   (property default-animation g/Str
             (validate (validation/validate-animation default-animation anim-data))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                            [:resource :material-resource]
+                                            [:build-targets :dep-build-targets])))
             (validate (validation/validate-resource material)))
 
 
@@ -249,12 +254,12 @@
                                    :options (zipmap (map first options)
                                                     (map (comp :display-name second) options))}))))
 
-  (input image-resource (g/protocol resource/Resource))
+  (input image-resource resource/Resource)
   (input anim-data g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
 
-  (input material-resource (g/protocol resource/Resource))
+  (input material-resource resource/Resource)
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation

@@ -48,17 +48,6 @@ public class AccessTokenAuthenticator {
         return createToken(user, ip, null);
     }
 
-    public void createLifetimeTokenForExistingUser(User user) {
-        boolean hasLifetimeAccessToken = accessTokenStore.find(user).stream().anyMatch(AccessToken::isLifetime);
-
-        if (!hasLifetimeAccessToken) {
-            String token = AuthToken.login(user.getEmail());
-            String tokenHash = accessTokenFactory.generateTokenHash(token);
-            AccessToken accessToken = new AccessToken(user, tokenHash, null, timeSource.currentDate(), timeSource.currentDate(), null);
-            accessTokenStore.storeInTransaction(accessToken);
-        }
-    }
-
     private String createToken(User user, String ip, Date expires) {
         String token = accessTokenFactory.create();
         String tokenHash = accessTokenFactory.generateTokenHash(token);

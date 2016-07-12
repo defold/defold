@@ -180,26 +180,30 @@
 
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
-  (property vertex-program (g/protocol resource/Resource)
+  (property vertex-program resource/Resource
     (dynamic visible (g/always false))
     (value (gu/passthrough vertex-resource))
-    (set (project/gen-resource-setter [[:resource :vertex-resource]
-                                       [:full-source :vertex-source]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                        [:resource :vertex-resource]
+                                        [:full-source :vertex-source])))
     (validate (validation/validate-resource vertex-program)))
 
-  (property fragment-program (g/protocol resource/Resource)
+  (property fragment-program resource/Resource
     (dynamic visible (g/always false))
     (value (gu/passthrough fragment-resource))
-    (set (project/gen-resource-setter [[:resource :fragment-resource]
-                                       [:full-source :fragment-source]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                        [:resource :fragment-resource]
+                                        [:full-source :fragment-source])))
     (validate (validation/validate-resource fragment-program)))
 
   (output form-data g/Any :cached produce-form-data)
 
   (input dep-build-targets g/Any :array)
-  (input vertex-resource (g/protocol resource/Resource))
+  (input vertex-resource resource/Resource)
   (input vertex-source g/Str)
-  (input fragment-resource (g/protocol resource/Resource))
+  (input fragment-resource resource/Resource)
   (input fragment-source g/Str)
 
   (output save-data g/Any :cached produce-save-data)
@@ -208,7 +212,7 @@
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
                                            (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
                                              (shader/make-shader _node-id vertex-source fragment-source uniforms))))
-  (output samplers [{g/Keyword g/Any}] :cached (g/fnk [pb] (vec (:samplers pb)))))
+  (output samplers [g/KeywordMap] :cached (g/fnk [pb] (vec (:samplers pb)))))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]

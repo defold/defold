@@ -9,7 +9,7 @@
 
 (g/defnode Root
   (property where g/Str)
-  (property touched Number))
+  (property touched g/Num))
 
 (defn graphs        []    (is/graphs        @g/*the-system*))
 (defn graph         [gid] (is/graph         @g/*the-system* gid))
@@ -327,15 +327,15 @@
           (is (undo-redo-state? agraph-id [nil 2] [])))))))
 
 (g/defnode Source
-  (property source-label String))
+  (property source-label g/Str))
 
 (g/defnode Pipe
-  (input target-label String)
-  (output soft String (g/fnk [target-label] (str/lower-case target-label))))
+  (input target-label g/Str)
+  (output soft g/Str (g/fnk [target-label] (str/lower-case target-label))))
 
 (g/defnode Sink
-  (input target-label String)
-  (output loud String :cached (g/fnk [target-label] (when target-label (str/upper-case target-label)))))
+  (input target-label g/Str)
+  (output loud g/Str :cached (g/fnk [target-label] (when target-label (str/upper-case target-label)))))
 
 (deftest tracing-across-graphs
   (ts/with-clean-system
@@ -371,8 +371,8 @@
                  [source-p1 :_properties]}))))))
 
 (g/defnode ChainedLink
-  (input source-label String)
-  (output source-label String :cached (g/fnk [source-label] (when source-label (str/upper-case source-label)))))
+  (input source-label g/Str)
+  (output source-label g/Str :cached (g/fnk [source-label] (when source-label (str/upper-case source-label)))))
 
 (defn- show-sarcs-tarcs [msg graph]
   (println msg
@@ -494,6 +494,7 @@
                     (g/set-graph-value 0 :a-node-id node-id)])
        (is (= "A String" (g/graph-value 0 :string-value)))
        (is (= node-id    (g/graph-value 0 :a-node-id))))))
+
   (testing "Graph values do not interfer with the original members of the graph"
     (ts/with-clean-system
       (let [[src-node] (ts/tx-nodes (g/make-nodes world [src [Source :source-label "test"]]))]

@@ -1,59 +1,14 @@
 (ns editor.lua
   (:require [clojure.string :as string]
             [clojure.java.io :as io]
+            [clojure.edn :as edn]
             [editor.code :as code])
-
   (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)")
-(def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)")
-
-(defn- make-parse-result [namespace function in-function start end]
-  {:namespace namespace
-   :function function
-   :in-function in-function
-   :start start
-   :end end})
-
-(defn- default-parse-result []
-  {:namespace ""
-   :function ""
-   :in-function false
-   :start 0
-   :end 0})
-
-(defn- parse-unscoped-line [line]
-  (let [matcher1 (re-matcher pattern1 line)]
-    (loop [match (re-find matcher1)
-           result nil]
-      (if-not match
-        result
-        (let [in-function (> (count (nth match 2)) 0)
-              start (.start matcher1)
-              end (- (.start matcher1) (if in-function 1 0))]
-          (recur (re-find matcher1)
-                 (make-parse-result "" (nth match 1) in-function start end)))))))
-
-(defn- parse-scoped-line [line]
-  (let [matcher2 (re-matcher pattern2 line)]
-        (loop [match (re-find matcher2)
-               result nil]
-          (if-not match
-            result
-            (let [in-function (> (count (nth match 3)) 0)
-                  start (.start matcher2)
-                  end (- (.end matcher2) (if in-function 1 0))]
-              (recur (re-find matcher2)
-                     (make-parse-result (nth match 1) (nth match 2) in-function start end)))))))
-
-(defn parse-line [line]
-  (or (parse-scoped-line line)
-      (parse-unscoped-line line)))
-
 (defn- load-sdoc [path]
-  (try 
+  (try
     (with-open [in (io/input-stream (io/resource path))]
       (let [doc (-> (ScriptDoc$Document/newBuilder)
                   (.mergeFrom in)
@@ -120,39 +75,69 @@
          ["&#160;&#160;&#160;&#160;<b>"]
          [(.getReturn element)]))))))
 
-(defn- element-display-string [^ScriptDoc$Element element]
+(defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-               (string/join
-                (concat
-                 ["("
-                  (string/join ", "
-                            (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-                              [(.getName parameter)]))
-                  ")"])))]
-    (string/join [base rest])))
+               (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
+                              (.getName parameter))
+                     display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
+                 (str "(" (string/join "," display-params) ")")))]
+    (str base rest)))
+
+(defn- element-tab-triggers [^ScriptDoc$Element element]
+  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
+    (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
+                   (.getName parameter))]
+      {:select (remove #(= \[ (first %)) params)})))
 
 (defn defold-documentation []
   (reduce
    (fn [result [ns elements]]
      (let [global-results (get result "" [])
-           new-result (assoc result ns (set (map (fn [e] {:name (.getName ^ScriptDoc$Element e)
-                                                         :display-string (element-display-string e)
-                                                         :doc (element-additional-info e)}) elements)))]
+           new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
+                                                                          (element-display-string e true)
+                                                                          (element-display-string e false)
+                                                                          (element-additional-info e)
+                                                                          (element-tab-triggers e))) elements)))]
        (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
    {}
    (load-documentation)))
 
 (def defold-docs (atom (defold-documentation)))
 
+(defn lua-std-libs-documentation []
+  (let [base-items (->  (io/resource "lua-standard-libs.edn")
+                        slurp
+                        edn/read-string)
+        hints (for [item base-items]
+                (let [insert-string (string/replace item #"\[.*\]" "")
+                      params (re-find #"(\()(.*)(\))" insert-string)
+                      tab-triggers (when (< 3 (count params)) (remove #(= "" %) (string/split (nth params 2) #",")))]
+                  (code/create-hint
+                   (first (string/split item #"\("))
+                   item
+                   insert-string
+                   ""
+                   {:select tab-triggers})))
+        completions (group-by #(let [names (string/split (:name %) #"\.")]
+                                         (if (= 2 (count names)) (first names) "")) hints)
+        package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
+    (merge-with into completions package-completions)))
+
+(defn lua-base-documentation []
+  {"" (-> (io/resource "lua-base-snippets.edn")
+          slurp
+          edn/read-string)})
+
+(def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
+
+
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
     (let
-        [{:keys [namespace function] :as parse-result} (or (parse-line line) (default-parse-result))
+        [{:keys [namespace function] :as parse-result} (or (code/parse-line line) (code/default-parse-result))
          items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
-         pattern (string/lower-case (if (= "" (or namespace ""))
-                                      function
-                                      (str namespace "." function)))
+         pattern (string/lower-case (code/proposal-filter-pattern namespace function))
          results (filter (fn [i] (string/starts-with? (:name i) pattern)) items)]
       (->> results (sort-by :display-string) (partition-by :display-string) (mapv first)))
     (catch Exception e
@@ -210,15 +195,25 @@
       (when-let [match-body (code/match-until-eol (:body match-open))]
         (code/combine-matches match-open match-body)))))
 
+(defn increase-indent? [s]
+  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
+
+(defn decrease-indent? [s]
+  (re-find #"^\s*(elseif|else|end|\}).*$" s))
+
 ;; TODO: splitting into partitions using multiline (MultiLineRule) in combination with FastPartitioner does not work properly when
 ;; :eof is false. The initial "/*" does not start a comment partition, and when the ending "*/" is added (on another line) the document
 ;; is repartitioned only from the beginning of that final line - meaning the now complete multiline comment is not detected as a partition.
 ;; After inserting some text on the opening ("/*" ) line, the partition is detected however.
-;; Workaround: the whole language is treated as one single default partition type.
+;; Workaround: the whole language is treated as one single default
+;; partition type.
 
 (def lua {:language "lua"
           :syntax
           {:line-comment "-- "
+           :indentation {:indent-chars "\t"
+                         :increase? increase-indent?
+                         :decrease? decrease-indent?}
            :scanner
            [#_{:partition "__multicomment"
                :type :multiline

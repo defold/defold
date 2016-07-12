@@ -252,10 +252,12 @@
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol resource/Resource)
+  (property image resource/Resource
     (value (gu/passthrough image-resource))
-    (set (project/gen-resource-setter [[:resource :image-resource]
-                                       [:content :image-content]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                        [:resource :image-resource]
+                                        [:content :image-content])))
     (validate (validation/validate-resource image-resource "Missing image"
                                             [image-content])))
 
@@ -273,10 +275,12 @@
 
   (property tile-spacing g/Int (default 0))
 
-  (property collision (g/protocol resource/Resource) ; optional
+  (property collision resource/Resource ; optional
     (value (gu/passthrough collision-resource))
-    (set (project/gen-resource-setter [[:resource :collision-resource]
-                                       [:content :collision-content]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                        [:resource :collision-resource]
+                                        [:content :collision-content])))
     (validate (g/fnk [collision-resource collision-content]
                      ;; collision-resource is optional, but depend on resource & content to trigg auto error aggregation
                      )))
@@ -290,9 +294,9 @@
   (input collision-groups g/Str :array)
   (input animation-ddfs g/Any :array)
   (input animation-ids g/Str :array)
-  (input image-resource (g/protocol resource/Resource))
+  (input image-resource resource/Resource)
   (input image-content BufferedImage)
-  (input collision-resource (g/protocol resource/Resource))
+  (input collision-resource resource/Resource)
   (input collision-content BufferedImage)
 
   (output aabb AABB :cached produce-aabb)
@@ -305,7 +309,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output anim-data g/Any :cached produce-anim-data)
-  (output anim-ids g/Any :cached (g/fnk [animation-ids] animation-ids)))
+  (output anim-ids g/Any :cached (gu/passthrough animation-ids)))
 
 (defn- int->boolean [i]
   (not= 0 i))

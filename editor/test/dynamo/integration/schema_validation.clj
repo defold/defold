@@ -156,4 +156,3 @@
     (binding [internal.node/*suppress-schema-warnings* true]
       (let [[bsn] (tx-nodes (g/make-nodes world [bsn [BadSchemaPropNode]]))]
         (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value bsn :bad-schema-prop)))))))
-

@@ -7,6 +7,8 @@
 
 namespace dmFacebook {
 
+    const char* const GRAPH_API_VERSION = "v2.6";
+
     enum State {
         STATE_CREATED              = 1,
         STATE_CREATED_TOKEN_LOADED = 2,
@@ -38,7 +40,7 @@ namespace dmFacebook {
     };
 
 /*
-    Notes on facebook.show_dialog in regards to FB SDK 4.
+    Notes on facebook.show_dialog in regards to FB SDK 4
 
     Dialog parameters have been updated to align with field names in the
     current SDK version. Names have been chosen with a preference of JS
@@ -52,7 +54,7 @@ namespace dmFacebook {
     facebook.show_dialog( dialog_type, param_table, callback_func ):
 
     dialog_type == "apprequests":
-        Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
+        Details for each parameter: https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters
 
                            arg     type            JS                   iOS                Android
         -                title : string [       title,                title,              setTitle ]
@@ -65,7 +67,7 @@ namespace dmFacebook {
         -                   to : string [          to,           recipients,                 setTo ]
 
     dialog_type == "feed":
-        Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params
+        Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params
 
                            arg     type            JS                   iOS                Android
         -              caption : string [     caption,         contentTitle,       setContentTitle ]
@@ -88,6 +90,19 @@ namespace dmFacebook {
 
 */
 
+    void LuaInit(lua_State* L);
+
+    int Facebook_Login(lua_State* L);
+    int Facebook_Logout(lua_State* L);
+    int Facebook_AccessToken(lua_State* L);
+    int Facebook_Permissions(lua_State* L);
+    int Facebook_RequestReadPermissions(lua_State* L);
+    int Facebook_RequestPublishPermissions(lua_State* L);
+    int Facebook_Me(lua_State* L);
+    int Facebook_PostEvent(lua_State* L);
+    int Facebook_EnableEventUsage(lua_State* L);
+    int Facebook_DisableEventUsage(lua_State* L);
+    int Facebook_ShowDialog(lua_State* L);
 }
 
 #endif // #ifndef DM_FACEBOOK_H
