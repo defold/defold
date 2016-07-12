@@ -21,6 +21,23 @@
 
 (set! *warn-on-reflection* true)
 
+(def namespace-counter (atom 0))
+(def namespace-progress-reporter (atom nil))
+
+(alter-var-root (var clojure.core/load-lib)
+                (fn [f]
+                  (fn [prefix lib & options]
+                    (swap! namespace-counter inc)
+                    (when @namespace-progress-reporter
+                      (@namespace-progress-reporter
+                       #(assoc %
+                               :message (str "Initializing editor " (if prefix
+                                                                      (str prefix "." lib)
+                                                                      (str lib)))
+                               :pos @namespace-counter)))
+                    (apply f prefix lib options))))
+
+
 (defmacro deferred
    "Loads and runs a function dynamically to defer loading the namespace.
     Usage: \"(deferred clojure.core/+ 1 2 3)\" returns 6.  There's no issue
@@ -103,23 +120,22 @@
   ;; load the namespaces of the project with all the defnode
   ;; creation in the background
   (future
-    (println "Running editor.boot-open-project/load-namespaces")
-    (deferred editor.boot-open-project/load-namespaces)
-    (println "Finished editor.boot-open-project/load-namespaces")))
+    (deferred editor.boot-open-project/load-namespaces)))
 
 (defn- open-project-with-progress-dialog
   [namespace-loader prefs project]
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
-     (let [progress (atom (progress/make "Loading project" 1))]
+     (let [progress (atom (progress/make "Loading project" 733))]
+       (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
        (render-progress! (swap! progress progress/message "Initializing project"))
        ;; ensure the the namespaces have been loaded
-       (println "Waiting for namespaces to finish loading")
        @namespace-loader
        (deferred editor.boot-open-project/initialize-project)
        (add-to-recent-projects prefs project)
-       (deferred editor.boot-open-project/open-project (io/file project) prefs render-progress!)))))
+       (deferred editor.boot-open-project/open-project (io/file project) prefs render-progress!)
+       (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
   [namespace-loader prefs]
