@@ -26,7 +26,6 @@ import org.eclipse.ui.part.EditorPart;
 public class WelcomeEditor extends EditorPart {
 
     public static final String ID = "com.dynamo.cr.editor.welcomeEditor";
-    public static final String WELCOME_URL = "http://www.defold.com/webviews/editor-welcome/";
     private Browser browser;
 
     public WelcomeEditor() {
@@ -62,10 +61,11 @@ public class WelcomeEditor extends EditorPart {
     public void createPartControl(Composite parent) {
         this.browser = new Browser(parent, SWT.NONE);
 
+        String url = "http://www.defold.com/webviews/editor-welcome/";
         Boolean pageLoaded = false;
-        if (WelcomeEditor.isInternetReachable()) {
+        if (WelcomeEditor.isInternetReachable(url)) {
             try {
-                pageLoaded = this.browser.setUrl(WELCOME_URL);
+                pageLoaded = this.browser.setUrl(url);
 
             } catch (Exception e) {
                 pageLoaded = false;
@@ -137,11 +137,11 @@ public class WelcomeEditor extends EditorPart {
     }
 
     // http://stackoverflow.com/questions/7067844/how-to-detect-internet-connection-with-swt-browser-or-handle-server-not-availab
-    private static boolean isInternetReachable() {
+    private static boolean isInternetReachable(String weburl) {
         HttpURLConnection urlConnect = null;
         try {
             // make a URL to a known source
-            URL url = new URL(WELCOME_URL);
+            URL url = new URL(weburl);
             // open a connection to that source
             urlConnect = (HttpURLConnection) url.openConnection();
             // trying to retrieve data from the source. If there is no connection, this line will fail
