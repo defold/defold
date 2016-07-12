@@ -196,11 +196,10 @@
   (testing "loading"
            ;; WARM-UP
            (dotimes [i 10]
-                      (test-load))
+             (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-             ; TODO - regression, should be faster
-             (is (< elapsed 1700))))
+             (is (< elapsed 750))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
@@ -214,8 +213,7 @@
                ;; GO!
                (let [elapsed (measure [i 500]
                                       (drag-pull-outline! node-id box i))]
-                 ; TODO - regression, should be faster
-                 (is (< elapsed 50)))))))
+                 (is (< elapsed 12)))))))
 
 (deftest gui-template-ids
   (with-clean-system
@@ -379,7 +377,7 @@
 (defn- add-layout! [project scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (handler/run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+    (test-util/handler-run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))

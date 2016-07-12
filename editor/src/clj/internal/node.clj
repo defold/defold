@@ -36,7 +36,7 @@
 (defprotocol Ref
   (ref-key [this]))
 
-(defn ref? [x] (and (extends? Ref (class x)) x))
+(defn ref? [x] (and x (extends? Ref (class x))))
 
 (defprotocol Type
   (describe* [type])
@@ -89,6 +89,7 @@
 (defn property-display-order [nt]        (some-> nt deref :property-display-order))
 (defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
 (defn transform-types        [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
+(defn all-properties         [nt]        (some-> nt deref :property))
 (defn declared-properties    [nt]        (some-> nt deref :property (->> (remove (comp internal? val)) (into {})))) ;; deprecated
 (defn internal-properties    [nt]        (some-> nt deref :property (->> (filter (comp internal? val)) (into {}))))
 (defn declared-inputs        [nt]        (some-> nt deref :input))
@@ -104,6 +105,7 @@
 (defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
 (defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
 (defn externs                [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
+(defn property-setter        [nt label]  (some-> nt deref (get-in [:property label :setter :fn]) util/var-get-recursive))
 (defn property-type          [nt label]  (some-> nt deref (get-in [:property label :value-type])))
 (defn has-input?             [nt label]  (some-> nt deref (get :input) (contains? label)))
 (defn has-output?            [nt label]  (some-> nt deref (get :output) (contains? label)))
@@ -254,6 +256,9 @@
                     property (:name node-type)))
     (assoc this property value))
 
+  (overridden-properties [this basis] {})
+  (property-overridden?  [this property] false)
+
   gt/Evaluation
   (produce-value [this label evaluation-context]
     (let [beh (behavior node-type label)]
@@ -307,10 +312,6 @@
 ;;; Evaluating outputs
 
 (defn without [s exclusions] (reduce disj s exclusions))
-
-(defn- all-properties
-  [node-type]
-  (declared-properties node-type))
 
 (defn- all-labels
   [node-type]
@@ -387,9 +388,6 @@
     (println "Output value:" value)
     (println "Should match:" (s/explain output-schema))
     (println "But:" error)))
-
-(defn setter-for [node-type property]
-  (some-> (public-properties node-type) property :setter :fn util/var-get-recursive))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -729,7 +727,8 @@
 (def node-intrinsics
   [(list 'extern '_node-id :dynamo.graph/NodeID)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)])
+   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'basis] (gt/overridden-properties ~'this ~'basis)))])
 
 (defn maybe-inject-intrinsics
   [forms]
@@ -1520,19 +1519,20 @@
 
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
-  (node-id             [this]                      node-id)
-  (node-type           [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
-  (get-property        [this basis property]
+  (node-id               [this]                      node-id)
+  (node-type             [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
+  (get-property          [this basis property]
     (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
-  (set-property        [this basis property value]
+  (set-property          [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
-      (assoc-in this [:properties property] value)))
+      (assoc-in this     [:properties property] value)))
+  (overridden-properties [this basis] properties)
+  (property-overridden?  [this property] (contains? properties property))
 
   gt/Evaluation
   (produce-value       [this output evaluation-context]
     (let [basis    (:basis evaluation-context)
-          original (gt/node-by-id-at basis original-id)
           type     (gt/node-type this basis)]
       (when *node-value-debug*
         (println (nodevalstr this type output " (override node)")))
@@ -1545,10 +1545,11 @@
               (= :_properties output))
           (let [beh           (behavior type output)
                 props         ((:fn beh) this evaluation-context)
+                original      (gt/node-by-id-at basis original-id)
                 orig-props    (:properties (gt/produce-value original output evaluation-context))
-                dynamic-props (without (set (concat (keys properties) (keys orig-props))) (set (keys (public-properties type))))
+                static-props  (all-properties type)
                 props         (reduce-kv (fn [p k v]
-                                           (if (and (dynamic-props k)
+                                           (if (and (not (contains? static-props k))
                                                     (= original-id (:node-id v)))
                                              (cond-> p
                                                (contains? v :original-value)
@@ -1558,7 +1559,7 @@
             (reduce (fn [props [k v]]
                       (cond-> props
                         (and (= :_properties output)
-                             (dynamic-props k))
+                             (not (contains? static-props k)))
                         (assoc-in [:properties k :value] v)
 
                         (contains? orig-props k)
@@ -1572,10 +1573,9 @@
             ((:fn beh) this evaluation-context))
 
           true
-          (let [dyn-properties (node-value* original :_properties evaluation-context)]
-            (if (contains? (:properties dyn-properties) output)
-              (get properties output)
-              (node-value* original output evaluation-context)))))))
+          (if (contains? (all-properties type) output)
+            (get properties output)
+            (node-value* (gt/node-by-id-at basis original-id) output evaluation-context))))))
 
   gt/OverrideNode
   (clear-property [this basis property] (update this :properties dissoc property))

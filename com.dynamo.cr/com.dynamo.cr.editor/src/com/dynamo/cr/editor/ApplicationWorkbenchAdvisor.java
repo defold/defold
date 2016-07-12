@@ -164,20 +164,16 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         // NOTE: Uncomment line below to dump all preference nodes. Use / as separator. See above
         //dumpPreferencesNodes(pm.getRootSubNodes(), 0);
 
-        final IPreferenceStore editorStore = Activator.getDefault().getPreferenceStore();
-        if (editorStore.getBoolean(PreferenceConstants.P_SHOW_WELCOME_PAGE)) {
-            editorStore.setValue(PreferenceConstants.P_SHOW_WELCOME_PAGE, false);
-            Display.getDefault().asyncExec(new Runnable() {
-                @Override
-                public void run() {
-                    IHandlerService handlerService = (IHandlerService) PlatformUI.getWorkbench().getService(IHandlerService.class);
-                    try {
-                        handlerService.executeCommand("com.dynamo.cr.editor.commands.openWelcome", null);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+        Display.getDefault().asyncExec(new Runnable() {
+            @Override
+            public void run() {
+                IHandlerService handlerService = (IHandlerService) PlatformUI.getWorkbench().getService(IHandlerService.class);
+                try {
+                    handlerService.executeCommand("com.dynamo.cr.editor.commands.openWelcome", null);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            });
-        }
+            }
+        });
     }
 }
