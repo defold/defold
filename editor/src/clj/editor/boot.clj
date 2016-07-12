@@ -16,7 +16,8 @@
            [javafx.scene.layout VBox]
            [javafx.stage Stage]
            [javafx.util Callback]
-           [java.io File]))
+           [java.io File]
+           [java.util.concurrent.atomic AtomicReference]))
 
 (set! *warn-on-reflection* true)
 
@@ -105,7 +106,7 @@
 ;; Exception alerting.
 
 ;; keep track of last exception so we can alert only on new ones
-(def ^:private ^AtomicReference last-exception (java.util.concurrent.atomic.AtomicReference.))
+(def ^:private ^AtomicReference last-exception (AtomicReference.))
 
 (defn new-exception?
   [ex-map]
