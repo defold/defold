@@ -26,6 +26,7 @@ import org.eclipse.ui.part.EditorPart;
 public class WelcomeEditor extends EditorPart {
 
     public static final String ID = "com.dynamo.cr.editor.welcomeEditor";
+    public static final String WELCOME_URL = "http://www.defold.com/webviews/editor-welcome/";
     private Browser browser;
 
     public WelcomeEditor() {
@@ -64,7 +65,7 @@ public class WelcomeEditor extends EditorPart {
         Boolean pageLoaded = false;
         if (WelcomeEditor.isInternetReachable()) {
             try {
-                pageLoaded = this.browser.setUrl("http://www.defold.com/webviews/editor-welcome/");
+                pageLoaded = this.browser.setUrl(WELCOME_URL);
 
             } catch (Exception e) {
                 pageLoaded = false;
@@ -140,7 +141,7 @@ public class WelcomeEditor extends EditorPart {
         HttpURLConnection urlConnect = null;
         try {
             // make a URL to a known source
-            URL url = new URL("http://www.defold.com");
+            URL url = new URL(WELCOME_URL);
             // open a connection to that source
             urlConnect = (HttpURLConnection) url.openConnection();
             // trying to retrieve data from the source. If there is no connection, this line will fail
