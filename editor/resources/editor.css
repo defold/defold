@@ -1074,3 +1074,15 @@ Line numbers:
 #console {
     -fx-highlight-fill: -defold-selected-blue;
 }
+
+/* Alert Dialog */
+
+.alert-dialog #message {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.alert-dialog #message:focused {
+    -fx-border-width: 0;
+}
