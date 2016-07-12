@@ -26,6 +26,7 @@
             [editor.json :as json]
             [editor.mesh :as mesh]
             [editor.material :as material]
+            [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
             [util.http-server :as http-server])
   (:import [java.io File FilenameFilter FileOutputStream FileInputStream ByteArrayOutputStream]
@@ -215,3 +216,7 @@
 
 (defn lib-server-url [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
+
+(defn handler-run [command command-contexts user-data]
+  (-> (handler/active command command-contexts user-data)
+    handler/run))

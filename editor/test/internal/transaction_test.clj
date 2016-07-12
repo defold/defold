@@ -139,10 +139,10 @@
   (with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
       (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-property update)))
-        [calculator :touched true]                {calculator        #{:_declared-properties :_properties :_overridden-properties :touched}}
-        [person :date-of-birth (java.util.Date.)] {person            #{:_declared-properties :_properties :_overridden-properties :age :date-of-birth}
+        [calculator :touched true]                {calculator        #{:_declared-properties :_properties :touched}}
+        [person :date-of-birth (java.util.Date.)] {person            #{:_declared-properties :_properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}
-        [first-name-cell :name "Sam"]             {first-name-cell   #{:_declared-properties :_properties :_overridden-properties :name}
+        [first-name-cell :name "Sam"]             {first-name-cell   #{:_declared-properties :_properties :name}
                                                    person            #{:full-name :friendly-name}
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
@@ -175,7 +175,7 @@
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map first outputs-modified)))
-        (is (= #{:_declared-properties :_properties :_overridden-properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
+        (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
 
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))

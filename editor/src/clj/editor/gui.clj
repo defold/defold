@@ -1746,7 +1746,6 @@
 
 (handler/defhandler :set-gui-layout :global
   (active? [project active-resource] (boolean (resource->gui-scene project active-resource)))
-  (enabled? [project active-resource] (boolean (resource->gui-scene project active-resource)))
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]
                                                (g/transact (g/set-property scene :visible-layout user-data)))))

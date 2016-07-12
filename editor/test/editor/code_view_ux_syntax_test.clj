@@ -12,7 +12,7 @@
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (defn- toggle-comment! [source-viewer]
-  (handler/run :toggle-comment [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :toggle-comment [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (defn do-toggle-line-comment [node-type opts comment-str]
   (with-clean-system
@@ -170,7 +170,7 @@
           (is (= "   assert(math.abs()" (text source-viewer))))))))
 
 (defn- propose! [source-viewer]
-  (handler/run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (deftest test-single-value-proposals
   (with-clean-system
@@ -188,10 +188,10 @@
         (is (= "function foo(x)\n\tif cond then\n\t\t--do things\n\tend" (text source-viewer)))))))
 
 (defn- tab! [source-viewer]
-  (handler/run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (defn- key-typed! [source-viewer key-typed]
-  (handler/run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+  (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
 
 (deftest test-proposal-tab-triggers
   (with-clean-system
@@ -264,7 +264,7 @@
         (is (= (count "function function_name(self)\n\t--do things\nend") (caret source-viewer)))))))
 
 (defn- enter! [source-viewer]
-  (handler/run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (deftest lua-enter-indentation-functions
   (with-clean-system
@@ -352,7 +352,7 @@
           (is (= "x = {\n\t1\n}\n" (text source-viewer))))))))
 
 (defn- indent! [source-viewer]
-  (handler/run :indent [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :indent [{:name :code-view :env {:selection source-viewer}}]{}))
 
 (deftest lua-enter-indent-line-and-region
   (with-clean-system
