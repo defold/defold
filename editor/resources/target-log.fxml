@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox prefHeight="400.0" prefWidth="600.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <children>
+    <AnchorPane minHeight="100.0" minWidth="100.0">
+      <children>
+        <VBox AnchorPane.topAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.bottomAnchor="0.0">
+          <children>
+            <TextArea id="message" editable="false" prefHeight="400000.0" prefWidth="600000.0"/>
+            <HBox prefHeight="100.0" prefWidth="200.0">
+              <children>
+                <Pane HBox.hgrow="ALWAYS">
+                  <children>
+      	            <Button id="ok" minWidth="80.0" defaultButton="false" mnemonicParsing="false" text="Ok" />
+                  </children>
+                </Pane>
+      	        <Button id="clear" minWidth="80.0" defaultButton="true" mnemonicParsing="false" text="Clear" />
+              </children>
+            </HBox>
+          </children>
+        </VBox>
+      </children>
+    </AnchorPane>
+  </children>
+  <padding>
+    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+  </padding>
+</VBox>

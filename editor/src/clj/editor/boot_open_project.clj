@@ -28,6 +28,7 @@
             [editor.sprite :as sprite]
             [editor.gl.shader :as shader]
             [editor.tile-source :as tile-source]
+            [editor.targets :as targets]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.json :as json]
@@ -71,14 +72,13 @@
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
 (g/defnode CurveEditor
-    (inherits editor.core/Scope)
+    (inherits editor.core/Scope))
 
-    editor.core/ICreate
-    (post-create
-     [this basis event]
-     (let [btn (Button.)]
-       (ui/text! btn "Curve Editor WIP!")
-       (.add (.getChildren ^VBox (:parent event)) btn))))
+(defn curve-editor-post-create
+  [this basis event]
+  (let [btn (Button.)]
+    (ui/text! btn "Curve Editor WIP!")
+    (.add (.getChildren ^VBox (:parent event)) btn)))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
@@ -120,13 +120,13 @@
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (Stage.)
         scene      (Scene. root)]
-
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
                   (when (true? new-val)
-                    (ui/with-disabled-ui
-                      (ui/with-progress [render-fn ui/default-render-progress!]
-                        (editor.workspace/resource-sync! workspace true [] render-fn))))))
+                    (future
+                      (ui/with-disabled-ui
+                        (ui/with-progress [render-fn ui/default-render-progress!]
+                          (editor.workspace/resource-sync! workspace true [] render-fn)))))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -138,6 +138,7 @@
       (.setHeight stage (:height dims)))
 
     (ui/show! stage)
+    (targets/start)
 
     (ui/on-close-request! stage
                           (fn [_]
@@ -165,7 +166,7 @@
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hotload/url-prefix (hotload/build-handler project)})
+                                                            project/hot-reload-url-prefix (hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]
@@ -208,7 +209,7 @@
 
 (defn- create-view [game-project ^VBox root place node-type]
   (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
+   (curve-editor-post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
 (defn open-project
   [^File game-project-file prefs render-progress!]

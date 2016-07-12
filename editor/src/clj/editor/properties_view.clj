@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.core :as core]
+            [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.jfx :as jfx]
@@ -69,9 +70,11 @@
                                          (update-fn nil)))))
   (ui/on-edit! node (fn [old new] (ui/user-data! node ::auto-commit? true))))
 
-(defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
+(defmulti create-property-control! (fn [edit-type _ property-fn]
+                                     (or (some-> edit-type :type g/value-type-dispatch-value)
+                                         (:type edit-type))))
 
-(defmethod create-property-control! String [_ _ property-fn]
+(defmethod create-property-control! g/Str [_ _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text)
         update-fn    (fn [_]
@@ -313,7 +316,7 @@
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol resource/Resource) [edit-type workspace property-fn]
+(defmethod create-property-control! resource/Resource [edit-type workspace property-fn]
   (let [box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         button       (doto (Button. "...")

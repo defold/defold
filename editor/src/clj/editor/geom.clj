@@ -1,5 +1,5 @@
 (ns editor.geom
-  (:require [dynamo.graph :as g]
+  (:require [schema.core :as s]
             [editor.types :as types]
             [editor.math :as math])
   (:import [com.defold.util Geometry]
@@ -20,13 +20,13 @@
 ; -------------------------------------
 ; 2D geometry
 ; -------------------------------------
-(g/s-defn area :- double
+(s/defn area :- double
   [r :- Rect]
   (if r
     (* (double (.width r)) (double (.height r)))
     0))
 
-(g/s-defn intersect :- (g/maybe Rect)
+(s/defn intersect :- (s/maybe Rect)
   ([r :- Rect] r)
   ([r1 :- Rect r2 :- Rect]
     (when (and r1 r2)
@@ -42,7 +42,7 @@
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
     (reduce intersect (intersect r1 r2) rs)))
 
-(g/s-defn split-rect-| :- [Rect]
+(s/defn split-rect-| :- [Rect]
   "Splits the rectangle such that the side slices extend to the top and bottom"
   [^Rect container :- Rect ^Rect content :- Rect]
   (let [new-rects     (transient [])
@@ -83,7 +83,7 @@
       (conj! new-rects container))
     (persistent! new-rects)))
 
-(g/s-defn split-rect-= :- [Rect]
+(s/defn split-rect-= :- [Rect]
   "Splits the rectangle such that the top and bottom slices extend to the sides"
   [^Rect container :- Rect ^Rect content :- Rect]
   (let [new-rects     (transient [])
@@ -130,7 +130,7 @@
   [rs]
   (reduce max 0 (map area rs)))
 
-(g/s-defn split-rect :- [Rect]
+(s/defn split-rect :- [Rect]
   "Splits the rectangle with an attempt to minimize fragmentation"
   [^Rect container :- Rect ^Rect content :- Rect]
   (let [horizontal (split-rect-= container content)
@@ -158,7 +158,7 @@
 ; Transformations
 ; -------------------------------------
 
-(g/s-defn world-space [node :- {:world-transform Matrix4d g/Any g/Any} point :- Point3d]
+(s/defn world-space [node :- {:world-transform Matrix4d s/Any s/Any} point :- Point3d]
   (let [p             (Point3d. point)
         tfm ^Matrix4d (:world-transform node)]
     (.transform tfm p)
@@ -209,7 +209,7 @@
       (.get v vals)
       vals)))
 
-(g/s-defn ident :- Matrix4d
+(s/defn ident :- Matrix4d
   []
   (doto (Matrix4d.)
     (.setIdentity)))
@@ -217,19 +217,19 @@
 ; -------------------------------------
 ; 3D geometry
 ; -------------------------------------
-(g/s-defn null-aabb :- AABB
+(s/defn null-aabb :- AABB
   []
   (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
              (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
 
-(g/s-defn aabb-incorporate :- AABB
+(s/defn aabb-incorporate :- AABB
   ([^AABB aabb :- AABB
     ^Point3d p :- Point3d]
     (aabb-incorporate aabb (.x p) (.y p) (.z p)))
   ([^AABB aabb :- AABB
-    ^double x :- g/Num
-    ^double y :- g/Num
-    ^double z :- g/Num]
+    ^double x :- s/Num
+    ^double y :- s/Num
+    ^double z :- s/Num]
     (let [minx (Math/min (-> aabb types/min-p .x) x)
           miny (Math/min (-> aabb types/min-p .y) y)
           minz (Math/min (-> aabb types/min-p .z) z)
@@ -239,7 +239,7 @@
       (types/->AABB (Point3d. minx miny minz)
                     (Point3d. maxx maxy maxz)))))
 
-(g/s-defn aabb-union :- AABB
+(s/defn aabb-union :- AABB
   ([aabb1 :- AABB] aabb1)
   ([aabb1 :- AABB aabb2 :- AABB]
     (let [null (null-aabb)]
@@ -252,26 +252,26 @@
   ([aabb1 :- AABB aabb2 :- AABB & aabbs :- [AABB]]
     (aabb-union (aabb-union aabb1 aabb2) aabbs)))
 
-(g/s-defn aabb-contains?
+(s/defn aabb-contains?
   [^AABB aabb :- AABB ^Point3d p :- Point3d]
   (and
     (>= (-> aabb types/max-p .x) (.x p) (-> aabb types/min-p .x))
     (>= (-> aabb types/max-p .y) (.y p) (-> aabb types/min-p .y))
     (>= (-> aabb types/max-p .z) (.z p) (-> aabb types/min-p .z))))
 
-(g/s-defn aabb-extent :- Point3d
+(s/defn aabb-extent :- Point3d
   [aabb :- AABB]
   (let [v (Point3d. (types/max-p aabb))]
     (.sub v (types/min-p aabb))
     v))
 
-(g/s-defn aabb-center :- Point3d
+(s/defn aabb-center :- Point3d
   [^AABB aabb :- AABB]
   (Point3d. (/ (+ (-> aabb types/min-p .x) (-> aabb types/max-p .x)) 2.0)
             (/ (+ (-> aabb types/min-p .y) (-> aabb types/max-p .y)) 2.0)
             (/ (+ (-> aabb types/min-p .z) (-> aabb types/max-p .z)) 2.0)))
 
-(g/s-defn rect->aabb :- AABB
+(s/defn rect->aabb :- AABB
   [^Rect bounds :- Rect]
   (assert bounds "rect->aabb require boundaries")
   (let [x1 (.x bounds)
@@ -304,7 +304,7 @@
 ; -------------------------------------
 
 
-(g/s-defn unit-sphere-pos-nrm [lats longs]
+(s/defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
        long-i (range longs)]
    (let [lat-angle   (fn [rate] (* Math/PI rate))

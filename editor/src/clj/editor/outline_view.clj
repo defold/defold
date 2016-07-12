@@ -135,7 +135,7 @@
   (property selection-listener ListChangeListener)
 
   (input active-outline g/Any :substitute {})
-  (input active-resource (g/protocol resource/Resource) :substitute nil)
+  (input active-resource resource/Resource :substitute nil)
   (input open-resources g/Any :substitute [])
   (input selection g/Any :substitute [])
 

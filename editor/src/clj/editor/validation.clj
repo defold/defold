@@ -1,5 +1,6 @@
 (ns editor.validation
   (:require [dynamo.graph :as g]
+            [editor.protobuf :as protobuf]
             [clojure.string :as str]))
 
 (set! *warn-on-reflection* true)

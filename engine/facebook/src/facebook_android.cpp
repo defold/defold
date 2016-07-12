@@ -14,7 +14,7 @@
 
 #include <android_native_app_glue.h>
 
-#include "facebook.h"
+#include "facebook_private.h"
 #include "facebook_util.h"
 #include "facebook_analytics.h"
 
@@ -356,6 +356,8 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
+namespace dmFacebook {
+
 int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
@@ -649,10 +651,15 @@ int Facebook_ShowDialog(lua_State* L)
         return luaL_error(L, "Could not convert show dialog param table.");
     }
 
-    char params_json[2048];
-    if (0 == dmFacebook::LuaTableToJson(L, to_index, params_json, 2048)) {
+    int size_needed = 1 + dmFacebook::LuaTableToJson(L, to_index, 0, 0);
+    char* params_json = (char*)malloc(size_needed);
+
+    if (params_json == 0 || 0 == dmFacebook::LuaTableToJson(L, to_index, params_json, size_needed)) {
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+        if( params_json ) {
+            free(params_json);
+        }
         return luaL_error(L, "Dialog params table too large.");
     }
     lua_pop(L, 1);
@@ -662,6 +669,7 @@ int Facebook_ShowDialog(lua_State* L)
     env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_ShowDialog, (jlong)dmScript::GetMainThread(L), str_dialog, str_params);
     env->DeleteLocalRef(str_dialog);
     env->DeleteLocalRef(str_params);
+    free((void*)params_json);
 
     if (!Detach(env))
     {
@@ -673,60 +681,11 @@ int Facebook_ShowDialog(lua_State* L)
     return 0;
 }
 
-static const luaL_reg Facebook_methods[] =
+} // namespace
+
+static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    {"login", Facebook_Login},
-    {"logout", Facebook_Logout},
-    {"access_token", Facebook_AccessToken},
-    {"permissions", Facebook_Permissions},
-    {"request_read_permissions", Facebook_RequestReadPermissions},
-    {"request_publish_permissions", Facebook_RequestPublishPermissions},
-    {"me", Facebook_Me},
-    {"post_event", Facebook_PostEvent},
-    {"enable_event_usage", Facebook_EnableEventUsage},
-    {"disable_event_usage", Facebook_DisableEventUsage},
-    {"show_dialog", Facebook_ShowDialog},
-    {0, 0}
-};
-
-dmExtension::Result InitializeFacebook(dmExtension::Params* params)
-{
-    lua_State* L = params->m_L;
-    int top = lua_gettop(L);
-    luaL_register(L, LIB_NAME, Facebook_methods);
-
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
-
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
-
-    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
-
-    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
-    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
-    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
-    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
-
-#undef SETCONSTANT
-
-    dmFacebook::Analytics::RegisterConstants(L);
-
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
+    dmFacebook::LuaInit(params->m_L);
 
     if( !g_Facebook.m_FBApp )
     {
@@ -780,7 +739,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result UpdateFacebook(dmExtension::Params* params)
+static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 {
     if( !g_Facebook.m_FBApp )
     {
@@ -825,7 +784,7 @@ dmExtension::Result UpdateFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
+static dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
 {
     if (g_Facebook.m_FB != NULL)
     {
@@ -847,7 +806,7 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
+static dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {
     const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
     if( !app_id )
@@ -888,7 +847,7 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
+static dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
     bool javaStatus = false;
     if (g_Facebook.m_FBApp != NULL)
@@ -907,10 +866,11 @@ dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
     }
 
     // javaStatus should really be checked and an error returned if something is wrong.
+    (void)javaStatus;
     return dmExtension::RESULT_OK;
 }
 
-void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* event)
+static void OnEventFacebook(dmExtension::Params* params, const dmExtension::Event* event)
 {
     if( (g_Facebook.m_FBApp) && (!g_Facebook.m_DisableFaceBookEvents ) )
     {
