@@ -99,7 +99,7 @@
                                                                           (element-display-string e false)
                                                                           (element-additional-info e)
                                                                           (element-tab-triggers e))) elements)))]
-       (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
+       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint ns))))))
    {}
    (load-documentation)))
 
