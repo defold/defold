@@ -115,7 +115,7 @@
 
   ;; Delete
   :Backspace             {:command :delete}
-  :Delete                {:command :delete}
+  :Delete                {:command :delete-forward}
   :Shortcut+D            {:command :cut                     :label "Delete Line"                     :group "Delete" :order 1}
   :Alt+Delete            {:command :delete-next-word}  ;; these two do not work when they are included in the menu
   :Alt+Backspace         {:command :delete-prev-word}  ;; the menu event does not get propagated back like the rest
@@ -271,14 +271,21 @@
         e))
     (.consume e)))
 
+(defn- adjust-replace-length [doc pos n]
+  (if (> (+ pos n) (count doc))
+    0
+    n))
+
 (defn- replace-text-selection [selection s]
   (replace! selection (selection-offset selection) (selection-length selection) s)
   (caret! selection (adjust-bounds (text selection) (selection-offset selection)) false))
 
 (defn- replace-text-and-caret [selection offset length s new-caret-pos]
-  (replace! selection (adjust-bounds (text selection) offset) length s)
-  (caret! selection (adjust-bounds (text selection) new-caret-pos) false)
-  (remember-caret-col selection new-caret-pos))
+  (let [pos (adjust-bounds (text selection) offset)
+        new-len (adjust-replace-length (text selection) pos length)]
+    (replace! selection pos new-len s)
+    (caret! selection (adjust-bounds (text selection) new-caret-pos) false)
+    (remember-caret-col selection new-caret-pos)))
 
 (handler/defhandler :copy :code-view
   (enabled? [selection] selection)
@@ -588,16 +595,16 @@
         match (get auto-matches key-typed)]
        (replace-text-and-caret selection np 0 match np)))
 
-(defn delete [selection]
+(defn delete [selection forward?]
   (let [np (caret selection)
         doc (text selection)
         slen (selection-length selection)
         soffset (selection-offset selection)]
     (if (pos? (selection-length selection))
       (replace-text-and-caret selection soffset slen "" soffset)
-      (let [pos (adjust-bounds doc (dec np))
+      (let [pos (if forward? np (adjust-bounds doc (dec np)))
             target (subs doc pos (adjust-bounds doc (+ 2 pos)))]
-       (when-not (zero? np)
+       (when-not (and (zero? np) (not forward?))
          (if (contains? auto-delete-set target)
            (replace-text-and-caret selection pos 2 "" pos)
            (replace-text-and-caret selection pos 1 "" pos)))))))
@@ -606,7 +613,13 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (delete selection))))
+      (delete selection false))))
+
+(handler/defhandler :delete-forward :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection]
+    (when (editable? selection)
+      (delete selection true))))
 
 (defn cut-selection [selection clipboard]
   (text! clipboard (text-selection selection))
