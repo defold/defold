@@ -87,7 +87,9 @@
          (is (= ["if cond then\n\t--do things\nend"] (map :insert-string result)))))
       (testing "global defold package"
         (set-code-and-caret! source-viewer "go")
-        (is (= ["go"] (map :name (propose source-viewer)))))
+        (is (= ["go"] (map :name (propose source-viewer))))
+        (set-code-and-caret! source-viewer "vm")
+        (is (= ["vmath"] (map :name (propose source-viewer)))))
       (testing "global lua std lib package"
         (set-code-and-caret! source-viewer "mat")
         (is (= ["math"] (map :name (propose source-viewer)))))
@@ -182,6 +184,10 @@
         (set-code-and-caret! source-viewer "math.ab")
         (propose! source-viewer)
         (is (= "math.abs(x)" (text source-viewer))))
+      (testing "single result of defold lib gets automatically inserted"
+        (set-code-and-caret! source-viewer "vmat")
+        (propose! source-viewer)
+        (is (= "vmath" (text source-viewer))))
       (testing "proper indentation is put in"
         (set-code-and-caret! source-viewer "function foo(x)\n\tif")
         (propose! source-viewer)
