@@ -4,7 +4,8 @@
             [clojure.tools.namespace.dependency :as dep]
             [clojure.tools.namespace.file :as file]
             [clojure.tools.namespace.find :as find]
-            [clojure.tools.namespace.track :as track]))
+            [clojure.tools.namespace.track :as track]
+            [clojure.walk :as walk]))
 
 (defn all-sources-tracker
   [srcdirs]
@@ -51,9 +52,23 @@
 
 (def srcdirs (map io/file ["src/clj"]))
 
+(defn system-properties
+  []
+  (walk/keywordize-keys (into {} (System/getProperties))))
+
+(def build-type (atom (get (system-properties) :defold.build :development)))
+
+(def build->compiler-options
+  {:development
+   {:elide-meta #{:file :line :column}}
+
+   :production
+   {:elide-meta     #{:file :line :column}
+    :direct-linking true}})
+
 (defn compile-clj
   [namespaces]
-  (binding [*compiler-options* {:elide-meta #{:file :line :column}}]
+  (binding [*compiler-options* (build->compiler-options @build-type)]
     (doseq [n namespaces]
       (println "Compiling " n)
       (compile n))))
