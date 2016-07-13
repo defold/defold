@@ -36,6 +36,7 @@
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
+           [java.net URI]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -206,6 +207,9 @@
     (.setScene stage scene)
     (ui/show! stage)))
 
+(handler/defhandler :documentation :global
+  (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
+
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
 
@@ -293,6 +297,8 @@
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
+                             {:label "Documentation"
+                              :command :documentation}
                              {:label "About"
                               :command :about}]}])
 
