@@ -125,7 +125,7 @@
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
-  [prefs]
+  [namespace-loader prefs]
   (ui/run-later
    (open-welcome prefs
                  (fn [project]
