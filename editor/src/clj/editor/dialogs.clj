@@ -532,14 +532,14 @@
     (ui/show! stage)
     stage))
 
-(defn make-proposal-dialog [result screen-point proposals line text-area]
+(defn make-proposal-dialog [result screen-point proposals target text-area]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
         stage (Stage.)
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals" "proposals-box"])
         close (fn [v] (do (deliver result v) (.close stage)))
         ^ListView list-view  (:proposals controls)
-        filter-text (atom (string/triml (or line "")))
+        filter-text (atom target)
         filter-fn (fn [i] (string/starts-with? (:name i) @filter-text))
         update-items (fn [] (try (let [new-items (filter filter-fn proposals)]
                                   (if (empty? new-items)
