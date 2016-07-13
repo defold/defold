@@ -37,7 +37,9 @@
   (snippet-tab-triggers [this])
   (snippet-tab-triggers! [this val])
   (has-snippet-tab-trigger? [this])
+  (has-prev-snippet-tab-trigger? [this])
   (next-snippet-tab-trigger! [this])
+  (prev-snippet-tab-trigger! [this])
   (clear-snippet-tab-triggers! [this]))
 
 (defprotocol TextView
@@ -128,6 +130,7 @@
 
   ;; Editing
   :Tab                   {:command :tab}
+  :Shift+Tab             {:command :backwards-tab-trigger}
   :Enter                 {:command :enter}
 
   ;; Paste
@@ -851,6 +854,16 @@
           (when found-idx
             (select-found-text selection doc found-idx tlen)))))))
 
+(defn prev-tab-trigger [selection pos]
+  (let [doc (text selection)
+        tab-trigger-info (prev-snippet-tab-trigger! selection)
+        search-text (:trigger tab-trigger-info)]
+    (when-not (= :begin search-text)
+      (let [found-idx (string/last-index-of doc search-text pos)
+            tlen (count search-text)]
+        (when found-idx
+          (select-found-text selection doc found-idx tlen))))))
+
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
@@ -860,6 +873,15 @@
               doc (text selection)]
           (next-tab-trigger selection np))
         (enter-key-text selection "\t")))))
+
+(handler/defhandler :backwards-tab-trigger :code-view
+  (enabled? [selection] (editable? selection))
+  (run [selection]
+    (when (editable? selection)
+      (if (has-prev-snippet-tab-trigger? selection)
+        (let [np (caret selection)
+              doc (text selection)]
+          (prev-tab-trigger selection np))))))
 
 (defn- get-indentation [line]
   (re-find #"^\s+" line))
