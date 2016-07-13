@@ -1024,7 +1024,7 @@ Defold Orange       #fd6623             Guides etc
 }
 
 .styled-text-area .selection-marker {
-	-fx-background-color:  rgba(172,148,120,0.3)
+	-fx-background-color: rgba(172,148,120,0.3)
 }
 
 /*
@@ -1073,4 +1073,16 @@ Line numbers:
 
 #console {
     -fx-highlight-fill: -defold-selected-blue;
+}
+
+/* Alert Dialog */
+
+.alert-dialog #message {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.alert-dialog #message:focused {
+    -fx-border-width: 0;
 }

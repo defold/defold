@@ -35,6 +35,14 @@ public class AccessTokenStore {
     }
 
     public void delete(AccessToken accessToken) {
-        entityManagerProvider.get().remove(accessToken);
+        EntityManager entityManager = entityManagerProvider.get();
+
+        /*
+            The accessToken object might be in detached mode when provided in some cases
+            (for instance when the call origins from GitSecurityFilter). Therefore it has to be merged to the current
+            entity manager before removal.
+         */
+        AccessToken merge = entityManager.merge(accessToken);
+        entityManager.remove(merge);
     }
 }

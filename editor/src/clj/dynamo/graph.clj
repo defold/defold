@@ -57,7 +57,7 @@
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/node (is/graph @*the-system* graph-id) node-id)))
+     (ig/graph->node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
@@ -325,6 +325,7 @@
         fn-paths      (in/extract-functions node-type-def)
         fn-defs       (for [[path func] fn-paths]
                         (list `def (in/dollar-name symb path) func))
+        fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
         node-type-def (util/update-paths node-type-def fn-paths
                                          (fn [path func curr]
                                            (assoc curr :fn (var-it (in/dollar-name symb path)))))
@@ -336,6 +337,7 @@
         runtime-definer (symbol (str symb "*"))]
     `(do
        (declare ~symb)
+       ~@fwd-decls
        ~@fn-defs
        (defn ~runtime-definer [] ~node-type-def)
        (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
@@ -585,6 +587,10 @@
   [node-id p]
   (assert node-id)
   (it/clear-property node-id p))
+
+(defn clear-property!
+  [node-id p]
+  (transact (clear-property node-id p)))
 
 (defn update-graph-value [graph-id k f & args]
   (it/update-graph-value graph-id update (into [k f] args)))
@@ -1036,7 +1042,7 @@
   ([root-id]
     (overrides (now) root-id))
   ([basis root-id]
-    (ig/overrides basis root-id)))
+    (ig/get-overrides basis root-id)))
 
 (defn override-original
   ([node-id]

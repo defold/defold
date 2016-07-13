@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../facebook.h"
+#include "../facebook_private.h"
 #include "../facebook_util.h"
 #include <dlib/json.h>
 
@@ -86,7 +86,7 @@ TEST_F(FBTest, EscapeJsonValues)
     ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(out_json, 0, "abc", 3));
 
     // empty output buffer
-    ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(NULL, 0, "abc", 3));
+    ASSERT_EQ(5, dmFacebook::WriteEscapedJsonString(NULL, 0, "abc", 3));
     ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(out_json, 0, NULL, 0));
     ASSERT_EQ(0, dmFacebook::WriteEscapedJsonString(NULL, 0, NULL, 0));
 }
@@ -463,6 +463,50 @@ TEST_F(FBTest, DuplicateTable)
     ASSERT_EQ(to_index, lua_gettop(L));
 }
 
+TEST_F(FBTest, LuaTableToJson)
+{
+    lua_State* L = luaL_newstate();
+    lua_createtable(L, 1, 0);
+        lua_createtable(L, 1, 0);
+        lua_pushnumber(L, 1);
+        lua_pushstring(L, "userid1");
+        lua_rawset(L, -3);
+        lua_pushnumber(L, 2);
+        lua_pushstring(L, "userid2");
+        lua_rawset(L, -3);
+        lua_pushnumber(L, 3);
+        lua_pushstring(L, "userid3");
+        lua_rawset(L, -3);
+    lua_setfield(L, 1, "suggestions");
+    int table_index = lua_gettop(L);
+
+    int size_needed = dmFacebook::LuaTableToJson(L, table_index, 0, 0);
+    ASSERT_NE(0, size_needed);
+
+    char* json = (char*)malloc(size_needed + 1 + strlen("magic") + 1);
+    strcpy(json + size_needed + 1, "magic");
+
+    int size_written = dmFacebook::LuaTableToJson(L, table_index, json, size_needed+1);
+    ASSERT_EQ(size_needed, size_written);
+    ASSERT_STREQ("magic", json+size_written+1);
+
+    // parse json document
+    dmJson::Document doc;
+    dmJson::Result r = dmJson::Parse(json, &doc);
+    ASSERT_EQ(dmJson::RESULT_OK, r);
+    ASSERT_EQ(6, doc.m_NodeCount); // json-obj + "suggestions" + ["userid1", "userid2", "userid3"]
+
+    ASSERT_EQ(dmJson::TYPE_OBJECT, doc.m_Nodes[0].m_Type); // obj container
+    ASSERT_EQ(dmJson::TYPE_STRING, doc.m_Nodes[1].m_Type); // "suggestions"
+    ASSERT_EQ(dmJson::TYPE_ARRAY,  doc.m_Nodes[2].m_Type); // suggestions array
+    ASSERT_EQ(dmJson::TYPE_STRING, doc.m_Nodes[3].m_Type); // "userid1"
+    ASSERT_EQ(dmJson::TYPE_STRING, doc.m_Nodes[4].m_Type); // "userid2"
+    ASSERT_EQ(dmJson::TYPE_STRING, doc.m_Nodes[5].m_Type); // "userid3"
+
+    dmJson::Free(&doc);
+    free(json);
+}
+
 TEST_F(FBTest, DuplicateTableMaxRecursion)
 {
     lua_State* L = luaL_newstate();
@@ -549,6 +593,9 @@ TEST_F(FBTest, DialogTableConversionEmscripten)
     lua_pushstring(L, "filters");
     lua_pushnumber(L, dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
     lua_rawset(L, -3);
+    lua_pushstring(L, "action_type");
+    lua_pushnumber(L, dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
+    lua_rawset(L, -3);
     int from_index = lua_gettop(L);
 
     lua_newtable(L);
@@ -559,6 +606,10 @@ TEST_F(FBTest, DialogTableConversionEmscripten)
 
     lua_getfield(L, to_index, "to");
     ASSERT_STREQ("userid1,userid2,userid3", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, to_index, "action_type");
+    ASSERT_STREQ("send", lua_tostring(L, -1));
     lua_pop(L, 1);
 
     lua_getfield(L, to_index, "filters");

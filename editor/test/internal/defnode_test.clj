@@ -856,3 +856,40 @@
   (testing "cached flag is not inherited"
     (is (contains? (-> @CustomPropertiesOutput :output :_properties :flags) :cached))
     (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
+
+(deftest declared-properties-is-cached
+  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
+
+(defn- override [node-id]
+  (-> (g/override node-id {})
+    :tx-data
+    tx-nodes))
+
+(deftest overridden-properties
+  (testing "is empty for an original node"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world BasicNode))]
+        (is (empty? (g/node-value n :_overridden-properties))))))
+
+  (testing "is empty for an override node with no properties set"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world BasicNode))
+            [onode] (override n)]
+        (is (empty? (g/node-value onode :_overridden-properties))))))
+
+  (testing "contains only properties with an override value"
+    (with-clean-system
+      (let [[n]     (tx-nodes (g/make-node world BasicNode))
+            [onode] (override n)
+            _       (g/set-property! onode :dynamic-property 99)
+            v1      (g/node-value onode :_overridden-properties)
+            _       (g/set-property! onode :background-color "cornflower blue")
+            v2      (g/node-value onode :_overridden-properties)
+            _       (g/clear-property! onode :dynamic-property)
+            v3      (g/node-value onode :_overridden-properties)
+            _       (g/clear-property! onode :background-color)
+            v4      (g/node-value onode :_overridden-properties)]
+        (is (= v1 {:dynamic-property 99} ))
+        (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"} ))
+        (is (= v3 {:background-color "cornflower blue"}))
+        (is (= v4 {}))))))

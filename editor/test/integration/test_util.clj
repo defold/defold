@@ -26,11 +26,13 @@
             [editor.json :as json]
             [editor.mesh :as mesh]
             [editor.material :as material]
+            [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
             [util.http-server :as http-server])
   (:import [java.io File FilenameFilter FileOutputStream FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
+           [javafx.scene.control Tab]
            [org.apache.commons.io FilenameUtils FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -98,7 +100,8 @@
     (not (nil? (some #{tgt-node-id} sel)))))
 
 (g/defnode DummyAppView
-  (property active-tool g/Keyword))
+  (property active-tool g/Keyword)
+  (property active-tab Tab))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
@@ -229,3 +232,7 @@
 
 (defn lib-server-url [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
+
+(defn handler-run [command command-contexts user-data]
+  (-> (handler/active command command-contexts user-data)
+    handler/run))

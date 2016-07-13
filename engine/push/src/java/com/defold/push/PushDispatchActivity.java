@@ -19,9 +19,14 @@ public class PushDispatchActivity extends Activity {
         try {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
+
+                boolean wasActivated = (extras.getByte("wasActivated") == 1);
+                extras.remove("wasActivated");
+
                 JSONObject json = Push.toJson(extras);
                 os = new PrintStream(openFileOutput(
                         Push.SAVED_PUSH_MESSAGE_NAME, MODE_PRIVATE));
+                os.println(wasActivated);
                 os.print(json.toString());
             } else {
                 Log.e(Push.TAG, "Unable to queue message. extras is null");

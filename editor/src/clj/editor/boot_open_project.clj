@@ -28,6 +28,7 @@
             [editor.sprite :as sprite]
             [editor.gl.shader :as shader]
             [editor.tile-source :as tile-source]
+            [editor.targets :as targets]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.json :as json]
@@ -114,9 +115,10 @@
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
                   (when (true? new-val)
-                    (ui/with-disabled-ui
-                      (ui/with-progress [render-fn ui/default-render-progress!]
-                        (editor.workspace/resource-sync! workspace true [] render-fn))))))
+                    (future
+                      (ui/with-disabled-ui
+                        (ui/with-progress [render-fn ui/default-render-progress!]
+                          (editor.workspace/resource-sync! workspace true [] render-fn)))))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -128,6 +130,7 @@
       (.setHeight stage (:height dims)))
 
     (ui/show! stage)
+    (targets/start)
 
     (ui/on-close-request! stage
                           (fn [_]

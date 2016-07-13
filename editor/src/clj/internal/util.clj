@@ -102,7 +102,9 @@
 
 (defn stackify [x]
   (if (coll? x)
-    (vec x)
+    (if (vector? x)
+      x
+      (vec x))
     [x]))
 
 (defn project
