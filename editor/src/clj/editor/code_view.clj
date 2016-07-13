@@ -55,7 +55,7 @@
        (finally
          (reset! ~a old-val#)))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length active-tab prefer-offset tab-triggers]
+(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length prefer-offset tab-triggers]
   (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
     (when (not= code (cvx/text source-viewer))
     (try
@@ -356,10 +356,6 @@
   (input tab-triggers g/Any)
   (input selection-offset g/Int)
   (input selection-length g/Int)
-  (input active-tab Tab)
-  (output new-tab-active g/Any :cached  (g/fnk [source-viewer active-tab]
-                                                  (cvx/refresh! source-viewer)
-                                                active-tab))
   (output new-content g/Any :cached update-source-viewer))
 
 (defn setup-code-view [app-view-id view-id code-node initial-caret-position]
@@ -372,7 +368,6 @@
     (g/connect code-node :tab-triggers view-id :tab-triggers)
     (g/connect code-node :selection-offset view-id :selection-offset)
     (g/connect code-node :selection-length view-id :selection-length)
-    (g/connect app-view-id :active-tab view-id :active-tab)
     (g/set-property code-node :caret-position initial-caret-position)
     (g/set-property code-node :prefer-offset 0)
     (g/set-property code-node :tab-triggers nil)
@@ -564,20 +559,17 @@
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
+    (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
+                                                       (when (= true new)
+                                                         (ui/run-later (cvx/refresh! source-viewer)))))
+    (cvx/refresh! source-viewer)
     (g/node-value view-id :new-content)
-    (g/node-value view-id :new-tab-active)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
                                                                       (cvx/changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
       (ui/timer-start! refresh-timer))
-    (let [tab-timer (ui/->timer "watch-for-active-tabs" (fn [_]
-                                                          (g/node-value view-id :new-tab-active)))
-          stage (ui/parent->stage parent)]
-      (ui/timer-stop-on-close! ^Tab (:tab opts) tab-timer)
-      (ui/timer-stop-on-close! stage tab-timer)
-      (ui/timer-start! tab-timer))
     view-id))
 
 (defn register-view-types [workspace]
