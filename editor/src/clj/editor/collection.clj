@@ -73,7 +73,7 @@
 (defn- assoc-deep [scene keyword new-value]
   (let [new-scene (assoc scene keyword new-value)]
     (if (:children scene)
-      (assoc new-scene :children (map #(assoc-deep % keyword new-value) (:children scene)))
+      (assoc new-scene :children (mapv #(assoc-deep % keyword new-value) (:children scene)))
       new-scene)))
 
 (defn- label-sort-by-fn [v]
@@ -189,12 +189,11 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (merge-with concat
-                                                   (assoc (assoc-deep scene :node-id _node-id)
-                                                          :transform transform
-                                                          :aabb aabb
-                                                          :renderable {:passes [pass/selection]})
-                                                   {:children child-scenes}))))
+                                       (-> (assoc-deep scene :node-id _node-id)
+                                         (assoc :transform transform
+                                                :aabb aabb
+                                                :renderable {:passes [pass/selection]})
+                                         (update :children (fn [s] (reduce conj (or s []) child-scenes)))))))
   (output go-inst-ids g/Any :cached (g/fnk [_node-id id]
                                            {id _node-id}))
   (output ddf-properties g/Any :cached (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))

@@ -691,7 +691,7 @@
 
 (defn- outs [nodes output]
   (for [n nodes]
-    [n :virt-property]))
+    [n output]))
 
 (defn- conn? [[src src-label tgt tgt-label]]
   (let [basis (g/now)]

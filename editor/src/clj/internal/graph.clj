@@ -241,7 +241,7 @@
                  (empty? (arc-fn graph override label)))
           (let [res (conj res override)
                 res (reduce conj res (implicit-overrides basis override label arc-fn override-filter-fn))]
-            res)
+            (recur (rest overrides) res))
           (recur (rest overrides) res))
         res))))
 
@@ -510,8 +510,10 @@
         graph (get (:graphs basis) gid)
         deps-by-label (input-deps basis node-id)
         override-filter-fn (->> (tree-seq (constantly true) (partial overrides graph) node-id)
-                             (map #(gt/override-id (graph->node graph %)))
-                             (into #{})
+                             (reduce (fn [res nid] (if-let [oid (gt/override-id (graph->node graph nid))]
+                                                     (conj res oid)
+                                                     res))
+                                     #{})
                              complement)
         overrides (overrides graph node-id)
         node (gt/node-by-id-at basis node-id)
