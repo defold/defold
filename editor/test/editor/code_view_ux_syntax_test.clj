@@ -117,6 +117,13 @@
       (testing "global function"
         (set-code-and-caret! source-viewer "function ice_cream(x,y) return x end\n ice")
         (is (= ["ice_cream"] (map :name (propose source-viewer)))))
+      (testing "var after a scoped function"
+        (set-code-and-caret! source-viewer "self.velocity = vm")
+        (is (= ["vmath"] (map :name (propose source-viewer)))))
+      (testing "proposal at the start of the line"
+        (set-code-and-caret! source-viewer "go.propert = vm")
+        (caret! source-viewer 10 false)
+        (is (= ["go.property"] (map :name (propose source-viewer)))))
       (testing "requires"
         (with-redefs [code-completion/resource-node-path (constantly "/mymodule.lua")]
           (let [module-code "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
@@ -169,7 +176,18 @@
         (let [code "   assert(math.a"]
           (set-code-and-caret! source-viewer code)
           (do-proposal-replacement source-viewer {:insert-string "math.abs()"})
-          (is (= "   assert(math.abs()" (text source-viewer))))))))
+          (is (= "   assert(math.abs()" (text source-viewer)))))
+      (testing "with replacement at end of line with scoped before"
+        (let [code "    go.set_prop = vma"]
+          (set-code-and-caret! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "vmath"})
+          (is (= "    go.set_prop = vmath" (text source-viewer)))))
+      (testing "with replacement not at end of line with"
+        (let [code "go.set_posit = vmath"]
+          (set-code-and-caret! source-viewer code)
+          (caret! source-viewer 10 false)
+          (do-proposal-replacement source-viewer {:insert-string "go.set_position"})
+          (is (= " go.set_position = vmath" (text source-viewer))))))))
 
 (defn- propose! [source-viewer]
   (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))

@@ -278,11 +278,13 @@
 
 (defn- replace-text-selection [selection s]
   (replace! selection (selection-offset selection) (selection-length selection) s)
-  (caret! selection (adjust-bounds (text selection) (selection-offset selection)) false))
+  (caret! selection (selection-offset selection) false))
 
 (defn- replace-text-and-caret [selection offset length s new-caret-pos]
-  (let [pos (adjust-bounds (text selection) offset)
-        new-len (adjust-replace-length (text selection) pos length)]
+  (let [doc (text selection)
+        pos (adjust-bounds doc offset)
+        new-len (adjust-replace-length (text selection) pos length)
+        new-pos (adjust-bounds doc new-caret-pos)]
     (replace! selection pos new-len s)
     (caret! selection (adjust-bounds (text selection) new-caret-pos) false)
     (remember-caret-col selection new-caret-pos)))
@@ -953,26 +955,34 @@
     (g/redo! (g/node-id->graph-id code-node))
     (g/node-value view-node :new-content)))
 
+(defn- completion-pattern [replacement loffset line-text offset]
+  (let [completion-text (subs line-text 0 (- offset loffset))
+        parsed-line (code/parse-line completion-text)
+        replacement-in-line? (when replacement (string/index-of line-text replacement))]
+    (if replacement-in-line?
+      replacement
+      (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))))
+
 (defn do-proposal-replacement [selection replacement]
   (let [tab-triggers (:tab-triggers replacement)
         replacement (:insert-string replacement)
+        offset (caret selection)
         line-text (line selection)
         loffset (line-offset selection)
-        parsed-line (code/parse-line line-text)
-        replacement-in-line? (string/index-of line-text replacement)
-        pattern (if replacement-in-line?
-                  replacement
-                 (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))
-        new-line-text (string/replace-first line-text pattern replacement)
-        snippet-tab-start (or (when-let [start (:start tab-triggers)]
-                                (string/index-of new-line-text start))
-                              (string/index-of new-line-text "(")
-                              0)
-        replace-len (count line-text)]
-    (replace! selection loffset replace-len new-line-text)
-    (do-indent-region selection loffset (+ loffset (count new-line-text)))
+        pattern (completion-pattern replacement loffset line-text offset)
+        replacement-start (string/index-of line-text pattern)
+        replacement-len (count pattern)]
+    (replace! selection (+ loffset replacement-start) replacement-len replacement)
+    (do-indent-region selection loffset (+ loffset (count (line selection))))
     (snippet-tab-triggers! selection tab-triggers)
-    (next-tab-trigger selection (+ loffset snippet-tab-start))))
+    (if (has-snippet-tab-trigger? selection)
+      (let [nl (line selection)
+            snippet-tab-start (or (when-let [start (:start tab-triggers)]
+                                    (string/index-of nl start))
+                                  (string/index-of nl "(")
+                                  0)]
+        (next-tab-trigger selection (+ loffset snippet-tab-start)))
+      (caret! selection (+ loffset replacement-start (count replacement)) false))))
 
 (defn show-proposals [selection proposals]
   (when (pos? (count proposals))
@@ -980,7 +990,8 @@
           offset (caret selection)
           result (promise)
           current-line (line selection)
-          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals current-line (text-area selection))
+          target (completion-pattern nil (line-offset selection) current-line offset)
+          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals target (text-area selection))
           replace-text-fn (fn [] (when (and (realized? result) @result)
                                   (do-proposal-replacement selection (first @result))))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
