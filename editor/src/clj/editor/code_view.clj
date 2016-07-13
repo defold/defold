@@ -373,7 +373,9 @@
       (.getString this))))
 
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer) offset select?))
+  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer)
+              (cvx/adjust-bounds (cvx/text source-viewer) offset)
+              select?))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
@@ -500,9 +502,11 @@
     (when-let [assist-fn (assist this)]
       (let [offset (cvx/caret this)
             line (cvx/line this)
+            line-offset (cvx/line-offset this)
+            completion-text (subs line 0 (- offset line-offset))
             code-node-id (-> this (.getTextWidget) (code-node))
             completions (g/node-value code-node-id :completions)]
-        (assist-fn completions (cvx/text this) offset line))))
+        (assist-fn completions (cvx/text this) offset completion-text))))
   cvx/TextOffset
   (preferred-offset [this]
     @(prefer-offset this))
