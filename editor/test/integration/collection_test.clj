@@ -39,6 +39,23 @@
                ; One component and game object under the game object
                (is (= 2 (count (:children (first (:children scene))))))))))
 
+(defn- reachable? [source target]
+  (contains? (set (g/dependencies (g/now) [source])) target))
+
+(deftest two-instances-are-invalidated
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/logic/two_atlas_sprites.collection")
+          scene (g/node-value node-id :scene)
+          go-id (test-util/resource-node project "/logic/atlas_sprite.go")
+          go-scene (g/node-value go-id :scene)
+          sprite (get-in go-scene [:children 0 :node-id])]
+      (is (reachable? [sprite :scene] [go-id :scene]))
+      (is (reachable? [sprite :scene] [(get-in scene [:children 0 :node-id]) :scene]))
+      (is (not (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene])))
+      (is (reachable? [(get-in scene [:children 0 :node-id]) :scene] [node-id :scene])))))
+
 (deftest add-embedded-instance
   (testing "Hierarchical scene"
            (with-clean-system
