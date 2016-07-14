@@ -1035,6 +1035,13 @@
         match (get auto-matches key-typed)]
        (replace-text-and-caret selection np 0 match np)))
 
+(defn- part-of-string? [selection]
+  (let [line-text (line selection)
+        loffset (line-offset selection)
+        np (caret selection)
+        check-text (subs line-text 0 (- np loffset))]
+    (re-find  #"^(\w|\.)+\"" (->> check-text reverse (apply str)))))
+
 (handler/defhandler :key-typed :code-view
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
@@ -1042,7 +1049,7 @@
            (pos? (count key-typed))
            (code/not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
-      (when (and (contains? proposal-key-triggers key-typed) (not (has-snippet-tab-trigger? selection)))
+      (when (and (contains? proposal-key-triggers key-typed) (not (part-of-string? selection)))
         (show-proposals selection (propose selection)))
       (when (contains? auto-match-set key-typed)
         (match-key-typed selection key-typed)))))
