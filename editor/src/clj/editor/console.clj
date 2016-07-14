@@ -1,8 +1,10 @@
 (ns editor.console
   (:require [editor.ui :as ui]
+            [editor.handler :as handler]
+            [editor.workspace :as workspace]
             [clojure.string :as str])
   (:import [javafx.scene.control Button TextArea TextField]
-           [javafx.scene.input KeyCode KeyEvent]))
+           [javafx.scene.input KeyCode KeyEvent Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
 
@@ -53,11 +55,27 @@
     (ui/run-later
      (.appendText node message))))
 
+(handler/defhandler :copy :console-view
+  (enabled? []
+            true)
+  (run []
+    (let [node    ^TextArea @node
+          content (ClipboardContent.)
+          cb      (Clipboard/getSystemClipboard)
+          str     (.getSelectedText node)]
+      (.putString content str)
+      (.setContent cb content))))
+
+(defrecord DummySelectionProvider []
+  workspace/SelectionProvider
+  (selection [this] []))
+
 (defn setup-console! [{:keys [^TextArea text ^TextField search ^Button prev ^Button next ^Button clear]}]
   (ui/on-action! clear clear-console!)
   (ui/on-action! next next-console!)
   (ui/on-action! prev prev-console!)
   (ui/observe (.textProperty search) search-console)
+  (ui/context! text :console-view {} (DummySelectionProvider.))
   (.addEventFilter search KeyEvent/KEY_PRESSED
                    (ui/event-handler event
                                      (let [code (.getCode ^KeyEvent event)]
