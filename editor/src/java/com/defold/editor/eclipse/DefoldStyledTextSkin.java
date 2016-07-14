@@ -220,7 +220,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 			@Override
 			public void handle(MouseEvent event) {
-				getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), event.isShiftDown());
+                            getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), event.isShiftDown(), null);
 				// The consuming does not help because it looks like the
 				// selection change happens earlier => should be push a new
 				// ListViewBehavior?
@@ -231,7 +231,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 			@Override
 			public void handle(MouseEvent event) {
-				getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), true);
+                            getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), true, null);
 				event.consume();
 			}
 		});
@@ -718,6 +718,18 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			this.lineText.setAlignment(Pos.CENTER_RIGHT);
 			HBox.setHgrow(this.lineText, Priority.ALWAYS);
 			getChildren().addAll(this.markerLabel, this.lineText);
+                        Label ltext = this.lineText;
+			this.setOnMousePressed(new EventHandler<MouseEvent>() {
+
+				@Override
+				public void handle(MouseEvent event) {
+                                    getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), event.isShiftDown(), ltext);
+					// The consuming does not help because it looks like the
+					// selection change happens earlier => should be push a new
+					// ListViewBehavior?
+					event.consume();
+				}
+			});
 		}
 
 		public void setDomainElement(Line line) {

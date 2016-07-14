@@ -55,7 +55,7 @@
                     (update :components strip-properties))]
     {:id id
      :children child-ids
-     :data (protobuf/map->str GameObject$PrototypeDesc proto-msg)
+     :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
      :position position
      :rotation (math/vecmath->clj rotation-q4)
      :scale3 scale
