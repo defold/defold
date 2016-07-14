@@ -5,7 +5,8 @@
             [clojure
              [string :as str]
              [xml :as xml]]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [editor.dialogs :as dialogs])
   (:import [com.dynamo.upnp DeviceInfo SSDP]
            [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.net URL URLConnection]
@@ -148,6 +149,7 @@
         scene       (Scene. root)
         controls    (ui/collect-controls root ["message" "ok" "clear"])
         get-message (fn [log] (apply str (interpose "\n" log)))]
+    (dialogs/observe-focus stage)
     (ui/title! stage "Engine Target Event Log")
     (ui/text! (:message controls) (get-message @event-log))
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
