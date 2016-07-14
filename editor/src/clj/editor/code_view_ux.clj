@@ -178,7 +178,6 @@
 (def auto-matches {"\"" "\""
                    "[" "]"
                    "{" "}"
-                   "'" "'"
                    "(" ")"})
 (def auto-match-set (into #{} (keys auto-matches)))
 (def auto-delete-set (into #{} (map (fn [[k v]] (str k v)) auto-matches)))
@@ -967,6 +966,7 @@
       (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))))
 
 (defn do-proposal-replacement [selection replacement]
+  (println "replacement " replacement)
   (let [tab-triggers (:tab-triggers replacement)
         replacement (:insert-string replacement)
         offset (caret selection)
@@ -995,7 +995,6 @@
           result (promise)
           current-line (line selection)
           target (completion-pattern nil (line-offset selection) current-line offset)
-          _ (println "Target is " target)
           ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals target (text-area selection))
           replace-text-fn (fn [] (when (and (realized? result) @result)
                                   (do-proposal-replacement selection (first @result))))]
@@ -1022,7 +1021,7 @@
            (pos? (count key-typed))
            (code/not-ascii-or-delete key-typed))
       (enter-key-text selection key-typed)
-      (when (contains? proposal-key-triggers key-typed)
+      (when (and (contains? proposal-key-triggers key-typed) (not (has-snippet-tab-trigger? selection)))
         (show-proposals selection (propose selection)))
       (when (contains? auto-match-set key-typed)
         (match-key-typed selection key-typed)))))
