@@ -88,7 +88,7 @@
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                    (.getName parameter))]
-      {:select (remove #(= \[ (first %)) params)})))
+      {:select (remove #(= \[ (first %)) params) :exit (when params ")")})))
 
 (defn defold-documentation []
   (reduce
@@ -118,7 +118,7 @@
                    item
                    insert-string
                    ""
-                   {:select tab-triggers})))
+                   {:select tab-triggers :exit (when tab-triggers ")")})))
         completions (group-by #(let [names (string/split (:name %) #"\.")]
                                          (if (= 2 (count names)) (first names) "")) hints)
         package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
