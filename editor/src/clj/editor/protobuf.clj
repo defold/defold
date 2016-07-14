@@ -17,9 +17,15 @@
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
+(defn- break-embedded-newlines
+  [^String pb-str]
+  (.replace pb-str "\\n" "\\n\"\n  \""))
+
 (defn- pb->str
-  [^Message pb]
-  (TextFormat/printToString pb))
+  [^Message pb format-newlines?]
+  (cond-> (TextFormat/printToString pb)
+    format-newlines?
+    (break-embedded-newlines)))
 
 (defn pb->bytes
   [^Message pb]
@@ -288,10 +294,12 @@
     (doall (map #(set-field m % builder) all-fields))
     (.build builder)))
 
-(defn map->str [desc-or-cls m]
-  (->
+(defn map->str
+  ([desc-or-cls m] (map->str desc-or-cls m true))
+  ([desc-or-cls m format-newlines?]
+   (->
     (map->pb desc-or-cls m)
-    (pb->str)))
+    (pb->str format-newlines?))))
 
 (defn map->bytes [desc-or-cls m]
   (->
