@@ -48,7 +48,7 @@
       (< h' 5) [x 0.0 c]
       (< h' 6) [c 0.0 x])))
 
-(defn- hsv->rgb [h s v]
+(defn hsv->rgb [h s v]
   (let [c (* s v)
         [r1 g1 b1] (hsc->rgb1 h s c)
         m (- v c)]
@@ -57,7 +57,7 @@
 (defn hsv->rgba [h s v]
   (alpha (hsv->rgb h s v) 1.0))
 
-(defn- hsl->rgb [h s l]
+(defn hsl->rgb [h s l]
   (let [c (* s (- 1.0 (Math/abs (- (* 2.0 l) 1.0))))
         [r1 g1 b1] (hsc->rgb1 h s c)
         m (- l (* 0.5 c))]

@@ -150,15 +150,11 @@
                                     <content>
                                       <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0">
                                              <children>
-                                                <SplitPane dividerPositions="0.29797979797979796" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                <SplitPane dividerPositions="0.25" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                   <items>
-                                                    <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="206.0" prefWidth="119.0">
+                                                    <AnchorPane prefHeight="206.0" prefWidth="119.0">
                                                          <children>
-                                                            <ScrollPane prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                                               <content>
-                                                                  <ListView id="curve-editor-list" prefHeight="200.0" prefWidth="200.0" />
-                                                               </content>
-                                                            </ScrollPane>
+                                                            <ListView id="curve-editor-list" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                                          </children>
                                                       </AnchorPane>
                                                     <AnchorPane id="curve-editor-view" minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0" />

@@ -43,12 +43,13 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.geometry BoundingBox Pos VPos HPos]
            [javafx.scene Scene Group Node Parent]
-           [javafx.scene.control Tab Button ListView]
+           [javafx.scene.control Tab Button ListView ListCell]
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane Pane StackPane]
-           [javafx.util Callback]
+           [javafx.scene.paint Color]
+           [javafx.util Callback StringConverter]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
            [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
@@ -127,17 +128,18 @@
     (when (satisfies? types/GeomCloud v)
       (< 1 (count (properties/curve-vals v))))))
 
-(g/defnk produce-curve-renderables [curves]
+(g/defnk produce-curve-renderables [visible-curves]
   (let [splines (mapv (fn [{:keys [node-id property curve]}] (->> curve
                                                                (mapv second)
-                                                               (properties/->spline))) curves)
+                                                               (properties/->spline))) visible-curves)
         steps 128
         scount (count splines)
-        colors (map-indexed (fn [i s] (let [h (* (+ i 0.5) (/ 360.0 scount))
-                                            s 1.0
-                                            l 0.7]
-                                        (colors/hsl->rgba h s l)))
-                    splines)
+        colors (mapv (fn [c]
+                       (let [h (:hue c)
+                             s 1.0
+                             l 0.7]
+                         (colors/hsl->rgba h s l)))
+                     visible-curves)
         xs (->> (range steps)
              (map #(/ % (- steps 1)))
              (partition 2 1)
@@ -158,7 +160,7 @@
 
 (def ^:private tangent-length 40)
 
-(g/defnk produce-cp-renderables [curves viewport camera sub-selection-map]
+(g/defnk produce-cp-renderables [visible-curves viewport camera sub-selection-map]
   (let [sub-sel sub-selection-map
         scale (camera/scale-factor camera viewport)
         splines (mapv (fn [{:keys [node-id property curve]}]
@@ -166,10 +168,9 @@
                               control-points (->> curve
                                                (sort-by (comp first second)))
                               order (into {} (map-indexed (fn [i [idx _]] [idx i]) control-points))]
-                          [(properties/->spline (map second control-points)) (into #{} (map order sel))])) curves)
+                          [(properties/->spline (map second control-points)) (into #{} (map order sel))])) visible-curves)
         scount (count splines)
-        color-hues (map-indexed (fn [i _] (* (+ i 0.5) (/ 360.0 scount)))
-                        splines)
+        color-hues (mapv :hue visible-curves)
         cp-r 4.0
         quad (let [[v0 v1 v2 v3] (vec (for [x [(- cp-r) cp-r]
                                             y [(- cp-r) cp-r]]
@@ -456,6 +457,7 @@
 
   (output async-frame g/Keyword :cached produce-async-frame)
   (output curves g/Any :cached produce-curves)
+  (output visible-curves g/Any :cached (g/fnk [curves hidden-curves] (remove #(contains? hidden-curves (:property %)) curves)))
   (output curve-renderables g/Any :cached produce-curve-renderables)
   (output cp-renderables g/Any :cached produce-cp-renderables)
   (output picking-selection g/Any :cached produce-picking-selection)
@@ -471,8 +473,18 @@
                                                   [:curve curve]
                                                   nil)))))
   (output update-list-view g/Any :cached (g/fnk [curves ^ListView list selected-node-properties]
-                                                (let [p (:properties (properties/coalesce selected-node-properties))]
-                                                  (ui/items! list (mapv (fn [c] (properties/label (get p (:property c)))) curves))))))
+                                                (let [p (:properties (properties/coalesce selected-node-properties))
+                                                      new-items (mapv (fn [c] {:keyword (:property c)
+                                                                               :property (dissoc (get p (:property c)) :values)
+                                                                               :hue (:hue c)})
+                                                                      curves)
+                                                      old-items (ui/user-data list ::items)]
+                                                  (when (not= new-items old-items)
+                                                    (ui/user-data! list ::items new-items)
+                                                    (ui/items! list (mapv (fn [c] {:keyword (:property c)
+                                                                                  :property (get p (:property c))
+                                                                                  :hue (:hue c)})
+                                                                         curves)))))))
 
 (defonce view-state (atom nil))
 
@@ -587,7 +599,7 @@
       view-id))
   ([project graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list]
+                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        background background/Gradient
@@ -623,15 +635,28 @@
           (ui/context! parent :curve-view {} (SubSelectionProvider. project))
           (ui/fill-control pane)
           (ui/children! view [pane])
-          (.setCellFactory list
-            (CheckBoxListCell/forListView
+          (let [converter (proxy [StringConverter] []
+                            (fromString ^Object [s] nil)
+                            (toString ^String [item] (properties/label (:property item))))
+                selected-callback (reify Callback
+                                    (call ^ObservableValue [this item]
+                                      (let [hidden-curves (g/node-value node-id :hidden-curves)]
+                                        (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
+                                          (ui/observe (fn [observable old new]
+                                                        (let [kw (:keyword item)]
+                                                          (if new
+                                                            (g/update-property! node-id :hidden-curves disj kw)
+                                                            (g/update-property! node-id :hidden-curves conj kw)))))))))]
+            (.setCellFactory list
               (reify Callback
-                (call ^ObservableValue [this item]
-                  (let [hidden-curves (g/node-value node-id :hidden-curves)]
-                    (doto (SimpleBooleanProperty. (not (contains? hidden-curves item)))
-                      (ui/observe (fn [observalbe old new]
-                                    (prn "change from" old new)))))))
-              #_(reify StringConverter)))))
+                (call ^ListCell [this list]
+                  (proxy [CheckBoxListCell] [selected-callback converter]
+                    (updateItem [item empty]
+                      (let [this ^CheckBoxListCell this]
+                        (proxy-super updateItem item empty)
+                        (when (and item (not empty))
+                          (let [[r g b] (colors/hsl->rgb (:hue item) 1.0 0.75)]
+                            (proxy-super setStyle (format "-fx-text-fill: rgb(%f, %f, %f);" (* 255 r) (* 255 g) (* 255 b))))))))))))))
       node-id)))
 
 (defn- reload-curve-view []
