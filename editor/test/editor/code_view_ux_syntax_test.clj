@@ -183,11 +183,16 @@
           (do-proposal-replacement source-viewer {:insert-string "vmath"})
           (is (= "    go.set_prop = vmath" (text source-viewer)))))
       (testing "with replacement not at end of line with"
-        (let [code "go.set_posit = vmath"]
+        (let [code "vmat = go.set"]
           (set-code-and-caret! source-viewer code)
-          (caret! source-viewer 10 false)
-          (do-proposal-replacement source-viewer {:insert-string "go.set_position"})
-          (is (= " go.set_position = vmath" (text source-viewer))))))))
+          (caret! source-viewer 4 false)
+          (do-proposal-replacement source-viewer {:insert-string "vmath"})
+          (is (= "vmath = go.set" (text source-viewer)))))
+      (testing "with replacement with simlar spelling"
+        (let [code "vmatches = vm"]
+          (set-code-and-caret! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "vmath"})
+          (is (= "vmatches = vmath" (text source-viewer))))))))
 
 (defn- propose! [source-viewer]
   (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
