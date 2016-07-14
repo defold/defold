@@ -8,6 +8,7 @@
             [editor.properties-view :as properties-view]
             [editor.text :as text]
             [editor.code-view :as code-view]
+            [editor.collision-object :as collision-object]
             [editor.scene :as scene]
             [editor.form-view :as form-view]
             [editor.collection :as colleciton]
@@ -84,6 +85,7 @@
     (g/transact
      (concat
       (collection/register-resource-types workspace)
+      (collision-object/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-project/register-resource-types workspace)
