@@ -82,6 +82,7 @@
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
 
     (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
 (defn make-confirm-dialog [message]
