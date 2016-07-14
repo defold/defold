@@ -988,7 +988,6 @@
       (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))))
 
 (defn do-proposal-replacement [selection replacement]
-  (println "replacement " replacement)
   (let [tab-triggers (:tab-triggers replacement)
         replacement (:insert-string replacement)
         offset (caret selection)
