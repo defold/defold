@@ -602,7 +602,7 @@
         doc (text selection)
         slen (selection-length selection)
         soffset (selection-offset selection)]
-    (if (pos? (selection-length selection))
+    (if (pos? slen)
       (replace-text-and-caret selection soffset slen "" soffset)
       (let [pos (if forward? np (adjust-bounds doc (dec np)))
             target (subs doc pos (adjust-bounds doc (+ 2 pos)))]
@@ -956,9 +956,12 @@
     (g/node-value view-node :new-content)))
 
 (defn- completion-pattern [replacement loffset line-text offset]
-  (let [completion-text (subs line-text 0 (- offset loffset))
+  (let [fragment (subs line-text 0 (- offset loffset))
+        length-to-first-whitespace (string/index-of (->> fragment reverse (apply str)) " ")
+        start (if length-to-first-whitespace (- (count fragment) length-to-first-whitespace 1) 0)
+        completion-text (subs line-text (max start 0) (max (- offset loffset) 0))
         parsed-line (code/parse-line completion-text)
-        replacement-in-line? (when replacement (string/index-of line-text replacement))]
+        replacement-in-line? (when replacement (string/index-of fragment replacement start))]
     (if replacement-in-line?
       replacement
       (code/proposal-filter-pattern (:namespace parsed-line) (:function parsed-line)))))
@@ -970,17 +973,18 @@
         line-text (line selection)
         loffset (line-offset selection)
         pattern (completion-pattern replacement loffset line-text offset)
-        replacement-start (string/index-of line-text pattern)
+        search-start (adjust-bounds (text selection) (- offset loffset (count pattern)))
+        replacement-start (string/index-of line-text pattern search-start)
         replacement-len (count pattern)]
     (replace! selection (+ loffset replacement-start) replacement-len replacement)
-    (do-indent-region selection loffset (+ loffset (count (line selection))))
+    (do-indent-region selection loffset (+ loffset (count replacement)))
     (snippet-tab-triggers! selection tab-triggers)
     (if (has-snippet-tab-trigger? selection)
       (let [nl (line selection)
             snippet-tab-start (or (when-let [start (:start tab-triggers)]
-                                    (string/index-of nl start))
-                                  (string/index-of nl "(")
-                                  0)]
+                                    (string/index-of nl start replacement-start))
+                                  (string/index-of nl "(" replacement-start)
+                                  replacement-start)]
         (next-tab-trigger selection (+ loffset snippet-tab-start)))
       (caret! selection (+ loffset replacement-start (count replacement)) false))))
 
@@ -991,6 +995,7 @@
           result (promise)
           current-line (line selection)
           target (completion-pattern nil (line-offset selection) current-line offset)
+          _ (println "Target is " target)
           ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals target (text-area selection))
           replace-text-fn (fn [] (when (and (realized? result) @result)
                                   (do-proposal-replacement selection (first @result))))]
