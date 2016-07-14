@@ -403,14 +403,18 @@
                             (map first)
                             (mapv (fn [kw] (let [v (get-in properties [kw :value])]
                                             {:key kw
-                                             :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))
+                                             :points (->> (props/curve-vals v)
+                                                       (sort-by first)
+                                                       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))
                                              :spread (:spread v)}))))]
              [:particle-properties (->> (protobuf/enum-values Particle$ParticleKey)
                                      butlast
                                      (map first)
                                      (mapv (fn [kw] (let [v (get-in properties [kw :value])]
                                                      {:key kw
-                                                      :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))}))))]]))))
+                                                      :points (->> (props/curve-vals v)
+                                                                (sort-by first)
+                                                                (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))}))))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat

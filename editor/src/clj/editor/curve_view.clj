@@ -32,6 +32,7 @@
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region Rect]
+           [editor.properties Curve CurveSpread]
            [java.awt Font]
            [java.awt.image BufferedImage DataBufferByte DataBufferInt]
            [javafx.animation AnimationTimer]
@@ -124,29 +125,30 @@
                           :ok)))))
 
 (defn- curve? [[_ p]]
-  (let [v (:value p)]
-    (when (satisfies? types/GeomCloud v)
+  (let [t (g/value-type-dispatch-value (:type p))
+        v (:value p)]
+    (when (or (= t Curve) (= t CurveSpread))
       (< 1 (count (properties/curve-vals v))))))
 
+(def ^:private x-steps 100)
+(def ^:private xs (reduce (fn [res s] (conj res (double (/ s (- x-steps 1))))) [] (range x-steps)))
+
 (g/defnk produce-curve-renderables [visible-curves]
-  (let [splines (mapv (fn [{:keys [node-id property curve]}] (->> curve
-                                                               (mapv second)
-                                                               (properties/->spline))) visible-curves)
-        steps 128
-        scount (count splines)
-        colors (mapv (fn [c]
-                       (let [h (:hue c)
-                             s 1.0
-                             l 0.7]
-                         (colors/hsl->rgba h s l)))
-                     visible-curves)
-        xs (->> (range steps)
-             (map #(/ % (- steps 1)))
-             (partition 2 1)
-             (apply concat))
-        curve-vs (mapcat (fn [spline color](let [[r g b a] color]
-                                             (mapv #(let [[x y] (properties/spline-cp spline %)]
-                                                      [x y 0.0 r g b a]) xs))) splines colors)
+  (let [splines+colors (mapv (fn [{:keys [node-id property curve hue]}]
+                               (let [spline (->> curve
+                                              (mapv second)
+                                              (properties/->spline))
+                                     color (colors/hsl->rgba hue 1.0 0.7)]
+                                 [spline color])) visible-curves)
+        curve-vs (reduce (fn [res [spline color]]
+                           (let [[r g b a] color]
+                             (->> (map #(properties/spline-cp spline %) xs)
+                               (partition 2 1)
+                               (reduce (fn [res [[x0 y0] [x1 y1]]]
+                                         (-> res
+                                           (conj [x0 y0 0.0 r g b a])
+                                           (conj [x1 y1 0.0 r g b a]))) res))))
+                         [] splines+colors)
         curve-vcount (count curve-vs)
         world-lines (when (< 0 curve-vcount)
                       (let [vb (->color-vtx curve-vcount)]
@@ -517,7 +519,7 @@
                   (fn [])))
       (g/transact (g/set-property camera :local-camera end-camera)))))
 
-(defn make-gl-pane [view-id parent opts]
+(defn make-gl-pane [view-id ^AnchorPane view opts]
   (let [image-view (doto (ImageView.)
                      (.setScaleY -1.0))
         pane (proxy [com.defold.control.Region] []
@@ -540,7 +542,7 @@
                                (.setSize ^GL2 (.getGL context) w h))
                              (.release context)))
                          (do
-                           (scene/register-event-handler! parent view-id)
+                           (scene/register-event-handler! view view-id)
                            (ui/user-data! image-view ::view-id view-id)
                            (let [^Tab tab      (:tab opts)
                                  repainter     (ui/->timer "refresh-curve-view"
@@ -548,7 +550,7 @@
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt)
                                                     (g/node-value view-id :update-list-view))))]
-                             (ui/user-data! parent ::repainter repainter)
+                             (ui/user-data! view ::repainter repainter)
                              (ui/on-close tab
                                           (fn [e]
                                             (ui/timer-stop! repainter)))
@@ -564,10 +566,10 @@
     (g/set-property! view-id :image-view image-view)
     pane))
 
-(defn destroy-view! [parent view view-id]
-  (when-let [repainter (ui/user-data parent ::repainter)]
+(defn destroy-view! [parent ^AnchorPane view view-id]
+  (when-let [repainter (ui/user-data view ::repainter)]
     (ui/timer-stop! repainter)
-    (ui/user-data! parent ::repainter nil))
+    (ui/user-data! view ::repainter nil))
   (when view-id
     (when-let [scene (g/node-by-id view-id)]
       (when-let [^GLAutoDrawable drawable (g/node-value view-id :drawable)]

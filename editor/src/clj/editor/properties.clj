@@ -33,7 +33,7 @@
 
 (defn spline-cp [spline x]
   (let [x (min (max x 0.0) 1.0)
-        [[cp0 cp1]] (filterv (fn [[[x0] [x1]]] (and (<= x0 x) (<= x x1))) (partition 2 1 spline))]
+        [cp0 cp1] (some (fn [cps] (and (<= (ffirst cps) x) (<= x (first (second cps))) cps)) (partition 2 1 spline))]
     (when (and cp0 cp1)
       (let [[x0 y0 s0 t0] cp0
             [x1 y1 s1 t1] cp1

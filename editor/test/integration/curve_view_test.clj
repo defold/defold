@@ -54,12 +54,15 @@
     (filterv (fn [[nid prop sub-sel]] (and (= node-id nid) (= property prop) sub-sel)))
     (mapv last)))
 
+(defn- make-curve-view! [project width height]
+  (doto (curve-view/make-view! project (test-util/make-view-graph!) nil nil {} false)
+    (g/set-property! :viewport (types/->Region 0 width 0 height))))
+
 (deftest selection
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
-          curve-view (doto (curve-view/make-view! project (test-util/make-view-graph!) nil {} false)
-                       (g/set-property! :viewport (types/->Region 0 400 0 400)))
+          curve-view (make-curve-view! project 400 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [2]))]
       (project/select! project [emitter])
@@ -93,8 +96,7 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
-          curve-view (doto (curve-view/make-view! project (test-util/make-view-graph!) nil {} false)
-                       (g/set-property! :viewport (types/->Region 0 800 0 400)))
+          curve-view (make-curve-view! project 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [2]))]
       (project/select! project [emitter])
@@ -122,8 +124,7 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
-          curve-view (doto (curve-view/make-view! project (test-util/make-view-graph!) nil {} false)
-                       (g/set-property! :viewport (types/->Region 0 800 0 400)))
+          curve-view (make-curve-view! project 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [2]))]
       (project/select! project [emitter])
@@ -137,5 +138,5 @@
       (is (nil? (cp emitter :particle-key-alpha 9)))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
-      (handler/run :delete [{:name :curve-view :env {:selection (g/node-value project :sub-selection)}}] {})
+      (test-util/handler-run :delete [{:name :curve-view :env {:selection (g/node-value project :sub-selection)}}] {})
       (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6))))))

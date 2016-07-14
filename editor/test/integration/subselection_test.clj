@@ -158,12 +158,12 @@
           emitter (doto (:node-id (test-util/outline pfx-id [2]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
-                                                                              [0.0 1.0 1.0 0.0]])))
+                                                                              [1.0 1.0 1.0 0.0]])))
           proj-graph (g/node-id->graph-id project)
-          [model] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]]))
+          [model] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]]))
           view (-> (->view (fn [s] (select! project s)))
                  (render-all [model emitter]))
-          box [[0.5 0.5] [1.0 1.0]]]
+          box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
       (is (not (empty? (selection project))))
       (delete! project)
@@ -181,18 +181,18 @@
           emitter (doto (:node-id (test-util/outline pfx-id [2]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
-                                                                              [0.0 1.0 1.0 0.0]])))
+                                                                              [1.0 1.0 1.0 0.0]])))
           proj-graph (g/node-id->graph-id project)
           [model
-           manip] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [1.0 1.0]])]
+           manip] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]
                                                       manip MoveManip]
                                           (g/connect project :sub-selection manip :selection)))
           view (-> (->view (fn [s] (select! project s)))
                  (render-all [model emitter]))
-          box [[0.5 0.5] [1.0 1.0]]]
+          box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
       (is (not (empty? (selection project))))
-      (is (= [(/ 2.1 3.0) (/ 2.1 3.0) 0.0] (g/node-value manip :position)))
+      (is (= [(/ 2.0 3.0) (/ 2.0 3.0) 0.0] (g/node-value manip :position)))
       (-> (start-move (selection project) (g/node-value manip :position))
         (move! [2.0 2.0 0.0]))
       (let [view (-> view
