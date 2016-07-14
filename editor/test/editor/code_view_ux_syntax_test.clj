@@ -254,8 +254,6 @@
         (propose! source-viewer)
         (is (= "go.delete_all()" (text source-viewer)))
         (is (= "" (text-selection source-viewer)))
-        (tab! source-viewer)
-        (is (= "" (text-selection source-viewer)))
         (is (= 15 (caret source-viewer))))
       (testing "with typing for arg values"
         (set-code-and-caret! source-viewer "string.sub")
