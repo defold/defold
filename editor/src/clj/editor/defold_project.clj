@@ -332,10 +332,7 @@
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
         url    (str (http-server/local-url webserver) hot-reload-url-prefix)
-        pb     (doto (ProcessBuilder. ^java.util.List
-                                      (list path
-                                            (str "--config=resource.uri=" url)
-                                            (str url "/game.projectc")))
+        pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
     (let [p  (.start pb)
