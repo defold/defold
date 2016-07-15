@@ -992,6 +992,15 @@ return value."
   (on-close-request [this] (.getOnCloseRequest this))
   (on-close-request! [this f] (.setOnCloseRequest this (event-handler e (f e)))))
 
+(defprotocol Hideable
+  (on-hiding [this])
+  (on-hiding! [this f]))
+
+(extend-protocol Hideable
+  javafx.stage.Window
+  (on-hiding [this] (.getOnHiding this))
+  (on-hiding! [this f] (.setOnHiding this (event-handler e (f e)))))
+
 (defn timer-stop-on-close!
   [closeable timer]
   (let [existing-handler (on-close-request closeable)]

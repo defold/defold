@@ -12,6 +12,7 @@ public interface ISSDP {
 
     public void clearDiscovered();
 
-    DeviceInfo[] getDevices();
+    public DeviceInfo[] getDevices();
 
+    public boolean isConnected();
 }
