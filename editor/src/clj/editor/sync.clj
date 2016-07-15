@@ -282,10 +282,10 @@
                                              (ui/text! (:ok dialog-controls) "Done"))
 
                              nil)))]
-    (def flw !flow)
     (dialogs/observe-focus stage)
     (ui/set-main-stage stage)
     (update-controls @!flow)
+    (doto stage (.setMinWidth 600) (.setMinHeight 480))
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
 
