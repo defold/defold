@@ -130,30 +130,57 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
 						Point2D careLocation = p.getCareLocation(newValue.intValue() - p.getStartOffset());
 						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(careLocation));
+						double prevCaretX = 0;
+						Point2D prevLoc = getCaretLocation(newValue.intValue() - 1);
+						if (prevLoc != null){
+							prevCaretX = prevLoc.getX();
+						}
 
 						
 						VirtualScrollBar sb = getFlow().getHScrollBar();
-						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > 100) {
+						
+						boolean forward = newValue.intValue() > oldValue.intValue();
+						boolean backward = !forward;
+						
+						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > sb.getVisibleAmount()) {
 							//moving from beginning of line all the way to the end of line
-							sb.setValue(120);
+							System.err.println("moving from begin to end of line");
+							sb.setValue(sb.getMax());
 							
 						}
-						else if (sb.isVisible() && tmp.getX() + 100 >= getFlow().getViewportWidth()){
-							//getFlow().adjustPixels(-10);
-							sb.setValue(Math.min(120, sb.getValue() + 10));
+						else if (forward && sb.isVisible() && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
+							//entering a new char - the x is not calculated yet
+							// bump the bar
+							System.err.println("inching forward adding char!!!" + prevCaretX);
+							if (prevCaretX + sb.getVisibleAmount() + sb.getVisibleAmount() + 10 >= getFlow().getViewportWidth()){
+								System.err.println("actually do it!!");
+								sb.setValue(sb.getValue() + 10);
+							}
 					    }
-						else if (sb.isVisible() && tmp.getX() < 0){
+						else if (forward && sb.isVisible() && tmp.getX() + sb.getVisibleAmount() >= getFlow().getViewportWidth()){
+							//getFlow().adjustPixels(-10);
+							System.err.println("inching forwards");
+							System.err.println("MAX" + sb.getMax());
+
+							sb.setValue(Math.min(sb.getMax(),sb.getValue() + 10));
+					    }
+						else if (sb.isVisible() && (tmp.getX() < 0) && p.getStartOffset() == newValue.intValue()){
 							//moving from the end of line to next line
+							System.err.println("end of line to next line");
+
 							sb.setValue(0);
 						}
-						else if (sb.isVisible() && tmp.getX() - 100 < 0){
+						else if (backward && sb.isVisible() && tmp.getX() - 100 < 0){
 							//getFlow().adjustPixels(10);
+							System.err.println("inching backwards");
+
 							sb.setValue(Math.max(0, sb.getValue() - 10));
 						}
 						
 						
 						
-						System.err.println("x" + tmp.getX() + " viewportWidth " + getFlow().getViewportWidth() + " sb value" + sb.getValue());
+						System.err.println("ScrollBar width" + sb.getWidth() + " max" + sb.getMax() + " width" + sb.getVisibleAmount());
+						System.err.println("x" + tmp.getX() + " viewportWidth " + getFlow().getViewportWidth() + " sb value" + sb.getValue() + "care" + careLocation + "poffset" + p.getStartOffset() + "c" + newValue.intValue());
 
 
 						
