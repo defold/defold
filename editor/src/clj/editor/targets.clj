@@ -150,7 +150,8 @@
         controls    (ui/collect-controls root ["message" "ok" "clear"])
         get-message (fn [log] (apply str (interpose "\n" log)))]
     (dialogs/observe-focus stage)
-    (ui/title! stage "Engine Target Event Log")
+    (doto stage (.setMinWidth 400) (.setMinHeight 400)
+          (ui/title! "Engine Target Event Log"))
     (ui/text! (:message controls) (get-message @event-log))
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
     (ui/on-action! (:clear controls) (fn [_] (reset! event-log [])))
