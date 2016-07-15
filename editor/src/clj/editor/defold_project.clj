@@ -6,6 +6,7 @@
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
@@ -20,7 +21,6 @@
             [editor.graph-util :as gu]
             ;; TODO - HACK
             [internal.graph.types :as gt]
-            [util.http-server :as http-server]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -328,10 +328,9 @@
             (console/append-console-message! msg)
             (recur)))))))
 
-(defn- launch-engine [launch-dir webserver]
+(defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        url    (str (http-server/local-url webserver) hot-reload-url-prefix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
@@ -564,14 +563,6 @@
               (update-system-cache! old-cache-val cache)))
           (finally (reset! ongoing-build-save? false)))))))
 
-(handler/defhandler :build :global
-  (enabled? [] (not @ongoing-build-save?))
-  (run [project web-server]
-    (let [build (build-and-save-project project)]
-      (when (and (future? build) @build)
-        (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
-                       web-server)))))
-
 (def ^:private selected-target (atom nil))
 
 (defn get-selected-target [prefs]
@@ -586,6 +577,15 @@
 
       :else
       targets/local-target)))
+
+(handler/defhandler :build :global
+  (enabled? [] (not @ongoing-build-save?))
+  (run [project prefs web-server]
+    (let [build  (build-and-save-project project)
+          target (get-selected-target prefs)]
+      (when (and (future? build) @build)
+        (or (engine/reboot (:url target) web-server hot-reload-url-prefix)
+            (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
   (enabled? [] true)
