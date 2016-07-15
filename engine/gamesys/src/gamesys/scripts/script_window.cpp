@@ -1,9 +1,59 @@
-#include "window_private.h"
+#include <string.h>
 #include <dlib/log.h>
-#include <extension/extension.h>
+#include <gamesys/gamesys.h>
+#include <script/script.h>
 
-namespace dmWindow
+#include "script_window.h"
+
+/*# Sets a window event listener
+ * Sets a window event listener.
+ * 
+ * @name window.set_listener
+ *
+ * @param callback (function) A callback which receives info about window events. Can be nil.
+ * 
+ * <ul>
+ *     <li>self (object) The calling script</li>
+ *     <li>event (number) The type of event. Can be one of these:</li>
+ *     <ul>
+ *         <li>window.EVENT_FOCUS_LOST</li>
+ *         <li>window.EVENT_FOCUS_GAINED</li>
+ *         <li>window.EVENT_RESIZED</li>
+ *     </ul>
+ *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
+ *     <ul>
+ *         <li>width (number) The width of a resize event. nil otherwise.</li>
+ *         <li>height (number) The height of a resize event. nil otherwise.</li>
+ *     </ul>
+ * </ul>
+ *
+ * @examples
+ * <pre>
+ * function window_callback(self, event, data)
+ *     if event == window.WINDOW_EVENT_FOCUS_LOST then
+ *         print("window.WINDOW_EVENT_FOCUS_LOST")
+ *     elseif event == window.WINDOW_EVENT_FOCUS_GAINED then
+ *         print("window.WINDOW_EVENT_FOCUS_GAINED")
+ *     elseif event == window.WINDOW_EVENT_RESIZED then
+ *         print("Window resized: ", data.width, data.height)
+ *     end
+ * end
+ * 
+ * window.set_listener(window_callback)
+ * </pre>
+ */
+
+
+namespace dmGameSystem
 {
+
+enum WindowEvent
+{
+    WINDOW_EVENT_FOCUS_LOST = 0,
+    WINDOW_EVENT_FOCUS_GAINED = 1,
+    WINDOW_EVENT_RESIZED = 2,
+};
+
 
 struct LuaListener
 {
@@ -21,7 +71,7 @@ struct WindowInfo
 struct CallbackInfo
 {
     WindowInfo*     m_Info;
-    Event           m_Event;
+    WindowEvent     m_Event;
     int             m_Size[2]; // valid if type == EVENT_RESIZED
 
     CallbackInfo() { memset(this, 0, sizeof(*this)); }
@@ -58,7 +108,7 @@ static void RunCallback(CallbackInfo* cbinfo)
     LuaListener* listener = &cbinfo->m_Info->m_Listener;
     if (listener->m_Callback == LUA_NOREF)
     {
-        dmLogError("No callback set");
+        return;
     }
 
     lua_State* L = listener->m_L;
@@ -83,11 +133,10 @@ static void RunCallback(CallbackInfo* cbinfo)
 
     lua_newtable(L);
 
-    PushNumberOrNil(L, "width", cbinfo->m_Event == EVENT_RESIZED, cbinfo->m_Size[0]);
-    PushNumberOrNil(L, "height", cbinfo->m_Event == EVENT_RESIZED, cbinfo->m_Size[1]);
+    PushNumberOrNil(L, "width", cbinfo->m_Event == WINDOW_EVENT_RESIZED, cbinfo->m_Size[0]);
+    PushNumberOrNil(L, "height", cbinfo->m_Event == WINDOW_EVENT_RESIZED, cbinfo->m_Size[1]);
 
-
-    int ret = lua_pcall(L, 5, 0, 0);
+    int ret = lua_pcall(L, 3, 0, 0);
     if (ret != 0) {
         dmLogError("Error running Window callback: %s", lua_tostring(L,-1));
         lua_pop(L, 1);
@@ -96,7 +145,7 @@ static void RunCallback(CallbackInfo* cbinfo)
 }
 
 
-int SetListener(lua_State* L)
+static int SetListener(lua_State* L)
 {
     WindowInfo* window_info = &g_Window;
     luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -119,7 +168,7 @@ static const luaL_reg Module_methods[] =
     {0, 0}
 };
 
-void LuaInit(lua_State* L)
+static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
     luaL_register(L, "window", Module_methods);
@@ -128,9 +177,9 @@ void LuaInit(lua_State* L)
         lua_pushnumber(L, (lua_Number) name); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(EVENT_FOCUS_LOST)
-    SETCONSTANT(EVENT_FOCUS_GAINED)
-    SETCONSTANT(EVENT_RESIZED)
+    SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
+    SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
+    SETCONSTANT(WINDOW_EVENT_RESIZED)
 
 #undef SETCONSTANT
 
@@ -138,52 +187,29 @@ void LuaInit(lua_State* L)
     assert(top == lua_gettop(L));
 }
 
+void ScriptWindowRegister(const ScriptLibContext& context)
+{
+    LuaInit(context.m_LuaState);
+}
+
+void ScriptWindowOnWindowFocus(bool focus)
+{
+    CallbackInfo cbinfo;
+    cbinfo.m_Info = &g_Window;
+    cbinfo.m_Event = focus ? WINDOW_EVENT_FOCUS_GAINED : WINDOW_EVENT_FOCUS_LOST;
+    RunCallback(&cbinfo);
+}
+
+void ScriptWindowOnWindowResized(int width, int height)
+{
+    CallbackInfo cbinfo;
+    cbinfo.m_Info = &g_Window;
+    cbinfo.m_Event = WINDOW_EVENT_RESIZED;
+    cbinfo.m_Size[0] = width;
+    cbinfo.m_Size[1] = height;
+    RunCallback(&cbinfo);
+}
+
 
 } // namespace
-
-
-static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
-{
-    dmLogWarning("MAWE: HELLO WINDOW WORLD!");
-    return dmExtension::RESULT_OK;
-}
-
-static dmExtension::Result Initialize(dmExtension::Params* params)
-{
-    dmLogWarning("MAWE: HELLO WINDOW WORLD!");
-    dmWindow::LuaInit(params->m_L);
-
-    return dmExtension::RESULT_OK;
-}
-
-static dmExtension::Result Finalize(dmExtension::Params* params)
-{
-    return dmExtension::RESULT_OK;
-}
-
-static dmExtension::Result AppFinalize(dmExtension::AppParams* params)
-{
-    return dmExtension::RESULT_OK;
-}
-
-static void OnEvent(dmExtension::Params* params, const dmExtension::Event* event)
-{
-    if( event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP )
-    {
-        dmWindow::CallbackInfo cbinfo;
-        cbinfo.m_Info = &dmWindow::g_Window;
-        cbinfo.m_Event = dmWindow::EVENT_FOCUS_LOST;
-        RunCallback(&cbinfo);
-    }
-    else if( event->m_Event == dmExtension::EVENT_ID_ACTIVATEAPP )
-    {
-        dmWindow::CallbackInfo cbinfo;
-        cbinfo.m_Info = &dmWindow::g_Window;
-        cbinfo.m_Event = dmWindow::EVENT_FOCUS_GAINED;
-        RunCallback(&cbinfo);
-    }
-}
-
-DM_DECLARE_EXTENSION(WindowExt, "Window", AppInitialize, AppFinalize, Initialize, 0, OnEvent, Finalize);
-
 
