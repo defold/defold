@@ -800,9 +800,16 @@
           (throw @return)
           @return))))
 
+(def ^:private last-focused-node (atom nil))
+
 (defn disable-ui [disabled]
-  (let [root (.. (main-stage) (getScene) (getRoot))]
-    (.setDisable root disabled)))
+  (let [scene       (.getScene (main-stage))
+        focus-owner (.getFocusOwner scene)
+        root        (.getRoot scene)]
+    (.setDisable root disabled)
+    (when-let [^Node node @last-focused-node]
+      (.requestFocus node))
+    (reset! last-focused-node focus-owner)))
 
 (defmacro with-disabled-ui [& body]
   `(try
