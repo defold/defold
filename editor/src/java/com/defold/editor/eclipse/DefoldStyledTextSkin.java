@@ -16,6 +16,7 @@ import org.eclipse.jdt.annotation.NonNull;
 
 import com.sun.javafx.scene.control.skin.ListViewSkin;
 import com.sun.javafx.scene.control.skin.VirtualFlow;
+import com.sun.javafx.scene.control.skin.VirtualScrollBar;
 
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -115,11 +116,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                                 if (lineObject == null){
                                     return;
                                 }
-
-				getFlow().show(lineIndex);
+                
 
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
+						
 						// Adjust the selection
 						if (DefoldStyledTextSkin.this.contentView.getSelectionModel().getSelectedItem() != c.domainElement) {
 							DefoldStyledTextSkin.this.contentView.getSelectionModel().select(lineObject);
@@ -127,8 +128,44 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
-						p.requestLayout();
+						Point2D careLocation = p.getCareLocation(newValue.intValue() - p.getStartOffset());
+						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(careLocation));
 
+						
+						VirtualScrollBar sb = getFlow().getHScrollBar();
+						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > 100) {
+							//moving from beginning of line all the way to the end of line
+							sb.setValue(120);
+							
+						}
+						else if (sb.isVisible() && tmp.getX() + 100 >= getFlow().getViewportWidth()){
+							//getFlow().adjustPixels(-10);
+							sb.setValue(Math.min(120, sb.getValue() + 10));
+					    }
+						else if (sb.isVisible() && tmp.getX() < 0){
+							//moving from the end of line to next line
+							sb.setValue(0);
+						}
+						else if (sb.isVisible() && tmp.getX() - 100 < 0){
+							//getFlow().adjustPixels(10);
+							sb.setValue(Math.max(0, sb.getValue() - 10));
+						}
+						
+						
+						
+						System.err.println("x" + tmp.getX() + " viewportWidth " + getFlow().getViewportWidth() + " sb value" + sb.getValue());
+
+
+						
+						
+						
+						
+					 
+					    p.requestLayout();
+					    
+
+						
+					
 						updateCurrentCursorNode(p);
 
 						return;
@@ -855,6 +892,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			});
 
 		}
+		
+		public double getViewportWidth(){
+			return super.getViewportBreadth();
+		}
 
 
 		@Override
@@ -872,7 +913,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		public List<LineCell> getCells() {
 			return super.getCells();
 		}
-
+		
+		public VirtualScrollBar getHScrollBar(){
+			return this.getHbar();
+		}
+		
 		@Override
 		public void rebuildCells() {
 			super.rebuildCells();
