@@ -537,7 +537,7 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- make-menu-command [label icon acc command handler-ctx check]
+(defn- make-menu-command [label icon acc user-data command handler-ctx check]
   (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))
@@ -570,7 +570,7 @@
             (let [label (or (handler/label handler-ctx) item-label)]
               (if-let [options (handler/options handler-ctx)]
                 (make-submenu label icon (make-menu-items options command-contexts))
-                (make-menu-command label icon (:acc item) command handler-ctx check)))))))))
+                (make-menu-command label icon (:acc item) user-data command handler-ctx check)))))))))
 
 (defn- make-menu-items [menu command-contexts]
   (let [menu-items (->> menu
