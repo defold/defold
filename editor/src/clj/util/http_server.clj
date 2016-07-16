@@ -16,17 +16,22 @@
 
 (defn- response->exchange! [response ^HttpExchange e]
   (let [code       (:code response 200)
-        body       (:body response "")
+        body       (:body response)
         body-bytes (if (string? body)
                      (.getBytes ^String (:body response "") "UTF-8")
                      body)
-        length     (count body)
+        length     (if body
+                     (count body)
+                     -1)
         headers    (.getResponseHeaders e)]
     (doseq [[key value] (:headers response {})]
       (.add headers key value))
     (.sendResponseHeaders e code length)
-    (with-open [out (.getResponseBody e)]
-      (.write out ^bytes body-bytes))))
+    (when body
+      (let [out (.getResponseBody e)]
+        (.write out ^bytes body-bytes)
+        (.close out)))
+    (.close e)))
 
 (defn ->server [port handlers]
   (let [server (HttpServer/create (InetSocketAddress. port) 0)]
