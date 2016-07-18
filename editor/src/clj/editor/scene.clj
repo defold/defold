@@ -14,6 +14,7 @@
             [editor.defold-project :as project]
             [util.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
+            [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -21,6 +22,7 @@
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
+            [editor.rulers :as rulers]
             [service.log :as log]
             [editor.graph-util :as gu])
   (:import [com.defold.editor Start UIUtil]
@@ -55,8 +57,7 @@
 (def ^:private executor (Executors/newFixedThreadPool 1))
 
 (defn overlay-text [^GL2 gl ^String text x y]
-  (let [^TextRenderer text-renderer (scene-cache/request-object! ::text-renderer ::overlay-text gl [Font/SANS_SERIF Font/BOLD 12])]
-    (gl/overlay gl text-renderer text x y 1.0 1.0)))
+  (scene-text/overlay gl text x y))
 
 (defn substitute-scene [error]
   {:aabb       (geom/null-aabb)
@@ -65,7 +66,7 @@
                                    [labels cause] (project/find-errors error [])
                                    message        (format "Render error [%s] '%s'" (last labels) cause)]
                                (when (= pass pass/overlay)
-                                 (overlay-text gl message 12.0 -22.0))))
+                                 (scene-text/overlay gl message 12.0 -22.0))))
                 :passes    [pass/overlay]}})
 
 ; Avoid recreating the image each frame
@@ -667,7 +668,8 @@
                    selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
                    camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
                    grid       grid/Grid
-                   tool-controller scene-tools/ToolController]
+                   tool-controller scene-tools/ToolController
+                   rulers     [rulers/Rulers]]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   (g/connect resource-node        :scene                     view-id          :scene)
@@ -699,7 +701,11 @@
                   (g/connect selection            :input-handler             view-id          :input-handlers)
                   (g/connect selection            :picking-rect              view-id          :picking-rect)
                   (g/connect view-id              :picking-selection         selection        :picking-selection)
-                  (g/connect view-id              :selection                 selection        :selection))))
+                  (g/connect view-id              :selection                 selection        :selection)
+
+                  (g/connect camera :camera rulers :camera)
+                  (g/connect rulers :renderables view-id :aux-renderables)
+                  (g/connect view-id :viewport rulers :viewport))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
@@ -768,17 +774,3 @@
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
     (g/set-property node-id :scale [(.x s) (.y s) (.z s)])))
-
-(defn- make-text-renderer [^GL2 gl data]
-  (let [[font-family font-style font-size] data]
-    (gl/text-renderer font-family font-style font-size)))
-
-(defn- destroy-text-renderers [^GL2 gl text-renderers _]
-  (doseq [^TextRenderer text-renderer text-renderers]
-    (.dispose text-renderer)))
-
-(defn- update-text-renderer [^GL2 gl text-renderer data]
-  (destroy-text-renderers gl [text-renderer])
-  (make-text-renderer gl data))
-
-(scene-cache/register-object-cache! ::text-renderer make-text-renderer update-text-renderer destroy-text-renderers)

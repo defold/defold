@@ -26,6 +26,7 @@
             [editor.scene :as scene]
             [editor.properties :as properties]
             [editor.camera :as camera]
+            [editor.rulers :as rulers]
             [util.id-vec :as iv]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -606,7 +607,8 @@
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
-                                                       grid       grid/Grid]
+                                                       grid       grid/Grid
+                                                       rulers     [rulers/Rulers]]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
                                                 (g/set-graph-value graph :camera camera)
 
@@ -631,7 +633,11 @@
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
                                                 (g/connect selection            :picking-rect              view-id          :picking-rect)
                                                 (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                (g/connect project              :sub-selection             selection        :selection))))]
+                                                (g/connect project              :sub-selection             selection        :selection)
+
+                                                (g/connect camera :camera rulers :camera)
+                                                (g/connect rulers :renderables view-id :aux-renderables)
+                                                (g/connect view-id :viewport rulers :viewport))))]
       (when parent
         (let [^Node pane (make-gl-pane node-id view opts)]
           (ui/context! parent :curve-view {} (SubSelectionProvider. project))

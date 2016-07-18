@@ -1,172 +1,161 @@
 (ns editor.rulers
   (:require [dynamo.graph :as g]
+            [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.types :as types]
-            [editor.camera :as c]
-            [editor.validation :as validation]
-            [editor.gl.pass :as pass])
-  (:import [editor.types AABB Camera]
-           [javax.media.opengl GL GL2]
-           [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx]
+            [editor.gl.pass :as pass]
+            [editor.math :as math]
+            [editor.colors :as colors]
+            [editor.scene-cache :as scene-cache]
+            [editor.scene-text :as scene-text])
+  (:import  [javax.media.opengl GL GL2]
+            [javax.vecmath Point3d]
+            [editor.types Camera]))
 
 (set! *warn-on-reflection* true)
 
-(def min-align (/ (Math/sqrt 2.0) 2.0))
-(def grid-color [0.44705 0.44314 0.5098 1.0])
-(def x-axis-color colors/defold-red)
-(def y-axis-color colors/defold-green)
-(def z-axis-color colors/defold-blue)
+(def ^:private width 35)
+(def ^:private height 15)
 
-(defn render-grid-axis
-  [^GL2 gl ^doubles vx uidx start stop size vidx min max]
-  (doseq [u (range start stop size)]
-      (aset vx uidx ^double u)
-      (aset vx vidx ^double min)
-      (gl/gl-vertex-3dv gl vx 0)
-      (aset vx vidx ^double max)
-      (gl/gl-vertex-3dv gl vx 0)))
+(def ^:private horizontal-label-spacing 45)
+(def ^:private vertical-label-spacing 30)
+(def ^:private tick-length 11)
 
-(defn render-grid
-  [gl fixed-axis size aabb]
-  ;; draw across
-  (let [min-values (geom/as-array (types/min-p aabb))
-        max-values  (geom/as-array (types/max-p aabb))
-        u-axis      (mod (inc fixed-axis) 3)
-        u-min       (nth min-values u-axis)
-        u-max       (nth max-values u-axis)
-        v-axis      (mod (inc u-axis) 3)
-        v-min       (nth min-values v-axis)
-        v-max       (nth max-values v-axis)
-        vertex      (double-array 3)]
-    (aset vertex fixed-axis 0.0)
-    (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
-    (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
+; Line shader
 
-(defn render-primary-axes
-  [^GL2 gl ^AABB aabb]
-  (gl/gl-color gl x-axis-color)
-  (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
-  (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0)
-  (gl/gl-color gl y-axis-color)
-  (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
-  (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
-  (gl/gl-color gl z-axis-color)
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
+(vtx/defvertex color-vtx
+  (vec3 position)
+  (vec4 color))
 
-(defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids]
-  (doall
-    (for [grid-index (range 2) ; 0 1
-          axis       (range 3) ; 0 1 2
-          :let       [ratio (nth (:ratios grids) grid-index)
-                      alpha (Math/abs (* (aget dir axis) ratio))]]
-     (do
-       (gl/gl-color gl (colors/alpha grid-color alpha))
-       (render-grid gl axis
-                    (nth (:sizes grids) grid-index)
-                    (nth (:aabbs grids) grid-index))))))
+(shader/defshader line-vertex-shader
+  (attribute vec4 position)
+  (attribute vec4 color)
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_color color)))
 
-(defn render-scaled-grids
-  [^GL2 gl pass renderables count]
-  (let [renderable (first renderables)
-        user-render-data (:user-render-data renderable)
-        camera (:camera user-render-data)
-        grids (:grids user-render-data)
-        view-matrix (c/camera-view-matrix camera)
-        dir         (double-array 4)
-        _           (.getRow view-matrix 2 dir)]
-    (gl/gl-lines gl
-      (render-grid-sizes dir grids)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
+(shader/defshader line-fragment-shader
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_FragColor var_color)))
 
-(g/defnk grid-renderable :- pass/RenderData
-  [camera grids]
-  {pass/overlay
-   [{:world-transform geom/Identity4d
-     :render-fn       render-scaled-grids
-     :user-render-data {:camera camera
-                        :grids grids}}]})
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def axis-vectors
-  [(Vector4d. 1.0 0.0 0.0 0.0)
-   (Vector4d. 0.0 1.0 0.0 0.0)
-   (Vector4d. 0.0 0.0 1.0 0.0)])
+(defn render-lines [^GL2 gl render-args renderables rcount]
+  (let [camera (:camera render-args)
+        viewport (:viewport render-args)]
+    (doseq [renderable renderables
+            :let [lines (get-in renderable [:user-data :lines])
+                  tris (get-in renderable [:user-data :tris])
+                  texts (get-in renderable [:user-data :texts])]]
+      (when tris
+        (let [vcount (count tris)
+              vertex-binding (vtx/use-with ::tris tris line-shader)]
+          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
+      (when lines
+        (let [vcount (count lines)
+              vertex-binding (vtx/use-with ::lines lines line-shader)]
+          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))
+      (when texts
+        (doseq [[[x y] msg align] texts]
+          (let [[w h] (scene-text/bounds gl msg)
+                x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
+                y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
+            (scene-text/overlay gl msg x y)))))))
 
-(defn as-unit-vector
-  [^Vector4d v]
-  (let [v-unit (Vector4d. v)]
-    (set! (. v-unit w) 0)
-    (.normalize v-unit)
-    v-unit))
+(defn- vb [vs vcount]
+  (when (< 0 vcount)
+    (let [vb (->color-vtx vcount)]
+      (doseq [v vs]
+        (conj! vb v))
+      (persistent! vb))))
 
+(defn- quad [x0 y0 x1 y1 color]
+  (->> [[x0 y0 0] [x1 y0 0] [x1 y1 0]
+        [x0 y0 0] [x0 y1 0] [x1 y1 0]]
+    (mapv (fn [v] (reduce conj v color)))))
 
-(defn dot
-  ^double [^Vector4d x ^Vector4d y]
-  (.dot x y))
+(defn- chain [vs0 vs1]
+  (reduce conj vs0 vs1))
 
-(defn frustum-plane-projection
-  [^Vector4d plane1 ^Vector4d plane2]
-  (let [m (Matrix3d. 0.0         0.0         1.0
-                     (.x plane1) (.y plane1) (.z plane1)
-                     (.x plane2) (.y plane2) (.z plane2))
-        v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
-    (.invert m)
-    (.transform m v)
-    v))
+(defn- label-points [min max count screen-fn screen-filter-fn]
+  (let [d (- max min)
+        dist (/ d count)
+        exp (Math/log10 dist)
+        factor (Math/pow 10.0 (Math/round exp))
+        enough? (> (* count factor) d)
+        factor (if enough? factor (* 2.0 factor))
+        enough? (> (* count factor) d)
+        factor (if enough? factor (* 2.5 factor))
+        start (/ min factor)
+        offset (Math/ceil start)]
+    (->> (for [i (range count)]
+           (* (+ offset i) factor))
+      (reduce (fn [res vw]
+                (let [vs (screen-fn vw)]
+                  (if (screen-filter-fn vs)
+                    (conj res [vw vs])
+                    res)))
+              []))))
 
-(defn frustum-projection-aabb
-  [planes]
-  (-> (geom/null-aabb)
-    (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
-    (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
-    (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))
-    (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3)))))
+(defn- unproject [camera viewport x y]
+  (let [p (c/camera-unproject camera viewport x y 0)]
+    [(.x p) (.y p)]))
 
-(defn grid-ratio [extent]
-  (let [exp (Math/log10 extent)]
-    (- 1.0 (- exp (Math/floor exp)))))
-
-(defn small-grid-size [extent]  (Math/pow 10.0 (dec (Math/floor (Math/log10 extent)))))
-(defn large-grid-size [extent]  (Math/pow 10.0      (Math/floor (Math/log10 extent))))
-
-(defn grid-snap-down [a sz] (* sz (Math/floor (/ a sz))))
-(defn grid-snap-up   [a sz] (* sz (Math/ceil  (/ a sz))))
-
-(defn snap-out-to-grid
-  [^AABB aabb grid-size]
-  (types/->AABB (Point3d. (grid-snap-down (-> aabb types/min-p .x) grid-size)
-                      (grid-snap-down (-> aabb types/min-p .y) grid-size)
-                      (grid-snap-down (-> aabb types/min-p .z) grid-size))
-            (Point3d. (grid-snap-up   (-> aabb types/max-p .x) grid-size)
-                      (grid-snap-up   (-> aabb types/max-p .y) grid-size)
-                      (grid-snap-up   (-> aabb types/max-p .z) grid-size))))
-
-(g/defnk update-grids :- g/Any
-  [camera]
-  (let [frustum-planes   (c/viewproj-frustum-planes camera)
-        far-z-plane      (nth frustum-planes 5)
-        normal           (as-unit-vector far-z-plane)
-        aabb             (frustum-projection-aabb frustum-planes)
-        extent           (geom/as-array (geom/aabb-extent aabb))
-        perp-axis        2
-        _                (aset-double extent perp-axis Double/POSITIVE_INFINITY)
-        smallest-extent  (reduce min extent)
-        first-grid-ratio (grid-ratio smallest-extent)
-        grid-size-small  (small-grid-size smallest-extent)
-        grid-size-large  (large-grid-size smallest-extent)]
-    {:ratios [first-grid-ratio                        (- 1.0 first-grid-ratio)]
-     :sizes  [grid-size-small                         grid-size-large]
-     :aabbs  [(snap-out-to-grid aabb grid-size-small) (snap-out-to-grid aabb grid-size-large)]}))
+(g/defnk produce-renderables [camera viewport]
+  (let [[min-x min-y] (unproject camera viewport 0 (:bottom viewport))
+        [max-x max-y] (unproject camera viewport (:right viewport) 0)
+        tmp-p (Point3d.)
+        xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
+                         #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
+                            (.x))
+                         #(> % width))
+        ys (label-points min-y max-y (Math/ceil (/ (:bottom viewport) vertical-label-spacing))
+                         #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
+                            (.y))
+                         #(> (- (:bottom viewport) height) %))
+        line-vs (->>
+                  (let [x0 width
+                        y0 0
+                        x1 (:right viewport)
+                        y1 (- (:bottom viewport) height)]
+                    (-> [[x0 y0 0] [x0 y1 0]
+                         [x0 y1 0] [x1 y1 0]]
+                      (into (reduce (fn [res [xw xs]]
+                                      (-> res
+                                        (conj [xs y1 0])
+                                        (conj [xs (:bottom viewport) 0])))
+                                    [] xs))
+                      (into (reduce (fn [res [yw ys]]
+                                      (-> res
+                                        (conj [0 (+ 1 ys) 0])
+                                        (conj [width (+ 1 ys) 0])))
+                                    [] ys))))
+                  (mapv (fn [v] (reduce conj v colors/bright-grey))))
+        line-vcount (count line-vs)
+        lines-vb (vb line-vs line-vcount)
+        tris-vs (-> (quad 0 0 width (:bottom viewport) colors/dark-black)
+                  (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/dark-black)))
+        tris-vcount (count tris-vs)
+        tris-vb (vb tris-vs tris-vcount)
+        texts (let [texts (-> []
+                            (into (mapv (fn [[yw ys]] [[width ys] (format "%.1f" yw) :right]) ys))
+                            (into (mapv (fn [[xw xs]] [[xs (- (:bottom viewport) height)] (format "%.1f" xw) :top]) xs)))]
+                texts)
+        renderables [{:render-fn render-lines
+                      :batch-key nil
+                      :user-data {:lines lines-vb
+                                  :tris tris-vb
+                                  :texts texts}}]]
+    (into {} (map #(do [% renderables]) [pass/overlay]))))
 
 (g/defnode Rulers
   (input camera Camera)
-  (property grid-color types/Color)
-  (property auto-grid  g/Bool)
-  (property fixed-grid-size g/Int
-            (default 0)
-            (validate (validation/validate-positive fixed-grid-size "Grid size must be positive")))
-  (output grids      g/Any :cached update-grids)
-  (output renderable pass/RenderData :cached grid-renderable))
+  (input viewport g/Any)
+  (output renderables pass/RenderData :cached produce-renderables))
