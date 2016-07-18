@@ -117,7 +117,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                                     return;
                                 }
                 
-
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
 						
@@ -135,12 +134,15 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						if (prevLoc != null){
 							prevCaretX = prevLoc.getX();
 						}
-
+						updateCurrentCursorNode(p);
 						
 						VirtualScrollBar sb = getFlow().getHScrollBar();
 						
 						boolean forward = newValue.intValue() > oldValue.intValue();
 						boolean backward = !forward;
+						
+		                double bufferSize = getFlow().getViewportWidth() / 5;                
+
 						
 						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > sb.getVisibleAmount()) {
 							//moving from beginning of line all the way to the end of line
@@ -148,13 +150,19 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							sb.setValue(sb.getMax());
 							
 						}
-						else if (forward && sb.isVisible() && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
+						else if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
 							System.err.println("inching forward adding char!!!" + prevCaretX);
-							if (prevCaretX + sb.getVisibleAmount() + sb.getVisibleAmount() + 10 >= getFlow().getViewportWidth()){
+							if (prevCaretX + sb.getVisibleAmount() + bufferSize >= getFlow().getViewportWidth()){
 								System.err.println("actually do it!!");
 								sb.setValue(sb.getValue() + 10);
+							}else if (prevCaretX <= 0)
+							{
+								/// programmatically adding a chunk of text and it needs to move forward
+								System.err.println("Setting to max!");
+								sb.setValue(sb.getMax() + 10);
+								
 							}
 					    }
 						else if (forward && sb.isVisible() && tmp.getX() + sb.getVisibleAmount() >= getFlow().getViewportWidth()){
@@ -164,13 +172,13 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 							sb.setValue(Math.min(sb.getMax(),sb.getValue() + 10));
 					    }
-						else if (sb.isVisible() && (tmp.getX() < 0) && p.getStartOffset() == newValue.intValue()){
-							//moving from the end of line to next line
+						else if (sb.isVisible() && (tmp.getX() < 0)){
+							//moving from the end of line to next line out of visibility
 							System.err.println("end of line to next line");
 
-							sb.setValue(0);
+							sb.setValue(Math.min(0,sb.getValue() - tmp.getX()));
 						}
-						else if (backward && sb.isVisible() && tmp.getX() - 100 < 0){
+						else if (backward && sb.isVisible() && tmp.getX() - bufferSize < 0){
 							//getFlow().adjustPixels(10);
 							System.err.println("inching backwards");
 
@@ -193,7 +201,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 						
 					
-						updateCurrentCursorNode(p);
+						
 
 						return;
 					}
