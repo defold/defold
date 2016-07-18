@@ -144,80 +144,70 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		                double bufferSize = getFlow().getViewportWidth() / 5; 
 		                double moveSize = 20;
 
-						
+						///Need to do layout to get the scroll bar's current positioning about the new document change
+		                getFlow().layout();
+		                
 						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > sb.getVisibleAmount()) {
 							//moving from beginning of line all the way to the end of line
-							System.err.println("moving from begin to end of line");
-							sb.setValue(sb.getMax());
-							
+							///System.err.println("moving from begin to end of line");
+							sb.setValue(sb.getMax() + moveSize);	
 						}
 						else if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
-
 							int newCharCount = newValue.intValue() - oldValue.intValue();
-							System.err.println("new char count" + newCharCount);
-							System.err.println("inching forward adding char!!!" + prevCaretX);
-							sb.applyCss();
-							getFlow().layout();
+							//System.err.println("inching forward adding char!!!" + prevCaretX);
 							if (prevCaretX < 0)
 							{
 								sb.setValue(sb.getMax() + moveSize);
 							}
 							else if (prevCaretX + sb.getVisibleAmount() + bufferSize >= getFlow().getViewportWidth()){
-								System.err.println("actually do it!!");
 								sb.setValue(sb.getValue() + moveSize);
-							}else if (newCharCount > 1)
-							{
-								/// programmatically adding a chunk of text and it needs to move forward
-								//sb.applyCss();
-								//getFlow().layout();
-								System.err.println("Setting to max!"  + sb.getMax() + " and " + newCharCount);
-								sb.setValue(sb.getMax() + (newCharCount * moveSize));
-								System.err.println("Now value is"+  sb.getValue());
-								
+							}else{
+								sb.setValue(sb.getMax() + moveSize);								
 							}
 					    }
 						else if (forward && tmp.getX() + sb.getVisibleAmount()+ bufferSize >= getFlow().getViewportWidth()){
-							//getFlow().adjustPixels(-10);
-							System.err.println("inching forwards");
-							System.err.println("MAX" + sb.getMax());
-
+							//System.err.println("inching forwards");
 							int newCharCount = newValue.intValue() - oldValue.intValue();
-							System.err.println("char difference " + newCharCount);
-							sb.applyCss();
-							getFlow().layout();
 							sb.setValue(Math.min(sb.getMax(),sb.getValue() + (moveSize * newCharCount)));
 					    }
 						else if (sb.isVisible() && (tmp.getX() < 0)){
 							//moving from the end of line to next line out of visibility
-							System.err.println("end of line to next line");
+							//System.err.println("end of line to next line");
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							if (newCharCount > 0)
+							{
+								newCharCount = newCharCount * -1;                                                                                                                                          
+							}
 
-							sb.setValue(Math.min(0,sb.getValue() - tmp.getX()));
+							sb.setValue(Math.max(0,sb.getValue() + tmp.getX()));
+							//totally arbitrary but I don't have a better way to calculate it right now
+							if ((newValue.intValue() - p.getStartOffset()) < 25){
+								//begin of line
+								sb.setValue(0);
+							}
 						}
 						else if (backward && sb.isVisible() && tmp.getX() - bufferSize < 0){
-							//getFlow().adjustPixels(10);
-							System.err.println("inching backwards");
-
-							sb.setValue(Math.max(0, sb.getValue() - moveSize));
+							///moving backwards
+							//System.err.println("inching backwards");
+							
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							//System.err.println("new " + newValue.intValue() + " old " + oldValue.intValue() + " x"  + tmp.getX());
+							if (newCharCount > 0)
+							{
+								newCharCount = newCharCount * -1;                                                                                                                                          
+							}
+							
+							
+							sb.setValue(Math.max(0,sb.getValue() + (moveSize * newCharCount)));
+						}else{
+							//System.err.println("doing nothing"));
 						}
-						
-						
-						
-						System.err.println("ScrollBar width" + sb.getWidth() + " max" + sb.getMax() + " width" + sb.getVisibleAmount());
-						System.err.println("x" + tmp.getX() + " viewportWidth " + getFlow().getViewportWidth() + " sb value" + sb.getValue() + "care" + careLocation + "poffset" + p.getStartOffset() + "c" + newValue.intValue());
-
-
-						
 						
 						
 						getFlow().requestLayout();
 					    p.requestLayout();
-					    
-
-						
-					
-						
 
 						return;
 					}
