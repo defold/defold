@@ -997,17 +997,18 @@
         search-start (adjust-bounds (text selection) (- offset loffset (count pattern)))
         replacement-start (string/index-of line-text pattern search-start)
         replacement-len (count pattern)]
-    (replace! selection (+ loffset replacement-start) replacement-len replacement)
-    (do-indent-region selection loffset (+ loffset (count replacement)))
-    (snippet-tab-triggers! selection tab-triggers)
-    (if (has-snippet-tab-trigger? selection)
-      (let [nl (line selection)
-            snippet-tab-start (or (when-let [start (:start tab-triggers)]
-                                    (string/index-of nl start replacement-start))
-                                  (string/index-of nl "(" replacement-start)
-                                  replacement-start)]
-        (next-tab-trigger selection (+ loffset snippet-tab-start)))
-      (caret! selection (+ loffset replacement-start (count replacement)) false))))
+    (when replacement-start
+      (replace! selection (+ loffset replacement-start) replacement-len replacement)
+      (do-indent-region selection loffset (+ loffset (count replacement)))
+      (snippet-tab-triggers! selection tab-triggers)
+      (if (has-snippet-tab-trigger? selection)
+        (let [nl (line selection)
+              snippet-tab-start (or (when-let [start (:start tab-triggers)]
+                                      (string/index-of nl start replacement-start))
+                                    (string/index-of nl "(" replacement-start)
+                                    replacement-start)]
+          (next-tab-trigger selection (+ loffset snippet-tab-start)))
+        (caret! selection (+ loffset replacement-start (count replacement)) false)))))
 
 (defn show-proposals [selection proposals]
   (when (pos? (count proposals))
