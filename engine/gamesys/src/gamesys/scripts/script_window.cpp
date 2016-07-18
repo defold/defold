@@ -16,9 +16,9 @@
  *     <li>self (object) The calling script</li>
  *     <li>event (number) The type of event. Can be one of these:</li>
  *     <ul>
- *         <li>window.EVENT_FOCUS_LOST</li>
- *         <li>window.EVENT_FOCUS_GAINED</li>
- *         <li>window.EVENT_RESIZED</li>
+ *         <li>window.WINDOW_EVENT_FOCUS_LOST</li>
+ *         <li>window.WINDOW_EVENT_FOCUS_GAINED</li>
+ *         <li>window.WINDOW_EVENT_RESIZED</li>
  *     </ul>
  *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
  *     <ul>
@@ -72,7 +72,7 @@ struct CallbackInfo
 {
     WindowInfo*     m_Info;
     WindowEvent     m_Event;
-    int             m_Size[2]; // valid if type == EVENT_RESIZED
+    int             m_Size[2]; // valid if type == WINDOW_EVENT_RESIZED
 
     CallbackInfo() { memset(this, 0, sizeof(*this)); }
 };
