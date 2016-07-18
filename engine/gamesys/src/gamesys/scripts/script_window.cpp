@@ -1,6 +1,6 @@
 #include <string.h>
 #include <dlib/log.h>
-#include <gamesys/gamesys.h>
+#include "../gamesys.h"
 #include <script/script.h>
 
 #include "script_window.h"

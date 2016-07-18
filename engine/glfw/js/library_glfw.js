@@ -316,6 +316,12 @@ var LibraryGLFW = {
       }
     },
 
+    onFocusChanged: function(focus) {
+      if (GLFW.focusFunc) {
+        Runtime.dynCall('vi', GLFW.focusFunc, [focus]);
+      }
+    },
+
     onFullScreenEventChange: function(event) {
       var width;
       var height;
