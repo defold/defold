@@ -445,6 +445,7 @@
   (property viewport Region (default (types/->Region 0 0 0 0)))
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
+  (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
@@ -637,7 +638,8 @@
 
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
-                                                (g/connect view-id :viewport rulers :viewport))))]
+                                                (g/connect view-id :viewport rulers :viewport)
+                                                (g/connect view-id :cursor-pos rulers :cursor-pos))))]
       (when parent
         (let [^Node pane (make-gl-pane node-id view opts)]
           (ui/context! parent :curve-view {} (SubSelectionProvider. project))

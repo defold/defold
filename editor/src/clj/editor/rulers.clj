@@ -10,7 +10,8 @@
             [editor.math :as math]
             [editor.colors :as colors]
             [editor.scene-cache :as scene-cache]
-            [editor.scene-text :as scene-text])
+            [editor.scene-text :as scene-text]
+            [editor.types :as types])
   (:import  [javax.media.opengl GL GL2]
             [javax.vecmath Point3d]
             [editor.types Camera]))
@@ -57,17 +58,17 @@
               vertex-binding (vtx/use-with ::tris tris line-shader)]
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
-      (when lines
-        (let [vcount (count lines)
-              vertex-binding (vtx/use-with ::lines lines line-shader)]
-          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))
       (when texts
         (doseq [[[x y] msg align] texts]
           (let [[w h] (scene-text/bounds gl msg)
                 x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
                 y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
-            (scene-text/overlay gl msg x y)))))))
+            (scene-text/overlay gl msg x y))))
+      (when lines
+        (let [vcount (count lines)
+              vertex-binding (vtx/use-with ::lines lines line-shader)]
+          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))))
 
 (defn- vb [vs vcount]
   (when (< 0 vcount)
@@ -108,10 +109,11 @@
   (let [p (c/camera-unproject camera viewport x y 0)]
     [(.x p) (.y p)]))
 
-(g/defnk produce-renderables [camera viewport]
+(g/defnk produce-renderables [camera viewport cursor-pos]
   (let [[min-x min-y] (unproject camera viewport 0 (:bottom viewport))
         [max-x max-y] (unproject camera viewport (:right viewport) 0)
         tmp-p (Point3d.)
+        [cursor-x cursor-y] cursor-pos
         xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
                          #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
                             (.x))
@@ -120,24 +122,27 @@
                          #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
                             (.y))
                          #(> (- (:bottom viewport) height) %))
-        line-vs (->>
-                  (let [x0 width
-                        y0 0
-                        x1 (:right viewport)
-                        y1 (- (:bottom viewport) height)]
-                    (-> [[x0 y0 0] [x0 y1 0]
-                         [x0 y1 0] [x1 y1 0]]
-                      (into (reduce (fn [res [xw xs]]
-                                      (-> res
-                                        (conj [xs y1 0])
-                                        (conj [xs (:bottom viewport) 0])))
-                                    [] xs))
-                      (into (reduce (fn [res [yw ys]]
-                                      (-> res
-                                        (conj [0 (+ 1 ys) 0])
-                                        (conj [width (+ 1 ys) 0])))
-                                    [] ys))))
-                  (mapv (fn [v] (reduce conj v colors/bright-grey))))
+        line-vs (cond->
+                  (->>
+                    (let [x0 width
+                          y0 0
+                          x1 (:right viewport)
+                          y1 (- (:bottom viewport) height)]
+                      (-> [[x0 y0 0] [x0 y1 0]
+                           [x0 y1 0] [x1 y1 0]]
+                        (into (reduce (fn [res [xw xs]]
+                                        (-> res
+                                          (conj [xs y1 0])
+                                          (conj [xs (:bottom viewport) 0])))
+                                      [] xs))
+                        (into (reduce (fn [res [yw ys]]
+                                        (-> res
+                                          (conj [0 (+ 1 ys) 0])
+                                          (conj [width (+ 1 ys) 0])))
+                                      [] ys))))
+                    (mapv (fn [v] (reduce conj v colors/bright-grey))))
+                  (and cursor-x (> cursor-x width)) (into (map #(reduce conj % colors/defold-red) [[cursor-x (- (:bottom viewport) height) 0] [cursor-x (:bottom viewport) 0]]))
+                  (and cursor-y (< cursor-y (- (:bottom viewport) height))) (into (map #(reduce conj % colors/defold-green) [[0 cursor-y 0] [width cursor-y 0]])))
         line-vcount (count line-vs)
         lines-vb (vb line-vs line-vcount)
         tris-vs (-> (quad 0 0 width (:bottom viewport) colors/dark-black)
@@ -158,4 +163,5 @@
 (g/defnode Rulers
   (input camera Camera)
   (input viewport g/Any)
+  (input cursor-pos types/Vec2)
   (output renderables pass/RenderData :cached produce-renderables))

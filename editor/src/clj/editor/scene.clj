@@ -400,6 +400,7 @@
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property select-buffer IntBuffer)
+  (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
 
   (input input-handlers Runnable :array)
@@ -557,8 +558,13 @@
                                               (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
                                                 (let [s (g/node-value view-id :selected-tool-renderables)]
                                                   (reset! tool-user-data s)))
-                                              (g/transact (g/set-property view-id :tool-picking-rect picking-rect))
+                                              (g/transact
+                                                (concat
+                                                  (g/set-property view-id :cursor-pos [x y])
+                                                  (g/set-property view-id :tool-picking-rect picking-rect)))
                                               (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))]
+    (ui/on-mouse! parent (fn [type e] (when (= type :exit)
+                                        (g/set-property! view-id :cursor-pos nil))))
     (.setOnMousePressed parent event-handler)
     (.setOnMouseReleased parent event-handler)
     (.setOnMouseClicked parent event-handler)
@@ -705,7 +711,8 @@
 
                   (g/connect camera :camera rulers :camera)
                   (g/connect rulers :renderables view-id :aux-renderables)
-                  (g/connect view-id :viewport rulers :viewport))))
+                  (g/connect view-id :viewport rulers :viewport)
+                  (g/connect view-id :cursor-pos rulers :cursor-pos))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
