@@ -141,7 +141,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						boolean forward = newValue.intValue() > oldValue.intValue();
 						boolean backward = !forward;
 						
-		                double bufferSize = getFlow().getViewportWidth() / 5;                
+		                double bufferSize = getFlow().getViewportWidth() / 5; 
+		                double moveSize = 20;
 
 						
 						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > sb.getVisibleAmount()) {
@@ -153,24 +154,40 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						else if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
+
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							System.err.println("new char count" + newCharCount);
 							System.err.println("inching forward adding char!!!" + prevCaretX);
-							if (prevCaretX + sb.getVisibleAmount() + bufferSize >= getFlow().getViewportWidth()){
+							sb.applyCss();
+							getFlow().layout();
+							if (prevCaretX < 0)
+							{
+								sb.setValue(sb.getMax() + moveSize);
+							}
+							else if (prevCaretX + sb.getVisibleAmount() + bufferSize >= getFlow().getViewportWidth()){
 								System.err.println("actually do it!!");
-								sb.setValue(sb.getValue() + 10);
-							}else if (prevCaretX <= 0)
+								sb.setValue(sb.getValue() + moveSize);
+							}else if (newCharCount > 1)
 							{
 								/// programmatically adding a chunk of text and it needs to move forward
-								System.err.println("Setting to max!");
-								sb.setValue(sb.getMax() + 10);
+								//sb.applyCss();
+								//getFlow().layout();
+								System.err.println("Setting to max!"  + sb.getMax() + " and " + newCharCount);
+								sb.setValue(sb.getMax() + (newCharCount * moveSize));
+								System.err.println("Now value is"+  sb.getValue());
 								
 							}
 					    }
-						else if (forward && sb.isVisible() && tmp.getX() + sb.getVisibleAmount() >= getFlow().getViewportWidth()){
+						else if (forward && tmp.getX() + sb.getVisibleAmount()+ bufferSize >= getFlow().getViewportWidth()){
 							//getFlow().adjustPixels(-10);
 							System.err.println("inching forwards");
 							System.err.println("MAX" + sb.getMax());
 
-							sb.setValue(Math.min(sb.getMax(),sb.getValue() + 10));
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							System.err.println("char difference " + newCharCount);
+							sb.applyCss();
+							getFlow().layout();
+							sb.setValue(Math.min(sb.getMax(),sb.getValue() + (moveSize * newCharCount)));
 					    }
 						else if (sb.isVisible() && (tmp.getX() < 0)){
 							//moving from the end of line to next line out of visibility
@@ -182,7 +199,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							//getFlow().adjustPixels(10);
 							System.err.println("inching backwards");
 
-							sb.setValue(Math.max(0, sb.getValue() - 10));
+							sb.setValue(Math.max(0, sb.getValue() - moveSize));
 						}
 						
 						
@@ -194,8 +211,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						
 						
 						
-						
-					 
+						getFlow().requestLayout();
 					    p.requestLayout();
 					    
 
