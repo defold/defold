@@ -642,6 +642,7 @@
   (property width g/Num)
   (property height g/Num)
   (property tool-picking-rect Rect)
+  (property cursor-pos types/Vec2)
   (property select-buffer IntBuffer)
   (property image-view ImageView)
   (property drawable GLAutoDrawable)

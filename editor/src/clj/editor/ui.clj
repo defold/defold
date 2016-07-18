@@ -11,6 +11,7 @@
            [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
@@ -43,6 +44,12 @@
 
 (defn ^Stage main-stage []
   @*main-stage*)
+
+(defn ^Scene main-scene []
+  (.. (main-stage) (getScene)))
+
+(defn ^Node main-root []
+  (.. (main-scene) (getRoot)))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
@@ -89,6 +96,11 @@
   (.addListener observable (reify ChangeListener
                         (changed [this observable old new]
                           (listen-fn observable old new)))))
+
+(defn observe-list [^ObservableList observable listen-fn]
+  (.addListener observable (reify ListChangeListener
+                        (onChanged [this change]
+                          (listen-fn observable (into [] (.getList change)))))))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)

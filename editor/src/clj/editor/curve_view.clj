@@ -45,7 +45,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.geometry BoundingBox Pos VPos HPos]
            [javafx.scene Scene Group Node Parent]
-           [javafx.scene.control Tab Button ListView ListCell]
+           [javafx.scene.control Tab Button ListView ListCell SelectionMode]
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
@@ -62,6 +62,8 @@
            [com.defold.editor AsyncCopier]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private ^:dynamic *programmatic-selection* nil)
 
 ; Line shader
 
@@ -476,19 +478,36 @@
                                                 (if-let [curve (pick-closest-curve curves tool-picking-rect camera viewport)]
                                                   [:curve curve]
                                                   nil)))))
-  (output update-list-view g/Any :cached (g/fnk [curves ^ListView list selected-node-properties]
+  (output update-list-view g/Any :cached (g/fnk [curves ^ListView list selected-node-properties sub-selection-map]
                                                 (let [p (:properties (properties/coalesce selected-node-properties))
                                                       new-items (mapv (fn [c] {:keyword (:property c)
                                                                                :property (dissoc (get p (:property c)) :values)
                                                                                :hue (:hue c)})
                                                                       curves)
-                                                      old-items (ui/user-data list ::items)]
-                                                  (when (not= new-items old-items)
-                                                    (ui/user-data! list ::items new-items)
-                                                    (ui/items! list (mapv (fn [c] {:keyword (:property c)
-                                                                                  :property (get p (:property c))
-                                                                                  :hue (:hue c)})
-                                                                         curves)))))))
+                                                      old-items (ui/user-data list ::items)
+                                                      old-sel (ui/user-data list ::sub-selection)]
+                                                  (when (or (not= new-items old-items)
+                                                            (not= sub-selection-map old-sel))
+                                                    (binding [*programmatic-selection* true]
+                                                      (ui/user-data! list ::items new-items)
+                                                      (ui/user-data! list ::sub-selection sub-selection-map)
+                                                      (let [items (mapv (fn [c] {:keyword (:property c)
+                                                                                 :property (get p (:property c))
+                                                                                 :hue (:hue c)})
+                                                                        curves)
+                                                            selected (reduce conj #{} (map second (keys sub-selection-map)))
+                                                            selected-indices (reduce (fn [res [i v]]
+                                                                                       (if (selected v) (conj res (int i)) res))
+                                                                                     [] (map-indexed (fn [i v] [i (:keyword v)]) items))]
+                                                        (ui/items! list items)
+                                                        (if (empty? selected-indices)
+                                                          (doto (.getSelectionModel list)
+                                                                  (.selectRange 0 0))
+                                                          (let [index (int (first selected-indices))
+                                                                rest-indices (next selected-indices)
+                                                                indices ^ints (int-array (or rest-indices 0))]
+                                                            (doto (.getSelectionModel list)
+                                                              (.selectIndices index indices)))))))))))
 
 (defonce view-state (atom nil))
 
@@ -596,6 +615,25 @@
   workspace/SelectionProvider
   (selection [this] (g/node-value project :sub-selection)))
 
+(defn- on-list-selection [project values]
+  (when-not *programmatic-selection*
+    (let [selection (loop [values values
+                           res []]
+                      (if-let [v (first values)]
+                        (let [p (:property v)
+                              kw (:key p)
+                              res (loop [curves (map vector (:node-ids p) (:values p))
+                                         res res]
+                                    (if-let [[nid curve] (first curves)]
+                                      (recur (rest curves)
+                                             (reduce (fn [res id] (conj res [nid kw id]))
+                                                     res (iv/iv-ids (:points curve))))
+                                      res))]
+                          (recur (rest values)
+                                 res))
+                        res))]
+      (project/sub-select! project selection))))
+
 (defn make-view!
   ([project graph ^Parent parent ^ListView list ^AnchorPane view opts]
     (let [view-id (make-view! project graph parent list view opts false)]
@@ -657,6 +695,10 @@
                                                           (if new
                                                             (g/update-property! node-id :hidden-curves disj kw)
                                                             (g/update-property! node-id :hidden-curves conj kw)))))))))]
+            (-> (ui/selection list)
+              (ui/observe-list (fn [_ values] (on-list-selection project values))))
+            (doto (.getSelectionModel list)
+              (.setSelectionMode SelectionMode/MULTIPLE))
             (.setCellFactory list
               (reify Callback
                 (call ^ListCell [this list]
