@@ -12,7 +12,7 @@
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView ListCell Tab]
+           [javafx.scene.control ListView ListCell Tab Label]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
@@ -55,7 +55,7 @@
        (finally
          (reset! ~a old-val#)))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length active-tab prefer-offset tab-triggers]
+(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length prefer-offset tab-triggers]
   (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
     (when (not= code (cvx/text source-viewer))
     (try
@@ -252,7 +252,8 @@
 
       de
       (merge {:line-offset (.getLineOffset de)
-              :line-length (.getLineLength de)})
+              :line-length (.getLineLength de)
+              :line-index (.getLineIndex de)})
 
       n
        (merge {:caret-idx  (.getCaretIndexAtPoint n (.sceneToLocal n ^double x ^double y))
@@ -286,26 +287,43 @@
                                   (callActionForEvent [key-event]
                                     ;;do nothing we are handling all the events
                                     )
-                                  (defoldUpdateCursor [^MouseEvent event visible-cells selection]
+                                  (defoldUpdateCursor [^MouseEvent event visible-cells selection line-label]
                                     (try
                                       (let [vcells (into [] visible-cells)
                                            doc-len (.getCharCount ^StyledTextArea text-area)
                                            event-y (.getY event)
+                                           event-x (.getX event)
+                                           line-index (when line-label (.getText ^Label line-label))
                                            scene-event-x (.getSceneX event)
                                            scene-event-y (.getSceneY event)
                                            caret-cells (sort-by :min-y (mapv #(caret-at-point % scene-event-x scene-event-y) vcells))
                                            found-cells (filter #(when-let [idx (:caret-idx %)]
-                                                                  (not= -1 idx)) caret-cells)]
-                                       (if-let [fcell (first found-cells)]
-                                         (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
-                                         (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)]
-                                           (cond
+                                                                  (not= -1 idx)) caret-cells)
+                                           found-cells2 (when line-label
+                                                          (filter #(when-let [idx (:line-index %)]
+                                                                     (when line-index (= line-index (str (inc idx))))) caret-cells))]
 
-                                             (:line-offset closest-cell)
-                                             (cvx/caret! text-area (+ (:line-offset closest-cell) (:line-length closest-cell)) selection)
+                                        (if-let [fcell (first found-cells)]
+                                          (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
+                                          (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)
+                                                found-cell (first found-cells2)
+                                                fcell (or found-cell closest-cell)
+                                                line-offset (:line-offset fcell)
+                                                line-length (:line-length fcell)
+                                                x-threshold 10]
+                                            (cond
 
-                                             true
-                                             (cvx/caret! text-area doc-len selection)))))
+                                              (and line-offset line-label)
+                                              (cvx/caret! text-area (+ line-offset) selection)
+
+                                              (and line-offset (< event-x x-threshold))
+                                              (cvx/caret! text-area (+ line-offset) selection)
+
+                                              line-offset
+                                              (cvx/caret! text-area (+ line-offset line-length) selection)
+
+                                              true
+                                              (cvx/caret! text-area doc-len selection)))))
                                       (catch Exception e (println "error updating cursor")))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
@@ -338,10 +356,6 @@
   (input tab-triggers g/Any)
   (input selection-offset g/Int)
   (input selection-length g/Int)
-  (input active-tab Tab)
-  (output new-tab-active g/Any :cached  (g/fnk [source-viewer active-tab]
-                                                  (cvx/refresh! source-viewer)
-                                                active-tab))
   (output new-content g/Any :cached update-source-viewer))
 
 (defn setup-code-view [app-view-id view-id code-node initial-caret-position]
@@ -354,7 +368,6 @@
     (g/connect code-node :tab-triggers view-id :tab-triggers)
     (g/connect code-node :selection-offset view-id :selection-offset)
     (g/connect code-node :selection-length view-id :selection-length)
-    (g/connect app-view-id :active-tab view-id :active-tab)
     (g/set-property code-node :caret-position initial-caret-position)
     (g/set-property code-node :prefer-offset 0)
     (g/set-property code-node :tab-triggers nil)
@@ -513,14 +526,29 @@
                                  @tt))
   (snippet-tab-triggers! [this val] (reset! (tab-triggers this) val))
   (has-snippet-tab-trigger? [this] (:select (cvx/snippet-tab-triggers this)))
+  (has-prev-snippet-tab-trigger? [this] (:prev-select (cvx/snippet-tab-triggers this)))
   (next-snippet-tab-trigger! [this]
     (let [tt (tab-triggers this)
           triggers (:select @tt)
+          prev-triggers (or (:prev-select @tt) [])
           trigger (or (first triggers) :end)
           exit-trigger (:exit @tt)]
       (if (= trigger :end)
         (reset! tt nil)
-        (swap! tt assoc :select (rest triggers)))
+        (do
+          (swap! tt assoc :select (rest triggers))
+          (swap! tt assoc :prev-select (cons trigger prev-triggers))))
+      {:trigger trigger :exit exit-trigger}))
+  (prev-snippet-tab-trigger! [this]
+    (let [tt (tab-triggers this)
+          triggers (:select @tt)
+          prev-triggers (or (:prev-select @tt) [])
+          trigger (or (second prev-triggers) :begin)
+          next-trigger (first prev-triggers)
+          exit-trigger (:exit @tt)]
+      (when-not (= :begin trigger)
+        (swap! tt assoc :select (cons next-trigger triggers))
+        (swap! tt assoc :prev-select (rest prev-triggers)))
       {:trigger trigger :exit exit-trigger}))
   (clear-snippet-tab-triggers! [this]
     (reset! (tab-triggers this) nil)))
@@ -531,10 +559,12 @@
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
+    (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
+                                                       (when (= true new)
+                                                         (ui/run-later (cvx/refresh! source-viewer)))))
+    (cvx/refresh! source-viewer)
     (g/node-value view-id :new-content)
-    (g/node-value view-id :new-tab-active)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                      (g/node-value view-id :new-tab-active)
                                                                       (cvx/changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
