@@ -392,7 +392,7 @@
   (let [basis (:basis ctx)
         node-type (gt/node-type node basis)
         value-type (some-> (in/property-type node-type property) deref in/schema s/maybe)]
-   (if-let [validation-error (and value-type (s/check value-type new-value))]
+   (if-let [validation-error (and in/*check-schemas* value-type (s/check value-type new-value))]
      (do
        (in/warn-output-schema node-id node-type property new-value value-type validation-error)
        (throw (ex-info "SCHEMA-VALIDATION"
