@@ -38,6 +38,23 @@
 (defonce ^:dynamic *menu-key-combos* (atom #{}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
+(defprotocol Text
+  (text ^String [this])
+  (text! [this ^String val]))
+
+(defprotocol HasValue
+  (value [this])
+  (value! [this val]))
+
+(defprotocol HasUserData
+  (user-data [this key])
+  (user-data! [this key val]))
+
+(defprotocol Editable
+  (editable [this])
+  (editable! [this val])
+  (on-edit! [this fn]))
+
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
@@ -97,10 +114,25 @@
                         (changed [this observable old new]
                           (listen-fn observable old new)))))
 
-(defn observe-list [^ObservableList observable listen-fn]
-  (.addListener observable (reify ListChangeListener
-                        (onChanged [this change]
-                          (listen-fn observable (into [] (.getList change)))))))
+(defn observe-list
+  ([^ObservableList observable listen-fn]
+    (observe-list nil observable listen-fn))
+  ([^Node node ^ObservableList observable listen-fn]
+    (let [listener (reify ListChangeListener
+                     (onChanged [this change]
+                       (listen-fn observable (into [] (.getList change)))))]
+      (.addListener observable listener)
+      (when node
+        (let [listeners (-> (or (user-data node ::list-listeners) [])
+                          (conj listener))]
+          (user-data! node ::list-listeners listeners))))))
+
+(defn remove-list-observers
+  [^Node node ^ObservableList observable]
+  (let [listeners (user-data node ::list-listeners)]
+    (user-data! node ::list-listeners [])
+    (doseq [^ListChangeListener l listeners]
+      (.removeListener observable l))))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)
@@ -250,23 +282,6 @@
     (when (and (.exists css) (seq (.getStylesheets root)))
       (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
     root))
-
-(defprotocol Text
-  (text ^String [this])
-  (text! [this ^String val]))
-
-(defprotocol HasValue
-  (value [this])
-  (value! [this val]))
-
-(defprotocol HasUserData
-  (user-data [this key])
-  (user-data! [this key val]))
-
-(defprotocol Editable
-  (editable [this])
-  (editable! [this val])
-  (on-edit! [this fn]))
 
 (extend-type Node
   HasUserData

@@ -480,10 +480,13 @@
                                                   nil)))))
   (output update-list-view g/Any :cached (g/fnk [curves ^ListView list selected-node-properties sub-selection-map]
                                                 (let [p (:properties (properties/coalesce selected-node-properties))
-                                                      new-items (mapv (fn [c] {:keyword (:property c)
-                                                                               :property (dissoc (get p (:property c)) :values)
-                                                                               :hue (:hue c)})
-                                                                      curves)
+                                                      new-items (reduce (fn [res c]
+                                                                          (if (contains? p (:property c))
+                                                                            (conj res {:keyword (:property c)
+                                                                                      :property (get p (:property c))
+                                                                                      :hue (:hue c)})
+                                                                            res))
+                                                                        [] curves)
                                                       old-items (ui/user-data list ::items)
                                                       old-sel (ui/user-data list ::sub-selection)]
                                                   (when (or (not= new-items old-items)
@@ -491,15 +494,11 @@
                                                     (binding [*programmatic-selection* true]
                                                       (ui/user-data! list ::items new-items)
                                                       (ui/user-data! list ::sub-selection sub-selection-map)
-                                                      (let [items (mapv (fn [c] {:keyword (:property c)
-                                                                                 :property (get p (:property c))
-                                                                                 :hue (:hue c)})
-                                                                        curves)
-                                                            selected (reduce conj #{} (map second (keys sub-selection-map)))
+                                                      (let [selected (reduce conj #{} (map second (keys sub-selection-map)))
                                                             selected-indices (reduce (fn [res [i v]]
                                                                                        (if (selected v) (conj res (int i)) res))
-                                                                                     [] (map-indexed (fn [i v] [i (:keyword v)]) items))]
-                                                        (ui/items! list items)
+                                                                                     [] (map-indexed (fn [i v] [i (:keyword v)]) new-items))]
+                                                        (ui/items! list new-items)
                                                         (if (empty? selected-indices)
                                                           (doto (.getSelectionModel list)
                                                                   (.selectRange 0 0))
@@ -587,7 +586,7 @@
     (g/set-property! view-id :image-view image-view)
     pane))
 
-(defn destroy-view! [parent ^AnchorPane view view-id]
+(defn destroy-view! [parent ^AnchorPane view view-id ^ListView list]
   (when-let [repainter (ui/user-data view ::repainter)]
     (ui/timer-stop! repainter)
     (ui/user-data! view ::repainter nil))
@@ -600,7 +599,8 @@
           (scene-cache/drop-context! gl false)
           (.destroy drawable))))
     (g/transact (g/delete-node view-id))
-    (ui/children! view [])))
+    (ui/children! view [])
+    (ui/remove-list-observers list (ui/selection list))))
 
 (defn- camera-filter-fn [camera]
   (let [^Point3d p (:position camera)
@@ -685,7 +685,9 @@
           (ui/children! view [pane])
           (let [converter (proxy [StringConverter] []
                             (fromString ^Object [s] nil)
-                            (toString ^String [item] (properties/label (:property item))))
+                            (toString ^String [item] (if (:property item)
+                                                       (properties/label (:property item))
+                                                       "")))
                 selected-callback (reify Callback
                                     (call ^ObservableValue [this item]
                                       (let [hidden-curves (g/node-value node-id :hidden-curves)]
@@ -695,8 +697,8 @@
                                                           (if new
                                                             (g/update-property! node-id :hidden-curves disj kw)
                                                             (g/update-property! node-id :hidden-curves conj kw)))))))))]
-            (-> (ui/selection list)
-              (ui/observe-list (fn [_ values] (on-list-selection project values))))
+            (let [items (ui/selection list)]
+              (ui/observe-list list items (fn [_ values] (on-list-selection project values))))
             (doto (.getSelectionModel list)
               (.setSelectionMode SelectionMode/MULTIPLE))
             (.setCellFactory list
@@ -715,7 +717,7 @@
   (when @view-state
     (let [{:keys [project graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
       (ui/run-now
-        (destroy-view! parent view view-id)
+        (destroy-view! parent view view-id list)
         (make-view! project graph parent list view opts true)))))
 
 (reload-curve-view)
