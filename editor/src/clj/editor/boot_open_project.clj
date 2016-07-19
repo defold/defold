@@ -7,7 +7,8 @@
             [editor.changes-view :as changes-view]
             [editor.properties-view :as properties-view]
             [editor.text :as text]
-            [editor.code-view :as code-view]
+            #_[editor.code-view :as code-view]
+            [editor.codemirror-view :as codemirror-view]
             [editor.scene :as scene]
             [editor.form-view :as form-view]
             [editor.collection :as colleciton]
@@ -86,7 +87,8 @@
     (g/transact
       (concat
         (text/register-view-types workspace)
-        (code-view/register-view-types workspace)
+        #_(code-view/register-view-types workspace)
+        (codemirror-view/register-view-types workspace)        
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)))
     (g/transact
