@@ -59,13 +59,11 @@ public class SSDP implements ISSDP {
         return r;
     }
 
-    static List<InetAddress> getLocalAddresses(List<NetworkInterface> interfaces) throws SocketException {
+    static List<InetAddress> getIPv4Addresses(NetworkInterface i) throws SocketException {
         List<InetAddress> r = new ArrayList<InetAddress>();
-        for (NetworkInterface i : interfaces) {
-            for (InetAddress a : Collections.list(i.getInetAddresses())) {
-                if (a instanceof Inet4Address) {
-                    r.add(a);
-                }
+        for (InetAddress a : Collections.list(i.getInetAddresses())) {
+            if (a instanceof Inet4Address) {
+                r.add(a);
             }
         }
 
@@ -117,27 +115,25 @@ public class SSDP implements ISSDP {
         List<NetworkInterface> newInterfaces = getMCastInterfaces();
         if (!newInterfaces.equals(this.interfaces)) {
             clearDiscovered();
-            closeSockets();
-            this.interfaces = newInterfaces;
-            for (NetworkInterface i : this.interfaces) {
-                List<InetAddress> addresses = new ArrayList<InetAddress>();
-                for (InetAddress a : Collections.list(i.getInetAddresses())) {
-                    if (a instanceof Inet4Address) {
-                        addresses.add(a);
-                    }
-                }
+            SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
+            for (NetworkInterface i : newInterfaces) {
+                closeSockets();
                 try {
                     mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
+                    mcastSocket.setNetworkInterface(i);
                     mcastSocket.joinGroup(SSDP_MCAST_ADDR);
                     mcastSocket.setSoTimeout(1);
                     mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
                     sockets = new ArrayList<DatagramSocket>();
-                    for (InetAddress inetAddress : addresses) {
-                        DatagramSocket socket = new DatagramSocket(0, inetAddress);
+                    List<InetAddress> addresses = getIPv4Addresses(i);
+                    for (InetAddress a : addresses) {
+                        DatagramSocket socket = new DatagramSocket(0, a);
                         socket.setSoTimeout(1);
                         sockets.add(socket);
                     }
-                    log("Connected to multicast networks: " + addresses);
+                    log(String.format("Connected to multicast network %s: %s", i.getDisplayName(), addresses.toString()));
+                    this.interfaces = newInterfaces;
+                    break;
                 } catch (IOException e) {
                     log("Could not connect: " + e.getMessage());
                     closeSockets();
@@ -295,5 +291,18 @@ public class SSDP implements ISSDP {
     @Override
     public boolean isConnected() {
         return mcastSocket != null && !mcastSocket.isClosed();
+    }
+
+    @Override
+    public List<String> getIPs() {
+        if (sockets != null) {
+            List<String> ips = new ArrayList<String>(sockets.size());
+            for (DatagramSocket s : sockets) {
+                ips.add(s.getLocalAddress().getHostAddress());
+            }
+            return ips;
+        } else {
+            return null;
+        }
     }
 }

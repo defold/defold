@@ -18,8 +18,7 @@
       (let [etag (digest/sha1->hex c)
             remote-etag (first (get headers "If-none-match"))
             cached? (= etag remote-etag)
-            response-headers (cond-> {"Content-Type" "application/octet-stream"
-                                      "ETag" etag}
+            response-headers (cond-> {"ETag" etag}
                                (= method "GET") (assoc "Content-Length" (str (count c))))]
         (cond-> {:code (if cached? 304 200)
                  :headers response-headers}

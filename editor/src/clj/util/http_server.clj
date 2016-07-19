@@ -56,3 +56,6 @@
 
 (defn local-url [^HttpServer server]
   (format "http://localhost:%d" (.getPort (.getAddress server))))
+
+(defn port [^HttpServer server]
+  (.getPort (.getAddress server)))

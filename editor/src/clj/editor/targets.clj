@@ -22,6 +22,7 @@
 (defonce ^:private descriptions (atom {}))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
+(defonce ^:private active-ips (atom nil))
 (defonce ^:private worker (atom nil))
 (defonce ^:private event-log (atom []))
 
@@ -131,12 +132,14 @@
           (let [now      (System/currentTimeMillis)
                 search?  (>= now (+ @last-search (search-interval ssdp-service)))
                 changed? (.update ssdp-service search?)]
+            (reset! active-ips (.getIPs ssdp-service))
             (when search?
               (reset! last-search now))
             (when (or search? changed?)
               (update-targets! (.getDevices ssdp-service)))))
         (do
-          (reset! running false)))
+          (reset! running false)
+          (reset! active-ips nil)))
       (catch Exception e
         (prn e))
       (finally
@@ -201,3 +204,6 @@
     (ui/on-hiding! stage (fn [_]
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
+
+(defn current-ip []
+  (first @active-ips))
