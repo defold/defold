@@ -3,6 +3,7 @@
             [editor.progress :as progress]
             [editor.workspace :as workspace]
             [editor.ui :as ui]
+            [editor.dialogs :as dialogs]
             [editor.changes-view :as changes-view]
             [editor.properties-view :as properties-view]
             [editor.text :as text]
@@ -115,18 +116,36 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn load-stage [workspace project prefs]
 
+;; Slight hack to work around the fact that we have not yet found a
+;; reliable way of detecting when the application loses focus.
+
+;; If no application-owned windows have had focus within this
+;; threshold, we consider the application to have lost focus.
+(def application-unfocused-threshold-ms 500)
+
+(defn- watch-focus-state! [workspace]
+  (add-watch dialogs/focus-state :main-stage
+             (fn [key ref old new]
+               (when (and old
+                          (not (:focused? old))
+                          (:focused? new))
+                 (let [unfocused-ms (- (:t new) (:t old))]
+                   (when (< application-unfocused-threshold-ms unfocused-ms)
+                     (future
+                       (ui/with-disabled-ui
+                         (ui/with-progress [render-fn ui/default-render-progress!]
+                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+
+
+(defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (Stage.)
         scene      (Scene. root)]
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
-                  (when (true? new-val)
-                    (future
-                      (ui/with-disabled-ui
-                        (ui/with-progress [render-fn ui/default-render-progress!]
-                          (editor.workspace/resource-sync! workspace true [] render-fn)))))))
+                  (dialogs/record-focus-change! new-val)))
+    (watch-focus-state! workspace)
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -166,7 +185,7 @@
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            project/hot-reload-url-prefix (hotload/build-handler project)})
+                                                            project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))]

@@ -283,6 +283,7 @@
 
                              nil)))]
     (def flw !flow)
+    (dialogs/observe-focus stage)
     (ui/set-main-stage stage)
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]

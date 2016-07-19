@@ -1,6 +1,7 @@
 package com.dynamo.upnp;
 
 import java.io.IOException;
+import java.util.List;
 
 public interface ISSDP {
 
@@ -12,6 +13,9 @@ public interface ISSDP {
 
     public void clearDiscovered();
 
-    DeviceInfo[] getDevices();
+    public DeviceInfo[] getDevices();
 
+    public boolean isConnected();
+
+    public List<String> getIPs();
 }

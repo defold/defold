@@ -2,8 +2,8 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
             [editor.handler :as handler]
-            [editor.hot-reload :as hot-reload]
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
@@ -36,6 +36,7 @@
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
+           [java.net URI]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -164,13 +165,12 @@
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
-            ;; TODO Also figure out if the engine running (somewhere)
             (g/node-value app-view :active-resource))
   (run [project app-view prefs]
     (when-let [resource (g/node-value app-view :active-resource)]
       (let [build (project/build-and-save-project project)]
         (when (and (future? build) @build)
-            (hot-reload/post-reload-resource prefs resource))))))
+            (engine/reload-resource (:url (project/get-selected-target prefs)) resource))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -205,6 +205,9 @@
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))
+
+(handler/defhandler :documentation :global
+  (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -293,6 +296,8 @@
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
+                             {:label "Documentation"
+                              :command :documentation}
                              {:label "About"
                               :command :about}]}])
 

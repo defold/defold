@@ -6,6 +6,7 @@
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
@@ -20,7 +21,6 @@
             [editor.graph-util :as gu]
             ;; TODO - HACK
             [internal.graph.types :as gt]
-            [util.http-server :as http-server]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -328,14 +328,10 @@
             (console/append-console-message! msg)
             (recur)))))))
 
-(defn- launch-engine [launch-dir webserver]
+(defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        url    (str (http-server/local-url webserver) hot-reload-url-prefix)
-        pb     (doto (ProcessBuilder. ^java.util.List
-                                      (list path
-                                            (str "--config=resource.uri=" url)
-                                            (str url "/game.projectc")))
+        pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
     (let [p  (.start pb)
@@ -405,7 +401,9 @@
                              {:label :separator}
                              {:label "Target"
                               :command :target}
-                             {:label "Target Activity Log"
+                             {:label "Restart Target Discovery"
+                              :command :target-restart}
+                             {:label "Target Discovery Log"
                               :command :target-log}]}])
 
 (defn get-resource-node [project path-or-resource]
@@ -567,14 +565,6 @@
               (update-system-cache! old-cache-val cache)))
           (finally (reset! ongoing-build-save? false)))))))
 
-(handler/defhandler :build :global
-  (enabled? [] (not @ongoing-build-save?))
-  (run [project web-server]
-    (let [build (build-and-save-project project)]
-      (when (and (future? build) @build)
-        (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
-                       web-server)))))
-
 (def ^:private selected-target (atom nil))
 
 (defn get-selected-target [prefs]
@@ -590,30 +580,41 @@
       :else
       targets/local-target)))
 
+(handler/defhandler :build :global
+  (enabled? [] (not @ongoing-build-save?))
+  (run [project prefs web-server]
+    (let [build  (build-and-save-project project)
+          target (get-selected-target prefs)]
+      (when (and (future? build) @build)
+        (or (engine/reboot (:url target) web-server hot-reload-url-prefix)
+            (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+
 (handler/defhandler :target :global
-  (enabled? [] true)
-  (active? [] true)
   (run [user-data prefs]
     (when user-data
       (prefs/set-prefs prefs "last-target" user-data)
       (reset! selected-target user-data)))
   (state [user-data prefs]
-         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-           (or (= user-data @selected-target)
-               (= user-data last-target))))
+        (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+          (or (= user-data @selected-target)
+              (= user-data last-target))))
   (options [user-data]
            (when-not user-data
-             (mapv (fn [target]
-                     {:label     (:name target)
-                      :command   :target
-                      :check     true
-                      :user-data target})
-                   (targets/get-targets)))))
+             (let [targets (targets/get-targets)]
+               (mapv (fn [target]
+                       {:label     (:name target)
+                        :command   :target
+                        :check     true
+                        :user-data target})
+                     targets)))))
 
 (handler/defhandler :target-log :global
-  (enabled? [] true)
   (run []
     (ui/run-later (targets/make-target-log-dialog))))
+
+(handler/defhandler :target-restart :global
+  (run []
+    (ui/run-later (targets/restart))))
 
 (defn settings [project]
   (g/node-value project :settings))
