@@ -56,19 +56,23 @@
   []
   (walk/keywordize-keys (into {} (System/getProperties))))
 
-(def build-type (atom (get (system-properties) :defold.build :development)))
+(def build-type (atom (get (system-properties) :defold.build "development")))
 
 (def build->compiler-options
-  {:development
-   {:elide-meta #{:file :line :column}}
+  {"development"
+   {:elide-meta     #{:file :line :column}}
 
-   :production
+   "release"
    {:elide-meta     #{:file :line :column}
     :direct-linking true}})
 
+(def default-compiler-options (build->compiler-options "development"))
+
 (defn compile-clj
   [namespaces]
-  (binding [*compiler-options* (build->compiler-options @build-type)]
+  (binding [*compiler-options* (build->compiler-options @build-type default-compiler-options)]
+    (println "Using build profile " @build-type)
+    (println "Compiler options: " *compiler-options*)
     (doseq [n namespaces]
       (println "Compiling " n)
       (compile n))))
