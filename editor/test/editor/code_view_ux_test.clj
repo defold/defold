@@ -59,7 +59,7 @@
       (text-selection! source-viewer 6 5)
       (copy! source-viewer clipboard)
       (testing "pasting without text selected"
-        (text-selection! source-viewer 0 0)
+        (caret! source-viewer 0 false)
         (paste! source-viewer clipboard)
         (is (= "world" (text clipboard)))
         (is (= "worldhello world" (text source-viewer))))
@@ -329,7 +329,7 @@
         (select-prev-word! source-viewer)
         (is (= "the " (text-selection source-viewer)))
         (select-prev-word! source-viewer)
-        (is (= "" (text-selection source-viewer)))))))
+        (is (= "the " (text-selection source-viewer)))))))
 
 (defn- line-begin! [source-viewer]
   (cvx/handler-run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))

@@ -404,7 +404,9 @@
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (up-line selection preferred-offset)]
-    (caret! selection next-pos true)))
+    (if (= (selection-offset selection) next-pos)
+      (caret! selection next-pos false)
+      (caret! selection next-pos true))))
 
 (defn down [selection]
   (let [doc (text selection)
@@ -419,7 +421,9 @@
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (down-line selection preferred-offset)]
-      (caret! selection next-pos true)))
+    (if (= (+ (selection-length selection) (selection-offset selection)) next-pos)
+      (caret! selection next-pos false)
+      (caret! selection next-pos true))))
 
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)
@@ -961,7 +965,8 @@
         (do
           (do-indent-line selection (line-num-at-offset selection (caret selection)))
           (enter-key-text selection (System/getProperty "line.separator"))
-          (do-indent-line selection (line-num-at-offset selection (caret selection))))
+          (do-indent-line selection (line-num-at-offset selection (caret selection)))
+          (caret! selection (+ (line-offset selection) (count (line selection))) false))
         (enter-key-text selection (System/getProperty "line.separator"))))))
 
 (handler/defhandler :undo :code-view
