@@ -144,33 +144,31 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		                double bufferSize = getFlow().getViewportWidth() / 5; 
 		                double moveSize = 20;
 
+		                ////NOTE: The following section is a start of implementing horizontal scrolling as you type
+		                /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
+		                /// This whole area should be revisited once it get's sorted out
 						///Need to do layout to get the scroll bar's current positioning about the new document change
-		                getFlow().layout();
+		                sb.layout();
 		                
-						if (sb.isVisible() && (tmp.getX() - getFlow().getViewportWidth()) > sb.getVisibleAmount()) {
-							//moving from beginning of line all the way to the end of line
-							///System.err.println("moving from begin to end of line");
-							sb.setValue(sb.getMax() + moveSize);	
-						}
-						else if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
+						
+						if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
 							int newCharCount = newValue.intValue() - oldValue.intValue();
 							//System.err.println("inching forward adding char!!!" + prevCaretX);
-							if (prevCaretX < 0)
+
+							if (prevCaretX < 0 || (prevCaretX + bufferSize >= getFlow().getViewportWidth()))
 							{
-								sb.setValue(sb.getMax() + moveSize);
-							}
-							else if (prevCaretX + sb.getVisibleAmount() + bufferSize >= getFlow().getViewportWidth()){
-								sb.setValue(sb.getValue() + moveSize);
+								sb.setValue(sb.getMax() + (moveSize * newCharCount) + moveSize);
 							}else{
-								sb.setValue(sb.getMax() + moveSize);								
+								//sb.setValue(sb.getValue() + (moveSize * newCharCount));
+
 							}
 					    }
 						else if (forward && tmp.getX() + sb.getVisibleAmount()+ bufferSize >= getFlow().getViewportWidth()){
 							//System.err.println("inching forwards");
 							int newCharCount = newValue.intValue() - oldValue.intValue();
-							sb.setValue(Math.min(sb.getMax(),sb.getValue() + (moveSize * newCharCount)));
+							sb.setValue(Math.min(sb.getMax() + moveSize ,sb.getValue() + (moveSize * newCharCount)));
 					    }
 						else if (sb.isVisible() && (tmp.getX() < 0)){
 							//moving from the end of line to next line out of visibility
@@ -202,7 +200,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							
 							sb.setValue(Math.max(0,sb.getValue() + (moveSize * newCharCount)));
 						}else{
-							//System.err.println("doing nothing"));
+							//totally arbitrary but I don't have a better way to calculate it right now
+							if ((newValue.intValue() - p.getStartOffset()) < 25){
+								//begin of line
+								sb.setValue(0);
+							}
 						}
 						
 						
