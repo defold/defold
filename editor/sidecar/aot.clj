@@ -60,11 +60,13 @@
 
 (def build->compiler-options
   {"development"
-   {:elide-meta     #{:file :line :column}}
+   {:elide-meta           #{:file :line :column}
+    :defold/check-schemas true}
 
    "release"
    {:elide-meta     #{:file :line :column}
-    :direct-linking true}})
+    :direct-linking true
+    :defold/check-schemas  false}})
 
 (def default-compiler-options (build->compiler-options "development"))
 
