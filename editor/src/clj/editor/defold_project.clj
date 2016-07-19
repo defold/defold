@@ -401,7 +401,9 @@
                              {:label :separator}
                              {:label "Target"
                               :command :target}
-                             {:label "Target Activity Log"
+                             {:label "Restart Target Discovery"
+                              :command :target-restart}
+                             {:label "Target Discovery Log"
                               :command :target-log}]}])
 
 (defn get-resource-node [project path-or-resource]
@@ -588,29 +590,31 @@
             (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
-  (enabled? [] true)
-  (active? [] true)
   (run [user-data prefs]
     (when user-data
       (prefs/set-prefs prefs "last-target" user-data)
       (reset! selected-target user-data)))
   (state [user-data prefs]
-         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-           (or (= user-data @selected-target)
-               (= user-data last-target))))
+        (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+          (or (= user-data @selected-target)
+              (= user-data last-target))))
   (options [user-data]
            (when-not user-data
-             (mapv (fn [target]
-                     {:label     (:name target)
-                      :command   :target
-                      :check     true
-                      :user-data target})
-                   (targets/get-targets)))))
+             (let [targets (targets/get-targets)]
+               (mapv (fn [target]
+                       {:label     (:name target)
+                        :command   :target
+                        :check     true
+                        :user-data target})
+                     targets)))))
 
 (handler/defhandler :target-log :global
-  (enabled? [] true)
   (run []
     (ui/run-later (targets/make-target-log-dialog))))
+
+(handler/defhandler :target-restart :global
+  (run []
+    (ui/run-later (targets/restart))))
 
 (defn settings [project]
   (g/node-value project :settings))

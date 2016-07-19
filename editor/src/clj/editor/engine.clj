@@ -3,7 +3,8 @@
              [dialogs :as dialogs]
              [protobuf :as protobuf]
              [resource :as resource]
-             [ui :as ui]]
+             [ui :as ui]
+             [targets :as targets]]
             [util.http-server :as http-server])
   (:import [java.net HttpURLConnection URL]))
 
@@ -34,7 +35,7 @@
                (.setDoOutput true) (.setRequestMethod "POST"))]
     (try
       (let [os  (.getOutputStream conn)
-            url (str (http-server/local-url webserver) hot-reload-url-prefix)]
+            url (format "http://%s:%s%s" (targets/current-ip) (http-server/port webserver) hot-reload-url-prefix)]
         (.write os ^bytes (protobuf/map->bytes
                            com.dynamo.engine.proto.Engine$Reboot
                            {:arg1 (str "--config=resource.uri=" url)

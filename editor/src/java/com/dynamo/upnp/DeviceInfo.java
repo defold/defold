@@ -27,7 +27,7 @@ public class DeviceInfo {
     public boolean equals(Object other) {
         if (other instanceof DeviceInfo) {
             DeviceInfo di = (DeviceInfo) other;
-            return address.equals(di) && headers.equals(di);
+            return address.equals(di.address) && headers.equals(di.headers);
         }
         return false;
     }
