@@ -379,7 +379,7 @@ namespace dmSound
                 free((void*) sound->m_OutBuffers[i]);
             }
 
-            for (int i = 0; i < MAX_GROUPS; i++) {
+            for (uint32_t i = 0; i < MAX_GROUPS; i++) {
                 SoundGroup* g = &sound->m_Groups[i];
                 if (g->m_MixBuffer) {
                     free((void*) g->m_MixBuffer);
@@ -461,7 +461,7 @@ namespace dmSound
 
         dmSoundCodec::HDecoder decoder;
 
-        dmSoundCodec::Format codec_format;
+        dmSoundCodec::Format codec_format = dmSoundCodec::FORMAT_WAV;
         if (sound_data->m_Type == SOUND_DATA_TYPE_WAV) {
             codec_format = dmSoundCodec::FORMAT_WAV;
         } else if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS) {
@@ -999,7 +999,7 @@ namespace dmSound
         Result result = RESULT_NOTHING_TO_PLAY;
         SoundSystem* sound = g_SoundSystem;
 
-        for (int i = 0; i < MAX_GROUPS; i++) {
+        for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
 
             if (g->m_MixBuffer) {
@@ -1062,7 +1062,7 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer = master->m_MixBuffer;
 
-        for (int i = 0; i < MAX_GROUPS; i++) {
+        for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
             Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
             if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH /*&& (fabs(from) + fabs(to)) > 0.0f*/) {
@@ -1096,7 +1096,7 @@ namespace dmSound
     {
         SoundSystem* sound = g_SoundSystem;
 
-        for (int i = 0; i < MAX_GROUPS; i++) {
+        for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
             if (g->m_MixBuffer) {
                 g->m_Gain.Step();
