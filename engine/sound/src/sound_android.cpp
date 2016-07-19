@@ -15,12 +15,11 @@ struct SoundManager
         memset(this, 0x0, sizeof(struct SoundManager));
     }
 
-    jobject m_SoundManager;
-    jmethodID m_AcquireAudioFocus;
-    jmethodID m_IsMusicPlaying;
-    jmethodID m_IsPhoneCallActive;
-    jmethodID m_ReleaseAudioFocus;
-
+    jobject     m_SoundManager;
+    jmethodID   m_AcquireAudioFocus;
+    jmethodID   m_IsMusicPlaying;
+    jmethodID   m_ReleaseAudioFocus;
+    bool        m_IsPhoneCallActive;
 };
 
 struct SoundManager g_SoundManager;
@@ -67,6 +66,20 @@ namespace
 
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+JNIEXPORT void JNICALL Java_com_defold_sound_SoundManager_setPhoneCallState(JNIEnv* env, jobject, jint active)
+{
+    g_SoundManager.m_IsPhoneCallActive = active ? true : false;
+}
+
+
+#ifdef __cplusplus
+}
+#endif
+
 namespace dmSound
 {
     Result PlatformInitialize(dmConfigFile::HConfig config,
@@ -74,6 +87,8 @@ namespace dmSound
     {
         JNIEnv* environment = ::Attach();
 
+        g_SoundManager.m_IsPhoneCallActive       = false; // It will get updated by the call to the construct
+        
         jclass      jni_class_NativeActivity     = environment->FindClass("android/app/NativeActivity");
         jmethodID   jni_method_getClassLoader    = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
         jobject     jni_object_getClassLoader    = environment->CallObjectMethod(g_AndroidApp->activity->clazz, jni_method_getClassLoader);
@@ -82,13 +97,12 @@ namespace dmSound
 
         jstring     jni_string_SoundManager      = environment->NewStringUTF("com.defold.sound.SoundManager");
         jclass      jni_class_SoundManager       = (jclass) environment->CallObjectMethod(jni_object_getClassLoader, jni_method_loadClass, jni_string_SoundManager);
-        jmethodID   jni_constructor_SoundManager = environment->GetMethodID(jni_class_SoundManager, "<init>", "(Landroid/content/Context;)V");
+        jmethodID   jni_constructor_SoundManager = environment->GetMethodID(jni_class_SoundManager, "<init>", "(Landroid/app/Activity;)V");
 
         g_SoundManager.m_SoundManager            = environment->NewGlobalRef(environment->NewObject(jni_class_SoundManager, jni_constructor_SoundManager, g_AndroidApp->activity->clazz));
         g_SoundManager.m_AcquireAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "acquireAudioFocus", "()Z");
         g_SoundManager.m_ReleaseAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "releaseAudioFocus", "()Z");
         g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
-        g_SoundManager.m_IsPhoneCallActive       = environment->GetMethodID(jni_class_SoundManager, "isPhoneCallActive", "()Z");
 
         environment->DeleteLocalRef(jni_string_SoundManager);
         return (::CheckException(environment) && ::Detach(environment)) ? RESULT_OK : RESULT_INIT_ERROR;
@@ -118,6 +132,6 @@ namespace dmSound
 
     bool PlatformIsPhoneCallActive()
     {
-        return ::CallZ(g_SoundManager.m_IsPhoneCallActive, true);
+        return g_SoundManager.m_IsPhoneCallActive;
     }
 }
