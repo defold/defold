@@ -428,9 +428,9 @@
                               [min-dist closest-curve])))
                         [min-distance nil] curves))
         [_ _ ^Point3d closest] curve
-        screen-p (camera/camera-project camera viewport closest)]
-    (when (< (.distanceSquared screen-p (Point3d. (.x picking-rect) (.y picking-rect) 0.0))
-             (* selection/min-pick-size selection/min-pick-size))
+        screen-p (and closest (camera/camera-project camera viewport closest))]
+    (when (and screen-p (< (.distanceSquared screen-p (Point3d. (.x picking-rect) (.y picking-rect) 0.0))
+                           (* selection/min-pick-size selection/min-pick-size)))
       curve)))
 
 (g/defnk produce-picking-selection [curves picking-rect camera viewport]
@@ -541,7 +541,8 @@
 
 (defn make-gl-pane [view-id ^AnchorPane view opts]
   (let [image-view (doto (ImageView.)
-                     (.setScaleY -1.0))
+                     (.setScaleY -1.0)
+                     (.setFocusTraversable true))
         pane (proxy [com.defold.control.Region] []
                (layoutChildren []
                  (let [this ^com.defold.control.Region this
@@ -582,6 +583,7 @@
                                (g/set-property view-id :async-copier (scene/make-copier image-view drawable viewport)))))
                            (frame-selection view-id false)))))
                    (proxy-super layoutChildren))))]
+    (.setFocusTraversable pane true)
     (.add (.getChildren pane) image-view)
     (g/set-property! view-id :image-view image-view)
     pane))

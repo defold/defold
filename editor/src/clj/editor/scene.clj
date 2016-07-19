@@ -563,8 +563,11 @@
                                                   (g/set-property view-id :cursor-pos [x y])
                                                   (g/set-property view-id :tool-picking-rect picking-rect)))
                                               (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))]
-    (ui/on-mouse! parent (fn [type e] (when (= type :exit)
-                                        (g/set-property! view-id :cursor-pos nil))))
+    (ui/on-mouse! parent (fn [type e] (cond
+                                        (= type :exit)
+                                        (g/set-property! view-id :cursor-pos nil)
+                                        (= type :enter)
+                                        (.requestFocus parent))))
     (.setOnMousePressed parent event-handler)
     (.setOnMouseReleased parent event-handler)
     (.setOnMouseClicked parent event-handler)
