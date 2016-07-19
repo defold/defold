@@ -58,11 +58,25 @@
         (finally
           (ui/run-later (ui/disable! (:root this) false)))))))
 
+(defonce focus-state (atom nil))
+
+(defn record-focus-change!
+  [focused?]
+  (reset! focus-state {:focused? focused?
+                       :t (System/currentTimeMillis)}))
+
+(defn observe-focus
+  [^Stage stage]
+  (ui/observe (.focusedProperty stage)
+              (fn [property old-val new-val]
+                (record-focus-change! new-val))))
+
 (defn make-alert-dialog [message]
   (let [root     ^Parent (ui/load-fxml "alert.fxml")
         stage    (Stage.)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok"])]
+    (observe-focus stage)
     (ui/title! stage "Alert")
     (ui/text! (:message controls) message)
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
@@ -77,6 +91,7 @@
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok" "cancel"])
         result   (atom false)]
+    (observe-focus stage)
     (ui/title! stage "Please confirm")
     (ui/text! (:message controls) message)
     (ui/on-action! (:ok controls) (fn [_]
@@ -105,7 +120,7 @@
                         (ui/managed! (:error-group controls) visible)
                         (ui/visible! (:error-group controls) visible)
                         (.sizeToScene stage))))]
-
+    (observe-focus stage)
     (ui/text! (:ok controls) (or (:ok-label options) "Ok"))
     (ui/title! stage (or (:title options) ""))
     (ui/children! (:dialog-area controls) [dialog-root])
@@ -152,7 +167,7 @@
         items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
                              (g/node-value workspace :resource-list))
         close        (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
-
+    (observe-focus stage)    
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (or (:title options) "Select Resource"))
     (ui/items! (:resources controls) items)
@@ -281,7 +296,7 @@
         exts      (atom nil)
         close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
         tree-view ^TreeView (:resources-tree controls)]
-
+    (observe-focus stage)
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Search in files")
 
@@ -336,6 +351,7 @@
         controls (ui/collect-controls root ["name" "ok"])
         return (atom nil)
         close (fn [] (reset! return (ui/text (:name controls))) (.close stage))]
+    (observe-focus stage)    
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "New Folder")
 
@@ -368,6 +384,7 @@
                         (str/replace #"/" "")
                         (str/replace #"\\" "")
                         (str (when typ (str "." typ)))))]
+    (observe-focus stage)
     (.initOwner stage (ui/main-stage))
 
     (ui/title! stage title)
@@ -422,6 +439,7 @@
                   (reset! return (File. base-dir (ui/text (:path controls)))))
                 (.close stage))
         set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
+    (observe-focus stage)    
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (str "New " type))
     (set-location location)
@@ -457,6 +475,7 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["line"])
         close (fn [v] (do (deliver result v) (.close stage)))]
+    (observe-focus stage)    
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Go to line")
     (.setOnKeyPressed scene
@@ -477,6 +496,7 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["text"])
         close (fn [v] (do (deliver result v) (.close stage)))]
+    (observe-focus stage)    
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Find Text")
     (.setOnKeyPressed scene
@@ -497,6 +517,7 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["find-text" "replace-text"])
         close (fn [v] (do (deliver result v) (.close stage)))]
+    (observe-focus stage)    
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Find/Replace Text")
     (.setOnKeyPressed scene
@@ -531,6 +552,7 @@
                                   (do
                                     (println "Proposal filter bad filter pattern " @filter-text)
                                     (swap! filter-text #(apply str (drop-last %)))))))]
+    (observe-focus stage)    
     (.setFill scene nil)
     (.initStyle stage StageStyle/UNDECORATED)
     (.initStyle stage StageStyle/TRANSPARENT)
