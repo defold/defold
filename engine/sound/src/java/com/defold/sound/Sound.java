@@ -1,5 +1,6 @@
 package com.defold.sound;
 
+import com.defold.sound.SoundManager;
 
 import android.content.Context;
 import android.media.AudioManager;
@@ -14,7 +15,7 @@ public class Sound {
             String sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
             return Integer.parseInt(sampleRate);
         } else {
-            Log.w("sound", "Android version < 17. Unable to determine hardware sample rate.");
+            Log.w(SoundManager.TAG, "Android version < 17. Unable to determine hardware sample rate.");
             return 44100;
         }
     }
@@ -25,7 +26,7 @@ public class Sound {
             String framesPerBuffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER);
             return Integer.parseInt(framesPerBuffer);
         } else {
-            Log.w("sound", "Android version < 17. Unable to determine hardware frame count.");
+            Log.w(SoundManager.TAG, "Android version < 17. Unable to determine hardware frame count.");
             return 1024;
         }
     }
