@@ -116,10 +116,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                                 if (lineObject == null){
                                     return;
                                 }
-                
+
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
-						
+
 						// Adjust the selection
 						if (DefoldStyledTextSkin.this.contentView.getSelectionModel().getSelectedItem() != c.domainElement) {
 							DefoldStyledTextSkin.this.contentView.getSelectionModel().select(lineObject);
@@ -135,22 +135,21 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							prevCaretX = prevLoc.getX();
 						}
 						updateCurrentCursorNode(p);
-						
+
 						VirtualScrollBar sb = getFlow().getHScrollBar();
-						
+
 						boolean forward = newValue.intValue() > oldValue.intValue();
 						boolean backward = !forward;
-						
-		                double bufferSize = getFlow().getViewportWidth() / 5; 
-		                double moveSize = 20;
 
-		                ////NOTE: The following section is a start of implementing horizontal scrolling as you type
-		                /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
-		                /// This whole area should be revisited once it get's sorted out
+                                                double bufferSize = getFlow().getViewportWidth() / 5; 
+                                                double moveSize = 20;
+
+                                                ////NOTE: The following section is a start of implementing horizontal scrolling as you type
+                                                /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
+                                                /// This whole area should be revisited once it get's sorted out
 						///Need to do layout to get the scroll bar's current positioning about the new document change
-		                sb.layout();
-		                
-						
+                                                sb.layout();
+
 						if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
@@ -164,19 +163,19 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								//sb.setValue(sb.getValue() + (moveSize * newCharCount));
 
 							}
-					    }
+                                                }
 						else if (forward && tmp.getX() + sb.getVisibleAmount()+ bufferSize >= getFlow().getViewportWidth()){
 							//System.err.println("inching forwards");
 							int newCharCount = newValue.intValue() - oldValue.intValue();
 							sb.setValue(Math.min(sb.getMax() + moveSize ,sb.getValue() + (moveSize * newCharCount)));
-					    }
+                                                }
 						else if (sb.isVisible() && (tmp.getX() < 0)){
 							//moving from the end of line to next line out of visibility
 							//System.err.println("end of line to next line");
 							int newCharCount = newValue.intValue() - oldValue.intValue();
 							if (newCharCount > 0)
 							{
-								newCharCount = newCharCount * -1;                                                                                                                                          
+								newCharCount = newCharCount * -1;
 							}
 
 							sb.setValue(Math.max(0,sb.getValue() + tmp.getX()));
@@ -189,15 +188,13 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						else if (backward && sb.isVisible() && tmp.getX() - bufferSize < 0){
 							///moving backwards
 							//System.err.println("inching backwards");
-							
+
 							int newCharCount = newValue.intValue() - oldValue.intValue();
 							//System.err.println("new " + newValue.intValue() + " old " + oldValue.intValue() + " x"  + tmp.getX());
-							if (newCharCount > 0)
-							{
-								newCharCount = newCharCount * -1;                                                                                                                                          
+							if (newCharCount > 0){
+								newCharCount = newCharCount * -1;
 							}
-							
-							
+
 							sb.setValue(Math.max(0,sb.getValue() + (moveSize * newCharCount)));
 						}else{
 							//totally arbitrary but I don't have a better way to calculate it right now
@@ -206,10 +203,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								sb.setValue(0);
 							}
 						}
-						
-						
 						getFlow().requestLayout();
-					    p.requestLayout();
+                                                p.requestLayout();
 
 						return;
 					}
