@@ -24,12 +24,12 @@ function window_callback(self, event, data)
     if test_state == 1 then
         test_eq( event, window.WINDOW_EVENT_FOCUS_LOST )
         test_eq( data.width, nil )
-        test_eq( data.width, nil )
+        test_eq( data.height, nil )
         numtests = numtests - 1
     elseif test_state == 2 then
         test_eq( event, window.WINDOW_EVENT_FOCUS_GAINED )
         test_eq( data.width, nil )
-        test_eq( data.width, nil )
+        test_eq( data.height, nil )
         numtests = numtests - 1
     elseif test_state == 3 then
         test_eq( event, window.WINDOW_EVENT_RESIZED )
