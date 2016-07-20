@@ -1,4 +1,4 @@
-(ns editor.grid
+(ns editor.curve-grid
   (:require [dynamo.graph :as g]
             [editor.colors :as colors]
             [editor.geom :as geom]
@@ -15,9 +15,9 @@
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
 (def grid-color colors/mid-grey)
-(def x-axis-color colors/defold-red)
-(def y-axis-color colors/defold-green)
-(def z-axis-color colors/defold-blue)
+(def x-axis-color colors/defold-white)
+(def y-axis-color colors/defold-white)
+(def z-axis-color colors/defold-white)
 
 (defn render-grid-axis
   [^GL2 gl ^doubles vx uidx start stop size vidx min max]
@@ -41,7 +41,6 @@
         v-max       (nth max-values v-axis)
         vertex      (double-array 3)]
     (aset vertex fixed-axis 0.0)
-    (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
     (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
 
 (defn render-primary-axes
@@ -52,15 +51,19 @@
   (gl/gl-color gl y-axis-color)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
-  (gl/gl-color gl z-axis-color)
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
+  (gl/gl-vertex-3d gl 1.0 (-> aabb types/min-p .y) 0.0)
+  (gl/gl-vertex-3d gl 1.0 (-> aabb types/max-p .y) 0.0)
+  (gl/gl-color gl grid-color)
+  (doseq [i (range 4)]
+    (let [x (/ (inc i) 5.0)]
+      (gl/gl-vertex-3d gl x (-> aabb types/min-p .y) 0.0)
+      (gl/gl-vertex-3d gl x (-> aabb types/max-p .y) 0.0))))
 
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids]
   (doall
     (for [grid-index (range 2) ; 0 1
-          axis       (range 3) ; 0 1 2
+          axis       [2] #_(range 3) ; 0 1 2
           :let       [ratio (nth (:ratios grids) grid-index)
                       alpha (Math/abs (* (aget dir axis) ratio))]]
      (do
@@ -150,13 +153,10 @@
         far-z-plane      (nth frustum-planes 5)
         normal           (as-unit-vector far-z-plane)
         aabb             (frustum-projection-aabb frustum-planes)
-        extent           (geom/as-array (geom/aabb-extent aabb))
-        perp-axis        2
-        _                (aset-double extent perp-axis Double/POSITIVE_INFINITY)
-        smallest-extent  (reduce min extent)
-        first-grid-ratio (grid-ratio smallest-extent)
-        grid-size-small  (small-grid-size smallest-extent)
-        grid-size-large  (large-grid-size smallest-extent)]
+        extent           (.y (geom/aabb-extent aabb))
+        first-grid-ratio (grid-ratio extent)
+        grid-size-small  (small-grid-size extent)
+        grid-size-large  (large-grid-size extent)]
     {:ratios [first-grid-ratio                        (- 1.0 first-grid-ratio)]
      :sizes  [grid-size-small                         grid-size-large]
      :aabbs  [(snap-out-to-grid aabb grid-size-small) (snap-out-to-grid aabb grid-size-large)]}))
