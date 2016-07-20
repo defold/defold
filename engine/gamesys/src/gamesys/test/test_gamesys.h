@@ -81,6 +81,12 @@ public:
     virtual ~SpriteAnimTest() {}
 };
 
+class WindowEventTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~WindowEventTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
