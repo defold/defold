@@ -188,9 +188,10 @@
    rotation       :- Quat4d
    z-near         :- s/Num
    z-far          :- s/Num
-   aspect         :- s/Num
-   fov            :- s/Num
-   focus-point    :- Vector4d]
+   fov-x          :- s/Num
+   fov-y          :- s/Num
+   focus-point    :- Vector4d
+   filter-fn      :- Runnable]
   Position
   (position [this] position)
   Rotation

@@ -11,6 +11,7 @@
            [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
@@ -37,12 +38,35 @@
 (defonce ^:dynamic *menu-key-combos* (atom #{}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
+(defprotocol Text
+  (text ^String [this])
+  (text! [this ^String val]))
+
+(defprotocol HasValue
+  (value [this])
+  (value! [this val]))
+
+(defprotocol HasUserData
+  (user-data [this key])
+  (user-data! [this key val]))
+
+(defprotocol Editable
+  (editable [this])
+  (editable! [this val])
+  (on-edit! [this fn]))
+
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
 (defn ^Stage main-stage []
   @*main-stage*)
+
+(defn ^Scene main-scene []
+  (.. (main-stage) (getScene)))
+
+(defn ^Node main-root []
+  (.. (main-scene) (getRoot)))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
@@ -89,6 +113,26 @@
   (.addListener observable (reify ChangeListener
                         (changed [this observable old new]
                           (listen-fn observable old new)))))
+
+(defn observe-list
+  ([^ObservableList observable listen-fn]
+    (observe-list nil observable listen-fn))
+  ([^Node node ^ObservableList observable listen-fn]
+    (let [listener (reify ListChangeListener
+                     (onChanged [this change]
+                       (listen-fn observable (into [] (.getList change)))))]
+      (.addListener observable listener)
+      (when node
+        (let [listeners (-> (or (user-data node ::list-listeners) [])
+                          (conj listener))]
+          (user-data! node ::list-listeners listeners))))))
+
+(defn remove-list-observers
+  [^Node node ^ObservableList observable]
+  (let [listeners (user-data node ::list-listeners)]
+    (user-data! node ::list-listeners [])
+    (doseq [^ListChangeListener l listeners]
+      (.removeListener observable l))))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)
@@ -238,23 +282,6 @@
     (when (and (.exists css) (seq (.getStylesheets root)))
       (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
     root))
-
-(defprotocol Text
-  (text ^String [this])
-  (text! [this ^String val]))
-
-(defprotocol HasValue
-  (value [this])
-  (value! [this val]))
-
-(defprotocol HasUserData
-  (user-data [this key])
-  (user-data! [this key val]))
-
-(defprotocol Editable
-  (editable [this])
-  (editable! [this val])
-  (on-edit! [this fn]))
 
 (extend-type Node
   HasUserData
@@ -490,7 +517,13 @@
              ctxs []]
         (if-not node
           ctxs
-          (recur (.getParent node) (conj ctxs (user-data node ::context)))))
+          (let [ctx (if (instance? TabPane node)
+                      (let [^TabPane tab-pane node
+                            ^Tab tab (.getSelectedItem (.getSelectionModel tab-pane))]
+                        (or (and tab (.getContent tab) (user-data (.getContent tab) ::context))
+                            (user-data node ::context)))
+                      (user-data node ::context))]
+            (recur (.getParent node) (conj ctxs ctx)))))
       (remove nil?)
       (map (fn [ctx]
              (-> ctx
