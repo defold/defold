@@ -1253,9 +1253,10 @@
   `(let [~ctx-name (update ~ctx-name :in-production conj [~nodeid-sym ~transform])]
      ~forms))
 
-(defn check-caches [ctx-name nodeid-sym description transform forms]
+(defn check-caches [ctx-name nodeid-sym description transform local-cache-sym forms]
   (if (get-in description [:output transform :flags :cached])
-    `(let [local# @(:local ~ctx-name)
+    `(let [~local-cache-sym (:local ~ctx-name)
+           local#  (deref ~local-cache-sym)
            global# (:snapshot ~ctx-name)
            key# [~nodeid-sym ~transform]]
        (cond
@@ -1286,10 +1287,10 @@
   `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
      ~forms))
 
-(defn cache-output [ctx-name description transform nodeid-sym output-sym forms]
+(defn cache-output [ctx-name description transform nodeid-sym output-sym local-cache-sym forms]
   (if (contains? (get-in description [:output transform :flags]) :cached)
     `(do
-       (swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)
+       (swap! ~local-cache-sym assoc [~nodeid-sym ~transform] ~output-sym)
        ~forms)
     forms))
 
@@ -1338,7 +1339,7 @@
 (defn node-output-value-function
   [description transform]
   (let [production-function (get-in description [:output transform :fn])]
-    (gensyms [self-name ctx-name nodeid-sym input-sym schema-sym output-sym]
+    (gensyms [self-name ctx-name nodeid-sym input-sym schema-sym output-sym local-cache-sym]
       `(fn [~self-name ~ctx-name]
          (let [~nodeid-sym (gt/node-id ~self-name)]
            ~(if (= transform :this)
@@ -1347,13 +1348,13 @@
                 (apply-default-property-shortcut self-name ctx-name transform description
                   (detect-cycles ctx-name nodeid-sym transform description
                     (mark-in-production ctx-name nodeid-sym transform
-                      (check-caches ctx-name nodeid-sym description transform
+                      (check-caches ctx-name nodeid-sym description transform local-cache-sym
                         (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
                           (input-error-check self-name ctx-name description transform nodeid-sym input-sym
                             (call-production-function self-name ctx-name description transform input-sym nodeid-sym output-sym
                               (schema-check-output self-name ctx-name description transform nodeid-sym output-sym
                                 (validate-output self-name ctx-name description transform nodeid-sym output-sym
-                                  (cache-output ctx-name description transform nodeid-sym output-sym
+                                  (cache-output ctx-name description transform nodeid-sym output-sym local-cache-sym
                                      output-sym)))))))))))))))))
 
 (defn collect-property-values
