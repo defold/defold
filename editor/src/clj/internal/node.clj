@@ -1243,10 +1243,13 @@
            ~forms)
         forms))))
 
+(defn assert-no-cycles! [ctx node-type-name node-id label]
+  (assert (not (contains? (:in-production ctx) [node-id label]))
+          (format "Cycle detected on node type %s and output %s" node-type-name label)))
+
 (defn detect-cycles [ctx-name nodeid-sym transform description forms]
   `(do
-     (assert (not (contains? (:in-production ~ctx-name) [~nodeid-sym ~transform]))
-             (format ~(format "Cycle detected on node type %s and output %s" (:name description) transform)))
+     (assert-no-cycles! ~ctx-name ~(:name description) ~nodeid-sym ~transform)
      ~forms))
 
 (defn mark-in-production [ctx-name nodeid-sym transform forms]
