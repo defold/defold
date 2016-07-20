@@ -45,13 +45,13 @@ function init(self)
 end
 
 function update(self, dt)
-    assert( error == 0 )
+    assert( error == 0 ) -- only asserts on in the update will stop the tests
 end
 
 function on_input(self, action_id, action)
     test_state = action.value
     if test_state == 0 then
         -- final call, check all tests passed
-        assert( numtests == 0 )
+        test_eq( numtests, 0 )
     end
 end
