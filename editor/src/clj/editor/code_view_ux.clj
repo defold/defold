@@ -279,8 +279,11 @@
     n))
 
 (defn- replace-text-selection [selection s]
-  (replace! selection (selection-offset selection) (selection-length selection) s)
-  (caret! selection (selection-offset selection) false))
+  (let [np (selection-offset selection)
+        sel-len (selection-length selection)]
+    (text-selection! selection 0 0)
+    (replace! selection np sel-len s)
+    (caret! selection (inc np) false)))
 
 (defn- replace-text-and-caret [selection offset length s new-caret-pos]
   (let [doc (text selection)
