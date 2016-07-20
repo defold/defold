@@ -1,0 +1,57 @@
+local test_state = 0
+local numtests = 3
+local error = 0
+
+local function test_eq( a, b )
+    if a ~= b then
+        error = 1
+        print("a ~= b: ", a, b)
+    end
+    assert( a == b )
+end
+
+local function test_neq( a, b )
+    if a == b then
+        error = 1
+        print("a == b: ", a, b)
+    end
+    assert( a ~= b )
+end
+
+function window_callback(self, event, data)
+    test_neq( test_state, 0 )
+
+    if test_state == 1 then
+        test_eq( event, window.WINDOW_EVENT_FOCUS_LOST )
+        test_eq( data.width, nil )
+        test_eq( data.width, nil )
+        numtests = numtests - 1
+    elseif test_state == 2 then
+        test_eq( event, window.WINDOW_EVENT_FOCUS_GAINED )
+        test_eq( data.width, nil )
+        test_eq( data.width, nil )
+        numtests = numtests - 1
+    elseif test_state == 3 then
+        test_eq( event, window.WINDOW_EVENT_RESIZED )
+        test_eq( data.width, 123 )
+        test_eq( data.height, 456 )
+        numtests = numtests - 1
+    end
+end
+
+function init(self)
+    self.test_state = 0
+    window.set_listener(window_callback)
+end
+
+function update(self, dt)
+    assert( error == 0 )
+end
+
+function on_input(self, action_id, action)
+    test_state = action.value
+    if test_state == 0 then
+        -- final call, check all tests passed
+        assert( numtests == 0 )
+    end
+end

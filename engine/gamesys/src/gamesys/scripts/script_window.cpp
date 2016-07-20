@@ -39,7 +39,9 @@
  *     end
  * end
  * 
- * window.set_listener(window_callback)
+ * function init(self)
+ *     window.set_listener(window_callback)
+ * end
  * </pre>
  */
 
