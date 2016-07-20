@@ -10,7 +10,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.grid :as grid]
+            [editor.curve-grid :as curve-grid]
             [editor.input :as i]
             [editor.math :as math]
             [editor.defold-project :as project]
@@ -648,7 +648,7 @@
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
-                                                       grid       grid/Grid
+                                                       grid       curve-grid/Grid
                                                        rulers     [rulers/Rulers]]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
                                                 (g/set-graph-value graph :camera camera)
