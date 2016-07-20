@@ -36,11 +36,12 @@ def build(bld):
             'display_profiles',
             'script',
             'sound',
+            'spine',
             'sprite',
             'tile',
             'texture',
             'vertex_program',
-            'spine']
+            'window']
     exts = ['camera',
             'collisionobject',
             'convexshape',
