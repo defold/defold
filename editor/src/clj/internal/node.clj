@@ -24,10 +24,9 @@
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
 (def ^:dynamic *node-value-debug* nil)
-(def ^:dynamic ^:private *node-value-nesting* 0)
 
 (defn nodevalstr [this node-type label & t]
-  (apply str *node-value-nesting* "\t" (:_node-id this) "\t"  (:name @node-type) label "\t" t))
+  (apply str "\t" (:_node-id this) "\t"  (:name @node-type) label "\t" t))
 
 (prefer-method clojure.pprint/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method clojure.pprint/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
@@ -267,8 +266,7 @@
                             "\nIn production: " (get evaluation-context :in-production)))
       (when *node-value-debug*
         (println (nodevalstr this node-type label)))
-      (binding [*node-value-nesting* (inc *node-value-nesting*)]
-        ((:fn beh) this evaluation-context))))
+      ((:fn beh) this evaluation-context)))
 
   gt/OverrideNode
   (clear-property [this basis property]
@@ -1535,46 +1533,45 @@
           type     (gt/node-type this basis)]
       (when *node-value-debug*
         (println (nodevalstr this type output " (override node)")))
-      (binding [*node-value-nesting* (inc *node-value-nesting*)]
-        (cond
-          (= :_node-id output)
-          node-id
+      (cond
+        (= :_node-id output)
+        node-id
 
-          (or (= :_declared-properties output)
-              (= :_properties output))
-          (let [beh           (behavior type output)
-                props         ((:fn beh) this evaluation-context)
-                original      (gt/node-by-id-at basis original-id)
-                orig-props    (:properties (gt/produce-value original output evaluation-context))
-                static-props  (all-properties type)
-                props         (reduce-kv (fn [p k v]
-                                           (if (and (not (contains? static-props k))
-                                                    (= original-id (:node-id v)))
-                                             (cond-> p
-                                               (contains? v :original-value)
-                                               (assoc-in [:properties k :value] (:value v)))
-                                             p))
-                                         props orig-props)]
-            (reduce (fn [props [k v]]
-                      (cond-> props
-                        (and (= :_properties output)
-                             (not (contains? static-props k)))
-                        (assoc-in [:properties k :value] v)
+        (or (= :_declared-properties output)
+            (= :_properties output))
+        (let [beh           (behavior type output)
+              props         ((:fn beh) this evaluation-context)
+              original      (gt/node-by-id-at basis original-id)
+              orig-props    (:properties (gt/produce-value original output evaluation-context))
+              static-props  (all-properties type)
+              props         (reduce-kv (fn [p k v]
+                                         (if (and (not (contains? static-props k))
+                                                  (= original-id (:node-id v)))
+                                           (cond-> p
+                                             (contains? v :original-value)
+                                             (assoc-in [:properties k :value] (:value v)))
+                                           p))
+                                       props orig-props)]
+          (reduce (fn [props [k v]]
+                    (cond-> props
+                      (and (= :_properties output)
+                           (not (contains? static-props k)))
+                      (assoc-in [:properties k :value] v)
 
-                        (contains? orig-props k)
-                        (assoc-in [:properties k :original-value]
-                                  (get-in orig-props [k :value]))))
-                    props properties))
+                      (contains? orig-props k)
+                      (assoc-in [:properties k :original-value]
+                                (get-in orig-props [k :value]))))
+                  props properties))
 
-          (or (has-output? type output)
-              (has-input? type output))
-          (let [beh (behavior type output)]
-            ((:fn beh) this evaluation-context))
+        (or (has-output? type output)
+            (has-input? type output))
+        (let [beh (behavior type output)]
+          ((:fn beh) this evaluation-context))
 
-          true
-          (if (contains? (all-properties type) output)
-            (get properties output)
-            (node-value* (gt/node-by-id-at basis original-id) output evaluation-context))))))
+        true
+        (if (contains? (all-properties type) output)
+          (get properties output)
+          (node-value* (gt/node-by-id-at basis original-id) output evaluation-context)))))
 
   gt/OverrideNode
   (clear-property [this basis property] (update this :properties dissoc property))
