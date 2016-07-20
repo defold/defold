@@ -386,7 +386,9 @@
       (.getString this))))
 
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer) offset select?))
+  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer)
+              (cvx/adjust-bounds (cvx/text source-viewer) offset)
+              select?))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
@@ -513,9 +515,11 @@
     (when-let [assist-fn (assist this)]
       (let [offset (cvx/caret this)
             line (cvx/line this)
+            line-offset (cvx/line-offset this)
+            completion-text (subs line 0 (- offset line-offset))
             code-node-id (-> this (.getTextWidget) (code-node))
             completions (g/node-value code-node-id :completions)]
-        (assist-fn completions (cvx/text this) offset line))))
+        (assist-fn completions (cvx/text this) offset completion-text))))
   cvx/TextOffset
   (preferred-offset [this]
     @(prefer-offset this))
@@ -565,7 +569,7 @@
     (cvx/refresh! source-viewer)
     (g/node-value view-id :new-content)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                      (cvx/changes! source-viewer)))
+                                                                     (cvx/changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
