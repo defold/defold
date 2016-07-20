@@ -334,7 +334,7 @@ Log.d(TAG, "MAWE: FB SDK INITIALIZED  (deferred uses appid now)");
                     String action = intent.getAction();
                     //Uri data = intent.getData();
                     //Log.d(TAG, "MAWE: getData(): " + data.toString());
-                    Log.d(TAG, "MAWE: getACtion(): " + action);
+                    Log.d(TAG, "MAWE: getAction(): " + action);
                     getAppLinkInfo(targetUrl, intent.getExtras());
                 } else {
                     AppLinkData.fetchDeferredAppLinkData( FacebookAppJNI.this.activity, FacebookAppJNI.this.appId,

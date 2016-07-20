@@ -31,6 +31,9 @@ struct Facebook
        FBSDKSharingDelegate,
        FBSDKAppInviteDialogDelegate,
        FBSDKGameRequestDialogDelegate> m_Delegate;
+
+
+    char m_DebugString[2048];
 };
 
 Facebook g_Facebook;
@@ -61,10 +64,20 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                        openURL:(NSURL *)url
                        sourceApplication:(NSString *)sourceApplication
                        annotation:(id)annotation {
+
+        dmLogWarning("MAWE: FACEBOOK application openURL...");
+        strcat(g_Facebook.m_DebugString, "application openURL: \n");
+        if( url )
+            strcat(g_Facebook.m_DebugString, [[url absoluteString] UTF8String]);
+        else
+            strcat(g_Facebook.m_DebugString, "null. \n");
+
         if(!g_Facebook.m_Login)
         {
+            dmLogWarning("MAWE: FACEBOOK application openURL: not logged in!");
             return false;
         }
+        dmLogWarning("MAWE: FACEBOOK application openURL: Logged in!");
         return [[FBSDKApplicationDelegate sharedInstance] application:application
                                                               openURL:url
                                                     sourceApplication:sourceApplication
@@ -72,6 +85,29 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
+
+        dmLogWarning("MAWE: FACEBOOK applicationDidBecomeActive");
+
+        strcat( g_Facebook.m_DebugString, "MAWE: fetchDeferredAppLink...\n" );
+
+        [FBSDKAppLinkUtility fetchDeferredAppLink:^(NSURL *url, NSError* error) {
+            if( url )
+            {
+                dmLogWarning("MAWE: App link: %s", [[url absoluteString] UTF8String]);
+                strcat( g_Facebook.m_DebugString, [[url absoluteString] UTF8String] );
+                strcat( g_Facebook.m_DebugString, "\n");
+            }
+            else if(error)
+            {
+                NSLog(@"MAWE: Error: %@", error);
+                strcat( g_Facebook.m_DebugString, "MAWE: ERROR\n" );
+            } else
+            {
+                dmLogWarning("MAWE: No app link found");
+                strcat( g_Facebook.m_DebugString, "MAWE: No app link found\n" );
+            }
+        }];
+
         if(!g_Facebook.m_Login)
         {
             return;
@@ -95,8 +131,23 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+        dmLogWarning("MAWE: FACEBOOK didFinishLaunchingWithOptions...");
+        strcat(g_Facebook.m_DebugString, "didFinishLaunchingWithOptions...\n");
+
+        for(NSString *key in [launchOptions allKeys]) {
+
+            strcat(g_Facebook.m_DebugString, [key UTF8String]);
+            strcat(g_Facebook.m_DebugString, ": ");
+            strcat(g_Facebook.m_DebugString, [[launchOptions objectForKey:key] UTF8String] );
+            strcat(g_Facebook.m_DebugString, "\n");
+        }
+        //strcat(g_Facebook.m_DebugString, "URL\n");
+        //strcat(g_Facebook.m_DebugString, [[[launchOptions valueForKey:UIApplicationLaunchOptionsURLKey] absoluteString] UTF8String] );
+
         if(!g_Facebook.m_Login)
         {
+        dmLogWarning("MAWE: FACEBOOK didFinishLaunchingWithOptions: Not logged in. ");
+        strcat(g_Facebook.m_DebugString, "didFinishLaunchingWithOptions: Not logged in.\n");
             return false;
         }
         return [[FBSDKApplicationDelegate sharedInstance] application:application
@@ -837,6 +888,27 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+
+int Facebook_GetDebugInfo(lua_State* L)
+{
+    if(!g_Facebook.m_Login)
+    {
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+    }
+    int top = lua_gettop(L);
+
+    lua_newtable(L);
+
+    lua_pushstring(L, "app_link");
+    lua_pushstring(L, g_Facebook.m_DebugString);
+    lua_rawset(L, -3);
+
+    dmLogWarning("MAWE: Facebook_GetDebugInfo: %s", g_Facebook.m_DebugString);
+
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
 /*# post an event to Facebook Analytics
  *
  * This function will post an event to Facebook Analytics where it can be used
@@ -1129,6 +1201,8 @@ static const luaL_reg Facebook_methods[] =
     {"enable_event_usage", Facebook_EnableEventUsage},
     {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
+
+    {"get_debug_info", Facebook_GetDebugInfo},
     {0, 0}
 };
 
