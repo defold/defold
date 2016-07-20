@@ -440,6 +440,27 @@
   (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))
           {} sub-selection))
 
+(defn- curve-aabb [aabb curve ids]
+  (loop [aabbs (vals (types/geom-aabbs curve ids))
+         aabb aabb]
+    (if-let [[min max] (first aabbs)]
+      (let [aabb (apply geom/aabb-incorporate aabb min)
+            aabb (apply geom/aabb-incorporate aabb max)]
+        (recur (rest aabbs) aabb))
+      aabb)))
+
+(g/defnk produce-selected-aabb [sub-selection-map selected-node-properties]
+  (reduce (fn [aabb props]
+            (loop [props (:properties props)
+                   aabb aabb]
+              (if-let [[kw p] (first props)]
+                (let [aabb (if-let [ids (sub-selection-map [(:node-id p) kw])]
+                             (curve-aabb aabb (:value p) ids)
+                             aabb)]
+                  (recur (rest props) aabb))
+                aabb)))
+          (geom/null-aabb) selected-node-properties))
+
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
 
@@ -470,6 +491,7 @@
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
                                                  (sub-selection->map sub-selection)))
+  (output selected-aabb AABB :cached produce-selected-aabb)
   (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport sub-selection-map]
                                             (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
                                               [:control-point cp]
@@ -528,7 +550,7 @@
                    (geom/aabb-incorporate 1.0 1.0 0.0)))
         viewport (g/node-value view :viewport)
         local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
+        end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
     (if animate?
       (let [duration 0.5]
         (ui/anim! duration
@@ -682,7 +704,7 @@
                                                 (g/connect view-id :cursor-pos rulers :cursor-pos))))]
       (when parent
         (let [^Node pane (make-gl-pane node-id view opts)]
-          (ui/context! parent :curve-view {} (SubSelectionProvider. project))
+          (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. project))
           (ui/fill-control pane)
           (ui/children! view [pane])
           (let [converter (proxy [StringConverter] []
@@ -733,3 +755,7 @@
 (handler/defhandler :delete :curve-view
   (enabled? [selection] (not (empty? selection)))
   (run [selection] (delete-cps selection)))
+
+(handler/defhandler :frame-selection :curve-view
+  (enabled? [selection] (not (empty? selection)))
+  (run [view-id] (frame-selection view-id true)))

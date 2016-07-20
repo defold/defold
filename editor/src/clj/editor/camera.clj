@@ -318,6 +318,17 @@
       (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
       filter-fn)))
 
+(s/defn camera-orthographic-frame-aabb-y :- Camera
+  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
+  (assert (= :orthographic (:type camera)))
+  (let [fov-x (:fov-x camera)
+        [_ ^double fov-y] (camera-fov-from-aabb camera viewport aabb)
+        filter-fn (or (:filter-fn camera) identity)]
+    (-> camera
+      (camera-set-center aabb)
+      (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
+      filter-fn)))
+
 (g/defnk produce-camera [_node-id local-camera viewport]
   (let [w (- (:right viewport) (:left viewport))
         h (- (:bottom viewport) (:top viewport))]
