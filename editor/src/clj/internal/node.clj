@@ -1252,8 +1252,11 @@
      (assert-no-cycles! ~ctx-name ~(:name description) ~nodeid-sym ~transform)
      ~forms))
 
+(defn in-production [ctx node-id transform]
+  (update ctx :in-production conj [node-id transform]))
+
 (defn mark-in-production [ctx-name nodeid-sym transform forms]
-  `(let [~ctx-name (update ~ctx-name :in-production conj [~nodeid-sym ~transform])]
+  `(let [~ctx-name (in-production ~ctx-name ~nodeid-sym ~transform)]
      ~forms))
 
 (defn check-caches [ctx-name nodeid-sym description transform local-cache-sym forms]
