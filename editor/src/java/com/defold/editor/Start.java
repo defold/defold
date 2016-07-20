@@ -136,7 +136,7 @@ public class Start extends Application {
     private ClassLoader makeClassLoader() {
         ArrayList<URL> urls = extractURLs(System.getProperty("java.class.path"));
         // The "boot class-loader", i.e. for java.*, sun.*, etc
-        ClassLoader parent = ClassLoader.getSystemClassLoader().getParent();
+        ClassLoader parent = ClassLoader.getSystemClassLoader();
         // Per instance class-loader
         ClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[urls.size()]), parent);
         return classLoader;
@@ -187,6 +187,10 @@ public class Start extends Application {
 	        Future<?> extractFuture = threadPool.submit(() -> {
 	            try {
 	                NativeArtifacts.extractNatives();
+                        ClassLoader parent = ClassLoader.getSystemClassLoader();
+                        Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
+                        Method init = glprofile.getMethod("initSingleton");
+                        init.invoke(null);
 	            } catch (Exception e) {
 	                logger.error("failed to extract native libs", e);
 	            }
