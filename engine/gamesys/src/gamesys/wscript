@@ -24,7 +24,8 @@ def build(bld):
                       ('sound', ('components/comp_sound.cpp', 'scripts/script_sound.cpp')),
                       ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
                       ('tilemap', ('../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp')),
-                      ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp'))
+                      ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp')),
+                      ('window', ('scripts/script_window.cpp'))
                       ]:
         bld.new_task_gen(source = source,
                          target = '%s_doc.sdoc' % d,
