@@ -156,6 +156,9 @@ namespace dmGameSystem
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
     void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
+
+    void OnWindowFocus(bool focus);
+    void OnWindowResized(int width, int height);
 }
 
 #endif // DM_GAMESYS_H
