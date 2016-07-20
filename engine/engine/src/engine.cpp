@@ -16,6 +16,7 @@
 #include <dlib/sys.h>
 #include <dlib/http_client.h>
 #include <extension/extension.h>
+#include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -107,6 +108,8 @@ namespace dmEngine
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context
         dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
+
+        dmGameSystem::OnWindowResized(width, height);
     }
 
     bool OnWindowClose(void* user_data)
@@ -128,6 +131,8 @@ namespace dmEngine
         dmExtension::Event event;
         event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
         dmExtension::DispatchEvent( &params, &event );
+
+        dmGameSystem::OnWindowFocus(focus != 0);
     }
 
     Stats::Stats()
