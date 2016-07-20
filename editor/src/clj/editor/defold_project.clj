@@ -256,7 +256,7 @@
      cache
      (let [node (:node-id target)
            dep-resources (into {} (map #(let [resource (:resource %)
-                                              key (target-key %)] [resource (:resource (get all-targets key))]) (:deps target)))
+                                              key (target-key %)] [resource (:resource (get all-targets key))]) (flatten (:deps target))))
            result ((:build-fn target) node basis resource dep-resources (:user-data target))
            result (assoc result :key key)]
        (swap! build-cache assoc resource (assoc result :cached true))
@@ -278,6 +278,20 @@
       (recur (first causes) labels)
       [(remove nil? labels) user-data])))
 
+(defn- build-targets-deep [build-targets]
+  (loop [targets build-targets
+         queue []
+         seen #{}
+         result []]
+    (if-let [t (first targets)]
+      (let [key (target-key t)]
+        (if (contains? seen key)
+          (recur (rest targets) queue seen result)
+          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj result t))))
+      (if-let [targets (first queue)]
+        (recur targets (rest queue) seen result)
+        result))))
+
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
                                   basis            (g/now)
@@ -287,8 +301,9 @@
     (let [build-cache          (g/node-value project :build-cache :basis basis :cache cache)
           build-targets        (g/node-value node :build-targets :basis basis :cache cache)
           build-targets-by-key (and (not (g/error? build-targets))
-                                    (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
-                                                            (g/node-value node :build-targets :basis basis :cache cache))))]
+                                    (->> (g/node-value node :build-targets :basis basis :cache cache)
+                                      build-targets-deep
+                                      targets-by-key))]
       (if (g/error? build-targets)
         (let [[labels cause] (find-errors build-targets [])
               message        (format "Build error [%s] '%s'" (last labels) cause)]
