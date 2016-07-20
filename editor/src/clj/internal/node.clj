@@ -21,8 +21,7 @@
 
 (set! *warn-on-reflection* true)
 
-;; todo - find a way to force this to nil when doing a production build.
-(def ^:dynamic *check-schemas* true)
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
 (def ^:dynamic *node-value-debug* nil)
 (def ^:dynamic ^:private *node-value-nesting* 0)
