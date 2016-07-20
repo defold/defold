@@ -45,13 +45,14 @@
             [dynamo.graph :as g]
             [editor.display-profiles :as display-profiles]
             [editor.web-profiler :as web-profiler]
+            [editor.curve-view :as curve-view]
             [editor.login :as login]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
-            [javafx.scene.control Button TextArea SplitPane]))
+            [javafx.scene.control Button TextArea SplitPane TabPane Tab]))
 
 (set! *warn-on-reflection* true)
 
@@ -71,15 +72,6 @@
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
-
-(g/defnode CurveEditor
-    (inherits editor.core/Scope))
-
-(defn curve-editor-post-create
-  [this basis event]
-  (let [btn (Button.)]
-    (ui/text! btn "Curve Editor WIP!")
-    (.add (.getChildren ^VBox (:parent event)) btn)))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
@@ -188,7 +180,13 @@
                                                             project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
-                                                               (.lookup root "#changes-container"))]
+                                                               (.lookup root "#changes-container"))
+          curve-view           (curve-view/make-view! project *view-graph*
+                                                      (.lookup root "#curve-editor-container")
+                                                      (.lookup root "#curve-editor-list")
+                                                      (.lookup root "#curve-editor-view")
+                                                      {:tab (some #(and (= "curve-editor-tab" (.getId ^Tab %)) %)
+                                                                  (.getTabs tool-tabs))})]
 
       (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
         (doall (map (fn [^SplitPane sp pos]
@@ -226,17 +224,12 @@
     (reset! the-root root)
     root))
 
-(defn- create-view [game-project ^VBox root place node-type]
-  (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-   (curve-editor-post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
-
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))
-        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))]
+        ^VBox root   (ui/run-now (load-stage workspace project prefs))]
     (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))

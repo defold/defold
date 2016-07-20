@@ -14,6 +14,7 @@
             [editor.defold-project :as project]
             [util.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
+            [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -21,6 +22,7 @@
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
+            [editor.rulers :as rulers]
             [service.log :as log]
             [editor.graph-util :as gu])
   (:import [com.defold.editor Start UIUtil]
@@ -55,8 +57,7 @@
 (def ^:private executor (Executors/newFixedThreadPool 1))
 
 (defn overlay-text [^GL2 gl ^String text x y]
-  (let [^TextRenderer text-renderer (scene-cache/request-object! ::text-renderer ::overlay-text gl [Font/SANS_SERIF Font/BOLD 12])]
-    (gl/overlay gl text-renderer text x y 1.0 1.0)))
+  (scene-text/overlay gl text x y))
 
 (defn substitute-scene [error]
   {:aabb       (geom/null-aabb)
@@ -65,7 +66,7 @@
                                    [labels cause] (project/find-errors error [])
                                    message        (format "Render error [%s] '%s'" (last labels) cause)]
                                (when (= pass pass/overlay)
-                                 (overlay-text gl message 12.0 -22.0))))
+                                 (scene-text/overlay gl message 12.0 -22.0))))
                 :passes    [pass/overlay]}})
 
 ; Avoid recreating the image each frame
@@ -133,7 +134,7 @@
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu))))
 
-(defn- make-current ^GLContext [^GLAutoDrawable drawable]
+(defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
     (let [result (.makeCurrent context)]
       (if (= result GLContext/CONTEXT_NOT_CURRENT)
@@ -142,7 +143,7 @@
           nil)
         context))))
 
-(defn- make-drawable ^GLOffscreenAutoDrawable [w h]
+(defn make-drawable ^GLOffscreenAutoDrawable [w h]
   (let [profile (GLProfile/getDefault)
         factory (GLDrawableFactory/getFactory profile)
         caps    (doto (GLCapabilities. profile)
@@ -152,7 +153,7 @@
                   (.setStencilBits 8))]
     ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
 
-(defn- make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
+(defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
   (let [context ^GLContext (make-current drawable)
         gl ^GL2 (.getGL context)
         [w h] (vp-dims viewport)
@@ -207,7 +208,7 @@
 (defn- render-sort [renderables camera viewport]
   (sort-by :render-key renderables))
 
-(defn- generic-render-args [viewport camera]
+(defn generic-render-args [viewport camera]
   (let [view (c/camera-view-matrix camera)
         proj (c/camera-projection-matrix camera)
         view-proj (doto (Matrix4d. proj) (.mul view))
@@ -244,7 +245,7 @@
                                 :selected (some? selected-id)
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) world-transform)
+                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world)
                                 :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
@@ -352,15 +353,16 @@
       (let [gl ^GL2 (.getGL context)
             render-args (generic-render-args viewport camera)
             selection-set (set selection)]
-        (flatten
-          (for [pass pass/selection-passes
-                :let [render-args (assoc render-args :pass pass)]]
-            (do
-              (begin-select gl select-buffer)
-              (setup-pass context gl pass camera viewport picking-rect)
-              (let [renderables (get renderables pass)
-                    batches (batch-render gl render-args renderables true :select-batch-key)]
-                (render-sort (end-select gl select-buffer renderables batches) camera viewport))))))
+        (->> (for [pass pass/selection-passes
+                   :let [render-args (assoc render-args :pass pass)]]
+               (do
+                 (begin-select gl select-buffer)
+                 (setup-pass context gl pass camera viewport picking-rect)
+                 (let [renderables (get renderables pass)
+                       batches (batch-render gl render-args renderables true :select-batch-key)]
+                   (render-sort (end-select gl select-buffer renderables batches) camera viewport))))
+          flatten
+          (map :node-id)))
       (finally
         (.release context)))
     []))
@@ -398,6 +400,7 @@
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property select-buffer IntBuffer)
+  (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
 
   (input input-handlers Runnable :array)
@@ -485,7 +488,7 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn- frame-selection [view animate?]
+(defn frame-selection [view animate?]
   (let [graph (g/node-id->graph-id view)
         camera (g/graph-value graph :camera)
         aabb (g/node-value view :selected-aabb)
@@ -542,7 +545,7 @@
               ((g/node-value node-id label) node-id action user-data)))
           action input-handlers))
 
-(defn- register-event-handler! [^Parent parent view-id]
+(defn register-event-handler! [^Parent parent view-id]
   (let [tool-user-data (atom [])
         event-handler   (ui/event-handler e
                           (profiler/profile "input" -1
@@ -555,8 +558,17 @@
                                               (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
                                                 (let [s (g/node-value view-id :selected-tool-renderables)]
                                                   (reset! tool-user-data s)))
-                                              (g/transact (g/set-property view-id :tool-picking-rect picking-rect))
-                                              (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))] (.setOnMousePressed parent event-handler)
+                                              (g/transact
+                                                (concat
+                                                  (g/set-property view-id :cursor-pos [x y])
+                                                  (g/set-property view-id :tool-picking-rect picking-rect)))
+                                              (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))]
+    (ui/on-mouse! parent (fn [type e] (cond
+                                        (= type :exit)
+                                        (g/set-property! view-id :cursor-pos nil)
+                                        (= type :enter)
+                                        (.requestFocus parent))))
+    (.setOnMousePressed parent event-handler)
     (.setOnMouseReleased parent event-handler)
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
@@ -633,6 +645,7 @@
   (property width g/Num)
   (property height g/Num)
   (property tool-picking-rect Rect)
+  (property cursor-pos types/Vec2)
   (property select-buffer IntBuffer)
   (property image-view ImageView)
   (property drawable GLAutoDrawable)
@@ -665,7 +678,8 @@
                    selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
                    camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
                    grid       grid/Grid
-                   tool-controller scene-tools/ToolController]
+                   tool-controller scene-tools/ToolController
+                   rulers     [rulers/Rulers]]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   (g/connect resource-node        :scene                     view-id          :scene)
@@ -697,7 +711,12 @@
                   (g/connect selection            :input-handler             view-id          :input-handlers)
                   (g/connect selection            :picking-rect              view-id          :picking-rect)
                   (g/connect view-id              :picking-selection         selection        :picking-selection)
-                  (g/connect view-id              :selection                 selection        :selection))))
+                  (g/connect view-id              :selection                 selection        :selection)
+
+                  (g/connect camera :camera rulers :camera)
+                  (g/connect rulers :renderables view-id :aux-renderables)
+                  (g/connect view-id :viewport rulers :viewport)
+                  (g/connect view-id :cursor-pos rulers :cursor-pos))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
@@ -766,17 +785,3 @@
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
     (g/set-property node-id :scale [(.x s) (.y s) (.z s)])))
-
-(defn- make-text-renderer [^GL2 gl data]
-  (let [[font-family font-style font-size] data]
-    (gl/text-renderer font-family font-style font-size)))
-
-(defn- destroy-text-renderers [^GL2 gl text-renderers _]
-  (doseq [^TextRenderer text-renderer text-renderers]
-    (.dispose text-renderer)))
-
-(defn- update-text-renderer [^GL2 gl text-renderer data]
-  (destroy-text-renderers gl [text-renderer])
-  (make-text-renderer gl data))
-
-(scene-cache/register-object-cache! ::text-renderer make-text-renderer update-text-renderer destroy-text-renderers)

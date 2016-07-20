@@ -146,9 +146,21 @@
                                           </AnchorPane>
                                       </content>
                                   </Tab>
-                                  <Tab text="Curve Editor">
+                                  <Tab id="curve-editor-tab" text="Curve Editor">
                                     <content>
-                                      <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0" />
+                                      <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <SplitPane dividerPositions="0.25" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                  <items>
+                                                    <AnchorPane id="curve-editor-list-anchor" prefHeight="206.0" prefWidth="119.0">
+                                                         <children>
+                                                            <ListView id="curve-editor-list" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                                         </children>
+                                                      </AnchorPane>
+                                                    <AnchorPane id="curve-editor-view" focusTraversable="true" minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0" />
+                                                  </items>
+                                                </SplitPane>
+                                             </children></AnchorPane>
                                     </content>
                                   </Tab>
                                     <Tab text="Graph">
@@ -249,7 +261,7 @@
                            <children>
                               <TitledPane animated="false" collapsible="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                 <content>
-                                    <ScrollPane prefViewportHeight="325.0" prefViewportWidth="269.0" fitToWidth="true" fitToHeight="true">
+                                    <ScrollPane fitToHeight="true" fitToWidth="true" prefViewportHeight="325.0" prefViewportWidth="269.0">
                                        <content>
                                         <AnchorPane id="properties" prefHeight="180.0" prefWidth="200.0" />
                                        </content>

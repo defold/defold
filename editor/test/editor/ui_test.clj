@@ -6,7 +6,7 @@
             [editor.workspace :as workspace])
   (:import [javafx.fxml FXMLLoader]
            [javafx.scene Scene]
-           [javafx.scene.control Menu MenuBar MenuItem]
+           [javafx.scene.control ListView Menu MenuBar MenuItem SelectionMode]
            [javafx.scene.layout Pane VBox]
            [javafx.stage Stage]))
 
@@ -163,3 +163,19 @@
           c2 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))]
       (is (= 2 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))))
+
+(deftest list-view-test
+  (let [selected-items (atom nil)]
+    (ui/run-now
+      (let [root (ui/main-root)
+            list (doto (ListView.)
+                   (ui/items! [:a :b :c :d]))]
+        (doto (.getSelectionModel list)
+          (.setSelectionMode SelectionMode/MULTIPLE))
+        (ui/observe-list (ui/selection list)
+                         (fn [_ values]
+                           (reset! selected-items values)))
+        (ui/add-child! root list)
+        (doto (.getSelectionModel list)
+          (.selectRange 1 3))))
+    (is (= [:b :c] @selected-items))))
