@@ -8,7 +8,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def grad-top-color    colors/mid-grey)
+(def grad-top-color    colors/dark-grey-light)
 (def grad-bottom-color colors/bright-black)
 
 (defn render-gradient [^GL2 gl pass renderables count]

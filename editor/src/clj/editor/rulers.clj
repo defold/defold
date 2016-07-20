@@ -21,9 +21,12 @@
 (def ^:private width 35)
 (def ^:private height 15)
 
-(def ^:private horizontal-label-spacing 45)
-(def ^:private vertical-label-spacing 30)
+(def ^:private horizontal-label-spacing 60)
+(def ^:private vertical-label-spacing 50)
 (def ^:private tick-length 11)
+
+(def ^:private marker-color colors/bright-grey-light)
+(def ^:private label-color colors/bright-grey-light)
 
 ; Line shader
 
@@ -59,11 +62,12 @@
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
       (when texts
-        (doseq [[[x y] msg align] texts]
-          (let [[w h] (scene-text/bounds gl msg)
-                x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
-                y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
-            (scene-text/overlay gl msg x y))))
+        (let [[r g b a] label-color]
+          (doseq [[[x y] msg align] texts]
+            (let [[w h] (scene-text/bounds gl msg)
+                  x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
+                  y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
+              (scene-text/overlay gl msg x y r g b a)))))
       (when lines
         (let [vcount (count lines)
               vertex-binding (vtx/use-with ::lines lines line-shader)]
@@ -140,7 +144,7 @@
                                           (conj [0 (+ 1 ys) 0])
                                           (conj [width (+ 1 ys) 0])))
                                       [] ys))))
-                    (mapv (fn [v] (reduce conj v colors/bright-grey))))
+                    (mapv (fn [v] (reduce conj v marker-color))))
                   (and cursor-x (> cursor-x width)) (into (map #(reduce conj % colors/defold-red) [[cursor-x (- (:bottom viewport) height) 0] [cursor-x (:bottom viewport) 0]]))
                   (and cursor-y (< cursor-y (- (:bottom viewport) height))) (into (map #(reduce conj % colors/defold-green) [[0 cursor-y 0] [width cursor-y 0]])))
         line-vcount (count line-vs)

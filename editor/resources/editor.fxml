@@ -152,7 +152,7 @@
                                              <children>
                                                 <SplitPane dividerPositions="0.25" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                   <items>
-                                                    <AnchorPane prefHeight="206.0" prefWidth="119.0">
+                                                    <AnchorPane id="curve-editor-list-anchor" prefHeight="206.0" prefWidth="119.0">
                                                          <children>
                                                             <ListView id="curve-editor-list" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                                          </children>

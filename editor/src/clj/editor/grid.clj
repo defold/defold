@@ -14,7 +14,7 @@
 (set! *warn-on-reflection* true)
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
-(def grid-color [0.44705 0.44314 0.5098 1.0])
+(def grid-color colors/mid-grey)
 (def x-axis-color colors/defold-red)
 (def y-axis-color colors/defold-green)
 (def z-axis-color colors/defold-blue)
