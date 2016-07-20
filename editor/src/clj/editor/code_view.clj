@@ -569,7 +569,7 @@
     (cvx/refresh! source-viewer)
     (g/node-value view-id :new-content)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                      (cvx/changes! source-viewer)))
+                                                                     (cvx/changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)

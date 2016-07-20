@@ -117,6 +117,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                                     return;
                                 }
 
+                                getFlow().show(lineIndex);
+
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
 
@@ -203,8 +205,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								sb.setValue(0);
 							}
 						}
+						p.applyCss();
+						p.layoutChildren();
 						getFlow().requestLayout();
-                                                p.requestLayout();
 
 						return;
 					}
@@ -243,7 +246,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							} else {
 								block.setSelection(new TextSelection(0, 0));
 							}
+							block.applyCss();
+							block.layoutChildren();
 						}
+						getFlow().requestLayout();
 					}
 				}
 			}
@@ -920,14 +926,16 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		@Override
 		protected void layoutChildren() {
 			super.layoutChildren();
+			DefoldStyledTextSkin.this.lineRuler.requestLayout();
+                        //having this on another thread makes the cpu churn
 
-			Platform.runLater(new Runnable() {
-
-				@Override
-				public void run() {
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
-				}
-			});
+//			Platform.runLater(new Runnable() {
+//
+//				@Override
+//				public void run() {
+//					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+//				}
+//			});
 
 		}
 		
