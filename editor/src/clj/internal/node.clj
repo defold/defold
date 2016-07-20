@@ -1243,20 +1243,13 @@
            ~forms)
         forms))))
 
-(defn assert-no-cycles! [ctx node-type-name node-id label]
+(defn in-production [ctx node-type-name node-id label]
   (assert (not (contains? (:in-production ctx) [node-id label]))
-          (format "Cycle detected on node type %s and output %s" node-type-name label)))
+          (format "Cycle detected on node type %s and output %s" node-type-name label))
+  (update ctx :in-production conj [node-id label]))
 
-(defn detect-cycles [ctx-name nodeid-sym transform description forms]
-  `(do
-     (assert-no-cycles! ~ctx-name ~(:name description) ~nodeid-sym ~transform)
-     ~forms))
-
-(defn in-production [ctx node-id transform]
-  (update ctx :in-production conj [node-id transform]))
-
-(defn mark-in-production [ctx-name nodeid-sym transform forms]
-  `(let [~ctx-name (in-production ~ctx-name ~nodeid-sym ~transform)]
+(defn mark-in-production [ctx-name nodeid-sym transform description forms]
+  `(let [~ctx-name (in-production ~ctx-name ~(:name description) ~nodeid-sym ~transform)]
      ~forms))
 
 (defn check-caches [ctx-name nodeid-sym description transform local-cache-sym forms]
@@ -1352,16 +1345,15 @@
               nodeid-sym
               (jam self-name ctx-name nodeid-sym transform
                 (apply-default-property-shortcut self-name ctx-name transform description
-                  (detect-cycles ctx-name nodeid-sym transform description
-                    (mark-in-production ctx-name nodeid-sym transform
-                      (check-caches ctx-name nodeid-sym description transform local-cache-sym
-                        (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
-                          (input-error-check self-name ctx-name description transform nodeid-sym input-sym
-                            (call-production-function self-name ctx-name description transform input-sym nodeid-sym output-sym
-                              (schema-check-output self-name ctx-name description transform nodeid-sym output-sym
-                                (validate-output self-name ctx-name description transform nodeid-sym output-sym
-                                  (cache-output ctx-name description transform nodeid-sym output-sym local-cache-sym
-                                     output-sym)))))))))))))))))
+                  (mark-in-production ctx-name nodeid-sym transform description
+                    (check-caches ctx-name nodeid-sym description transform local-cache-sym
+                      (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
+                        (input-error-check self-name ctx-name description transform nodeid-sym input-sym
+                          (call-production-function self-name ctx-name description transform input-sym nodeid-sym output-sym
+                            (schema-check-output self-name ctx-name description transform nodeid-sym output-sym
+                              (validate-output self-name ctx-name description transform nodeid-sym output-sym
+                                (cache-output ctx-name description transform nodeid-sym output-sym local-cache-sym
+                                   output-sym))))))))))))))))
 
 (defn collect-property-values
   [self-name ctx-name beh-sym description nodeid-sym value-sym forms]
