@@ -59,7 +59,7 @@
       (text-selection! source-viewer 6 5)
       (copy! source-viewer clipboard)
       (testing "pasting without text selected"
-        (text-selection! source-viewer 0 0)
+        (caret! source-viewer 0 false)
         (paste! source-viewer clipboard)
         (is (= "world" (text clipboard)))
         (is (= "worldhello world" (text source-viewer))))
@@ -329,7 +329,7 @@
         (select-prev-word! source-viewer)
         (is (= "the " (text-selection source-viewer)))
         (select-prev-word! source-viewer)
-        (is (= "" (text-selection source-viewer)))))))
+        (is (= "the " (text-selection source-viewer)))))))
 
 (defn- line-begin! [source-viewer]
   (cvx/handler-run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -525,6 +525,9 @@
 (defn- delete! [source-viewer]
   (cvx/handler-run :delete [{:name :code-view :env {:selection source-viewer}}]{}))
 
+(defn- delete-forward! [source-viewer]
+  (cvx/handler-run :delete-forward [{:name :code-view :env {:selection source-viewer}}]{}))
+
 (deftest delete-test
   (with-clean-system
     (let [code "blue"
@@ -550,6 +553,33 @@
         (text! source-viewer "[]hello")
         (caret! source-viewer 2 false)
         (delete! source-viewer)
+        (is (= "[hello" (text source-viewer)))))))
+
+(deftest delete-forward-test
+  (with-clean-system
+    (let [code "blue"
+          opts lua/lua
+          source-viewer (setup-source-viewer opts false)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "deleting"
+        (caret! source-viewer 2 false)
+        (delete-forward! source-viewer)
+        (is (= \e (get-char-at-caret source-viewer)))
+        (is (= "ble" (text source-viewer))))
+      (testing "deleting with highlighting selection"
+        (caret! source-viewer 0 false)
+        (text-selection! source-viewer 0 2)
+        (delete-forward! source-viewer)
+        (is (= "e" (text source-viewer))))
+      (testing "delete works with automatch"
+        (text! source-viewer "[]hello")
+        (caret! source-viewer 0 false)
+        (delete-forward! source-viewer)
+        (is (= "hello" (text source-viewer))))
+      (testing "automatch delete doesn't invoke when second char is deleted"
+        (text! source-viewer "[]hello")
+        (caret! source-viewer 1 false)
+        (delete-forward! source-viewer)
         (is (= "[hello" (text source-viewer)))))))
 
 (defn- cut! [source-viewer clipboard]
