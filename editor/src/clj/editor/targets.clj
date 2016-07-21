@@ -25,6 +25,7 @@
 (defonce ^:private active-ips (atom nil))
 (defonce ^:private worker (atom nil))
 (defonce ^:private event-log (atom []))
+(defonce ^:private ssdp-service (atom nil))
 
 (def ^:const search-interval-disconnected (* 5 1000))
 (def ^:const search-interval-connected (* 30 1000))
@@ -123,30 +124,35 @@
     search-interval-disconnected))
 
 (defn- targets-worker []
-  (let [ssdp-service (SSDP. (reify SSDP$Logger
-                              (log [this msg] (log msg))))]
+  (let [ssdp-service' (SSDP. (reify SSDP$Logger
+                               (log [this msg] (log msg))))]
     (try
-      (if (.setup ssdp-service)
-        (while @running
-          (Thread/sleep 200)
-          (let [now      (System/currentTimeMillis)
-                search?  (>= now (+ @last-search (search-interval ssdp-service)))
-                changed? (.update ssdp-service search?)]
-            (reset! active-ips (.getIPs ssdp-service))
-            (when search?
-              (reset! last-search now))
-            (when (or search? changed?)
-              (update-targets! (.getDevices ssdp-service)))))
+      (if (.setup ssdp-service')
+        (do
+          (reset! ssdp-service ssdp-service')
+          (while @running
+            (Thread/sleep 200)
+            (let [now      (System/currentTimeMillis)
+                  search?  (>= now (+ @last-search (search-interval ssdp-service')))
+                  changed? (.update ssdp-service' search?)]
+              (reset! active-ips (.getIPs ssdp-service'))
+              (when search?
+                (reset! last-search now))
+              (when (or search? changed?)
+                (update-targets! (.getDevices ssdp-service'))))))
         (do
           (reset! running false)
           (reset! active-ips nil)))
       (catch Exception e
         (prn e))
       (finally
-        (.dispose ssdp-service)))))
+        (.dispose ssdp-service')
+        (reset! ssdp-service nil)))))
 
 (defn update! []
-  (reset! last-search 0))
+  (when-let [^SSDP ss @ssdp-service]
+    (update-targets! (.getDevices ss))
+    (reset! last-search (System/currentTimeMillis))))
 
 (defn start []
   (when (not @running)

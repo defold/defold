@@ -562,9 +562,11 @@
     (children! [node])
     (add-style! "menu-image-wrapper")))
 
-(defn- make-submenu [label icon menu-items]
+(defn- make-submenu [label icon menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu. label)]
+      (when on-open
+        (.setOnShowing menu (event-handler e (on-open))))
       (when icon
         (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
       (.addAll (.getItems menu) (to-array menu-items))
@@ -590,10 +592,11 @@
 (declare make-menu-items)
 
 (defn- make-menu-item [item command-contexts]
-  (let [icon (:icon item),
-        item-label (:label item)]
+  (let [icon (:icon item)
+        item-label (:label item)
+        on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
-      (make-submenu item-label icon (make-menu-items children command-contexts))
+      (make-submenu item-label icon (make-menu-items children command-contexts) on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
         (let [command (:command item)
@@ -602,7 +605,7 @@
           (when-let [handler-ctx (handler/active command command-contexts user-data)]
             (let [label (or (handler/label handler-ctx) item-label)]
               (if-let [options (handler/options handler-ctx)]
-                (make-submenu label icon (make-menu-items options command-contexts))
+                (make-submenu label icon (make-menu-items options command-contexts) on-open)
                 (make-menu-command label icon (:acc item) user-data command handler-ctx check)))))))))
 
 (defn- make-menu-items [menu command-contexts]
