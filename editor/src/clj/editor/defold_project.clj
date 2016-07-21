@@ -417,8 +417,6 @@
                              {:label "Target"
                               :on-submenu-open targets/update!
                               :command :target}
-                             {:label "Restart Target Discovery"
-                              :command :target-restart}
                              {:label "Target Discovery Log"
                               :command :target-log}]}])
 
@@ -627,10 +625,6 @@
 (handler/defhandler :target-log :global
   (run []
     (ui/run-later (targets/make-target-log-dialog))))
-
-(handler/defhandler :target-restart :global
-  (run []
-    (ui/run-later (targets/restart))))
 
 (defn settings [project]
   (g/node-value project :settings))
