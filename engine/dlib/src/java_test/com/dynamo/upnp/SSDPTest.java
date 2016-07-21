@@ -45,7 +45,8 @@ public class SSDPTest {
         assertNotDevice(USN2);
 
         for (int i = 0; i < 5; ++i) {
-            ssdp.update(true);
+            // Search in the first iteration
+            ssdp.update(i == 0);
             Thread.sleep(100);
         }
         assertDevice(USN2);
@@ -53,7 +54,6 @@ public class SSDPTest {
 
     @Test
     public void testAnnounce() throws Exception {
-        ssdp.update(false);
         assertNotDevice(USN1);
 
         for (int i = 0; i < 15; ++i) {
