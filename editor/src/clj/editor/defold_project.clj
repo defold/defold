@@ -417,6 +417,8 @@
                              {:label "Target"
                               :on-submenu-open targets/update!
                               :command :target}
+                             {:label "Enter Target IP"
+                              :command :target-ip}
                              {:label "Target Discovery Log"
                               :command :target-log}]}])
 
@@ -603,11 +605,21 @@
                    last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
                                  [lt])]
                (mapv (fn [target]
-                       {:label     (:name target)
-                        :command   :target
-                        :check     true
-                        :user-data target})
+                       (let [[_ _ ip] (re-matches #"^(http://)([\w\.]+)(:)(.*)$" (:url target))]
+                         {:label     (format "%s (%s)" (:name target) ip)
+                          :command   :target
+                          :check     true
+                          :user-data target}))
                      (distinct (concat last-target targets)))))))
+
+(handler/defhandler :target-ip :global
+  (run [prefs]
+    (ui/run-later
+     (when-let [ip (dialogs/make-target-ip-dialog)]
+       (let [url (format "http://%s:8001" ip)]
+         (prefs/set-prefs prefs "last-target" {:name "Manual IP"
+                                               :url  url})
+         (ui/invalidate-menus!))))))
 
 (handler/defhandler :target-log :global
   (run []
