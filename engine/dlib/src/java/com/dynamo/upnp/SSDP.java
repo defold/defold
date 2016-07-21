@@ -43,41 +43,80 @@ public class SSDP implements ISSDP {
             + "MX: 3\r\n"
             + "ST: upnp:rootdevice\r\n\r\n";
 
-    static List<InetAddress> getLocalAddresses() throws SocketException {
+    static List<NetworkInterface> getMCastInterfaces() throws SocketException {
         List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
-        List<InetAddress> r = new ArrayList<InetAddress>();
+        List<NetworkInterface> r = new ArrayList<NetworkInterface>();
 
         for (NetworkInterface i : interfaces) {
-            if (i.isUp() && !i.isLoopback() && !i.isPointToPoint() && !i.isVirtual()) {
-                for (InetAddress a : Collections.list(i.getInetAddresses())) {
-                    if (a instanceof Inet4Address) {
-                        r.add(a);
-                    }
-                }
+            if (i.isUp() && !i.isLoopback() && !i.isPointToPoint() && !i.isVirtual() && i.supportsMulticast()) {
+                r.add(i);
             }
         }
 
         return r;
     }
 
+    static List<InetAddress> getIPv4Addresses(NetworkInterface i) throws SocketException {
+        List<InetAddress> r = new ArrayList<InetAddress>();
+        for (InetAddress a : Collections.list(i.getInetAddresses())) {
+            if (a instanceof Inet4Address) {
+                r.add(a);
+            }
+        }
+
+        return r;
+    }
+
+    private void closeSockets() {
+        if (sockets != null) {
+            for (DatagramSocket socket : sockets) {
+                if (socket != null) {
+                    socket.close();
+                }
+            }
+            sockets = null;
+        }
+        if (mcastSocket != null) {
+            mcastSocket.close();
+            mcastSocket = null;
+        }
+    }
+
     public SSDP() throws IOException {
         buffer = new byte[1500];
         SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
 
-        List<InetAddress> localAddresses = getLocalAddresses();
-        sockets = new DatagramSocket[localAddresses.size()];
-        int i = 0;
-        for (InetAddress inetAddress : localAddresses) {
-            DatagramSocket socket = new DatagramSocket();
-            socket = new DatagramSocket(0, inetAddress);
-            socket.setSoTimeout(1);
-            sockets[i++] = socket;
+        // This exception flags that something went wrong.
+        // The first network that works for ssdp will be kept, exception will be cleared.
+        // If we are out of networks and an exception was caught, throw it again.
+        IOException exception = null;
+        List<NetworkInterface> newInterfaces = getMCastInterfaces();
+        for (NetworkInterface networkInterface : newInterfaces) {
+            try {
+                closeSockets();
+                mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
+                mcastSocket.setNetworkInterface(networkInterface);
+                mcastSocket.joinGroup(SSDP_MCAST_ADDR);
+                mcastSocket.setSoTimeout(1);
+                mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
+                List<InetAddress> addresses = getIPv4Addresses(networkInterface);
+                sockets = new DatagramSocket[addresses.size()];
+                int i = 0;
+                for (InetAddress a : addresses) {
+                    DatagramSocket socket = new DatagramSocket();
+                    socket = new DatagramSocket(0, a);
+                    socket.setSoTimeout(1);
+                    sockets[i++] = socket;
+                }
+                exception = null;
+                break;
+            } catch (IOException e) {
+                exception = e;
+            }
         }
-
-        mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
-        mcastSocket.joinGroup(SSDP_MCAST_ADDR);
-        mcastSocket.setSoTimeout(1);
-        mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
+        if (exception != null) {
+            throw exception;
+        }
     }
 
     private void sendSearch() {
