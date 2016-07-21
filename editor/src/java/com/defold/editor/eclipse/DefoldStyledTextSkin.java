@@ -130,6 +130,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
 						Point2D careLocation = p.getCareLocation(newValue.intValue() - p.getStartOffset());
+                                                if (p == null){
+                                                    return;
+                                                }
 						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(careLocation));
 						double prevCaretX = 0;
 						Point2D prevLoc = getCaretLocation(newValue.intValue() - 1);
