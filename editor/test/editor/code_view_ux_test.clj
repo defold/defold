@@ -527,7 +527,8 @@
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "selects the entire doc"
         (select-all! source-viewer)
-        (is (= "hello there" (text-selection source-viewer)))))))
+        (is (= "hello there" (text-selection source-viewer)))
+        (is (= (caret source-viewer) (count (text source-viewer))))))))
 
 (defn- delete! [source-viewer]
   (cvx/handler-run :delete [{:name :code-view :env {:selection source-viewer}}]{}))

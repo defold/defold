@@ -599,6 +599,7 @@
 (handler/defhandler :select-all :code-view
   (enabled? [selection] selection)
   (run [selection]
+    (caret! selection (count (text selection)) false)
     (text-selection! selection 0 (count (text selection)))))
 
 (defn match-key-typed [selection key-typed]
