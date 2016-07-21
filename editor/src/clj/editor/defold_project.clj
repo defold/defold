@@ -581,48 +581,35 @@
               (update-system-cache! old-cache-val cache)))
           (finally (reset! ongoing-build-save? false)))))))
 
-(def ^:private selected-target (atom nil))
-
 (defn get-selected-target [prefs]
-  (let [targets     (targets/get-targets)
-        last-target (prefs/get-prefs prefs "last-target" nil)]
-    (cond
-      (and @selected-target (contains? targets @selected-target))
-      @selected-target
-
-      (and last-target (contains? targets last-target))
-      last-target
-
-      :else
-      targets/local-target)))
+  (prefs/get-prefs prefs "last-target" targets/local-target))
 
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
   (run [project prefs web-server]
-    (let [build  (build-and-save-project project)
-          target (get-selected-target prefs)]
+    (let [build  (build-and-save-project project)]
       (when (and (future? build) @build)
-        (or (engine/reboot (:url target) web-server hot-reload-url-prefix)
+        (or (engine/reboot (:url (get-selected-target prefs)) web-server hot-reload-url-prefix)
             (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
   (run [user-data prefs]
     (when user-data
-      (prefs/set-prefs prefs "last-target" user-data)
-      (reset! selected-target user-data)))
+      (prefs/set-prefs prefs "last-target" user-data)))
   (state [user-data prefs]
-        (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-          (or (= user-data @selected-target)
-              (= user-data last-target))))
-  (options [user-data]
+         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+           (= user-data last-target)))
+  (options [user-data prefs]
            (when-not user-data
-             (let [targets (targets/get-targets)]
+             (let [targets     (targets/get-targets)
+                   last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
+                                 [lt])]
                (mapv (fn [target]
                        {:label     (:name target)
                         :command   :target
                         :check     true
                         :user-data target})
-                     targets)))))
+                     (distinct (concat last-target targets)))))))
 
 (handler/defhandler :target-log :global
   (run []
