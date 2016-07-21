@@ -180,13 +180,14 @@
                       (.setAlwaysOnTop true)
                       (.initOwner (ui/main-stage)))
         scene       (Scene. root)
-        controls    (ui/collect-controls root ["message" "ok" "clear"])
+        controls    (ui/collect-controls root ["message" "ok" "clear" "restart"])
         get-message (fn [log] (apply str (interpose "\n" log)))]
     (dialogs/observe-focus stage)
     (ui/title! stage "Target Discovery Log")
     (ui/text! (:message controls) (get-message @event-log))
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
     (ui/on-action! (:clear controls) (fn [_] (reset! event-log [])))
+    (ui/on-action! (:restart controls) (fn [_] (restart)))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event
