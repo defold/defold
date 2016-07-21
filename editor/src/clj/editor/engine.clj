@@ -10,10 +10,19 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const timeout 2000)
+
+(defn- get-connection [^URL url]
+  (doto ^HttpURLConnection (.openConnection url)
+    (.setRequestProperty "Connection" "close")
+    (.setConnectTimeout timeout)
+    (.setReadTimeout timeout)
+    (.setDoOutput true)
+    (.setRequestMethod "POST")))
+
 (defn reload-resource [target resource]
   (let [url  (URL. (str target "/post/@resource/reload"))
-        conn (doto ^HttpURLConnection (.openConnection url)
-               (.setDoOutput true) (.setRequestMethod "POST"))]
+        conn ^HttpURLConnection (get-connection url)]
     (try
       (let [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -31,8 +40,7 @@
 
 (defn reboot [target webserver hot-reload-url-prefix]
   (let [url  (URL. (str target "/post/@system/reboot"))
-        conn (doto ^HttpURLConnection (.openConnection url)
-               (.setDoOutput true) (.setRequestMethod "POST"))]
+        conn ^HttpURLConnection (get-connection url)]
     (try
       (let [os  (.getOutputStream conn)
             url (format "http://%s:%s%s" (targets/current-ip) (http-server/port webserver) hot-reload-url-prefix)]
