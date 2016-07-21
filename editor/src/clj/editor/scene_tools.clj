@@ -1,5 +1,6 @@
 (ns editor.scene-tools
-  (:require [dynamo.graph :as g]
+  (:require [clojure.set :as set]
+            [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.gl :as gl]
@@ -33,8 +34,23 @@
 (set! *warn-on-reflection* true)
 
 (defmulti manip-move (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
+(defmulti manip-move-manips (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-move-manips :default
+  [_]
+  [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
+
 (defmulti manip-rotate (fn [basis node-id ^Quat4d delta] (:key @(g/node-type* basis node-id))))
+(defmulti manip-rotate-manips (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-rotate-manips :default
+  [_]
+  [:rot-x :rot-y :rot-z :rot-screen])
+
 (defmulti manip-scale (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
+(defmulti manip-scale-manips (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-scale-manips :default
+  [node-id]
+  [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
+
 
 ; Render assets
 
@@ -330,24 +346,28 @@
      :world-transform wt}))
 
 (def transform-tools
-  (let [move-manips [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen]
-        rot-manips [:rot-x :rot-y :rot-z :rot-screen]
-        scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform]]
-    {:move {:manips move-manips
-            :label "Move"
-            :filter-fn (fn [n] (get-method manip-move (:key @(g/node-type* n))))}
-     :rotate {:manips rot-manips
-              :label "Rotate"
-              :filter-fn (fn [n] (get-method manip-rotate (:key @(g/node-type* n))))}
-     :scale {:manips scale-manips
-             :label "Scale"
-             :filter-fn (fn [n] (get-method manip-scale (:key @(g/node-type* n))))}}))
+  {:move {:manips-fn manip-move-manips
+          :label "Move"
+          :filter-fn (fn [n] (get-method manip-move (:key @(g/node-type* n))))}
+   :rotate {:manips-fn manip-rotate-manips
+            :label "Rotate"
+            :filter-fn (fn [n] (get-method manip-rotate (:key @(g/node-type* n))))}
+   :scale {:manips-fn manip-scale-manips
+           :label "Scale"
+           :filter-fn (fn [n] (get-method manip-scale (:key @(g/node-type* n))))}})
 
 (defn- transform->translation
   [^Matrix4d m]
   (let [v ^Vector3d (Vector3d.)]
     (.get m v)
     v))
+
+(defn- supported-manips
+  [active-tool node-ids]
+  (let [manips-fn (get-in transform-tools [active-tool :manips-fn])]
+    (->>  node-ids
+          (map (comp set manips-fn))
+          (reduce set/intersection))))
 
 (g/defnk produce-renderables [_node-id active-tool camera viewport selected-renderables active-manip hot-manip start-action]
   (if (not (contains? transform-tools active-tool))
@@ -364,10 +384,10 @@
               color-fn #(manip->color % active-manip hot-manip tool-active)
               filter-fn #(manip-enabled? % active-manip tool-active)
               vertices-fn #(manip->vertices %)
-              manips (get-in transform-tools [active-tool :manips])
+              manips (supported-manips active-tool (map :node-id selected-renderables))
               inv-view (doto (c/camera-view-matrix camera) (.invert))
               renderables (vec (map #(gen-manip-renderable _node-id % world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
-                                   (filter filter-fn manips)))]
+                                    (filter filter-fn manips)))]
           (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))))
 
 (defn- action->line [action]
