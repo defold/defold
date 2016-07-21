@@ -415,6 +415,7 @@
                               :command :fetch-libraries}
                              {:label :separator}
                              {:label "Target"
+                              :on-submenu-open targets/update!
                               :command :target}
                              {:label "Restart Target Discovery"
                               :command :target-restart}
