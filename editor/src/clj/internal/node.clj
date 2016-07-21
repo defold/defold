@@ -163,7 +163,7 @@
 
 (defprotocol ValueType
   (dispatch-value [this])
-  (schema [this] "Returns a schema.core/Schema that can conform values of this type"))
+  (schema [this]      "Returns a schema.core/Schema that can conform values of this type"))
 
 (defrecord SchemaType [dispatch-value schema]
   ValueType
@@ -171,7 +171,7 @@
   (schema         [_] schema)
 
   Type
-  (describe* [this] (s/explain schema)))
+  (describe* [this] (when schema (s/explain schema))))
 
 (defrecord ClassType [dispatch-value ^Class class]
   ValueType
@@ -662,48 +662,68 @@
         :else                 [flags options args])
       [flags options args])))
 
-(defn- protocol-symbol->vtr
-  [sym]
-  (let [pval (util/vgr sym)]
-    (register-value-type (keyword (canonicalize sym)) (make-protocol-value-type pval sym))))
-
-(defn- class-symbol->vtr
-  [sym]
-  ;; note: this occurs in type position of a defnode clause. we use
-  ;; the class itself as the dispatch value so multimethods can be
-  ;; expressed most naturally.
-  ;;
-  ;; if you define a node type with a Java class (or Clojure record),
-  ;; then you use that class or record for multimethod dispatch.
-  ;;
-  ;; otoh, if you define a node type with a deftype'd type, then you
-  ;; use the typeref as the multimethod dispatch value.
-  (let [cls (resolve sym)]
-    (register-value-type (keyword (.getName ^Class cls)) (->ClassType cls cls))))
+(def ^:dynamic *autotypes* (atom {}))
 
 (defn- named->vtr
   [symbol-or-keyword]
   (->ValueTypeRef (keyword (canonicalize symbol-or-keyword))))
 
+;; A lot happens in parse-type-form. It creates information that is
+;; used during the rest of node compilation. If the type form was
+;; previously defined with deftype, then everything is easy.
+;;
+;; However, you can also use a Java class name or Clojure protocol
+;; name here.
+;;
+;; if you define a node type with a Java class (or Clojure record),
+;; then you use that class or record for multimethod dispatch.
+;;
+;; otoh, if you define a node type with a deftype'd type, then you
+;; use the typeref as the multimethod dispatch value.
 (defn parse-type-form
   [where original-form]
   (let [multivalued? (vector? original-form)
         form         (if multivalued? (first original-form) original-form)
-        type         (cond
+        autotype     (cond
+                       (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
+                       (util/class-symbol? form)    `(->ClassType ~form ~form))
+        typeref      (cond
                        (ref? form)                  form
-                       (util/protocol-symbol? form) (protocol-symbol->vtr form)
-                       (util/class-symbol? form)    (class-symbol->vtr form)
+                       (util/protocol-symbol? form) (named->vtr form)
+                       (util/class-symbol? form)    (named->vtr (.getName ^Class (resolve form)))
                        (named? form)                (named->vtr form))]
-    (assert (not (nil? type))
+    (assert (not (nil? typeref))
             (str "defnode " where " requires a value type but was supplied with '"
                  original-form "' which cannot be used as a type"))
-    (when (ref? type)
-      (assert (not (nil? (deref type)))
+    (when (and (ref? typeref) (nil? autotype))
+      (assert (not (nil? (deref typeref)))
               (str "defnode " where " requires a value type but was supplied with '"
                    original-form "' which cannot be used as a type")))
     (util/assert-form-kind "defnode" "registered value type"
-                           (some-fn ref? value-type?) where type)
-    {:value-type type
+                           (some-fn ref? value-type?) where typeref)
+    (when autotype
+      ;; the next two steps look redundant but are not. when we build
+      ;; the release bundle, macroexpansion happens during compilation.
+      ;; we need type information for compilation
+      (register-type value-type-registry-ref (:k typeref)
+                     (cond
+                       (util/protocol-symbol? form)
+                       (let [pval (util/vgr form)]
+                         (make-protocol-value-type pval form))
+
+                       ;; note: this occurs in type position of a defnode clause. we use
+                       ;; the class itself as the dispatch value so multimethods can be
+                       ;; expressed most naturally.
+                       (util/class-symbol? form)
+                       (let [cls (resolve form)]
+                         (->ClassType cls cls))))
+
+      ;; when we run the bundle, compilation is long past, we we
+      ;; need to re-register the automatic types at runtime. defnode
+      ;; emits code to do that, based on the types we smuggle out via
+      ;; this (hacky) atom
+      (swap! *autotypes* assoc (:k typeref) autotype))
+    {:value-type typeref
      :flags (if multivalued? #{:collection} #{})}))
 
 (defn macro-expression?
@@ -1317,9 +1337,14 @@
 (defn schema-check-output [self-name ctx-name description transform nodeid-sym output-sym forms]
   (if *check-schemas*
     `(let [output-schema# ~(deduce-output-type self-name description transform)]
-       (if-let [validation-error# (s/check output-schema# ~output-sym)]
-         (report-schema-error ~(:name description) ~transform ~nodeid-sym ~output-sym output-schema# validation-error#)
-         ~forms))
+       (try
+         (if-let [validation-error# (s/check output-schema# ~output-sym)]
+           (report-schema-error ~(:name description) ~transform ~nodeid-sym ~output-sym output-schema# validation-error#)
+           ~forms)
+         (catch IllegalArgumentException iae#
+           (throw (ex-info "MALFORMED-SCHEMA"
+                           {:transform ~transform :node-type ~(:name description)}
+                           iae#)))))
     forms))
 
 (defn validate-output [self-name ctx-name description transform nodeid-sym output-sym forms]
