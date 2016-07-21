@@ -448,7 +448,7 @@
   (run [selection user-data]
     (select-down selection)))
 
-(def word-regex  #"\n|\s*_*[a-zA-Z0-9]+|.")
+(def word-regex  #"\n|\s*_*[a-zA-Z0-9\=\+\-\*\!]+|.")
 
 (defn next-word-move [doc np]
   (re-find word-regex (subs doc np)))

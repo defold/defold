@@ -305,7 +305,14 @@
         (prev-word! source-viewer)
         (is (= \b (get-char-at-caret source-viewer)))
         (up! source-viewer)
-        (is (= \a (get-char-at-caret source-viewer)))))))
+        (is (= \a (get-char-at-caret source-viewer))))
+      (testing "treats opererators correctly"
+        (text! source-viewer "local v = 1")
+        (caret! source-viewer 0 false)
+        (next-word! source-viewer)
+        (next-word! source-viewer)
+        (next-word! source-viewer)
+        (is (= 9 (caret source-viewer)))))))
 
 (defn- select-next-word! [source-viewer]
   (cvx/handler-run :select-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
