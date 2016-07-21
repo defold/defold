@@ -19,7 +19,8 @@
       	            <Button id="ok" minWidth="80.0" defaultButton="false" mnemonicParsing="false" text="Ok" />
                   </children>
                 </Pane>
-      	        <Button id="clear" minWidth="80.0" defaultButton="true" mnemonicParsing="false" text="Clear" />
+      	        <Button id="restart" minWidth="80.0" defaultButton="true" mnemonicParsing="false" text="Restart Target Discovery" />
+      	        <Button id="clear" minWidth="80.0" defaultButton="true" mnemonicParsing="false" text="Clear Log" />
               </children>
             </HBox>
           </children>
