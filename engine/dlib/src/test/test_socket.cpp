@@ -469,10 +469,22 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Address address;
-    uint16_t port = 47204; // We just assume that this port is not listening...
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    result = dmSocket::Bind(instance, address, 0);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    uint16_t port;
+    result = dmSocket::GetName(instance, &address, &port);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    result = dmSocket::Delete(instance);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    instance = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, instance);
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
@@ -489,10 +501,22 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
     dmSocket::Address address;
-    uint16_t port = 47204; // We just assume that this port is not listening...
 
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    result = dmSocket::Bind(instance, address, 0);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    uint16_t port;
+    result = dmSocket::GetName(instance, &address, &port);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    result = dmSocket::Delete(instance);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    instance = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, instance);
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
