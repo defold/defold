@@ -8,7 +8,7 @@
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
             DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
-           [javafx.scene Parent]
+           [javafx.scene Parent Cursor]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
@@ -331,6 +331,12 @@
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_TYPED
                         (ui/event-handler e (cvx/handle-key-typed e source-viewer)))
+      (.setOnMouseEntered ^StyledTextArea text-area
+                          (ui/event-handler e
+                                            (.setCursor (.getScene text-area) Cursor/TEXT)))
+      (.setOnMouseEntered ^StyledTextArea text-area
+                          (ui/event-handler e
+                                            (.setCursor (.getScene text-area) Cursor/DEFAULT)))
      (when use-custom-skin?
        (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
          (.setSkin text-area skin)
