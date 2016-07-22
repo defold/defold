@@ -173,14 +173,18 @@
   (selection?       [this])
   (model-transform? [this]))
 
+(defprotocol Area
+  (dimensions [this])
+  (empty-space? [this]))
+
 (s/defrecord Region
   [left   :- s/Num
    right  :- s/Num
    top    :- s/Num
-   bottom :- s/Num])
-
-(defprotocol Viewport
-  (viewport ^Region [this]))
+   bottom :- s/Num]
+  Area
+  (dimensions [this] [(- right left) (- bottom top)])
+  (empty-space? [this] (or (= 0 (- right left)) (= 0 (- bottom top)))))
 
 (s/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)
