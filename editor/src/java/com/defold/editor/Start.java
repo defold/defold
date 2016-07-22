@@ -184,43 +184,39 @@ public class Start extends Application {
         try {
 	        Splash splash = new Splash();
 
-	        Future<?> extractFuture = threadPool.submit(() -> {
-	            try {
-	                NativeArtifacts.extractNatives();
-                        ClassLoader parent = ClassLoader.getSystemClassLoader();
-                        Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
-                        Method init = glprofile.getMethod("initSingleton");
-                        init.invoke(null);
-	            } catch (Exception e) {
-	                logger.error("failed to extract native libs", e);
-	            }
-	        });
-
-	        threadPool.submit(() -> {
-	            try {
-	                pool.add(makeEditor());
-	                javafx.application.Platform.runLater(new Runnable() {
-	                    @Override
-	                    public void run() {
-	                        try {
-	                            extractFuture.get();
-	                            openEditor(new String[0]);
-	                            splash.close();
-	                        } catch (Throwable t) {
-	                            t.printStackTrace();
-	                        }
-	                    }
-	                });
-	            } catch (Throwable t) {
-	                t.printStackTrace();
-	                String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
-	                javafx.application.Platform.runLater(() -> {
-	                    splash.setLaunchError(message);
-	                    splash.setErrorShowing(true);
-	                });
-	            }
-	            return null;
-	        });
+            threadPool.submit(() -> {
+                try {
+                    NativeArtifacts.extractNatives();
+                    ClassLoader parent = ClassLoader.getSystemClassLoader();
+                    Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
+                    Method init = glprofile.getMethod("initSingleton");
+                    init.invoke(null);
+                } catch (Exception e) {
+                    logger.error("failed to extract native libs", e);
+                }
+                try {
+                    pool.add(makeEditor());
+                    javafx.application.Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                openEditor(new String[0]);
+                                splash.close();
+                            } catch (Throwable t) {
+                                t.printStackTrace();
+                            }
+                        }
+                    });
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+                    javafx.application.Platform.runLater(() -> {
+                        splash.setLaunchError(message);
+                        splash.setErrorShowing(true);
+                    });
+                }
+                return null;
+            });
         } catch (Throwable t) {
             t.printStackTrace(System.err);
             throw t;
