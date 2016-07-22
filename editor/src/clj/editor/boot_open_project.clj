@@ -150,6 +150,7 @@
       (.setWidth stage (:width dims))
       (.setHeight stage (:height dims)))
 
+    (ui/init-progress!)
     (ui/show! stage)
     (targets/start)
 
