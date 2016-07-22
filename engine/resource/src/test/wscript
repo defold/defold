@@ -23,14 +23,16 @@ new_copy_task('script', '.script', '.scriptc')
 def build(bld):
     resources = bld.new_task_gen(source = ['test.cont_pb'])
 
-    archive = bld.new_task_gen(features = 'archive',
+    archive = bld.new_task_gen(name = 'uncompressed_archive',
+                               features = 'archive',
                                archive_target='test.arc',
                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     compressed_archive = bld.new_task_gen(features = 'archive',
                                archive_target='test_compressed.arc',
                                use_compression=True,
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script',
+                               after = 'uncompressed_archive')
 
     # Same as above but created with the java-based archive builder
     jarchive = bld.new_task_gen(features = 'jarchive',
