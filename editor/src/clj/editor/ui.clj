@@ -792,20 +792,27 @@
     (when label
       (.setText label (progress/description progress)))))
 
-(defn default-render-progress! [progress]
-  (run-later
-   (let [root  (.. (main-stage) (getScene) (getRoot))
+(defn- update-progress!
+  [progress]
+  (let [root  (.. (main-stage) (getScene) (getRoot))
          tb    (.lookup root "#toolbar-status")
          bar   (.lookup tb ".progress-bar")
          label (.lookup tb ".label")]
-     (update-progress-controls! progress bar label))))
+    (update-progress-controls! progress bar label)))
+
+(defn default-render-progress! [progress]
+  (run-later (update-progress! progress)))
+
+(defn init-progress!
+  []
+  (update-progress! progress/done))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings
      (try
        ~@body
        (finally
-         ((second ~bindings) (progress/make "Done" 1 1))))))
+         ((second ~bindings) progress/done)))))
 
 (defn modal-progress [title total-work worker-fn]
   (run-now
