@@ -428,7 +428,7 @@
                                (add-images-handler workspace
                                                    [[:animation :animations]
                                                     [:id :animation-ids]]
-                                                   atlas-node :animations atlas-node))
+                                                   atlas-node atlas-node))
                              (when-let [animation-node (animation-selection selection)]
                                (add-images-handler workspace [[:image :frames]] animation-node (core/scope animation-node))))))
 
