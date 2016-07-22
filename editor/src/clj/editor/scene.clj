@@ -96,13 +96,10 @@
     object-color))
 
 (defn vp-dims [^Region viewport]
-  (let [w (- (.right viewport) (.left viewport))
-        h (- (.bottom viewport) (.top viewport))]
-    [w h]))
+  (types/dimensions viewport))
 
 (defn vp-not-empty? [^Region viewport]
-  (let [[w h] (vp-dims viewport)]
-    (and (> w 0) (> h 0))))
+  (not (types/empty-space? viewport)))
 
 (defn z-distance [camera viewport ^Matrix4d world-transform ^Point3d tmp-p3d]
   (let [^Matrix4d t (or world-transform geom/Identity4d)
