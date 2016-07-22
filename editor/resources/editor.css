@@ -428,16 +428,6 @@ Defold Orange       #fd6623             Guides etc
     -fx-border-color: transparent;
     -fx-text-fill: #b0b0b0; }
 
-.composite-property-control-container .field-error {
-  -fx-border-width: 1;
-  -fx-border-color: #ff4646;
-  -fx-effect: none; }
-
-.composite-property-control-container .field-warning {
-  -fx-border-width: 1;
-  -fx-border-color: #fbce2f;
-  -fx-effect: none; }
-
 .composite-property-control-container .button, .composite-property-control-container .button-small, .composite-property-control-container .button-large {
   -fx-background-radius: 0px;
   -fx-border-radius: 0px;
@@ -514,14 +504,14 @@ Defold Orange       #fd6623             Guides etc
   -fx-padding: 0; }
 
 .field-error {
-  -fx-border-width: 1;
-  -fx-border-color: #ff4646;
-  -fx-effect: none; }
+  -fx-border-width: 1 !important;
+  -fx-border-color: #ff4646 !important;
+  -fx-effect: none !important; }
 
 .field-warning {
-  -fx-border-width: 1;
-  -fx-border-color: #fbce2f;
-  -fx-effect: none; }
+  -fx-border-width: 1 !important;
+  -fx-border-color: #fbce2f !important;
+  -fx-effect: none !important; }
 
 .menu-button {
   -fx-background-radius: 3;
