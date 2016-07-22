@@ -46,6 +46,7 @@
             [editor.switcher :as switcher]
             [editor.targets :as targets]
             [editor.text :as text]
+            [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
@@ -111,6 +112,7 @@
         (spine/register-resource-types workspace)
         (sprite/register-resource-types workspace)
         (switcher/register-resource-types workspace)
+        (tile-map/register-resource-types workspace)
         (tile-source/register-resource-types workspace)))
     (workspace/resource-sync! workspace)
     workspace))

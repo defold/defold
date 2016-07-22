@@ -21,7 +21,8 @@
             [editor.script :as script]
             [editor.workspace :as workspace]
             [editor.gl.shader :as shader]
-            [editor.tile-source :as tile-source]
+            [editor.tile-map :as tile-map]
+            [editor.tile-source :as tile-source]            
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.particlefx :as particlefx]
@@ -77,6 +78,7 @@
         (spine/register-resource-types workspace)
         (sprite/register-resource-types workspace)
         (switcher/register-resource-types workspace)
+        (tile-map/register-resource-types workspace)
         (tile-source/register-resource-types workspace)))
       (workspace/resource-sync! workspace)
       workspace)))
