@@ -18,7 +18,6 @@
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
-           [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -62,13 +61,6 @@
                ; TODO - missing icon
                :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
-              {:ext ["tilemap" "tilegrid"]
-               :build-ext "tilegridc"
-               :label "Tile Map"
-               :icon "icons/32/Icons_48-Tilemap.png"
-               :pb-class Tile$TileGrid
-               :resource-fields [:tile-set :material]
-               :tags #{:component}}
               {:ext "sound"
                :label "Sound"
                :icon "icons/32/Icons_26-AT-Sound.png"

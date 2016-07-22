@@ -1,0 +1,39 @@
+tile_set: "/tilegrid/tilegrid_test.tileset"
+layers {
+  id: "layer1"
+  z: 0.0
+  is_visible: 1
+  cell {
+    x: -2
+    y: -2
+    tile: 5
+    h_flip: 0
+    v_flip: 0
+  }
+}
+layers {
+  id: "layer2"
+  z: 0.2
+  is_visible: 1
+  cell {
+    x: 4
+    y: 3
+    tile: 92
+    h_flip: 1
+    v_flip: 0
+  }
+}
+layers {
+  id: "blaha"
+  z: 1.0
+  is_visible: 1
+  cell {
+    x: -2
+    y: -8
+    tile: 42
+    h_flip: 0
+    v_flip: 1
+  }
+}
+material: "/builtins/materials/tile_map.material"
+blend_mode: BLEND_MODE_ALPHA
