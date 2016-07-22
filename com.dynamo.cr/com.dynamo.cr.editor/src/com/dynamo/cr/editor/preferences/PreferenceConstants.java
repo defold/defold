@@ -16,6 +16,8 @@ public class PreferenceConstants {
     public static final String P_SOCKS_PROXY = "socksProxyPreference";
     public static final String P_SOCKS_PROXY_PORT = "socksProxyPortPreference";
 
+    public static final String P_SHOW_WELCOME_PAGE = "showWelcomePage";
+
     // Debug
     public static final String P_RUN_IN_DEBUGGER = "runInDebugger";
     public static final String P_AUTO_RUN_DEBUGGER = "autoRunDebugger";

@@ -4,10 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.UnknownHostException;
-
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.resource.ImageDescriptor;
@@ -60,30 +56,15 @@ public class WelcomeEditor extends EditorPart {
     @Override
     public void createPartControl(Composite parent) {
         this.browser = new Browser(parent, SWT.NONE);
+        InputStream input = getClass().getResourceAsStream("welcome.html");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try {
+            IOUtils.copy(input, output);
+            this.browser.setText(output.toString("UTF-8"));
 
-        String url = "http://www.defold.com/webviews/editor-welcome/";
-        Boolean pageLoaded = false;
-        if (WelcomeEditor.isInternetReachable(url)) {
-            try {
-                pageLoaded = this.browser.setUrl(url);
-
-            } catch (Exception e) {
-                pageLoaded = false;
-            }
-        }
-
-        if (!pageLoaded) {
-            InputStream input = getClass().getResourceAsStream("welcome.html");
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-
-            try {
-                IOUtils.copy(input, output);
-                this.browser.setText(output.toString("UTF-8"));
-
-            } catch (IOException e) {
-                IOUtils.closeQuietly(input);
-                throw new RuntimeException(e);
-            }
+        } catch (IOException e) {
+            IOUtils.closeQuietly(input);
+            throw new RuntimeException(e);
         }
 
         this.browser.addLocationListener(new LocationAdapter() {
@@ -94,6 +75,7 @@ public class WelcomeEditor extends EditorPart {
                 Program.launch(event.location);
             }
         });
+
     }
 
     @Override
@@ -136,24 +118,4 @@ public class WelcomeEditor extends EditorPart {
         };
     }
 
-    // http://stackoverflow.com/questions/7067844/how-to-detect-internet-connection-with-swt-browser-or-handle-server-not-availab
-    private static boolean isInternetReachable(String weburl) {
-        HttpURLConnection urlConnect = null;
-        try {
-            // make a URL to a known source
-            URL url = new URL(weburl);
-            // open a connection to that source
-            urlConnect = (HttpURLConnection) url.openConnection();
-            // trying to retrieve data from the source. If there is no connection, this line will fail
-            urlConnect.getContent();
-        } catch (UnknownHostException e) {
-            return false;
-        } catch (IOException e) {
-            return false;
-        } finally {
-            // cleanup
-            if(urlConnect != null) urlConnect.disconnect();
-        }
-        return true;
-    }
 }
