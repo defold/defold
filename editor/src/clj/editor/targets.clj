@@ -17,12 +17,12 @@
 
 (defonce ^:const local-target
   {:name "Local"
-   :url  "http://localhost:8001"})
+   :url  "http://localhost:8001"
+   :local-address "localhost"})
 (defonce ^:private targets (atom #{local-target}))
 (defonce ^:private descriptions (atom {}))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
-(defonce ^:private active-ips (atom nil))
 (defonce ^:private worker (atom nil))
 (defonce ^:private event-log (atom []))
 (defonce ^:private ssdp-service (atom nil))
@@ -51,7 +51,7 @@
        :content
        first))
 
-(defn- desc->target [desc]
+(defn- desc->target [desc local-address]
   (when-let [tags (and (= {:xmlns:defold "urn:schemas-defold-com:DEFOLD-1-0", :xmlns "urn:schemas-upnp-org:device-1-0"}
                           (:attrs desc))
                        (->> desc :content (filter #(= :device (:tag %))) first :content))]
@@ -60,7 +60,8 @@
        :model    (tag->val :modelName tags)
        :udn      (tag->val :UDN tags)
        :url      (tag->val :defold:url tags)
-       :log-port (tag->val :defold:logPort tags)})))
+       :log-port (tag->val :defold:logPort tags)
+       :local-address local-address})))
 
 (defn- log [message]
   (swap! event-log (fn [xs]
@@ -85,7 +86,7 @@
                             desc                (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
                                                      (catch Exception _
                                                        (log (format "[%s] error parsing XML description" loc))))
-                            target              (desc->target desc)]
+                            target              (desc->target desc (.localAddress device))]
 
                         (when-not target
                           (log (format "[%s] not a Defold target" url)))
@@ -135,14 +136,12 @@
             (let [now      (System/currentTimeMillis)
                   search?  (>= now (+ @last-search (search-interval ssdp-service')))
                   changed? (.update ssdp-service' search?)]
-              (reset! active-ips (.getIPs ssdp-service'))
               (when search?
                 (reset! last-search now))
               (when (or search? changed?)
                 (update-targets! (.getDevices ssdp-service'))))))
         (do
-          (reset! running false)
-          (reset! active-ips nil)))
+          (reset! running false)))
       (catch Exception e
         (prn e))
       (finally
@@ -211,6 +210,3 @@
     (ui/on-hiding! stage (fn [_]
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
-
-(defn current-ip []
-  (first @active-ips))
