@@ -4,8 +4,7 @@
              [protobuf :as protobuf]
              [resource :as resource]
              [ui :as ui]
-             [targets :as targets]]
-            [util.http-server :as http-server])
+             [targets :as targets]])
   (:import [java.net HttpURLConnection URL]))
 
 (set! *warn-on-reflection* true)
@@ -38,16 +37,15 @@
       (finally
         (.disconnect conn)))))
 
-(defn reboot [target webserver hot-reload-url-prefix]
+(defn reboot [target local-url]
   (let [url  (URL. (str target "/post/@system/reboot"))
         conn ^HttpURLConnection (get-connection url)]
     (try
-      (let [os  (.getOutputStream conn)
-            url (format "http://%s:%s%s" (targets/current-ip) (http-server/port webserver) hot-reload-url-prefix)]
+      (let [os  (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                            com.dynamo.engine.proto.Engine$Reboot
-                           {:arg1 (str "--config=resource.uri=" url)
-                            :arg2 (str url "/game.projectc")}))
+                           {:arg1 (str "--config=resource.uri=" local-url)
+                            :arg2 (str local-url "/game.projectc")}))
         (.close os))
       (let [is (.getInputStream conn)]
         (while (not= -1 (.read is))
