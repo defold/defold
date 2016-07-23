@@ -1,11 +1,17 @@
 #! /usr/bin/env python
 
-import stat, os, sys, struct, dlib
+import stat, os, sys, struct, dlib, signal
 from optparse import OptionParser
 
 ENCRYPTED_EXTS = [".luac", ".scriptc", ".gui_scriptc", ".render_scriptc"]
 KEY = "aQj8CScgNP4VsfXK"
 VERSION = 4
+
+def handle_sigsegv(signum, frame):
+    print(frame)
+    raise IOError("Fatal error %d in native library" % signum)
+
+signal.signal(signal.SIGSEGV, handle_sigsegv)
 
 class Entry(object):
     def __init__(self, root, filename, compress):
