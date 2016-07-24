@@ -85,10 +85,9 @@ namespace dmConnectionPool
 
             // NOTE: CONFIG_SSL_CTX_MUTEXING must be configured as the
             // ssl-context is shared among all threads
-            // 16 is number of sessions to cache and currently arbitrary.
-            // Might not have any effect though as we don't store and cache the
-            // session locally. See Connect function
-            m_SSLContext = ssl_ctx_new(options, 16);
+            // 0 is number of sessions to cache and currently arbitrary.
+            // Since we don't use sessions (see Connect) we don't need any.
+            m_SSLContext = ssl_ctx_new(options, 0);
 
             // This is to block new connections when shutting down the pool.
             m_AllowNewConnections = 1;
