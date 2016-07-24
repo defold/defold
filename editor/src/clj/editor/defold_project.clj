@@ -19,6 +19,7 @@
             [editor.game-project-core :as gpc]
             [service.log :as log]
             [editor.graph-util :as gu]
+            [util.http-server :as http-server]
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
@@ -589,7 +590,9 @@
   (run [project prefs web-server]
     (let [build  (build-and-save-project project)]
       (when (and (future? build) @build)
-        (or (engine/reboot (:url (get-selected-target prefs)) web-server hot-reload-url-prefix)
+        (or (when-let [target (get-selected-target prefs)]
+              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
+                (engine/reboot (:url target) local-url)))
             (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global

@@ -11,11 +11,14 @@ public class DeviceInfo {
     public final long expires;
     public final Map<String, String> headers;
     public String address;
+    // Host address from which the device can be reached
+    public String localAddress;
 
-    public DeviceInfo(long expires, Map<String, String> headers, String address) {
+    public DeviceInfo(long expires, Map<String, String> headers, String address, String localAddress) {
         this.expires = expires;
         this.headers = Collections.unmodifiableMap(headers);
         this.address = address;
+        this.localAddress = localAddress;
     }
 
     @Override
@@ -32,7 +35,7 @@ public class DeviceInfo {
         return false;
     }
 
-    public static DeviceInfo create(Map<String, String> headers, String address) {
+    public static DeviceInfo create(Map<String, String> headers, String address, String localAddress) {
         int maxAge = 1800;
 
         String cacheControl = headers.get("CACHE-CONTROL");
@@ -46,7 +49,7 @@ public class DeviceInfo {
 
         long expires = System.currentTimeMillis() + maxAge * 1000;
 
-        return new DeviceInfo(expires, headers, address);
+        return new DeviceInfo(expires, headers, address, localAddress);
     }
 
 }
