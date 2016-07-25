@@ -4,6 +4,8 @@ import java.io.IOException;
 
 public interface ISSDP {
 
+    public boolean setup() throws IOException;
+
     public boolean update(boolean search) throws IOException;
 
     public DeviceInfo getDeviceInfo(String usn);
@@ -12,6 +14,7 @@ public interface ISSDP {
 
     public void clearDiscovered();
 
-    DeviceInfo[] getDevices();
+    public DeviceInfo[] getDevices();
 
+    public boolean isConnected();
 }
