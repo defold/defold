@@ -604,7 +604,7 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any #_:cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
