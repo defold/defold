@@ -28,14 +28,15 @@ void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter
     (*counters)[std::string(counter->m_Counter->m_Name)] = counter;
 }
 
-// TODO: TOL increased due to valgrind... Command line option or detect valgrind.
-#define TOL (60.0 / 1000.0)
+// TOL is higher the first iteration because the profile scopes are allocated then, which is more expensive. See dmProfile::AllocateScope
+#define TOL_INIT (61.0 / 1000.0)
+#define TOL (40.0 / 1000.0)
 
 TEST(dmProfile, Profile)
 {
     dmProfile::Initialize(128, 1024, 0);
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         {
             dmProfile::HProfile profile = dmProfile::Begin();
@@ -84,6 +85,10 @@ TEST(dmProfile, Profile)
         ASSERT_EQ(7U, samples.size());
 
         double ticks_per_sec = dmProfile::GetTicksPerSecond();
+        double tol = TOL;
+        if (i == 0) {
+            tol = TOL_INIT;
+        }
 
         ASSERT_STREQ("a", samples[0].m_Name);
         ASSERT_STREQ("a_b1", samples[1].m_Name);
@@ -93,13 +98,13 @@ TEST(dmProfile, Profile)
         ASSERT_STREQ("a_b2_c2", samples[5].m_Name);
         ASSERT_STREQ("a_d", samples[6].m_Name);
 
-        ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((50000 + 40000) / 1000000.0, samples[1].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((40000) / 1000000.0, samples[2].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, samples[3].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((40000) / 1000000.0, samples[4].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((60000) / 1000000.0, samples[5].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((80000) / 1000000.0, samples[6].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((50000 + 40000) / 1000000.0, samples[1].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((40000) / 1000000.0, samples[2].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, samples[3].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((40000) / 1000000.0, samples[4].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((60000) / 1000000.0, samples[5].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((80000) / 1000000.0, samples[6].m_Elapsed / ticks_per_sec, tol);
 
         ASSERT_TRUE(scopes.end() != scopes.find("A"));
         ASSERT_TRUE(scopes.end() != scopes.find("B"));
@@ -107,16 +112,16 @@ TEST(dmProfile, Profile)
         ASSERT_TRUE(scopes.end() != scopes.find("D"));
 
         ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
-                    scopes["A"]->m_Elapsed / ticks_per_sec, TOL);
+                    scopes["A"]->m_Elapsed / ticks_per_sec, tol);
 
         ASSERT_NEAR((50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
-                    scopes["B"]->m_Elapsed / ticks_per_sec, TOL);
+                    scopes["B"]->m_Elapsed / ticks_per_sec, tol);
 
         ASSERT_NEAR((40000 + 40000 + 60000) / 1000000.0,
-                    scopes["C"]->m_Elapsed / ticks_per_sec, TOL);
+                    scopes["C"]->m_Elapsed / ticks_per_sec, tol);
 
         ASSERT_NEAR((80000) / 1000000.0,
-                    scopes["D"]->m_Elapsed / ticks_per_sec, TOL);
+                    scopes["D"]->m_Elapsed / ticks_per_sec, tol);
 
     }
     dmProfile::Finalize();
