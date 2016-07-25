@@ -28,48 +28,47 @@ void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter
     (*counters)[std::string(counter->m_Counter->m_Name)] = counter;
 }
 
-// TOL is higher the first iteration because the profile scopes are allocated then, which is more expensive. See dmProfile::AllocateScope
-#define TOL_INIT (61.0 / 1000.0)
-#define TOL (40.0 / 1000.0)
+// 1 msec
+#define TOL 0.001
 
 TEST(dmProfile, Profile)
 {
     dmProfile::Initialize(128, 1024, 0);
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 2; ++i)
     {
         {
             dmProfile::HProfile profile = dmProfile::Begin();
             dmProfile::Release(profile);
             {
                 DM_PROFILE(A, "a")
-                dmTime::Sleep(100000);
+                dmTime::BusyWait(100000);
                 {
                     {
                         DM_PROFILE(B, "a_b1")
-                        dmTime::Sleep(50000);
+                        dmTime::BusyWait(50000);
                         {
                             DM_PROFILE(C, "a_b1_c")
-                            dmTime::Sleep(40000);
+                            dmTime::BusyWait(40000);
                         }
                     }
                     {
                         DM_PROFILE(B, "b2")
-                        dmTime::Sleep(50000);
+                        dmTime::BusyWait(50000);
                         {
                             DM_PROFILE(C, "a_b2_c1")
-                            dmTime::Sleep(40000);
+                            dmTime::BusyWait(40000);
                         }
                         {
                             DM_PROFILE(C, "a_b2_c2")
-                            dmTime::Sleep(60000);
+                            dmTime::BusyWait(60000);
                         }
                     }
                 }
             }
             {
                 DM_PROFILE(D, "a_d")
-                dmTime::Sleep(80000);
+                dmTime::BusyWait(80000);
             }
         }
 
@@ -85,10 +84,6 @@ TEST(dmProfile, Profile)
         ASSERT_EQ(7U, samples.size());
 
         double ticks_per_sec = dmProfile::GetTicksPerSecond();
-        double tol = TOL;
-        if (i == 0) {
-            tol = TOL_INIT;
-        }
 
         ASSERT_STREQ("a", samples[0].m_Name);
         ASSERT_STREQ("a_b1", samples[1].m_Name);
@@ -98,13 +93,13 @@ TEST(dmProfile, Profile)
         ASSERT_STREQ("a_b2_c2", samples[5].m_Name);
         ASSERT_STREQ("a_d", samples[6].m_Name);
 
-        ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, tol);
-        ASSERT_NEAR((50000 + 40000) / 1000000.0, samples[1].m_Elapsed / ticks_per_sec, tol);
-        ASSERT_NEAR((40000) / 1000000.0, samples[2].m_Elapsed / ticks_per_sec, tol);
-        ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, samples[3].m_Elapsed / ticks_per_sec, tol);
-        ASSERT_NEAR((40000) / 1000000.0, samples[4].m_Elapsed / ticks_per_sec, tol);
-        ASSERT_NEAR((60000) / 1000000.0, samples[5].m_Elapsed / ticks_per_sec, tol);
-        ASSERT_NEAR((80000) / 1000000.0, samples[6].m_Elapsed / ticks_per_sec, tol);
+        ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((50000 + 40000) / 1000000.0, samples[1].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((40000) / 1000000.0, samples[2].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, samples[3].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((40000) / 1000000.0, samples[4].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((60000) / 1000000.0, samples[5].m_Elapsed / ticks_per_sec, TOL);
+        ASSERT_NEAR((80000) / 1000000.0, samples[6].m_Elapsed / ticks_per_sec, TOL);
 
         ASSERT_TRUE(scopes.end() != scopes.find("A"));
         ASSERT_TRUE(scopes.end() != scopes.find("B"));
@@ -112,16 +107,16 @@ TEST(dmProfile, Profile)
         ASSERT_TRUE(scopes.end() != scopes.find("D"));
 
         ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
-                    scopes["A"]->m_Elapsed / ticks_per_sec, tol);
+                    scopes["A"]->m_Elapsed / ticks_per_sec, TOL);
 
         ASSERT_NEAR((50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
-                    scopes["B"]->m_Elapsed / ticks_per_sec, tol);
+                    scopes["B"]->m_Elapsed / ticks_per_sec, TOL);
 
         ASSERT_NEAR((40000 + 40000 + 60000) / 1000000.0,
-                    scopes["C"]->m_Elapsed / ticks_per_sec, tol);
+                    scopes["C"]->m_Elapsed / ticks_per_sec, TOL);
 
         ASSERT_NEAR((80000) / 1000000.0,
-                    scopes["D"]->m_Elapsed / ticks_per_sec, tol);
+                    scopes["D"]->m_Elapsed / ticks_per_sec, TOL);
 
     }
     dmProfile::Finalize();
@@ -138,10 +133,10 @@ TEST(dmProfile, Nested)
             dmProfile::Release(profile);
             {
                 DM_PROFILE(A, "a")
-                dmTime::Sleep(50000);
+                dmTime::BusyWait(50000);
                 {
                     DM_PROFILE(A, "a_nest")
-                    dmTime::Sleep(50000);
+                    dmTime::BusyWait(50000);
                 }
             }
         }
