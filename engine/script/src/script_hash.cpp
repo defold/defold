@@ -146,7 +146,7 @@ namespace dmScript
     dmhash_t CheckHash(lua_State* L, int index)
     {
         dmhash_t* lua_hash = 0x0;
-        if (lua_isuserdata(L, index))
+        if (IsHash(L, index))
         {
             lua_hash = (dmhash_t*)lua_touserdata(L, index);
             return *lua_hash;
@@ -159,7 +159,7 @@ namespace dmScript
     dmhash_t CheckHashOrString(lua_State* L, int index)
     {
         dmhash_t* lua_hash = 0x0;
-        if (lua_isuserdata(L, index))
+        if (IsHash(L, index))
         {
             lua_hash = (dmhash_t*)lua_touserdata(L, index);
             return *lua_hash;
