@@ -99,4 +99,5 @@
                                 :proto-paths       ["test/proto"]
                                 :java-source-paths ["dev/java"]
                                 :source-paths      ["dev/clj"]
-                                :resource-paths    ["test/resources"]}})
+                                :resource-paths    ["test/resources"]
+                                :jvm-opts          ["-XX:+UnlockCommercialFeatures" "-XX:+FlightRecorder"]}})
