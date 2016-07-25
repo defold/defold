@@ -125,6 +125,7 @@ public class SSDP implements ISSDP {
         try {
             SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
             log("Started successfully");
+            refreshNetworks();
         } catch (UnknownHostException e) {
             log("Fatal error: " + SSDP_MCAST_ADDR_IP);
             return false;
