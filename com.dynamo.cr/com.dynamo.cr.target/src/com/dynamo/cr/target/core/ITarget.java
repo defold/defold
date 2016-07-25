@@ -14,4 +14,5 @@ public interface ITarget {
 
     public int getLogPort();
 
+    public String getLocalAddress();
 }
