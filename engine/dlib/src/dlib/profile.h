@@ -273,9 +273,7 @@ namespace dmProfile
     /// Internal, do not use.
     struct ProfileScope
     {
-        uint64_t    m_Start;
         Sample*     m_Sample;
-        Scope*      m_Scope;
         inline ProfileScope(Scope* scope, const char* name)
         {
             if (!g_IsInitialized)
@@ -283,22 +281,21 @@ namespace dmProfile
                 return;
             }
 
-            Sample*s = AllocateSample();
-            m_Scope = scope;
-
-            s->m_Name = name;
-            s->m_Scope = scope;
-            m_Sample = s;
-
+            uint64_t start;
 #if defined(_WIN32)
-            QueryPerformanceCounter((LARGE_INTEGER *)&m_Start);
+            QueryPerformanceCounter((LARGE_INTEGER *)&start);
 #elif defined(__EMSCRIPTEN__)
-            m_Start = (uint64_t)(emscripten_get_now() * 1000.0);
+            start = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
             timeval tv;
             gettimeofday(&tv, 0);
-            m_Start = tv.tv_sec * 1000000 + tv.tv_usec;
+            start = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
+            Sample*s = AllocateSample();
+            s->m_Name = name;
+            s->m_Scope = scope;
+            s->m_Start = (uint32_t)(start - g_BeginTime);
+            m_Sample = s;
         }
 
         inline ~ProfileScope()
@@ -318,9 +315,7 @@ namespace dmProfile
             gettimeofday(&tv, 0);
             end = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
-            uint64_t diff = end - m_Start;
-            m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
-            m_Sample->m_Elapsed = (uint32_t) diff;
+            m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
         }
     };
 
