@@ -7,14 +7,17 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.upnp.SSDP;
+
 public class SSDPTest {
-    SSDP ssdp;
+    ISSDP ssdp;
     final static String USN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
     final static String USN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
 
     @Before
     public void setUp() throws Exception {
         ssdp = new SSDP();
+        ssdp.setup();
         Thread.sleep(100);
         ssdp.update(false);
         ssdp.clearDiscovered();
