@@ -474,6 +474,7 @@
   (let [co (protobuf/read-text Physics$CollisionObjectDesc resource)]
     (concat
      (g/set-property self
+                     :collision-shape (workspace/resolve-resource resource (:collision-shape co))
                      :type (:type co)
                      :mass (:mass co)
                      :friction (:friction co)
