@@ -11,7 +11,7 @@ public class ModelUtil {
      * @param entityManager entity manager
      * @param owner owner of the project
      * @param name name of the project
-     * @param description
+     * @param description project description
      * @return new project
      */
     public static Project newProject(EntityManager entityManager, User owner, String name, String description) {
@@ -33,35 +33,6 @@ public class ModelUtil {
      */
     public static void removeProject(EntityManager entityManager, Project project) {
         entityManager.remove(project);
-    }
-
-    /**
-     * Remove user. First user is removed to every project the user belongs to. Then the user is removed.
-     * @param entityManager entity manager
-     * @param user user to remove
-     */
-    public static void removeUser(EntityManager entityManager, User user) {
-        // Remove user from projects user is member of
-        for (Project p : user.getProjects()) {
-            p.getMembers().remove(user);
-        }
-
-        // Find all users with connections to this user and remove their connection.
-        List<User> connectedUsers = entityManager
-                .createQuery("SELECT u FROM User u WHERE :user MEMBER OF u.connections", User.class)
-                .setParameter("user", user)
-                .getResultList();
-        for (User connectedUser : connectedUsers) {
-            connectedUser.getConnections().remove(user);
-        }
-
-        // Remove invitation account if exists
-        InvitationAccount account = entityManager.find(InvitationAccount.class, user.getId());
-        if (account != null) {
-            entityManager.remove(account);
-        }
-
-        entityManager.remove(user);
     }
 
     /**
