@@ -748,12 +748,12 @@
   (output aabb AABB :cached (g/always (geom/null-aabb))))
 
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
-  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position :basis basis)))
+  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))
         p (doto (Vector3d. orig-p) (.add delta))]
     (g/set-property node-id :position [(.x p) (.y p) (.z p)])))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
-  (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (g/node-value node-id :rotation :basis basis))) (.mul delta))
+  (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (g/node-value node-id :rotation {:basis basis}))) (.mul delta))
         new-euler (math/quat->euler new-rotation)]
     (g/set-property node-id :rotation new-euler)))
 
@@ -779,7 +779,7 @@
   (output transform Matrix4d :cached produce-transform))
 
 (defmethod scene-tools/manip-scale ::ScalableSceneNode [basis node-id delta]
-  (let [s (Vector3d. (double-array (g/node-value node-id :scale :basis basis)))
+  (let [s (Vector3d. (double-array (g/node-value node-id :scale {:basis basis})))
         ^Vector3d d delta]
     (.setX s (* (.x s) (.x d)))
     (.setY s (* (.y s) (.y d)))

@@ -410,7 +410,7 @@
             (dynamic edit-type (g/fnk [layer-ids] (properties/->choicebox (cons "" (map first layer-ids)))))
             (value (g/fnk [layer-input] (or layer-input "")))
             (set (fn [basis self _ new-value]
-                   (let [layer-ids (g/node-value self :layer-ids :basis basis)]
+                   (let [layer-ids (g/node-value self :layer-ids {:basis basis})]
                      (concat
                        (for [label (map second layer-connections)]
                          (g/disconnect-sources self label))
@@ -529,7 +529,7 @@
             (value (g/fnk [texture-input animation]
                      (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
             (set (fn [basis self _ ^String new-value]
-                   (let [textures (g/node-value self :texture-ids :basis basis)
+                   (let [textures (g/node-value self :texture-ids {:basis basis})
                          animation (let [sep (.indexOf new-value "/")]
                                      (if (>= sep 0) (subs new-value (inc sep)) ""))]
                      (concat
@@ -682,7 +682,7 @@
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
     (value (gu/passthrough font-input))
     (set (fn [basis self _ new-value]
-           (let [font-ids (g/node-value self :font-ids :basis basis)]
+           (let [font-ids (g/node-value self :font-ids {:basis basis})]
              (concat
                (for [label (map second font-connections)]
                  (g/disconnect-sources self label))
@@ -790,7 +790,7 @@
                                                                                                                       false))})
                                                                 id-mapping (:id-mapping override)
                                                                 or-scene (get id-mapping scene-node)
-                                                                node-mapping (comp id-mapping (g/node-value scene-node :node-ids :basis basis))]
+                                                                node-mapping (comp id-mapping (g/node-value scene-node :node-ids {:basis basis}))]
                                                             (concat
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
@@ -993,7 +993,7 @@
             (value (gu/passthrough layout-overrides))
             (set (fn [basis self _ new-value]
                    (let [scene (ffirst (g/targets-of basis self :_node-id))
-                         node-tree (g/node-value scene :node-tree :basis basis)
+                         node-tree (g/node-value scene :node-tree {:basis basis})
                          or-data new-value
                          override (g/override basis node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                             (or (g/node-instance? basis GuiNode src)
@@ -1001,7 +1001,7 @@
                                                                                 (g/node-instance? basis GuiSceneNode src)))})
                          id-mapping (:id-mapping override)
                          or-node-tree (get id-mapping node-tree)
-                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids :basis basis))]
+                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids {:basis basis}))]
                      (concat
                        (:tx-data override)
                        (for [[from to] [[:node-overrides :layout-overrides]

@@ -147,7 +147,7 @@
                                                     ddf-properties))}))
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id :basis basis)]
+                     (if-let [old-source (g/node-value self :source-id {:basis basis})]
                        (g/delete-node old-source)
                        [])
                      (let [new-resource (:resource new-value)

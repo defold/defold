@@ -376,10 +376,10 @@
                        (let [gid (g/node-id->graph-id self)
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
-                           (let [tmpl-path (g/node-value self :template-path :basis basis)
+                           (let [tmpl-path (g/node-value self :template-path {:basis basis})
                                  {:keys [id-mapping tx-data]} (g/override basis scene {})
                                  mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
-                                                                        (g/node-value scene :node-ids :basis basis))))
+                                                                        (g/node-value scene :node-ids {:basis basis}))))
                                  set-prop-data (for [[id props] (:overrides new-value)
                                                      :let [node-id (mapping id)]
                                                      :when node-id
@@ -600,7 +600,7 @@
   (property component g/Any
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [instance (g/node-value self :instance :basis basis)]
+                     (if-let [instance (g/node-value self :instance {:basis} basis)]
                        (g/delete-node instance)
                        [])
                      (let [gid (g/node-id->graph-id self)
@@ -608,7 +608,7 @@
                        (if-let [script (get (g/graph-value basis gid :resources) path)]
                          (let [{:keys [id-mapping tx-data]} (g/override basis script {})
                                or-script (id-mapping script)
-                               script-props (g/node-value script :_properties :basis basis)
+                               script-props (g/node-value script :_properties {:basis basis})
                                set-prop-data (for [[key value] (:overrides new-value)]
                                                (g/set-property or-script key value))
                                conn-data (for [[src tgt] [[:_node-id :instance]

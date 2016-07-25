@@ -336,12 +336,12 @@
                                           (g/operation-sequence op-seq)
                                           (g/set-property self :current cursor-pos)
                                           (for [[[nid prop] ids] selected-ids
-                                                :let [curve (g/node-value nid prop :basis basis)]]
+                                                :let [curve (g/node-value nid prop {:basis basis})]]
                                             (g/set-property nid prop (types/geom-transform curve ids trans)))))
                                       nil)
                      :tangent (let [basis @(g/node-value self :_basis)
                                     [nid prop idx] (g/node-value self :handle-data)
-                                    new-curve (-> (g/node-value nid prop :basis basis)
+                                    new-curve (-> (g/node-value nid prop {:basis basis})
                                                 (types/geom-update [idx]
                                                                    (fn [cp]
                                                                      (let [[x y tx ty] cp
