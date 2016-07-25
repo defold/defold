@@ -859,4 +859,32 @@ namespace dmSys
 #endif
     }
 
+#if defined(__ANDROID__)
+    // Android implementation
+    void SetSleeplock(bool value)
+    {
+        (void) value;
+    }
+
+    bool GetSleeplock()
+    {
+        return false;
+    }
+
+#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+    // iOS implementations in sys_cocoa.mm
+#else
+    // Windows, OSX, emscripten implementation
+    void SetSleeplock(bool value)
+    {
+        (void) value;
+    }
+
+    bool GetSleeplock()
+    {
+        return false;
+    }
+
+#endif
+
 }

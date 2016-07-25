@@ -554,6 +554,32 @@ namespace dmScript
         return 1;
     }
 
+    static int Sys_SetSleeplock(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        if (lua_isboolean(L, 1))
+        {
+            bool value = (bool) lua_toboolean(L, 1);
+            dmSys::SetSleeplock(value);
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_typerror(L, 1, "boolean");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static int Sys_GetSleeplock(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        lua_pushboolean(L, dmSys::GetSleeplock());
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
 
     static const luaL_reg ScriptSys_methods[] =
     {
@@ -570,6 +596,8 @@ namespace dmScript
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
         {"get_connectivity", Sys_GetConnectivity},
+        {"set_sleeplock", Sys_SetSleeplock},
+        {"get_sleeplock", Sys_GetSleeplock},
         {0, 0}
     };
 
