@@ -170,7 +170,7 @@ namespace dmScript
             return dmHashString64(s);
         }
 
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_HASH);
+        luaL_typerror(L, index, "hash or string");
         return 0;
     }
 
