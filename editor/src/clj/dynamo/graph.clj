@@ -690,14 +690,17 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (node-value node-id label :cache (cache) :basis (now)))
-  ([node-id label & {:as options}]
-    (let [options (cond-> options
-                    true (assoc :in-transaction? (it/in-transaction?))
-                    (not (:cache options))
-                    (assoc :cache (cache))
-                    (not (:basis options))
-                    (assoc :basis (now)))]
+   (node-value node-id label {:cache (cache) :basis (now)}))
+  ([node-id label options]
+   (let [options (cond-> options
+                   (it/in-transaction?)
+                   (assoc :in-transaction? true)
+
+                   (not (:cache options))
+                   (assoc :cache (cache))
+
+                   (not (:basis options))
+                   (assoc :basis (now)))]
       (in/node-value node-id label options))))
 
 (defn graph-value

@@ -23,7 +23,7 @@
                             data-input
                             (g/error-severe :no-connection))))
             (set (fn [basis self old-value new-value]
-                   (let [producer-store (g/node-value self :producer-store :basis basis)]
+                   (let [producer-store (g/node-value self :producer-store {:basis basis})]
                      (concat
                       (disconnect-all self :data-input)
                       (if-let [producer (get producer-store new-value)]

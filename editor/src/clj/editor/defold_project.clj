@@ -149,7 +149,7 @@
                               basis            (g/now)
                               cache            (g/cache)}
                          :as opts}]
-  (let [save-data (g/node-value project :save-data :basis basis :cache cache :skip-validation true)]
+  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
     (if-not (g/error? save-data)
       (do
         (progress/progress-mapv
@@ -159,7 +159,7 @@
          save-data
          render-progress!
          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (workspace/resource-sync! (g/node-value project :workspace :basis basis :cache cache) false [] render-progress!))
+        (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
       ;; TODO: error message somewhere...
       (println (validation/error-message save-data)))))
 
@@ -284,11 +284,11 @@
                                   cache            (g/cache)}
                            :as   opts}]
   (try
-    (let [build-cache          (g/node-value project :build-cache :basis basis :cache cache)
-          build-targets        (g/node-value node :build-targets :basis basis :cache cache)
+    (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
+          build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
           build-targets-by-key (and (not (g/error? build-targets))
                                     (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
-                                                            (g/node-value node :build-targets :basis basis :cache cache))))]
+                                                            (g/node-value node :build-targets {:basis basis :cache cache}))))]
       (if (g/error? build-targets)
         (let [[labels cause] (find-errors build-targets [])
               message        (format "Build error [%s] '%s'" (last labels) cause)]
@@ -343,11 +343,11 @@
                                           basis            (g/now)
                                           cache            (g/cache)}
                                      :as opts}]
-  (reset! (g/node-value project :build-cache :basis basis :cache cache) {})
-  (reset! (g/node-value project :fs-build-cache :basis basis :cache cache) {})
+  (reset! (g/node-value project :build-cache {:basis basis :cache cache}) {})
+  (reset! (g/node-value project :fs-build-cache {:basis basis :cache cache}) {})
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
-                                           (g/node-value project :workspace :basis basis :cache cache))))
-        fs-build-cache (g/node-value project :fs-build-cache :basis basis :cache cache)
+                                           (g/node-value project :workspace {:basis basis :cache cache}))))
+        fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
         build-results  (build project node opts)]
     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
