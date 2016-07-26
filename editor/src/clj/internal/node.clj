@@ -1142,10 +1142,11 @@
         argument-forms (merge argument-forms supplied-arguments)]
     (if (empty? argument-forms)
       `(~runtime-fnk-expr {})
-      `(let [arg-forms# ~argument-forms]
-         (if (some ie/error? (vals arg-forms#))
-           (ie/error-aggregate (filter ie/error? (vals arg-forms#)) :_node-id ~nodeid-sym :_label ~label)
-           (~runtime-fnk-expr arg-forms#))))))
+      `(let [arg-forms# ~argument-forms
+             argument-errors#  (filter-error-vals (:ignore-errors ~ctx-name) arg-forms#)]
+         (if (empty? argument-errors#)
+           (~runtime-fnk-expr arg-forms#)
+           (ie/error-aggregate argument-errors# :_node-id ~nodeid-sym :_label ~label))))))
 
 (defn collect-base-property-value
   [self-name ctx-name nodeid-sym description prop-name]
@@ -1289,10 +1290,11 @@
 (defn input-error-check [self-name ctx-name description label nodeid-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(if (some ie/error? (vals ~input-sym))
-       (ie/error-aggregate (filter ie/error? (vals ~input-sym)) :_node-id ~nodeid-sym :_label ~label)
-       (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
-         ~tail))))
+    `(let [serious-input-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
+       (if (empty? serious-input-errors#)
+         (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
+           ~tail)
+         (ie/error-aggregate serious-input-errors# :_node-id ~nodeid-sym :_label ~label)))))
 
 (defn call-production-function [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
   `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
@@ -1344,7 +1346,7 @@
     (let [validate-expr (property-validation-exprs self-name ctx-name description nodeid-sym transform)]
       `(if (or (:skip-validation ~ctx-name) (ie/error? ~output-sym))
          ~forms
-         (let [error#       ~validate-expr
+         (let [error#         ~validate-expr
                output-errors# (if error# (filter-error-vals (:ignore-errors ~ctx-name) {:_ error#}) [])]
            (if (empty? output-errors#)
              ~forms
