@@ -29,11 +29,11 @@ void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter
 }
 
 // TODO
-// 20 msec, which is in fact much higher than the expected time of the profiler
+// 30 msec, which is in fact much higher than the expected time of the profiler
 // On OSX, the time is usually a few microseconds, but once in a while the time spikes to ~0.5 ms
 // On Linux CI, the time can be as high as 16 msec
 // The timings (dmTime::BusyWait) is based around dmTime::GetTime, this issue is a revisit to improve the expected granularity: DEF-2013
-#define TOL 0.020
+#define TOL 0.030
 
 TEST(dmProfile, Profile)
 {
