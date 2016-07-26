@@ -474,6 +474,7 @@
   (let [co (protobuf/read-text Physics$CollisionObjectDesc resource)]
     (concat
      (g/set-property self
+                     :collision-shape (workspace/resolve-resource resource (:collision-shape co))
                      :type (:type co)
                      :mass (:mass co)
                      :friction (:friction co)
@@ -604,7 +605,7 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any #_:cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
