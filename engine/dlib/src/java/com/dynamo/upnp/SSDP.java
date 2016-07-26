@@ -120,6 +120,7 @@ public class SSDP implements ISSDP {
         this.logger.setLevel(Level.INFO);
     }
 
+    @Override
     public void enableLogTracing(boolean logTracing) {
         if (logTracing) {
             this.logger.setLevel(Level.FINE);
