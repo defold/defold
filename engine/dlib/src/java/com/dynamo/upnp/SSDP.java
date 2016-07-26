@@ -21,6 +21,9 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.dynamo.upnp.Request;
+import com.dynamo.upnp.Response;
+
 public class SSDP implements ISSDP {
 
     private Logger logger = Logger.getLogger(SSDP.class.getCanonicalName());
@@ -48,7 +51,7 @@ public class SSDP implements ISSDP {
             }
         }
 
-        public void disconnect() {
+        public void disconnect() throws IOException {
             if (sockets != null) {
                 for (DatagramSocket socket : sockets) {
                     if (socket != null) {
@@ -58,6 +61,7 @@ public class SSDP implements ISSDP {
                 sockets = null;
             }
             if (mcastSocket != null) {
+                mcastSocket.leaveGroup(SSDP_MCAST_ADDR);
                 mcastSocket.close();
                 mcastSocket = null;
             }
@@ -112,10 +116,16 @@ public class SSDP implements ISSDP {
 
     public SSDP() {
         buffer = new byte[1500];
-        this.logger.setLevel(Level.INFO);
-        // Uncomment to enable tracing
-        // this.logger.setLevel(Level.TRACE);
         this.connections = new ArrayList<Connection>();
+        this.logger.setLevel(Level.INFO);
+    }
+
+    public void enableLogTracing(boolean logTracing) {
+        if (logTracing) {
+            this.logger.setLevel(Level.FINE);
+        } else {
+            this.logger.setLevel(Level.INFO);
+        }
     }
 
     private void log(String msg) {
@@ -139,7 +149,7 @@ public class SSDP implements ISSDP {
         return true;
     }
 
-    private void closeConnections() {
+    private void closeConnections() throws IOException {
         for (Connection c : this.connections) {
             c.disconnect();
         }
@@ -149,6 +159,7 @@ public class SSDP implements ISSDP {
     private void registerDevice(String usn, DeviceInfo device) {
         DeviceInfo discDevice = discoveredDevices.get(usn);
         if (!device.equals(discDevice)) {
+            trace(String.format("[%s] was discovered", device.address));
             ++changeCount;
         }
         discoveredDevices.put(usn, device);
@@ -205,7 +216,7 @@ public class SSDP implements ISSDP {
         for (Entry<String, DeviceInfo> e : discoveredDevices.entrySet()) {
             DeviceInfo dev = e.getValue();
             if (now >= dev.expires) {
-                log(String.format("[%s] has expired and was removed", dev.address));
+                trace(String.format("[%s] has expired and was removed", dev.address));
                 toExpire.add(e.getKey());
             }
         }
@@ -233,7 +244,8 @@ public class SSDP implements ISSDP {
                         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                         c.mcastSocket.receive(packet);
                         String data = new String(buffer, 0, packet.getLength());
-                        handleRequest(data, packet.getAddress().getHostAddress(), c.mcastSocket.getLocalAddress().getHostAddress());
+                        InetAddress localAddress = getIPv4Addresses(c.mcastSocket.getNetworkInterface()).get(0);
+                        handleRequest(data, packet.getAddress().getHostAddress(), localAddress.getHostAddress());
                     } catch (SocketTimeoutException e) {
                         // Ignore
                         cont = false;
@@ -317,8 +329,12 @@ public class SSDP implements ISSDP {
 
     @Override
     public void dispose() {
-        closeConnections();
-        log("Stopped successfully");
+        try {
+            closeConnections();
+            log("Stopped successfully");
+        } catch (IOException e) {
+            log("Stopped with exception: " + e);
+        }
     }
 
     @Override
