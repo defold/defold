@@ -20,7 +20,7 @@ class TestDlib(unittest.TestCase):
         max_compressed_size = dlib.dmLZ4MaxCompressedSize(uncompressed_len)
         self.assertGreater(max_compressed_size, 0)
 
-        compressed = dlib.dmLZ4CompressBuffer(uncompressed, max_compressed_size)
+        compressed = dlib.dmLZ4CompressBuffer(uncompressed, uncompressed_len, max_compressed_size)
         decompressed = dlib.dmLZ4DecompressBuffer(compressed, uncompressed_len)
         self.assertEqual(decompressed, uncompressed)
 
