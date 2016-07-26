@@ -1,5 +1,6 @@
 #include <dlib/log.h>
 #include <ddf/ddf.h>
+#include <script/script.h>
 #include "tile_ddf.h"
 #include "../components/comp_tilegrid.h"
 #include "../proto/physics_ddf.h"
@@ -45,35 +46,18 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        dmhash_t name_hash;
-        if (lua_isstring(L, 2))
-        {
-            name_hash = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            name_hash = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "name must be either a hash or a string");
-        }
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
 
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::SetConstantTileMap* request = (dmGameSystemDDF::SetConstantTileMap*)buffer;
-
-        uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantTileMap);
-
-        request->m_NameHash = name_hash;
-        request->m_Value = *value;
+        dmGameSystemDDF::SetConstantTileMap msg;
+        msg.m_NameHash = name_hash;
+        msg.m_Value = *value;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg));
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -105,37 +89,16 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
-        dmhash_t name_hash;
-        if (lua_isstring(L, 2))
-        {
-            name_hash = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            name_hash = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "name must be either a hash or a string");
-        }
-
-        // TODO: Why is a separate buffer used here and not a stack-allocated dmGameSystemDDF::ResetConstantTileMap?
-        // dmGameSystemDDF::ResetConstantTileMap contains no members that require "dynamic" memory, i.e. strings
-        // See also TileMap_SetConstant
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::ResetConstantTileMap* request = (dmGameSystemDDF::ResetConstantTileMap*)buffer;
-
-        uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantTileMap);
-
-        request->m_NameHash = name_hash;
+        dmGameSystemDDF::ResetConstantTileMap msg;
+        msg.m_NameHash = name_hash;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg));
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -189,19 +152,7 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
-        dmhash_t layer_id;
-        if (lua_isstring(L, 2))
-        {
-            layer_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            layer_id = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "name must be either a hash or a string");
-        }
+        dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
@@ -302,19 +253,7 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
-        dmhash_t layer_id;
-        if (lua_isstring(L, 2))
-        {
-            layer_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            layer_id = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "name must be either a hash or a string");
-        }
+        dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
