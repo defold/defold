@@ -65,10 +65,10 @@ def dmLZ4MaxCompressedSize(uncompressed_size):
         raise Exception('dlib.LZ4MaxCompressedSize failed! Error code: ' % res)
     return mcs.value
 
-def dmLZ4CompressBuffer(buf, max_out_len):
+def dmLZ4CompressBuffer(buf, buf_len, max_out_len):
     outbuf = ctypes.create_string_buffer(max_out_len)
     outlen = ctypes.c_int()
-    res = dlib.LZ4CompressBuffer(buf, len(buf), outbuf, ctypes.byref(outlen))
+    res = dlib.LZ4CompressBuffer(buf, buf_len, outbuf, ctypes.byref(outlen))
     if res != 0:
         raise Exception('dlib.LZ4CompressBuffer failed! Error code: ' % res)
     return ctypes.string_at(outbuf.raw, outlen.value)
