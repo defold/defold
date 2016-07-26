@@ -8,7 +8,6 @@ namespace dmTime
 {
     /**
      * Sleep thread with low precision (~10 milliseconds).
-     * This function has a very low precision, expect it to be 10s of milliseconds.
      * @param useconds Time to sleep in microseconds
      */
     void Sleep(uint32_t useconds);
@@ -21,6 +20,7 @@ namespace dmTime
 
     /**
      * Busy wait thread with high precision (~10 microseconds).
+     * NOTE This function currently has low precision, see DEF-2013
      * @param useconds Time to wait in microseconds
      */
     inline void BusyWait(uint32_t useconds) {
