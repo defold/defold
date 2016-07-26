@@ -11,8 +11,6 @@ def handle_sigsegv(signum, frame):
     print(frame)
     raise IOError("Fatal error %d in native library" % signum)
 
-signal.signal(signal.SIGSEGV, handle_sigsegv)
-
 class Entry(object):
     def __init__(self, root, filename, compress):
         rel_name = os.path.relpath(filename, root)
@@ -135,6 +133,9 @@ if __name__ == '__main__':
         parser.error('Output file not specified (-o)')
 
     try:
+        print("Setting signal handler")
+        signal.signal(signal.SIGSEGV, handle_sigsegv)
+        print("Compiling")
         compile(args, options)
     except:
         # Try to remove the outfile in case of any errors
