@@ -473,20 +473,7 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    result = dmSocket::Bind(instance, address, 0);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    uint16_t port;
-    result = dmSocket::GetName(instance, &address, &port);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    result = dmSocket::Delete(instance);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
-
-    result = dmSocket::Connect(instance, address, port);
+    result = dmSocket::Connect(instance, address, 6);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
 
     // Teardown
@@ -505,20 +492,7 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    result = dmSocket::Bind(instance, address, 0);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    uint16_t port;
-    result = dmSocket::GetName(instance, &address, &port);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    result = dmSocket::Delete(instance);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
-
-    result = dmSocket::Connect(instance, address, port);
+    result = dmSocket::Connect(instance, address, 6);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
 
     // Teardown
