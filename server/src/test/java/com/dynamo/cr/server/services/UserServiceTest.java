@@ -13,6 +13,8 @@ import javax.persistence.EntityManager;
 import javax.persistence.RollbackException;
 import java.util.Date;
 
+import static org.junit.Assert.assertTrue;
+
 public class UserServiceTest {
     @Rule
     public EntityManagerRule entityManagerRule = new EntityManagerRule();
@@ -85,6 +87,7 @@ public class UserServiceTest {
         EntityManager em = entityManagerRule.getEntityManager();
         User u = ModelUtil.findUserByEmail(em, TestUser.LISA.email);
         userService.remove(u);
+        assertTrue(false);
     }
 
     private InvitationAccount newInvitationAccount(User user, int originalCount) {

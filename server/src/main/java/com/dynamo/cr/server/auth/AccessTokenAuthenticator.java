@@ -24,7 +24,7 @@ public class AccessTokenAuthenticator {
     }
 
     /**
-     * Creates a new session token that ,mnasdfwill expire if it is not used to authenticate within the
+     * Creates a new session token that ,mnasdfsadfölkwill expire if it is not used to authenticate within the
      * SESSION_PROLONG_DURATION.
      *
      * @param user User.
