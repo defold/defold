@@ -21,8 +21,6 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [plumbing.core defnk fnk])
-
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
@@ -191,6 +189,39 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
+(defn strip-alias
+  "If the list ends with :as _something_, return _something_ and the
+  list without the last two elements"
+  [argv]
+  (if (and
+       (<= 2 (count argv))
+       (= :as (nth argv (- (count argv) 2))))
+    [(last argv) (take (- (count argv) 2) argv)]
+    [nil argv]))
+
+(defmacro fnk
+  [argv & tail]
+  (let [param        (gensym "m")
+        [alias argv] (strip-alias (vec argv))
+        arglist      (interleave argv (map #(list `get param (keyword %)) argv))]
+    (if alias
+      `(with-meta
+         (fn [~param]
+           (let [~alias ~param
+                 ~@(vec arglist)]
+             ~@tail))
+         {:arguments (quote ~(mapv keyword argv))})
+      `(with-meta
+         (fn [~param]
+           (let ~(vec arglist) ~@tail))
+         {:arguments (quote ~(mapv keyword argv))}))))
+
+(defmacro defnk
+  [symb & body]
+  (let [[name args]  (ctm/name-with-attributes symb body)]
+    (assert (symbol? name) (str "Name for defnk is not a symbol:" name))
+    `(def ~name (fnk ~@args))))
+
 (defmacro always [v] `(dynamo.graph/fnk [] ~v))
 
 (defmacro deftype
@@ -703,7 +734,10 @@
                    (assoc :cache (cache))
 
                    (not (:basis options))
-                   (assoc :basis (now)))]
+                   (assoc :basis (now))
+
+                   (:no-cache options)
+                   (dissoc :cache))]
       (in/node-value node-id label options))))
 
 (defn graph-value
