@@ -100,7 +100,9 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             else if(error)
             {
                 NSLog(@"MAWE: Error: %@", error);
-                strcat( g_Facebook.m_DebugString, "MAWE: ERROR\n" );
+                strcat(g_Facebook.m_DebugString, "MAWE: ERROR: ");
+                strcat(g_Facebook.m_DebugString, [error.localizedDescription UTF8String]);
+                strcat(g_Facebook.m_DebugString, "\n");
             } else
             {
                 dmLogWarning("MAWE: No app link found");
@@ -140,6 +142,8 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             strcat(g_Facebook.m_DebugString, ": ");
             strcat(g_Facebook.m_DebugString, [[launchOptions objectForKey:key] UTF8String] );
             strcat(g_Facebook.m_DebugString, "\n");
+
+            dmLogWarning("MAWE: FACEBOOK option: %s : %s", [key UTF8String], [[launchOptions objectForKey:key] UTF8String]);
         }
         //strcat(g_Facebook.m_DebugString, "URL\n");
         //strcat(g_Facebook.m_DebugString, [[[launchOptions valueForKey:UIApplicationLaunchOptionsURLKey] absoluteString] UTF8String] );
