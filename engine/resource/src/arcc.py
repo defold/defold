@@ -7,10 +7,6 @@ ENCRYPTED_EXTS = [".luac", ".scriptc", ".gui_scriptc", ".render_scriptc"]
 KEY = "aQj8CScgNP4VsfXK"
 VERSION = 4
 
-def handle_sigsegv(signum, frame):
-    print(frame)
-    raise IOError("Fatal error %d in native library" % signum)
-
 class Entry(object):
     def __init__(self, root, filename, compress):
         rel_name = os.path.relpath(filename, root)
@@ -22,7 +18,7 @@ class Entry(object):
         if compress == True:
             tmp_buf = f.read()
             max_compressed_size = dlib.dmLZ4MaxCompressedSize(size)
-            self.resource = dlib.dmLZ4CompressBuffer(tmp_buf, max_compressed_size)
+            self.resource = dlib.dmLZ4CompressBuffer(tmp_buf, size, max_compressed_size)
             self.compressed_size = len(self.resource)
             # Store uncompressed if gain is less than 5%
             # We believe that the shorter load time will compensate in this case.
@@ -133,9 +129,6 @@ if __name__ == '__main__':
         parser.error('Output file not specified (-o)')
 
     try:
-        print("Setting signal handler")
-        signal.signal(signal.SIGSEGV, handle_sigsegv)
-        print("Compiling")
         compile(args, options)
     except:
         # Try to remove the outfile in case of any errors
