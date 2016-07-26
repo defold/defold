@@ -173,12 +173,10 @@
       (is (not= (get-in (g/node-value tmpl-node :scene) path)
                 (get-in (g/node-value original-template :scene) path))))))
 
-(defn- drag-pull-outline! [scene-id node-id]
-  (let [curr-pos (g/node-value node-id :position)
-        curr-pos (update-in curr-pos [0] inc)]
-    (g/set-property! node-id :position curr-pos)
-    (g/node-value scene-id :scene)
-    (g/node-value scene-id :node-outline)))
+(defn- drag-pull-outline! [scene-id node-id i]
+  (g/set-property! node-id :position [i 0 0])
+  (g/node-value scene-id :scene)
+  (g/node-value scene-id :node-outline))
 
 (defn- clock []
   (/ (System/nanoTime) 1000000.0))
@@ -210,12 +208,12 @@
                    app-view (test-util/setup-app-view!)
                    node-id (test-util/resource-node project "/gui/scene.gui")
                    box (gui-node node-id "sub_scene/sub_box")]
-               (bench/bench (drag-pull-outline! node-id box))
+               ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
-#_               (dotimes [i 20]
+               (dotimes [i 20]
                  (drag-pull-outline! node-id box i))
                ;; GO!
-  #_             (let [elapsed (measure [i 500]
+               (let [elapsed (measure [i 500]
                                       (drag-pull-outline! node-id box i))]
                  (is (< elapsed 12)))))))
 
