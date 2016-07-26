@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
+            [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
@@ -49,6 +50,7 @@
       (g/transact
        (concat
         (collection/register-resource-types workspace)
+        (collision-object/register-resource-types workspace)
         (font/register-resource-types workspace)
         (game-object/register-resource-types workspace)
         (game-project/register-resource-types workspace)

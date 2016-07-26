@@ -25,6 +25,48 @@ public class SSDP implements ISSDP {
         void log(String msg);
     }
 
+    private class Connection {
+
+        public boolean connect(NetworkInterface networkInterface) throws IOException {
+            List<InetAddress> addresses = getIPv4Addresses(networkInterface);
+            if (!addresses.isEmpty()) {
+                mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
+                mcastSocket.setNetworkInterface(networkInterface);
+                mcastSocket.joinGroup(SSDP_MCAST_ADDR);
+                mcastSocket.setSoTimeout(1);
+                mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
+                sockets = new ArrayList<DatagramSocket>();
+                for (InetAddress a : addresses) {
+                    DatagramSocket socket = new DatagramSocket(0, a);
+                    socket.setSoTimeout(1);
+                    sockets.add(socket);
+                }
+                log(String.format("Connected to multicast network %s: %s", networkInterface.getDisplayName(), addresses.toString()));
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        public void disconnect() {
+            if (sockets != null) {
+                for (DatagramSocket socket : sockets) {
+                    if (socket != null) {
+                        socket.close();
+                    }
+                }
+                sockets = null;
+            }
+            if (mcastSocket != null) {
+                mcastSocket.close();
+                mcastSocket = null;
+            }
+        }
+
+        private MulticastSocket mcastSocket;
+        private List<DatagramSocket> sockets;
+    }
+
     private static final String SSDP_MCAST_ADDR_IP = "239.255.255.250";
     private static final int SSDP_MCAST_PORT = 1900;
     private static final int SSDP_MCAST_TTL = 4;
@@ -33,8 +75,7 @@ public class SSDP implements ISSDP {
     private Logger logger;
     private InetAddress SSDP_MCAST_ADDR;
     private List<NetworkInterface> interfaces;
-    private MulticastSocket mcastSocket;
-    private List<DatagramSocket> sockets;
+    private List<Connection> connections;
     private byte[] buffer;
     private Map<String, DeviceInfo> discoveredDevices = new HashMap<String, DeviceInfo>();
     private int changeCount = 0;
@@ -73,6 +114,7 @@ public class SSDP implements ISSDP {
     public SSDP(Logger logger) {
         this.logger = logger;
         buffer = new byte[1500];
+        this.connections = new ArrayList<Connection>();
     }
 
     private void log(String msg) {
@@ -83,6 +125,7 @@ public class SSDP implements ISSDP {
         try {
             SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
             log("Started successfully");
+            refreshNetworks();
         } catch (UnknownHostException e) {
             log("Fatal error: " + SSDP_MCAST_ADDR_IP);
             return false;
@@ -90,17 +133,11 @@ public class SSDP implements ISSDP {
         return true;
     }
 
-    private void closeSockets() {
-        if (sockets != null) {
-            for (DatagramSocket socket : sockets) {
-                socket.close();
-            }
-            sockets.clear();
+    private void closeConnections() {
+        for (Connection c : this.connections) {
+            c.disconnect();
         }
-        if (mcastSocket != null) {
-            mcastSocket.close();
-            mcastSocket = null;
-        }
+        this.connections.clear();
     }
 
     private void registerDevice(String usn, DeviceInfo device) {
@@ -114,51 +151,44 @@ public class SSDP implements ISSDP {
     private void refreshNetworks() throws IOException {
         List<NetworkInterface> newInterfaces = getMCastInterfaces();
         if (!newInterfaces.equals(this.interfaces)) {
+            this.interfaces = newInterfaces;
             clearDiscovered();
             SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
-            for (NetworkInterface i : newInterfaces) {
-                closeSockets();
+            closeConnections();
+            for (NetworkInterface i : this.interfaces) {
+                Connection c = new Connection();
                 try {
-                    mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
-                    mcastSocket.setNetworkInterface(i);
-                    mcastSocket.joinGroup(SSDP_MCAST_ADDR);
-                    mcastSocket.setSoTimeout(1);
-                    mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
-                    sockets = new ArrayList<DatagramSocket>();
-                    List<InetAddress> addresses = getIPv4Addresses(i);
-                    for (InetAddress a : addresses) {
-                        DatagramSocket socket = new DatagramSocket(0, a);
-                        socket.setSoTimeout(1);
-                        sockets.add(socket);
+                    if (c.connect(i)) {
+                        this.connections.add(c);
                     }
-                    log(String.format("Connected to multicast network %s: %s", i.getDisplayName(), addresses.toString()));
-                    this.interfaces = newInterfaces;
-                    break;
                 } catch (IOException e) {
                     log("Could not connect: " + e.getMessage());
-                    closeSockets();
+                    c.disconnect();
                 }
             }
         }
     }
 
     private void sendSearch() throws IOException {
-        if (mcastSocket != null) {
-            byte[] buf = M_SEARCH_PAYLOAD.getBytes();
-            DatagramPacket p = new DatagramPacket(buf, buf.length, SSDP_MCAST_ADDR,
-                    SSDP_MCAST_PORT);
-            log("Searching for devices");
-            for (DatagramSocket s : sockets) {
-                try {
-                    s.send(p);
-                } catch (IOException e) {
-                    log(String.format("Searching failed on %s: %s", s.getLocalAddress(), e.getMessage()));
-                    // Might get no route to host etc on an interface, but
-                    // that is no good reason to stop searching there, so just
-                    // ignore and continue with next interface.
+        for (Connection c : this.connections) {
+            if (c.mcastSocket != null) {
+                byte[] buf = M_SEARCH_PAYLOAD.getBytes();
+                DatagramPacket p = new DatagramPacket(buf, buf.length, SSDP_MCAST_ADDR,
+                        SSDP_MCAST_PORT);
+                log("Searching for devices");
+                for (DatagramSocket s : c.sockets) {
+                    try {
+                        s.send(p);
+                    } catch (IOException e) {
+                        log(String.format("Searching failed on %s: %s", s.getLocalAddress(), e.getMessage()));
+                        // Might get no route to host etc on an interface, but
+                        // that is no good reason to stop searching there, so just
+                        // ignore and continue with next interface.
+                    }
                 }
             }
-        } else {
+        }
+        if (this.connections.isEmpty()) {
             log("Could not find a multicast network");
         }
     }
@@ -189,39 +219,41 @@ public class SSDP implements ISSDP {
 
         expireDiscovered();
 
-        if (mcastSocket != null) {
-            boolean cont = true;
-            do {
-                try {
-                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                    mcastSocket.receive(packet);
-                    String data = new String(buffer, 0, packet.getLength());
-                    handleRequest(data, packet.getAddress().getHostAddress());
-                } catch (SocketTimeoutException e) {
-                    // Ignore
-                    cont = false;
-                }
-            } while (cont);
-            cont = true;
-            do {
-                for (DatagramSocket socket : sockets) {
+        for (Connection c : this.connections) {
+            if (c.mcastSocket != null) {
+                boolean cont = true;
+                do {
                     try {
                         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                        socket.receive(packet);
+                        c.mcastSocket.receive(packet);
                         String data = new String(buffer, 0, packet.getLength());
-                        handleResponse(data, packet.getAddress().getHostAddress());
-
+                        handleRequest(data, packet.getAddress().getHostAddress(), c.mcastSocket.getLocalAddress().getHostAddress());
                     } catch (SocketTimeoutException e) {
                         // Ignore
                         cont = false;
                     }
-                }
-            } while (cont);
+                } while (cont);
+                cont = true;
+                do {
+                    for (DatagramSocket socket : c.sockets) {
+                        try {
+                            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                            socket.receive(packet);
+                            String data = new String(buffer, 0, packet.getLength());
+                            handleResponse(data, packet.getAddress().getHostAddress(), socket.getLocalAddress().getHostAddress());
+
+                        } catch (SocketTimeoutException e) {
+                            // Ignore
+                            cont = false;
+                        }
+                    }
+                } while (cont);
+            }
         }
         return changeCount != oldChangeCount;
     }
 
-    private void handleRequest(String data, String address) {
+    private void handleRequest(String data, String address, String localAddress) {
         Request request = Request.parse(data);
         if (request == null) {
             log(String.format("[%s] Invalid request: %s", address, data));
@@ -231,7 +263,7 @@ public class SSDP implements ISSDP {
         if (request.method.equals("NOTIFY")) {
             String usn = request.headers.get("USN");
             if (usn != null || !request.headers.containsKey("NTS")) {
-                DeviceInfo device = DeviceInfo.create(request.headers, address);
+                DeviceInfo device = DeviceInfo.create(request.headers, address, localAddress);
                 // alive vs byebye in NTS field?
                 String nts = request.headers.get("NTS");
                 if (nts.equals("ssdp:alive")) {
@@ -249,7 +281,7 @@ public class SSDP implements ISSDP {
         // We ignore M-SEARCH requests
     }
 
-    private void handleResponse(String data, String address) {
+    private void handleResponse(String data, String address, String localAddress) {
         Response response = Response.parse(data);
         if (response == null) {
             log(String.format("[%s] Invalid response: %s", address, data));
@@ -259,7 +291,7 @@ public class SSDP implements ISSDP {
         if (response.statusCode == 200) {
             String usn = response.headers.get("USN");
             if (usn != null) {
-                DeviceInfo device = DeviceInfo.create(response.headers, address);
+                DeviceInfo device = DeviceInfo.create(response.headers, address, localAddress);
                 registerDevice(usn, device);
             } else {
                 log(String.format("[%s] Malformed response: %s", address, data));
@@ -279,7 +311,7 @@ public class SSDP implements ISSDP {
 
     @Override
     public void dispose() {
-        closeSockets();
+        closeConnections();
         log("Stopped successfully");
     }
 
@@ -290,19 +322,11 @@ public class SSDP implements ISSDP {
 
     @Override
     public boolean isConnected() {
-        return mcastSocket != null && !mcastSocket.isClosed();
-    }
-
-    @Override
-    public List<String> getIPs() {
-        if (sockets != null) {
-            List<String> ips = new ArrayList<String>(sockets.size());
-            for (DatagramSocket s : sockets) {
-                ips.add(s.getLocalAddress().getHostAddress());
+        for (Connection c : this.connections) {
+            if (!c.mcastSocket.isClosed()) {
+                return true;
             }
-            return ips;
-        } else {
-            return null;
         }
+        return false;
     }
 }

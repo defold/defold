@@ -319,30 +319,33 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms]  (ctm/name-with-attributes symb body)
-        fqs           (symbol (str *ns*) (str symb))
-        node-type-def (in/process-node-type-forms fqs forms)
-        fn-paths      (in/extract-functions node-type-def)
-        fn-defs       (for [[path func] fn-paths]
-                        (list `def (in/dollar-name symb path) func))
-        fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
-        node-type-def (util/update-paths node-type-def fn-paths
-                                         (fn [path func curr]
-                                           (assoc curr :fn (var-it (in/dollar-name symb path)))))
-        node-key      (:key node-type-def)
-        derivations   (for [tref (:supertypes node-type-def)]
-                        `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
-                           (derive ~node-key ~(:key (deref tref)))))
-        node-type-def (update node-type-def :supertypes #(list `quote %))
-        runtime-definer (symbol (str symb "*"))]
-    `(do
-       (declare ~symb)
-       ~@fwd-decls
-       ~@fn-defs
-       (defn ~runtime-definer [] ~node-type-def)
-       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-       ~@derivations
-       (var ~symb))))
+  (binding [in/*autotypes* (atom {})]
+    (let [[symb forms]  (ctm/name-with-attributes symb body)
+          fqs           (symbol (str *ns*) (str symb))
+          node-type-def (in/process-node-type-forms fqs forms)
+          fn-paths      (in/extract-functions node-type-def)
+          fn-defs       (for [[path func] fn-paths]
+                          (list `def (in/dollar-name symb path) func))
+          fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
+          node-type-def (util/update-paths node-type-def fn-paths
+                                           (fn [path func curr]
+                                             (assoc curr :fn (var-it (in/dollar-name symb path)))))
+          node-key      (:key node-type-def)
+          derivations   (for [tref (:supertypes node-type-def)]
+                          `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                             (derive ~node-key ~(:key (deref tref)))))
+          node-type-def (update node-type-def :supertypes #(list `quote %))
+          runtime-definer (symbol (str symb "*"))
+          type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
+      `(do
+         (declare ~symb)
+         ~@type-regs
+         ~@fwd-decls
+         ~@fn-defs
+         (defn ~runtime-definer [] ~node-type-def)
+         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+         ~@derivations
+         (var ~symb)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
