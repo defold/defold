@@ -21,7 +21,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas false))
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
 (def ^:dynamic *node-value-debug* nil)
 
