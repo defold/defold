@@ -19,6 +19,7 @@
             [editor.game-project-core :as gpc]
             [service.log :as log]
             [editor.graph-util :as gu]
+            [util.http-server :as http-server]
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
@@ -142,7 +143,7 @@
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn save-data [project]
-  (g/node-value project :save-data :skip-validation true))
+  (g/node-value project :save-data {:skip-validation true}))
 
 (defn save-all [project {:keys [render-progress! basis cache]
                          :or {render-progress! progress/null-render-progress!
@@ -256,7 +257,7 @@
      cache
      (let [node (:node-id target)
            dep-resources (into {} (map #(let [resource (:resource %)
-                                              key (target-key %)] [resource (:resource (get all-targets key))]) (:deps target)))
+                                              key (target-key %)] [resource (:resource (get all-targets key))]) (flatten (:deps target))))
            result ((:build-fn target) node basis resource dep-resources (:user-data target))
            result (assoc result :key key)]
        (swap! build-cache assoc resource (assoc result :cached true))
@@ -278,6 +279,20 @@
       (recur (first causes) labels)
       [(remove nil? labels) user-data])))
 
+(defn- build-targets-deep [build-targets]
+  (loop [targets build-targets
+         queue []
+         seen #{}
+         result []]
+    (if-let [t (first targets)]
+      (let [key (target-key t)]
+        (if (contains? seen key)
+          (recur (rest targets) queue seen result)
+          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj result t))))
+      (if-let [targets (first queue)]
+        (recur targets (rest queue) seen result)
+        result))))
+
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
                                   basis            (g/now)
@@ -287,8 +302,9 @@
     (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
           build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
           build-targets-by-key (and (not (g/error? build-targets))
-                                    (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
-                                                            (g/node-value node :build-targets {:basis basis :cache cache}))))]
+                                    (->> (g/node-value node :build-targets {:basis basis :cache cache})
+                                      build-targets-deep
+                                      targets-by-key))]
       (if (g/error? build-targets)
         (let [[labels cause] (find-errors build-targets [])
               message        (format "Build error [%s] '%s'" (last labels) cause)]
@@ -400,9 +416,10 @@
                               :command :fetch-libraries}
                              {:label :separator}
                              {:label "Target"
+                              :on-submenu-open targets/update!
                               :command :target}
-                             {:label "Restart Target Discovery"
-                              :command :target-restart}
+                             {:label "Enter Target IP"
+                              :command :target-ip}
                              {:label "Target Discovery Log"
                               :command :target-log}]}])
 
@@ -565,56 +582,51 @@
               (update-system-cache! old-cache-val cache)))
           (finally (reset! ongoing-build-save? false)))))))
 
-(def ^:private selected-target (atom nil))
-
 (defn get-selected-target [prefs]
-  (let [targets     (targets/get-targets)
-        last-target (prefs/get-prefs prefs "last-target" nil)]
-    (cond
-      (and @selected-target (contains? targets @selected-target))
-      @selected-target
-
-      (and last-target (contains? targets last-target))
-      last-target
-
-      :else
-      targets/local-target)))
+  (prefs/get-prefs prefs "last-target" targets/local-target))
 
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
   (run [project prefs web-server]
-    (let [build  (build-and-save-project project)
-          target (get-selected-target prefs)]
+    (let [build  (build-and-save-project project)]
       (when (and (future? build) @build)
-        (or (engine/reboot (:url target) web-server hot-reload-url-prefix)
+        (or (when-let [target (get-selected-target prefs)]
+              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
+                (engine/reboot (:url target) local-url)))
             (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
   (run [user-data prefs]
     (when user-data
-      (prefs/set-prefs prefs "last-target" user-data)
-      (reset! selected-target user-data)))
+      (prefs/set-prefs prefs "last-target" user-data)))
   (state [user-data prefs]
-        (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-          (or (= user-data @selected-target)
-              (= user-data last-target))))
-  (options [user-data]
+         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+           (= user-data last-target)))
+  (options [user-data prefs]
            (when-not user-data
-             (let [targets (targets/get-targets)]
+             (let [targets     (targets/get-targets)
+                   last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
+                                 [lt])]
                (mapv (fn [target]
-                       {:label     (:name target)
-                        :command   :target
-                        :check     true
-                        :user-data target})
-                     targets)))))
+                       (let [[_ _ ip] (re-matches #"^(http://)([\w\.]+)(:)(.*)$" (:url target))]
+                         {:label     (format "%s (%s)" (:name target) ip)
+                          :command   :target
+                          :check     true
+                          :user-data target}))
+                     (distinct (concat last-target targets)))))))
+
+(handler/defhandler :target-ip :global
+  (run [prefs]
+    (ui/run-later
+     (when-let [ip (dialogs/make-target-ip-dialog)]
+       (let [url (format "http://%s:8001" ip)]
+         (prefs/set-prefs prefs "last-target" {:name "Manual IP"
+                                               :url  url})
+         (ui/invalidate-menus!))))))
 
 (handler/defhandler :target-log :global
   (run []
     (ui/run-later (targets/make-target-log-dialog))))
-
-(handler/defhandler :target-restart :global
-  (run []
-    (ui/run-later (targets/restart))))
 
 (defn settings [project]
   (g/node-value project :settings))

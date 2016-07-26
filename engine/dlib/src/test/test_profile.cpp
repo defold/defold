@@ -28,8 +28,12 @@ void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter
     (*counters)[std::string(counter->m_Counter->m_Name)] = counter;
 }
 
-// TODO: TOL increased due to valgrind... Command line option or detect valgrind.
-#define TOL (60.0 / 1000.0)
+// TODO
+// 30 msec, which is in fact much higher than the expected time of the profiler
+// On OSX, the time is usually a few microseconds, but once in a while the time spikes to ~0.5 ms
+// On Linux CI, the time can be as high as 16 msec
+// The timings (dmTime::BusyWait) is based around dmTime::GetTime, this issue is a revisit to improve the expected granularity: DEF-2013
+#define TOL 0.030
 
 TEST(dmProfile, Profile)
 {
@@ -42,33 +46,33 @@ TEST(dmProfile, Profile)
             dmProfile::Release(profile);
             {
                 DM_PROFILE(A, "a")
-                dmTime::Sleep(100000);
+                dmTime::BusyWait(100000);
                 {
                     {
                         DM_PROFILE(B, "a_b1")
-                        dmTime::Sleep(50000);
+                        dmTime::BusyWait(50000);
                         {
                             DM_PROFILE(C, "a_b1_c")
-                            dmTime::Sleep(40000);
+                            dmTime::BusyWait(40000);
                         }
                     }
                     {
                         DM_PROFILE(B, "b2")
-                        dmTime::Sleep(50000);
+                        dmTime::BusyWait(50000);
                         {
                             DM_PROFILE(C, "a_b2_c1")
-                            dmTime::Sleep(40000);
+                            dmTime::BusyWait(40000);
                         }
                         {
                             DM_PROFILE(C, "a_b2_c2")
-                            dmTime::Sleep(60000);
+                            dmTime::BusyWait(60000);
                         }
                     }
                 }
             }
             {
                 DM_PROFILE(D, "a_d")
-                dmTime::Sleep(80000);
+                dmTime::BusyWait(80000);
             }
         }
 
@@ -133,10 +137,10 @@ TEST(dmProfile, Nested)
             dmProfile::Release(profile);
             {
                 DM_PROFILE(A, "a")
-                dmTime::Sleep(50000);
+                dmTime::BusyWait(50000);
                 {
                     DM_PROFILE(A, "a_nest")
-                    dmTime::Sleep(50000);
+                    dmTime::BusyWait(50000);
                 }
             }
         }

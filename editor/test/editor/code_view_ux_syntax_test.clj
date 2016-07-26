@@ -87,7 +87,9 @@
          (is (= ["if cond then\n\t--do things\nend"] (map :insert-string result)))))
       (testing "global defold package"
         (set-code-and-caret! source-viewer "go")
-        (is (= ["go"] (map :name (propose source-viewer)))))
+        (is (= ["go"] (map :name (propose source-viewer))))
+        (set-code-and-caret! source-viewer "vm")
+        (is (= ["vmath"] (map :name (propose source-viewer)))))
       (testing "global lua std lib package"
         (set-code-and-caret! source-viewer "mat")
         (is (= ["math"] (map :name (propose source-viewer)))))
@@ -115,6 +117,13 @@
       (testing "global function"
         (set-code-and-caret! source-viewer "function ice_cream(x,y) return x end\n ice")
         (is (= ["ice_cream"] (map :name (propose source-viewer)))))
+      (testing "var after a scoped function"
+        (set-code-and-caret! source-viewer "self.velocity = vm")
+        (is (= ["vmath"] (map :name (propose source-viewer)))))
+      (testing "proposal at the start of the line"
+        (set-code-and-caret! source-viewer "go.propert = vm")
+        (caret! source-viewer 10 false)
+        (is (= ["go.property"] (map :name (propose source-viewer)))))
       (testing "requires"
         (with-redefs [code-completion/resource-node-path (constantly "/mymodule.lua")]
           (let [module-code "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
@@ -167,7 +176,23 @@
         (let [code "   assert(math.a"]
           (set-code-and-caret! source-viewer code)
           (do-proposal-replacement source-viewer {:insert-string "math.abs()"})
-          (is (= "   assert(math.abs()" (text source-viewer))))))))
+          (is (= "   assert(math.abs()" (text source-viewer)))))
+      (testing "with replacement at end of line with scoped before"
+        (let [code "    go.set_prop = vma"]
+          (set-code-and-caret! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "vmath"})
+          (is (= "    go.set_prop = vmath" (text source-viewer)))))
+      (testing "with replacement not at end of line with"
+        (let [code "vmat = go.set"]
+          (set-code-and-caret! source-viewer code)
+          (caret! source-viewer 4 false)
+          (do-proposal-replacement source-viewer {:insert-string "vmath"})
+          (is (= "vmath = go.set" (text source-viewer)))))
+      (testing "with replacement with simlar spelling"
+        (let [code "vmatches = vm"]
+          (set-code-and-caret! source-viewer code)
+          (do-proposal-replacement source-viewer {:insert-string "vmath"})
+          (is (= "vmatches = vmath" (text source-viewer))))))))
 
 (defn- propose! [source-viewer]
   (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -182,6 +207,10 @@
         (set-code-and-caret! source-viewer "math.ab")
         (propose! source-viewer)
         (is (= "math.abs(x)" (text source-viewer))))
+      (testing "single result of defold lib gets automatically inserted"
+        (set-code-and-caret! source-viewer "vmat")
+        (propose! source-viewer)
+        (is (= "vmath" (text source-viewer))))
       (testing "proper indentation is put in"
         (set-code-and-caret! source-viewer "function foo(x)\n\tif")
         (propose! source-viewer)
@@ -224,8 +253,6 @@
         (set-code-and-caret! source-viewer "go.delete_all")
         (propose! source-viewer)
         (is (= "go.delete_all()" (text source-viewer)))
-        (is (= "" (text-selection source-viewer)))
-        (tab! source-viewer)
         (is (= "" (text-selection source-viewer)))
         (is (= 15 (caret source-viewer))))
       (testing "with typing for arg values"

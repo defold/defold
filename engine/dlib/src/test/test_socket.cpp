@@ -462,17 +462,35 @@ TEST(Socket, Connect_IPv6_ThreadServer)
     dmThread::Join(thread);
 }
 
+static void RefusingServerThread(void* arg)
+{
+    dmSocket::Socket* server = (dmSocket::Socket*)arg;
+    dmSocket::Socket client;
+    dmSocket::Address client_address;
+    if (dmSocket::RESULT_OK == dmSocket::Accept(*server, &client_address, &client)) {
+        dmSocket::Delete(client);
+    }
+    dmSocket::Delete(*server);
+}
+
 TEST(Socket, Connect_IPv4_ConnectionRefused)
 {
+    dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV4);
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
     ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Address address;
-    uint16_t port = 47204; // We just assume that this port is not listening...
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    result = dmSocket::Bind(server, address, 0);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    uint16_t port;
+    result = dmSocket::GetName(server, &address, &port);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    dmThread::Thread thread = dmThread::New(&RefusingServerThread, 0x80000, (void *) &server, "server");
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
@@ -480,19 +498,28 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     // Teardown
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    dmThread::Join(thread);
 }
 
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
+    dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV6);
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
     ASSERT_NE(-1, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
     dmSocket::Address address;
-    uint16_t port = 47204; // We just assume that this port is not listening...
 
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    result = dmSocket::Bind(server, address, 0);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    uint16_t port;
+    result = dmSocket::GetName(server, &address, &port);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    dmThread::Thread thread = dmThread::New(&RefusingServerThread, 0x80000, (void *) &server, "server");
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
@@ -500,6 +527,8 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
     // Teardown
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    dmThread::Join(thread);
 }
 
 // Listen

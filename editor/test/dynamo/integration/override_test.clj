@@ -600,7 +600,7 @@
   (property component g/Any
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [instance (g/node-value self :instance {:basis} basis)]
+                     (if-let [instance (g/node-value self :instance {:basis basis})]
                        (g/delete-node instance)
                        [])
                      (let [gid (g/node-id->graph-id self)

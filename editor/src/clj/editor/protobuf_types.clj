@@ -68,13 +68,6 @@
                :icon "icons/32/Icons_21-Light.png"
                :pb-class GameSystem$LightDesc
                :tags #{:component}}
-              {:ext "collisionobject"
-               :label "Collision Object"
-               ; TODO - missing icon
-               :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
-               :pb-class Physics$CollisionObjectDesc
-               :resources-fields [:collision_shape]
-               :tags #{:component}}
               {:ext "gamepads"
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"

@@ -88,7 +88,7 @@
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                    (.getName parameter))]
-      {:select (remove #(= \[ (first %)) params)})))
+      {:select (remove #(= \[ (first %)) params) :exit (when params ")")})))
 
 (defn defold-documentation []
   (reduce
@@ -99,7 +99,7 @@
                                                                           (element-display-string e false)
                                                                           (element-additional-info e)
                                                                           (element-tab-triggers e))) elements)))]
-       (if (= "" ns) new-result (assoc new-result "" (conj global-results {:name ns :display-string ns :doc ""})))))
+       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint ns))))))
    {}
    (load-documentation)))
 
@@ -118,7 +118,7 @@
                    item
                    insert-string
                    ""
-                   {:select tab-triggers})))
+                   {:select tab-triggers :exit (when tab-triggers ")")})))
         completions (group-by #(let [names (string/split (:name %) #"\.")]
                                          (if (= 2 (count names)) (first names) "")) hints)
         package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
