@@ -17,14 +17,15 @@
 
 (defonce ^:const local-target
   {:name "Local"
-   :url  "http://localhost:8001"})
+   :url  "http://localhost:8001"
+   :local-address "localhost"})
 (defonce ^:private targets (atom #{local-target}))
 (defonce ^:private descriptions (atom {}))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
-(defonce ^:private active-ips (atom nil))
 (defonce ^:private worker (atom nil))
 (defonce ^:private event-log (atom []))
+(defonce ^:private ssdp-service (atom nil))
 
 (def ^:const search-interval-disconnected (* 5 1000))
 (def ^:const search-interval-connected (* 30 1000))
@@ -50,7 +51,7 @@
        :content
        first))
 
-(defn- desc->target [desc]
+(defn- desc->target [desc local-address]
   (when-let [tags (and (= {:xmlns:defold "urn:schemas-defold-com:DEFOLD-1-0", :xmlns "urn:schemas-upnp-org:device-1-0"}
                           (:attrs desc))
                        (->> desc :content (filter #(= :device (:tag %))) first :content))]
@@ -59,7 +60,8 @@
        :model    (tag->val :modelName tags)
        :udn      (tag->val :UDN tags)
        :url      (tag->val :defold:url tags)
-       :log-port (tag->val :defold:logPort tags)})))
+       :log-port (tag->val :defold:logPort tags)
+       :local-address local-address})))
 
 (defn- log [message]
   (swap! event-log (fn [xs]
@@ -84,7 +86,7 @@
                             desc                (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
                                                      (catch Exception _
                                                        (log (format "[%s] error parsing XML description" loc))))
-                            target              (desc->target desc)]
+                            target              (desc->target desc (.localAddress device))]
 
                         (when-not target
                           (log (format "[%s] not a Defold target" url)))
@@ -123,30 +125,33 @@
     search-interval-disconnected))
 
 (defn- targets-worker []
-  (let [ssdp-service (SSDP. (reify SSDP$Logger
-                              (log [this msg] (log msg))))]
+  (let [ssdp-service' (SSDP. (reify SSDP$Logger
+                               (log [this msg] (log msg))))]
     (try
-      (if (.setup ssdp-service)
-        (while @running
-          (Thread/sleep 200)
-          (let [now      (System/currentTimeMillis)
-                search?  (>= now (+ @last-search (search-interval ssdp-service)))
-                changed? (.update ssdp-service search?)]
-            (reset! active-ips (.getIPs ssdp-service))
-            (when search?
-              (reset! last-search now))
-            (when (or search? changed?)
-              (update-targets! (.getDevices ssdp-service)))))
+      (if (.setup ssdp-service')
         (do
-          (reset! running false)
-          (reset! active-ips nil)))
+          (reset! ssdp-service ssdp-service')
+          (while @running
+            (Thread/sleep 200)
+            (let [now      (System/currentTimeMillis)
+                  search?  (>= now (+ @last-search (search-interval ssdp-service')))
+                  changed? (.update ssdp-service' search?)]
+              (when search?
+                (reset! last-search now))
+              (when (or search? changed?)
+                (update-targets! (.getDevices ssdp-service'))))))
+        (do
+          (reset! running false)))
       (catch Exception e
         (prn e))
       (finally
-        (.dispose ssdp-service)))))
+        (.dispose ssdp-service')
+        (reset! ssdp-service nil)))))
 
 (defn update! []
-  (reset! last-search 0))
+  (when-let [^SSDP ss @ssdp-service]
+    (update-targets! (.getDevices ss))
+    (reset! last-search (System/currentTimeMillis))))
 
 (defn start []
   (when (not @running)
@@ -174,13 +179,14 @@
                       (.setAlwaysOnTop true)
                       (.initOwner (ui/main-stage)))
         scene       (Scene. root)
-        controls    (ui/collect-controls root ["message" "ok" "clear"])
+        controls    (ui/collect-controls root ["message" "ok" "clear" "restart"])
         get-message (fn [log] (apply str (interpose "\n" log)))]
     (dialogs/observe-focus stage)
     (ui/title! stage "Target Discovery Log")
     (ui/text! (:message controls) (get-message @event-log))
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
     (ui/on-action! (:clear controls) (fn [_] (reset! event-log [])))
+    (ui/on-action! (:restart controls) (fn [_] (restart)))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event
@@ -204,6 +210,3 @@
     (ui/on-hiding! stage (fn [_]
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
-
-(defn current-ip []
-  (first @active-ips))

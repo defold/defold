@@ -20,8 +20,12 @@ public class Splash {
     private Scene scene;
     private StringProperty launchError = new SimpleStringProperty();
     private BooleanProperty errorShowing = new SimpleBooleanProperty(false);
+    private BooleanProperty showing = new SimpleBooleanProperty(false);
 
     public Splash() throws IOException {
+    }
+
+    public void show() throws IOException {
         Object root = FXMLLoader.load(this.getClass().getResource("/splash.fxml"));
         scene = new Scene((Parent) root);
         stage = new Stage();
@@ -38,6 +42,7 @@ public class Splash {
                 System.exit(1);
             });
 
+        showing.bind(stage.showingProperty());
         stage.show();
     }
 
@@ -69,4 +74,7 @@ public class Splash {
         return errorShowing;
     }
 
+    public BooleanProperty showingProperty() {
+        return showing;
+    }
 }

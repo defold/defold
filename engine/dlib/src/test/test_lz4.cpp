@@ -86,7 +86,7 @@ TEST(dmLZ4, Stress)
     for (int i = 0; i < 100; ++i) {
         int ref_len;
         char *ref = RandomCharArray(max_size, &ref_len);
-        int max_compressed_size, compressed_size, decompressed_size;
+        int max_compressed_size, compressed_size;
         dmLZ4::Result r = dmLZ4::MaxCompressedSize(ref_len, &max_compressed_size);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
 

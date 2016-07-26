@@ -1,11 +1,15 @@
 #! /usr/bin/env python
 
-import stat, os, sys, struct, dlib
+import stat, os, sys, struct, dlib, signal
 from optparse import OptionParser
 
 ENCRYPTED_EXTS = [".luac", ".scriptc", ".gui_scriptc", ".render_scriptc"]
 KEY = "aQj8CScgNP4VsfXK"
 VERSION = 4
+
+def handle_sigsegv(signum, frame):
+    print(frame)
+    raise IOError("Fatal error %d in native library" % signum)
 
 class Entry(object):
     def __init__(self, root, filename, compress):
@@ -129,6 +133,9 @@ if __name__ == '__main__':
         parser.error('Output file not specified (-o)')
 
     try:
+        print("Setting signal handler")
+        signal.signal(signal.SIGSEGV, handle_sigsegv)
+        print("Compiling")
         compile(args, options)
     except:
         # Try to remove the outfile in case of any errors
