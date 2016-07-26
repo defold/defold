@@ -863,12 +863,28 @@ namespace dmSys
     // Android implementation
     void SetSleeplock(bool value)
     {
-        (void) value;
+        JNIEnv* env = NULL;
+        g_AndroidApp->activity->vm->AttachCurrentThread(&env, 0);
+        jclass      activity_class          = env->GetObjectClass(g_AndroidApp->activity->clazz);
+        jmethodID   set_sleeplock_method    = env->GetMethodID(activity_class, "setSleeplock", "(Z)V");
+
+        env->CallVoidMethod(g_AndroidApp->activity->clazz, set_sleeplock_method, value);
+
+        g_AndroidApp->activity->vm->DetachCurrentThread();
     }
 
     bool GetSleeplock()
     {
-        return false;
+        JNIEnv* env = NULL;
+        g_AndroidApp->activity->vm->AttachCurrentThread(&env, 0);
+        jclass      activity_class          = env->GetObjectClass(g_AndroidApp->activity->clazz);
+        jmethodID   get_sleeplock_method    = env->GetMethodID(activity_class, "getSleeplock", "()Z");
+
+        bool ret = (bool) env->CallBooleanMethod(g_AndroidApp->activity->clazz, get_sleeplock_method);
+
+        g_AndroidApp->activity->vm->DetachCurrentThread();
+
+        return ret;
     }
 
 #elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
