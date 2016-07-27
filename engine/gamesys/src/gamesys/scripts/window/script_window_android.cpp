@@ -61,26 +61,32 @@ namespace
     void Initialize()
     {
         JNIEnv* environment = ::Attach();
+        if (environment != NULL)
+        {
+            jclass      jni_class_NativeActivity  = environment->FindClass("android/app/NativeActivity");
+            jmethodID   jni_method_getClassLoader = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
+            jobject     jni_object_getClassLoader = environment->CallObjectMethod(g_AndroidApp->activity->clazz, jni_method_getClassLoader);
+            jclass      jni_class_ClassLoader     = environment->FindClass("java/lang/ClassLoader");
+            jmethodID   jni_method_loadClass      = environment->GetMethodID(jni_class_ClassLoader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
-        jclass      jni_class_NativeActivity  = environment->FindClass("android/app/NativeActivity");
-        jmethodID   jni_method_getClassLoader = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
-        jobject     jni_object_getClassLoader = environment->CallObjectMethod(g_AndroidApp->activity->clazz, jni_method_getClassLoader);
-        jclass      jni_class_ClassLoader     = environment->FindClass("java/lang/ClassLoader");
-        jmethodID   jni_method_loadClass      = environment->GetMethodID(jni_class_ClassLoader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+            jstring     jni_string_Window         = environment->NewStringUTF("com.defold.window.WindowJNI");
+            jclass      jni_class_Window          = (jclass) environment->CallObjectMethod(jni_object_getClassLoader, jni_method_loadClass, jni_string_Window);
+            jmethodID   jni_constructor_Window    = environment->GetMethodID(jni_class_Window, "<init>", "(Landroid/app/Activity;)V");
 
-        jstring     jni_string_Window         = environment->NewStringUTF("com.defold.window.WindowJNI");
-        jclass      jni_class_Window          = (jclass) environment->CallObjectMethod(jni_object_getClassLoader, jni_method_loadClass, jni_string_Window);
-        jmethodID   jni_constructor_Window    = environment->GetMethodID(jni_class_Window, "<init>", "(Landroid/app/Activity;)V");
+            g_Window.m_Window                     = environment->NewGlobalRef(environment->NewObject(jni_class_Window, jni_constructor_Window, g_AndroidApp->activity->clazz));
+            g_Window.m_EnableScreenDimming        = environment->GetMethodID(jni_class_Window, "enableScreenDimming", "()V");
+            g_Window.m_DisableScreenDimming       = environment->GetMethodID(jni_class_Window, "disableScreenDimming", "()V");
+            g_Window.m_IsScreenDimmingEnabled     = environment->GetMethodID(jni_class_Window, "isScreenDimmingEnabled", "()Z");
 
-        g_Window.m_Window                     = environment->NewGlobalRef(environment->NewObject(jni_class_Window, jni_constructor_Window, g_AndroidApp->activity->clazz));
-        g_Window.m_EnableScreenDimming        = environment->GetMethodID(jni_class_Window, "enableScreenDimming", "()V");
-        g_Window.m_DisableScreenDimming       = environment->GetMethodID(jni_class_Window, "disableScreenDimming", "()V");
-        g_Window.m_IsScreenDimmingEnabled     = environment->GetMethodID(jni_class_Window, "isScreenDimmingEnabled", "()Z");
+            g_Window.m_Initialized                = true;
 
-        g_Window.m_Initialized                = true;
-
-        environment->DeleteLocalRef(jni_string_Window);
-        ::Detach(environment);
+            environment->DeleteLocalRef(jni_string_Window);
+            (void) ::Detach(environment);
+        }
+        else
+        {
+            dmLogError("Unable to attach JNI environment");
+        }
     }
 
 };
@@ -95,17 +101,31 @@ namespace dmGameSystem
             ::Initialize();
         }
 
-        JNIEnv* environment = ::Attach();
-        if (mode == DIMMING_ON)
+        if (g_Window.m_Initialized)
         {
-            environment->CallVoidMethod(g_Window.m_Window, g_Window.m_EnableScreenDimming);
-        }
-        else if (mode == DIMMING_OFF)
-        {
-            environment->CallVoidMethod(g_Window.m_Window, g_Window.m_DisableScreenDimming);
-        }
+            JNIEnv* environment = ::Attach();
+            if (environment != NULL)
+            {
+                if (mode == DIMMING_ON)
+                {
+                    environment->CallVoidMethod(g_Window.m_Window, g_Window.m_EnableScreenDimming);
+                }
+                else if (mode == DIMMING_OFF)
+                {
+                    environment->CallVoidMethod(g_Window.m_Window, g_Window.m_DisableScreenDimming);
+                }
 
-        ::Detach(environment);
+                ::Detach(environment);
+            }
+            else
+            {
+                dmLogError("Unable to attach JNI environment");
+            }
+        }
+        else
+        {
+            dmLogError("Unable to set dimming, JNI was not initialized");
+        }
     }
 
     DimMode GetDimMode()
@@ -113,14 +133,28 @@ namespace dmGameSystem
         if (!g_Window.m_Initialized)
         {
             ::Initialize();
-            assert(g_Window.m_Initialized);
         }
 
-        JNIEnv* environment = ::Attach();
-        bool dimming = (bool) environment->CallBooleanMethod(g_Window.m_Window, g_Window.m_IsScreenDimmingEnabled);
-        ::Detach(environment);
+        if (g_Window.m_Initialized)
+        {
+            JNIEnv* environment = ::Attach();
+            if (environment != NULL)
+            {
+                bool dimming = (bool) environment->CallBooleanMethod(g_Window.m_Window, g_Window.m_IsScreenDimmingEnabled);
+                (void) ::Detach(environment);
+                return dimming ? DIMMING_ON : DIMMING_OFF;
+            }
+            else
+            {
+                dmLogError("Unable to attach JNI environment");
+            }
+        }
+        else
+        {
+            dmLogError("Unable to set dimming, JNI was not initialized");
+        }
 
-        return dimming ? DIMMING_ON : DIMMING_OFF;
+        return DIMMING_UNKNOWN;
     }
 
 }

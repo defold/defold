@@ -183,6 +183,13 @@ static int SetListener(lua_State* L)
   * @name window.DIMMING_OFF
   * @variable
   */
+
+/*# dimming mode unknown
+  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+  * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
+  * @name window.DIMMING_UNKNOWN
+  * @variable
+  */
 static int LuaSetDimMode(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -199,7 +206,7 @@ static int LuaSetDimMode(lua_State* L)
     else
     {
         assert(top == lua_gettop(L));
-        return luaL_error(L, "Dimming mode is not supported.");
+        return luaL_error(L, "The dim mode specified is not supported.");
     }
 
     assert(top == lua_gettop(L));
@@ -212,6 +219,7 @@ static int LuaSetDimMode(lua_State* L)
  * @name window.get_dim_mode
  * @return mode (constant) The mode for screen dimming
  * <ul>
+ *     <li><code>window.DIMMING_UNKNOWN</code></li>
  *     <li><code>window.DIMMING_ON</code></li>
  *     <li><code>window.DIMMING_OFF</code></li>
  * </ul>
@@ -248,6 +256,7 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
 
+    SETCONSTANT(DIMMING_UNKNOWN)
     SETCONSTANT(DIMMING_ON)
     SETCONSTANT(DIMMING_OFF)
 

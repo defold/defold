@@ -7,8 +7,9 @@ namespace dmGameSystem
 
     enum DimMode
     {
-        DIMMING_ON = 0,
-        DIMMING_OFF  = 1
+        DIMMING_UNKNOWN = 0,
+        DIMMING_ON      = 1,
+        DIMMING_OFF     = 2
     };
 
     void ScriptWindowRegister(const ScriptLibContext& context);

@@ -10,7 +10,7 @@ namespace dmGameSystem
 
     DimMode GetDimMode()
     {
-        return DIMMING_ON;
+        return DIMMING_UNKNOWN;
     }
 
 }
