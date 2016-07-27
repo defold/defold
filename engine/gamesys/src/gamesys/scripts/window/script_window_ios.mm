@@ -6,26 +6,21 @@
 namespace dmGameSystem
 {
 
-    void SetSleepMode(SleepMode mode)
+    void SetDimMode(DimMode mode)
     {
-        if (mode == SLEEP_MODE_NORMAL)
+        if (mode == DIMMING_ON)
         {
             [UIApplication sharedApplication].idleTimerDisabled = false;
         }
-        else if (mode == SLEEP_MODE_AWAKE)
+        else if (mode == DIMMING_OFF)
         {
             [UIApplication sharedApplication].idleTimerDisabled = true;
         }
-        else
-        {
-            assert("Unknown sleep mode" || false);
-        }
     }
 
-    SleepMode GetSleepMode()
+    DimMode GetDimMode()
     {
-        return [UIApplication sharedApplication].idleTimerDisabled
-            ? SLEEP_MODE_AWAKE : SLEEP_MODE_NORMAL;
+        return [UIApplication sharedApplication].idleTimerDisabled ? DIMMING_OFF : DIMMING_ON;
     }
 
 }

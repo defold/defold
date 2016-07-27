@@ -17,8 +17,9 @@ struct Window
     }
 
     jobject     m_Window;
-    jmethodID   m_SetSleepMode;
-    jmethodID   m_GetSleepMode;
+    jmethodID   m_EnableScreenDimming;
+    jmethodID   m_DisableScreenDimming;
+    jmethodID   m_IsScreenDimmingEnabled;
     bool        m_Initialized;
 
 };
@@ -72,8 +73,10 @@ namespace
         jmethodID   jni_constructor_Window    = environment->GetMethodID(jni_class_Window, "<init>", "(Landroid/app/Activity;)V");
 
         g_Window.m_Window                     = environment->NewGlobalRef(environment->NewObject(jni_class_Window, jni_constructor_Window, g_AndroidApp->activity->clazz));
-        g_Window.m_SetSleepMode               = environment->GetMethodID(jni_class_Window, "setSleepMode", "(Z)V");
-        g_Window.m_GetSleepMode               = environment->GetMethodID(jni_class_Window, "getSleepMode", "()Z");
+        g_Window.m_EnableScreenDimming        = environment->GetMethodID(jni_class_Window, "enableScreenDimming", "()V");
+        g_Window.m_DisableScreenDimming       = environment->GetMethodID(jni_class_Window, "disableScreenDimming", "()V");
+        g_Window.m_IsScreenDimmingEnabled     = environment->GetMethodID(jni_class_Window, "isScreenDimmingEnabled", "()Z");
+
         g_Window.m_Initialized                = true;
 
         environment->DeleteLocalRef(jni_string_Window);
@@ -85,7 +88,7 @@ namespace
 namespace dmGameSystem
 {
 
-    void SetSleepMode(SleepMode mode)
+    void SetDimMode(DimMode mode)
     {
         if (!g_Window.m_Initialized)
         {
@@ -93,24 +96,31 @@ namespace dmGameSystem
         }
 
         JNIEnv* environment = ::Attach();
-        environment->CallVoidMethod(g_AndroidApp->activity->clazz,
-            g_Window.m_SetSleepMode, mode == SLEEP_MODE_NORMAL);
+        if (mode == DIMMING_ON)
+        {
+            environment->CallVoidMethod(g_Window.m_Window, g_Window.m_EnableScreenDimming);
+        }
+        else if (mode == DIMMING_OFF)
+        {
+            environment->CallVoidMethod(g_Window.m_Window, g_Window.m_DisableScreenDimming);
+        }
+
         ::Detach(environment);
     }
 
-    SleepMode GetSleepMode()
+    DimMode GetDimMode()
     {
         if (!g_Window.m_Initialized)
         {
             ::Initialize();
+            assert(g_Window.m_Initialized);
         }
 
         JNIEnv* environment = ::Attach();
-        bool result = (bool) environment->CallBooleanMethod(
-            g_AndroidApp->activity->clazz, g_Window.m_GetSleepMode);
+        bool dimming = (bool) environment->CallBooleanMethod(g_Window.m_Window, g_Window.m_IsScreenDimmingEnabled);
         ::Detach(environment);
 
-        return result ? SLEEP_MODE_NORMAL : SLEEP_MODE_AWAKE;
+        return dimming ? DIMMING_ON : DIMMING_OFF;
     }
 
 }

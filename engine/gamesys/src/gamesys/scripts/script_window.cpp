@@ -7,11 +7,11 @@
 
 /*# Sets a window event listener
  * Sets a window event listener.
- * 
+ *
  * @name window.set_listener
  *
  * @param callback (function) A callback which receives info about window events. Can be nil.
- * 
+ *
  * <ul>
  *     <li>self (object) The calling script</li>
  *     <li>event (number) The type of event. Can be one of these:</li>
@@ -38,7 +38,7 @@
  *         print("Window resized: ", data.width, data.height)
  *     end
  * end
- * 
+ *
  * function init(self)
  *     window.set_listener(window_callback)
  * end
@@ -164,9 +164,45 @@ static int SetListener(lua_State* L)
     return 0;
 }
 
+static int LuaSetDimMode(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    DimMode mode = (DimMode) luaL_checkint(L, 1);
+    if (mode == DIMMING_ON)
+    {
+        dmGameSystem::SetDimMode(DIMMING_ON);
+    }
+    else if (mode == DIMMING_OFF)
+    {
+        dmGameSystem::SetDimMode(DIMMING_OFF);
+    }
+    else
+    {
+        assert(top == lua_gettop(L));
+        return luaL_error(L, "Dimming mode is not supported.");
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
+static int LuaGetDimMode(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    DimMode mode = dmGameSystem::GetDimMode();
+    lua_pushnumber(L, (lua_Number) mode);
+
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set_listener", SetListener},
+    {"set_dim_mode", LuaSetDimMode},
+    {"get_dim_mode", LuaGetDimMode},
     {0, 0}
 };
 
@@ -182,6 +218,9 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
+
+    SETCONSTANT(DIMMING_ON)
+    SETCONSTANT(DIMMING_OFF)
 
 #undef SETCONSTANT
 

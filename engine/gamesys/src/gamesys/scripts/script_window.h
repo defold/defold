@@ -5,10 +5,10 @@ namespace dmGameSystem
 {
     struct ScriptLibContext;
 
-    enum SleepMode
+    enum DimMode
     {
-        SLEEP_MODE_NORMAL = 0,
-        SLEEP_MODE_AWAKE  = 1
+        DIMMING_ON = 0,
+        DIMMING_OFF  = 1
     };
 
     void ScriptWindowRegister(const ScriptLibContext& context);
@@ -16,8 +16,8 @@ namespace dmGameSystem
     void ScriptWindowOnWindowFocus(bool focus);
     void ScriptWindowOnWindowResized(int width, int height);
 
-    void SetSleepMode(SleepMode normal_sleep);
-    SleepMode GetSleepMode();
+    void SetDimMode(DimMode mode);
+    DimMode GetDimMode();
 }
 
 #endif // DM_GAMESYS_SCRIPT_WINDOW_H

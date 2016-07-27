@@ -3,14 +3,14 @@
 namespace dmGameSystem
 {
 
-    void SetSleepMode(SleepMode mode)
+    void SetDimMode(DimMode mode)
     {
         (void) mode;
     }
 
-    SleepMode GetSleepMode()
+    DimMode GetDimMode()
     {
-        return SLEEP_MODE_NORMAL;
+        return DIMMING_ON;
     }
 
 }
