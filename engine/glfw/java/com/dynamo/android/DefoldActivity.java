@@ -271,29 +271,6 @@ public class DefoldActivity extends NativeActivity {
         return NetworkConnectivity.NETWORK_DISCONNECTED.getValue();
     }
 
-    public void setSleeplock(boolean value) {
-        if (value == true) {
-            this.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
-            });
-        } else {
-            this.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
-            });
-        }
-    }
-
-    public boolean getSleeplock() {
-        return ((getWindow().getAttributes().flags
-            & android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0);
-    }
-
     /**
      * See comment above (glfwInputCharNative) why this is needed.
      */

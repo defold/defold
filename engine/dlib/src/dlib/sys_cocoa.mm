@@ -204,16 +204,6 @@ namespace dmSys
         return g_NetworkConnectivity;
     }
 
-    void SetSleeplock(bool value)
-    {
-        [UIApplication sharedApplication].idleTimerDisabled = value;
-    }
-
-    bool GetSleeplock()
-    {
-        return [UIApplication sharedApplication].idleTimerDisabled;
-    }
-
 #else // osx
 
     void GetSystemInfo(SystemInfo* info)
