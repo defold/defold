@@ -137,6 +137,18 @@
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
+(deftest gui-text-node-text-layout
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+         text-node (get nodes "multi_line_text")]
+     (is (some? (g/node-value text-node :text-layout)))
+     (is (some? (g/node-value text-node :aabb)))
+     (is (some? (g/node-value text-node :text-data))))))
+
 (defn- render-order [view]
   (let [renderables (g/node-value view :renderables)]
     (->> (get renderables pass/transparent)
