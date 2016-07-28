@@ -725,21 +725,26 @@
           (g/fnk [aabb pivot color text-data]
                  (let [min (types/min-p aabb)
                        max (types/max-p aabb)
-                       size [(- (.x max) (.x min)) (- (.y max) (.y min))]
+                       size [(- (.x max) (.x min)) (- (.y max) (.y min)) 0]
                        [w h _] size
                        offset (pivot-offset pivot size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                    {:line-data lines
-                    :color color
-                    :text-data (when-let [font-data (get text-data :font-data)]
-                                 (assoc text-data :offset (let [[x y] offset]
-                                                            [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))})))
-  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
-                                         (font/measure font-map text line-break (first size) text-tracking text-leading)))
-  (output text-data g/KeywordMap (g/fnk [text font-data line-break outline shadow size pivot text-leading text-tracking]
-                                        {:text text :font-data font-data
-                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)
-                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)})))
+                    :line-color [1.0 0.0 0.0 1.0]
+                    :color [1.0 0.0 0.0 1.0]
+                    :text-data text-data})))
+  (output text-layout g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
+                                           (font/layout-text font-map text line-break (first size) text-tracking text-leading)))
+  (output aabb-size g/Any :cached (g/fnk [text-layout]
+                                         [(:width text-layout) (:height text-layout) 0]))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break outline shadow aabb-size pivot text-leading text-tracking]
+                                        (cond-> {:text-layout text-layout
+                                                 :font-data font-data
+                                                 :outline outline :shadow shadow
+                                                 :align (pivot->h-align pivot)}
+                                          font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                         h (second aabb-size)]
+                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))))))
 
 ;; Template nodes
 
