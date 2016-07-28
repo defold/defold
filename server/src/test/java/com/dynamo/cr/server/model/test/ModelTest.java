@@ -23,6 +23,9 @@ import static org.junit.Assert.*;
 
 public class ModelTest {
 
+    /*
+        Random change adf
+     */
     @Rule
     public EntityManagerRule entityManagerRule = new EntityManagerRule();
 
