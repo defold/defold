@@ -13,6 +13,7 @@
             [editor.math :as math]
             [editor.defold-project :as project]
             [util.profiler :as profiler]
+            [editor.resource :as resource]
             [editor.scene-cache :as scene-cache]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
@@ -59,11 +60,20 @@
 (defn overlay-text [^GL2 gl ^String text x y]
   (scene-text/overlay gl text x y))
 
+(defn- get-resource-name [node-id]
+  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
+    (and resource (resource/resource-name resource))))
+
+(defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
+  (let [labels (conj labels (get-resource-name _node-id))]
+    (if causes
+      (recur (first causes) labels))))
+
 (defn substitute-scene [error]
   {:aabb       (geom/null-aabb)
    :renderable {:render-fn (fn [gl render-args renderables count]
                              (let [pass           (:pass render-args)
-                                   [labels cause] (project/find-errors error [])
+                                   [labels cause] (find-errors error [])
                                    message        (format "Render error [%s] '%s'" (last labels) cause)]
                                (when (= pass pass/overlay)
                                  (scene-text/overlay gl message 12.0 -22.0))))
