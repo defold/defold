@@ -463,10 +463,10 @@
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
                      (let [basis (g/now)
-                           active-tool          (g/node-value self :active-tool :basis basis)
+                           active-tool          (g/node-value self :active-tool {:basis basis})
                            tool                 (get transform-tools active-tool)
                            filter-fn            (:filter-fn tool)
-                           selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables :basis basis))
+                           selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables {:basis basis}))
                            original-values      (map #(do [(:node-id %) (:world-transform %)]) selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
