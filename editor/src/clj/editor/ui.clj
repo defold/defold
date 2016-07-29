@@ -406,7 +406,9 @@
             (proxy-super setGraphic nil))
           (do
             (proxy-super setText (:text render-data))
-            (let [icon (:icon render-data)]
+            (when-let [style (:style render-data)]
+              (proxy-super setStyle style))
+            (when-let [icon (:icon render-data)]
               (proxy-super setGraphic (jfx/get-image-view icon 16)))))
         (proxy-super setTooltip (:tooltip render-data))))))
 
