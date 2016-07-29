@@ -3,12 +3,12 @@
 namespace dmGameSystem
 {
 
-    void SetDimMode(DimMode mode)
+    void PlatformSetDimMode(DimMode mode)
     {
         (void) mode;
     }
 
-    DimMode GetDimMode()
+    DimMode PlatformGetDimMode()
     {
         return DIMMING_UNKNOWN;
     }

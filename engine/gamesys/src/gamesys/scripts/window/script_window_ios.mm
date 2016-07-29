@@ -6,7 +6,7 @@
 namespace dmGameSystem
 {
 
-    void SetDimMode(DimMode mode)
+    void PlatformSetDimMode(DimMode mode)
     {
         if (mode == DIMMING_ON)
         {
@@ -18,7 +18,7 @@ namespace dmGameSystem
         }
     }
 
-    DimMode GetDimMode()
+    DimMode PlatformGetDimMode()
     {
         return [UIApplication sharedApplication].idleTimerDisabled ? DIMMING_OFF : DIMMING_ON;
     }

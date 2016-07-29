@@ -94,7 +94,7 @@ namespace
 namespace dmGameSystem
 {
 
-    void SetDimMode(DimMode mode)
+    void PlatformSetDimMode(DimMode mode)
     {
         if (!g_Window.m_Initialized)
         {
@@ -128,7 +128,7 @@ namespace dmGameSystem
         }
     }
 
-    DimMode GetDimMode()
+    DimMode PlatformGetDimMode()
     {
         if (!g_Window.m_Initialized)
         {

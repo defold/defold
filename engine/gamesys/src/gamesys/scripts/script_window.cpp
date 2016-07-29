@@ -190,18 +190,18 @@ static int SetListener(lua_State* L)
   * @name window.DIMMING_UNKNOWN
   * @variable
   */
-static int LuaSetDimMode(lua_State* L)
+static int SetDimMode(lua_State* L)
 {
     int top = lua_gettop(L);
 
     DimMode mode = (DimMode) luaL_checkint(L, 1);
     if (mode == DIMMING_ON)
     {
-        dmGameSystem::SetDimMode(DIMMING_ON);
+        dmGameSystem::PlatformSetDimMode(DIMMING_ON);
     }
     else if (mode == DIMMING_OFF)
     {
-        dmGameSystem::SetDimMode(DIMMING_OFF);
+        dmGameSystem::PlatformSetDimMode(DIMMING_OFF);
     }
     else
     {
@@ -224,11 +224,11 @@ static int LuaSetDimMode(lua_State* L)
  *     <li><code>window.DIMMING_OFF</code></li>
  * </ul>
  */
-static int LuaGetDimMode(lua_State* L)
+static int GetDimMode(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    DimMode mode = dmGameSystem::GetDimMode();
+    DimMode mode = dmGameSystem::PlatformGetDimMode();
     lua_pushnumber(L, (lua_Number) mode);
 
     assert(top + 1 == lua_gettop(L));
@@ -238,8 +238,8 @@ static int LuaGetDimMode(lua_State* L)
 static const luaL_reg Module_methods[] =
 {
     {"set_listener", SetListener},
-    {"set_dim_mode", LuaSetDimMode},
-    {"get_dim_mode", LuaGetDimMode},
+    {"set_dim_mode", SetDimMode},
+    {"get_dim_mode", GetDimMode},
     {0, 0}
 };
 
