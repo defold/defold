@@ -923,7 +923,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
-def run_gtests(valgrind = False):
+def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
@@ -941,12 +941,12 @@ def run_gtests(valgrind = False):
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
-            filename = os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target)
+            filename = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if Build.bld.env.PLATFORM == 'js-web':
-                filename = '%s %s' % (Build.bld.env['NODEJS'], filename)
+                filename = '%s %s %s' % (Build.bld.env['NODEJS'], filename, configfile)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
-                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, filename)
+                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, filename, configfile)
             proc = subprocess.Popen(filename, shell = True)
             ret = proc.wait()
             if ret != 0:

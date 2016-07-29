@@ -2,11 +2,13 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <set>
-#include "../dlib/connection_pool.h"
-#include "../dlib/log.h"
-#include "../dlib/time.h"
+#include <dlib/connection_pool.h>
+#include <dlib/log.h>
+#include <dlib/time.h>
+#include "configreader.h"
 
-static const uint16_t HTTP_PORT = 7000;
+int g_HttpPort = 7000;
+
 static const uint32_t MAX_CONNECTIONS = 8;
 
 class dmConnectionPoolTest: public ::testing::Test
@@ -49,7 +51,7 @@ TEST_F(dmConnectionPoolTest, Connect)
 {
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
     dmConnectionPool::Close(pool, c);
 }
@@ -63,7 +65,7 @@ TEST_F(dmConnectionPoolTest, MaxConnections)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
     }
@@ -73,7 +75,7 @@ TEST_F(dmConnectionPoolTest, MaxConnections)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -95,7 +97,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
         dmSocket::Address a;
@@ -109,7 +111,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -124,7 +126,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
 
         dmSocket::Address a;
@@ -157,7 +159,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
 
@@ -172,7 +174,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -189,7 +191,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", HTTP_PORT, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         dmSocket::Address a;
         uint16_t p;
@@ -223,6 +225,11 @@ TEST_F(dmConnectionPoolTest, ConnectFailed)
 
 int main(int argc, char **argv)
 {
+    if(argc > 1)
+    {
+        dmTestUtil::GetSocketsFromFile(argv[1], &g_HttpPort, 0, 0);
+    }
+
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
