@@ -3,6 +3,7 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -269,16 +270,6 @@
 (defn prune-build-cache! [cache build-targets]
   (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
 
-(defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
-
-(defn find-errors [{:keys [user-data causes _node-id] :as error} labels]
-  (let [labels (conj labels (get-resource-name _node-id))]
-    (if causes
-      (recur (first causes) labels)
-      [(remove nil? labels) user-data])))
-
 (defn- build-targets-deep [build-targets]
   (loop [targets build-targets
          queue []
@@ -306,9 +297,9 @@
                                       build-targets-deep
                                       targets-by-key))]
       (if (g/error? build-targets)
-        (let [[labels cause] (find-errors build-targets [])
-              message        (format "Build error [%s] '%s'" (last labels) cause)]
-          (when render-error! (render-error! message))
+        (do
+          (when render-error!
+            (render-error! build-targets))
           nil)
         (do
           (prune-build-cache! build-cache build-targets-by-key)
@@ -564,7 +555,8 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project]
+
+(defn build-and-save-project [project build-errors-view]
   (when-not @ongoing-build-save?
     (reset! ongoing-build-save? true)
     (let [workspace     (workspace project)
@@ -574,9 +566,14 @@
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
+            (ui/run-later (build-errors-view/clear-build-errors build-errors-view))
             (when-not (empty? (build-and-write project game-project
                                                {:render-progress! render-fn
-                                                :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
+                                                :render-error!    (fn [errors]
+                                                                    (ui/run-later
+                                                                     (build-errors-view/update-build-errors
+                                                                      build-errors-view
+                                                                      errors)))
                                                 :basis            (g/now)
                                                 :cache            cache}))
               (update-system-cache! old-cache-val cache)))
@@ -587,8 +584,8 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
-  (run [project prefs web-server]
-    (let [build  (build-and-save-project project)]
+  (run [project prefs web-server build-errors-view]
+    (let [build  (build-and-save-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (get-selected-target prefs)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]

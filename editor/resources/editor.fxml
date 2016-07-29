@@ -189,6 +189,15 @@
                                              </children></AnchorPane>
                                     </content>
                                   </Tab>
+                                  <Tab id="build-errors-tab" text="Build Problems">
+                                    <content>
+                                      <AnchorPane id="build-errors-container" prefHeight="180.0" prefWidth="200.0">
+                                        <children>
+                                          <TreeView id="build-errors-tree" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                        </children>
+                                      </AnchorPane>
+                                    </content>
+                                  </Tab>
                                     <Tab text="Graph">
                                       <content>
                                         <AnchorPane prefHeight="180.0" prefWidth="200.0">
