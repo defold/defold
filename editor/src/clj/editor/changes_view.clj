@@ -16,14 +16,18 @@
 
 (set! *warn-on-reflection* true)
 
-(def short-status {:add "A" :modify "M" :delete "D" :rename "R"})
-
 (defn refresh! [git list-view]
   (when git
     (ui/items! list-view (git/unified-status git))))
 
 (defn- status-render [status]
-  {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
+  {:text (format "%s" (or (:new-path status)
+                          (:old-path status)))
+   :icon (condp = (:change-type status)
+           :add    "icons/32/Icons_M_07_plus.png"
+           :modify "icons/32/Icons_S_06_arrowup.png"
+           :delete "icons/32/Icons_M_06_trash.png"
+           :rename "icons/32/Icons_S_08_arrow-d-right.png")})
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Diff"
