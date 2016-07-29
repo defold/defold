@@ -248,11 +248,11 @@
             path              "/background/background.atlas"
             resource-node     (test-util/resource-node project path)
             _                 (g/set-property! resource-node :margin -42)
-            error-message     (atom nil)
+            build-error       (atom nil)
             build-results     (project/build project resource-node {:render-progress! progress/null-render-progress!
-                                                                    :render-error!    #(reset! error-message %)})]
+                                                                    :render-error!    #(reset! build-error %)})]
         (is (nil? build-results))
-        (is (= "Build error [background.atlas] 'Margin must be greater than or equal to zero'" @error-message))))))
+        (is (instance? internal.graph.error_values.ErrorValue @build-error))))))
 
 (deftest build-font
   (testing "Building font"
@@ -387,4 +387,4 @@
           build-results       (project/build project resource-node {:render-progress! progress/null-render-progress!
                                                                     :render-error!    #(reset! error-message %)})]
       (is (nil? build-results))
-      (is (= "Build error [background.atlas] 'Inner padding must be greater than or equal to zero'" @error-message)))))
+      (is (instance? internal.graph.error_values.ErrorValue @build-error)))))
