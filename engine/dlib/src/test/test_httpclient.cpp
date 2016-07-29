@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <gtest/gtest.h>
+#include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"
@@ -11,7 +12,6 @@
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
-#include "configreader.h"
 
 int g_HttpPort = 7000;
 int g_HttpPortSSL = 7001;
@@ -951,11 +951,27 @@ TEST(dmHttpClient, ConnectionRefused)
     dmHttpClient::Delete(client);
 }
 
+static void ReadPorts(const char* path, int argc, const char **argv)
+{
+    dmConfigFile::HConfig config;
+    dmConfigFile::Result r = dmConfigFile::Load(path, argc, argv, &config);
+    if (r != dmConfigFile::RESULT_OK)
+    {
+        dmLogError("Could not read config file %s", path);
+        exit(1);
+    }
+
+    g_HttpPort = dmConfigFile::GetInt(config, "server.socket", 7000);
+    g_HttpPortSSL = dmConfigFile::GetInt(config, "server.socket_ssl", 7001);
+    g_HttpPortSSLTest = dmConfigFile::GetInt(config, "server.socket_ssl_test", 7002);
+}
+
 int main(int argc, char **argv)
 {
+
     if(argc > 1)
     {
-        dmTestUtil::GetSocketsFromFile(argv[1], &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
+        ReadPorts(argv[1], argc, (const char **)argv);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();

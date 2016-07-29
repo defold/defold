@@ -95,8 +95,8 @@ def shutdown():
     config = ConfigParser.RawConfigParser()
     config.add_section("server")
     config.set("server", "socket", server_sockets.getint("server", "socket"))
-    config.set("server", "sslSocket", server_sockets.getint("server", "sslSocket"))
-    config.set("server", "testSslSsocket", server_sockets.getint("server", "testSslSsocket"))
+    config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
+    config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
 
     configfilepath = tempfile.mktemp(".cfg", "unittest_")
     with open(configfilepath, 'wb') as f:

@@ -364,8 +364,8 @@ public class TestHttpServer extends AbstractHandler
                 writer.println("# These are the sockets the test server currently listens to");
                 writer.println("[server]");
                 writer.println(String.format("socket=%d", server.getConnectors()[0].getLocalPort()));
-                writer.println(String.format("sslSocket=%d", server.getConnectors()[1].getLocalPort()));
-                writer.println(String.format("testSslSsocket=%d", server.getConnectors()[2].getLocalPort()));
+                writer.println(String.format("socket_ssl=%d", server.getConnectors()[1].getLocalPort()));
+                writer.println(String.format("socket_ssl_test=%d", server.getConnectors()[2].getLocalPort()));
                 writer.close();
             }
             catch(IOException e) {
