@@ -113,7 +113,7 @@
                           <children>
                             <AnchorPane VBox.vgrow="ALWAYS">
                               <children>
-                                <ListView id="changes" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                <ListView id="changes" styleClass="flat-list-view" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                               </children>
                             </AnchorPane>
                             <ToolBar prefHeight="30.0" prefWidth="200.0">
