@@ -67,7 +67,8 @@
 (defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
   (let [labels (conj labels (get-resource-name _node-id))]
     (if causes
-      (recur (first causes) labels))))
+      (recur (first causes) labels)
+      [(remove nil? labels) user-data])))
 
 (defn substitute-scene [error]
   {:aabb       (geom/null-aabb)

@@ -26,7 +26,7 @@
 
 (defn- open-parent-resource [open-resource-fn resource]
   (when-let [res (:parent-file-resource resource)]
-    (ui/run-later (orfn res {:select-node (:parent-node-id resource)}))))
+    (ui/run-later (open-resource-fn res {:select-node (:parent-node-id resource)}))))
 
 (defn- build-resource-tree [{:keys [causes _node-id _label user-data] :as error} parent-node-id parent-file]
   (let [res            (:resource (and _node-id (g/node-by-id _node-id)))
