@@ -6,6 +6,7 @@
 #include <dlib/connection_pool.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include "testutil.h"
 
 int g_HttpPort = 7000;
 
@@ -223,24 +224,18 @@ TEST_F(dmConnectionPoolTest, ConnectFailed)
     ASSERT_EQ(dmConnectionPool::RESULT_SOCKET_ERROR, r);
 }
 
-static void ReadPorts(const char* path, int argc, const char **argv)
-{
-    dmConfigFile::HConfig config;
-    dmConfigFile::Result r = dmConfigFile::Load(path, argc, argv, &config);
-    if (r != dmConfigFile::RESULT_OK)
-    {
-        dmLogError("Could not read config file %s", path);
-        exit(1);
-    }
-
-    g_HttpPort = dmConfigFile::GetInt(config, "server.socket", 7000);
-}
-
 int main(int argc, char **argv)
 {
     if(argc > 1)
     {
-        ReadPorts(argv[1], argc, (const char **)argv);
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        dmConfigFile::Delete(config);
     }
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);

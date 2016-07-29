@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <dlib/configfile.h>
 #include <dlib/log.h>
 #include <gtest/gtest.h>
 #include "dlib/configfile.h"
+#include "testutil.h"
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = 7000;
@@ -258,24 +260,18 @@ INSTANTIATE_TEST_CASE_P(CommandLine,
                                           TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)));
 #endif
 
-static void ReadPorts(const char* path, int argc, const char **argv)
-{
-    dmConfigFile::HConfig config;
-    dmConfigFile::Result r = dmConfigFile::Load(path, argc, argv, &config);
-    if (r != dmConfigFile::RESULT_OK)
-    {
-        dmLogError("Could not read config file %s", path);
-        exit(1);
-    }
-
-    g_HttpPort = dmConfigFile::GetInt(config, "server.socket", 7000);
-}
-
 int main(int argc, char **argv)
 {
     if(argc > 1)
     {
-        ReadPorts(argv[1], argc, (const char **)argv);
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        dmConfigFile::Delete(config);
     }
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
