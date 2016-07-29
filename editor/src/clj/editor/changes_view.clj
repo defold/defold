@@ -20,14 +20,25 @@
   (when git
     (ui/items! list-view (git/unified-status git))))
 
+(def ^:const status-icons
+  {:add    "icons/32/Icons_M_07_plus.png"
+   :modify "icons/32/Icons_S_06_arrowup.png"
+   :delete "icons/32/Icons_M_06_trash.png"
+   :rename "icons/32/Icons_S_08_arrow-d-right.png"})
+
+(def ^:const status-styles
+  {:add    "-fx-text-fill: #00FF00;"
+   :delete "-fx-text-fill: #FF0000;"
+   :rename "-fx-text-fill: #0000FF;"})
+
+(def ^:const status-default-style
+  "-fx-background-color: #272b30;")
+
 (defn- status-render [status]
-  {:text (format "%s" (or (:new-path status)
-                          (:old-path status)))
-   :icon (condp = (:change-type status)
-           :add    "icons/32/Icons_M_07_plus.png"
-           :modify "icons/32/Icons_S_06_arrowup.png"
-           :delete "icons/32/Icons_M_06_trash.png"
-           :rename "icons/32/Icons_S_08_arrow-d-right.png")})
+  {:text  (format "%s" (or (:new-path status)
+                           (:old-path status)))
+   :icon  (get status-icons (:change-type status))
+   :style (get status-styles (:change-type status) status-default-style)})
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Diff"
