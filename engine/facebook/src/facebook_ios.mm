@@ -41,6 +41,30 @@ Facebook g_Facebook;
 static void UpdateUserData();
 static void DoLogin();
 
+static void LOG(const char* prefix)
+{
+
+    NSLog(@"%@", [NSString stringWithUTF8String:prefix]);
+    dmLogWarning("%s", prefix);
+    strcat(g_Facebook.m_DebugString, prefix);
+    strcat(g_Facebook.m_DebugString, "\n");
+}
+
+static void LOG(const char* prefix, NSString* string)
+{
+    if( string )
+    {
+        NSLog(@"%@ : %@", [NSString stringWithUTF8String:prefix], string);
+        dmLogWarning("%s : %s", prefix, [string UTF8String]);
+
+        strcat(g_Facebook.m_DebugString, prefix);
+        strcat(g_Facebook.m_DebugString, " : ");
+        strcat(g_Facebook.m_DebugString, [string UTF8String]);
+        strcat(g_Facebook.m_DebugString, "\n");
+    } else {
+        LOG(prefix);
+    }
+}
 
 static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error);
 
@@ -65,19 +89,17 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                        sourceApplication:(NSString *)sourceApplication
                        annotation:(id)annotation {
 
-        dmLogWarning("MAWE: FACEBOOK application openURL...");
-        strcat(g_Facebook.m_DebugString, "application openURL: \n");
+        LOG("MAWE: FACEBOOK application openURL...");
+
         if( url )
-            strcat(g_Facebook.m_DebugString, [[url absoluteString] UTF8String]);
+            LOG("MAWE: URL", [url absoluteString]);
         else
-            strcat(g_Facebook.m_DebugString, "null. \n");
+            LOG("MAWE: URL : null");
 
         if(!g_Facebook.m_Login)
         {
-            dmLogWarning("MAWE: FACEBOOK application openURL: not logged in!");
             return false;
         }
-        dmLogWarning("MAWE: FACEBOOK application openURL: Logged in!");
         return [[FBSDKApplicationDelegate sharedInstance] application:application
                                                               openURL:url
                                                     sourceApplication:sourceApplication
@@ -86,27 +108,20 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
 
-        dmLogWarning("MAWE: FACEBOOK applicationDidBecomeActive");
-
-        strcat( g_Facebook.m_DebugString, "MAWE: fetchDeferredAppLink...\n" );
+        LOG("MAWE: FACEBOOK applicationDidBecomeActive. fetchDeferredAppLink...");
 
         [FBSDKAppLinkUtility fetchDeferredAppLink:^(NSURL *url, NSError* error) {
             if( url )
             {
-                dmLogWarning("MAWE: App link: %s", [[url absoluteString] UTF8String]);
-                strcat( g_Facebook.m_DebugString, [[url absoluteString] UTF8String] );
-                strcat( g_Facebook.m_DebugString, "\n");
+                LOG("MAWE: App link", [url absoluteString]);
             }
             else if(error)
             {
-                NSLog(@"MAWE: Error: %@", error);
-                strcat(g_Facebook.m_DebugString, "MAWE: ERROR: ");
-                strcat(g_Facebook.m_DebugString, [error.localizedDescription UTF8String]);
-                strcat(g_Facebook.m_DebugString, "\n");
-            } else
+                LOG("MAWE: Error", error.localizedDescription);
+            }
+            else
             {
-                dmLogWarning("MAWE: No app link found");
-                strcat( g_Facebook.m_DebugString, "MAWE: No app link found\n" );
+                LOG("MAWE: No app link found");
             }
         }];
 
@@ -133,25 +148,15 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-        dmLogWarning("MAWE: FACEBOOK didFinishLaunchingWithOptions...");
-        strcat(g_Facebook.m_DebugString, "didFinishLaunchingWithOptions...\n");
+        LOG("MAWE: FACEBOOK didFinishLaunchingWithOptions...");
 
         for(NSString *key in [launchOptions allKeys]) {
-
-            strcat(g_Facebook.m_DebugString, [key UTF8String]);
-            strcat(g_Facebook.m_DebugString, ": ");
-            strcat(g_Facebook.m_DebugString, [[launchOptions objectForKey:key] UTF8String] );
-            strcat(g_Facebook.m_DebugString, "\n");
-
-            dmLogWarning("MAWE: FACEBOOK option: %s : %s", [key UTF8String], [[launchOptions objectForKey:key] UTF8String]);
+            LOG("  key", key);
+            LOG("    value", [[launchOptions objectForKey:key] description]);
         }
-        //strcat(g_Facebook.m_DebugString, "URL\n");
-        //strcat(g_Facebook.m_DebugString, [[[launchOptions valueForKey:UIApplicationLaunchOptionsURLKey] absoluteString] UTF8String] );
 
         if(!g_Facebook.m_Login)
         {
-        dmLogWarning("MAWE: FACEBOOK didFinishLaunchingWithOptions: Not logged in. ");
-        strcat(g_Facebook.m_DebugString, "didFinishLaunchingWithOptions: Not logged in.\n");
             return false;
         }
         return [[FBSDKApplicationDelegate sharedInstance] application:application
