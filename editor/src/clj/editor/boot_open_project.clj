@@ -171,7 +171,8 @@
           search-console       (.lookup root "#search-console")
           splits               [(.lookup root "#main-split")
                                 (.lookup root "#center-split")
-                                (.lookup root "#right-split")]
+                                (.lookup root "#right-split")
+                                (.lookup root "#assets-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
