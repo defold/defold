@@ -25,8 +25,6 @@
   (resource-hash [this] (resource/resource-hash parent-resource)))
 
 (defn- open-parent-resource [open-resource-fn resource]
-  (def orfn open-resource-fn)
-  (def res resource)
   (when-let [res (:parent-file-resource resource)]
     (ui/run-later (orfn res {:select-node (:parent-node-id resource)}))))
 
@@ -58,6 +56,15 @@
       :else
       (first children))))
 
+(defn- trim-resource-tree
+  "Remove top-level single-child nodes"
+  [{:keys [children] :as tree}]
+  (let [first-child (first children)]
+    (if (and (= 1 (count children))
+             (instance? FileResource first-child))
+      (trim-resource-tree first-child)
+      tree)))
+
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (ui/cell-factory! errors-tree (fn [r]
                                   {:text (or (resource/resource-name r)
@@ -70,11 +77,7 @@
 
 (defn update-build-errors [^TreeView errors-tree build-errors]
   (let [res-tree (build-resource-tree build-errors nil nil)
-        new-root (dialogs/tree-item res-tree)]
-    (def tree errors-tree)
-    (def errors build-errors)
-    (def nr new-root)
-    (def res res-tree)
+        new-root (dialogs/tree-item (trim-resource-tree res-tree))]
     (.setRoot errors-tree new-root)
     (doseq [^TreeItem item (ui/tree-item-seq (.getRoot errors-tree))]
       (.setExpanded item true))
