@@ -63,6 +63,4 @@
       external-fnk                                                            #{:a :b :c :d}
       #'external-fnk                                                          #{:a :b :c :d}
       (g/fnk [one two three])                                                 #{:one :two :three}
-      '(g/fnk [one two three])                                                #{:one :two :three}
-      (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])  #{:commands :roles :blah}
-      '(g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}]) #{:commands :roles :blah})))
+      '(g/fnk [one two three])                                                #{:one :two :three})))

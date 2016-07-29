@@ -369,7 +369,7 @@
 
 (defmethod scene-tools/manip-scale ::SphereShape
   [basis node-id ^Vector3d delta]
-  (let [diameter (g/node-value node-id :diameter :basis basis)]
+  (let [diameter (g/node-value node-id :diameter {:basis basis})]
     (g/set-property node-id :diameter (* diameter (Math/abs (.getX delta))))))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
@@ -385,7 +385,7 @@
                         (when (some #(<= % 0.0) dimensions)
                           (g/error-severe "All dimensions must be greater than zero"))))
             (dynamic edit-type (g/always {:type types/Vec3 :labels ["W" "H" "D"]})))
-  
+
   (display-order [Shape :dimensions])
 
   (output scene g/Any produce-box-shape-scene)
@@ -396,7 +396,7 @@
 
 (defmethod scene-tools/manip-scale ::BoxShape
   [basis node-id ^Vector3d delta]
-  (let [[w h d] (g/node-value node-id :dimensions :basis basis)]
+  (let [[w h d] (g/node-value node-id :dimensions {:basis basis})]
     (g/set-property node-id :dimensions [(Math/abs (* w (.getX delta)))
                                          (Math/abs (* h (.getY delta)))
                                          (Math/abs (* d (.getZ delta)))])))
@@ -418,7 +418,7 @@
 
 (defmethod scene-tools/manip-scale ::CapsuleShape
   [basis node-id ^Vector3d delta]
-  (let [[d h] (mapv #(g/node-value node-id % :basis basis) [:diameter :height])]
+  (let [[d h] (mapv #(g/node-value node-id % {:basis basis}) [:diameter :height])]
     (g/set-property node-id
                     :diameter (Math/abs (* d (.getX delta)))
                     :height (Math/abs (* h (.getY delta))))))
@@ -562,7 +562,7 @@
   (input child-scenes g/Any :array)
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
-  
+
   (property collision-shape resource/Resource
             (value (gu/passthrough collision-shape-resource))
             (set (fn [basis self old-value new-value]
@@ -582,7 +582,7 @@
             (validate (g/fnk [mass type]
                         (when (and (= :collision-object-type-dynamic type) (< mass 1))
                           (g/error-severe "Must be greater than zero")))))
-  
+
   (property friction g/Num)
   (property restitution g/Num)
   (property linear-damping g/Num

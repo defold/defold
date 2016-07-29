@@ -8,7 +8,8 @@
             [editor.gui :as gui]
             [editor.gl.pass :as pass]
             [editor.handler :as handler]
-            [editor.types :as types])
+            [editor.types :as types]
+            [criterium.core :as bench])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [javax.vecmath Point3d Matrix4d Vector3d]
@@ -219,6 +220,7 @@
                    app-view (test-util/setup-app-view!)
                    node-id (test-util/resource-node project "/gui/scene.gui")
                    box (gui-node node-id "sub_scene/sub_box")]
+               ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
                (dotimes [i 20]
                  (drag-pull-outline! node-id box i))
