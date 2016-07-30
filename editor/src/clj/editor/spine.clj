@@ -274,97 +274,98 @@
     (mapv (fn [w] (update w :weight #(/ % total-weight))) weights)))
 
 (defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
-  (let [type (get attachment "type" "region")
-        world ^SpineScene$Transform (:bone-world slot-data)
-        anim-id (get attachment "name" att-name)
-        uv-trans ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms]))
-        mesh (case type
-               "region"
-               (let [local (doto (SpineScene$Transform.)
-                             (-> (.position) (.set (get attachment "x" 0) (get attachment "y" 0) 0))
-                             (-> (.rotation) (.set ^Quat4d (angle->quat (get attachment "rotation" 0))))
-                             (-> (.scale) (.set (get attachment "scaleX" 1) (get attachment "scaleY" 1) 1)))
-                     world (doto (SpineScene$Transform. world)
-                             (.mul local))
-                     width (get attachment "width" 0)
-                     height (get attachment "height" 0)
-                     vertices (flatten (for [x [-0.5 0.5]
-                                             y [-0.5 0.5]
-                                             :let [p (Point3d. (* x width) (* y height) 0)
-                                                   uv (Point2d. (+ x 0.5) (- 0.5 y))]]
-                                         (do
-                                           (.apply world p)
-                                           (.apply uv-trans uv)
-                                           [(.x p) (.y p) (.z p) (.x uv) (.y uv)])))]
-                 {:positions (flatten (partition 3 5 vertices))
-                  :texcoord0 (flatten (partition 2 5 (drop 3 vertices)))
-                  :indices [0 1 2 2 1 3]
-                  :weights (take 16 (cycle [1 0 0 0]))
-                  :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))})
-               ("mesh" "skinnedmesh")
-               (let [vertices (get attachment "vertices" [])
-                     uvs (get attachment "uvs" [])
-                     skinned? (= type "skinnedmesh")
-                     ; Use uvs because vertices have a dynamic format
-                     vertex-count (/ (count uvs) 2)]
-                 (if skinned?
-                   (let [[positions
-                          bone-indices
-                          bone-weights] (loop [vertices vertices
-                                               positions []
-                                               bone-indices []
-                                               bone-weights []]
-                                          (if-let [bone-count (first vertices)]
-                                            (let [weights (take bone-count (map (fn [[bone-index x y weight]]
-                                                                                  {:bone-index (bones-remap bone-index)
-                                                                                   :x x
-                                                                                   :y y
-                                                                                   :weight weight})
-                                                                                (partition 4 (rest vertices))))
-                                                  p ^Point3d (reduce (fn [^Point3d p w]
-                                                                       (let [wp (Point3d. (:x w) (:y w) 0)
-                                                                             world ^SpineScene$Transform (bone-index->world (:bone-index w))]
-                                                                         (.apply world wp)
-                                                                         (.scaleAdd wp ^double (:weight w) p)
-                                                                         (.set p wp)
-                                                                         p))
-                                                                     (Point3d.) weights)
-                                                  weights (normalize-weights (take 4 (sort-by #(- 1.0 (:weight %)) weights)))]
-                                              (recur (drop (inc (* bone-count 4)) vertices)
-                                                     (conj positions (.x p) (.y p) (.z p))
-                                                     (into bone-indices (flatten (partition 4 4 (repeat 0) (mapv :bone-index weights))))
-                                                     (into bone-weights (flatten (partition 4 4 (repeat 0) (mapv :weight weights))))))
-                                            [positions bone-indices bone-weights]))]
-                     {:positions positions
-                      :texcoord0 (mapcat (fn [[u v]]
-                                           (let [uv (Point2d. u v)]
-                                             (.apply uv-trans uv)
-                                             [(.x uv) (.y uv)]))
-                                         (partition 2 uvs))
-                      :indices (get attachment "triangles")
-                      :weights bone-weights
-                      :bone-indices bone-indices})
-                   (let [weight-count (* vertex-count 4)]
-                     {:positions (mapcat (fn [[x y]]
-                                           (let [p (Point3d. x y 0)]
+  (when anim-data
+    (let [type (get attachment "type" "region")
+          world ^SpineScene$Transform (:bone-world slot-data)
+          anim-id (get attachment "name" att-name)
+          uv-trans ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms]))
+          mesh (case type
+                 "region"
+                 (let [local (doto (SpineScene$Transform.)
+                               (-> (.position) (.set (get attachment "x" 0) (get attachment "y" 0) 0))
+                               (-> (.rotation) (.set ^Quat4d (angle->quat (get attachment "rotation" 0))))
+                               (-> (.scale) (.set (get attachment "scaleX" 1) (get attachment "scaleY" 1) 1)))
+                       world (doto (SpineScene$Transform. world)
+                               (.mul local))
+                       width (get attachment "width" 0)
+                       height (get attachment "height" 0)
+                       vertices (flatten (for [x [-0.5 0.5]
+                                               y [-0.5 0.5]
+                                               :let [p (Point3d. (* x width) (* y height) 0)
+                                                     uv (Point2d. (+ x 0.5) (- 0.5 y))]]
+                                           (do
                                              (.apply world p)
-                                             [(.x p) (.y p) (.z p)]))
-                                         (partition 2 vertices))
-                      :texcoord0 (mapcat (fn [[u v]]
-                                           (let [uv (Point2d. u v)]
                                              (.apply uv-trans uv)
-                                             [(.x uv) (.y uv)]))
-                                         (partition 2 uvs))
-                      :indices (get attachment "triangles")
-                      :weights (take weight-count (cycle [1 0 0 0]))
-                      :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))})))
-               ; Ignore other types
-               nil)]
-    (when mesh
-      (assoc mesh
-            :color (:color slot-data)
-            :visible (= att-name (:attachment slot-data))
-            :draw-order (:draw-order slot-data)))))
+                                             [(.x p) (.y p) (.z p) (.x uv) (.y uv)])))]
+                   {:positions (flatten (partition 3 5 vertices))
+                    :texcoord0 (flatten (partition 2 5 (drop 3 vertices)))
+                    :indices [0 1 2 2 1 3]
+                    :weights (take 16 (cycle [1 0 0 0]))
+                    :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))})
+                 ("mesh" "skinnedmesh")
+                 (let [vertices (get attachment "vertices" [])
+                       uvs (get attachment "uvs" [])
+                       skinned? (= type "skinnedmesh")
+                       ; Use uvs because vertices have a dynamic format
+                       vertex-count (/ (count uvs) 2)]
+                   (if skinned?
+                     (let [[positions
+                            bone-indices
+                            bone-weights] (loop [vertices vertices
+                                                 positions []
+                                                 bone-indices []
+                                                 bone-weights []]
+                                            (if-let [bone-count (first vertices)]
+                                              (let [weights (take bone-count (map (fn [[bone-index x y weight]]
+                                                                                    {:bone-index (bones-remap bone-index)
+                                                                                     :x x
+                                                                                     :y y
+                                                                                     :weight weight})
+                                                                                  (partition 4 (rest vertices))))
+                                                    p ^Point3d (reduce (fn [^Point3d p w]
+                                                                         (let [wp (Point3d. (:x w) (:y w) 0)
+                                                                               world ^SpineScene$Transform (bone-index->world (:bone-index w))]
+                                                                           (.apply world wp)
+                                                                           (.scaleAdd wp ^double (:weight w) p)
+                                                                           (.set p wp)
+                                                                           p))
+                                                                       (Point3d.) weights)
+                                                    weights (normalize-weights (take 4 (sort-by #(- 1.0 (:weight %)) weights)))]
+                                                (recur (drop (inc (* bone-count 4)) vertices)
+                                                       (conj positions (.x p) (.y p) (.z p))
+                                                       (into bone-indices (flatten (partition 4 4 (repeat 0) (mapv :bone-index weights))))
+                                                       (into bone-weights (flatten (partition 4 4 (repeat 0) (mapv :weight weights))))))
+                                              [positions bone-indices bone-weights]))]
+                       {:positions positions
+                        :texcoord0 (mapcat (fn [[u v]]
+                                             (let [uv (Point2d. u v)]
+                                               (.apply uv-trans uv)
+                                               [(.x uv) (.y uv)]))
+                                           (partition 2 uvs))
+                        :indices (get attachment "triangles")
+                        :weights bone-weights
+                        :bone-indices bone-indices})
+                     (let [weight-count (* vertex-count 4)]
+                       {:positions (mapcat (fn [[x y]]
+                                             (let [p (Point3d. x y 0)]
+                                               (.apply world p)
+                                               [(.x p) (.y p) (.z p)]))
+                                           (partition 2 vertices))
+                        :texcoord0 (mapcat (fn [[u v]]
+                                             (let [uv (Point2d. u v)]
+                                               (.apply uv-trans uv)
+                                               [(.x uv) (.y uv)]))
+                                           (partition 2 uvs))
+                        :indices (get attachment "triangles")
+                        :weights (take weight-count (cycle [1 0 0 0]))
+                        :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))})))
+                 ; Ignore other types
+                 nil)]
+     (when mesh
+       (assoc mesh
+             :color (:color slot-data)
+             :visible (= att-name (:attachment slot-data))
+             :draw-order (:draw-order slot-data))))))
 
 (defn skin->meshes [skin slots-data anim-data bones-remap bone-index->world]
   (reduce-kv (fn [m slot attachments]
@@ -623,6 +624,7 @@
                                                 [:content :spine-scene]
                                                 [:structure :scene-structure]
                                                 [:node-outline :source-outline])))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "json"}))
             (validate (validation/validate-resource spine-json "Missing spine json"
                                                     [spine-scene])))
 
@@ -634,6 +636,7 @@
                                                 [:anim-data :anim-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "atlas"}))
             (validate (validation/validate-resource atlas "Missing atlas"
                                                     [anim-data])))
 
@@ -653,7 +656,9 @@
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
   (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
-                                                      (reduce mesh->aabb (geom/null-aabb) meshes)))))
+                                                      (reduce mesh->aabb (geom/null-aabb) meshes))))
+  (output anim-data g/Any (gu/passthrough anim-data))
+  (output scene-structure g/Any (gu/passthrough scene-structure)))
 
 (defn load-spine-scene [project self resource]
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
@@ -702,14 +707,13 @@
                                                   [:scene :spine-scene-scene]
                                                   [:aabb :aabb]
                                                   [:build-targets :dep-build-targets]
-                                                  [:node-outline :source-outline]))))
+                                                  [:node-outline :source-outline]
+                                                  [:anim-data :anim-data]
+                                                  [:scene-structure :scene-structure])))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"})))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
-            (dynamic edit-type (g/always
-                                 (let [options (protobuf/enum-values Spine$SpineModelDesc$BlendMode)]
-                                   {:type :choicebox
-                                    :options (zipmap (map first options)
-                                                     (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/always (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -717,22 +721,29 @@
                                                 [:resource :material-resource]
                                                 [:shader :material-shader]
                                                 [:sampler-data :sampler-data]
-                                                [:build-targets :dep-build-targets]))))
+                                                [:build-targets :dep-build-targets])))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "material"})))
   (property default-animation g/Str
-            #_(validate (validation/validate-animation default-animation anim-data))
-            #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
-                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+            (value (g/fnk [default-animation anim-ids] (or (not-empty default-animation) (first anim-ids))))
+            (validate (validation/validate-animation default-animation anim-data))
+            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
   (property skin g/Str
-            #_(validate (validation/validate-animation default-animation anim-data))
-            #_(dynamic edit-type (g/fnk [anim-data] {:type :choicebox
-                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+            (value (g/fnk [skin scene-structure] (or (not-empty skin) (first (:skins scene-structure)))))
+            (validate (g/fnk [skin scene-structure]
+                             (when (and (some? scene-structure) (not (contains? (into #{} (:skins scene-structure)) skin)))
+                               (g/error-severe (format "The skin \"%s\" could not be found in the specified scene" skin)))))
+            (dynamic edit-type (g/fnk [scene-structure]
+                                      (properties/->choicebox (:skins scene-structure)))))
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
+  (input scene-structure g/Any)
   (input aabb AABB)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
+  (input anim-data g/Any)
+  (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input sampler-data g/KeywordMap)
   (output sampler-data g/KeywordMap (gu/passthrough sampler-data))
@@ -813,8 +824,10 @@
   (input source-outline outline/OutlineData)
   (output node-outline outline/OutlineData (g/fnk [source-outline] source-outline))
   (input skeleton g/Any)
-  (output structure g/Any :cached (g/fnk [skeleton]
-                                         {:skeleton (update-transforms (math/->mat4) skeleton)})))
+  (input content g/Any)
+  (output structure g/Any :cached (g/fnk [skeleton content]
+                                         {:skeleton (update-transforms (math/->mat4) skeleton)
+                                          :skins (vec (sort (keys (get content "skins"))))})))
 
 (defn accept-spine-scene-json [content]
   (when (or (get-in content ["skeleton" "spine"])
@@ -830,7 +843,8 @@
         scene-tx-data (g/make-nodes graph [scene SpineSceneJson]
                                     (g/connect scene :_node-id node-id :nodes)
                                     (g/connect scene :node-outline node-id :child-outlines)
-                                    (g/connect scene :structure node-id :structure))
+                                    (g/connect scene :structure node-id :structure)
+                                    (g/connect node-id :content scene :content))
         scene-id (tx-first-created scene-tx-data)]
     (concat
       scene-tx-data
