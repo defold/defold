@@ -497,21 +497,21 @@
                     (stop-handler view))))
 
 (defn frame-selection [view animate?]
-  (let [graph (g/node-id->graph-id view)
-        camera (g/graph-value graph :camera)
-        aabb (g/node-value view :selected-aabb)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
-    (if animate?
-      (let [duration 0.5]
-        (ui/anim! duration
-                  (fn [t] (let [t (- (* t t 3) (* t t t 2))
-                                cam (c/interpolate local-cam end-camera t)]
-                            (g/transact
-                              (g/set-property camera :local-camera cam))))
-                  (fn [])))
-      (g/transact (g/set-property camera :local-camera end-camera)))))
+  (when-let [aabb (g/node-value view :selected-aabb)]
+    (let [graph (g/node-id->graph-id view)
+          camera (g/graph-value graph :camera)
+          viewport (g/node-value view :viewport)
+          local-cam (g/node-value camera :local-camera)
+          end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
+      (if animate?
+        (let [duration 0.5]
+          (ui/anim! duration
+                    (fn [t] (let [t (- (* t t 3) (* t t t 2))
+                                  cam (c/interpolate local-cam end-camera t)]
+                              (g/transact
+                                (g/set-property camera :local-camera cam))))
+                    (fn [])))
+        (g/transact (g/set-property camera :local-camera end-camera))))))
 
 (handler/defhandler :frame-selection :global
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
