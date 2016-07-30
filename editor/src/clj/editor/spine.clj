@@ -537,6 +537,29 @@
             verts (mapcat mesh->verts meshes)]
         (persistent! (reduce conj! vb verts))))))
 
+(def color [1.0 1.0 1.0 1.0])
+
+(defn- skeleton-vs [parent-pos bone vs]
+  (let [pos (Vector3d.)
+        _ (.get ^Matrix4d (:transform bone) pos)
+        pos [(.x pos) (.y pos) (.z pos)]
+        vs (if parent-pos
+             (conj vs (into parent-pos color) (into pos color))
+             vs)]
+    (reduce (fn [vs bone] (skeleton-vs pos bone vs)) vs (:children bone))))
+
+(defn- gen-skeleton-vb [renderables rcount]
+  (let [vs (loop [renderables renderables
+                  vs []]
+             (if-let [r (first renderables)]
+               (let [skeleton (get-in r [:user-data :scene-structure :skeleton])]
+                 (recur (rest renderables) (skeleton-vs nil skeleton vs)))
+               vs))
+        vcount (count vs)]
+    (when (> vcount 0)
+      (let [vb (render/->vtx-pos-col vcount)]
+        (persistent! (reduce conj! vb vs))))))
+
 (defn render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
     (cond
@@ -546,19 +569,23 @@
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
 
       (= pass pass/transparent)
-      (when-let [vb (gen-vb renderables rcount)]
-        (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
-              user-data (:user-data (first renderables))
-              gpu-texture (:gpu-texture user-data)
-              blend-mode (:blend-mode user-data)]
-          (gl/with-gl-bindings gl render-args [gpu-texture render/shader-tex-tint vertex-binding]
-            (case blend-mode
-              :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-              (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-              :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-            (shader/set-uniform render/shader-tex-tint gl "texture" 0)
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+      (do (when-let [vb (gen-vb renderables rcount)]
+            (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
+                  user-data (:user-data (first renderables))
+                  gpu-texture (:gpu-texture user-data)
+                  blend-mode (:blend-mode user-data)]
+              (gl/with-gl-bindings gl render-args [gpu-texture render/shader-tex-tint vertex-binding]
+                (case blend-mode
+                  :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+                  (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+                  :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+                (shader/set-uniform render/shader-tex-tint gl "texture" 0)
+                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+        (when-let [vb (gen-skeleton-vb renderables rcount)]
+            (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
+              (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
+                (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
       (= pass pass/selection)
       (when-let [vb (gen-vb renderables rcount)]
@@ -566,7 +593,7 @@
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture spine-scene-pb]
+(g/defnk produce-scene [_node-id aabb gpu-texture spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
     (if gpu-texture
@@ -575,6 +602,7 @@
                                   :batch-key gpu-texture
                                   :select-batch-key _node-id
                                   :user-data {:spine-scene-pb spine-scene-pb
+                                              :scene-structure scene-structure
                                               :gpu-texture gpu-texture
                                               :blend-mode blend-mode}
                                   :passes [pass/transparent pass/selection pass/outline]}))
