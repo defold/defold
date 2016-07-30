@@ -18,7 +18,10 @@
             [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.json :as json]
+            [editor.outline :as outline]
+            [editor.properties :as properties])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -34,6 +37,7 @@
 
 (def spine-scene-icon "icons/32/Icons_16-Spine-scene.png")
 (def spine-model-icon "icons/32/Icons_15-Spine-model.png")
+(def spine-bone-icon "icons/32/Icons_S_13_radiocircle.png")
 
 ; Node defs
 
@@ -588,7 +592,9 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :spine-json-resource]
-                                                [:content :spine-scene])))
+                                                [:content :spine-scene]
+                                                [:structure :scene-structure]
+                                                [:node-outline :source-outline])))
             (validate (validation/validate-resource spine-json "Missing spine json"
                                                     [spine-scene])))
 
@@ -612,6 +618,7 @@
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
   (input spine-scene g/Any)
+  (input scene-structure g/Any)
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets)
@@ -666,7 +673,8 @@
                                                   [:resource :spine-scene-resource]
                                                   [:scene :spine-scene-scene]
                                                   [:aabb :aabb]
-                                                  [:build-targets :dep-build-targets]))))
+                                                  [:build-targets :dep-build-targets]
+                                                  [:node-outline :source-outline]))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/always
@@ -733,3 +741,93 @@
                                      :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}
                                      :tags #{:component})))
+
+(g/defnk produce-transform [position rotation scale]
+  (math/->mat4-non-uniform (Vector3d. (double-array position))
+                           (math/euler->quat [0 0 rotation])
+                           (Vector3d. (double-array scale))))
+
+(g/defnode SpineBone
+  (inherits outline/OutlineNode)
+  (property name g/Str (dynamic read-only? (g/always true)))
+  (property position types/Vec3
+            (dynamic edit-type (g/always (properties/vec3->vec2 0.0)))
+            (dynamic read-only? (g/always true)))
+  (property rotation g/Num (dynamic read-only? (g/always true)))
+  (property scale types/Vec3
+            (dynamic edit-type (g/always (properties/vec3->vec2 1.0)))
+            (dynamic read-only? (g/always true)))
+
+  (input child-bones g/Any :array)
+
+  (output transform Matrix4d :cached produce-transform)
+  (output bone g/Any (g/fnk [name transform child-bones]
+                            {:name name
+                             :local-transform transform
+                             :children child-bones}))
+  (output node-outline outline/OutlineData (g/fnk [_node-id name child-outlines]
+                                                  {:node-id _node-id
+                                                   :label name
+                                                   :icon spine-bone-icon
+                                                   :children child-outlines
+                                                   :read-only true})))
+
+(defn- update-transforms [^Matrix4d parent bone]
+  (let [t ^Matrix4d (:local-transform bone)
+        t (doto (Matrix4d.)
+            (.mul parent t))]
+    (-> bone
+      (assoc :transform t)
+      (assoc :children (mapv #(update-transforms t %) (:children bone))))))
+
+(g/defnode SpineSceneJson
+  (inherits outline/OutlineNode)
+  (input source-outline outline/OutlineData)
+  (output node-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+  (input skeleton g/Any)
+  (output structure g/Any :cached (g/fnk [skeleton]
+                                         {:skeleton (update-transforms (math/->mat4) skeleton)})))
+
+(defn accept-spine-scene-json [content]
+  (when (or (get-in content ["skeleton" "spine"])
+            (and (get content "bones") (get content "animations")))
+    content))
+
+(defn- tx-first-created [tx-data]
+  (get-in (first tx-data) [:node :_node-id]))
+
+(defn load-spine-scene-json [node-id content]
+  (let [bones (get content "bones")
+        graph (g/node-id->graph-id node-id)
+        scene-tx-data (g/make-nodes graph [scene SpineSceneJson]
+                                    (g/connect scene :_node-id node-id :nodes)
+                                    (g/connect scene :node-outline node-id :child-outlines)
+                                    (g/connect scene :structure node-id :structure))
+        scene-id (tx-first-created scene-tx-data)]
+    (concat
+      scene-tx-data
+      (loop [bones bones
+             tx-data []
+             bone-ids {}]
+        (if-let [bone (first bones)]
+          (let [name (get bone "name")
+                parent (get bone "parent")
+                x (get bone "x" 0)
+                y (get bone "y" 0)
+                rotation (get bone "rotation" 0)
+                scale-x (get bone "scaleX" 1.0)
+                scale-y (get bone "scaleY" 1.0)
+                bone-tx-data (g/make-nodes graph [bone [SpineBone :name name :position [x y 0] :rotation rotation :scale [scale-x scale-y 1.0]]]
+                                           (g/connect bone :_node-id node-id :nodes)
+                                           (if-let [parent (get bone-ids parent)]
+                                             (concat
+                                               (g/connect bone :node-outline parent :child-outlines)
+                                               (g/connect bone :bone parent :child-bones))
+                                             (concat
+                                               (g/connect bone :node-outline scene-id :source-outline)
+                                               (g/connect bone :bone scene-id :skeleton))))
+                bone-id (tx-first-created bone-tx-data)]
+            (recur (rest bones) (conj tx-data bone-tx-data) (assoc bone-ids name bone-id)))
+          tx-data)))))
+
+(json/register-json-loader ::spine-scene accept-spine-scene-json load-spine-scene-json)

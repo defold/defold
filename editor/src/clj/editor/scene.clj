@@ -754,7 +754,7 @@
 
   (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
   (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
-  (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (Matrix4d. rotation-q4 position-v3 1.0)))
+  (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (math/->mat4-uniform position-v3 rotation-q4 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb))))
 
@@ -769,15 +769,7 @@
     (g/set-property node-id :rotation new-euler)))
 
 (g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
-  (let [transform (Matrix4d. rotation-q4 position-v3 1.0)
-        s [(.x scale-v3) (.y scale-v3) (.z scale-v3)]
-        col (Vector4d.)]
-    (doseq [^Integer i (range 3)
-            :let [s (nth s i)]]
-      (.getColumn transform i col)
-      (.scale col s)
-      (.setColumn transform i col))
-    transform))
+  (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3))
 
 (g/defnode ScalableSceneNode
   (inherits SceneNode)
