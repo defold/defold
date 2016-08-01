@@ -21,8 +21,6 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [plumbing.core defnk fnk])
-
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
@@ -57,7 +55,7 @@
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/node (is/graph @*the-system* graph-id) node-id)))
+     (ig/graph->node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
@@ -191,6 +189,39 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
+(defn strip-alias
+  "If the list ends with :as _something_, return _something_ and the
+  list without the last two elements"
+  [argv]
+  (if (and
+       (<= 2 (count argv))
+       (= :as (nth argv (- (count argv) 2))))
+    [(last argv) (take (- (count argv) 2) argv)]
+    [nil argv]))
+
+(defmacro fnk
+  [argv & tail]
+  (let [param        (gensym "m")
+        [alias argv] (strip-alias (vec argv))
+        arglist      (interleave argv (map #(list `get param (keyword %)) argv))]
+    (if alias
+      `(with-meta
+         (fn [~param]
+           (let [~alias ~param
+                 ~@(vec arglist)]
+             ~@tail))
+         {:arguments (quote ~(mapv keyword argv))})
+      `(with-meta
+         (fn [~param]
+           (let ~(vec arglist) ~@tail))
+         {:arguments (quote ~(mapv keyword argv))}))))
+
+(defmacro defnk
+  [symb & body]
+  (let [[name args]  (ctm/name-with-attributes symb body)]
+    (assert (symbol? name) (str "Name for defnk is not a symbol:" name))
+    `(def ~name (fnk ~@args))))
+
 (defmacro always [v] `(dynamo.graph/fnk [] ~v))
 
 (defmacro deftype
@@ -319,30 +350,33 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms]  (ctm/name-with-attributes symb body)
-        fqs           (symbol (str *ns*) (str symb))
-        node-type-def (in/process-node-type-forms fqs forms)
-        fn-paths      (in/extract-functions node-type-def)
-        fn-defs       (for [[path func] fn-paths]
-                        (list `def (in/dollar-name symb path) func))
-        fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
-        node-type-def (util/update-paths node-type-def fn-paths
-                                         (fn [path func curr]
-                                           (assoc curr :fn (var-it (in/dollar-name symb path)))))
-        node-key      (:key node-type-def)
-        derivations   (for [tref (:supertypes node-type-def)]
-                        `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
-                           (derive ~node-key ~(:key (deref tref)))))
-        node-type-def (update node-type-def :supertypes #(list `quote %))
-        runtime-definer (symbol (str symb "*"))]
-    `(do
-       (declare ~symb)
-       ~@fwd-decls
-       ~@fn-defs
-       (defn ~runtime-definer [] ~node-type-def)
-       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-       ~@derivations
-       (var ~symb))))
+  (binding [in/*autotypes* (atom {})]
+    (let [[symb forms]  (ctm/name-with-attributes symb body)
+          fqs           (symbol (str *ns*) (str symb))
+          node-type-def (in/process-node-type-forms fqs forms)
+          fn-paths      (in/extract-functions node-type-def)
+          fn-defs       (for [[path func] fn-paths]
+                          (list `def (in/dollar-name symb path) func))
+          fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
+          node-type-def (util/update-paths node-type-def fn-paths
+                                           (fn [path func curr]
+                                             (assoc curr :fn (var-it (in/dollar-name symb path)))))
+          node-key      (:key node-type-def)
+          derivations   (for [tref (:supertypes node-type-def)]
+                          `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                             (derive ~node-key ~(:key (deref tref)))))
+          node-type-def (update node-type-def :supertypes #(list `quote %))
+          runtime-definer (symbol (str symb "*"))
+          type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
+      `(do
+         (declare ~symb)
+         ~@type-regs
+         ~@fwd-decls
+         ~@fn-defs
+         (defn ~runtime-definer [] ~node-type-def)
+         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+         ~@derivations
+         (var ~symb)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -588,6 +622,10 @@
   (assert node-id)
   (it/clear-property node-id p))
 
+(defn clear-property!
+  [node-id p]
+  (transact (clear-property node-id p)))
+
 (defn update-graph-value [graph-id k f & args]
   (it/update-graph-value graph-id update (into [k f] args)))
 
@@ -686,14 +724,20 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (node-value node-id label :cache (cache) :basis (now)))
-  ([node-id label & {:as options}]
-    (let [options (cond-> options
-                    true (assoc :in-transaction? (it/in-transaction?))
-                    (not (:cache options))
-                    (assoc :cache (cache))
-                    (not (:basis options))
-                    (assoc :basis (now)))]
+   (node-value node-id label {:cache (cache) :basis (now)}))
+  ([node-id label options]
+   (let [options (cond-> options
+                   (it/in-transaction?)
+                   (assoc :in-transaction? true)
+
+                   (not (:cache options))
+                   (assoc :cache (cache))
+
+                   (not (:basis options))
+                   (assoc :basis (now))
+
+                   (:no-cache options)
+                   (dissoc :cache))]
       (in/node-value node-id label options))))
 
 (defn graph-value
@@ -1038,7 +1082,7 @@
   ([root-id]
     (overrides (now) root-id))
   ([basis root-id]
-    (ig/overrides basis root-id)))
+    (ig/get-overrides basis root-id)))
 
 (defn override-original
   ([node-id]

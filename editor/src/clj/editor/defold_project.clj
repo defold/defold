@@ -3,9 +3,11 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
@@ -18,9 +20,9 @@
             [editor.game-project-core :as gpc]
             [service.log :as log]
             [editor.graph-util :as gu]
+            [util.http-server :as http-server]
             ;; TODO - HACK
             [internal.graph.types :as gt]
-            [util.http-server :as http-server]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -142,14 +144,14 @@
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn save-data [project]
-  (g/node-value project :save-data :skip-validation true))
+  (g/node-value project :save-data {:skip-validation true}))
 
 (defn save-all [project {:keys [render-progress! basis cache]
                          :or {render-progress! progress/null-render-progress!
                               basis            (g/now)
                               cache            (g/cache)}
                          :as opts}]
-  (let [save-data (g/node-value project :save-data :basis basis :cache cache :skip-validation true)]
+  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
     (if-not (g/error? save-data)
       (do
         (progress/progress-mapv
@@ -159,7 +161,7 @@
          save-data
          render-progress!
          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (workspace/resource-sync! (g/node-value project :workspace :basis basis :cache cache) false [] render-progress!))
+        (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
       ;; TODO: error message somewhere...
       (println (validation/error-message save-data)))))
 
@@ -256,7 +258,7 @@
      cache
      (let [node (:node-id target)
            dep-resources (into {} (map #(let [resource (:resource %)
-                                              key (target-key %)] [resource (:resource (get all-targets key))]) (:deps target)))
+                                              key (target-key %)] [resource (:resource (get all-targets key))]) (flatten (:deps target))))
            result ((:build-fn target) node basis resource dep-resources (:user-data target))
            result (assoc result :key key)]
        (swap! build-cache assoc resource (assoc result :cached true))
@@ -268,15 +270,19 @@
 (defn prune-build-cache! [cache build-targets]
   (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
 
-(defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
-
-(defn find-errors [{:keys [user-data causes _node-id] :as error} labels]
-  (let [labels (conj labels (get-resource-name _node-id))]
-    (if causes
-      (recur (first causes) labels)
-      [(remove nil? labels) user-data])))
+(defn- build-targets-deep [build-targets]
+  (loop [targets build-targets
+         queue []
+         seen #{}
+         result []]
+    (if-let [t (first targets)]
+      (let [key (target-key t)]
+        (if (contains? seen key)
+          (recur (rest targets) queue seen result)
+          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj result t))))
+      (if-let [targets (first queue)]
+        (recur targets (rest queue) seen result)
+        result))))
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
@@ -284,15 +290,16 @@
                                   cache            (g/cache)}
                            :as   opts}]
   (try
-    (let [build-cache          (g/node-value project :build-cache :basis basis :cache cache)
-          build-targets        (g/node-value node :build-targets :basis basis :cache cache)
+    (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
+          build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
           build-targets-by-key (and (not (g/error? build-targets))
-                                    (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %)
-                                                            (g/node-value node :build-targets :basis basis :cache cache))))]
+                                    (->> (g/node-value node :build-targets {:basis basis :cache cache})
+                                      build-targets-deep
+                                      targets-by-key))]
       (if (g/error? build-targets)
-        (let [[labels cause] (find-errors build-targets [])
-              message        (format "Build error [%s] '%s'" (last labels) cause)]
-          (when render-error! (render-error! message))
+        (do
+          (when render-error!
+            (render-error! build-targets))
           nil)
         (do
           (prune-build-cache! build-cache build-targets-by-key)
@@ -328,14 +335,10 @@
             (console/append-console-message! msg)
             (recur)))))))
 
-(defn- launch-engine [launch-dir webserver]
+(defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        url    (str (http-server/local-url webserver) hot-reload-url-prefix)
-        pb     (doto (ProcessBuilder. ^java.util.List
-                                      (list path
-                                            (str "--config=resource.uri=" url)
-                                            (str url "/game.projectc")))
+        pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
     (let [p  (.start pb)
@@ -347,11 +350,11 @@
                                           basis            (g/now)
                                           cache            (g/cache)}
                                      :as opts}]
-  (reset! (g/node-value project :build-cache :basis basis :cache cache) {})
-  (reset! (g/node-value project :fs-build-cache :basis basis :cache cache) {})
+  (reset! (g/node-value project :build-cache {:basis basis :cache cache}) {})
+  (reset! (g/node-value project :fs-build-cache {:basis basis :cache cache}) {})
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
-                                           (g/node-value project :workspace :basis basis :cache cache))))
-        fs-build-cache (g/node-value project :fs-build-cache :basis basis :cache cache)
+                                           (g/node-value project :workspace {:basis basis :cache cache}))))
+        fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
         build-results  (build project node opts)]
     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
@@ -404,8 +407,11 @@
                               :command :fetch-libraries}
                              {:label :separator}
                              {:label "Target"
+                              :on-submenu-open targets/update!
                               :command :target}
-                             {:label "Target Activity Log"
+                             {:label "Enter Target IP"
+                              :command :target-ip}
+                             {:label "Target Discovery Log"
                               :command :target-log}]}])
 
 (defn get-resource-node [project path-or-resource]
@@ -549,7 +555,8 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project]
+
+(defn build-and-save-project [project build-errors-view]
   (when-not @ongoing-build-save?
     (reset! ongoing-build-save? true)
     (let [workspace     (workspace project)
@@ -559,59 +566,62 @@
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
+            (ui/run-later (build-errors-view/clear-build-errors build-errors-view))
             (when-not (empty? (build-and-write project game-project
                                                {:render-progress! render-fn
-                                                :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
+                                                :render-error!    (fn [errors]
+                                                                    (ui/run-later
+                                                                     (build-errors-view/update-build-errors
+                                                                      build-errors-view
+                                                                      errors)))
                                                 :basis            (g/now)
                                                 :cache            cache}))
               (update-system-cache! old-cache-val cache)))
           (finally (reset! ongoing-build-save? false)))))))
 
+(defn get-selected-target [prefs]
+  (prefs/get-prefs prefs "last-target" targets/local-target))
+
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
-  (run [project web-server]
-    (let [build (build-and-save-project project)]
+  (run [project prefs web-server build-errors-view]
+    (let [build  (build-and-save-project project build-errors-view)]
       (when (and (future? build) @build)
-        (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))
-                       web-server)))))
-
-(def ^:private selected-target (atom nil))
-
-(defn get-selected-target [prefs]
-  (let [targets     (targets/get-targets)
-        last-target (prefs/get-prefs prefs "last-target" nil)]
-    (cond
-      (and @selected-target (contains? targets @selected-target))
-      @selected-target
-
-      (and last-target (contains? targets last-target))
-      last-target
-
-      :else
-      targets/local-target)))
+        (or (when-let [target (get-selected-target prefs)]
+              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
+                (engine/reboot (:url target) local-url)))
+            (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
-  (enabled? [] true)
-  (active? [] true)
   (run [user-data prefs]
     (when user-data
-      (prefs/set-prefs prefs "last-target" user-data)
-      (reset! selected-target user-data)))
+      (prefs/set-prefs prefs "last-target" user-data)))
   (state [user-data prefs]
          (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-           (or (= user-data @selected-target)
-               (= user-data last-target))))
-  (options [user-data]
+           (= user-data last-target)))
+  (options [user-data prefs]
            (when-not user-data
-             (mapv (fn [target]
-                     {:label     (:name target)
-                      :command   :target
-                      :check     true
-                      :user-data target})
-                   (targets/get-targets)))))
+             (let [targets     (targets/get-targets)
+                   last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
+                                 [lt])]
+               (mapv (fn [target]
+                       (let [[_ _ ip] (re-matches #"^(http://)([\w\.]+)(:)(.*)$" (:url target))]
+                         {:label     (format "%s (%s)" (:name target) ip)
+                          :command   :target
+                          :check     true
+                          :user-data target}))
+                     (distinct (concat last-target targets)))))))
+
+(handler/defhandler :target-ip :global
+  (run [prefs]
+    (ui/run-later
+     (when-let [ip (dialogs/make-target-ip-dialog)]
+       (let [url (format "http://%s:8001" ip)]
+         (prefs/set-prefs prefs "last-target" {:name "Manual IP"
+                                               :url  url})
+         (ui/invalidate-menus!))))))
 
 (handler/defhandler :target-log :global
-  (enabled? [] true)
   (run []
     (ui/run-later (targets/make-target-log-dialog))))
 

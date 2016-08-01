@@ -16,6 +16,7 @@ import org.eclipse.jdt.annotation.NonNull;
 
 import com.sun.javafx.scene.control.skin.ListViewSkin;
 import com.sun.javafx.scene.control.skin.VirtualFlow;
+import com.sun.javafx.scene.control.skin.VirtualScrollBar;
 
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -116,10 +117,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                                     return;
                                 }
 
-				getFlow().show(lineIndex);
+                                getFlow().show(lineIndex);
 
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
+
 						// Adjust the selection
 						if (DefoldStyledTextSkin.this.contentView.getSelectionModel().getSelectedItem() != c.domainElement) {
 							DefoldStyledTextSkin.this.contentView.getSelectionModel().select(lineObject);
@@ -127,9 +129,85 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
-						p.requestLayout();
-
+						Point2D careLocation = p.getCareLocation(newValue.intValue() - p.getStartOffset());
+						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(careLocation));
+						double prevCaretX = 0;
+						Point2D prevLoc = getCaretLocation(newValue.intValue() - 1);
+						if (prevLoc != null){
+							prevCaretX = prevLoc.getX();
+						}
 						updateCurrentCursorNode(p);
+
+						VirtualScrollBar sb = getFlow().getHScrollBar();
+
+						boolean forward = newValue.intValue() > oldValue.intValue();
+						boolean backward = !forward;
+
+                                                double bufferSize = getFlow().getViewportWidth() / 5; 
+                                                double moveSize = 20;
+
+                                                ////NOTE: The following section is a start of implementing horizontal scrolling as you type
+                                                /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
+                                                /// This whole area should be revisited once it get's sorted out
+						///Need to do layout to get the scroll bar's current positioning about the new document change
+                                                sb.layout();
+
+						if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
+							//entering a new char - the x is not calculated yet
+							// bump the bar
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							//System.err.println("inching forward adding char!!!" + prevCaretX);
+
+							if (prevCaretX < 0 || (prevCaretX + bufferSize >= getFlow().getViewportWidth()))
+							{
+								sb.setValue(sb.getMax() + (moveSize * newCharCount) + moveSize);
+							}else{
+								//sb.setValue(sb.getValue() + (moveSize * newCharCount));
+
+							}
+                                                }
+						else if (forward && tmp.getX() + sb.getVisibleAmount()+ bufferSize >= getFlow().getViewportWidth()){
+							//System.err.println("inching forwards");
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							sb.setValue(Math.min(sb.getMax() + moveSize ,sb.getValue() + (moveSize * newCharCount)));
+                                                }
+						else if (sb.isVisible() && (tmp.getX() < 0)){
+							//moving from the end of line to next line out of visibility
+							//System.err.println("end of line to next line");
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							if (newCharCount > 0)
+							{
+								newCharCount = newCharCount * -1;
+							}
+
+							sb.setValue(Math.max(0,sb.getValue() + tmp.getX()));
+							//totally arbitrary but I don't have a better way to calculate it right now
+							if ((newValue.intValue() - p.getStartOffset()) < 25){
+								//begin of line
+								sb.setValue(0);
+							}
+						}
+						else if (backward && sb.isVisible() && tmp.getX() - bufferSize < 0){
+							///moving backwards
+							//System.err.println("inching backwards");
+
+							int newCharCount = newValue.intValue() - oldValue.intValue();
+							//System.err.println("new " + newValue.intValue() + " old " + oldValue.intValue() + " x"  + tmp.getX());
+							if (newCharCount > 0){
+								newCharCount = newCharCount * -1;
+							}
+
+							sb.setValue(Math.max(0,sb.getValue() + (moveSize * newCharCount)));
+						}else{
+							//totally arbitrary but I don't have a better way to calculate it right now
+							if ((newValue.intValue() - p.getStartOffset()) < 25){
+								//begin of line
+								sb.setValue(0);
+							}
+						}
+						p.applyCss();
+						p.layoutChildren();
+						getFlow().requestLayout();
 
 						return;
 					}
@@ -168,7 +246,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							} else {
 								block.setSelection(new TextSelection(0, 0));
 							}
+							block.applyCss();
+							block.layoutChildren();
 						}
+						getFlow().requestLayout();
 					}
 				}
 			}
@@ -220,7 +301,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 			@Override
 			public void handle(MouseEvent event) {
-				getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), event.isShiftDown());
+                            getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), event.isShiftDown(), null);
 				// The consuming does not help because it looks like the
 				// selection change happens earlier => should be push a new
 				// ListViewBehavior?
@@ -231,7 +312,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 			@Override
 			public void handle(MouseEvent event) {
-				getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), true);
+                            getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), true, null);
 				event.consume();
 			}
 		});
@@ -718,6 +799,18 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			this.lineText.setAlignment(Pos.CENTER_RIGHT);
 			HBox.setHgrow(this.lineText, Priority.ALWAYS);
 			getChildren().addAll(this.markerLabel, this.lineText);
+                        Label ltext = this.lineText;
+			this.setOnMousePressed(new EventHandler<MouseEvent>() {
+
+				@Override
+				public void handle(MouseEvent event) {
+                                    getBehavior().defoldUpdateCursor(event, getCurrentVisibleCells(), event.isShiftDown(), ltext);
+					// The consuming does not help because it looks like the
+					// selection change happens earlier => should be push a new
+					// ListViewBehavior?
+					event.consume();
+				}
+			});
 		}
 
 		public void setDomainElement(Line line) {
@@ -833,15 +926,21 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		@Override
 		protected void layoutChildren() {
 			super.layoutChildren();
+			DefoldStyledTextSkin.this.lineRuler.requestLayout();
+                        //having this on another thread makes the cpu churn
 
-			Platform.runLater(new Runnable() {
+//			Platform.runLater(new Runnable() {
+//
+//				@Override
+//				public void run() {
+//					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+//				}
+//			});
 
-				@Override
-				public void run() {
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
-				}
-			});
-
+		}
+		
+		public double getViewportWidth(){
+			return super.getViewportBreadth();
 		}
 
 
@@ -860,7 +959,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		public List<LineCell> getCells() {
 			return super.getCells();
 		}
-
+		
+		public VirtualScrollBar getHScrollBar(){
+			return this.getHbar();
+		}
+		
 		@Override
 		public void rebuildCells() {
 			super.rebuildCells();

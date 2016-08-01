@@ -85,11 +85,11 @@
   :main ^:skip-aot   com.defold.editor.Start
 
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
-                      :uberjar {:prep-tasks   ["clean" "protobuf" "javac" ["run" "-m" " aot"] "compile"]
-                                :jvm-opts     ["-Dclojure.compiler.direct-linking=true"]
+                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
+                      :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :dev     {:dependencies      [[org.clojure/test.check   "0.9.0"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [org.clojure/tools.trace  "0.7.9"]
@@ -99,4 +99,5 @@
                                 :proto-paths       ["test/proto"]
                                 :java-source-paths ["dev/java"]
                                 :source-paths      ["dev/clj"]
-                                :resource-paths    ["test/resources"]}})
+                                :resource-paths    ["test/resources"]
+                                :jvm-opts          ["-XX:+UnlockCommercialFeatures" "-XX:+FlightRecorder"]}})

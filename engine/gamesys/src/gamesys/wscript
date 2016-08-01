@@ -1,32 +1,46 @@
 #! /usr/bin/env python
 import os
+import re
+import sys
 
 def configure(conf):
     conf.sub_config('test')
 
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
-                                includes = '. ../../proto',
-                                proto_gen_py = True,
-                                protoc_includes = '../../proto',
-                                target = 'gamesys',
-                                embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc')
+        includes = '. ../../proto',
+        proto_gen_py = True,
+        protoc_includes = '../../proto',
+        target = 'gamesys',
+        embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc')
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto'])
+
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        resource.source += ['scripts/window/script_window_ios.mm']
+    elif re.match('.*?android', bld.env.PLATFORM):
+        resource.source += ['scripts/window/script_window_android.cpp']
+    else:
+        resource.source += ['scripts/window/script_window_null.cpp']
+
     bld.add_group()
 
-    for d, source in [('camera', ('../../proto/camera_ddf.proto')),
-                      ('collection_proxy', ('components/comp_collection_proxy.cpp')),
-                      ('factory', ('scripts/script_factory.cpp')),
-                      ('collection_factory', ('scripts/script_collection_factory.cpp')),
-                      ('particlefx', ('scripts/script_particlefx.cpp')),
-                      ('collision_object', ('../../proto/physics_ddf.proto', 'scripts/script_physics.cpp')),
-                      ('sound', ('components/comp_sound.cpp', 'scripts/script_sound.cpp')),
-                      ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
-                      ('tilemap', ('../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp')),
-                      ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp')),
-                      ('rig', ('../../proto/rig_ddf.proto'))
-                      ]:
+    sources = [
+        ('camera', ('../../proto/camera_ddf.proto')),
+        ('collection_proxy', ('components/comp_collection_proxy.cpp')),
+        ('factory', ('scripts/script_factory.cpp')),
+        ('collection_factory', ('scripts/script_collection_factory.cpp')),
+        ('particlefx', ('scripts/script_particlefx.cpp')),
+        ('collision_object', ('../../proto/physics_ddf.proto', 'scripts/script_physics.cpp')),
+        ('sound', ('components/comp_sound.cpp', 'scripts/script_sound.cpp')),
+        ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
+        ('tilemap', ('../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp')),
+        ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp')),
+        ('window', ('scripts/script_window.cpp')),
+        ('rig', ('../../proto/rig_ddf.proto'))
+    ]
+
+    for d, source in sources:
         bld.new_task_gen(source = source,
                          target = '%s_doc.sdoc' % d,
                          rule = '${SCRIPT_DOC} ${SRC} ${TGT}')

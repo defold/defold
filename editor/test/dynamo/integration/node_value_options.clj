@@ -24,7 +24,7 @@
 (defn- cached? [cache node label]
   (contains? @cache [node label]))
 
-(defn- touch [node label] (g/node-value node label :no-cache true))
+(defn- touch [node label] (g/node-value node label {:no-cache true}))
 
 (defn- test-node [world] (first (ts/tx-nodes (g/make-node world CacheTestNode))))
 (defn- connected-test-nodes
@@ -79,13 +79,13 @@
 (defn ignored-single? [error-level ignore-level]
   (ts/with-clean-system
     (let [[_ receiver]   (error-test-nodes world (assoc (ie/error-value error-level nil) :value 88))
-          value-returned (g/node-value receiver :single-output :ignore-errors ignore-level)]
+          value-returned (g/node-value receiver :single-output {:ignore-errors ignore-level})]
       (not (ie/error? value-returned)))))
 
 (defn ignored-multiple? [error-level ignore-level]
   (ts/with-clean-system
     (let [receiver       (error-test-nodes-multiple world (assoc (ie/error-value error-level nil) :value 10101))
-          value-returned (g/node-value receiver :array-output :ignore-errors ignore-level)]
+          value-returned (g/node-value receiver :array-output {:ignore-errors ignore-level})]
       (not (ie/error? value-returned)))))
 
 (deftest node-value-allows-ignore-errors-option
@@ -150,16 +150,16 @@
   (comment (testing "single-valued output"
      (ts/with-clean-system
        (let [[_ receiver] (error-test-nodes world (warn 88))]
-         (is (= 88 (g/node-value receiver :single-output :ignore-errors g/FATAL)))
-         (is (= 88 (g/node-value receiver :single-output :ignore-errors g/SEVERE)))
-         (is (= 88 (g/node-value receiver :single-output :ignore-errors g/WARNING)))
-         (is (g/error? (g/node-value receiver :single-output :ignore-errors g/INFO)))))))
+         (is (= 88 (g/node-value receiver :single-output {:ignore-errors g/FATAL})))
+         (is (= 88 (g/node-value receiver :single-output {:ignore-errors g/SEVERE})))
+         (is (= 88 (g/node-value receiver :single-output {:ignore-errors g/WARNING})))
+         (is (g/error? (g/node-value receiver :single-output {:ignore-errors g/INFO})))))))
 
   (testing "multi-valued output"
     (ts/with-clean-system
       (let [receiver (error-test-nodes-multiple world 1 2 3 (warn 4) (info 5))]
-        (is (= [1 2 3 4 5] (g/node-value receiver :array-output :ignore-errors g/FATAL)))
-        (is (= [1 2 3 4 5] (g/node-value receiver :array-output :ignore-errors g/SEVERE)))
-        (is (= [1 2 3 4 5] (g/node-value receiver :array-output :ignore-errors g/WARNING)))
-        (is (g/error? (g/node-value receiver :array-output :ignore-errors g/INFO)))
-        (is (= g/WARNING (:severity (g/node-value receiver :array-output :ignore-errors g/INFO))))))))
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors g/FATAL})))
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors g/SEVERE})))
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors g/WARNING})))
+        (is (g/error? (g/node-value receiver :array-output {:ignore-errors g/INFO})))
+        (is (= g/WARNING (:severity (g/node-value receiver :array-output {:ignore-errors g/INFO}))))))))

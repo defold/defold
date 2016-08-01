@@ -4,6 +4,7 @@ import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import com.dynamo.cr.server.test.FixedTimeSource;
+import com.dynamo.cr.server.test.TestUser;
 import com.dynamo.cr.server.test.TestUtils;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -48,7 +49,7 @@ public class AccessTokenAuthenticatorTest {
     public void sessionTokenShouldBeAuthenticated() {
         AccessTokenAuthenticator accessTokenAuthenticator = injector.getInstance(AccessTokenAuthenticator.class);
 
-        User user = ModelUtil.findUserByEmail(entityManagerRule.getEntityManager(), TestUtils.TestUser.JAMES.email);
+        User user = ModelUtil.findUserByEmail(entityManagerRule.getEntityManager(), TestUser.JAMES.email);
         String token = accessTokenAuthenticator.createSessionToken(user, "ip");
 
         assertTrue(accessTokenAuthenticator.authenticate(user, token, "some ip"));
@@ -59,7 +60,7 @@ public class AccessTokenAuthenticatorTest {
     public void expiredTokensShouldNotBeAuthenticated() {
         AccessTokenAuthenticator accessTokenAuthenticator = injector.getInstance(AccessTokenAuthenticator.class);
 
-        User user = ModelUtil.findUserByEmail(entityManagerRule.getEntityManager(), TestUtils.TestUser.JAMES.email);
+        User user = ModelUtil.findUserByEmail(entityManagerRule.getEntityManager(), TestUser.JAMES.email);
         accessTokenAuthenticator.setTimeSource(new FixedTimeSource(Instant.now()));
         String token = accessTokenAuthenticator.createSessionToken(user, "ip");
 
@@ -74,7 +75,7 @@ public class AccessTokenAuthenticatorTest {
     public void lifetimeTokenShouldBeAuthenticated() {
         AccessTokenAuthenticator accessTokenAuthenticator = injector.getInstance(AccessTokenAuthenticator.class);
 
-        User user = ModelUtil.findUserByEmail(entityManagerRule.getEntityManager(), TestUtils.TestUser.JAMES.email);
+        User user = ModelUtil.findUserByEmail(entityManagerRule.getEntityManager(), TestUser.JAMES.email);
         String token = accessTokenAuthenticator.createLifetimeToken(user, "ip");
 
         assertTrue(accessTokenAuthenticator.authenticate(user, token, "some ip"));

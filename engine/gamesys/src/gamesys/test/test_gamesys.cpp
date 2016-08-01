@@ -224,6 +224,72 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+
+TEST_F(WindowEventTest, Test)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction input_action;
+    input_action.m_ActionId = dmHashString64("test_action");
+
+    // Set test state 1
+    input_action.m_Value = 1.0f;
+    dmGameObject::DispatchInput(m_Collection, &input_action, 1);
+
+    dmGameSystem::OnWindowFocus(false);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Set test state 2
+    input_action.m_Value = 2.0f;
+    dmGameObject::DispatchInput(m_Collection, &input_action, 1);
+
+    dmGameSystem::OnWindowFocus(true);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Set test state 3
+    input_action.m_Value = 3.0f;
+    dmGameObject::DispatchInput(m_Collection, &input_action, 1);
+
+    dmGameSystem::OnWindowResized(123, 456);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Set final test state, check that all tests passed
+    input_action.m_Value = 0.0f;
+    dmGameObject::DispatchInput(m_Collection, &input_action, 1);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 /* Camera */
 
 const char* valid_camera_resources[] = {"/camera/valid.camerac"};

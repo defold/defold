@@ -1087,6 +1087,8 @@ namespace dmScript
      * vector to the second. The two vectors must be unit 
      * length vectors (of length 1).
      *
+     * @note The result is undefined if the two vectors point in opposite directions
+     *
      * @name vmath.quat_from_to
      * @param v1 first unit vector, before rotation (vector3)
      * @param v2 second unit vector, after rotation (vector3)
