@@ -7,7 +7,7 @@
 #include "testutil.h"
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
-int g_HttpPort = 7000;
+int g_HttpPort = -1;
 
 struct TestParam
 {
@@ -260,19 +260,25 @@ INSTANTIATE_TEST_CASE_P(CommandLine,
                                           TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)));
 #endif
 
+static void Usage()
+{
+    dmLogError("Usage: <exe> <config>");
+    dmLogError("Be sure to start the http server before starting this test.");
+    dmLogError("You can use the config file created by the server");
+}
+
 int main(int argc, char **argv)
 {
-    if(argc > 1)
+    dmConfigFile::HConfig config;
+    if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
     {
-        dmConfigFile::HConfig config;
-        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
-        {
-            dmLogError("Could not read config file '%s'", argv[1]);
-            return 1;
-        }
-        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
-        dmConfigFile::Delete(config);
+        dmLogError("Could not read config file '%s'", argv[1]);
+        Usage();
+        return 1;
     }
+    dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+    dmConfigFile::Delete(config);
+
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

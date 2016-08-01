@@ -7,15 +7,15 @@ void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* socket
 {
     if( socket != 0 )
     {
-        *socket = dmConfigFile::GetInt(config, "server.socket", 7000);
+        *socket = dmConfigFile::GetInt(config, "server.socket", -1);
     }
     if( socket_ssl != 0 )
     {
-        *socket_ssl = dmConfigFile::GetInt(config, "server.socket_ssl", 7001);
+        *socket_ssl = dmConfigFile::GetInt(config, "server.socket_ssl", -1);
     }
     if( socket_ssl_test != 0 )
     {
-        *socket_ssl_test = dmConfigFile::GetInt(config, "server.socket_ssl_test", 7002);
+        *socket_ssl_test = dmConfigFile::GetInt(config, "server.socket_ssl_test", -1);
     }
 }
 

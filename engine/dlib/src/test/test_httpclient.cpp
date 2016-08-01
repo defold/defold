@@ -14,9 +14,9 @@
 #include "dlib/http_cache_verify.h"
 #include "testutil.h"
 
-int g_HttpPort = 7000;
-int g_HttpPortSSL = 7001;
-int g_HttpPortSSLTest = 7002;
+int g_HttpPort = -1;
+int g_HttpPortSSL = -1;
+int g_HttpPortSSLTest = -1;
 
 #define NAME_SOCKET "{server_socket}"
 #define NAME_SOCKET_SSL "{server_socket_ssl}"
@@ -952,6 +952,13 @@ TEST(dmHttpClient, ConnectionRefused)
     dmHttpClient::Delete(client);
 }
 
+static void Usage()
+{
+    dmLogError("Usage: <exe> <config>");
+    dmLogError("Be sure to start the http server before starting this test.");
+    dmLogError("You can use the config file created by the server");
+}
+
 int main(int argc, char **argv)
 {
     if(argc > 1)
@@ -960,6 +967,7 @@ int main(int argc, char **argv)
         if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
             dmLogError("Could not read config file '%s'", argv[1]);
+            Usage();
             return 1;
         }
         dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
