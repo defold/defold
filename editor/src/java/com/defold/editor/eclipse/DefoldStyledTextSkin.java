@@ -128,12 +128,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						}
 
 						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
-						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
-						Point2D careLocation = p.getCareLocation(newValue.intValue() - p.getStartOffset());
                                                 if (p == null){
                                                     return;
                                                 }
-						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(careLocation));
+						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
+						Point2D caretLocation = p.getCaretLocation(newValue.intValue() - p.getStartOffset());
+						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(caretLocation));
 						double prevCaretX = 0;
 						Point2D prevLoc = getCaretLocation(newValue.intValue() - 1);
 						if (prevLoc != null){
@@ -146,7 +146,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						boolean forward = newValue.intValue() > oldValue.intValue();
 						boolean backward = !forward;
 
-                                                double bufferSize = getFlow().getViewportWidth() / 5; 
+                                                double bufferSize = getFlow().getViewportWidth() / 5;
                                                 double moveSize = 20;
 
                                                 ////NOTE: The following section is a start of implementing horizontal scrolling as you type
@@ -155,7 +155,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						///Need to do layout to get the scroll bar's current positioning about the new document change
                                                 sb.layout();
 
-						if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
+						if (forward && caretLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
 							int newCharCount = newValue.intValue() - oldValue.intValue();
@@ -262,7 +262,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 	public ListView<Line> getListView(){
 		return contentView;
 	}
-	
+
 	DefoldStyledTextBehavior getBehavior() {
 		return this.behavior;
 	}
@@ -383,8 +383,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		for (LineCell c : getCurrentVisibleCells()) {
 			if (c.domainElement == lineObject) {
 				DefoldStyledTextLayoutContainer b = (DefoldStyledTextLayoutContainer) c.getGraphic();
-				Point2D careLocation = b.getCareLocation(caretPosition - b.getStartOffset());
-				Point2D tmp = getSkinnable().sceneToLocal(b.localToScene(careLocation));
+				Point2D caretLocation = b.getCaretLocation(caretPosition - b.getStartOffset());
+				Point2D tmp = getSkinnable().sceneToLocal(b.localToScene(caretLocation));
 				return new Point2D(tmp.getX(), getSkinnable().sceneToLocal(b.localToScene(0, b.getHeight())).getY());
 			}
 		}
@@ -941,7 +941,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 //			});
 
 		}
-		
+
 		public double getViewportWidth(){
 			return super.getViewportBreadth();
 		}
@@ -962,11 +962,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		public List<LineCell> getCells() {
 			return super.getCells();
 		}
-		
+
 		public VirtualScrollBar getHScrollBar(){
 			return this.getHbar();
 		}
-		
+
 		@Override
 		public void rebuildCells() {
 			super.rebuildCells();

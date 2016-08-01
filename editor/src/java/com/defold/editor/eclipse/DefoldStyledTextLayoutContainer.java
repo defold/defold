@@ -341,7 +341,7 @@ public class DefoldStyledTextLayoutContainer extends Region {
 	 *            the index
 	 * @return the location relative to this node or <code>null</code>
 	 */
-	public @Nullable Point2D getCareLocation(int index) {
+	public @Nullable Point2D getCaretLocation(int index) {
 		for (DefoldStyledTextNode t : this.textNodes) {
 			if (t.getStartOffset() <= index && t.getEndOffset() >= index) {
 				double x = t.getCharLocation(index);

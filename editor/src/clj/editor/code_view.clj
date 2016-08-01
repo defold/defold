@@ -333,9 +333,6 @@
                         (ui/event-handler e (cvx/handle-key-typed e source-viewer)))
       (.setOnMouseEntered ^StyledTextArea text-area
                           (ui/event-handler e
-                                            (.setCursor (.getScene text-area) Cursor/TEXT)))
-      (.setOnMouseEntered ^StyledTextArea text-area
-                          (ui/event-handler e
                                             (.setCursor (.getScene text-area) Cursor/DEFAULT)))
      (when use-custom-skin?
        (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
