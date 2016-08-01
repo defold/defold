@@ -93,10 +93,11 @@ def shutdown():
 
     # write a config file for the tests to use
     config = ConfigParser.RawConfigParser()
-    config.add_section("server")
-    config.set("server", "socket", server_sockets.getint("server", "socket"))
-    config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
-    config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
+    if sys.platform != 'win32':
+        config.add_section("server")
+        config.set("server", "socket", server_sockets.getint("server", "socket"))
+        config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
+        config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
 
     configfilepath = tempfile.mktemp(".cfg", "unittest_")
     with open(configfilepath, 'wb') as f:
