@@ -6,6 +6,20 @@
 
 class FBTest : public ::testing::Test
 {
+public:
+    lua_State* L;
+
+private:
+
+    // Code here will be called immediately after the constructor (right before each test).
+    virtual void SetUp() {
+        L = luaL_newstate();
+    }
+
+    // Code here will be called immediately after each test (right before the destructor).
+    virtual void TearDown() {
+        lua_close(L);
+    }
 };
 
 TEST_F(FBTest, EscapeJsonString)
@@ -31,42 +45,45 @@ TEST_F(FBTest, EscapeJsonString)
     ASSERT_EQ(10, dmFacebook::EscapeJsonString(unescaped_none, escaped, escaped+sizeof(escaped)));
 }
 
-TEST_F(FBTest, TableIsArray)
+TEST_F(FBTest, TableIsArray1)
 {
     // { 1: "asd", 2: "fgh", 3: "jkl" }
-    lua_State* L_array = luaL_newstate();
-    lua_createtable(L_array, 1, 0);
-    lua_pushnumber(L_array, 1);
-    lua_pushstring(L_array, "asd");
-    lua_rawset(L_array, -3);
-    lua_pushnumber(L_array, 2);
-    lua_pushstring(L_array, "fgh");
-    lua_rawset(L_array, -3);
-    lua_pushnumber(L_array, 3);
-    lua_pushstring(L_array, "jkl");
-    lua_rawset(L_array, -3);
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "asd");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushstring(L, "fgh");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 3);
+    lua_pushstring(L, "jkl");
+    lua_rawset(L, -3);
 
-    ASSERT_TRUE(dmFacebook::IsLuaArray(L_array, 1));
+    ASSERT_TRUE(dmFacebook::IsLuaArray(L, 1));
+}
 
+TEST_F(FBTest, TableIsArray2)
+{
     // { 1: "asd", "string_key": "fgh", 3: "jkl" }
-    lua_State* L_dict = luaL_newstate();
-    lua_createtable(L_dict, 1, 0);
-    lua_pushnumber(L_dict, 1);
-    lua_pushstring(L_dict, "asd");
-    lua_rawset(L_dict, -3);
-    lua_pushstring(L_dict, "fgh");
-    lua_setfield(L_dict, 1, "string_key");
-    lua_pushnumber(L_dict, 3);
-    lua_pushstring(L_dict, "jkl");
-    lua_rawset(L_dict, -3);
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "asd");
+    lua_rawset(L, -3);
+    lua_pushstring(L, "fgh");
+    lua_setfield(L, 1, "string_key");
+    lua_pushnumber(L, 3);
+    lua_pushstring(L, "jkl");
+    lua_rawset(L, -3);
 
-    ASSERT_FALSE(dmFacebook::IsLuaArray(L_dict, 1));
+    ASSERT_FALSE(dmFacebook::IsLuaArray(L, 1));
+}
 
+TEST_F(FBTest, TableIsArray3)
+{
     // {}
-    lua_State* L_empty = luaL_newstate();
-    lua_createtable(L_empty, 1, 0);
+    lua_createtable(L, 1, 0);
 
-    ASSERT_TRUE(dmFacebook::IsLuaArray(L_empty, 1));
+    ASSERT_TRUE(dmFacebook::IsLuaArray(L, 1));
 }
 
 TEST_F(FBTest, EscapeJsonValues)
@@ -95,7 +112,6 @@ TEST_F(FBTest, ValueToJson)
 {
     char json[256];
 
-    lua_State* L = luaL_newstate();
     lua_pushnumber(L, 1);
     lua_pushnumber(L, 1.1);
     lua_pushnumber(L, 0.0);
@@ -139,7 +155,6 @@ TEST_F(FBTest, InvalidValueToJson)
 {
     char json[256];
 
-    lua_State* L = luaL_newstate();
     lua_pushcfunction(L, NULL);
     lua_pushlightuserdata(L, NULL);
     lua_pushthread(L);
@@ -167,7 +182,6 @@ TEST_F(FBTest, ArrayToJsonStrings)
     int r = 0;
 
     // { 1: "asd", 2: "fgh", 3: "jkl" }
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushnumber(L, 1);
     lua_pushstring(L, "asd");
@@ -190,7 +204,6 @@ TEST_F(FBTest, ArrayToJsonMixed1)
     int r = 0;
 
     // { 1: "asd", 2: 1.1, 3: 1 }
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushnumber(L, 1);
     lua_pushstring(L, "asd");
@@ -213,7 +226,6 @@ TEST_F(FBTest, ArrayToJsonMixed2)
     int r = 0;
 
     // { 1: false, 2: 1.337, 3: true }
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushnumber(L, 1);
     lua_pushboolean(L, false);
@@ -236,7 +248,6 @@ TEST_F(FBTest, TableToJsonStrings)
     int r = 0;
 
     // { 1: "asd", "string_key": "fgh", 3: "jkl" }
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushnumber(L, 1);
     lua_pushstring(L, "asd");
@@ -258,7 +269,6 @@ TEST_F(FBTest, TableToJsonMultiLevelStrings)
     int r = 0;
 
     // { "suggestions": ["userid1", "userid2", "userid3"] }
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
         lua_createtable(L, 1, 0);
         lua_pushnumber(L, 1);
@@ -283,7 +293,6 @@ TEST_F(FBTest, TableToJsonMultiLevelMixed)
     int r = 0;
 
     // { "a": {1: "d", 2: "e", "b":["c"]} }
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
         lua_createtable(L, 1, 0);
         lua_pushstring(L, "b");
@@ -312,7 +321,6 @@ TEST_F(FBTest, TableToJsonEmpty1)
     int r = 0;
 
     // {}
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
 
     r = dmFacebook::LuaValueToJsonValue(L, 1, json, 256);
@@ -326,7 +334,6 @@ TEST_F(FBTest, TableToJsonEmpty2)
     int r = 0;
 
     // {}
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
 
     r = dmFacebook::LuaValueToJsonValue(L, -1, json, 256);
@@ -340,7 +347,6 @@ TEST_F(FBTest, TableToJsonBufferOverflow1)
     int r = 0;
 
     // {}
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
 
     r = dmFacebook::LuaValueToJsonValue(L, 1, json, 2);
@@ -355,7 +361,6 @@ TEST_F(FBTest, TableToJsonBufferOverflow2)
     int r = 0;
 
     // {"12345"} -> ["12345"]
-    lua_State* L = luaL_newstate();
     lua_newtable(L);
     lua_pushnumber(L, 1);
     lua_pushstring(L, "12345");
@@ -368,7 +373,6 @@ TEST_F(FBTest, TableToJsonBufferOverflow2)
 
 TEST_F(FBTest, ParseJsonSimple)
 {
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
     lua_pushstring(L, "142175679447464,116897941987429");
     lua_setfield(L, 1, "to");
@@ -399,7 +403,6 @@ TEST_F(FBTest, ParseJsonSimple)
 
 TEST_F(FBTest, ParseJsonMultiTable)
 {
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
         lua_createtable(L, 1, 0);
         lua_pushnumber(L, 1);
@@ -434,7 +437,6 @@ TEST_F(FBTest, ParseJsonMultiTable)
 
 TEST_F(FBTest, DuplicateTable)
 {
-    lua_State* L = luaL_newstate();
     lua_newtable(L);
     lua_pushstring(L, "suggestions");
         lua_newtable(L);
@@ -465,7 +467,6 @@ TEST_F(FBTest, DuplicateTable)
 
 TEST_F(FBTest, LuaTableToJson)
 {
-    lua_State* L = luaL_newstate();
     lua_createtable(L, 1, 0);
         lua_createtable(L, 1, 0);
         lua_pushnumber(L, 1);
@@ -509,7 +510,6 @@ TEST_F(FBTest, LuaTableToJson)
 
 TEST_F(FBTest, DuplicateTableMaxRecursion)
 {
-    lua_State* L = luaL_newstate();
     lua_newtable(L);
     lua_pushstring(L, "level0");
         lua_newtable(L);
@@ -537,7 +537,6 @@ TEST_F(FBTest, DuplicateTableMaxRecursion)
 
 TEST_F(FBTest, DialogTableConversionAndroid)
 {
-    lua_State* L = luaL_newstate();
     lua_newtable(L);
     lua_pushstring(L, "to");
         lua_newtable(L);
@@ -576,7 +575,6 @@ TEST_F(FBTest, DialogTableConversionAndroid)
 
 TEST_F(FBTest, DialogTableConversionEmscripten)
 {
-    lua_State* L = luaL_newstate();
     lua_newtable(L);
     lua_pushstring(L, "to");
         lua_newtable(L);
