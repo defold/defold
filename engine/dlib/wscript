@@ -7,7 +7,8 @@ srcdir = '.'
 blddir = 'build'
 
 import Options
-import os, sys, waf_dynamo
+import os, sys, tempfile, ConfigParser
+import waf_dynamo
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 def init():
@@ -55,11 +56,15 @@ def shutdown():
     from Logs import warn, error
     import urllib2, time, atexit
 
+    server_sockets = None
+
     if sys.platform != 'win32':
-        os.system('scripts/start_proxy_server.sh')
         os.system('scripts/start_http_server.sh')
         atexit.register(os.system, 'scripts/stop_http_server.sh')
-        atexit.register(os.system, 'scripts/stop_proxy_server.sh')
+
+        server_config_path = "test_http_server.cfg"
+        if os.path.exists(server_config_path):
+            os.unlink(server_config_path)
 
         start = time.time()
         while True:
@@ -67,16 +72,38 @@ def shutdown():
                 error('HTTP server failed to start within 5 seconds')
                 sys.exit(1)
             try:
-                urllib2.urlopen('http://localhost:7000')
+                if not os.path.exists(server_config_path):
+                    raise IOError("Waiting for server to write config file")
+
+                server_sockets = ConfigParser.RawConfigParser()
+                server_sockets.read(server_config_path)
+                server_socket = server_sockets.getint("server", "socket")
+
+                urllib2.urlopen('http://localhost:%d' % server_socket)
                 break
+            except IOError:
+                print('Waiting for HTTP testserver to start')
             except urllib2.URLError:
-                print('Waiting for HTTP testserver to start...')
-                sys.stdout.flush()
-                time.sleep(0.5)
+                print('Waiting for HTTP testserver to start on port %d...' % server_socket)
+
+            sys.stdout.flush()
+            time.sleep(0.5)
     else:
         warn('HTTP tests not supported on Win32 yet')
 
-    waf_dynamo.run_gtests(valgrind = True)
+    # write a config file for the tests to use
+    config = ConfigParser.RawConfigParser()
+    config.add_section("server")
+    config.set("server", "socket", server_sockets.getint("server", "socket"))
+    config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
+    config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
+
+    configfilepath = tempfile.mktemp(".cfg", "unittest_")
+    with open(configfilepath, 'wb') as f:
+        config.write(f)
+        print("Wrote test config file: %s" % configfilepath)
+
+    waf_dynamo.run_gtests(valgrind = True, configfile = configfilepath)
 
     if sys.platform != 'win32':
         import subprocess
