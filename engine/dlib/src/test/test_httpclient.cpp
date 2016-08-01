@@ -961,15 +961,23 @@ static void Usage()
 
 int main(int argc, char **argv)
 {
-    dmConfigFile::HConfig config;
-    if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+    if(argc > 1)
     {
-        dmLogError("Could not read config file '%s'", argv[1]);
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            Usage();
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
+        dmConfigFile::Delete(config);
+    }
+    else
+    {
         Usage();
         return 1;
     }
-    dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
-    dmConfigFile::Delete(config);
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
