@@ -11,7 +11,8 @@
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.geom :as geom])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -25,6 +26,11 @@
 (set! *warn-on-reflection* true)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
+
+(vtx/defvertex vtx-pos-nrm-tex
+  (vec3 position)
+  (vec3 normal)
+  (vec2 texcoord0))
 
 (defn- build-mesh [self basis resource dep-resources user-data]
   (let [content (:content user-data)]
@@ -109,7 +115,26 @@
   (inherits project/ResourceNode)
 
   (output content g/Any :cached produce-content)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output aabb AABB :cached (g/fnk [content]
+                                   (reduce (fn [aabb [x y z]]
+                                             (geom/aabb-incorporate aabb x y z))
+                                           (geom/null-aabb)
+                                           (partition 3 (get-in content [:components 0 :positions])))))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output vbs g/Any :cached (g/fnk [content]
+                                   (mapv (fn [c]
+                                           (let [vcount (* 3 (:primitive-count c))]
+                                             (when (> vcount 0)
+                                               (loop [vb (->vtx-pos-nrm-tex vcount)
+                                                      ps (partition 3 (:positions c))
+                                                      ns (partition 3 (:normals c))
+                                                      ts (partition 2 (:texcoord0 c))]
+                                                 (if-let [[x y z] (first ps)]
+                                                   (let [[nx ny nz] (first ns)
+                                                         [tu tv] (first ts)]
+                                                     (recur (conj! vb [x y z nx ny nz tu tv]) (rest ps) (rest ns) (rest ts)))
+                                                   (persistent! vb))))))
+                                         (:components content)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -117,4 +142,6 @@
                                     :label "Collada Mesh"
                                     :build-ext "meshc"
                                     :node-type MeshNode
-                                    :icon mesh-icon))
+                                    :icon mesh-icon
+                                    :view-types [:scene :text]
+                                    :view-opts {:scene {:grid true}}))
