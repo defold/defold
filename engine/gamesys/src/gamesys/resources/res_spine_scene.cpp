@@ -12,25 +12,25 @@ namespace dmGameSystem
         result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
         if (result != dmResource::RESULT_OK)
             return result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_Skeleton);
+        result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
         if (result != dmResource::RESULT_OK)
             return result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet, (void**) &resource->m_AnimationSet);
+        result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet, (void**) &resource->m_AnimationSetRes);
         if (result != dmResource::RESULT_OK)
             return result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSet);
+        result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSetRes);
         if (result != dmResource::RESULT_OK)
             return result;
 
         if (result == dmResource::RESULT_OK)
         {
-            uint32_t bone_count = resource->m_Skeleton->m_Bones.m_Count;
+            uint32_t bone_count = resource->m_SkeletonRes->m_Skeleton->m_Bones.m_Count;
             resource->m_BindPose.SetCapacity(bone_count);
             resource->m_BindPose.SetSize(bone_count);
             for (uint32_t i = 0; i < bone_count; ++i)
             {
                 SpineBone* bind_bone = &resource->m_BindPose[i];
-                dmGameSystemDDF::Bone* bone = &resource->m_Skeleton->m_Bones[i];
+                dmGameSystemDDF::Bone* bone = &resource->m_SkeletonRes->m_Skeleton->m_Bones[i];
                 bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
                 if (i > 0)
                 {
@@ -58,12 +58,12 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_RigScene);
         if (resource->m_TextureSet != 0x0)
             dmResource::Release(factory, resource->m_TextureSet);
-        if (resource->m_Skeleton != 0x0)
-            dmResource::Release(factory, resource->m_Skeleton);
-        if (resource->m_AnimationSet != 0x0)
-            dmResource::Release(factory, resource->m_AnimationSet);
-        if (resource->m_MeshSet != 0x0)
-            dmResource::Release(factory, resource->m_MeshSet);
+        if (resource->m_SkeletonRes != 0x0)
+            dmResource::Release(factory, resource->m_SkeletonRes);
+        if (resource->m_AnimationSetRes != 0x0)
+            dmResource::Release(factory, resource->m_AnimationSetRes);
+        if (resource->m_MeshSetRes != 0x0)
+            dmResource::Release(factory, resource->m_MeshSetRes);
 
     }
 

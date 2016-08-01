@@ -457,14 +457,35 @@ def compile_spinescene(task):
 
         msg_out = rig_ddf_pb2.RigScene()
 
-        name = os.path.splitext(task.inputs[0].abspath())[0]
-        msg_out.skeleton = name + ".skeletonc"
-        msg_out.animation_set = name + ".animationsetc"
-        msg_out.mesh_set = name + ".meshsetc"
+        # name = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
+        # name = os.path.splitext(task.inputs[0].abspath())[0]
+        # msg_out.skeleton = name + ".skeletonc"
+        # msg_out.animation_set = name + ".animationsetc"
+        # msg_out.mesh_set = name + ".meshsetc"
+        # print(task.outputs[1].srcpath())
+        # stderr_lock.acquire()
+        # print >>sys.stderr, 'can I use: %s' % (task.inputs[0].srcpath(task.env))
+        # print >>sys.stderr,
+        # stderr_lock.release()
+        # msg_out.skeleton = "/" + task.outputs[1].srcpath(task.env)
+        # msg_out.animation_set = "/" + task.outputs[2].srcpath(task.env)
+        # msg_out.mesh_set = "/" + task.outputs[3].srcpath(task.env)
+        msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
+        msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
+        msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
         msg_out.texture_set = transform_tilesource_name(msg.atlas)
 
+        # write scene desc
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
+
+        # write skeleton, mesh set and animation set files
+        with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
+            out_f.write(rig_ddf_pb2.Skeleton().SerializeToString())
+        with open(task.outputs[2].bldpath(task.env), 'wb') as out_f:
+            out_f.write(rig_ddf_pb2.MeshSet().SerializeToString())
+        with open(task.outputs[3].bldpath(task.env), 'wb') as out_f:
+            out_f.write(rig_ddf_pb2.AnimationSet().SerializeToString())
 
         return 0
     except google.protobuf.text_format.ParseError,e:
@@ -475,9 +496,15 @@ task = Task.task_type_from_func('spinescene',
                                 func    = compile_spinescene,
                                 color   = 'PINK')
 @extension(['.spinescene'])
-def tileset_file(self, node):
-    tileset = self.create_task('spinescene')
-    tileset.set_inputs(node)
-    obj_ext = '.rigscenec'
-    out = node.change_ext(obj_ext)
-    tileset.set_outputs(out)
+def spinescene_file(self, node):
+    spinescene = self.create_task('spinescene')
+    spinescene.set_inputs(node)
+    ext_rigscene      = '.rigscenec'
+    ext_skeleton      = '.skeletonc'
+    ext_mesh_set      = '.meshsetc'
+    ext_animation_set = '.animationsetc'
+    out_rigscene      = node.change_ext(ext_rigscene)
+    out_skeleton      = node.change_ext(ext_skeleton)
+    out_mesh_set      = node.change_ext(ext_mesh_set)
+    out_animation_set = node.change_ext(ext_animation_set)
+    spinescene.set_outputs([out_rigscene, out_skeleton, out_mesh_set, out_animation_set])

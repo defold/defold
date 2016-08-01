@@ -288,7 +288,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         taskBuilder.addOutput(input.getResource(spine_scene + ".meshsetc").output());
         taskBuilder.addOutput(input.getResource(spine_scene + ".animationsetc").output());
 
-        taskBuilder.addInput(input.getResource(spine_scene));
+        taskBuilder.addInput(input.getResource(builder.getSpineJson()));
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
         return taskBuilder.build();
     }
@@ -688,7 +688,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                 }
             });
             ByteArrayOutputStream out;
-            
+
             // Skeleton
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
             List<Integer> boneIndexRemap = toDDF(scene.bones, scene.iks, skeletonBuilder);
@@ -696,7 +696,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             skeletonBuilder.build().writeTo(out);
             out.close();
             task.output(1).setContent(out.toByteArray());
-            
+
             // MeshSet
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
             Map<Long, Map<String, List<MeshIndex>>> slotIndices = new HashMap<Long, Map<String, List<MeshIndex>>>();
@@ -708,7 +708,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             meshSetBuilder.build().writeTo(out);
             out.close();
             task.output(2).setContent(out.toByteArray());
-            
+
             // AnimationSet
             AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
             for (Map.Entry<String, RigScene.Animation> entry : scene.animations.entrySet()) {
@@ -723,9 +723,12 @@ public class SpineSceneBuilder extends Builder<Void> {
         } catch (LoadException e) {
             throw new CompileExceptionError(task.input(1), -1, e.getMessage());
         }
-        b.setSkeleton(task.output(1).getAbsPath());
-        b.setMeshSet(task.output(2).getAbsPath());
-        b.setAnimationSet(task.output(3).getAbsPath());
+
+        int buildDirLen = project.getBuildDirectory().length();
+
+        b.setSkeleton("/" + task.output(1).getPath().substring(buildDirLen));
+        b.setMeshSet("/" + task.output(2).getPath().substring(buildDirLen));
+        b.setAnimationSet("/" + task.output(3).getPath().substring(buildDirLen));
         b.setTextureSet(BuilderUtil.replaceExt(builder.getAtlas(), "atlas", "texturesetc"));
 
         Message msg = b.build();
