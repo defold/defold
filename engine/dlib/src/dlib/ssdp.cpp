@@ -405,13 +405,14 @@ bail:
 
                 if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
                 {
-                    // This is an interesting change in control flow
                     continue;
                 }
 
                 dmSocket::Socket s = NewSocket(addr.m_family);
                 if (s == dmSocket::INVALID_SOCKET_HANDLE)
+                {
                     continue;
+                }
 
                 if (dmSocket::RESULT_OK != dmSocket::SetMulticastIf(s, addr))
                 {
@@ -630,6 +631,15 @@ bail:
     static void SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
         assert(iface < ssdp->m_LocalAddrCount);
+        if (ssdp->m_LocalAddrSocket[iface] == dmSocket::INVALID_SOCKET_HANDLE)
+            return;
+        if (ssdp->m_LocalAddrSocket[iface] == -1)
+            return;
+        if (ssdp->m_LocalAddr[iface].m_Address.m_family == dmSocket::DOMAIN_MISSING)
+            return;
+        if (ssdp->m_LocalAddr[iface].m_Address.m_family == dmSocket::DOMAIN_UNKNOWN)
+            return;
+
         dmLogDebug("SSDP Announcing '%s' on interface %s", device->m_DeviceDesc->m_Id, ssdp->m_LocalAddr[iface].m_Name);
         Replacer replacer1(0, device, ReplaceDeviceVar);
         Replacer replacer2(&replacer1, ssdp, ReplaceSSDPVar);
