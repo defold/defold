@@ -320,7 +320,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			}
 		});
 	}
-
+	
 	private DefoldStyledTextLayoutContainer currentActiveNode;
 
 	void updateCurrentCursorNode(DefoldStyledTextLayoutContainer node) {
@@ -340,7 +340,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		this.lineRuler.refresh();
 	}
 
-	MyVirtualFlow getFlow() {
+	public MyVirtualFlow getFlow() {
 		if (this.contentView == null || this.contentView.getSkin() == null) {
 			return null;
 		}
@@ -450,6 +450,14 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			return Collections.emptyList();
 		}
 		return ((MyListViewSkin) this.contentView.getSkin()).getFlow().getCells();
+	}
+	
+	public void pageDown(){
+		getFlow().pageDown();
+	}
+	
+	public void pageUp(){
+		getFlow().pageUp();
 	}
 
 	/**
@@ -966,6 +974,17 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		public VirtualScrollBar getHScrollBar(){
 			return this.getHbar();
 		}
+		
+		
+		public void pageDown(){
+			this.showAsFirst(this.getLastVisibleCellWithinViewPort());
+		}
+		
+		public void pageUp(){
+			this.showAsLast(this.getFirstVisibleCellWithinViewPort());
+		}
+		
+		
 
 		@Override
 		public void rebuildCells() {

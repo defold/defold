@@ -393,6 +393,8 @@
               (cvx/adjust-bounds (cvx/text source-viewer) offset)
               select?))
 
+(declare skin)
+
 (extend-type SourceViewer
   workspace/SelectionProvider
   (selection [this] this)
@@ -437,6 +439,10 @@
     (let [text-area (.getTextWidget this)]
       (.requestFocus text-area)
       (.requestLayout text-area)))
+  (page-down [this]
+    (.pageDown ^DefoldStyledTextSkin (skin this)))
+  (page-up [this]
+    (.pageUp ^DefoldStyledTextSkin (skin this)))
   cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
@@ -559,6 +565,9 @@
       {:trigger trigger :exit exit-trigger}))
   (clear-snippet-tab-triggers! [this]
     (reset! (tab-triggers this) nil)))
+
+(defn- ^DefoldStyledTextSkin skin [^SourceViewer source-viewer]
+  (-> source-viewer (.getTextWidget) (.getSkin)))
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts true)

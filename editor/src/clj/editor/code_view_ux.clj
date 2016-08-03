@@ -51,7 +51,9 @@
   (editable! [this val])
   (screen-position [this])
   (text-area [this])
-  (refresh! [this]))
+  (refresh! [this])
+  (page-up [this])
+  (page-down [this]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -69,6 +71,8 @@
   :Down                  {:command :down}
   :Left                  {:command :left}
   :Right                 {:command :right}
+  :Page-Up               {:command :page-up}
+  :Page-Down             {:command :page-down}
 
   :Ctrl+Right            {:command :next-word}
   :Alt+Right             {:command :next-word}
@@ -193,12 +197,13 @@
    :alt? (.isAltDown ^KeyEvent e)
    :shift? (.isShiftDown ^KeyEvent e)})
 
-(defn- add-modifier [info modifier-key modifier-str code-str]
+(defn- add-modifier [code-str info modifier-key modifier-str]
   (if (get info modifier-key) (str modifier-str code-str) code-str))
 
 ;; potentially slow with each new keyword that is created
 (defn- key-fn [info code]
-  (let [code (->> (.getName ^KeyCode code)
+  (let [code (-> (.getName ^KeyCode code)
+                 (string/replace #" " "-")
                  (add-modifier info :meta? "Shortcut+")
                  (add-modifier info :alt? "Alt+")
                  (add-modifier info :control? "Ctrl+")
@@ -447,6 +452,16 @@
   (enabled? [selection] selection)
   (run [selection user-data]
     (select-down selection)))
+
+(handler/defhandler :page-up :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (page-up selection)))
+
+(handler/defhandler :page-down :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (page-down selection)))
 
 (def word-regex  #"\n|\s*_*[a-zA-Z0-9\=\+\-\*\!]+|.")
 
