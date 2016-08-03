@@ -466,7 +466,7 @@ namespace dmGameObject
     HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name) {
         if (collection->m_InstanceIndices.Remaining() == 0)
         {
-            dmLogError("Unable to create instance. Out of resources");
+            dmLogError("The game object instance could not be created since the buffer is full (%d).", collection->m_InstanceIndices.Capacity());
             return 0;
         }
 

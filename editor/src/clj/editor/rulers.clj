@@ -114,55 +114,57 @@
     [(.x p) (.y p)]))
 
 (g/defnk produce-renderables [camera viewport cursor-pos]
-  (let [[min-x min-y] (unproject camera viewport 0 (:bottom viewport))
-        [max-x max-y] (unproject camera viewport (:right viewport) 0)
-        tmp-p (Point3d.)
-        [cursor-x cursor-y] cursor-pos
-        xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
-                         #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
-                            (.x))
-                         #(> % width))
-        ys (label-points min-y max-y (Math/ceil (/ (:bottom viewport) vertical-label-spacing))
-                         #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
-                            (.y))
-                         #(> (- (:bottom viewport) height) %))
-        line-vs (cond->
-                  (->>
-                    (let [x0 width
-                          y0 0
-                          x1 (:right viewport)
-                          y1 (- (:bottom viewport) height)]
-                      (-> [[x0 y0 0] [x0 y1 0]
-                           [x0 y1 0] [x1 y1 0]]
-                        (into (reduce (fn [res [xw xs]]
-                                        (-> res
-                                          (conj [xs y1 0])
-                                          (conj [xs (:bottom viewport) 0])))
-                                      [] xs))
-                        (into (reduce (fn [res [yw ys]]
-                                        (-> res
-                                          (conj [0 (+ 1 ys) 0])
-                                          (conj [width (+ 1 ys) 0])))
-                                      [] ys))))
-                    (mapv (fn [v] (reduce conj v marker-color))))
-                  (and cursor-x (> cursor-x width)) (into (map #(reduce conj % colors/defold-red) [[cursor-x (- (:bottom viewport) height) 0] [cursor-x (:bottom viewport) 0]]))
-                  (and cursor-y (< cursor-y (- (:bottom viewport) height))) (into (map #(reduce conj % colors/defold-green) [[0 cursor-y 0] [width cursor-y 0]])))
-        line-vcount (count line-vs)
-        lines-vb (vb line-vs line-vcount)
-        tris-vs (-> (quad 0 0 width (:bottom viewport) colors/dark-black)
-                  (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/dark-black)))
-        tris-vcount (count tris-vs)
-        tris-vb (vb tris-vs tris-vcount)
-        texts (let [texts (-> []
-                            (into (mapv (fn [[yw ys]] [[width ys] (format "%.1f" yw) :right]) ys))
-                            (into (mapv (fn [[xw xs]] [[xs (- (:bottom viewport) height)] (format "%.1f" xw) :top]) xs)))]
-                texts)
-        renderables [{:render-fn render-lines
-                      :batch-key nil
-                      :user-data {:lines lines-vb
-                                  :tris tris-vb
-                                  :texts texts}}]]
-    (into {} (map #(do [% renderables]) [pass/overlay]))))
+  (if (not (types/empty-space? viewport))
+    (let [[min-x min-y] (unproject camera viewport 0 (:bottom viewport))
+         [max-x max-y] (unproject camera viewport (:right viewport) 0)
+         tmp-p (Point3d.)
+         [cursor-x cursor-y] cursor-pos
+         xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
+                          #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
+                             (.x))
+                          #(> % width))
+         ys (label-points min-y max-y (Math/ceil (/ (:bottom viewport) vertical-label-spacing))
+                          #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
+                             (.y))
+                          #(> (- (:bottom viewport) height) %))
+         line-vs (cond->
+                   (->>
+                     (let [x0 width
+                           y0 0
+                           x1 (:right viewport)
+                           y1 (- (:bottom viewport) height)]
+                       (-> [[x0 y0 0] [x0 y1 0]
+                            [x0 y1 0] [x1 y1 0]]
+                         (into (reduce (fn [res [xw xs]]
+                                         (-> res
+                                           (conj [xs y1 0])
+                                           (conj [xs (:bottom viewport) 0])))
+                                       [] xs))
+                         (into (reduce (fn [res [yw ys]]
+                                         (-> res
+                                           (conj [0 (+ 1 ys) 0])
+                                           (conj [width (+ 1 ys) 0])))
+                                       [] ys))))
+                     (mapv (fn [v] (reduce conj v marker-color))))
+                   (and cursor-x (> cursor-x width)) (into (map #(reduce conj % colors/defold-red) [[cursor-x (- (:bottom viewport) height) 0] [cursor-x (:bottom viewport) 0]]))
+                   (and cursor-y (< cursor-y (- (:bottom viewport) height))) (into (map #(reduce conj % colors/defold-green) [[0 cursor-y 0] [width cursor-y 0]])))
+         line-vcount (count line-vs)
+         lines-vb (vb line-vs line-vcount)
+         tris-vs (-> (quad 0 0 width (:bottom viewport) colors/dark-black)
+                   (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/dark-black)))
+         tris-vcount (count tris-vs)
+         tris-vb (vb tris-vs tris-vcount)
+         texts (let [texts (-> []
+                             (into (mapv (fn [[yw ys]] [[width ys] (format "%.1f" yw) :right]) ys))
+                             (into (mapv (fn [[xw xs]] [[xs (- (:bottom viewport) height)] (format "%.1f" xw) :top]) xs)))]
+                 texts)
+         renderables [{:render-fn render-lines
+                       :batch-key nil
+                       :user-data {:lines lines-vb
+                                   :tris tris-vb
+                                   :texts texts}}]]
+      (into {} (map #(do [% renderables]) [pass/overlay])))
+    {}))
 
 (g/defnode Rulers
   (input camera Camera)

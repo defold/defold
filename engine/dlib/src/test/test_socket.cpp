@@ -462,68 +462,75 @@ TEST(Socket, Connect_IPv6_ThreadServer)
     dmThread::Join(thread);
 }
 
+static void RefusingServerThread(void* arg)
+{
+    dmSocket::Socket* server = (dmSocket::Socket*)arg;
+    dmTime::Sleep(100 * 1000);
+    dmSocket::Delete(*server);
+}
+
 TEST(Socket, Connect_IPv4_ConnectionRefused)
 {
-    dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, server);
+    dmSocket::Socket client = GetSocket(dmSocket::DOMAIN_IPV4);
+    ASSERT_NE(-1, client);
     dmSocket::Result result = dmSocket::RESULT_OK;
+    result = dmSocket::SetBlocking(client, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Address address;
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    result = dmSocket::Bind(instance, address, 0);
+    result = dmSocket::Bind(server, address, 0);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
-
     uint16_t port;
-    result = dmSocket::GetName(instance, &address, &port);
+    result = dmSocket::GetName(server, &address, &port);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+    dmThread::Thread thread = dmThread::New(&RefusingServerThread, 0x80000, (void *) &server, "server");
 
-    result = dmSocket::Delete(instance);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
-
-    result = dmSocket::Connect(instance, address, port);
+    result = dmSocket::Connect(client, address, port);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
 
     // Teardown
-    result = dmSocket::Delete(instance);
+    result = dmSocket::Delete(client);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    dmThread::Join(thread);
 }
 
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
-    dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, server);
+    dmSocket::Socket client = GetSocket(dmSocket::DOMAIN_IPV6);
+    ASSERT_NE(-1, client);
     dmSocket::Result result = dmSocket::RESULT_OK;
+    result = dmSocket::SetBlocking(client, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, result);
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
     dmSocket::Address address;
 
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    result = dmSocket::Bind(instance, address, 0);
+    result = dmSocket::Bind(server, address, 0);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
-
     uint16_t port;
-    result = dmSocket::GetName(instance, &address, &port);
+    result = dmSocket::GetName(server, &address, &port);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+    dmThread::Thread thread = dmThread::New(&RefusingServerThread, 0x80000, (void *) &server, "server");
 
-    result = dmSocket::Delete(instance);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-
-    instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
-
-    result = dmSocket::Connect(instance, address, port);
+    result = dmSocket::Connect(client, address, port);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, result);
 
     // Teardown
-    result = dmSocket::Delete(instance);
+    result = dmSocket::Delete(client);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
+
+    dmThread::Join(thread);
 }
 
 // Listen
@@ -1212,4 +1219,3 @@ int main(int argc, char **argv)
     dmSocket::Finalize();
     return ret;
 }
-

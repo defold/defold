@@ -119,7 +119,7 @@ public class UsersResource extends BaseResource {
         deleteProjects(ownedProjects);
 
         LOGGER.info(String.format("Deleting user with ID %s", userId));
-        ModelUtil.removeUser(em, user);
+        userService.remove(user);
 
         return okResponse("User %s deleted", userId);
     }

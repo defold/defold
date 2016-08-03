@@ -670,11 +670,6 @@ namespace dmProfile
         }
     }
 
-    static inline bool CounterPred(const Counter& c1, const Counter& c2)
-    {
-        return c1.m_NameHash < c2.m_NameHash;
-    }
-
     void AddCounter(const char* name, uint32_t amount)
     {
         uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));

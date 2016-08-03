@@ -7,7 +7,9 @@
             [editor.changes-view :as changes-view]
             [editor.properties-view :as properties-view]
             [editor.text :as text]
+            [editor.build-errors-view :as build-errors-view]
             [editor.code-view :as code-view]
+            [editor.collision-object :as collision-object]
             [editor.scene :as scene]
             [editor.form-view :as form-view]
             [editor.collection :as colleciton]
@@ -84,6 +86,7 @@
     (g/transact
      (concat
       (collection/register-resource-types workspace)
+      (collision-object/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-project/register-resource-types workspace)
@@ -148,6 +151,7 @@
       (.setWidth stage (:width dims))
       (.setHeight stage (:height dims)))
 
+    (ui/init-progress!)
     (ui/show! stage)
     (targets/start)
 
@@ -168,7 +172,8 @@
           search-console       (.lookup root "#search-console")
           splits               [(.lookup root "#main-split")
                                 (.lookup root "#center-split")
-                                (.lookup root "#right-split")]
+                                (.lookup root "#right-split")
+                                (.lookup root "#assets-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -179,6 +184,11 @@
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
+          build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
+                                                                         (partial app-view/open-resource
+                                                                                  app-view
+                                                                                  (g/node-value project :workspace)
+                                                                                  project))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! project *view-graph*
@@ -201,16 +211,17 @@
                                :prev   prev-console})
 
       (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view      app-view
-                         :project       project
-                         :project-graph (project/graph project)
-                         :prefs         prefs
-                         :workspace     (g/node-value project :workspace)
-                         :outline-view  outline-view
-                         :web-server    web-server
-                         :changes-view  changes-view
-                         :main-stage    stage
-                         :splits        splits}]
+      (let [context-env {:app-view          app-view
+                         :project           project
+                         :project-graph     (project/graph project)
+                         :prefs             prefs
+                         :workspace         (g/node-value project :workspace)
+                         :outline-view      outline-view
+                         :web-server        web-server
+                         :build-errors-view build-errors-view
+                         :changes-view      changes-view
+                         :main-stage        stage
+                         :splits            splits}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
        (concat

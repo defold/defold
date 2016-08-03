@@ -3,6 +3,7 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -19,6 +20,7 @@
             [editor.game-project-core :as gpc]
             [service.log :as log]
             [editor.graph-util :as gu]
+            [util.http-server :as http-server]
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
@@ -142,14 +144,14 @@
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn save-data [project]
-  (g/node-value project :save-data :skip-validation true))
+  (g/node-value project :save-data {:skip-validation true}))
 
 (defn save-all [project {:keys [render-progress! basis cache]
                          :or {render-progress! progress/null-render-progress!
                               basis            (g/now)
                               cache            (g/cache)}
                          :as opts}]
-  (let [save-data (g/node-value project :save-data :basis basis :cache cache :skip-validation true)]
+  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
     (if-not (g/error? save-data)
       (do
         (progress/progress-mapv
@@ -159,7 +161,7 @@
          save-data
          render-progress!
          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (workspace/resource-sync! (g/node-value project :workspace :basis basis :cache cache) false [] render-progress!))
+        (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
       ;; TODO: error message somewhere...
       (println (validation/error-message save-data)))))
 
@@ -268,16 +270,6 @@
 (defn prune-build-cache! [cache build-targets]
   (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
 
-(defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
-
-(defn find-errors [{:keys [user-data causes _node-id] :as error} labels]
-  (let [labels (conj labels (get-resource-name _node-id))]
-    (if causes
-      (recur (first causes) labels)
-      [(remove nil? labels) user-data])))
-
 (defn- build-targets-deep [build-targets]
   (loop [targets build-targets
          queue []
@@ -298,16 +290,16 @@
                                   cache            (g/cache)}
                            :as   opts}]
   (try
-    (let [build-cache          (g/node-value project :build-cache :basis basis :cache cache)
-          build-targets        (g/node-value node :build-targets :basis basis :cache cache)
+    (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
+          build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
           build-targets-by-key (and (not (g/error? build-targets))
-                                    (->> (g/node-value node :build-targets :basis basis :cache cache)
+                                    (->> (g/node-value node :build-targets {:basis basis :cache cache})
                                       build-targets-deep
                                       targets-by-key))]
       (if (g/error? build-targets)
-        (let [[labels cause] (find-errors build-targets [])
-              message        (format "Build error [%s] '%s'" (last labels) cause)]
-          (when render-error! (render-error! message))
+        (do
+          (when render-error!
+            (render-error! build-targets))
           nil)
         (do
           (prune-build-cache! build-cache build-targets-by-key)
@@ -358,11 +350,11 @@
                                           basis            (g/now)
                                           cache            (g/cache)}
                                      :as opts}]
-  (reset! (g/node-value project :build-cache :basis basis :cache cache) {})
-  (reset! (g/node-value project :fs-build-cache :basis basis :cache cache) {})
+  (reset! (g/node-value project :build-cache {:basis basis :cache cache}) {})
+  (reset! (g/node-value project :fs-build-cache {:basis basis :cache cache}) {})
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
-                                           (g/node-value project :workspace :basis basis :cache cache))))
-        fs-build-cache (g/node-value project :fs-build-cache :basis basis :cache cache)
+                                           (g/node-value project :workspace {:basis basis :cache cache}))))
+        fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
         build-results  (build project node opts)]
     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
@@ -563,7 +555,8 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project]
+
+(defn build-and-save-project [project build-errors-view]
   (when-not @ongoing-build-save?
     (reset! ongoing-build-save? true)
     (let [workspace     (workspace project)
@@ -573,9 +566,14 @@
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
+            (ui/run-later (build-errors-view/clear-build-errors build-errors-view))
             (when-not (empty? (build-and-write project game-project
                                                {:render-progress! render-fn
-                                                :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
+                                                :render-error!    (fn [errors]
+                                                                    (ui/run-later
+                                                                     (build-errors-view/update-build-errors
+                                                                      build-errors-view
+                                                                      errors)))
                                                 :basis            (g/now)
                                                 :cache            cache}))
               (update-system-cache! old-cache-val cache)))
@@ -586,10 +584,12 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
-  (run [project prefs web-server]
-    (let [build  (build-and-save-project project)]
+  (run [project prefs web-server build-errors-view]
+    (let [build  (build-and-save-project project build-errors-view)]
       (when (and (future? build) @build)
-        (or (engine/reboot (:url (get-selected-target prefs)) web-server hot-reload-url-prefix)
+        (or (when-let [target (get-selected-target prefs)]
+              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
+                (engine/reboot (:url target) local-url)))
             (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global

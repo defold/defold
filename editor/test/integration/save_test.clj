@@ -32,7 +32,10 @@
                  "game.project"
                  "**/super_scene.gui"
                  "**/scene.gui"
-                 "**/fireworks_big.particlefx"]]
+                 "**/fireworks_big.particlefx"
+                 "**/new.collisionobject"
+                 "**/three_shapes.collisionobject"
+                 "**/tile_map_collision_shape.collisionobject"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
