@@ -443,7 +443,15 @@
     (.pageDown ^DefoldStyledTextSkin (skin this)))
   (page-up [this]
     (.pageUp ^DefoldStyledTextSkin (skin this)))
-  cvx/TextStyles
+  (last-visible-row-number [this]
+    (.getLastVisibleRowNumber ^DefoldStyledTextSkin (skin this)))
+  (first-visible-row-number [this]
+    (.getFirstVisibleRowNumber ^DefoldStyledTextSkin (skin this)))
+  (show-line [this]
+    (let [caret (cvx/caret this)
+          line-num (cvx/line-num-at-offset this caret)]
+      (.showLine ^DefoldStyledTextSkin (skin this) line-num)))
+    cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
                        len (dec (.getCharCount text-widget))

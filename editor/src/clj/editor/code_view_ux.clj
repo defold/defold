@@ -53,7 +53,10 @@
   (text-area [this])
   (refresh! [this])
   (page-up [this])
-  (page-down [this]))
+  (page-down [this])
+  (last-visible-row-number [this])
+  (first-visible-row-number [this])
+  (show-line [this]))
 
 (defprotocol TextStyles
   (styles [this]))
@@ -106,6 +109,8 @@
   :Shift+Ctrl+E          {:command :select-line-end}
   :Shift+Shortcut+Up     {:command :select-file-begin}
   :Shift+Shortcut+Down   {:command :select-file-end}
+  :Shift+Page-Up         {:command :select-page-up}
+  :Shift+Page-Down       {:command :select-page-down}
 
 
   ;; find
@@ -400,68 +405,100 @@
         adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))]
       (adjust-bounds (text selection) adj-next-pos)))
 
-(defn up [selection]
+(defn up [selection show?]
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (if (pos? (selection-length selection))
                    (adjust-bounds doc (selection-offset selection))
                    (up-line selection preferred-offset))]
-    (caret! selection next-pos false)))
+    (caret! selection next-pos false)
+    (when show? (show-line selection))))
 
-(defn select-up [selection]
+(defn select-up [selection show?]
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (up-line selection preferred-offset)]
     (if (= (selection-offset selection) next-pos)
       (caret! selection next-pos false)
-      (caret! selection next-pos true))))
+      (caret! selection next-pos true))
+    (when show? (show-line selection))))
 
-(defn down [selection]
+(defn down [selection show?]
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (if (pos? (selection-length selection))
                    (adjust-bounds doc (+ (selection-offset selection)
                                          (selection-length selection)))
                    (down-line selection preferred-offset))]
-      (caret! selection next-pos false)))
+      (caret! selection next-pos false)
+      (when show? (show-line selection))))
 
-(defn select-down [selection]
+(defn select-down [selection show?]
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (down-line selection preferred-offset)]
     (if (= (+ (selection-length selection) (selection-offset selection)) next-pos)
       (caret! selection next-pos false)
-      (caret! selection next-pos true))))
+      (caret! selection next-pos true)))
+  (when show? (show-line selection)))
 
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (up selection)))
+    (up selection true)))
 
 (handler/defhandler :down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (down selection)))
+    (down selection true)))
 
 (handler/defhandler :select-up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (select-up selection)))
+    (select-up selection true)))
 
 (handler/defhandler :select-down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (select-down selection)))
+    (select-down selection true)))
+
+(defn do-page-up [selection with-select?]
+ (let [first-line (first-visible-row-number selection)
+       last-line (last-visible-row-number selection)]
+   (page-up selection)
+   (dotimes [n (- last-line first-line)]
+     (if with-select?
+       (select-up selection false)
+       (up selection false)))))
+
+(defn do-page-down [selection with-select?]
+    (let [first-line (first-visible-row-number selection)
+          last-line (last-visible-row-number selection)]
+      (page-down selection)
+      (dotimes [n (- last-line first-line)]
+       (if with-select?
+         (select-down selection false)
+         (down selection false)))))
 
 (handler/defhandler :page-up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (page-up selection)))
+    (do-page-up selection false)))
 
 (handler/defhandler :page-down :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (page-down selection)))
+    (do-page-down selection false)))
+
+(handler/defhandler :select-page-up :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (do-page-up selection true)))
+
+(handler/defhandler :select-page-down :code-view
+  (enabled? [selection] selection)
+  (run [selection]
+    (do-page-down selection true)))
 
 (def word-regex  #"\n|\s*_*[a-zA-Z0-9\=\+\-\*\!]+|.")
 

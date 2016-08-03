@@ -117,7 +117,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                                     return;
                                 }
 
-                                getFlow().show(lineIndex);
+               
+                  //getFlow().show(lineIndex);
+               
 
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
@@ -332,6 +334,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			this.currentActiveNode = node;
 		}
 	}
+	
 
 	/**
 	 * Refresh the line ruler
@@ -458,6 +461,18 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 	
 	public void pageUp(){
 		getFlow().pageUp();
+	}
+	
+	public int getLastVisibleRowNumber(){
+		return getFlow().getLastVisibleRowNumber();
+	}
+	
+	public int getFirstVisibleRowNumber(){
+		return getFlow().getFirstVisibleRowNumber();
+	}
+	
+	public void showLine(int lineIndex) {
+		 getFlow().show(lineIndex);
 	}
 
 	/**
@@ -930,7 +945,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 	}
 
-	class MyVirtualFlow extends VirtualFlow<LineCell> {
+	public class MyVirtualFlow extends VirtualFlow<LineCell> {
 		public MyVirtualFlow() {
 		}
 
@@ -974,8 +989,17 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		public VirtualScrollBar getHScrollBar(){
 			return this.getHbar();
 		}
+		  
+		public int getLastVisibleRowNumber(){
+			LineCell cell = this.getLastVisibleCellWithinViewPort();
+			return this.getCellIndex(cell);
+		}
 		
-		
+		public int getFirstVisibleRowNumber(){
+			LineCell cell = this.getFirstVisibleCellWithinViewPort();
+			return this.getCellIndex(cell);
+		}
+				
 		public void pageDown(){
 			this.showAsFirst(this.getLastVisibleCellWithinViewPort());
 		}
