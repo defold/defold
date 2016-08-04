@@ -270,7 +270,7 @@
         )))
   (caret [this] (.getCaretOffset this)))
 
-(defn setup-source-viewer [opts use-custom-skin?]
+(defn setup-source-viewer [opts]
   (let [source-viewer (DefoldSourceViewer.)
         source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
@@ -335,12 +335,11 @@
       (.setOnMouseEntered ^StyledTextArea text-area
                           (ui/event-handler e
                                             (.setCursor (.getScene text-area) Cursor/DEFAULT)))
-     (when use-custom-skin?
-       (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
-         (.setSkin text-area skin)
-         (.addEventHandler  ^ListView (.getListView skin)
-                            MouseEvent/MOUSE_CLICKED
-                            (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
+     (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
+       (.setSkin text-area skin)
+       (.addEventHandler  ^ListView (.getListView skin)
+                          MouseEvent/MOUSE_CLICKED
+                          (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer))))
 
 
       (ui/user-data! text-area ::behavior styled-text-behavior)
@@ -580,7 +579,7 @@
   (-> source-viewer (.getTextWidget) (.getSkin)))
 
 (defn make-view [graph ^Parent parent code-node opts]
-  (let [source-viewer (setup-source-viewer opts true)
+  (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)

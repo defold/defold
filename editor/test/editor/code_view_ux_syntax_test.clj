@@ -17,7 +17,7 @@
 (defn do-toggle-line-comment [node-type opts comment-str]
   (with-clean-system
     (let [code "hello world"
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
       (testing "toggle line comment"
         (toggle-comment! source-viewer)
@@ -34,7 +34,7 @@
 (defn do-toggle-region-comment [node-type opts comment-str]
   (with-clean-system
     (let [code "line1\nline2\nline3\nline4"
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
       (testing "toggle region comment selecting down"
         (caret! source-viewer 8 false)
@@ -71,7 +71,7 @@
 (deftest lua-completions-propose-test
   (with-clean-system
     (let [code ""
-          source-viewer (setup-source-viewer lua/lua false)
+          source-viewer (setup-source-viewer lua/lua)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "global lua std lib"
         (set-code-and-caret! source-viewer "asser")
@@ -152,7 +152,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "basic replace"
         (do-proposal-replacement source-viewer {:insert-string "foo"})
@@ -201,7 +201,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "single result gets automatically inserted"
         (set-code-and-caret! source-viewer "math.ab")
@@ -229,7 +229,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "single arg"
         (set-code-and-caret! source-viewer "math.ab")
@@ -318,7 +318,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "indentation for functions"
         (testing "no indentation level"
@@ -347,7 +347,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "indentation for if else"
         (testing "if indents"
@@ -371,7 +371,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "indentation for while"
         (testing "while indents"
@@ -387,7 +387,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "indentation for tables"
         (testing "{ indents"
@@ -406,7 +406,7 @@
   (with-clean-system
     (let [code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "indent line"
         (set-code-and-caret! source-viewer "if true then\nreturn 1")
