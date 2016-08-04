@@ -412,8 +412,6 @@
           opts lua/lua
           source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      ;(println "Carin first visible row line " (first-visible-row-number source-viewer))
-      ;(println "Carin last visible row line " (last-visible-row-number source-viewer))
       (testing "moving to beginning of the file"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))

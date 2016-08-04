@@ -592,8 +592,7 @@
   (enabled? [selection] selection)
   (run [selection]
     (caret! selection 0 false)
-
-#_    (show-line selection)))
+    (show-line selection)))
 
 (handler/defhandler :file-end :code-view
   (enabled? [selection] selection)
