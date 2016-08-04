@@ -1,6 +1,5 @@
 -- MD5 test and benchmark. Public domain.
 
-local bit = require("bit")
 local tobit, tohex, bnot = bit.tobit or bit.cast, bit.tohex, bit.bnot
 local bor, band, bxor = bit.bor, bit.band, bit.bxor
 local lshift, rshift, rol, bswap = bit.lshift, bit.rshift, bit.rol, bit.bswap
