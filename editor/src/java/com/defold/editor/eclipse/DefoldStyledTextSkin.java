@@ -472,7 +472,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 	}
 	
 	public void showLine(int lineIndex) {
-		 getFlow().show(lineIndex);
+            if (getFlow() != null){
+                getFlow().show(lineIndex);
+            }
 	}
 
 	/**

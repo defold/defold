@@ -74,6 +74,7 @@
       (cvx/text-selection! source-viewer selection-offset selection-length)
     )
     (cvx/caret! source-viewer caret-position false))
+  (cvx/show-line source-viewer)
   [code-node code caret-position])
 
 
@@ -449,8 +450,9 @@
     (.getFirstVisibleRowNumber ^DefoldStyledTextSkin (skin this)))
   (show-line [this]
     (let [caret (cvx/caret this)
+          skin (skin this)
           line-num (cvx/line-num-at-offset this caret)]
-      (.showLine ^DefoldStyledTextSkin (skin this) line-num)))
+      (when skin (.showLine ^DefoldStyledTextSkin skin line-num))))
     cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
