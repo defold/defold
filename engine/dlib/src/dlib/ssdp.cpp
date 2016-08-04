@@ -628,17 +628,17 @@ bail:
         return RESULT_OK;
     }
 
-    static void SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
+    static bool SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
         assert(iface < ssdp->m_LocalAddrCount);
         if (ssdp->m_LocalAddrSocket[iface] == dmSocket::INVALID_SOCKET_HANDLE)
-            return;
-        if (ssdp->m_LocalAddrSocket[iface] == -1)
-            return;
+            return false;
+        if (ssdp->m_LocalAddrSocket[iface] == -1) // Not initialized
+            return false;
         if (ssdp->m_LocalAddr[iface].m_Address.m_family == dmSocket::DOMAIN_MISSING)
-            return;
+            return false;
         if (ssdp->m_LocalAddr[iface].m_Address.m_family == dmSocket::DOMAIN_UNKNOWN)
-            return;
+            return false;
 
         dmLogDebug("SSDP Announcing '%s' on interface %s", device->m_DeviceDesc->m_Id, ssdp->m_LocalAddr[iface].m_Name);
         Replacer replacer1(0, device, ReplaceDeviceVar);
@@ -649,7 +649,7 @@ bail:
         if (tr != dmTemplate::RESULT_OK)
         {
             dmLogError("Error formating announce message (%d)", tr);
-            return;
+            return false;
         }
 
         int sent_bytes;
@@ -657,7 +657,10 @@ bail:
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send announce message (%d)", sr);
+            return false;
         }
+
+        return true;
     }
 
     static void SendUnannounce(HSSDP ssdp, Device* device, uint32_t iface)
@@ -1072,6 +1075,7 @@ bail:
 
         // Send announces on all interfaces.
         dev->m_IfAddrStateCount = ssdp->m_LocalAddrCount;
+        bool announced = false;
         for (uint32_t i=0;i!=ssdp->m_LocalAddrCount;i++)
         {
             Device::IfAddrState *dst = &dev->m_IfAddrState[i];
@@ -1080,7 +1084,10 @@ bail:
             {
                 if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
                 {
-                    SendAnnounce(ssdp, dev, i);
+                    if (SendAnnounce(ssdp, dev, i))
+                    {
+                        announced = true;
+                    }
                 }
 
                 dst->m_Expires = next;
@@ -1089,6 +1096,11 @@ bail:
             {
                 dst->m_Expires = new_expires[i];
             }
+        }
+
+        if (!announced)
+        {
+            dmLogWarning("Failed to broadcast service announcement on all %d interface(s)", ssdp->m_LocalAddrCount);
         }
     }
 
