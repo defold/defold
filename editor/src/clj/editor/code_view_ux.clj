@@ -62,6 +62,7 @@
   (styles [this]))
 
 (defprotocol TextUndo
+  (typing-changes! [this])
   (changes! [this]))
 
 (defprotocol TextProposals
@@ -690,12 +691,14 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
+      (changes! selection)
       (delete selection false))))
 
 (handler/defhandler :delete-forward :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
+      (changes! selection)
       (delete selection true))))
 
 (defn cut-selection [selection clipboard]
@@ -721,6 +724,7 @@
 (handler/defhandler :cut :code-view
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
+    (changes! selection)
     (if (pos? (selection-length selection))
       (cut-selection selection clipboard)
       (cut-line selection clipboard))))
@@ -728,6 +732,7 @@
 (handler/defhandler :delete-prev-word :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           next-word-move (prev-word-move doc np)
@@ -741,6 +746,7 @@
 (handler/defhandler :delete-next-word :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           next-word-move (next-word-move doc np)
@@ -752,6 +758,7 @@
 (handler/defhandler :delete-to-end-of-line :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           line-end-offset (line-end-pos selection)
@@ -762,6 +769,7 @@
 (handler/defhandler :cut-to-end-of-line :code-view
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
+    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           line-end-offset (line-end-pos selection)
@@ -777,6 +785,7 @@
 (handler/defhandler :delete-to-start-of-line :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           line-begin-offset (line-offset selection)
@@ -841,6 +850,7 @@
 
 (defn replace-text [selection {ftext :find-text rtext :replace-text :as result}]
   (when (and ftext rtext)
+    (changes! selection)
     (let [doc (text selection)
           found-idx (.indexOf ^String doc ^String ftext)
           tlen (count ftext)
@@ -864,6 +874,7 @@
 (handler/defhandler :replace-next :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           ftext @last-find-text
@@ -914,6 +925,7 @@
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (if (pos? (count (text-selection selection)))
       (toggle-region-comment selection)
       (toggle-line-comment selection))))
@@ -959,6 +971,7 @@
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (when (editable? selection)
       (if (has-snippet-tab-trigger? selection)
         (let [np (caret selection)
@@ -969,6 +982,7 @@
 (handler/defhandler :backwards-tab-trigger :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (when (editable? selection)
       (if (has-prev-snippet-tab-trigger? selection)
         (let [np (caret selection)
@@ -1021,6 +1035,7 @@
 (handler/defhandler :indent :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (when (editable? selection)
       (if (pos? (count (text-selection selection)))
         (let [region-start (selection-offset selection)
@@ -1033,6 +1048,7 @@
 (handler/defhandler :enter :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
+    (changes! selection)
     (when (editable? selection)
       (clear-snippet-tab-triggers! selection)
       (if (= (caret selection) (line-end-pos selection))

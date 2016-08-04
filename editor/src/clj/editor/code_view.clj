@@ -477,7 +477,7 @@
           prefer-offset-changed? (not= prefer-offset (g/node-value code-node-id :prefer-offset))
           tab-triggers-changed? (not= tab-triggers (g/node-value code-node-id :tab-triggers))]
       (when (or code-changed? caret-changed? selection-changed? prefer-offset-changed? tab-triggers-changed?)
-        (g/transact (remove nil?
+        (let [tx-data (remove nil?
                             (concat
                              (when code-changed?  [(g/set-property code-node-id :code code)])
                              (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
@@ -485,7 +485,16 @@
                                [(g/set-property code-node-id :selection-offset selection-offset)
                                 (g/set-property code-node-id :selection-length selection-length)])
                              (when prefer-offset-changed? [(g/set-property code-node-id :prefer-offset prefer-offset)])
-                             (when tab-triggers-changed? [(g/set-property code-node-id :tab-triggers tab-triggers)])))))))
+                             (when tab-triggers-changed? [(g/set-property code-node-id :tab-triggers tab-triggers)])))]
+          (g/transact tx-data)))))
+  (typing-changes! [this]
+    (let [code-node-id (-> this (.getTextWidget) (code-node))
+          code (cvx/text this)
+          caret (cvx/caret this)
+          code-changed? (not= code (g/node-value code-node-id :code))]
+      (when code-changed?
+        (g/transact [(g/set-property code-node-id :code code)
+                     (g/set-property code-node-id :caret-position caret)]))))
   cvx/TextLine
   (line [this]
     (let [text-area-content (.getContent (.getTextWidget this))
@@ -590,7 +599,7 @@
     (cvx/refresh! source-viewer)
     (g/node-value view-id :new-content)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                     (cvx/changes! source-viewer)))
+                                                                     (cvx/typing-changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)
