@@ -818,11 +818,16 @@ class dmTrackingNoHookLocalhost : public ::testing::Test
 TEST_F(dmTrackingNoHookLocalhost, Test)
 {
     dmTracking::Start(m_Tracking, "Defold", "unit-test");
-    for (uint32_t i=0;i!=2;i++)
+    // The first update will perform an http.request
+    // Since the http.request is not mocked away in this test, the real http-service is used, which expects the recipient to deallocate some dynamic memory attached to the response
+    // Let's wait for it to make valgrind happy
+    dmMessage::HSocket socket = dmTracking::GetSocket(m_Tracking);
+    dmTracking::Update(m_Tracking, 0.3f);
+    while (!dmMessage::HasMessages(socket))
     {
-        dmTracking::Update(m_Tracking, 0.3f);
-        dmTime::Sleep(300*1000);
+        dmTime::Sleep(10000);
     }
+    dmTracking::Update(m_Tracking, 0.3f);
 }
 
 int main(int argc, char **argv)
