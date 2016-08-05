@@ -82,7 +82,7 @@
       (render-grid-sizes dir grids)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
-(g/defnk grid-renderable :- pass/RenderData
+(g/defnk grid-renderable
   [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
@@ -144,7 +144,7 @@
                       (grid-snap-up   (-> aabb types/max-p .y) grid-size)
                       (grid-snap-up   (-> aabb types/max-p .z) grid-size))))
 
-(g/defnk update-grids :- g/Any
+(g/defnk update-grids
   [camera]
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)

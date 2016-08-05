@@ -230,7 +230,7 @@
       (doto (FXCollections/observableArrayList)
         (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
 
-(defn- tree-item [parent]
+(defn tree-item [parent]
   (let [cached (atom false)]
     (proxy [TreeItem] [parent]
       (isLeaf []

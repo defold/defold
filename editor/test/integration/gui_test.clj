@@ -8,7 +8,8 @@
             [editor.gui :as gui]
             [editor.gl.pass :as pass]
             [editor.handler :as handler]
-            [editor.types :as types])
+            [editor.types :as types]
+            [criterium.core :as bench])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [javax.vecmath Point3d Matrix4d Vector3d]
@@ -137,6 +138,18 @@
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
+(deftest gui-text-node-text-layout
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+         text-node (get nodes "multi_line_text")]
+     (is (some? (g/node-value text-node :text-layout)))
+     (is (some? (g/node-value text-node :aabb)))
+     (is (some? (g/node-value text-node :text-data))))))
+
 (defn- render-order [view]
   (let [renderables (g/node-value view :renderables)]
     (->> (get renderables pass/transparent)
@@ -207,6 +220,7 @@
                    app-view (test-util/setup-app-view!)
                    node-id (test-util/resource-node project "/gui/scene.gui")
                    box (gui-node node-id "sub_scene/sub_box")]
+               ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
                (dotimes [i 20]
                  (drag-pull-outline! node-id box i))

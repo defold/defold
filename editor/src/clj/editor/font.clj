@@ -164,6 +164,27 @@
       (assoc glyph :x x :y y))
     (assoc glyph :width 0)))
 
+(defn layout-text [font-map text line-break? max-width text-tracking text-leading]
+  (let [text-layout {:width max-width
+                     :height 0
+                     :lines []
+                     :line-widths []
+                     :text-tracking text-tracking
+                     :text-leading text-leading}]
+    (if (or (nil? font-map) (nil? text) (nil? text))
+      text-layout
+      (let [glyphs (font-map->glyphs font-map)
+            line-height (+ (:max-descent font-map) (:max-ascent font-map))
+            text-tracking (* line-height text-tracking)
+            lines (split-text glyphs text line-break? max-width text-tracking)
+            line-widths (mapv (partial measure-line glyphs text-tracking) lines)
+            max-width (reduce max 0 line-widths)]
+        (assoc text-layout
+               :width max-width
+               :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
+               :lines lines
+               :line-widths line-widths)))))
+
 (defn gen-vertex-buffer [^GL2 gl {:keys [type font-map texture]} text-entries]
   (let [cache (scene-cache/request-object! ::glyph-caches texture gl [font-map])
         w (:cache-width font-map)
@@ -178,23 +199,25 @@
              (if-let [entry (first text-entries)]
                (let [colors (repeat (cond->> (into (:color entry) (concat (:outline entry) (:shadow entry)))
                                       (= type :distance-field) (into sdf-params)))
-                     text-tracking (* line-height (:text-tracking entry 0))
-                     text-leading (:text-leading entry 0)
+                     text-layout (:text-layout entry)
+                     text-tracking (* line-height (:text-tracking text-layout 0))
+                     text-leading (:text-leading text-layout 0)
                      offset (:offset entry)
                      xform (doto (Matrix4d.)
                              (.set (let [[x y] offset]
                                      (Vector3d. x y 0.0))))
                      _ (.mul xform ^Matrix4d (:world-transform entry) xform)
-                     lines (split-text glyphs (:text entry) (:line-break entry) (:max-width entry) text-tracking)
-                     line-widths (map (partial measure-line glyphs text-tracking) lines)
-                     max-width (reduce max 0 line-widths)
-                     lines (map vector lines line-widths)
+                     lines (:lines text-layout)
+                     line-widths (:line-widths text-layout)
+                     max-width (:width text-layout)
                      align (:align entry :center)
                      vs (loop [vs vs
                                lines lines
+                               line-widths line-widths
                                line-no 0]
-                          (if-let [[line line-width] (first lines)]
-                            (let [y (* line-no (- (* line-height text-leading)))
+                          (if-let [line (first lines)]
+                            (let [line-width (first line-widths)
+                                  y (* line-no (- (* line-height text-leading)))
                                   vs (loop [vs vs
                                             glyphs (map char->glyph line)
                                             x (case align
@@ -208,7 +231,7 @@
                                                vs (reduce conj! vs (map into (glyph-fn cursor glyph) colors))]
                                            (recur vs (rest glyphs) (+ x (:advance glyph) text-tracking)))
                                          vs))]
-                              (recur vs (rest lines) (inc line-no)))
+                              (recur vs (rest lines) (rest line-widths) (inc line-no)))
                             vs))]
                  (recur vs (rest text-entries)))
                (persistent! vs)))]
