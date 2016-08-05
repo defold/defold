@@ -1,10 +1,7 @@
 package com.dynamo.cr.server.model.test;
 
 import com.dynamo.cr.server.model.*;
-import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
-import com.dynamo.cr.server.test.TestUser;
-import com.dynamo.cr.server.test.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -28,7 +25,9 @@ public class ModelTest {
 
     private EntityManager em;
 
-    private UserService userService;
+    private static final String CARL_CONTENT_EMAIL = "carl.content@gmail.com";
+    private static final String JOE_CODER_EMAIL = "joe.coder@gmail.com";
+    private static final String LISA_USER_EMAIL = "lisa.user@gmail.com";
 
     private Project p1;
     private Project p2;
@@ -36,7 +35,6 @@ public class ModelTest {
     @Before
     public void setUp() throws Exception {
         em = entityManagerRule.getEntityManager();
-        userService = new UserService(em);
         createData();
     }
 
@@ -44,6 +42,15 @@ public class ModelTest {
     public void tearDown() {
         // Some database validation
         ModelUtil.validateDatabase(em);
+    }
+
+    private User newUser(String email, String firstName, String lastName, String password) {
+        User u = new User();
+        u.setEmail(email);
+        u.setFirstName(firstName);
+        u.setLastName(lastName);
+        u.setPassword(password);
+        return u;
     }
 
     private InvitationAccount newInvitationAccount(User user, int originalCount) {
@@ -55,15 +62,15 @@ public class ModelTest {
     }
 
     private void createData() {
-        User u1 = TestUtils.buildUser(TestUser.CARL);
+        User u1 = newUser(CARL_CONTENT_EMAIL, "Carl", "Content", "carl");
         em.persist(u1);
         InvitationAccount a1 = newInvitationAccount(u1, 1);
         em.persist(a1);
-        User u2 = TestUtils.buildUser(TestUser.JOE);
+        User u2 = newUser(JOE_CODER_EMAIL, "Joe", "Coder", "joe");
         em.persist(u2);
         InvitationAccount a2 = newInvitationAccount(u2, 1);
         em.persist(a2);
-        User u3 = TestUtils.buildUser(TestUser.LISA);
+        User u3 = newUser(LISA_USER_EMAIL, "Lisa", "User", "lisa");
         em.persist(u3);
         InvitationAccount a3 = newInvitationAccount(u3, 1);
         em.persist(a3);
@@ -89,9 +96,9 @@ public class ModelTest {
 
     @Test
     public void testConnections() throws Exception {
-        User u1 = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
-        User u2 = ModelUtil.findUserByEmail(em, TestUser.JOE.email);
-        User u3 = ModelUtil.findUserByEmail(em, TestUser.LISA.email);
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        User u2 = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
+        User u3 = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
 
         assertTrue(u1.getConnections().contains(u2));
         assertTrue(u2.getConnections().contains(u1));
@@ -102,18 +109,18 @@ public class ModelTest {
 
     @Test
     public void getUser() {
-        User u1 = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         assertNotNull(u1);
-        assertEquals(TestUser.CARL.email, u1.getEmail());
+        assertEquals(CARL_CONTENT_EMAIL, u1.getEmail());
 
-        User u2 = ModelUtil.findUserByEmail(em, TestUser.JOE.email);
+        User u2 = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
         assertNotNull(u2);
-        assertEquals(TestUser.JOE.email, u2.getEmail());
+        assertEquals(JOE_CODER_EMAIL, u2.getEmail());
     }
 
     @Test
     public void authenticate() {
-        User u1 = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         assertTrue(u1.authenticate("carl"));
         assertFalse(u1.authenticate("xyz"));
     }
@@ -121,7 +128,7 @@ public class ModelTest {
     @Test(expected=RollbackException.class)
     public void createExistingUser() {
         User u1 = new User();
-        u1.setEmail(TestUser.CARL.email);
+        u1.setEmail(CARL_CONTENT_EMAIL);
         u1.setFirstName("Carl");
         u1.setLastName("Content");
         u1.setPassword("carl");
@@ -143,7 +150,7 @@ public class ModelTest {
 
     @Test
     public void testProject() throws Exception {
-        User u = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
+        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         List<Project> allProjects = new ArrayList<>(u.getProjects());
 
         TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
@@ -154,13 +161,36 @@ public class ModelTest {
         assertEquals(u, myProjects.get(0).getOwner());
     }
 
+    @Test(expected=RollbackException.class)
+    public void testRemoveUserConstraintViolation() throws Exception {
+        // Test that we can't remove a user that is part of projects
+        User u = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
+        em.remove(u);
+        em.getTransaction().commit();
+    }
+
+    @Test(expected=RollbackException.class)
+    public void testRemoveUserOwnerOfProjectsConstraintViolation() throws Exception {
+        // User owns projects
+        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        ModelUtil.removeUser(em, u);
+        em.getTransaction().commit();
+    }
+
+    @Test
+    public void testRemoveUserNotOwnerOfProjects() throws Exception {
+        // User doesn't owns any projects
+        User u = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
+        ModelUtil.removeUser(em, u);
+    }
+
     @Test
     public void testDeleteProject() throws Exception {
 
         List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(2, allProjects.size());
 
-        User carl = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
+        User carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
 
         TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
         q.setParameter("user", carl);
@@ -168,17 +198,17 @@ public class ModelTest {
 
         Project p = carlsProjects.get(0);
 
-        User lisa = ModelUtil.findUserByEmail(em, TestUser.LISA.email);
+        User lisa = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
         ModelUtil.removeMember(p, lisa);
 
         ModelUtil.removeProject(em, p);
         em.getTransaction().commit();
 
-        carl = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
+        carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         carlsProjects = new ArrayList<>(carl.getProjects());
         assertEquals(1, carlsProjects.size());
 
-        User joe = ModelUtil.findUserByEmail(em, TestUser.JOE.email);
+        User joe = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
         ArrayList<Project> joesProjects = new ArrayList<Project>(joe.getProjects());
         assertEquals(1, joesProjects.size());
 
@@ -193,20 +223,20 @@ public class ModelTest {
 
     @Test
     public void testInvitationAccount() throws Exception {
-        User inviter = TestUtils.buildUser(TestUser.JAMES);
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
         InvitationAccount account = newInvitationAccount(inviter, 1);
         em.persist(inviter);
         em.persist(account);
         em.getTransaction().commit();
 
         em.getTransaction().begin();
-        userService.remove(inviter);
+        ModelUtil.removeUser(em, inviter);
         em.getTransaction().commit();
     }
 
     @Test
     public void testInvitation() throws Exception {
-        User inviter = TestUtils.buildUser(TestUser.JAMES);
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
         em.persist(inviter);
         InvitationAccount account = newInvitationAccount(inviter, 1);
         em.persist(account);
@@ -222,7 +252,7 @@ public class ModelTest {
         em.getTransaction().commit();
 
         em.getTransaction().begin();
-        userService.remove(inviter);
+        ModelUtil.removeUser(em, inviter);
         em.getTransaction().commit();
 
         List<Invitation> lst = em.createQuery("select i from Invitation i", Invitation.class).getResultList();
@@ -233,7 +263,7 @@ public class ModelTest {
 
     @Test(expected=RollbackException.class)
     public void testInvitationDuplicate() throws Exception {
-        User inviter = TestUtils.buildUser(TestUser.JAMES);
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
         em.persist(inviter);
         InvitationAccount account = newInvitationAccount(inviter, 1);
         em.persist(account);
