@@ -36,8 +36,7 @@ def build(bld):
         ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
         ('tilemap', ('../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp')),
         ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp')),
-        ('window', ('scripts/script_window.cpp')),
-        ('rig', ('../../proto/rig_ddf.proto'))
+        ('window', ('scripts/script_window.cpp'))
     ]
 
     for d, source in sources:
@@ -61,4 +60,3 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../../proto/mesh_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/sprite_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/spine_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../../proto/rig_ddf.proto')

@@ -1,4 +1,4 @@
-package dmGameSystemDDF;
+package dmRigDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
@@ -127,4 +127,3 @@ message RigScene
     required string mesh_set = 3;
     required string texture_set = 4 [(resource)=true];
 }
-

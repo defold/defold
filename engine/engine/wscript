@@ -100,6 +100,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_GUI'] = 'gui'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
+    conf.env['STATICLIB_RIG'] = 'rig'
     conf.env['STATICLIB_SOUND'] = sound_lib
     conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
     conf.env['STATICLIB_OPENAL_SOFT'] = 'openal_soft'

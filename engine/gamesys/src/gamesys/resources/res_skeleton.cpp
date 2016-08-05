@@ -15,7 +15,7 @@ namespace dmGameSystem
         // for (uint32_t i = 0; i < bone_count; ++i)
         // {
         //     SpineBone* bind_bone = &resource->m_BindPose[i];
-        //     dmGameSystemDDF::Bone* bone = &resource->m_Skeleton->m_Bones[i];
+        //     dmRigDDF::Bone* bone = &resource->m_Skeleton->m_Bones[i];
         //     bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
         //     if (i > 0)
         //     {
@@ -45,8 +45,8 @@ namespace dmGameSystem
 
     dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params)
     {
-        dmGameSystemDDF::Skeleton* skeleton;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_Skeleton_DESCRIPTOR, (void**) &skeleton);
+        dmRigDDF::Skeleton* skeleton;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_Skeleton_DESCRIPTOR, (void**) &skeleton);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -59,7 +59,7 @@ namespace dmGameSystem
     dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params)
     {
         SkeletonResource* ss_resource = new SkeletonResource();
-        ss_resource->m_Skeleton = (dmGameSystemDDF::Skeleton*) params.m_PreloadData;
+        ss_resource->m_Skeleton = (dmRigDDF::Skeleton*) params.m_PreloadData;
         dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -83,8 +83,8 @@ namespace dmGameSystem
 
     dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGameSystemDDF::Skeleton* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_Skeleton_DESCRIPTOR, (void**) &spine_scene);
+        dmRigDDF::Skeleton* spine_scene;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_Skeleton_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;

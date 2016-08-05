@@ -4,13 +4,13 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
-#include "rig_ddf.h"
+#include <rig/rig_ddf.h>
 
 namespace dmGameSystem
 {
     struct AnimationSetResource
     {
-        dmGameSystemDDF::AnimationSet* m_AnimationSet;
+        dmRigDDF::AnimationSet* m_AnimationSet;
     };
 
     dmResource::Result ResAnimationSetPreload(const dmResource::ResourcePreloadParams& params);

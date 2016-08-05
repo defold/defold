@@ -19,8 +19,8 @@ namespace dmGameSystem
 
     dmResource::Result ResAnimationSetPreload(const dmResource::ResourcePreloadParams& params)
     {
-        dmGameSystemDDF::AnimationSet* AnimationSet;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_AnimationSet_DESCRIPTOR, (void**) &AnimationSet);
+        dmRigDDF::AnimationSet* AnimationSet;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_AnimationSet_DESCRIPTOR, (void**) &AnimationSet);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -33,7 +33,7 @@ namespace dmGameSystem
     dmResource::Result ResAnimationSetCreate(const dmResource::ResourceCreateParams& params)
     {
         AnimationSetResource* ss_resource = new AnimationSetResource();
-        ss_resource->m_AnimationSet = (dmGameSystemDDF::AnimationSet*) params.m_PreloadData;
+        ss_resource->m_AnimationSet = (dmRigDDF::AnimationSet*) params.m_PreloadData;
         dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -57,8 +57,8 @@ namespace dmGameSystem
 
     dmResource::Result ResAnimationSetRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGameSystemDDF::AnimationSet* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_AnimationSet_DESCRIPTOR, (void**) &spine_scene);
+        dmRigDDF::AnimationSet* spine_scene;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_AnimationSet_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;

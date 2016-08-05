@@ -161,32 +161,32 @@ namespace dmGameSystem
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
+        // dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
+        // uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            if (skeleton->m_Bones[i].m_Id == bone_id)
-            {
-                bone_index = i;
-                break;
-            }
-        }
+        // for (uint32_t i = 0; i < bone_count; ++i)
+        // {
+        //     if (skeleton->m_Bones[i].m_Id == bone_id)
+        //     {
+        //         bone_index = i;
+        //         break;
+        //     }
+        // }
         if (bone_index == ~0u)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
-        if (instance == 0x0)
-        {
-            return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
-        }
-        dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
-        if (instance_id == 0x0)
-        {
-            return luaL_error(L, "game object contains no identifier for the bone '%s'", lua_tostring(L, 2));
-        }
-        dmScript::PushHash(L, instance_id);
+        // dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
+        // if (instance == 0x0)
+        // {
+        //     return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
+        // }
+        // dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
+        // if (instance_id == 0x0)
+        // {
+        //     return luaL_error(L, "game object contains no identifier for the bone '%s'", lua_tostring(L, 2));
+        // }
+        // dmScript::PushHash(L, instance_id);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -227,26 +227,26 @@ namespace dmGameSystem
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
 
-        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
+        // dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
+        // uint32_t ik_count = skeleton->m_Iks.m_Count;
         uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
-        }
+        // for (uint32_t i = 0; i < ik_count; ++i)
+        // {
+        //     if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
+        //     {
+        //         ik_index = i;
+        //         break;
+        //     }
+        // }
         if (ik_index == ~0u)
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
 
-        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        ik_target.m_Mix = 1.0f;
-        ik_target.m_InstanceId = 0;
-        ik_target.m_Position = *position;
+        // dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
+        // ik_target.m_Mix = 1.0f;
+        // ik_target.m_InstanceId = 0;
+        // ik_target.m_Position = *position;
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -286,38 +286,38 @@ namespace dmGameSystem
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
+        // dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
+        // uint32_t ik_count = skeleton->m_Iks.m_Count;
         uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
-        }
+        // for (uint32_t i = 0; i < ik_count; ++i)
+        // {
+        //     if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
+        //     {
+        //         ik_index = i;
+        //         break;
+        //     }
+        // }
         if (ik_index == ~0u)
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
 
-        dmMessage::URL sender;
-        dmScript::GetURL(L, &sender);
-        dmMessage::URL target;
-        dmScript::ResolveURL(L, 3, &target, &sender);
-        if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
-        {
-            luaL_error(L, "go.animate can only animate instances within the same collection.");
-        }
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
-        if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+        // dmMessage::URL sender;
+        // dmScript::GetURL(L, &sender);
+        // dmMessage::URL target;
+        // dmScript::ResolveURL(L, 3, &target, &sender);
+        // if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
+        // {
+        //     luaL_error(L, "go.animate can only animate instances within the same collection.");
+        // }
+        // dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        // if (target_instance == 0)
+        //     return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
 
 
-        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        ik_target.m_Mix = 1.0f;
-        ik_target.m_InstanceId = target.m_Path;
+        // dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
+        // ik_target.m_Mix = 1.0f;
+        // ik_target.m_InstanceId = target.m_Path;
 
         assert(top == lua_gettop(L));
         return 0;

@@ -6,6 +6,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/gameobject.h>
+#include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
 
@@ -42,6 +43,7 @@ protected:
     dmGameSystem::FactoryContext m_FactoryContext;
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
+    dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
@@ -124,6 +126,12 @@ void GamesysTest<T>::SetUp()
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
+    // Create rig context
+    dmRig::NewContextParams rig_params;
+    rig_params.m_Context = &m_RigContext;
+    rig_params.m_MaxRigInstanceCount = 2;
+    assert(dmRig::CREATE_RESULT_OK == dmRig::NewContext(rig_params));
+
     m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(m_HidContext);
     dmInput::NewContextParams input_params;
@@ -152,6 +160,7 @@ void GamesysTest<T>::SetUp()
 
     m_SpineModelContext.m_RenderContext = m_RenderContext;
     m_SpineModelContext.m_Factory = m_Factory;
+    m_SpineModelContext.m_RigContext = m_RigContext;
     m_SpineModelContext.m_MaxSpineModelCount = 32;
 
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
@@ -169,6 +178,10 @@ void GamesysTest<T>::SetUp()
 template<typename T>
 void GamesysTest<T>::TearDown()
 {
+    dmRig::DeleteContextParams params;
+    params.m_Context = m_RigContext;
+    dmRig::DeleteContext(params);
+
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);

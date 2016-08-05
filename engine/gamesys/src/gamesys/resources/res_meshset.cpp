@@ -19,8 +19,8 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams& params)
     {
-        dmGameSystemDDF::MeshSet* MeshSet;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_MeshSet_DESCRIPTOR, (void**) &MeshSet);
+        dmRigDDF::MeshSet* MeshSet;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &MeshSet);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -33,7 +33,7 @@ namespace dmGameSystem
     dmResource::Result ResMeshSetCreate(const dmResource::ResourceCreateParams& params)
     {
         MeshSetResource* ss_resource = new MeshSetResource();
-        ss_resource->m_MeshSet = (dmGameSystemDDF::MeshSet*) params.m_PreloadData;
+        ss_resource->m_MeshSet = (dmRigDDF::MeshSet*) params.m_PreloadData;
         dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -57,8 +57,8 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshSetRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGameSystemDDF::MeshSet* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_MeshSet_DESCRIPTOR, (void**) &spine_scene);
+        dmRigDDF::MeshSet* spine_scene;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;

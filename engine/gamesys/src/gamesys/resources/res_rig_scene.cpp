@@ -1,4 +1,4 @@
-#include "res_spine_scene.h"
+#include "res_rig_scene.h"
 
 #include <dlib/log.h>
 
@@ -6,7 +6,7 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, SpineSceneResource* resource, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename)
     {
         dmResource::Result result;
         result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
@@ -29,8 +29,8 @@ namespace dmGameSystem
             resource->m_BindPose.SetSize(bone_count);
             for (uint32_t i = 0; i < bone_count; ++i)
             {
-                SpineBone* bind_bone = &resource->m_BindPose[i];
-                dmGameSystemDDF::Bone* bone = &resource->m_SkeletonRes->m_Skeleton->m_Bones[i];
+                dmRig::RigBone* bind_bone = &resource->m_BindPose[i];
+                dmRigDDF::Bone* bone = &resource->m_SkeletonRes->m_Skeleton->m_Bones[i];
                 bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
                 if (i > 0)
                 {
@@ -52,7 +52,7 @@ namespace dmGameSystem
         return result;
     }
 
-    static void ReleaseResources(dmResource::HFactory factory, SpineSceneResource* resource)
+    static void ReleaseResources(dmResource::HFactory factory, RigSceneResource* resource)
     {
         if (resource->m_RigScene != 0x0)
             dmDDF::FreeMessage(resource->m_RigScene);
@@ -67,28 +67,28 @@ namespace dmGameSystem
 
     }
 
-    dmResource::Result ResSpineScenePreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams& params)
     {
-        dmGameSystemDDF::RigScene* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_RigScene_DESCRIPTOR, (void**) &spine_scene);
+        dmRigDDF::RigScene* rig_scene;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, spine_scene->m_TextureSet);
-        dmResource::PreloadHint(params.m_HintInfo, spine_scene->m_Skeleton);
-        dmResource::PreloadHint(params.m_HintInfo, spine_scene->m_AnimationSet);
-        dmResource::PreloadHint(params.m_HintInfo, spine_scene->m_MeshSet);
+        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_TextureSet);
+        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_Skeleton);
+        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_AnimationSet);
+        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_MeshSet);
 
-        *params.m_PreloadData = spine_scene;
+        *params.m_PreloadData = rig_scene;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpineSceneCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResRigSceneCreate(const dmResource::ResourceCreateParams& params)
     {
-        SpineSceneResource* ss_resource = new SpineSceneResource();
-        ss_resource->m_RigScene = (dmGameSystemDDF::RigScene*) params.m_PreloadData;
+        RigSceneResource* ss_resource = new RigSceneResource();
+        ss_resource->m_RigScene = (dmRigDDF::RigScene*) params.m_PreloadData;
         dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -102,26 +102,26 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResSpineSceneDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        SpineSceneResource* ss_resource = (SpineSceneResource*)params.m_Resource->m_Resource;
+        RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         delete ss_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSpineSceneRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGameSystemDDF::RigScene* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameSystemDDF_RigScene_DESCRIPTOR, (void**) &spine_scene);
+        dmRigDDF::RigScene* rig_scene;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        SpineSceneResource* ss_resource = (SpineSceneResource*)params.m_Resource->m_Resource;
+        RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
-        ss_resource->m_RigScene = spine_scene;
+        ss_resource->m_RigScene = rig_scene;
         return AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
     }
 }

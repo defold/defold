@@ -225,6 +225,14 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
+        dmRig::DeleteContextParams rig_params;
+        rig_params.m_Context = engine->m_RigContext;
+        dmRig::CreateResult rr = dmRig::DeleteContext(rig_params);
+        if (rr != dmRig::CREATE_RESULT_OK)
+        {
+            dmLogError("Error while deleting rig context: %d", rr);
+        }
+
         dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
         if (engine->m_HidContext)
@@ -621,6 +629,16 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
+        dmRig::NewContextParams rig_params;
+        rig_params.m_Context = &engine->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = dmConfigFile::GetInt(engine->m_Config, dmRig::MAX_RIG_INSTANCE_COUNT_KEY, 128);
+        dmRig::CreateResult rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::CREATE_RESULT_OK)
+        {
+            dmLogFatal("Unable to create rig context: %d", rr);
+            return false;
+        }
+
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
@@ -703,6 +721,7 @@ namespace dmEngine
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpineModelContext.m_RigContext = engine->m_RigContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
 

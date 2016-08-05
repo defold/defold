@@ -4,13 +4,13 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
-#include "rig_ddf.h"
+#include <rig/rig_ddf.h>
 
 namespace dmGameSystem
 {
     struct SkeletonResource
     {
-        dmGameSystemDDF::Skeleton* m_Skeleton;
+        dmRigDDF::Skeleton* m_Skeleton;
     };
 
     dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);

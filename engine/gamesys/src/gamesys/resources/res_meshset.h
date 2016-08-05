@@ -4,13 +4,13 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
-#include "rig_ddf.h"
+#include <rig/rig_ddf.h>
 
 namespace dmGameSystem
 {
     struct MeshSetResource
     {
-        dmGameSystemDDF::MeshSet* m_MeshSet;
+        dmRigDDF::MeshSet* m_MeshSet;
     };
 
     dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams& params);
