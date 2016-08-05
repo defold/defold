@@ -85,7 +85,7 @@
   :main ^:skip-aot   com.defold.editor.Start
 
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
-                      :uberjar {:prep-tasks   ["clean" "protobuf" "javac" ["run" "-m" "aot"] "compile"]
+                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
@@ -99,4 +99,5 @@
                                 :proto-paths       ["test/proto"]
                                 :java-source-paths ["dev/java"]
                                 :source-paths      ["dev/clj"]
-                                :resource-paths    ["test/resources"]}})
+                                :resource-paths    ["test/resources"]
+                                :jvm-opts          ["-XX:+UnlockCommercialFeatures" "-XX:+FlightRecorder"]}})

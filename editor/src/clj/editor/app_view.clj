@@ -166,9 +166,9 @@
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
             (g/node-value app-view :active-resource))
-  (run [project app-view prefs]
+  (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (project/build-and-save-project project)]
+      (let [build (project/build-and-save-project project build-errors-view)]
         (when (and (future? build) @build)
             (engine/reload-resource (:url (project/get-selected-target prefs)) resource))))))
 
