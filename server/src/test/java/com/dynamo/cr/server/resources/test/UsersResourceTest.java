@@ -576,7 +576,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         UserService userService = new UserService(em);
         User inviter = userService.find(joeUser.getId()).orElseThrow(RuntimeException::new);
         // Delete
-        userService.remove(inviter);
+        ModelUtil.removeUser(em, inviter);
         em.getTransaction().commit();
 
         // The message contains only the key, see config-file
