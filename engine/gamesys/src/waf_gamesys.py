@@ -183,6 +183,13 @@ def transform_spine_model(task, msg):
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
+def transform_rig_scene(task, msg):
+    msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
+    msg.animation_set = msg.skeleton.replace('.animationset', '.animationsetc')
+    msg.mesh_set = msg.skeleton.replace('.meshset', '.meshsetc')
+    # msg.texture_set = msg.skeleton.replace('.textureset', '.texturesetc')
+    return msg
+
 def write_embedded(task):
     try:
         import google.protobuf.text_format
@@ -313,6 +320,7 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegr
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('spinemodel', 'spine_ddf_pb2', 'SpineModelDesc', '.spinemodel', '.spinemodelc', transform_spine_model)
+proto_compile_task('rig', 'rig.rig_ddf_pb2', 'rig_ddf_pb2.RigScene', '.rigscene', '.rigscenec', transform_rig_scene)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
@@ -449,13 +457,13 @@ def compile_spinescene(task):
     try:
         import google.protobuf.text_format
         import spine_ddf_pb2
-        import rig_ddf_pb2
+        import rig.rig_ddf_pb2
         # NOTE: We can't use getattr. msg_type could of form "foo.bar"
         msg = spine_ddf_pb2.SpineSceneDesc() # Call constructor on message type
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
-        msg_out = rig_ddf_pb2.RigScene()
+        msg_out = rig.rig_ddf_pb2.RigScene()
 
         # name = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
         # name = os.path.splitext(task.inputs[0].abspath())[0]
@@ -481,11 +489,11 @@ def compile_spinescene(task):
 
         # write skeleton, mesh set and animation set files
         with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
-            out_f.write(rig_ddf_pb2.Skeleton().SerializeToString())
+            out_f.write(rig.rig_ddf_pb2.Skeleton().SerializeToString())
         with open(task.outputs[2].bldpath(task.env), 'wb') as out_f:
-            out_f.write(rig_ddf_pb2.MeshSet().SerializeToString())
+            out_f.write(rig.rig_ddf_pb2.MeshSet().SerializeToString())
         with open(task.outputs[3].bldpath(task.env), 'wb') as out_f:
-            out_f.write(rig_ddf_pb2.AnimationSet().SerializeToString())
+            out_f.write(rig.rig_ddf_pb2.AnimationSet().SerializeToString())
 
         return 0
     except google.protobuf.text_format.ParseError,e:
