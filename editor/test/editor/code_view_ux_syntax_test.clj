@@ -8,8 +8,9 @@
             [editor.lua :as lua]
             [editor.script :as script]
             [editor.gl.shader :as shader]
-            [editor.code-view-test :as cvt :refer [setup-code-view-nodes]]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [editor.code-view-test :as cvt :refer [setup-code-view-nodes load-buffer expect-buffer buffer-commands should-be]]
+            [support.test-support :refer [with-clean-system tx-nodes]]
+            [clojure.string :as str]))
 
 (defn- toggle-comment! [source-viewer]
   (cvx/handler-run :toggle-comment [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -33,29 +34,43 @@
 
 (defn do-toggle-region-comment [node-type opts comment-str]
   (with-clean-system
-    (let [code "line1\nline2\nline3\nline4"
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
-      (testing "toggle region comment selecting down"
-        (caret! source-viewer 8 false)
-        (caret! source-viewer 17 true)
-        (is (= "ne2\nline3" (text-selection source-viewer)))
-        (toggle-comment! source-viewer)
-        (is (= (str "line1\n" comment-str "line2\n" comment-str "line3\nline4") (text source-viewer)))
-        (caret! source-viewer 8 false)
-        (caret! source-viewer 17 true)
-        (toggle-comment! source-viewer)
-        (is (= code (text source-viewer))))
-      (testing "toggle region comment selecting up"
-        (caret! source-viewer 17 false)
-        (caret! source-viewer 8 true)
-        (is (= "ne2\nline3" (text-selection source-viewer)))
-        (toggle-comment! source-viewer)
-        (is (= (str "line1\n" comment-str "line2\n" comment-str "line3\nline4") (text source-viewer)))
-        (caret! source-viewer 17 false)
-        (caret! source-viewer 8 true)
-        (toggle-comment! source-viewer)
-        (is (= code (text source-viewer)))))))
+    (testing "toggle region comment selecting down"
+      (buffer-commands (load-buffer world node-type opts)
+                       (should-be "line1"
+                                  "li>ne2"
+                                  "line|3"
+                                  "line4")
+
+                       (toggle-comment!)
+                       (should-be "line1"
+                                  (str comment-str "li>ne2")
+                                  (str comment-str "line|3")
+                                  "line4")
+
+                       (toggle-comment!)
+                       (should-be "line1"
+                                  "li>ne2"
+                                  "line|3"
+                                  "line4")))
+
+    (testing "toggle region comment selecting up"
+      (buffer-commands (load-buffer world node-type opts)
+                       (should-be "l|ine1"
+                                  "line2"
+                                  "line3"
+                                  "line4<")
+
+                       (toggle-comment!)
+                       (should-be (str comment-str "l|ine1")
+                                  (str comment-str "line2")
+                                  (str comment-str "line3")
+                                  (str comment-str "line4<"))
+
+                       (toggle-comment!)
+                       (should-be "l|ine1"
+                                  "line2"
+                                  "line3"
+                                  "line4<")))))
 
 (deftest toggle-comment-region-test
   (testing "lua syntax"
@@ -322,26 +337,44 @@
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "indentation for functions"
         (testing "no indentation level"
-          (set-code-and-caret! source-viewer "function test(x)")
-          (enter! source-viewer)
-          (is (= "function test(x)\n\t" (text source-viewer))))
+          (buffer-commands (load-buffer world script/ScriptNode opts)
+                           (should-be "function test(x)|")
+
+                           (enter!)
+                           (should-be "function test(x)"
+                                      "\t|")))
         (testing "some indentation exists"
-          (set-code-and-caret! source-viewer "if true then\n\tfunction test(x)")
-          (enter! source-viewer)
-          (is (= "if true then\n\tfunction test(x)\n\t\t" (text source-viewer))))
+          (buffer-commands (load-buffer world script/ScriptNode opts)
+                           (should-be "if true then"
+                                      "\tfunction test(x)|")
+
+                           (enter!)
+                           (should-be "if true then"
+                                      "\tfunction test(x)"
+                                      "\t\t|")))
         (testing "maintains level in the function"
-          (set-code-and-caret! source-viewer "function test(x)\n\tfoo")
-          (enter! source-viewer)
-          (is (= "function test(x)\n\tfoo\n\t" (text source-viewer))))
+          (buffer-commands (load-buffer world script/ScriptNode opts)
+                           (should-be "function test(x)\n\tfoo|")
+
+                           (enter!)
+                           (should-be "function test(x)"
+                                      "\tfoo"
+                                      "\t|")))
         (testing "end deindents"
-          (set-code-and-caret! source-viewer "function test(x)\n\tend")
-          (enter! source-viewer)
-          (is (= "function test(x)\nend\n" (text source-viewer))))
+          (buffer-commands (load-buffer world script/ScriptNode opts)
+                           (should-be "function test(x)\n\tend|")
+
+                           (enter!)
+                           (should-be  "function test(x)"
+                                       "end"
+                                       "|")))
         (testing "no enter identation if not at an end of the line"
-          (set-code-and-caret! source-viewer "function test(x)")
-          (caret! source-viewer 2 false)
-          (enter! source-viewer)
-          (is (= "fu\nnction test(x)" (text source-viewer))))))))
+          (buffer-commands (load-buffer world script/ScriptNode opts)
+                           (should-be "fu|nction test(x)")
+
+                           (enter!)
+                           (should-be  "fu"
+                                       "|nction test(x)")))))))
 
 (deftest lua-enter-indentation-if-else
   (with-clean-system
