@@ -885,6 +885,8 @@
       (when found-idx
         (do-replace selection doc found-idx rtext tlen tlen-new np)))))
 
+(defn commented? [syntax s] (string/starts-with? s (:line-comment syntax)))
+
 (defn add-comment [selection text line-comment]
   (str line-comment text))
 
@@ -893,14 +895,6 @@
 
 (defn- syntax [source-viewer]
   (ui/user-data source-viewer :editor.code-view/syntax))
-
-(defn toggle-line-comment [selection]
-  (let [np (caret selection)
-        doc (text selection)
-        line-comment (:line-comment (syntax selection))
-        line-text (line selection)
-        loffset (line-offset selection)]
-    (replace! selection loffset (count line-text) (toggle-comment line-text line-comment))))
 
 (defn alter-line [selection line-num f & args]
   (let [current-line (line-at-num selection line-num)
@@ -915,12 +909,13 @@
 (defn uncomment-line [selection line-comment line-num]
   (alter-line selection line-num remove-comment line-comment))
 
-(defn do-toggle-line [selection line-comment line-num]
-  (let [current-line (line-at-num selection line-num)
-        line-offset (line-offset-at-num selection line-num)
-        toggle-text (toggle-comment current-line line-comment)]
-    (when toggle-text
-      (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) toggle-text))))
+(defn toggle-line-comment [selection]
+  (let [syntax (syntax selection)
+        line-comment (:line-comment syntax)
+        caret-offset (caret selection)
+        caret-line-num (line-num-at-offset selection caret-offset)
+        op (if (commented? syntax (line-at-num selection caret-line-num)) uncomment-line comment-line)]
+    (op selection line-comment caret-line-num)))
 
 (defn comment-region [selection]
   (let [line-comment (:line-comment (syntax selection))
@@ -967,8 +962,6 @@
         end-line-num (line-num-at-offset selection region-end)]
     (for [line-num (range start-line-num (inc end-line-num))]
       (line-at-num selection line-num))))
-
-(defn commented? [syntax s] (string/starts-with? s (:line-comment syntax)))
 
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
