@@ -96,6 +96,24 @@ public class ParseUtil {
                 return builder.build();
             }
         });
+        parseMap.put("skeletonc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Rig.Skeleton.parseFrom(content);
+            }
+        });
+        parseMap.put("meshsetc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Rig.MeshSet.parseFrom(content);
+            }
+        });
+        parseMap.put("animationsetc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Rig.AnimationSet.parseFrom(content);
+            }
+        });
         parseMap.put("rigscenec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

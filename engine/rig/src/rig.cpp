@@ -573,7 +573,6 @@ namespace dmRig
 
     static dmRig::CreateResult CreatePose(HRigContext context, HRigInstance instance)
     {
-    //     dmGameObject::HInstance instance = component->m_Instance;
         const dmArray<RigBone>* bind_pose = instance->m_BindPose;
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -646,6 +645,11 @@ namespace dmRig
         // dmGameObject::DeleteBones(component->m_Instance);
     }
 
+    const dmArray<dmTransform::Transform>& GetPose(HRigInstance instance)
+    {
+        return instance->m_Pose;
+    }
+
     static void DestroyInstance(HRigContext context, uint32_t index)
     {
         RigInstance* instance = context->m_Instances.Get(index);
@@ -681,7 +685,6 @@ namespace dmRig
         instance->m_Skin = dmHashString64(params.m_SkinId);
 
         instance->m_BindPose = params.m_BindPose;
-        instance->m_RigScene = params.m_RigScene;
         instance->m_Skeleton = params.m_Skeleton;
         instance->m_MeshSet = params.m_MeshSet;
         instance->m_AnimationSet = params.m_AnimationSet;

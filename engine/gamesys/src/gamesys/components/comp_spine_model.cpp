@@ -154,7 +154,6 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
-        create_params.m_RigScene     = rig_resource->m_RigScene;
         create_params.m_Skeleton     = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet      = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet = rig_resource->m_AnimationSetRes->m_AnimationSet;

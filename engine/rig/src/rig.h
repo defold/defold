@@ -6,6 +6,7 @@
 #include <dlib/object_pool.h>
 #include <dlib/hash.h>
 #include <dlib/vmath.h>
+#include <dlib/align.h>
 
 #include <render/render.h>
 #include <gameobject/gameobject.h>
@@ -85,9 +86,8 @@ namespace dmRig
 
         uint32_t                      m_Index;
 
+        // DM_ALIGNED(16) const dmArray<RigBone>* m_BindPose;
         const dmArray<RigBone>*       m_BindPose;
-
-        const dmRigDDF::RigScene*     m_RigScene;
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
@@ -217,7 +217,6 @@ namespace dmRig
         const char*             m_DefaultAnimation;
 
         const dmArray<RigBone>*       m_BindPose;
-        const dmRigDDF::RigScene*     m_RigScene;
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
@@ -269,7 +268,7 @@ namespace dmRig
     void SetAnimation(HRigInstance instance, dmhash_t animation_id);
 
     // New getters/setters:
-    dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
+    const dmArray<dmTransform::Transform>& GetPose(HRigInstance instance);
     float GetCursor(HRigInstance instance);
     PlayResult SetCursor(HRigInstance instance, float cursor);
 

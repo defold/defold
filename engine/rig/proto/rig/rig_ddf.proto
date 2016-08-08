@@ -8,12 +8,14 @@ option java_outer_classname = "Rig";
 
 message Bone
 {
+    option (struct_align) = true;
+
     // 0xffff means no parent
     required uint32 parent = 1;
     required uint64 id = 2;
-    required dmMath.Point3 position = 3;
-    required dmMath.Quat rotation = 4;
-    required dmMath.Vector3 scale = 5;
+    required dmMath.Point3 position = 3 [(field_align)=true];
+    required dmMath.Quat rotation = 4 [(field_align)=true];
+    required dmMath.Vector3 scale = 5 [(field_align)=true];
     optional bool inherit_scale = 6 [default = true];
     optional float length = 7;
 }

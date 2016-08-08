@@ -61,6 +61,7 @@
             <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>
             <proto dir="../../engine/particle/proto/particle" file="particle_ddf.proto"/>
+            <proto dir="../../engine/rig/proto/rig" file="rig_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
