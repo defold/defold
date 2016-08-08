@@ -13,6 +13,7 @@ namespace dmGameSystem
     };
 
     void ScriptWindowRegister(const ScriptLibContext& context);
+    void ScriptWindowFinalize(const ScriptLibContext& context);
 
     void ScriptWindowOnWindowFocus(bool focus);
     void ScriptWindowOnWindowResized(int width, int height);
