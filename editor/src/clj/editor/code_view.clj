@@ -325,6 +325,7 @@
 
                                               true
                                               (cvx/caret! text-area doc-len selection)))))
+                                      (cvx/show-line source-viewer)
                                       (catch Exception e (println "error updating cursor")))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
