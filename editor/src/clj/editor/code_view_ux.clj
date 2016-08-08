@@ -885,11 +885,11 @@
       (when found-idx
         (do-replace selection doc found-idx rtext tlen tlen-new np)))))
 
-(defn toggle-comment [text line-comment]
-  (let [pattern (re-pattern (str "^" line-comment))]
-   (if (re-find pattern text)
-     (->> text (drop (count line-comment)) (apply str))
-     (str line-comment text))))
+(defn add-comment [selection text line-comment]
+  (str line-comment text))
+
+(defn remove-comment [selection text line-comment]
+  (subs text (count line-comment)))
 
 (defn- syntax [source-viewer]
   (ui/user-data source-viewer :editor.code-view/syntax))
@@ -902,6 +902,19 @@
         loffset (line-offset selection)]
     (replace! selection loffset (count line-text) (toggle-comment line-text line-comment))))
 
+(defn alter-line [selection line-num f & args]
+  (let [current-line (line-at-num selection line-num)
+        line-offset (line-offset-at-num selection line-num)
+        new-text (apply f selection current-line args)]
+    (when new-text
+      (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) new-text))))
+
+(defn comment-line [selection line-comment line-num]
+  (alter-line selection line-num add-comment line-comment))
+
+(defn uncomment-line [selection line-comment line-num]
+  (alter-line selection line-num remove-comment line-comment))
+
 (defn do-toggle-line [selection line-comment line-num]
   (let [current-line (line-at-num selection line-num)
         line-offset (line-offset-at-num selection line-num)
@@ -909,25 +922,62 @@
     (when toggle-text
       (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) toggle-text))))
 
-(defn toggle-region-comment [selection]
-  (let [doc (text selection)
-        line-comment (:line-comment (syntax selection))
+(defn comment-region [selection]
+  (let [line-comment (:line-comment (syntax selection))
         region-start (selection-offset selection)
         region-len (selection-length selection)
         region-end (+ region-start region-len)
         start-line-num (line-num-at-offset selection region-start)
         start-line-offset (line-offset-at-num selection start-line-num)
         end-line-num (line-num-at-offset selection region-end)
-        end-line-offset (line-offset-at-num selection end-line-num)]
+        end-line-offset (line-offset-at-num selection end-line-num)
+        caret-offset (caret selection)
+        caret-line-num (line-num-at-offset selection caret-offset)]
     (doseq [i (range start-line-num (inc end-line-num))]
-      (do-toggle-line selection line-comment i))))
+      (comment-line selection line-comment i))
+    (let [line-comment-len (count line-comment)
+          caret-offset-delta (* line-comment-len (inc (- caret-line-num start-line-num)))]
+     (caret! selection (+ caret-offset-delta caret-offset) false)
+     (text-selection! selection (+ line-comment-len region-start)
+                      (+ region-len (* line-comment-len (- end-line-num start-line-num)))))))
+
+(defn uncomment-region [selection]
+  (let [line-comment (:line-comment (syntax selection))
+        region-start (selection-offset selection)
+        region-len (selection-length selection)
+        region-end (+ region-start region-len)
+        start-line-num (line-num-at-offset selection region-start)
+        start-line-offset (line-offset-at-num selection start-line-num)
+        end-line-num (line-num-at-offset selection region-end)
+        end-line-offset (line-offset-at-num selection end-line-num)
+        caret-offset (caret selection)
+        caret-line-num (line-num-at-offset selection caret-offset)]
+    (doseq [i (range start-line-num (inc end-line-num))]
+      (uncomment-line selection line-comment i))
+    (let [line-comment-len (count line-comment)
+          caret-offset-delta (* line-comment-len (inc (- caret-line-num start-line-num)))]
+      (caret! selection (- caret-offset caret-offset-delta) false)
+      (text-selection! selection (- region-start line-comment-len)
+                      (- region-len (* line-comment-len (- end-line-num start-line-num)))))))
+
+(defn selected-lines [selection]
+  (let [region-start (selection-offset selection)
+        region-end (+ region-start (selection-length selection))
+        start-line-num (line-num-at-offset selection region-start)
+        end-line-num (line-num-at-offset selection region-end)]
+    (for [line-num (range start-line-num (inc end-line-num))]
+      (line-at-num selection line-num))))
+
+(defn commented? [syntax s] (string/starts-with? s (:line-comment syntax)))
 
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
     (changes! selection)
     (if (pos? (count (text-selection selection)))
-      (toggle-region-comment selection)
+      (if (every? #(commented? (syntax selection) %) (selected-lines selection))
+        (uncomment-region selection)
+        (comment-region selection))
       (toggle-line-comment selection))))
 
 (defn enter-key-text [selection key-typed]
