@@ -155,7 +155,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         return result;
     }
 
-    private double pivotOffsetY(TextNode node, double ascent, double descent, double leading, int lineCount) {
+    private double pivotTextOffsetY(TextNode node, double ascent, double descent, double leading, int lineCount) {
         Pivot p = node.getPivot();
 
         double lineHeight = ascent + descent;
@@ -174,6 +174,30 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         case PIVOT_SW:
         case PIVOT_SE:
             return -(lineHeight * leading * (lineCount - 1)) - descent;
+        }
+
+        assert false;
+        return Double.MAX_VALUE;
+    }
+
+    private double pivotNodeOffsetY(TextNode node, double height) {
+        Pivot p = node.getPivot();
+
+        switch(p) {
+            case PIVOT_N:
+            case PIVOT_NE:
+            case PIVOT_NW:
+                return height;
+
+            case PIVOT_CENTER:
+            case PIVOT_E:
+            case PIVOT_W:
+                return height * 0.5;
+
+            case PIVOT_S:
+            case PIVOT_SE:
+            case PIVOT_SW:
+                return 0;
         }
 
         assert false;
@@ -236,7 +260,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         }
 
         double x0 = -pivotOffsetX(node, width);
-        double y0 = -pivotOffsetY(node, ascent, descent, node.getLeading(), lines.size());
+        double y0 = -pivotTextOffsetY(node, ascent, descent, node.getLeading(), lines.size());
 
         float[] color = node.calcNormRGBA();
 
@@ -341,6 +365,27 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             }
         } else {
             gl.glColor4fv(renderContext.selectColor(node, color), 0);
+            gl.glBegin(GL2.GL_QUADS);
+
+            double nodeX0 = -pivotOffsetX(node, node.getSize().x);
+            double nodeX1 = nodeX0 + node.getSize().x;
+            double nodeY0 = -pivotNodeOffsetY(node, node.getSize().y);
+            double nodeY1 = nodeY0 + node.getSize().y;
+
+            gl.glTexCoord2d(0, 0);
+            gl.glVertex2d(nodeX0, nodeY0);
+
+            gl.glTexCoord2d(1, 0);
+            gl.glVertex2d(nodeX1, nodeY0);
+
+            gl.glTexCoord2d(1, 1);
+            gl.glVertex2d(nodeX1, nodeY1);
+
+            gl.glTexCoord2d(1, 0);
+            gl.glVertex2d(nodeX0, nodeY1);
+
+            gl.glEnd();
+
             double h = 0;
             double w = 0;
             for (TextLine t : lines) {
@@ -354,6 +399,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             double x1 = x0 + w;
             double y1 = y0 - h;
 
+            gl.glColor4fv(renderContext.selectColor(node, color), 0);
             gl.glBegin(GL2.GL_QUADS);
 
             gl.glTexCoord2d(0, 0);
