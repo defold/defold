@@ -115,32 +115,34 @@ private:
         anim_track1.m_Positions.m_Count = 0;
         anim_track1.m_Scale.m_Count     = 0;
 
-        uint32_t samples = 3;
+        uint32_t samples = 4;
         anim_track0.m_Rotations.m_Data = new float[samples*4];
         anim_track0.m_Rotations.m_Count = samples*4;
         ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
         ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
         ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
+        ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
 
         anim_track1.m_Rotations.m_Data = new float[samples*4];
         anim_track1.m_Rotations.m_Count = samples*4;
         ((Quat*)anim_track1.m_Rotations.m_Data)[0] = Quat::identity();
         ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
         ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
+        ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
 
         /*
 
-             I:
+            Keyframe I:
             (0)---->(1)---->(x)
 
-            II:
+            Keyframe II:
             (0)---->(1)
                      |
                      |
                      v
                     (x)
 
-            III:
+            Keyframe III:
             (0)
              |
              |
@@ -151,11 +153,11 @@ private:
     }
 
     void TearDownSimpleSpine() {
-        delete m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
-        delete m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
-        delete m_AnimationSet->m_Animations.m_Data;
-        delete m_Skeleton->m_Bones.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data;
+        delete [] m_Skeleton->m_Bones.m_Data;
     }
 
 protected:
@@ -279,24 +281,17 @@ TEST_F(RigInstanceTest, PoseNoAnim)
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
 
     const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
-    // dmLogError("pose[0] position: %f %f %f", pose[1].GetTranslation()[0], pose[1].GetTranslation()[1], pose[1].GetTranslation()[2])
-    // dmLogError("pose[0] rotation: %f %f %f %f", pose[1].GetRotation()[0], pose[1].GetRotation()[1], pose[1].GetRotation()[2], pose[1].GetRotation()[3]);
 
-    // translation
+    // should be same as bind pose
     ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
     ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-
-    // rotation
     ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
     ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
 
-    // translation
     ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
     ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-
-    // rotation
     ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
     ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
 }

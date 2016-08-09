@@ -724,8 +724,8 @@ namespace dmRig
         // instance->m_NodeInstances.SetCapacity(0);
         // instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
-        delete instance;
         context->m_Instances.Free(instance->m_Index, true);
+        delete instance;
 
         return dmRig::CREATE_RESULT_OK;
     }

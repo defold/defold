@@ -209,7 +209,6 @@ namespace dmRig
     struct InstanceCreateParams
     {
         HRigContext             m_Context;
-        // uint32_t*               m_Index;
         HRigInstance*           m_Instance;
         RigMeshType             m_MeshType;
 
@@ -225,7 +224,6 @@ namespace dmRig
     struct InstanceDestroyParams
     {
         HRigContext  m_Context;
-        // uint32_t      m_Index;
         HRigInstance m_Instance;
     };
 
