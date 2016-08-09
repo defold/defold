@@ -65,6 +65,7 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance> m_Instances;
+        dmArray<uint32_t>          m_DrawOrderToMesh;
     };
 
     struct MeshProperties {
@@ -84,6 +85,7 @@ namespace dmRig
         RigPlayer                   m_Players[2];
         // dmMessage::URL              m_Listener;
 
+        // HRigContext                   m_Context;
         uint32_t                      m_Index;
 
         // DM_ALIGNED(16) const dmArray<RigBone>* m_BindPose;
@@ -104,7 +106,7 @@ namespace dmRig
         // User IK constraint targets
         // dmArray<IKTarget>           m_IKTargets;
         /// Currently used mesh
-        const dmRigDDF::MeshEntry* m_MeshEntry;
+        const dmRigDDF::MeshEntry*  m_MeshEntry;
         dmhash_t                    m_Skin;
         float                       m_BlendDuration;
         float                       m_BlendTimer;
@@ -150,10 +152,10 @@ namespace dmRig
     // move with m_VertexStride due to this very reason...
     struct RigGenVertexDataParams
     {
-        HRigInstance    m_Instance;
-        RigVertexData** m_VertexData;
-        int             m_VertexDataSize;
-        int             m_VertexStride;
+        Matrix4 m_ModelMatrix;
+        void**  m_VertexData;
+        int     m_VertexDataSize;
+        int     m_VertexStride;
     };
 
     // Both RigIKTargetParams and RigIKTargetPositionParams are self explanatory,
@@ -256,7 +258,8 @@ namespace dmRig
     PlayResult CancelAnimation(HRigInstance instance);
 
     /* CompSpineModelRender */
-    UpdateResult GenerateVertexData(const RigGenVertexDataParams& params);
+    uint32_t GetVertexCount(HRigInstance instance);
+    RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params);
 
     // The following functions correspond to properties that previously
     // would be returned/set in CompSpineModelGetProperty and CompSpineModelSetProperty;

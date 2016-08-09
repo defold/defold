@@ -359,6 +359,20 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
 
 }
 
+/*
+    Left to test:
+        GenerateVertexData(...)
+        GetSkin(...)
+        SetSkin(...)
+        GetAnimation(...)
+        SetAnimation(...)
+        GetPose(...)
+        GetCursor(...)
+        SetCursor(...)
+        SetIKTarget(...)
+        SetIKTargetPosition(...)
+*/
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

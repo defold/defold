@@ -188,9 +188,9 @@ namespace dmRig
         //     PostEvents(player, &sender, &receiver, animation, dt, prev_cursor, duration, completed, blend_weight);
         // }
 
-        // if (completed)
-        // {
-        //     player->m_Playing = 0;
+        if (completed)
+        {
+            player->m_Playing = 0;
         //     // Only report completeness for the primary player
         //     if (player == GetPlayer(component) && dmMessage::IsSocketValid(listener->m_Socket))
         //     {
@@ -217,7 +217,7 @@ namespace dmRig
         //             dmLogError("Could not send animation_done to listener because of incomplete component.");
         //         }
         //     }
-        // }
+        }
     }
 
     static Vector3 SampleVec3(uint32_t sample, float frac, float* data)
@@ -494,24 +494,24 @@ namespace dmRig
             // dmGameObject::HInstance first_bone_go = instance->m_NodeInstances[0];
             // dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
             // pose[0] = root_t;
-            // for (uint32_t bi = 0; bi < bone_count; ++bi)
-            // {
-            //     dmTransform::Transform& transform = pose[bi];
-            //     // Convert every transform into model space
-            //     if (bi > 0) {
-            //         dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
-            //         if (bone->m_InheritScale)
-            //         {
-            //             transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-            //         }
-            //         else
-            //         {
-            //             Vector3 scale = transform.GetScale();
-            //             transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-            //             transform.SetScale(scale);
-            //         }
-            //     }
-            // }
+            for (uint32_t bi = 0; bi < bone_count; ++bi)
+            {
+                dmTransform::Transform& transform = pose[bi];
+                // Convert every transform into model space
+                if (bi > 0) {
+                    const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+                    if (bone->m_InheritScale)
+                    {
+                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                    }
+                    else
+                    {
+                        Vector3 scale = transform.GetScale();
+                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                        transform.SetScale(scale);
+                    }
+                }
+            }
         }
     }
 
@@ -652,15 +652,129 @@ namespace dmRig
         return instance->m_Pose;
     }
 
+#define TO_BYTE(val) (uint8_t)(val * 255.0f)
+#define TO_SHORT(val) (uint16_t)((val) * 65535.0f)
+
+    static void UpdateMeshDrawOrder(RigContext* context, const RigInstance* instance, uint32_t mesh_count) {
+        // Spine's approach to update draw order is to:
+        // * Initialize with default draw order (integer sequence)
+        // * Add entries with changed draw order
+        // * Fill untouched slots with the unchanged entries
+        // E.g.:
+        // Init: [0, 1, 2]
+        // Changed: 1 => 0, results in [1, 1, 2]
+        // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
+        context->m_DrawOrderToMesh.SetSize(mesh_count);
+        // Intialize
+        for (uint32_t i = 0; i < mesh_count; ++i) {
+            context->m_DrawOrderToMesh[i] = i;
+        }
+        // Update changed
+        for (uint32_t i = 0; i < mesh_count; ++i) {
+            uint32_t order = instance->m_MeshProperties[i].m_Order;
+            if (order != i) {
+                context->m_DrawOrderToMesh[order] = i;
+            }
+        }
+        // Fill with unchanged
+        uint32_t draw_order = 0;
+        for (uint32_t i = 0; i < mesh_count; ++i) {
+            uint32_t order = instance->m_MeshProperties[i].m_Order;
+            if (order == i) {
+                // Find free slot
+                while (context->m_DrawOrderToMesh[draw_order] != draw_order) {
+                    ++draw_order;
+                }
+                context->m_DrawOrderToMesh[draw_order] = i;
+                ++draw_order;
+            }
+        }
+    }
+
+    uint32_t GetVertexCount(HRigInstance instance)
+    {
+        uint32_t vertex_count = 0;
+        uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
+        for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
+            if (instance->m_MeshProperties[mesh_index].m_Visible) {
+                vertex_count += instance->m_MeshEntry->m_Meshes[mesh_index].m_Indices.m_Count;
+            }
+        }
+
+        return vertex_count;
+    }
+
+    RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params)
+    {
+        DM_PROFILE(Rig, "GenerateVertexData");
+
+        RigVertexData* write_ptr = *(dmRig::RigVertexData **)params.m_VertexData;
+        const Matrix4& model_matrix = params.m_ModelMatrix;
+        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
+        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
+
+        if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
+            context->m_DrawOrderToMesh.SetCapacity(mesh_count);
+
+        UpdateMeshDrawOrder(context, instance, mesh_count);
+        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
+            uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
+            const MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
+            if (!properties->m_Visible) {
+                continue;
+            }
+            uint32_t index_count = mesh->m_Indices.m_Count;
+            for (uint32_t ii = 0; ii < index_count; ++ii)
+            {
+                uint32_t vi = mesh->m_Indices[ii];
+                uint32_t e = vi*3;
+                Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
+                Point3 out_p(0.0f, 0.0f, 0.0f);
+                uint32_t bi_offset = vi * 4;
+                const uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
+                const float* bone_weights = &mesh->m_Weights[bi_offset];
+                for (uint32_t bi = 0; bi < 4; ++bi)
+                {
+                    if (bone_weights[bi] > 0.0f)
+                    {
+                        uint32_t bone_index = bone_indices[bi];
+                        out_p += Vector3(dmTransform::Apply(instance->m_Pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
+                    }
+                }
+                Vector4 posed_vertex = model_matrix * out_p;
+                write_ptr->x = posed_vertex[0];
+                write_ptr->y = posed_vertex[1];
+                write_ptr->z = posed_vertex[2];
+                e = vi*2;
+                write_ptr->u = TO_SHORT(mesh->m_Texcoord0[e+0]);
+                write_ptr->v = TO_SHORT(mesh->m_Texcoord0[e+1]);
+                write_ptr->r = TO_BYTE(properties->m_Color[0]);
+                write_ptr->g = TO_BYTE(properties->m_Color[1]);
+                write_ptr->b = TO_BYTE(properties->m_Color[2]);
+                write_ptr->a = TO_BYTE(properties->m_Color[3]);
+                write_ptr = (dmRig::RigVertexData*)((uintptr_t)write_ptr + params.m_VertexStride);
+            }
+        }
+
+        return write_ptr;
+    }
+
+
+#undef TO_BYTE
+#undef TO_SHORT
+
     static void DestroyInstance(HRigContext context, uint32_t index)
     {
         RigInstance* instance = context->m_Instances.Get(index);
         DestroyPose(instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
-        // component->m_Pose.SetCapacity(0);
-        // component->m_NodeInstances.SetCapacity(0);
-        // component->m_IKTargets.SetCapacity(0);
-        // component->m_MeshProperties.SetCapacity(0);
+        instance->m_Pose.SetCapacity(0);
+        // instance->m_NodeInstances.SetCapacity(0);
+        // instance->m_IKTargets.SetCapacity(0);
+        instance->m_MeshProperties.SetCapacity(0);
+        dmLogError("DestroyInstance: %x", instance);
         delete instance;
         context->m_Instances.Free(index, true);
     }
@@ -675,9 +789,9 @@ namespace dmRig
             return dmRig::CREATE_RESULT_ERROR;
         }
 
-        // RigInstance* instance = new RigInstance;
         *params.m_Instance = new RigInstance;
         RigInstance* instance = *params.m_Instance;
+        dmLogError("InstanceCreate: %x", instance);
 
         uint32_t index = context->m_Instances.Alloc();
         instance->m_Index = index;
@@ -715,17 +829,18 @@ namespace dmRig
 
     CreateResult InstanceDestroy(const InstanceDestroyParams& params)
     {
-        RigContext* context = (RigContext*)params.m_Context;
-        RigInstance* instance = params.m_Instance;
-        // RigInstance* instance = context->m_Instances.Get(params.m_Index);
-        // DestroyPose(instance);
-        // If we're going to use memset, then we should explicitly clear pose and instance arrays.
+        DestroyInstance((RigContext*)params.m_Context, params.m_Instance->m_Index);
+        // RigContext* context = (RigContext*)params.m_Context;
+        // RigInstance* instance = params.m_Instance;
+        // // DestroyPose(instance);
+        // // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         // instance->m_Pose.SetCapacity(0);
-        // instance->m_NodeInstances.SetCapacity(0);
-        // instance->m_IKTargets.SetCapacity(0);
-        instance->m_MeshProperties.SetCapacity(0);
-        context->m_Instances.Free(instance->m_Index, true);
-        delete instance;
+        // // instance->m_NodeInstances.SetCapacity(0);
+        // // instance->m_IKTargets.SetCapacity(0);
+        // instance->m_MeshProperties.SetCapacity(0);
+        // context->m_Instances.Free(instance->m_Index, true);
+        // dmLogError("InstanceDestroy: %x", instance);
+        // delete instance;
 
         return dmRig::CREATE_RESULT_OK;
     }

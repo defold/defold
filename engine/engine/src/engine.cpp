@@ -1022,6 +1022,8 @@ bail:
                         }
                     }
 
+                    dmRig::Update(engine->m_RigContext, dt);
+
                     dmSound::Update();
 
                     dmHID::KeyboardPacket keybdata;

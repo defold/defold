@@ -42,25 +42,25 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpineModelContext* context = (SpineModelContext*)params.m_Context;
-        // dmRender::HRenderContext render_context = context->m_RenderContext;
+        dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = new SpineModelWorld();
 
         world->m_Components.SetCapacity(context->m_MaxSpineModelCount);
         world->m_RigContext = context->m_RigContext;
-        // world->m_RenderObjects.SetCapacity(context->m_MaxSpineModelCount);
+        world->m_RenderObjects.SetCapacity(context->m_MaxSpineModelCount);
 
-        // dmGraphics::VertexElement ve[] =
-        // {
-        //         {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-        //         {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
-        //         {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-        // };
+        dmGraphics::VertexElement ve[] =
+        {
+                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
+                {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+        };
 
-        // world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-        // world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
         // Assume 4 vertices per mesh
-        // world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
+        world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
 
         *params.m_World = world;
 
@@ -72,8 +72,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpineModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
-        // dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        // dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
+        dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
         // world->m_ScratchInstances.SetCapacity(0);
 
         dmResource::UnregisterResourceReloadedCallback(((SpineModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
@@ -150,19 +150,15 @@ namespace dmGameSystem
         // Create rig instance
         dmRig::InstanceCreateParams create_params;
         create_params.m_Context = world->m_RigContext;
-        // create_params.m_Index = &rig_index;
         create_params.m_Instance = &component->m_RigInstance;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
-        create_params.m_Skeleton     = rig_resource->m_SkeletonRes->m_Skeleton;
-        create_params.m_MeshSet      = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_AnimationSet = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_BindPose     = &component->m_Resource->m_RigScene->m_BindPose;
-
+        create_params.m_BindPose         = &rig_resource->m_BindPose;
+        create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
+        create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
+        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_SkinId           = component->m_Resource->m_Model->m_Skin;
         create_params.m_DefaultAnimation = component->m_Resource->m_Model->m_DefaultAnimation;
-        dmhash_t default_anim_id = dmHashString64(create_params.m_DefaultAnimation);
-        dmhash_t empty_id = dmHashString64("");
 
         dmRig::CreateResult res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::CREATE_RESULT_OK) {
@@ -185,6 +181,12 @@ namespace dmGameSystem
         // component->m_NodeInstances.SetCapacity(0);
         // component->m_IKTargets.SetCapacity(0);
         // component->m_MeshProperties.SetCapacity(0);
+
+        dmRig::InstanceDestroyParams params;
+        params.m_Context = world->m_RigContext;
+        params.m_Instance = component->m_RigInstance;
+        dmRig::InstanceDestroy(params);
+
         delete component;
         world->m_Components.Free(index, true);
     }
@@ -196,218 +198,121 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-#define TO_BYTE(val) (uint8_t)(val * 255.0f)
-#define TO_SHORT(val) (uint16_t)((val) * 65535.0f)
-
-    // static void UpdateMeshDrawOrder(SpineModelWorld* world, const SpineModelComponent* component, uint32_t mesh_count) {
-    //     // Spine's approach to update draw order is to:
-    //     // * Initialize with default draw order (integer sequence)
-    //     // * Add entries with changed draw order
-    //     // * Fill untouched slots with the unchanged entries
-    //     // E.g.:
-    //     // Init: [0, 1, 2]
-    //     // Changed: 1 => 0, results in [1, 1, 2]
-    //     // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
-    //     world->m_DrawOrderToMesh.SetSize(mesh_count);
-    //     // Intialize
-    //     for (uint32_t i = 0; i < mesh_count; ++i) {
-    //         world->m_DrawOrderToMesh[i] = i;
-    //     }
-    //     // Update changed
-    //     for (uint32_t i = 0; i < mesh_count; ++i) {
-    //         uint32_t order = component->m_MeshProperties[i].m_Order;
-    //         if (order != i) {
-    //             world->m_DrawOrderToMesh[order] = i;
-    //         }
-    //     }
-    //     // Fill with unchanged
-    //     uint32_t draw_order = 0;
-    //     for (uint32_t i = 0; i < mesh_count; ++i) {
-    //         uint32_t order = component->m_MeshProperties[i].m_Order;
-    //         if (order == i) {
-    //             // Find free slot
-    //             while (world->m_DrawOrderToMesh[draw_order] != draw_order) {
-    //                 ++draw_order;
-    //             }
-    //             world->m_DrawOrderToMesh[draw_order] = i;
-    //             ++draw_order;
-    //         }
-    //     }
-    // }
-
-    // SpineModelVertex* CreateVertexData(SpineModelWorld* world, SpineModelVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
-    // {
-    //     DM_PROFILE(SpineModel, "CreateVertexData");
-
-    //     for (uint32_t *i=begin;i!=end;++i)
-    //     {
-    //         const SpineModelComponent* component = (SpineModelComponent*) buf[*i].m_UserData;
-    //         const Matrix4& w = component->m_World;
-    //         dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
-    //         dmGameSystemDDF::MeshEntry* mesh_entry = component->m_MeshEntry;
-
-    //         uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-
-    //         if (world->m_DrawOrderToMesh.Capacity() < mesh_count)
-    //             world->m_DrawOrderToMesh.SetCapacity(mesh_count);
-
-    //         UpdateMeshDrawOrder(world, component, mesh_count);
-    //         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
-    //             uint32_t mesh_index = world->m_DrawOrderToMesh[draw_index];
-    //             const MeshProperties* properties = &component->m_MeshProperties[mesh_index];
-    //             dmGameSystemDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
-    //             if (!properties->m_Visible) {
-    //                 continue;
-    //             }
-    //             uint32_t index_count = mesh->m_Indices.m_Count;
-    //             for (uint32_t ii = 0; ii < index_count; ++ii)
-    //             {
-    //                 uint32_t vi = mesh->m_Indices[ii];
-    //                 uint32_t e = vi*3;
-    //                 Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
-    //                 Point3 out_p(0.0f, 0.0f, 0.0f);
-    //                 uint32_t bi_offset = vi * 4;
-    //                 uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
-    //                 float* bone_weights = &mesh->m_Weights[bi_offset];
-    //                 for (uint32_t bi = 0; bi < 4; ++bi)
-    //                 {
-    //                     if (bone_weights[bi] > 0.0f)
-    //                     {
-    //                         uint32_t bone_index = bone_indices[bi];
-    //                         out_p += Vector3(dmTransform::Apply(component->m_Pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
-    //                     }
-    //                 }
-    //                 Vector4 posed_vertex = w * out_p;
-    //                 where->x = posed_vertex[0];
-    //                 where->y = posed_vertex[1];
-    //                 where->z = posed_vertex[2];
-    //                 e = vi*2;
-    //                 where->u = TO_SHORT(mesh->m_Texcoord0[e+0]);
-    //                 where->v = TO_SHORT(mesh->m_Texcoord0[e+1]);
-    //                 where->r = TO_BYTE(properties->m_Color[0]);
-    //                 where->g = TO_BYTE(properties->m_Color[1]);
-    //                 where->b = TO_BYTE(properties->m_Color[2]);
-    //                 where->a = TO_BYTE(properties->m_Color[3]);
-    //                 ++where;
-    //             }
-    //         }
-    //     }
-
-    //     return where;
-    // }
-
-#undef TO_BYTE
-#undef TO_SHORT
-
     static void RenderBatch(SpineModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(SpineModel, "RenderBatch");
 
         const SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
 
-        // TextureSetResource* texture_set = first->m_Resource->m_Scene->m_TextureSet;
+        TextureSetResource* texture_set = first->m_Resource->m_RigScene->m_TextureSet;
 
-        // uint32_t vertex_count = 0;
-        // for (uint32_t *i=begin;i!=end;i++)
-        // {
-        //     const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-        //     uint32_t mesh_count = c->m_MeshEntry->m_Meshes.m_Count;
-        //     for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-        //         if (c->m_MeshProperties[mesh_index].m_Visible) {
-        //             vertex_count += c->m_MeshEntry->m_Meshes[mesh_index].m_Indices.m_Count;
-        //         }
-        //     }
-        // }
+        uint32_t vertex_count = 0;
+        for (uint32_t *i=begin;i!=end;i++)
+        {
+            const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
+            vertex_count += dmRig::GetVertexCount(c->m_RigInstance);
+        }
 
-        // dmArray<SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
-        // if (vertex_buffer.Remaining() < vertex_count)
-        //     vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
+        dmArray<SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        if (vertex_buffer.Remaining() < vertex_count)
+            vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
-        // // Fill in vertex buffer
-        // SpineModelVertex *vb_begin = vertex_buffer.End();
-        // SpineModelVertex *vb_end = CreateVertexData(world, vb_begin, texture_set, buf, begin, end);
-        // vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
+        // Fill in vertex buffer
+        SpineModelVertex *vb_begin = vertex_buffer.End();
+        SpineModelVertex *vb_end = vb_begin;
+        for (uint32_t *i=begin;i!=end;i++)
+        {
+            const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
+            dmRig::RigGenVertexDataParams params;
+            params.m_ModelMatrix = c->m_World;
+            params.m_VertexData = (void**)&vb_end;
+            // params.m_VertexDataSize = ;
+            params.m_VertexStride = sizeof(SpineModelVertex);
 
-        // // Ninja in-place writing of render object.
-        // dmRender::RenderObject& ro = *world->m_RenderObjects.End();
-        // world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
+            vb_end = (SpineModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, params);
+        }
+        vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
-        // ro.Init();
-        // ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        // ro.m_VertexBuffer = world->m_VertexBuffer;
-        // ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        // ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
-        // ro.m_VertexCount = vb_end - vb_begin;
-        // ro.m_Material = first->m_Resource->m_Material;
-        // ro.m_Textures[0] = texture_set->m_Texture;
-        // ro.m_WorldTransform = first->m_World;
+        // Ninja in-place writing of render object.
+        dmRender::RenderObject& ro = *world->m_RenderObjects.End();
+        world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-        // const dmArray<dmRender::Constant>& constants = first->m_RenderConstants;
-        // uint32_t size = constants.Size();
-        // for (uint32_t i = 0; i < size; ++i)
-        // {
-        //     const dmRender::Constant& c = constants[i];
-        //     dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
-        // }
+        ro.Init();
+        ro.m_VertexDeclaration = world->m_VertexDeclaration;
+        ro.m_VertexBuffer = world->m_VertexBuffer;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
+        ro.m_VertexCount = vb_end - vb_begin;
+        ro.m_Material = first->m_Resource->m_Material;
+        ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_WorldTransform = first->m_World;
 
-        // dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = first->m_Resource->m_Model->m_BlendMode;
-        // switch (blend_mode)
-        // {
-        //     case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_ALPHA:
-        //         ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-        //         ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        //     break;
+        const dmArray<dmRender::Constant>& constants = first->m_RenderConstants;
+        uint32_t size = constants.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const dmRender::Constant& c = constants[i];
+            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+        }
 
-        //     case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_ADD:
-        //         ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-        //         ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-        //     break;
+        dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = first->m_Resource->m_Model->m_BlendMode;
+        switch (blend_mode)
+        {
+            case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_ALPHA:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
 
-        //     case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_MULT:
-        //         ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
-        //         ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        //     break;
+            case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_ADD:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
 
-        //     default:
-        //         dmLogError("Unknown blend mode: %d\n", blend_mode);
-        //         assert(0);
-        //     break;
-        // }
+            case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_MULT:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
 
-        // ro.m_SetBlendFactors = 1;
+            default:
+                dmLogError("Unknown blend mode: %d\n", blend_mode);
+                assert(0);
+            break;
+        }
 
-        // dmRender::AddToRender(render_context, &ro);
+        ro.m_SetBlendFactors = 1;
+
+        dmRender::AddToRender(render_context, &ro);
     }
 
-    // void UpdateTransforms(SpineModelWorld* world)
-    // {
-    //     DM_PROFILE(SpineModel, "UpdateTransforms");
+    void UpdateTransforms(SpineModelWorld* world)
+    {
+        DM_PROFILE(SpineModel, "UpdateTransforms");
 
-    //     dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
-    //     uint32_t n = components.Size();
-    //     for (uint32_t i = 0; i < n; ++i)
-    //     {
-    //         SpineModelComponent* c = components[i];
+        dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            SpineModelComponent* c = components[i];
 
-    //         // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-    //         if (!c->m_Enabled || !c->m_AddedToUpdate)
-    //             continue;
+            // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
+                continue;
 
-    //         if (c->m_MeshEntry != 0x0)
-    //         {
-    //             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-    //             const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
-    //             if (dmGameObject::ScaleAlongZ(c->m_Instance))
-    //             {
-    //                 c->m_World = go_world * local;
-    //             }
-    //             else
-    //             {
-    //                 c->m_World = dmTransform::MulNoScaleZ(go_world, local);
-    //             }
-    //         }
-    //     }
-    // }
+            // if (c->m_MeshEntry != 0x0)
+            {
+                const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
+                const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
+                if (dmGameObject::ScaleAlongZ(c->m_Instance))
+                {
+                    c->m_World = go_world * local;
+                }
+                else
+                {
+                    c->m_World = dmTransform::MulNoScaleZ(go_world, local);
+                }
+            }
+        }
+    }
 
     // static void PostEvent(dmMessage::URL* sender, dmMessage::URL* receiver, dmhash_t event_id, dmhash_t animation_id, float blend_weight, dmGameSystemDDF::EventKey* key)
     // {
@@ -600,7 +505,7 @@ namespace dmGameSystem
             }
 
             // NOTE we used to set DoRender here, figure out how to handle this
-            // instance.m_DoRender = 1;
+            component.m_DoRender = 1;
         }
         // Animate(world, params.m_UpdateContext->m_DT);
 
@@ -615,22 +520,22 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                // dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                // world->m_RenderObjects.SetSize(0);
-                // dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
-                // vertex_buffer.SetSize(0);
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                world->m_RenderObjects.SetSize(0);
+                dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
+                vertex_buffer.SetSize(0);
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_BATCH:
             {
-                // RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
+                RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                // dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpineModelVertex) * world->m_VertexBufferData.Size(),
-                //                                 world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                // DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(SpineModelVertex));
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpineModelVertex) * world->m_VertexBufferData.Size(),
+                                                world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(SpineModelVertex));
                 break;
             }
             default:
@@ -645,7 +550,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
 
-        // UpdateTransforms(world);
+        UpdateTransforms(world);
 
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
@@ -661,13 +566,13 @@ namespace dmGameSystem
             if (!component.m_DoRender)
                 continue;
 
-            // const Vector4 trans = component.m_World.getCol(3);
-            // write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-            // write_ptr->m_UserData = (uintptr_t) &component;
-            // write_ptr->m_BatchKey = component.m_MixedHash;
-            // write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
-            // write_ptr->m_Dispatch = dispatch;
-            // write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            const Vector4 trans = component.m_World.getCol(3);
+            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+            write_ptr->m_UserData = (uintptr_t) &component;
+            write_ptr->m_BatchKey = component.m_MixedHash;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
+            write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }
 
