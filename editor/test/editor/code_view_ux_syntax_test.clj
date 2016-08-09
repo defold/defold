@@ -17,14 +17,14 @@
 
 (defn do-toggle-line-comment [node-type opts comment-str]
   (with-clean-system
-    (let [code "hello world"
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code node-type)]
-      (testing "toggle line comment"
-        (toggle-comment! source-viewer)
-        (is (= (str comment-str "hello world") (text source-viewer)))
-        (toggle-comment! source-viewer)
-        (is (= "hello world" (text source-viewer)))))))
+    (buffer-commands (load-buffer world node-type opts)
+                     (should-be "hello world|")
+
+                     (toggle-comment!)
+                     (should-be (str comment-str "hello world|"))
+
+                     (toggle-comment!)
+                     (should-be "hello world|"))))
 
 (deftest toggle-comment-line-test
   (testing "lua syntax"

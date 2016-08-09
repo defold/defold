@@ -914,8 +914,11 @@
         line-comment (:line-comment syntax)
         caret-offset (caret selection)
         caret-line-num (line-num-at-offset selection caret-offset)
-        op (if (commented? syntax (line-at-num selection caret-line-num)) uncomment-line comment-line)]
-    (op selection line-comment caret-line-num)))
+        comment-present? (commented? syntax (line-at-num selection caret-line-num))
+        op (if comment-present? uncomment-line comment-line)
+        caret-delta (* (count line-comment) (if comment-present? -1 1))]
+    (op selection line-comment caret-line-num)
+    (caret! selection (+ caret-offset caret-delta) false)))
 
 (defn comment-region [selection]
   (let [line-comment (:line-comment (syntax selection))
