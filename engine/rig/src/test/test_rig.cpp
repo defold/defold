@@ -21,9 +21,7 @@ protected:
     }
 
     virtual void TearDown() {
-        dmRig::DeleteContextParams params;
-        params.m_Context = m_Context;
-        if (dmRig::CREATE_RESULT_OK != dmRig::DeleteContext(params)) {
+        if (dmRig::CREATE_RESULT_OK != dmRig::DeleteContext(m_Context)) {
             dmLogError("Could not delete rig context!");
         }
     }

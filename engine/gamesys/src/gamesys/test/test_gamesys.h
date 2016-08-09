@@ -178,13 +178,10 @@ void GamesysTest<T>::SetUp()
 template<typename T>
 void GamesysTest<T>::TearDown()
 {
-    dmRig::DeleteContextParams params;
-    params.m_Context = m_RigContext;
-    dmRig::DeleteContext(params);
-
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
+    dmRig::DeleteContext(m_RigContext);
     dmGui::DeleteContext(m_GuiContext.m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);

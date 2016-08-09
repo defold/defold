@@ -13,20 +13,19 @@ namespace dmRig
 
     CreateResult NewContext(const NewContextParams& params)
     {
-        RigContext* context = new RigContext();
+        *params.m_Context = new RigContext();
+        RigContext* context = *params.m_Context;
         if (!context) {
             return dmRig::CREATE_RESULT_ERROR;
         }
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
 
-        *params.m_Context = context;
         return dmRig::CREATE_RESULT_OK;
     }
 
-    CreateResult DeleteContext(const DeleteContextParams& params)
+    CreateResult DeleteContext(HRigContext context)
     {
-        RigContext* context = params.m_Context;
         if (context) {
             delete context;
         }

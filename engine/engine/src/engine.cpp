@@ -226,9 +226,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRig::DeleteContextParams rig_params;
-        rig_params.m_Context = engine->m_RigContext;
-        dmRig::CreateResult rr = dmRig::DeleteContext(rig_params);
+        dmRig::CreateResult rr = dmRig::DeleteContext(engine->m_RigContext);
         if (rr != dmRig::CREATE_RESULT_OK)
         {
             dmLogError("Error while deleting rig context: %d", rr);

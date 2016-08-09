@@ -204,10 +204,6 @@ namespace dmRig
         uint32_t     m_MaxRigInstanceCount;
     };
 
-    struct DeleteContextParams {
-        HRigContext m_Context;
-    };
-
     struct InstanceCreateParams
     {
         HRigContext             m_Context;
@@ -240,7 +236,7 @@ namespace dmRig
     CreateResult NewContext(const NewContextParams& params);
 
     /* CompSpineModelDeleteWorld */
-    CreateResult DeleteContext(const DeleteContextParams& params);
+    CreateResult DeleteContext(HRigContext context);
 
     /* CompSpineModelUpdate */
     UpdateResult Update(HRigContext context, float dt);
