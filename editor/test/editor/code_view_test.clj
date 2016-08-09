@@ -80,7 +80,7 @@
          ~@(mapcat
             (fn [[cmd expect]]
               `[(~(first cmd) ~viewer ~@(next cmd))
-                (`expect-buffer ~viewer ~expect)])
+                (expect-buffer ~viewer ~expect)])
             (partition 2 cmd-expectation-forms))))))
 
 (deftest simplest-picture-test
