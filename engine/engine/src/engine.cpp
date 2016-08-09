@@ -162,6 +162,7 @@ namespace dmEngine
     , m_GameInputBinding(0x0)
     , m_DisplayProfiles(0x0)
     , m_TrackingContext(0x0)
+    , m_RigContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     , m_WasIconified(true)

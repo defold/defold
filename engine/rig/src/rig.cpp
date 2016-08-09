@@ -26,8 +26,10 @@ namespace dmRig
 
     CreateResult DeleteContext(const DeleteContextParams& params)
     {
-        RigContext* world = (RigContext*)params.m_Context;
-        delete world;
+        RigContext* context = params.m_Context;
+        if (context) {
+            delete context;
+        }
         return dmRig::CREATE_RESULT_OK;
     }
 
@@ -707,8 +709,6 @@ namespace dmRig
                 dmLogError("Could not find (and play) default rig animation: %s", params.m_DefaultAnimation);
             }
         }
-
-        // *params.m_Index = (uintptr_t)index;
 
         return dmRig::CREATE_RESULT_OK;
     }
