@@ -443,3 +443,27 @@
           (is (= sender2     (:_node-id cause)))
           (is (= :a-property (:_label   cause)))
           (is (= g/FATAL     (:severity cause))))))))
+
+(g/defnode ListOutput
+  (output list-output       g/Any (g/fnk []                  (list 1)))
+  (output recycle           g/Any (g/fnk [list-output]       list-output))
+  (output inner-list-output g/Any (g/fnk []                  [(list 1)]))
+  (output inner-recycle     g/Any (g/fnk [inner-list-output] inner-list-output)))
+
+(g/defnode ListInput
+  (input list-input       g/Any)
+  (input inner-list-input g/Any))
+
+(deftest seq-values-are-preserved
+  (with-clean-system
+    (let [list-type      (type (list 1))
+          [output input] (tx-nodes
+                          (g/make-nodes world
+                                        [output ListOutput
+                                         input  ListInput]
+                                        (g/connect output :list-output       input :list-input)
+                                        (g/connect output :inner-list-output input :inner-list-input)))]
+      (is (= list-type (type (g/node-value output :recycle))))
+      (is (= list-type (type (g/node-value input  :list-input))))
+      (is (= list-type (type (first (g/node-value output :inner-recycle)))))
+      (is (= list-type (type (first (g/node-value input :inner-list-input))))))))
