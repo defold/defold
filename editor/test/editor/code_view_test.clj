@@ -46,7 +46,7 @@
       (and start-pos (<= start-pos caret-pos)) (select-range source-viewer start-pos caret-pos)
       (and end-pos   (<= caret-pos end-pos))   (select-range source-viewer end-pos caret-pos)
       :else                                    (caret! source-viewer caret-pos false))
-    source-viewer))
+    [source-viewer code-node viewer-node]))
 
 (defn insert-at [s [i c]]
   (if i
@@ -69,14 +69,19 @@
 (defmacro should-be [& s]
   `(str/join \newline ~(vec s)))
 
+(def ^:dynamic *code-node* nil)
+(def ^:dynamic *viewer-node* nil)
+
 (defmacro buffer-commands [init-form init-contents & cmd-expectation-forms]
   (let [viewer (gensym)]
-    `(let [~viewer (~@init-form ~init-contents)]
-       ~@(mapcat
-          (fn [[cmd expect]]
-            [`(~(first cmd) ~viewer ~@(next cmd))
-             (list `expect-buffer viewer expect)])
-          (partition 2 cmd-expectation-forms)))))
+    `(let [[~viewer cn# vn#] (~@init-form ~init-contents)]
+       (binding [*code-node* cn#
+                 *viewer-node* vn#]
+         ~@(mapcat
+            (fn [[cmd expect]]
+              `[(~(first cmd) ~viewer ~@(next cmd))
+                (`expect-buffer ~viewer ~expect)])
+            (partition 2 cmd-expectation-forms))))))
 
 (deftest simplest-picture-test
   (with-clean-system
@@ -85,21 +90,21 @@
                                   "line2"
                                   "line3"
                                   "li|ne4"])
-          source-viewer (load-buffer world script/ScriptNode lua/lua no-selection)]
+          source-viewer (first (load-buffer world script/ScriptNode lua/lua no-selection))]
       (is (= no-selection (buffer-picture source-viewer))))
     (let [select-down   (str/join \newline
                                   ["line1"
                                    "li>ne2"
                                    "line|3"
                                    "line4"])
-          source-viewer (load-buffer world script/ScriptNode lua/lua select-down)]
+          source-viewer (first (load-buffer world script/ScriptNode lua/lua select-down))]
       (is (= select-down (buffer-picture source-viewer))))
     (let [select-up     (str/join \newline
                                   ["l|ine1"
                                    "line2"
                                    "line3"
                                    "line4<"])
-          source-viewer (load-buffer world script/ScriptNode lua/lua select-up)]
+          source-viewer (first (load-buffer world script/ScriptNode lua/lua select-up))]
       (is (= select-up (buffer-picture source-viewer))))))
 
 (deftest lua-syntax

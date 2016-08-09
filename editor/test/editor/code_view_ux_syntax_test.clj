@@ -111,85 +111,63 @@
   (caret! source-viewer (count code) false)
   (changes! source-viewer))
 
+(defn- should-propose
+  [source-viewer expectations]
+  (loop [result       (propose source-viewer)
+         expectations expectations]
+    (when (or (first result) (first expectations))
+      (let [res (first result)]
+        (is (=  (first expectations) [(:name res) (:display-string res) (:insert-string res)]))
+        (recur (next result) (next expectations))))))
+
+(defn- completions-for [world opts initial-contents & expectations]
+  (let [[viewer code-node viewer-node] (load-buffer world script/ScriptNode opts initial-contents)]
+    (should-propose viewer expectations)))
+
+(defmacro completions [world & pairs]
+  (assert (even? (count pairs)))
+  (list* `do (mapcat (fn [[given expect]] `[(completions-for ~world lua/lua ~given ~@expect)]) (partition 2 pairs))))
+
+(defmacro completions-in [world module-code & pairs]
+  (assert (even? (count pairs)))
+  (let [module-node (gensym)]
+    `(let [[~module-node] (tx-nodes (g/make-node ~world script/ScriptNode :code ~module-code))]
+       ~@(map (fn [[given expect]]
+                `(let [[viewer# code-node# viewer-node#] (load-buffer ~world script/ScriptNode lua/lua ~given)]
+                   (g/connect! ~module-node :_node-id code-node# :module-nodes)
+                   (should-propose viewer# ~expect)))
+              (partition 2 pairs)))))
+
 (deftest lua-completions-propose-test
   (with-clean-system
-    (let [code ""
-          source-viewer (setup-source-viewer lua/lua)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "global lua std lib"
-        (set-code-and-caret! source-viewer "asser")
-        (let [result (propose source-viewer)]
-         (is (= ["assert"] (map :name result)))
-         (is (= ["assert(v[,message])"] (map :display-string result)))
-         (is (= ["assert(v)"] (map :insert-string result)))))
-      (testing "global lua base functions"
-        (set-code-and-caret! source-viewer "if")
-        (let [result (propose source-viewer)]
-         (is (= ["if"] (map :name result)))
-         (is (= ["if                                if cond then"] (map :display-string result)))
-         (is (= ["if cond then\n\t--do things\nend"] (map :insert-string result)))))
-      (testing "global defold package"
-        (set-code-and-caret! source-viewer "go")
-        (is (= ["go"] (map :name (propose source-viewer))))
-        (set-code-and-caret! source-viewer "vm")
-        (is (= ["vmath"] (map :name (propose source-viewer)))))
-      (testing "global lua std lib package"
-        (set-code-and-caret! source-viewer "mat")
-        (is (= ["math"] (map :name (propose source-viewer)))))
-      (testing "go.property function - required params"
-        (set-code-and-caret! source-viewer "go.proper")
-        (let [result (propose source-viewer)]
-         (is (= ["go.property"] (map :name result)))
-         (is (= ["go.property(name,value)"] (map :display-string result)))
-         (is (= ["go.property(name,value)"] (map :insert-string result)))))
-      (testing "go.delete functions - required params"
-        (set-code-and-caret! source-viewer "go.delete")
-        (let [result (propose source-viewer)]
-         (is (= ["go.delete" "go.delete_all"] (map :name result)))
-         (is (= ["go.delete([id])" "go.delete_all([ids])"] (map :display-string result)))
-         (is (= ["go.delete()" "go.delete_all()"] (map :insert-string result)))))
-      (testing "local var"
-        (set-code-and-caret! source-viewer "local foo=1 \n foo")
-        (is (= ["foo"] (map :name (propose source-viewer)))))
-      (testing "globar var"
-        (set-code-and-caret! source-viewer "bar=1 \n ba")
-        (is (= ["bar"] (map :name (propose source-viewer)))))
-      (testing "local function"
-        (set-code-and-caret! source-viewer "local function cake(x,y) return x end\n cak")
-        (is (= ["cake"] (map :name (propose source-viewer)))))
-      (testing "global function"
-        (set-code-and-caret! source-viewer "function ice_cream(x,y) return x end\n ice")
-        (is (= ["ice_cream"] (map :name (propose source-viewer)))))
-      (testing "var after a scoped function"
-        (set-code-and-caret! source-viewer "self.velocity = vm")
-        (is (= ["vmath"] (map :name (propose source-viewer)))))
-      (testing "proposal at the start of the line"
-        (set-code-and-caret! source-viewer "go.propert = vm")
-        (caret! source-viewer 10 false)
-        (is (= ["go.property"] (map :name (propose source-viewer)))))
-      (testing "requires"
-        (with-redefs [code-completion/resource-node-path (constantly "/mymodule.lua")]
-          (let [module-code "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
-                [module-node] (tx-nodes (g/make-node world script/ScriptNode :code module-code))]
-            (g/connect! module-node :_node-id code-node :module-nodes)
-            (testing "bare requires"
-              (set-code-and-caret! source-viewer "require(\"mymodule\") \n mymodule.")
-              (is (= ["mymodule.add"] (map :name (propose source-viewer)))))
-            (testing "require with global var"
-              (set-code-and-caret! source-viewer "foo = require(\"mymodule\") \n foo.")
-              (is (= ["foo.add"] (map :name (propose source-viewer)))))
-            (testing "require with local var"
-              (set-code-and-caret! source-viewer "local bar = require(\"mymodule\") \n bar.")
-              (is (= ["bar.add"] (map :name (propose source-viewer)))))
-            (testing "module var bare requires"
-              (set-code-and-caret! source-viewer "require(\"mymodule\") \n mymod")
-              (is (= ["mymodule"] (map :name (propose source-viewer)))))
-            (testing "module var require with global var"
-              (set-code-and-caret! source-viewer "foo = require(\"mymodule\") \n foo")
-              (is (= ["foo"] (map :name (propose source-viewer)))))
-            (testing "module var require with local var"
-              (set-code-and-caret! source-viewer "local bar = require(\"mymodule\") \n ba")
-              (is (= ["bar"] (map :name (propose source-viewer)))))))))))
+    (completions world
+                 "asser|"                                       [["assert"        "assert(v[,message])"     "assert(v)"]]
+                 "if|"                                          [["if"
+                                                                  "if                                if cond then"
+                                                                  "if cond then\n\t--do things\nend"]]
+                 "go|"                                          [["go"            "go"                      "go"]]
+                 "vm|"                                          [["vmath"         "vmath"                   "vmath"]]
+                 "mat|"                                         [["math"          "math"                    "math"]]
+                 "go.proper|"                                   [["go.property"   "go.property(name,value)" "go.property(name,value)"]]
+                 "go.delete|"                                   [["go.delete"     "go.delete([id])"         "go.delete()"]
+                                                                 ["go.delete_all" "go.delete_all([ids])"    "go.delete_all()"]]
+                 "local foo=1 \n foo|"                          [["foo"           "foo"                     "foo"]]
+                 "bar=1 \n ba|"                                 [["bar"           "bar"                     "bar"]]
+                 "local function cake(x,y) return x end\n cak|" [["cake"          "cake(x,y)"               "cake(x,y)"]]
+                 "function ice_cream(x,y) return x end\n ice|"  [["ice_cream"     "ice_cream(x,y)"          "ice_cream(x,y)"]]
+                 "self.velocity = vm|"                          [["vmath"         "vmath"                   "vmath"]]
+                 "go.propert| = vm"                             [["go.property"   "go.property(name,value)" "go.property(name,value)"]]))
+
+  (with-redefs [code-completion/resource-node-path (constantly "/mymodule.lua")]
+    (with-clean-system
+      (completions-in world "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
+                      "require(\"mymodule\") \n mymodule.|"        [["mymodule.add" "mymodule.add(x,y)" "mymodule.add(x,y)"]]
+                      "foo = require(\"mymodule\") \n foo.|"       [["foo.add"      "foo.add(x,y)"      "foo.add(x,y)"]]
+                      "local bar = require(\"mymodule\") \n bar.|" [["bar.add"      "bar.add(x,y)"      "bar.add(x,y)"]]
+                      "require(\"mymodule\") \n mymod|"            [["mymodule"     "mymodule"          "mymodule"]]
+                      "foo = require(\"mymodule\") \n foo|"        [["foo"          "foo"               "foo"]]
+                      "local bar = require(\"mymodule\") \n ba|"   [["bar"          "bar"               "bar"]]
+                      ))))
 
 (deftest test-do-proposal-replacement
   (with-clean-system
