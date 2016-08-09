@@ -774,7 +774,6 @@ namespace dmRig
         // instance->m_NodeInstances.SetCapacity(0);
         // instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
-        dmLogError("DestroyInstance: %x", instance);
         delete instance;
         context->m_Instances.Free(index, true);
     }
@@ -791,7 +790,6 @@ namespace dmRig
 
         *params.m_Instance = new RigInstance;
         RigInstance* instance = *params.m_Instance;
-        dmLogError("InstanceCreate: %x", instance);
 
         uint32_t index = context->m_Instances.Alloc();
         instance->m_Index = index;

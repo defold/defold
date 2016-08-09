@@ -321,9 +321,9 @@ TEST_F(RigInstanceTest, PoseAnim)
 
     // sample 2
     ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC3_NEAR(Vector3(0.0f, 1.0f, 0.0f), pose[1].GetTranslation());
     ASSERT_VEC4_NEAR(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC4_NEAR(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
 
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
