@@ -74,7 +74,7 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     cp "${ENGINE_LIB}" "lib/armeabi-v7a/lib${APPLICATION}.so"
     cp "${ENGINE_DEX}" "classes.dex"
 
-    zip -qr "${REPACKZIP}" "."
+    ${ZIP} -qr "${REPACKZIP}" "."
 )
 
 "${ZIPALIGN}" -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1
