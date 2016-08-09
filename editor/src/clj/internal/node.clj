@@ -1290,11 +1290,10 @@
 (defn input-error-check [self-name ctx-name description label nodeid-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(let [serious-input-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
+    `(let [serious-input-errors# (filter ie/error? (vals ~input-sym))]
        (if (empty? serious-input-errors#)
-         (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
-           ~tail)
-         (ie/error-aggregate serious-input-errors# :_node-id ~nodeid-sym :_label ~label)))))
+         ~tail
+         (ie/error-aggregate (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym) :_node-id ~nodeid-sym :_label ~label)))))
 
 (defn call-production-function [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
   `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
