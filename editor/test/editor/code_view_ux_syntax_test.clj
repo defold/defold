@@ -12,8 +12,33 @@
             [support.test-support :refer [with-clean-system tx-nodes]]
             [clojure.string :as str]))
 
+;; ----------------------------------------
+;; Simulate commands
+
+(defn- enter! [source-viewer]
+  (cvx/handler-run :enter [{:name :code-view :env {:selection source-viewer}}] {}))
+
+(defn- tab! [source-viewer]
+  (cvx/handler-run :tab [{:name :code-view :env {:selection source-viewer}}] {}))
+
+(defn- shift-tab! [source-viewer]
+  (cvx/handler-run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}] {}))
+
+(defn- key-typed! [source-viewer key-typed]
+  (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+
 (defn- toggle-comment! [source-viewer]
-  (cvx/handler-run :toggle-comment [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :toggle-comment [{:name :code-view :env {:selection source-viewer}}] {}))
+
+(defn- propose! [source-viewer]
+  (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}] {}))
+
+(defn- indent! [source-viewer]
+  (cvx/handler-run :indent [{:name :code-view :env {:selection source-viewer}}]{}))
+
+
+;; ----------------------------------------
+;; Test comment/uncomment
 
 (defn do-toggle-line-comment [node-type opts comment-str]
   (with-clean-system
@@ -77,6 +102,9 @@
     (do-toggle-region-comment script/ScriptNode lua/lua "-- "))
   (testing "glsl syntax"
     (do-toggle-region-comment shader/ShaderNode (:code shader/glsl-opts) "// ")))
+
+;; ----------------------------------------
+;; Test autocomplete
 
 (defn- set-code-and-caret! [source-viewer code]
   (text! source-viewer code)
@@ -209,9 +237,6 @@
           (do-proposal-replacement source-viewer {:insert-string "vmath"})
           (is (= "vmatches = vmath" (text source-viewer))))))))
 
-(defn- propose! [source-viewer]
-  (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
-
 (deftest test-single-value-proposals
   (with-clean-system
     (let [code ""
@@ -230,15 +255,6 @@
         (set-code-and-caret! source-viewer "function foo(x)\n\tif")
         (propose! source-viewer)
         (is (= "function foo(x)\n\tif cond then\n\t\t--do things\n\tend" (text source-viewer)))))))
-
-(defn- tab! [source-viewer]
-  (cvx/handler-run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
-
-(defn- shift-tab! [source-viewer]
-  (cvx/handler-run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}]{}))
-
-(defn- key-typed! [source-viewer key-typed]
-  (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
 
 (deftest test-proposal-tab-triggers
   (with-clean-system
@@ -326,128 +342,173 @@
         (is (= "--do things" (text-selection source-viewer)))
 ))))
 
-(defn- enter! [source-viewer]
-  (cvx/handler-run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
+;; ----------------------------------------
+;; Test autoindentation
 
 (deftest lua-enter-indentation-functions
   (with-clean-system
-    (let [code ""
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "indentation for functions"
-        (testing "no indentation level"
-          (buffer-commands (load-buffer world script/ScriptNode opts)
-                           (should-be "function test(x)|")
+    (testing "indentation for functions"
+      (testing "no indentation level"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "function test(x)|")
 
-                           (enter!)
-                           (should-be "function test(x)"
-                                      "\t|")))
-        (testing "some indentation exists"
-          (buffer-commands (load-buffer world script/ScriptNode opts)
-                           (should-be "if true then"
-                                      "\tfunction test(x)|")
+                         (enter!)
+                         (should-be "function test(x)"
+                                    "\t|")))
+      (testing "some indentation exists"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "if true then"
+                                    "\tfunction test(x)|")
 
-                           (enter!)
-                           (should-be "if true then"
-                                      "\tfunction test(x)"
-                                      "\t\t|")))
-        (testing "maintains level in the function"
-          (buffer-commands (load-buffer world script/ScriptNode opts)
-                           (should-be "function test(x)\n\tfoo|")
+                         (enter!)
+                         (should-be "if true then"
+                                    "\tfunction test(x)"
+                                    "\t\t|")))
+      (testing "maintains level in the function"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "function test(x)\n\tfoo|")
 
-                           (enter!)
-                           (should-be "function test(x)"
-                                      "\tfoo"
-                                      "\t|")))
-        (testing "end deindents"
-          (buffer-commands (load-buffer world script/ScriptNode opts)
-                           (should-be "function test(x)\n\tend|")
+                         (enter!)
+                         (should-be "function test(x)"
+                                    "\tfoo"
+                                    "\t|")))
+      (testing "end deindents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "function test(x)\n\tend|")
 
-                           (enter!)
-                           (should-be  "function test(x)"
-                                       "end"
-                                       "|")))
-        (testing "no enter identation if not at an end of the line"
-          (buffer-commands (load-buffer world script/ScriptNode opts)
-                           (should-be "fu|nction test(x)")
+                         (enter!)
+                         (should-be  "function test(x)"
+                                     "end"
+                                     "|")))
+      (testing "no enter identation if not at an end of the line"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "fu|nction test(x)")
 
-                           (enter!)
-                           (should-be  "fu"
-                                       "|nction test(x)")))))))
+                         (enter!)
+                         (should-be  "fu"
+                                     "|nction test(x)"))))))
 
 (deftest lua-enter-indentation-if-else
   (with-clean-system
-    (let [code ""
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "indentation for if else"
-        (testing "if indents"
-          (set-code-and-caret! source-viewer "if true")
-          (enter! source-viewer)
-          (is (= "if true\n\t" (text source-viewer))))
-        (testing "elseif dedents and indents the next level"
-          (set-code-and-caret! source-viewer "if true\n\telseif")
-          (enter! source-viewer)
-          (is (= "if true\nelseif\n\t" (text source-viewer))))
-        (testing "else dedents and indents to the next level"
-          (set-code-and-caret! source-viewer "if true\n\telse")
-          (enter! source-viewer)
-          (is (= "if true\nelse\n\t" (text source-viewer))))
-        (testing "end dedents"
-          (set-code-and-caret! source-viewer "if true\n\tend")
-          (enter! source-viewer)
-          (is (= "if true\nend\n" (text source-viewer))))))))
+    (testing "indentation for if else"
+      (testing "if indents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "if true|")
+
+                         (enter!)
+                         (should-be "if true"
+                                    "\t|")))
+      (testing "elseif dedents and indents the next level"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "if true"
+                                    "\telseif|")
+
+                         (enter!)
+                         (should-be "if true"
+                                    "elseif"
+                                    "\t|")))
+      (testing "else dedents and indents to the next level"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "if true"
+                                    "\telse|")
+
+                         (enter!)
+                         (should-be "if true"
+                                    "else"
+                                    "\t|")))
+      (testing "end dedents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "if true"
+                                    "\tend|")
+
+                         (enter!)
+                         (should-be "if true"
+                                    "end"
+                                    "|"))))))
 
 (deftest lua-enter-indentation-while
   (with-clean-system
-    (let [code ""
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "indentation for while"
-        (testing "while indents"
-          (set-code-and-caret! source-viewer "while true")
-          (enter! source-viewer)
-          (is (= "while true\n\t" (text source-viewer))))
-        (testing "end dedents"
-          (set-code-and-caret! source-viewer "while true\n\tend")
-          (enter! source-viewer)
-          (is (= "while true\nend\n" (text source-viewer))))))))
+    (testing "indentation for while"
+      (testing "while indents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "while true|")
+
+                         (enter!)
+                         (should-be "while true"
+                                    "\t|")))
+      (testing "end dedents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "while true"
+                                    "\tend|")
+
+                         (enter!)
+                         (should-be "while true"
+                                    "end"
+                                    "|"))))))
 
 (deftest lua-enter-indentation-tables
   (with-clean-system
-    (let [code ""
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "indentation for tables"
-        (testing "{ indents"
-          (set-code-and-caret! source-viewer "x = {")
-          (enter! source-viewer)
-          (is (= "x = {\n\t" (text source-viewer))))
-        (testing "} dedents"
-          (set-code-and-caret! source-viewer "x = {\n\t1\n\t}")
-          (enter! source-viewer)
-          (is (= "x = {\n\t1\n}\n" (text source-viewer))))))))
+    (testing "indentation for tables"
+      (testing "{ indents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "x = {|")
 
-(defn- indent! [source-viewer]
-  (cvx/handler-run :indent [{:name :code-view :env {:selection source-viewer}}]{}))
+                         (enter!)
+                         (should-be "x = {"
+                                    "\t|")))
+      (testing "} dedents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "x = {"
+                                    "\t1"
+                                    "\t}|")
+
+                         (enter!)
+                         (should-be "x = {"
+                                    "\t1"
+                                    "}"
+                                    "|"))))))
 
 (deftest lua-enter-indent-line-and-region
   (with-clean-system
-    (let [code ""
-          opts lua/lua
-          source-viewer (setup-source-viewer opts)
-          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
-      (testing "indent line"
-        (set-code-and-caret! source-viewer "if true then\nreturn 1")
-        (indent! source-viewer)
-        (is (= "if true then\n\treturn 1" (text source-viewer))))
-      (testing "indent region"
-        (let [code "if true then\nreturn 1\nif false then\nreturn 2\nend\nend"]
-          (set-code-and-caret! source-viewer code)
-          (text-selection! source-viewer 0 (count code))
-          (indent! source-viewer)
-          (is (= "if true then\n\treturn 1\n\tif false then\n\t\treturn 2\n\tend\nend" (text source-viewer))))))))
+    (testing "indent line"
+      (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                       (should-be "if true then"
+                                  "return 1|")
+
+                       (indent!)
+                       (should-be "if true then"
+                                  "\treturn 1|")))
+
+    (testing "indent region (selecting down)"
+      (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                       (should-be ">if true then"
+                                  "return 1"
+                                  "if false then"
+                                  "return 2"
+                                  "end"
+                                  "end|")
+
+                       (indent!)
+                       (should-be ">if true then"
+                                  "\treturn 1"
+                                  "\tif false then"
+                                  "\t\treturn 2"
+                                  "\tend"
+                                  "end|")))
+
+    (testing "indent region (selecting up)"
+      (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                       (should-be "|if true then"
+                                  "return 1"
+                                  "if false then"
+                                  "return 2"
+                                  "end"
+                                  "end<")
+
+                       (indent!)
+                       (should-be "|if true then"
+                                  "\treturn 1"
+                                  "\tif false then"
+                                  "\t\treturn 2"
+                                  "\tend"
+                                  "end<")))))

@@ -1064,19 +1064,34 @@
 (defn do-indent-line [selection line-num]
   (let [current-line (line-at-num selection line-num)
         line-offset (line-offset-at-num selection line-num)
+        caret-offset (caret selection)
         prev-line (if (= 0 line-num) "" (line-at-num selection (dec line-num)))
-        indent-text (indent-line selection current-line prev-line)]
-    (when indent-text
-      (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) indent-text))))
+        indent-text (indent-line selection current-line prev-line)
+        caret-delta (- (count indent-text) (count current-line))]
+    (if indent-text
+      (do
+        (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) indent-text)
+        (caret! selection (+ caret-offset caret-delta) false)
+        caret-delta)
+      0)))
 
 (defn do-indent-region [selection region-start region-end]
-  (let [doc (text selection)
+  (let [region-start (selection-offset selection)
+        region-len   (selection-length selection)
+        caret-offset (caret selection)
         start-line-num (line-num-at-offset selection region-start)
         start-line-offset (line-offset-at-num selection start-line-num)
         end-line-num (line-num-at-offset selection region-end)
         end-line-offset (line-offset-at-num selection end-line-num)]
-    (doseq [i (range start-line-num (inc end-line-num))]
-      (do-indent-line selection i))))
+    (loop [i           start-line-num
+           caret-delta 0]
+      (if (<= i end-line-num)
+        (recur (inc i) (+ caret-delta (do-indent-line selection i)))
+        (if (= caret-offset region-start)
+          (do (caret! selection (+ region-start region-len caret-delta) false)
+              (caret! selection caret-offset true))
+          (do (caret! selection region-start false)
+              (caret! selection (+ caret-offset caret-delta) true)))))))
 
 (handler/defhandler :indent :code-view
   (enabled? [selection] (editable? selection))
