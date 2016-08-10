@@ -155,6 +155,10 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         return result;
     }
 
+    // This function will calculate the vertical offset of the pivot for the
+    // north/top position of the actual text within the node. If the pivot is
+    // placed north, the offset will be the ascent of the text (The recommended
+    // distance above the baseline for singled spaced text).
     private double pivotTextOffsetY(TextNode node, double ascent, double descent, double leading, int lineCount) {
         Pivot p = node.getPivot();
 
@@ -180,6 +184,9 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         return Double.MAX_VALUE;
     }
 
+    // This function will calculate the vertical offset of the pivot for the
+    // south/bottom position of the textnode. If the pivot is placed south, the
+    // offset will be 0.
     private double pivotNodeOffsetY(TextNode node, double height) {
         Pivot p = node.getPivot();
 
@@ -364,13 +371,21 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 textTexture.disable(gl);
             }
         } else {
-            gl.glColor4fv(renderContext.selectColor(node, color), 0);
-            gl.glBegin(GL2.GL_QUADS);
+            // Render the outline of the actual textnode.
+            float[] nodeDefaultColor = renderContext.selectColor(node, color);
+            float[] nodeOutlineColor = {
+            		Math.min(1.0f, nodeDefaultColor[0] * 1.3f),
+            		Math.min(1.0f, nodeDefaultColor[1] * 1.3f),
+            		Math.min(1.0f, nodeDefaultColor[2] * 1.3f)
+            };
 
             double nodeX0 = -pivotOffsetX(node, node.getSize().x);
             double nodeX1 = nodeX0 + node.getSize().x;
             double nodeY0 = -pivotNodeOffsetY(node, node.getSize().y);
             double nodeY1 = nodeY0 + node.getSize().y;
+
+            gl.glColor4fv(nodeOutlineColor, 0);
+            gl.glBegin(GL2.GL_QUADS);
 
             gl.glTexCoord2d(0, 0);
             gl.glVertex2d(nodeX0, nodeY0);
@@ -381,11 +396,13 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             gl.glTexCoord2d(1, 1);
             gl.glVertex2d(nodeX1, nodeY1);
 
-            gl.glTexCoord2d(1, 0);
+            gl.glTexCoord2d(0, 1);
             gl.glVertex2d(nodeX0, nodeY1);
 
             gl.glEnd();
 
+            // Render the outline of the actual text contained within the
+            // textnode. This outline can overflow the outline of the textnode.
             double h = 0;
             double w = 0;
             for (TextLine t : lines) {
