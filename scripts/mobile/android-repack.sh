@@ -14,8 +14,10 @@ function terminate() {
 }
 
 function terminate_usage() {
-    echo "Usage: ${SCRIPT_NAME} <source>"
-    echo "  source   - absolute filepath to the source apk to repack"
+    echo "Usage: ${SCRIPT_NAME} <source> [<certificate>, <key>]"
+    echo "  source       - absolute filepath to the source apk to repack"
+    echo "  certificate  - (optional) absolute filepath to the certificate file (pem)"
+    echo "  key          - (optional) absolute filepath to the keyfile (pk8)"
     exit 1
 }
 
@@ -34,6 +36,8 @@ function terminate_trap() {
 DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
 
 SOURCE="${1:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
+CERTIFICATE="${2:-certificate.pem}"
+KEYFILE="${3:-key.pk8}"
 
 ZIP="zip"
 UNZIP="unzip"
