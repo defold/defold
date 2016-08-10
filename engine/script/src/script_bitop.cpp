@@ -12,9 +12,8 @@ namespace dmScript
     {
         luaopen_bit(L);
 
-        // above call leaves a table on the stack, which will not be
-        // needed for anything, so clean up.
-        lua_pop(L, 1);
-        lua_pop(L, 1);
+        // Above call leaves a table and a number on the stack which will not
+        // be needed for anything.
+        lua_pop(L, 2);
     }
 }
