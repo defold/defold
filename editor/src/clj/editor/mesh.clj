@@ -12,7 +12,8 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
-            [editor.geom :as geom])
+            [editor.geom :as geom]
+            [editor.render :as render])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -31,6 +32,34 @@
   (vec3 position)
   (vec3 normal)
   (vec2 texcoord0))
+
+(defn render-mesh [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)
+        renderable (first renderables)
+        user-data (:user-data renderable)
+        vbs (:vbs user-data)]
+    (cond
+      (= pass pass/outline)
+      (let [outline-vertex-binding (vtx/use-with ::mesh-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
+        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+
+      (= pass pass/transparent)
+      (doseq [vb vbs]
+        (prn "rend-t" (type vb))
+        #_(prn "vb" vb)
+        (let [vertex-binding (vtx/use-with ::mesh-trans vb render/shader-tex-tint)]
+          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+            (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+            (shader/set-uniform render/shader-tex-tint gl "texture" 0)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+
+      (= pass pass/selection)
+      (doseq [vb vbs]
+        (let [vertex-binding (vtx/use-with ::mesh-selection vb render/shader-tex-tint)]
+          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
 (defn- build-mesh [self basis resource dep-resources user-data]
   (let [content (:content user-data)]
@@ -111,6 +140,29 @@
                    :texcoord0 texcoords
                    :primitive-count (* tri-count 3)}]}))
 
+(g/defnk produce-scene [_node-id aabb vbs]
+  (prn "prod-ty" (type (first vbs)))
+  {:node-id _node-id
+   :aabb aabb
+   :renderable {:render-fn render-mesh
+                :batch-key _node-id
+                :select-batch-key _node-id
+                :user-data {:vbs vbs}
+                :passes [pass/transparent pass/selection pass/outline]}})
+
+(defn- component->vb [c]
+  (let [vcount (* 3 (:primitive-count c))]
+    (when (> vcount 0)
+      (loop [vb (->vtx-pos-nrm-tex vcount)
+             ps (partition 3 (:positions c))
+             ns (partition 3 (:normals c))
+             ts (partition 2 (:texcoord0 c))]
+        (if-let [[x y z] (first ps)]
+          (let [[nx ny nz] (first ns)
+                [tu tv] (first ts)]
+            (recur (conj! vb [x y z nx ny nz tu tv]) (rest ps) (rest ns) (rest ts)))
+          (persistent! vb))))))
+
 (g/defnode MeshNode
   (inherits project/ResourceNode)
 
@@ -121,20 +173,17 @@
                                            (geom/null-aabb)
                                            (partition 3 (get-in content [:components 0 :positions])))))
   (output build-targets g/Any :cached produce-build-targets)
-  (output vbs g/Any :cached (g/fnk [content]
-                                   (mapv (fn [c]
-                                           (let [vcount (* 3 (:primitive-count c))]
-                                             (when (> vcount 0)
-                                               (loop [vb (->vtx-pos-nrm-tex vcount)
-                                                      ps (partition 3 (:positions c))
-                                                      ns (partition 3 (:normals c))
-                                                      ts (partition 2 (:texcoord0 c))]
-                                                 (if-let [[x y z] (first ps)]
-                                                   (let [[nx ny nz] (first ns)
-                                                         [tu tv] (first ts)]
-                                                     (recur (conj! vb [x y z nx ny nz tu tv]) (rest ps) (rest ns) (rest ts)))
-                                                   (persistent! vb))))))
-                                         (:components content)))))
+  (output vbs g/Any #_:cached (g/fnk [content]
+                                     (let [vbs (loop [components (:components content)
+                                                      vbs []]
+                                                 (if-let [c (first components)]
+                                                   (let [vb (component->vb c)]
+                                                     (prn "gen-t" (type vb))
+                                                     (recur (rest components) (if vb (conj vbs vb) vbs)))
+                                                   vbs))]
+                                       (prn "gen-t-real" (type (first vbs)))
+                                       [(list 1 2)])))
+  (output scene g/Any #_:cached produce-scene))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
