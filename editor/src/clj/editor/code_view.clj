@@ -289,6 +289,7 @@
                                     ;;do nothing we are handling all the events
                                     )
                                   (defoldUpdateCursor [^MouseEvent event visible-cells selection line-label]
+                                    ;;; ported behavior from the underlying Java class
                                     (try
                                       (let [vcells (into [] visible-cells)
                                            doc-len (.getCharCount ^StyledTextArea text-area)
@@ -307,12 +308,20 @@
                                         (if-let [fcell (first found-cells)]
                                           (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
                                           (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)
-                                                found-cell (first found-cells2)
+                                                found-cell (if (neg? event-y)
+                                                             (first caret-cells)
+                                                             (first found-cells2))
                                                 fcell (or found-cell closest-cell)
                                                 line-offset (:line-offset fcell)
                                                 line-length (:line-length fcell)
+                                                line-index (:line-index fcell)
                                                 x-threshold 10]
                                             (cond
+
+                                              (and (neg? event-y) line-index)
+                                              (let [line-num (cvx/prev-line-num source-viewer)]
+                                                (when (not (neg? line-num))
+                                                  (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))
 
                                               (and line-offset line-label)
                                               (cvx/caret! text-area (+ line-offset) selection)
@@ -324,9 +333,13 @@
                                               (cvx/caret! text-area (+ line-offset line-length) selection)
 
                                               true
-                                              (cvx/caret! text-area doc-len selection)))))
+                                              (let [line-num (cvx/next-line-num source-viewer)]
+                                                (when line-num
+                                                  (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))
+))))
                                       (cvx/show-line source-viewer)
-                                      (catch Exception e (println "error updating cursor")))))]
+                                      (catch Exception e
+                                        (println "error updating cursor" (.printStackTrace e))))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
@@ -502,25 +515,31 @@
           offset (cvx/caret this)
           line-no (.getLineAtOffset text-area-content offset)]
       (.getLine text-area-content line-no)))
+  (prev-line-num [this]
+   (let [text-area-content (.getContent (.getTextWidget this))
+         offset (cvx/caret this)
+         line-no (.getLineAtOffset text-area-content offset)]
+     (dec line-no)))
   (prev-line [this]
-    (let [text-area-content (.getContent (.getTextWidget this))
-          offset (cvx/caret this)
-          line-no (.getLineAtOffset text-area-content offset)
-          prev-line-num (dec line-no)]
-      (if (neg? prev-line-num)
+    (let [line-num (cvx/prev-line-num this)]
+      (if (neg? line-num)
         ""
-        (.getLine text-area-content prev-line-num))))
-  (next-line [this]
+        (-> this (.getTextWidget) (.getContent) (.getLine line-num)))))
+  (next-line-num [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
           line-no (.getLineAtOffset text-area-content offset)
           line-offset (.getOffsetAtLine text-area-content line-no)
           line-length (count (.getLine text-area-content line-no))
-          doc-length (count(cvx/text this))
+          doc-length (count (cvx/text this))
           end-of-doc? (<= doc-length (+ line-offset line-length))]
-      (if end-of-doc?
+      (when (not end-of-doc?)
+        (inc line-no))))
+  (next-line [this]
+    (let [line-num (cvx/next-line-num this)]
+      (if line-num
         ""
-        (.getLine text-area-content (inc line-no)))))
+        (-> this (.getTextWidget) (.getContent) (.getLine line-num)))))
   (line-offset [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)

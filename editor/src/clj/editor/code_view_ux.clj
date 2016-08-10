@@ -21,7 +21,9 @@
 
 (defprotocol TextLine
   (prev-line [this])
+  (prev-line-num [this])
   (next-line [this])
+  (next-line-num [this])
   (line [this])
   (line-offset [this])
   (line-num-at-offset [this offset])
