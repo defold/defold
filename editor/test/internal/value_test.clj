@@ -430,7 +430,6 @@
                                                               (g/connect sender3 :a-property receiver :multi)))
             _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
             error-value                        (g/node-value receiver :multi-output)]
-        (def e* error-value)
         (is (g/error? error-value))
         (is (= 1 (count       (:causes  error-value))))
         (is (= receiver       (:_node-id error-value)))
@@ -444,41 +443,3 @@
           (is (= sender2     (:_node-id cause)))
           (is (= :a-property (:_label   cause)))
           (is (= g/FATAL     (:severity cause))))))))
-
-(g/defnode ListOutput
-  (output list-output       g/Any (g/fnk []                  (list 1)))
-  (output recycle           g/Any (g/fnk [list-output]       list-output))
-  (output inner-list-output g/Any (g/fnk []                  [(list 1)]))
-  (output inner-recycle     g/Any (g/fnk [inner-list-output] inner-list-output)))
-
-(g/defnode ListInput
-  (input list-input       g/Any)
-  (input inner-list-input g/Any))
-
-(g/defnode ConstantOutputNode
-  (property real-val g/Any (default (list 1)))
-  (output val g/Any (g/fnk [real-val] real-val)))
-
-(deftest seq-values-are-preserved
-  (with-clean-system
-    (let [list-type      (type (list 1))
-          [output input] (tx-nodes
-                          (g/make-nodes world
-                                        [output ListOutput
-                                         input  ListInput]
-                                        (g/connect output :list-output       input :list-input)
-                                        (g/connect output :inner-list-output input :inner-list-input)))]
-      (is (= list-type (type (g/node-value output :recycle))))
-      (is (= list-type (type (g/node-value input  :list-input))))
-      (is (= list-type (type (first (g/node-value output :inner-recycle)))))
-      (is (= list-type (type (first (g/node-value input :inner-list-input))))))))
-
-(deftest values-are-not-reconstructed-on-happy-path
-  (with-clean-system
-    (let [[const input] (tx-nodes
-                         (g/make-nodes world
-                                       [const  ConstantOutputNode
-                                        input  ListInput]
-                                       (g/connect const :val input :list-input)))]
-      (is (identical? (g/node-value const :val) (g/node-value const :val)))
-      (is (identical? (g/node-value const :val) (g/node-value input :list-input))))))
