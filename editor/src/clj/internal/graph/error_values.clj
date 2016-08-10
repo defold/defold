@@ -36,8 +36,7 @@
 (defn use-original-value
   [x]
   (cond
-    (vector? x)              (mapv use-original-value x)
-    (list? x)                (into (empty x) (map use-original-value x))
+    (sequential? x)          (mapv use-original-value x)
     (instance? ErrorValue x) (:value x)
     :else                    x))
 
