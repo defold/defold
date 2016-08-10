@@ -21,11 +21,12 @@ protected:
     virtual void SetUp()
     {
         dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-
-        m_Context = dmScript::NewContext(m_ConfigFile, 0);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
+        if (r == dmConfigFile::RESULT_OK)
+        {
+            m_Context = dmScript::NewContext(m_ConfigFile, 0);
+            dmScript::Initialize(m_Context);
+            L = dmScript::GetLuaState(m_Context);
+        }
     }
 
     virtual void TearDown()
