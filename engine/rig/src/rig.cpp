@@ -7,6 +7,7 @@ namespace dmRig
 {
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
+    static const uint32_t INVALID_BONE_INDEX = 0xffff;
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* MAX_RIG_INSTANCE_COUNT_KEY = "rig.max_instance_count";
@@ -105,6 +106,32 @@ namespace dmRig
     {
         RigPlayer* player = GetPlayer(instance);
         return player->m_AnimationId;
+    }
+
+    dmhash_t GetSkin(HRigInstance instance)
+    {
+        return instance->m_Skin;
+    }
+
+    UpdateResult SetSkin(HRigInstance instance, dmhash_t skin)
+    {
+        const dmRigDDF::MeshEntry* mesh_entry = 0x0;
+        const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
+        for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
+        {
+            if (skin == mesh_set->m_MeshEntries[i].m_Id)
+            {
+                mesh_entry = &mesh_set->m_MeshEntries[i];
+                break;
+            }
+        }
+        if (mesh_entry == 0x0)
+        {
+            return dmRig::UPDATE_RESULT_FAILED;
+        }
+        instance->m_MeshEntry = mesh_entry;
+        instance->m_Skin = skin;
+        return dmRig::UPDATE_RESULT_OK;
     }
 
     static void UpdateBlend(RigInstance* instance, float dt)
@@ -640,12 +667,6 @@ namespace dmRig
         return dmRig::CREATE_RESULT_OK;
     }
 
-    static void DestroyPose(HRigInstance instance)
-    {
-        // Delete bone game objects
-        // dmGameObject::DeleteBones(component->m_Instance);
-    }
-
     const dmArray<dmTransform::Transform>& GetPose(HRigInstance instance)
     {
         return instance->m_Pose;
@@ -767,10 +788,8 @@ namespace dmRig
     static void DestroyInstance(HRigContext context, uint32_t index)
     {
         RigInstance* instance = context->m_Instances.Get(index);
-        DestroyPose(instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
-        // instance->m_NodeInstances.SetCapacity(0);
         // instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
         delete instance;
@@ -827,18 +846,6 @@ namespace dmRig
     CreateResult InstanceDestroy(const InstanceDestroyParams& params)
     {
         DestroyInstance((RigContext*)params.m_Context, params.m_Instance->m_Index);
-        // RigContext* context = (RigContext*)params.m_Context;
-        // RigInstance* instance = params.m_Instance;
-        // // DestroyPose(instance);
-        // // If we're going to use memset, then we should explicitly clear pose and instance arrays.
-        // instance->m_Pose.SetCapacity(0);
-        // // instance->m_NodeInstances.SetCapacity(0);
-        // // instance->m_IKTargets.SetCapacity(0);
-        // instance->m_MeshProperties.SetCapacity(0);
-        // context->m_Instances.Free(instance->m_Index, true);
-        // dmLogError("InstanceDestroy: %x", instance);
-        // delete instance;
-
         return dmRig::CREATE_RESULT_OK;
     }
 

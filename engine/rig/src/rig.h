@@ -182,8 +182,9 @@ namespace dmRig
 
     enum UpdateResult
     {
-        UPDATE_RESULT_OK    = 0,
-        UPDATE_RESULT_ERROR = 1
+        UPDATE_RESULT_OK     = 0,
+        UPDATE_RESULT_FAILED = 1,
+        UPDATE_RESULT_ERROR  = 2
     };
 
     enum PlayResult
@@ -249,6 +250,7 @@ namespace dmRig
 
     /* CompSpineModelOnMessage */
     PlayResult PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration);
+    dmhash_t GetAnimation(HRigInstance instance);
 
     /* CompSpineModelOnMessage */
     PlayResult CancelAnimation(HRigInstance instance);
@@ -259,10 +261,8 @@ namespace dmRig
 
     // The following functions correspond to properties that previously
     // would be returned/set in CompSpineModelGetProperty and CompSpineModelSetProperty;
+    UpdateResult SetSkin(HRigInstance instance, dmhash_t skin);
     dmhash_t GetSkin(HRigInstance instance);
-    void SetSkin(HRigInstance instance, dmhash_t skin_id);
-    dmhash_t GetAnimation(HRigInstance instance);
-    void SetAnimation(HRigInstance instance, dmhash_t animation_id);
 
     // New getters/setters:
     const dmArray<dmTransform::Transform>& GetPose(HRigInstance instance);

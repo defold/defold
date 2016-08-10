@@ -31,10 +31,8 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
 
-    // static const dmhash_t PROP_SKIN = dmHashString64("skin");
-    // static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
-
-    // static const uint32_t INVALID_BONE_INDEX = 0xffff;
+    static const dmhash_t PROP_SKIN = dmHashString64("skin");
+    static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
@@ -175,12 +173,9 @@ namespace dmGameSystem
     static void DestroyComponent(SpineModelWorld* world, uint32_t index)
     {
         SpineModelComponent* component = world->m_Components.Get(index);
-        // DestroyPose(component);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
-        // component->m_Pose.SetCapacity(0);
         // component->m_NodeInstances.SetCapacity(0);
         // component->m_IKTargets.SetCapacity(0);
-        // component->m_MeshProperties.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params;
         params.m_Context = world->m_RigContext;
@@ -504,10 +499,8 @@ namespace dmGameSystem
                 }
             }
 
-            // NOTE we used to set DoRender here, figure out how to handle this
             component.m_DoRender = 1;
         }
-        // Animate(world, params.m_UpdateContext->m_DT);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -583,54 +576,54 @@ namespace dmGameSystem
     static bool CompSpineModelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
-        // dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
-        // uint32_t count = constants.Size();
-        // for (uint32_t i = 0; i < count; ++i)
-        // {
-        //     dmRender::Constant& c = constants[i];
-        //     if (c.m_NameHash == name_hash)
-        //     {
-        //         *out_constant = &c;
-        //         return true;
-        //     }
-        // }
+        dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
+        uint32_t count = constants.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::Constant& c = constants[i];
+            if (c.m_NameHash == name_hash)
+            {
+                *out_constant = &c;
+                return true;
+            }
+        }
         return false;
     }
 
     static void CompSpineModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
-        // dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
-        // uint32_t count = constants.Size();
-        // Vector4* v = 0x0;
-        // for (uint32_t i = 0; i < count; ++i)
-        // {
-        //     dmRender::Constant& c = constants[i];
-        //     if (c.m_NameHash == name_hash)
-        //     {
-        //         v = &c.m_Value;
-        //         break;
-        //     }
-        // }
-        // if (v == 0x0)
-        // {
-        //     if (constants.Full())
-        //     {
-        //         uint32_t capacity = constants.Capacity() + 4;
-        //         constants.SetCapacity(capacity);
-        //         component->m_PrevRenderConstants.SetCapacity(capacity);
-        //     }
-        //     dmRender::Constant c;
-        //     dmRender::GetMaterialProgramConstant(component->m_Resource->m_Material, name_hash, c);
-        //     constants.Push(c);
-        //     component->m_PrevRenderConstants.Push(c.m_Value);
-        //     v = &(constants[constants.Size()-1].m_Value);
-        // }
-        // if (element_index == 0x0)
-        //     *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
-        // else
-        //     v->setElem(*element_index, (float)var.m_Number);
-        // ReHash(component);
+        dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
+        uint32_t count = constants.Size();
+        Vector4* v = 0x0;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::Constant& c = constants[i];
+            if (c.m_NameHash == name_hash)
+            {
+                v = &c.m_Value;
+                break;
+            }
+        }
+        if (v == 0x0)
+        {
+            if (constants.Full())
+            {
+                uint32_t capacity = constants.Capacity() + 4;
+                constants.SetCapacity(capacity);
+                component->m_PrevRenderConstants.SetCapacity(capacity);
+            }
+            dmRender::Constant c;
+            dmRender::GetMaterialProgramConstant(component->m_Resource->m_Material, name_hash, c);
+            constants.Push(c);
+            component->m_PrevRenderConstants.Push(c.m_Value);
+            v = &(constants[constants.Size()-1].m_Value);
+        }
+        if (element_index == 0x0)
+            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+        else
+            v->setElem(*element_index, (float)var.m_Number);
+        ReHash(component);
     }
 
     dmGameObject::UpdateResult CompSpineModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -659,38 +652,38 @@ namespace dmGameSystem
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
             }
-            // else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash)
-            // {
-            //     dmGameSystemDDF::SetConstantSpineModel* ddf = (dmGameSystemDDF::SetConstantSpineModel*)params.m_Message->m_Data;
-            //     dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-            //             dmGameObject::PropertyVar(ddf->m_Value), CompSpineModelSetConstantCallback, component);
-            //     if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-            //     {
-            //         dmMessage::URL& receiver = params.m_Message->m_Receiver;
-            //         dmLogError("'%s:%s#%s' has no constant named '%s'",
-            //                 dmMessage::GetSocketName(receiver.m_Socket),
-            //                 (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-            //                 (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
-            //                 (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
-            //     }
-            // }
-            // else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash)
-            // {
-            //     dmGameSystemDDF::ResetConstantSpineModel* ddf = (dmGameSystemDDF::ResetConstantSpineModel*)params.m_Message->m_Data;
-            //     dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
-            //     uint32_t size = constants.Size();
-            //     for (uint32_t i = 0; i < size; ++i)
-            //     {
-            //         if( constants[i].m_NameHash == ddf->m_NameHash)
-            //         {
-            //             constants[i] = constants[size - 1];
-            //             component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
-            //             constants.Pop();
-            //             ReHash(component);
-            //             break;
-            //         }
-            //     }
-            // }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::SetConstantSpineModel* ddf = (dmGameSystemDDF::SetConstantSpineModel*)params.m_Message->m_Data;
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
+                        dmGameObject::PropertyVar(ddf->m_Value), CompSpineModelSetConstantCallback, component);
+                if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
+                {
+                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
+                    dmLogError("'%s:%s#%s' has no constant named '%s'",
+                            dmMessage::GetSocketName(receiver.m_Socket),
+                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
+                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
+                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                }
+            }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::ResetConstantSpineModel* ddf = (dmGameSystemDDF::ResetConstantSpineModel*)params.m_Message->m_Data;
+                dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
+                uint32_t size = constants.Size();
+                for (uint32_t i = 0; i < size; ++i)
+                {
+                    if( constants[i].m_NameHash == ddf->m_NameHash)
+                    {
+                        constants[i] = constants[size - 1];
+                        component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
+                        constants.Pop();
+                        ReHash(component);
+                        break;
+                    }
+                }
+            }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -731,52 +724,38 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
-        // SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
-        // if (params.m_PropertyId == PROP_SKIN)
-        // {
-        //     out_value.m_Variant = dmGameObject::PropertyVar(component->m_Skin);
-        //     return dmGameObject::PROPERTY_RESULT_OK;
-        // }
-        // else if (params.m_PropertyId == PROP_ANIMATION)
-        // {
-        //     SpinePlayer* player = GetPlayer(component);
-        //     out_value.m_Variant = dmGameObject::PropertyVar(player->m_AnimationId);
-        //     return dmGameObject::PROPERTY_RESULT_OK;
-        // }
-        // return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
+        if (params.m_PropertyId == PROP_SKIN)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetSkin(component->m_RigInstance));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_ANIMATION)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetAnimation(component->m_RigInstance));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
-        // if (params.m_PropertyId == PROP_SKIN)
-        // {
-        //     if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
-        //         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-        //     dmGameSystemDDF::MeshEntry* mesh_entry = 0x0;
-        //     dmGameSystemDDF::MeshSet* mesh_set = component->m_Resource->m_Scene->m_MeshSetRes->m_MeshSet;
-        //     dmhash_t skin = params.m_Value.m_Hash;
-        //     for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
-        //     {
-        //         if (skin == mesh_set->m_MeshEntries[i].m_Id)
-        //         {
-        //             mesh_entry = &mesh_set->m_MeshEntries[i];
-        //             break;
-        //         }
-        //     }
-        //     if (mesh_entry == 0x0)
-        //     {
-        //         dmLogError("Could not find skin '%s' in the mesh set.", (const char*)dmHashReverse64(skin, 0x0));
-        //         return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
-        //     }
-        //     component->m_MeshEntry = mesh_entry;
-        //     component->m_Skin = params.m_Value.m_Hash;
-        //     return dmGameObject::PROPERTY_RESULT_OK;
-        // }
-        // return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        if (params.m_PropertyId == PROP_SKIN)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+
+            dmRig::UpdateResult res = dmRig::SetSkin(component->m_RigInstance, params.m_Value.m_Hash);
+            if (res == dmRig::UPDATE_RESULT_FAILED)
+            {
+                dmLogError("Could not find skin '%s' on the spine model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
