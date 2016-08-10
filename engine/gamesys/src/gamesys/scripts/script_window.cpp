@@ -271,6 +271,11 @@ void ScriptWindowRegister(const ScriptLibContext& context)
     LuaInit(context.m_LuaState);
 }
 
+void ScriptWindowFinalize(const ScriptLibContext& context)
+{
+    ClearListener(&g_Window.m_Listener);
+}
+
 void ScriptWindowOnWindowFocus(bool focus)
 {
     CallbackInfo cbinfo;

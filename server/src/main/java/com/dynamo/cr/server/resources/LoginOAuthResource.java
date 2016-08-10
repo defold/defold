@@ -109,9 +109,25 @@ public class LoginOAuthResource extends BaseResource {
             node.put("login_token", loginToken);
             authorizationUrl.setState(new String(Base64.encodeBase64(node.toString().getBytes())));
 
+            // DEF-2040:
+            // The Google OAuth sign-in on Windows stopped working on 2016-08-03.
+            // This was due the combination of;
+            //   - Google stopped accepting old browsers on their OAuth web login.
+            //   - The webview/browser component in the editor on Windows was/is running in compatibility mode.
+            //
+            // We discovered that forwarding the user to the sign in URL through JavaScript instead of the old
+            // 'Location'-header method circumvented this "compatibility" mode.
             return Response
-                    .status(Status.TEMPORARY_REDIRECT)
-                    .header("Location", authorizationUrl.build())
+                    .ok()
+                    .entity("<html>\n" +
+                            "<head>\n" +
+                            "    <title>Redirecting...</title>\n" +
+                            "</head>\n" +
+                            "<body>\n" +
+                            "<script type='text/javascript'>window.location = '" + authorizationUrl.build() + "';</script>\n" +
+                            "</body>\n" +
+                            "</html>\n")
+                    .type(MediaType.TEXT_HTML)
                     .build();
         } finally {
             lock.unlock();
