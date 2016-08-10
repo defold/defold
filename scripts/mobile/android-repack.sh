@@ -36,8 +36,9 @@ function terminate_trap() {
 DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
 
 SOURCE="${1:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
-CERTIFICATE="${2:-certificate.pem}"
-KEYFILE="${3:-key.pk8}"
+SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
+CERTIFICATE="${2:-}"
+KEYFILE="${3:-}"
 
 ZIP="zip"
 UNZIP="unzip"
@@ -55,6 +56,14 @@ ENGINE_DEX="${DYNAMO_HOME}/share/java/classes.dex"
 [ -f "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
 [ -f "${ENGINE_LIB}" ] || terminate "Engine does not exist: ${ENGINE_LIB}"
 [ -f "${ENGINE_DEX}" ] || terminate "Engine does not exist: ${ENGINE_DEX}"
+if [ ! -z "${CERTIFICATE}" ] || [ ! -z "${KEYFILE}" ]; then
+    [ ! -z "${KEYFILE}" ] || terminate "Keyfile required if certificate is specified."
+    [ -f "${CERTIFICATE}" ] || terminate "Certificate does not exist: ${CERTIFICATE}"
+    [ -f "${KEYFILE}" ] || terminate "Keyfile does not exist: ${KEYFILE}"
+
+    CERTIFICATE="$(cd "$(dirname "${CERTIFICATE}")"; pwd)/$(basename "${CERTIFICATE}")"
+    KEYFILE="$(cd "$(dirname "${KEYFILE}")"; pwd)/$(basename "${KEYFILE}")"
+fi
 
 
 # ----------------------------------------------------------------------------
@@ -82,7 +91,12 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 )
 
 "${ZIPALIGN}" -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1
-"${APKC}" --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" > /dev/null 2>&1
+
+if [ ! -z "${CERTIFICATE}" ]; then
+    "${APKC}" --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" --cert="${CERTIFICATE}" --key="${KEYFILE}" > /dev/null 2>&1
+else
+    "${APKC}" --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" > /dev/null 2>&1
+fi
 
 rm -rf "${ROOT}"
 

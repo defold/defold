@@ -41,6 +41,9 @@ PROFILE="${3:-}" && [ ! -z "${PROFILE}" ] || terminate_usage
 SOURCE="${4:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
 [[ "armv7-darwin arm64-darwin" =~ "${PLATFORM}" ]] || terminate_usage
 
+SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
+PROFILE="$(cd "$(dirname "${PROFILE}")"; pwd)/$(basename "${PROFILE}")"
+
 CODESIGN="codesign"
 SECURITY="security"
 PLISTBUDDY="/usr/libexec/PlistBuddy"
