@@ -1007,7 +1007,7 @@ bail:
                     dmHID::KeyboardPacket keybdata;
                     dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
 
-                    if (engine->m_QuitOnEsc && (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED)))
+                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;
