@@ -40,7 +40,9 @@
                  "**/three_shapes.collisionobject"
                  "**/tile_map_collision_shape.collisionobject"
                  "**/spineboy.spinescene"
-                 "**/spineboy.spinemodel"]]
+                 "**/spineboy.spinemodel"
+                 "**/new.factory"
+                 "**/with_prototype.factory"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
