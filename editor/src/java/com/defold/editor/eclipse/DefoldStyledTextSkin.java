@@ -148,12 +148,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						boolean forward = newValue.intValue() > oldValue.intValue();
 						boolean backward = !forward;
 
-                                                double bufferSize = getFlow().getViewportWidth() / 5;
-                                                double moveSize = 20;
+                        double bufferSize = getFlow().getViewportWidth() / 5;
+                        double moveSize = 20;
 
-                                                ////NOTE: The following section is a start of implementing horizontal scrolling as you type
-                                                /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
-                                                /// This whole area should be revisited once it get's sorted out
+                        ////NOTE: The following section is a start of implementing horizontal scrolling as you type
+                        /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
+                        /// This whole area should be revisited once it get's sorted out
 						///Need to do layout to get the scroll bar's current positioning about the new document change
                                                 sb.layout();
 
@@ -532,6 +532,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		@Override
 		protected void updateItem(Line arg0, boolean arg1) {
 			super.updateItem(arg0, arg1);
+			System.err.println("update");
 
 			if (arg0 != null && !arg1) {
 				this.domainElement = arg0;
@@ -624,6 +625,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				} else {
 					block.setCaretIndex(-1);
 				}
+				System.err.println("refreshing!");
 				immediateRefresh();
 				
 			} else {
@@ -1026,6 +1028,20 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			this.showAsLast(this.getFirstVisibleCellWithinViewPort());
 		}
 		
+		
+		@Override
+		protected void startSBReleasedAnimation() {
+			super.startSBReleasedAnimation();
+			System.err.println("animation");
+		}
+		
+		@Override
+		public double adjustPixels(final double delta) {
+			double val = super.adjustPixels(delta);
+			System.err.println("adjustpixels");
+			immediateRefresh();
+			return val;
+		}
 		
 
 		@Override

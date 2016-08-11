@@ -240,6 +240,8 @@ public class DefoldStyledTextLayoutContainer extends Region {
 		this.textLayoutNode.relocate(getInsets().getLeft(), getInsets().getTop());
 
 		if (this.selectionStartNode != null && this.selectionEndNode != null) {
+			this.selectionStartNode.applyCss();
+			this.selectionEndNode.applyCss();
 			double x1 = this.textLayoutNode.localToParent(this.selectionStartNode.getBoundsInParent().getMinX(), 0).getX() + this.selectionStartX;
 			double x2 = this.textLayoutNode.localToParent(this.selectionEndNode.getBoundsInParent().getMinX(), 0).getX() + this.selectionEndX;
 			this.selectionMarker.resizeRelocate(x1, 0, x2 - x1, getHeight());
