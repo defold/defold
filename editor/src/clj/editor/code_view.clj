@@ -521,10 +521,11 @@
          line-no (.getLineAtOffset text-area-content offset)]
      (dec line-no)))
   (prev-line [this]
-    (let [line-num (cvx/prev-line-num this)]
-      (if (neg? line-num)
+    (let [text-area-content (.getContent (.getTextWidget this))
+          prev-line-num (cvx/prev-line-num this)]
+      (if (neg? prev-line-num)
         ""
-        (-> this (.getTextWidget) (.getContent) (.getLine line-num)))))
+        (.getLine text-area-content prev-line-num))))
   (next-line-num [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
@@ -536,10 +537,11 @@
       (when (not end-of-doc?)
         (inc line-no))))
   (next-line [this]
-    (let [line-num (cvx/next-line-num this)]
+    (let [text-area-content (.getContent (.getTextWidget this))
+          line-num (cvx/next-line-num this)]
       (if line-num
-        ""
-        (-> this (.getTextWidget) (.getContent) (.getLine line-num)))))
+        (.getLine text-area-content line-num)
+        "")))
   (line-offset [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
