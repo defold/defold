@@ -161,32 +161,32 @@ namespace dmGameSystem
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        // dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
-        // uint32_t bone_count = skeleton->m_Bones.m_Count;
+        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
-        // for (uint32_t i = 0; i < bone_count; ++i)
-        // {
-        //     if (skeleton->m_Bones[i].m_Id == bone_id)
-        //     {
-        //         bone_index = i;
-        //         break;
-        //     }
-        // }
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            if (skeleton->m_Bones[i].m_Id == bone_id)
+            {
+                bone_index = i;
+                break;
+            }
+        }
         if (bone_index == ~0u)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        // dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
-        // if (instance == 0x0)
-        // {
-        //     return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
-        // }
-        // dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
-        // if (instance_id == 0x0)
-        // {
-        //     return luaL_error(L, "game object contains no identifier for the bone '%s'", lua_tostring(L, 2));
-        // }
-        // dmScript::PushHash(L, instance_id);
+        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
+        if (instance == 0x0)
+        {
+            return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
+        }
+        dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
+        if (instance_id == 0x0)
+        {
+            return luaL_error(L, "game object contains no identifier for the bone '%s'", lua_tostring(L, 2));
+        }
+        dmScript::PushHash(L, instance_id);
 
         assert(top + 1 == lua_gettop(L));
         return 1;

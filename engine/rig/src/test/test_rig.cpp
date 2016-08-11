@@ -235,8 +235,8 @@ TEST_F(RigContextTest, InstanceCreation)
 
 TEST_F(RigContextTest, UpdateEmptyContext)
 {
-    dmRig::UpdateResult res = dmRig::Update(m_Context, 1.0/60.0);
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, res);
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 }
 
 TEST_F(RigInstanceTest, PlayInvalidAnimation)
@@ -250,6 +250,7 @@ TEST_F(RigInstanceTest, PlayInvalidAnimation)
     ASSERT_EQ(empty_id, dmRig::GetAnimation(m_Instance));
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 }
 
 TEST_F(RigInstanceTest, PlayValidAnimation)
@@ -261,6 +262,7 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
     ASSERT_EQ(valid_anim_id, dmRig::GetAnimation(m_Instance));
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 }
 
 #define ASSERT_VEC3(exp, act)\
@@ -277,8 +279,9 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
 TEST_F(RigInstanceTest, PoseNoAnim)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
-    const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
     // should be same as bind pose
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -287,6 +290,7 @@ TEST_F(RigInstanceTest, PoseNoAnim)
     ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
@@ -297,9 +301,10 @@ TEST_F(RigInstanceTest, PoseNoAnim)
 TEST_F(RigInstanceTest, PoseAnim)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
-    const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
     // sample 0
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -308,6 +313,7 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 1
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -316,6 +322,7 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 2
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -325,6 +332,7 @@ TEST_F(RigInstanceTest, PoseAnim)
 
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 0 (looped)
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -336,9 +344,10 @@ TEST_F(RigInstanceTest, PoseAnim)
 TEST_F(RigInstanceTest, PoseAnimCancel)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
-    const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
     // sample 0
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -348,6 +357,7 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
 
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::CancelAnimation(m_Instance));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 1
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());

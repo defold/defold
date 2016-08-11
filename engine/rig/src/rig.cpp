@@ -491,6 +491,7 @@ namespace dmRig
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
             const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+            // dmArray<dmTransform::Transform>& pose_world = instance->m_PoseWorld;
             // Reset pose
             uint32_t bone_count = pose.Size();
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -606,6 +607,8 @@ namespace dmRig
                         // Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(instance->m_Instance) * instance->m_Transform.GetRotation());
                         // user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(instance->m_Instance));
                         // user_target_position = dmTransform::Apply();
+                        // if (ik->m_Parent)
+                        // parent_parent_t = dmTransform::Mul(parent_parent_t, dmTransform::Inv(pose[0]));
                         if(parent_parent_index != INVALID_BONE_INDEX)
                             user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
 
@@ -620,30 +623,6 @@ namespace dmRig
                 }
             }
 
-            // Include instance transform in the GO instance reflecting the root bone
-            // dmTransform::Transform root_t = pose[0];
-            // pose[0] = dmTransform::Mul(instance->m_Transform, root_t);
-            // dmGameObject::HInstance first_bone_go = instance->m_NodeInstances[0];
-            // dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
-            // pose[0] = root_t;
-            for (uint32_t bi = 0; bi < bone_count; ++bi)
-            {
-                dmTransform::Transform& transform = pose[bi];
-                // Convert every transform into model space
-                if (bi > 0) {
-                    const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
-                    if (bone->m_InheritScale)
-                    {
-                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-                    }
-                    else
-                    {
-                        Vector3 scale = transform.GetScale();
-                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-                        transform.SetScale(scale);
-                    }
-                }
-            }
         }
     }
 
@@ -680,6 +659,41 @@ namespace dmRig
         return dmRig::UPDATE_RESULT_OK;
     }
 
+    UpdateResult PostUpdate(HRigContext context)
+    {
+        const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
+        uint32_t n = instances.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            RigInstance* instance = instances[i];
+            const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+            dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+            if (pose.Empty())
+                continue;
+
+            for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+            {
+                dmTransform::Transform& transform = pose[bi];
+                // Convert every transform into model space
+                if (bi > 0) {
+                    const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+                    if (bone->m_InheritScale)
+                    {
+                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                    }
+                    else
+                    {
+                        Vector3 scale = transform.GetScale();
+                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                        transform.SetScale(scale);
+                    }
+                }
+            }
+        }
+
+        return dmRig::UPDATE_RESULT_OK;
+    }
+
     static void AllocateMeshProperties(const dmRig::MeshSet* mesh_set, dmArray<MeshProperties>& mesh_properties) {
         uint32_t max_mesh_count = 0;
         uint32_t count = mesh_set->m_MeshEntries.m_Count;
@@ -712,56 +726,13 @@ namespace dmRig
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         instance->m_Pose.SetCapacity(bone_count);
         instance->m_Pose.SetSize(bone_count);
+        // instance->m_PoseWorld.SetCapacity(bone_count);
+        // instance->m_PoseWorld.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             instance->m_Pose[i].SetIdentity();
+            // instance->m_PoseWorld[i].SetIdentity();
         }
-    //     component->m_NodeInstances.SetCapacity(bone_count);
-    //     component->m_NodeInstances.SetSize(bone_count);
-    //     if (bone_count > world->m_ScratchInstances.Capacity()) {
-    //         world->m_ScratchInstances.SetCapacity(bone_count);
-    //     }
-    //     world->m_ScratchInstances.SetSize(0);
-    //     for (uint32_t i = 0; i < bone_count; ++i)
-    //     {
-    //         dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
-    //         if (inst == 0x0) {
-    //             component->m_NodeInstances.SetSize(i);
-    //             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-    //         }
-
-    //         dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
-    //         dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
-    //         if (dmGameObject::RESULT_OK != result) {
-    //             dmGameObject::Delete(collection, inst);
-    //             component->m_NodeInstances.SetSize(i);
-    //             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-    //         }
-
-    //         dmGameObject::SetBone(inst, true);
-    //         dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-    //         if (i == 0)
-    //         {
-    //             transform = dmTransform::Mul(component->m_Transform, transform);
-    //         }
-    //         dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
-    //         dmGameObject::SetRotation(inst, transform.GetRotation());
-    //         dmGameObject::SetScale(inst, transform.GetScale());
-    //         component->m_NodeInstances[i] = inst;
-    //         world->m_ScratchInstances.Push(inst);
-    //     }
-    //     // Set parents in reverse to account for child-prepending
-    //     for (uint32_t i = 0; i < bone_count; ++i)
-    //     {
-    //         uint32_t index = bone_count - 1 - i;
-    //         dmGameObject::HInstance inst = world->m_ScratchInstances[index];
-    //         dmGameObject::HInstance parent = instance;
-    //         if (index > 0)
-    //         {
-    //             parent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
-    //         }
-    //         dmGameObject::SetParent(inst, parent);
-    //     }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
         instance->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
@@ -773,10 +744,15 @@ namespace dmRig
         return dmRig::CREATE_RESULT_OK;
     }
 
-    const dmArray<dmTransform::Transform>& GetPose(HRigInstance instance)
+    dmArray<dmTransform::Transform>* GetPose(HRigInstance instance)
     {
-        return instance->m_Pose;
+        return &instance->m_Pose;
     }
+
+    // dmArray<dmTransform::Transform>* GetPoseWorld(HRigInstance instance)
+    // {
+    //     return &instance->m_PoseWorld;
+    // }
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
 #define TO_SHORT(val) (uint16_t)((val) * 65535.0f)
@@ -928,6 +904,7 @@ namespace dmRig
         RigInstance* instance = context->m_Instances.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
+        // instance->m_PoseWorld.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
         delete instance;

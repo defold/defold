@@ -15,7 +15,6 @@ namespace dmGameSystem
 
     struct SpineModelComponent
     {
-        // SpinePlayer                 m_Players[2];
         dmGameObject::HInstance     m_Instance;
         dmTransform::Transform      m_Transform;
         Matrix4                     m_World;
@@ -26,9 +25,8 @@ namespace dmGameSystem
         dmArray<dmRender::Constant> m_RenderConstants;
         dmArray<Vector4>            m_PrevRenderConstants;
         /// Node instances corresponding to the bones
-        // dmArray<dmGameObject::HInstance> m_NodeInstances;
-        // User IK constraint targets
-        // dmArray<IKTarget>           m_IKTargets;
+        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        /// User IK constraint targets
         dmhash_t                    m_IKTargets[32];
         Point3                      m_IKTargetPositions[32];
         uint8_t                     m_ComponentIndex;
@@ -61,7 +59,7 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         dmArray<SpineModelVertex>           m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
-        // dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        dmArray<dmGameObject::HInstance>    m_ScratchInstances;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);

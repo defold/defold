@@ -86,7 +86,6 @@ namespace dmRig
         RigIKTargetCallback m_Callback;
         void*               m_UserData1;
         void*               m_UserData2;
-        // Vector3             m_Position;
     };
 
     enum RigEventType
@@ -197,8 +196,6 @@ namespace dmRig
         int     m_VertexStride;
     };
 
-    // Both RigIKTargetParams and RigIKTargetPositionParams are self explanatory,
-    // they hold information that was previously set directly in script_spine_model.cpp
     struct RigIKTargetParams
     {
         HRigInstance        m_RigInstance;
@@ -208,14 +205,6 @@ namespace dmRig
         void*               m_UserData1;
         void*               m_UserData2;
     };
-
-    // struct RigIKTargetPositionParams
-    // {
-    //     HRigInstance             m_RigInstance;
-    //     dmhash_t                 m_ConstraintId;
-    //     float                    m_Mix;
-    //     Vectormath::Aos::Vector3 m_Position;
-    // };
 
     enum CreateResult
     {
@@ -283,6 +272,7 @@ namespace dmRig
     CreateResult NewContext(const NewContextParams& params);
     CreateResult DeleteContext(HRigContext context);
     UpdateResult Update(HRigContext context, float dt);
+    UpdateResult PostUpdate(HRigContext context);
 
     CreateResult InstanceCreate(const InstanceCreateParams& params);
     CreateResult InstanceDestroy(const InstanceDestroyParams& params);
@@ -297,12 +287,10 @@ namespace dmRig
     UpdateResult SetSkin(HRigInstance instance, dmhash_t skin);
     dmhash_t GetSkin(HRigInstance instance);
 
-    // New getters/setters:
-    const dmArray<dmTransform::Transform>& GetPose(HRigInstance instance);
     float GetCursor(HRigInstance instance);
     PlayResult SetCursor(HRigInstance instance, float cursor);
+    dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
 
-    // New IK related setters
     IKUpdate SetIKTarget(const RigIKTargetParams& params);
 
 }

@@ -186,6 +186,65 @@ namespace dmGameSystem
         component->m_MixedHash = dmHashFinal32(&state);
     }
 
+    static bool CreateGOBones(SpineModelWorld* world, SpineModelComponent* component)
+    {
+        dmGameObject::HInstance instance = component->m_Instance;
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+
+        const dmArray<dmRig::RigBone>& bind_pose = component->m_Resource->m_RigScene->m_BindPose;
+        const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        uint32_t bone_count = skeleton->m_Bones.m_Count;
+
+        component->m_NodeInstances.SetCapacity(bone_count);
+        component->m_NodeInstances.SetSize(bone_count);
+        if (bone_count > world->m_ScratchInstances.Capacity()) {
+            world->m_ScratchInstances.SetCapacity(bone_count);
+        }
+        world->m_ScratchInstances.SetSize(0);
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
+            if (inst == 0x0) {
+                component->m_NodeInstances.SetSize(i);
+                return false;
+            }
+
+            dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
+            if (dmGameObject::RESULT_OK != result) {
+                dmGameObject::Delete(collection, inst);
+                component->m_NodeInstances.SetSize(i);
+                return false;
+            }
+
+            dmGameObject::SetBone(inst, true);
+            dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
+            if (i == 0)
+            {
+                transform = dmTransform::Mul(component->m_Transform, transform);
+            }
+            dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
+            dmGameObject::SetRotation(inst, transform.GetRotation());
+            dmGameObject::SetScale(inst, transform.GetScale());
+            component->m_NodeInstances[i] = inst;
+            world->m_ScratchInstances.Push(inst);
+        }
+        // Set parents in reverse to account for child-prepending
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            uint32_t index = bone_count - 1 - i;
+            dmGameObject::HInstance inst = world->m_ScratchInstances[index];
+            dmGameObject::HInstance parent = instance;
+            if (index > 0)
+            {
+                parent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
+            }
+            dmGameObject::SetParent(inst, parent);
+        }
+
+        return true;
+    }
+
     dmGameObject::CreateResult CompSpineModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
@@ -233,6 +292,9 @@ namespace dmGameSystem
 
         ReHash(component);
 
+        // Create GO<->bone representation
+        CreateGOBones(world, component);
+
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -241,7 +303,7 @@ namespace dmGameSystem
     {
         SpineModelComponent* component = world->m_Components.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
-        // component->m_NodeInstances.SetCapacity(0);
+        component->m_NodeInstances.SetCapacity(0);
         // component->m_IKTargets.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params;
@@ -407,6 +469,16 @@ namespace dmGameSystem
                     ReHash(&component);
                     break;
                 }
+            }
+
+            // Include instance transform in the GO instance reflecting the root bone
+            dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component.m_RigInstance);
+            if (pose.Size() > 0) {
+                dmTransform::Transform root_t = pose[0];
+                // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
+                dmGameObject::HInstance first_bone_go = component.m_NodeInstances[0];
+                dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
+                // pose[0] = root_t;
             }
 
             component.m_DoRender = 1;
