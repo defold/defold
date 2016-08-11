@@ -32,7 +32,7 @@
   [repl-config]
   (if-let [wrap-refactor (try-resolve 'refactor-nrepl.middleware/wrap-refactor)]
     (do (println "Adding refactor-nrepl middleware")
-        (update-in repl-config :handler wrap-refactor))
+        (update repl-config :handler wrap-refactor))
     repl-config))
 
 (defn- maybe-load-cider
