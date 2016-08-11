@@ -477,11 +477,16 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
             }
 	}
 	
-	public void requestCellLayout(){
-		if (getFlow() != null){
-		getFlow().requestCellLayout();
-		}
+	public void immediateRefresh(){
+		Platform.runLater(new Runnable() {
+			
+			@Override
+				public void run() {
+					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+				}
+			});
 	}
+	
 
 	/**
 	 * A line cell
@@ -526,7 +531,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 		@Override
 		protected void updateItem(Line arg0, boolean arg1) {
-			System.err.println("update item");
 			super.updateItem(arg0, arg1);
 
 			if (arg0 != null && !arg1) {
@@ -537,10 +541,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 					lineInfo.setDomainElement(this.domainElement);
 					DefoldStyledTextSkin.this.lineInfoMap.put(this, lineInfo);
 					DefoldStyledTextSkin.this.lineRuler.getChildren().add(lineInfo);
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+					//DefoldStyledTextSkin.this.lineRuler.requestLayout();
 				} else {
 					lineInfo.setDomainElement(this.domainElement);
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+					//DefoldStyledTextSkin.this.lineRuler.requestLayout();
 				}
 				lineInfo.setLayoutY(getLayoutY());
 
@@ -620,14 +624,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				} else {
 					block.setCaretIndex(-1);
 				}
-				block.applyCss();
-				block.layoutChildren();
-				//getFlow().requestCellLayout();
+				immediateRefresh();
 				
 			} else {
 				// FIND OUT WHY WE CLEAR SO OFTEN
-				 System.err.println("CLEARING GRAPHICS: " + this + " => " +
-				 this.domainElement);
+				// System.err.println("CLEARING GRAPHICS: " + this + " => " +
+				// this.domainElement);
 
 				setGraphic(null);
 				this.domainElement = null;
@@ -979,6 +981,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 //			});
 
 		}
+		
 
 		public double getViewportWidth(){
 			return super.getViewportBreadth();
