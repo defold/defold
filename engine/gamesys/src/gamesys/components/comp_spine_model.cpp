@@ -81,22 +81,86 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    // static bool GetSender(SpineModelComponent* component, dmMessage::URL* out_sender)
-    // {
-    //     dmMessage::URL sender;
-    //     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
-    //     if (dmMessage::IsSocketValid(sender.m_Socket))
-    //     {
-    //         dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
-    //         if (go_result == dmGameObject::RESULT_OK)
-    //         {
-    //             sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
-    //             *out_sender = sender;
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
+    static bool GetSender(SpineModelComponent* component, dmMessage::URL* out_sender)
+    {
+        dmMessage::URL sender;
+        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+        if (dmMessage::IsSocketValid(sender.m_Socket))
+        {
+            dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
+            if (go_result == dmGameObject::RESULT_OK)
+            {
+                sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+                *out_sender = sender;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void CompSpineModelEventCallback(void* user_data, const dmRig::RigEventData& event_data)
+    {
+        SpineModelComponent* component = (SpineModelComponent*)user_data;
+
+        dmMessage::URL sender;
+        dmMessage::URL receiver = component->m_Listener;
+        if (!GetSender(component, &sender))
+        {
+            dmLogError("Could not send animation_done to listener because of incomplete component.");
+            return;
+        }
+
+        switch (event_data.m_Type) {
+            case dmRig::RIG_EVENT_TYPE_DONE: {
+                    dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
+
+                    dmGameSystemDDF::SpineAnimationDone message;
+                    message.m_AnimationId = event_data.m_DataDone.m_AnimationId;
+                    message.m_Playback    = event_data.m_DataDone.m_Playback;
+
+                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
+                    uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
+                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                    dmMessage::ResetURL(component->m_Listener);
+                    if (result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send animation_done to listener.");
+                    }
+
+                } break;
+            case dmRig::RIG_EVENT_TYPE_SPINE: {
+
+                    if (!dmMessage::IsSocketValid(receiver.m_Socket))
+                    {
+                        receiver = sender;
+                        receiver.m_Fragment = 0; // broadcast to sibling components
+                    }
+
+                    dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
+
+                    dmGameSystemDDF::SpineEvent event;
+                    event.m_EventId     = event_data.m_DataSpine.m_EventId;
+                    event.m_AnimationId = event_data.m_DataSpine.m_AnimationId;
+                    event.m_BlendWeight = event_data.m_DataSpine.m_BlendWeight;
+                    event.m_T           = event_data.m_DataSpine.m_T;
+                    event.m_Integer     = event_data.m_DataSpine.m_Integer;
+                    event.m_Float       = event_data.m_DataSpine.m_Float;
+                    event.m_String      = event_data.m_DataSpine.m_String;
+
+                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
+                    uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
+                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size);
+                    if (result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send spine_event to listener.");
+                    }
+                } break;
+            default:
+                dmLogError("Unknown rig event received (%d).", event_data.m_Type);
+                break;
+        }
+
+    }
 
     static void ReHash(SpineModelComponent* component)
     {
@@ -138,8 +202,8 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
+        dmMessage::ResetURL(component->m_Listener);
 
-        // dmMessage::ResetURL(component->m_Listener);
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
@@ -149,6 +213,9 @@ namespace dmGameSystem
         dmRig::InstanceCreateParams create_params;
         create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
+
+        create_params.m_EventCallback = CompSpineModelEventCallback;
+        create_params.m_EventCBUserData = component;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
@@ -221,7 +288,6 @@ namespace dmGameSystem
             dmRig::RigGenVertexDataParams params;
             params.m_ModelMatrix = c->m_World;
             params.m_VertexData = (void**)&vb_end;
-            // params.m_VertexDataSize = ;
             params.m_VertexStride = sizeof(SpineModelVertex);
 
             vb_end = (SpineModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, params);
@@ -308,162 +374,6 @@ namespace dmGameSystem
             }
         }
     }
-
-    // static void PostEvent(dmMessage::URL* sender, dmMessage::URL* receiver, dmhash_t event_id, dmhash_t animation_id, float blend_weight, dmGameSystemDDF::EventKey* key)
-    // {
-    //     dmGameSystemDDF::SpineEvent event;
-    //     event.m_EventId = event_id;
-    //     event.m_AnimationId = animation_id;
-    //     event.m_BlendWeight = blend_weight;
-    //     event.m_T = key->m_T;
-    //     event.m_Integer = key->m_Integer;
-    //     event.m_Float = key->m_Float;
-    //     event.m_String = key->m_String;
-
-    //     dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
-
-    //     uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
-    //     uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-    //     dmMessage::Result result = dmMessage::Post(sender, receiver, message_id, 0, descriptor, &event, data_size);
-    //     if (result != dmMessage::RESULT_OK)
-    //     {
-    //         dmLogError("Could not send spine_event to listener.");
-    //     }
-    // }
-
-    // static void PostEventsInterval(dmMessage::URL* sender, dmMessage::URL* receiver, dmGameSystemDDF::RigAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards, float blend_weight)
-    // {
-    //     const uint32_t track_count = animation->m_EventTracks.m_Count;
-    //     for (uint32_t ti = 0; ti < track_count; ++ti)
-    //     {
-    //         dmGameSystemDDF::EventTrack* track = &animation->m_EventTracks[ti];
-    //         const uint32_t key_count = track->m_Keys.m_Count;
-    //         for (uint32_t ki = 0; ki < key_count; ++ki)
-    //         {
-    //             dmGameSystemDDF::EventKey* key = &track->m_Keys[ki];
-    //             float cursor = key->m_T;
-    //             if (backwards)
-    //                 cursor = duration - cursor;
-    //             if (start_cursor <= cursor && cursor < end_cursor)
-    //             {
-    //                 PostEvent(sender, receiver, track->m_EventId, animation->m_Id, blend_weight, key);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // static void PostEvents(SpinePlayer* player, dmMessage::URL* sender, dmMessage::URL* listener, dmGameSystemDDF::RigAnimation* animation, float dt, float prev_cursor, float duration, bool completed, float blend_weight)
-    // {
-    //     dmMessage::URL receiver = *listener;
-    //     if (!dmMessage::IsSocketValid(receiver.m_Socket))
-    //     {
-    //         receiver = *sender;
-    //         receiver.m_Fragment = 0; // broadcast to sibling components
-    //     }
-    //     float cursor = player->m_Cursor;
-    //     // Since the intervals are defined as t0 <= t < t1, make sure we include the end of the animation, i.e. when t1 == duration
-    //     if (completed)
-    //         cursor += dt;
-    //     // If the start cursor is greater than the end cursor, we have looped and handle that as two distinct intervals: [0,end_cursor) and [start_cursor,duration)
-    //     // Note that for looping ping pong, one event can be triggered twice during the same frame by appearing in both intervals
-    //     if (prev_cursor > cursor)
-    //     {
-    //         bool prev_backwards = player->m_Backwards;
-    //         // Handle the flipping nature of ping pong
-    //         if (player->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
-    //         {
-    //             prev_backwards = !player->m_Backwards;
-    //         }
-    //         PostEventsInterval(sender, &receiver, animation, prev_cursor, duration, duration, prev_backwards, blend_weight);
-    //         PostEventsInterval(sender, &receiver, animation, 0.0f, cursor, duration, player->m_Backwards, blend_weight);
-    //     }
-    //     else
-    //     {
-    //         // Special handling when we reach the way back of once ping pong playback
-    //         float half_duration = duration * 0.5f;
-    //         if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
-    //         {
-    //             // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
-    //             if (prev_cursor < half_duration)
-    //             {
-    //                 PostEventsInterval(sender, &receiver, animation, prev_cursor, half_duration, duration, false, blend_weight);
-    //                 PostEventsInterval(sender, &receiver, animation, half_duration, cursor, duration, true, blend_weight);
-    //             }
-    //             else
-    //             {
-    //                 PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, true, blend_weight);
-    //             }
-    //         }
-    //         else
-    //         {
-    //             PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, player->m_Backwards, blend_weight);
-    //         }
-    //     }
-    // }
-
-    // static inline dmTransform::Transform GetPoseTransform(const dmArray<SpineBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
-    //     if(bind_pose[index].m_ParentIndex == INVALID_BONE_INDEX)
-    //         return transform;
-    //     transform = dmTransform::Mul(pose[bind_pose[index].m_ParentIndex], transform);
-    //     return GetPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
-    // }
-
-    // static inline float ToEulerZ(const dmTransform::Transform& t)
-    // {
-    //     Vectormath::Aos::Quat q(t.GetRotation());
-    //     return dmVMath::QuatToEuler(q.getZ(), q.getY(), q.getX(), q.getW()).getZ() * (M_PI/180.0f);
-    // }
-
-    // static void ApplyOneBoneIKConstraint(const dmGameSystemDDF::IK* ik, const dmArray<SpineBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
-    // {
-    //     if (mix == 0.0f)
-    //         return;
-    //     const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
-    //     dmTransform::Transform& parent_t = pose[ik->m_Parent];
-    //     float parentRotation = ToEulerZ(parent_bt);
-    //     // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
-    //     float rotationIK = atan2(target_wp.getY() - parent_wp.getY(), target_wp.getX() - parent_wp.getX());
-    //     parentRotation = parentRotation + (rotationIK - parentRotation) * mix;
-    //     parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
-    // }
-
-    // // Based on http://www.ryanjuckett.com/programming/analytic-two-bone-ik-in-2d/
-    // static void ApplyTwoBoneIKConstraint(const dmGameSystemDDF::IK* ik, const dmArray<SpineBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const bool bend_positive, const float mix)
-    // {
-    //     if (mix == 0.0f)
-    //         return;
-    //     const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
-    //     const dmTransform::Transform& child_bt = bind_pose[ik->m_Child].m_LocalToParent;
-    //     dmTransform::Transform& parent_t = pose[ik->m_Parent];
-    //     dmTransform::Transform& child_t = pose[ik->m_Child];
-    //     float childRotation = ToEulerZ(child_bt), parentRotation = ToEulerZ(parent_bt);
-
-    //     // recalc target position to local (relative parent)
-    //     const Vector3 target(target_wp.getX() - parent_wp.getX(), target_wp.getY() - parent_wp.getY(), 0.0f);
-    //     const Vector3 child_p = child_bt.GetTranslation();
-    //     const float childX = child_p.getX(), childY = child_p.getY();
-    //     const float offset = atan2(childY, childX);
-    //     const float len1 = (float)sqrt(childX * childX + childY * childY);
-    //     const float len2 = bind_pose[ik->m_Child].m_Length;
-
-    //     // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
-    //     const float cosDenom = 2.0f * len1 * len2;
-    //     if (cosDenom < 0.0001f) {
-    //         childRotation = childRotation + ((float)atan2(target.getY(), target.getX()) - parentRotation - childRotation) * mix;
-    //         child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
-    //         return;
-    //     }
-    //     float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
-    //     cosValue = dmMath::Max(-1.0f, dmMath::Min(1.0f, cosValue));
-    //     const float childAngle = (float)acos(cosValue) * (bend_positive ? 1.0f : -1.0f);
-    //     const float adjacent = len1 + len2 * cosValue;
-    //     const float opposite = len2 * sin(childAngle);
-    //     const float parentAngle = (float)atan2(target.getY() * adjacent - target.getX() * opposite, target.getX() * adjacent + target.getY() * opposite);
-    //     parentRotation = ((parentAngle - offset) - parentRotation) * mix;
-    //     childRotation = ((childAngle + offset) - childRotation) * mix;
-    //     parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
-    //     child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
-    // }
 
     dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
     {
@@ -645,7 +555,7 @@ namespace dmGameSystem
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
                 if (dmRig::PLAY_RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
-                    // component->m_Listener = params.m_Message->m_Sender;
+                    component->m_Listener = params.m_Message->m_Sender;
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash)
@@ -770,4 +680,77 @@ namespace dmGameSystem
                 OnResourceReloaded(world, component);
         }
     }
+
+    static Vector3 CompSpineIKTargetInstanceCallback(void* user_data1, void* user_data2)
+    {
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
+        dmhash_t target_instance_id = *(dmhash_t*)user_data2;
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), target_instance_id);
+        if(target_instance == 0x0)
+        {
+            // instance have been removed, disable animation
+            dmLogError("Could not get IK position for target %s, removed?", (const char*)dmHashReverse64(target_instance_id, 0x0))
+            return Vector3(0.0f);
+        }
+
+        return (Vector3)dmGameObject::GetWorldPosition(target_instance);
+    }
+
+    static Vector3 CompSpineIKTargetPositionCallback(void* user_data1, void* user_data2)
+    {
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
+        Point3 position = *(Point3*)user_data2;
+        return (Vector3)dmTransform::Apply(dmTransform::Inv(dmTransform::Mul(dmGameObject::GetWorldTransform(component->m_Instance), component->m_Transform)), position);
+    }
+
+    static uint32_t FindIKIndex(SpineModelComponent* component, dmhash_t constraint_id)
+    {
+        const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        uint32_t ik_count = skeleton->m_Iks.m_Count;
+        uint32_t ik_index = ~0u;
+        for (uint32_t i = 0; i < ik_count; ++i)
+        {
+            if (skeleton->m_Iks[i].m_Id == constraint_id)
+            {
+                ik_index = i;
+                break;
+            }
+        }
+        return ik_index;
+    }
+
+    bool CompSpineSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
+    {
+        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        uint32_t ik_index = FindIKIndex(component, constraint_id);
+        component->m_IKTargets[ik_index] = instance_id;
+
+        dmRig::RigIKTargetParams params;
+        params.m_RigInstance = component->m_RigInstance;
+        params.m_ConstraintId = constraint_id;
+        params.m_Mix = mix;
+        params.m_Callback = CompSpineIKTargetInstanceCallback;
+        params.m_UserData1 = (void*)component;
+        params.m_UserData2 = (void*)&component->m_IKTargets[ik_index];
+
+        return dmRig::SetIKTarget(params) == dmRig::IKUPDATE_RESULT_OK;
+    }
+
+    bool CompSpineSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position)
+    {
+        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        uint32_t ik_index = FindIKIndex(component, constraint_id);
+        component->m_IKTargetPositions[ik_index] = position;
+
+        dmRig::RigIKTargetParams params;
+        params.m_RigInstance = component->m_RigInstance;
+        params.m_ConstraintId = constraint_id;
+        params.m_Mix = mix;
+        params.m_Callback = CompSpineIKTargetPositionCallback;
+        params.m_UserData1 = (void*)component;
+        params.m_UserData2 = (void*)&component->m_IKTargetPositions[ik_index];
+
+        return dmRig::SetIKTarget(params) == dmRig::IKUPDATE_RESULT_OK;
+    }
+
 }

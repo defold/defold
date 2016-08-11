@@ -13,17 +13,6 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
 
-    // struct IKAnimation {
-    //     float m_Mix;
-    //     bool m_Positive;
-    // };
-
-    // struct IKTarget {
-    //     float m_Mix;
-    //     dmhash_t m_InstanceId;
-    //     Vector3 m_Position;
-    // };
-
     struct SpineModelComponent
     {
         // SpinePlayer                 m_Players[2];
@@ -33,13 +22,15 @@ namespace dmGameSystem
         SpineModelResource*         m_Resource;
         dmRig::HRigInstance         m_RigInstance;
         uint32_t                    m_MixedHash;
-        // dmMessage::URL              m_Listener;
+        dmMessage::URL              m_Listener;
         dmArray<dmRender::Constant> m_RenderConstants;
         dmArray<Vector4>            m_PrevRenderConstants;
         /// Node instances corresponding to the bones
         // dmArray<dmGameObject::HInstance> m_NodeInstances;
         // User IK constraint targets
         // dmArray<IKTarget>           m_IKTargets;
+        dmhash_t                    m_IKTargets[32];
+        Point3                      m_IKTargetPositions[32];
         uint8_t                     m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;
@@ -94,6 +85,9 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    bool CompSpineSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
+    bool CompSpineSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
 }
 
 #endif // DM_GAMESYS_COMP_SPINE_MODEL_H

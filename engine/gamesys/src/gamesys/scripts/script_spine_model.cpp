@@ -227,26 +227,11 @@ namespace dmGameSystem
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
 
-        // dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
-        // uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        // for (uint32_t i = 0; i < ik_count; ++i)
-        // {
-        //     if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-        //     {
-        //         ik_index = i;
-        //         break;
-        //     }
-        // }
-        if (ik_index == ~0u)
+        if (!CompSpineSetIKTargetPosition(component, ik_constraint_id, 1.0f, (Point3)*position))
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
 
-        // dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        // ik_target.m_Mix = 1.0f;
-        // ik_target.m_InstanceId = 0;
-        // ik_target.m_Position = *position;
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -286,38 +271,22 @@ namespace dmGameSystem
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 
-        // dmGameSystemDDF::Skeleton* skeleton = component->m_Resource->m_Scene->m_SkeletonRes->m_Skeleton;
-        // uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        // for (uint32_t i = 0; i < ik_count; ++i)
-        // {
-        //     if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-        //     {
-        //         ik_index = i;
-        //         break;
-        //     }
-        // }
-        if (ik_index == ~0u)
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 3, &target, &sender);
+        if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
+        {
+            luaL_error(L, "spine.set_ik_target can only use instances within the same collection.");
+        }
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        if (target_instance == 0)
+            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+
+        if (!CompSpineSetIKTargetInstance(component, ik_constraint_id, 1.0f, target.m_Path))
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
-
-        // dmMessage::URL sender;
-        // dmScript::GetURL(L, &sender);
-        // dmMessage::URL target;
-        // dmScript::ResolveURL(L, 3, &target, &sender);
-        // if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
-        // {
-        //     luaL_error(L, "go.animate can only animate instances within the same collection.");
-        // }
-        // dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
-        // if (target_instance == 0)
-        //     return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
-
-
-        // dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        // ik_target.m_Mix = 1.0f;
-        // ik_target.m_InstanceId = target.m_Path;
 
         assert(top == lua_gettop(L));
         return 0;

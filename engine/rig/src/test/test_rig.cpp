@@ -263,12 +263,12 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
 }
 
-#define ASSERT_VEC3_NEAR(exp, act)\
+#define ASSERT_VEC3(exp, act)\
     ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON);\
     ASSERT_NEAR(exp.getY(), act.getY(), RIG_EPSILON);\
     ASSERT_NEAR(exp.getZ(), act.getZ(), RIG_EPSILON);\
 
-#define ASSERT_VEC4_NEAR(exp, act)\
+#define ASSERT_VEC4(exp, act)\
     ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON);\
     ASSERT_NEAR(exp.getY(), act.getY(), RIG_EPSILON);\
     ASSERT_NEAR(exp.getZ(), act.getZ(), RIG_EPSILON);\
@@ -281,17 +281,17 @@ TEST_F(RigInstanceTest, PoseNoAnim)
     const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
 
     // should be same as bind pose
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
 
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 }
 
 TEST_F(RigInstanceTest, PoseAnim)
@@ -302,35 +302,35 @@ TEST_F(RigInstanceTest, PoseAnim)
     const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
 
     // sample 0
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
     // sample 1
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
     // sample 2
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(0.0f, 1.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
 
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
     // sample 0 (looped)
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 }
 
 TEST_F(RigInstanceTest, PoseAnimCancel)
@@ -341,21 +341,24 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
     const dmArray<dmTransform::Transform>& pose = dmRig::GetPose(m_Instance);
 
     // sample 0
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::CancelAnimation(m_Instance));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
     // sample 1
-    ASSERT_VEC3_NEAR(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3_NEAR(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4_NEAR(Quat::identity(), pose[1].GetRotation());
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
 }
+
+#undef ASSERT_VEC3
+#undef ASSERT_VEC4
 
 /*
     Left to test:

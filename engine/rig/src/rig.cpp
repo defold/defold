@@ -158,7 +158,81 @@ namespace dmRig
         return duration;
     }
 
-    static void UpdatePlayer(RigInstance* instance, RigPlayer* player, float dt/*, dmMessage::URL* listener*/, float blend_weight)
+    static void PostEventsInterval(HRigInstance instance, const dmRigDDF::RigAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards, float blend_weight)
+    {
+        const uint32_t track_count = animation->m_EventTracks.m_Count;
+        for (uint32_t ti = 0; ti < track_count; ++ti)
+        {
+            const dmRigDDF::EventTrack* track = &animation->m_EventTracks[ti];
+            const uint32_t key_count = track->m_Keys.m_Count;
+            for (uint32_t ki = 0; ki < key_count; ++ki)
+            {
+                const dmRigDDF::EventKey* key = &track->m_Keys[ki];
+                float cursor = key->m_T;
+                if (backwards)
+                    cursor = duration - cursor;
+                if (start_cursor <= cursor && cursor < end_cursor)
+                {
+                    RigEventData event_data;
+                    event_data.m_Type = RIG_EVENT_TYPE_SPINE;
+                    event_data.m_DataSpine.m_EventId = track->m_EventId;
+                    event_data.m_DataSpine.m_AnimationId = animation->m_Id;
+                    event_data.m_DataSpine.m_BlendWeight = blend_weight;
+                    event_data.m_DataSpine.m_T = key->m_T;
+                    event_data.m_DataSpine.m_Integer = key->m_Integer;
+                    event_data.m_DataSpine.m_Float = key->m_Float;
+                    event_data.m_DataSpine.m_String = key->m_String;
+
+                    instance->m_EventCallback(instance->m_EventCBUserData, event_data);
+                }
+            }
+        }
+    }
+
+    static void PostEvents(HRigInstance instance, RigPlayer* player, const dmRigDDF::RigAnimation* animation, float dt, float prev_cursor, float duration, bool completed, float blend_weight)
+    {
+        float cursor = player->m_Cursor;
+        // Since the intervals are defined as t0 <= t < t1, make sure we include the end of the animation, i.e. when t1 == duration
+        if (completed)
+            cursor += dt;
+        // If the start cursor is greater than the end cursor, we have looped and handle that as two distinct intervals: [0,end_cursor) and [start_cursor,duration)
+        // Note that for looping ping pong, one event can be triggered twice during the same frame by appearing in both intervals
+        if (prev_cursor > cursor)
+        {
+            bool prev_backwards = player->m_Backwards;
+            // Handle the flipping nature of ping pong
+            if (player->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
+            {
+                prev_backwards = !player->m_Backwards;
+            }
+            PostEventsInterval(instance, animation, prev_cursor, duration, duration, prev_backwards, blend_weight);
+            PostEventsInterval(instance, animation, 0.0f, cursor, duration, player->m_Backwards, blend_weight);
+        }
+        else
+        {
+            // Special handling when we reach the way back of once ping pong playback
+            float half_duration = duration * 0.5f;
+            if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
+            {
+                // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
+                if (prev_cursor < half_duration)
+                {
+                    PostEventsInterval(instance, animation, prev_cursor, half_duration, duration, false, blend_weight);
+                    PostEventsInterval(instance, animation, half_duration, cursor, duration, true, blend_weight);
+                }
+                else
+                {
+                    PostEventsInterval(instance, animation, prev_cursor, cursor, duration, true, blend_weight);
+                }
+            }
+            else
+            {
+                PostEventsInterval(instance, animation, prev_cursor, cursor, duration, player->m_Backwards, blend_weight);
+            }
+        }
+    }
+
+    static void UpdatePlayer(RigInstance* instance, RigPlayer* player, float dt, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0 || !player->m_Playing)
@@ -206,43 +280,24 @@ namespace dmRig
             break;
         }
 
-        // dmMessage::URL sender;
-        // if (prev_cursor != player->m_Cursor && GetSender(component, &sender))
-        // {
-        //     dmMessage::URL receiver = *listener;
-        //     receiver.m_Function = 0;
-        //     PostEvents(player, &sender, &receiver, animation, dt, prev_cursor, duration, completed, blend_weight);
-        // }
+        if (prev_cursor != player->m_Cursor && instance->m_EventCallback)
+        {
+            PostEvents(instance, player, animation, dt, prev_cursor, duration, completed, blend_weight);
+        }
 
         if (completed)
         {
             player->m_Playing = 0;
-        //     // Only report completeness for the primary player
-        //     if (player == GetPlayer(component) && dmMessage::IsSocketValid(listener->m_Socket))
-        //     {
-        //         dmMessage::URL sender;
-        //         if (GetSender(component, &sender))
-        //         {
-        //             dmhash_t message_id = dmRigDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
-        //             dmRigDDF::SpineAnimationDone message;
-        //             message.m_AnimationId = player->m_AnimationId;
-        //             message.m_Playback = player->m_Playback;
+            // Only report completeness for the primary player
+            if (player == GetPlayer(instance) && instance->m_EventCallback)
+            {
+                RigEventData event_data;
+                event_data.m_Type = RIG_EVENT_TYPE_DONE;
+                event_data.m_DataDone.m_AnimationId = player->m_AnimationId;
+                event_data.m_DataDone.m_Playback = player->m_Playback;
 
-        //             dmMessage::URL receiver = *listener;
-        //             uintptr_t descriptor = (uintptr_t)dmRigDDF::SpineAnimationDone::m_DDFDescriptor;
-        //             uint32_t data_size = sizeof(dmRigDDF::SpineAnimationDone);
-        //             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
-        //             dmMessage::ResetURL(*listener);
-        //             if (result != dmMessage::RESULT_OK)
-        //             {
-        //                 dmLogError("Could not send animation_done to listener.");
-        //             }
-        //         }
-        //         else
-        //         {
-        //             dmLogError("Could not send animation_done to listener because of incomplete component.");
-        //         }
-        //     }
+                instance->m_EventCallback(instance->m_EventCBUserData, event_data);
+            }
         }
     }
 
@@ -278,7 +333,72 @@ namespace dmRig
         return t;
     }
 
-    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose/*, dmArray<IKAnimation>& ik_animation*/, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t skin_id, bool draw_order)
+    static inline dmTransform::Transform GetPoseTransform(const dmArray<RigBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
+        if(bind_pose[index].m_ParentIndex == INVALID_BONE_INDEX)
+            return transform;
+        transform = dmTransform::Mul(pose[bind_pose[index].m_ParentIndex], transform);
+        return GetPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
+    }
+
+    static inline float ToEulerZ(const dmTransform::Transform& t)
+    {
+        Vectormath::Aos::Quat q(t.GetRotation());
+        return dmVMath::QuatToEuler(q.getZ(), q.getY(), q.getX(), q.getW()).getZ() * (M_PI/180.0f);
+    }
+
+    static void ApplyOneBoneIKConstraint(const dmRigDDF::IK* ik, const dmArray<RigBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
+    {
+        if (mix == 0.0f)
+            return;
+        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
+        dmTransform::Transform& parent_t = pose[ik->m_Parent];
+        float parentRotation = ToEulerZ(parent_bt);
+        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
+        float rotationIK = atan2(target_wp.getY() - parent_wp.getY(), target_wp.getX() - parent_wp.getX());
+        parentRotation = parentRotation + (rotationIK - parentRotation) * mix;
+        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
+    }
+
+    // Based on http://www.ryanjuckett.com/programming/analytic-two-bone-ik-in-2d/
+    static void ApplyTwoBoneIKConstraint(const dmRigDDF::IK* ik, const dmArray<RigBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const bool bend_positive, const float mix)
+    {
+        if (mix == 0.0f)
+            return;
+        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
+        const dmTransform::Transform& child_bt = bind_pose[ik->m_Child].m_LocalToParent;
+        dmTransform::Transform& parent_t = pose[ik->m_Parent];
+        dmTransform::Transform& child_t = pose[ik->m_Child];
+        float childRotation = ToEulerZ(child_bt), parentRotation = ToEulerZ(parent_bt);
+
+        // recalc target position to local (relative parent)
+        const Vector3 target(target_wp.getX() - parent_wp.getX(), target_wp.getY() - parent_wp.getY(), 0.0f);
+        const Vector3 child_p = child_bt.GetTranslation();
+        const float childX = child_p.getX(), childY = child_p.getY();
+        const float offset = atan2(childY, childX);
+        const float len1 = (float)sqrt(childX * childX + childY * childY);
+        const float len2 = bind_pose[ik->m_Child].m_Length;
+
+        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
+        const float cosDenom = 2.0f * len1 * len2;
+        if (cosDenom < 0.0001f) {
+            childRotation = childRotation + ((float)atan2(target.getY(), target.getX()) - parentRotation - childRotation) * mix;
+            child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
+            return;
+        }
+        float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
+        cosValue = dmMath::Max(-1.0f, dmMath::Min(1.0f, cosValue));
+        const float childAngle = (float)acos(cosValue) * (bend_positive ? 1.0f : -1.0f);
+        const float adjacent = len1 + len2 * cosValue;
+        const float opposite = len2 * sin(childAngle);
+        const float parentAngle = (float)atan2(target.getY() * adjacent - target.getX() * opposite, target.getX() * adjacent + target.getY() * opposite);
+        parentRotation = ((parentAngle - offset) - parentRotation) * mix;
+        childRotation = ((childAngle + offset) - childRotation) * mix;
+        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
+        child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
+    }
+
+
+    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t skin_id, bool draw_order)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0)
@@ -311,24 +431,24 @@ namespace dmRig
             }
         }
 
-        // track_count = animation->m_IkTracks.m_Count;
-        // for (uint32_t ti = 0; ti < track_count; ++ti)
-        // {
-        //     dmRigDDF::IKAnimationTrack* track = &animation->m_IkTracks[ti];
-        //     uint32_t ik_index = track->m_IkIndex;
-        //     IKAnimation& anim = ik_animation[ik_index];
-        //     if (track->m_Mix.m_Count > 0)
-        //     {
-        //         anim.m_Mix = dmMath::LinearBezier(blend_weight, anim.m_Mix, dmMath::LinearBezier(fraction, track->m_Mix.m_Data[sample], track->m_Mix.m_Data[sample+1]));
-        //     }
-        //     if (track->m_Positive.m_Count > 0)
-        //     {
-        //         if (blend_weight >= 0.5f)
-        //         {
-        //             anim.m_Positive = track->m_Positive[sample];
-        //         }
-        //     }
-        // }
+        track_count = animation->m_IkTracks.m_Count;
+        for (uint32_t ti = 0; ti < track_count; ++ti)
+        {
+            const dmRigDDF::IKAnimationTrack* track = &animation->m_IkTracks[ti];
+            uint32_t ik_index = track->m_IkIndex;
+            IKAnimation& anim = ik_animation[ik_index];
+            if (track->m_Mix.m_Count > 0)
+            {
+                anim.m_Mix = dmMath::LinearBezier(blend_weight, anim.m_Mix, dmMath::LinearBezier(fraction, track->m_Mix.m_Data[sample], track->m_Mix.m_Data[sample+1]));
+            }
+            if (track->m_Positive.m_Count > 0)
+            {
+                if (blend_weight >= 0.5f)
+                {
+                    anim.m_Positive = track->m_Positive[sample];
+                }
+            }
+        }
 
         track_count = animation->m_MeshTracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti) {
@@ -364,7 +484,7 @@ namespace dmRig
         for (uint32_t i = 0; i < n; ++i)
         {
             RigInstance* instance = instances[i];
-            // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdatehere) also
+            // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
             if (instance->m_Pose.Empty())
                 continue;
 
@@ -379,14 +499,14 @@ namespace dmRig
             }
             dmArray<MeshProperties>& properties = instance->m_MeshProperties;
             // Reset IK animation
-            // dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
-            // uint32_t ik_animation_count = ik_animation.Size();
-            // for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
-            // {
-            //     dmRigDDF::IK* ik = &skeleton->m_Iks[ii];
-            //     ik_animation[ii].m_Mix = ik->m_Mix;
-            //     ik_animation[ii].m_Positive = ik->m_Positive;
-            // }
+            dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
+            uint32_t ik_animation_count = ik_animation.Size();
+            for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
+            {
+                const dmRigDDF::IK* ik = &skeleton->m_Iks[ii];
+                ik_animation[ii].m_Mix = ik->m_Mix;
+                ik_animation[ii].m_Positive = ik->m_Positive;
+            }
 
             UpdateBlend(instance, dt);
 
@@ -404,14 +524,14 @@ namespace dmRig
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
                     }
-                    UpdatePlayer(instance, p, dt/*, &instance->m_Listener*/, blend_weight);
+                    UpdatePlayer(instance, p, dt, blend_weight);
                     bool draw_order = true;
                     if (player == p) {
                         draw_order = fade_rate >= 0.5f;
                     } else {
                         draw_order = fade_rate < 0.5f;
                     }
-                    ApplyAnimation(p, pose/*, ik_animation*/, properties, alpha, instance->m_Skin, draw_order);
+                    ApplyAnimation(p, pose, ik_animation, properties, alpha, instance->m_Skin, draw_order);
                     if (player == p)
                     {
                         alpha = 1.0f - fade_rate;
@@ -424,8 +544,8 @@ namespace dmRig
             }
             else
             {
-                UpdatePlayer(instance, player, dt/*, &instance->m_Listener*/, 1.0f);
-                ApplyAnimation(player, pose/*, ik_animation*/, properties, 1.0f, instance->m_Skin, true);
+                UpdatePlayer(instance, player, dt, 1.0f);
+                ApplyAnimation(player, pose, ik_animation, properties, 1.0f, instance->m_Skin, true);
             }
 
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -445,74 +565,60 @@ namespace dmRig
                 t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
             }
 
-            // if (skeleton->m_Iks.m_Count > 0) {
-            //     DM_PROFILE(Rig, "IK");
-            //     const uint32_t count = skeleton->m_Iks.m_Count;
-            //     dmArray<IKTarget>& ik_targets = instance->m_IKTargets;
+            if (skeleton->m_Iks.m_Count > 0) {
+                DM_PROFILE(Rig, "IK");
+                const uint32_t count = skeleton->m_Iks.m_Count;
+                dmArray<IKTarget>& ik_targets = instance->m_IKTargets;
 
 
-            //     for (int32_t i = 0; i < count; ++i) {
-            //         dmRigDDF::IK* ik = &skeleton->m_Iks[i];
+                for (int32_t i = 0; i < count; ++i) {
+                    const dmRigDDF::IK* ik = &skeleton->m_Iks[i];
 
-            //         // transform local space hiearchy for pose
-            //         dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
-            //         dmTransform::Transform parent_t_local = parent_t;
-            //         dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
-            //         const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
-            //         dmTransform::Transform parent_parent_t;
-            //         if(parent_parent_index != INVALID_BONE_INDEX)
-            //         {
-            //             parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
-            //             parent_t = dmTransform::Mul(parent_parent_t, parent_t);
-            //             target_t = dmTransform::Mul(parent_parent_t, target_t);
-            //         }
-            //         Vector3 parent_position = parent_t.GetTranslation();
-            //         Vector3 target_position = target_t.GetTranslation();
+                    // transform local space hiearchy for pose
+                    dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
+                    dmTransform::Transform parent_t_local = parent_t;
+                    dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
+                    const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
+                    dmTransform::Transform parent_parent_t;
+                    if(parent_parent_index != INVALID_BONE_INDEX)
+                    {
+                        parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
+                        parent_t = dmTransform::Mul(parent_parent_t, parent_t);
+                        target_t = dmTransform::Mul(parent_parent_t, target_t);
+                    }
+                    Vector3 parent_position = parent_t.GetTranslation();
+                    Vector3 target_position = target_t.GetTranslation();
 
-            //         const float target_mix = ik_targets[i].m_Mix;
-            //         if(target_mix != 0.0f)
-            //         {
-            //             // get custom target position either from go or vector position
-            //             Vector3 user_target_position = target_position;
-            //             const dmhash_t target_instance_id = ik_targets[i].m_InstanceId;
-            //             if(target_instance_id == 0)
-            //             {
-            //                 user_target_position = ik_targets[i].m_Position;
-            //             }
-            //             else
-            //             {
-            //                 dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance->m_Instance), target_instance_id);
-            //                 if(target_instance == 0x0)
-            //                 {
-            //                     // instance have been removed, disable animation
-            //                     ik_targets[i].m_InstanceId = 0;
-            //                     ik_targets[i].m_Mix = 0.0f;
-            //                 }
-            //                 else
-            //                 {
-            //                     user_target_position = (Vector3)dmGameObject::GetWorldPosition(target_instance);
-            //                 }
-            //             }
+                    const float target_mix = ik_targets[i].m_Mix;
+                    if(target_mix != 0.0f)
+                    {
+                        // get custom target position either from go or vector position
+                        Vector3 user_target_position = target_position;
+                        if(ik_targets[i].m_Callback != 0)
+                        {
+                            user_target_position = ik_targets[i].m_Callback(ik_targets[i].m_UserData1, ik_targets[i].m_UserData2);
+                        }
 
-            //             // transform local pose of parent bone into worldspace, since we can only rely on worldspace coordinates for target
-            //             dmTransform::Transform t = parent_t_local;
-            //             t = dmTransform::Mul((dmTransform::Mul(dmGameObject::GetWorldTransform(instance->m_Instance), instance->m_Transform)), t);
-            //             user_target_position -=  t.GetTranslation();
-            //             Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(instance->m_Instance) * instance->m_Transform.GetRotation());
-            //             user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(instance->m_Instance));
-            //             if(parent_parent_index != INVALID_BONE_INDEX)
-            //                 user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
+                        // transform local pose of parent bone into worldspace, since we can only rely on worldspace coordinates for target
+                        // dmTransform::Transform t = parent_t_local;
+                        // t = dmTransform::Mul((dmTransform::Mul(dmGameObject::GetWorldTransform(instance->m_Instance), instance->m_Transform)), t);
+                        // user_target_position -=  t.GetTranslation();
+                        // Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(instance->m_Instance) * instance->m_Transform.GetRotation());
+                        // user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(instance->m_Instance));
+                        // user_target_position = dmTransform::Apply();
+                        if(parent_parent_index != INVALID_BONE_INDEX)
+                            user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
 
-            //             // blend default target pose and target pose
-            //             target_position = target_mix == 1.0f ? user_target_position : dmTransform::lerp(target_mix, target_position, user_target_position);
-            //         }
+                        // blend default target pose and target pose
+                        target_position = target_mix == 1.0f ? user_target_position : dmTransform::lerp(target_mix, target_position, user_target_position);
+                    }
 
-            //         if(ik->m_Child == ik->m_Parent)
-            //             ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Mix);
-            //         else
-            //             ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
-            //     }
-            // }
+                    if(ik->m_Child == ik->m_Parent)
+                        ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Mix);
+                    else
+                        ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
+                }
+            }
 
             // Include instance transform in the GO instance reflecting the root bone
             // dmTransform::Transform root_t = pose[0];
@@ -657,12 +763,12 @@ namespace dmRig
     //         dmGameObject::SetParent(inst, parent);
     //     }
 
-    //     component->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
-    //     component->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
-    //     memset(component->m_IKTargets.Begin(), 0x0, component->m_IKTargets.Size()*sizeof(IKTarget));
+        instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
+        instance->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
+        memset(instance->m_IKTargets.Begin(), 0x0, instance->m_IKTargets.Size()*sizeof(IKTarget));
 
-    //     component->m_IKAnimation.SetCapacity(skeleton->m_Iks.m_Count);
-    //     component->m_IKAnimation.SetSize(skeleton->m_Iks.m_Count);
+        instance->m_IKAnimation.SetCapacity(skeleton->m_Iks.m_Count);
+        instance->m_IKAnimation.SetSize(skeleton->m_Iks.m_Count);
 
         return dmRig::CREATE_RESULT_OK;
     }
@@ -785,12 +891,44 @@ namespace dmRig
 #undef TO_BYTE
 #undef TO_SHORT
 
+    static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
+    {
+        const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+        uint32_t ik_count = skeleton->m_Iks.m_Count;
+        uint32_t ik_index = ~0u;
+        for (uint32_t i = 0; i < ik_count; ++i)
+        {
+            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
+            {
+                ik_index = i;
+                break;
+            }
+        }
+        return ik_index;
+    }
+
+    IKUpdate SetIKTarget(const RigIKTargetParams& params)
+    {
+        uint32_t ik_index = FindIKIndex(params.m_RigInstance, params.m_ConstraintId);
+        if (ik_index == ~0u) {
+            dmLogError("Could not find IK constraint (%llu)", params.m_ConstraintId);
+            return IKUPDATE_RESULT_NOT_FOUND;
+        }
+        dmRig::IKTarget& ik_target = params.m_RigInstance->m_IKTargets[ik_index];
+        ik_target.m_Mix = params.m_Mix;
+        ik_target.m_Callback = params.m_Callback;
+        ik_target.m_UserData1 = params.m_UserData1;
+        ik_target.m_UserData2 = params.m_UserData2;
+
+        return IKUPDATE_RESULT_OK;
+    }
+
     static void DestroyInstance(HRigContext context, uint32_t index)
     {
         RigInstance* instance = context->m_Instances.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
-        // instance->m_IKTargets.SetCapacity(0);
+        instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
         delete instance;
         context->m_Instances.Free(index, true);
@@ -813,8 +951,10 @@ namespace dmRig
         instance->m_Index = index;
         memset(instance, 0, sizeof(RigInstance));
         context->m_Instances.Set(index, instance);
-        // dmMessage::ResetURL(component->m_Listener);
         instance->m_Skin = dmHashString64(params.m_SkinId);
+
+        instance->m_EventCallback = params.m_EventCallback;
+        instance->m_EventCBUserData = params.m_EventCBUserData;
 
         instance->m_BindPose = params.m_BindPose;
         instance->m_Skeleton = params.m_Skeleton;

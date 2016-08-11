@@ -74,6 +74,52 @@ namespace dmRig
         bool m_Visible;
     };
 
+    struct IKAnimation {
+        float m_Mix;
+        bool m_Positive;
+    };
+
+    typedef Vector3 (*RigIKTargetCallback)(void*,void*);
+
+    struct IKTarget {
+        float               m_Mix;
+        RigIKTargetCallback m_Callback;
+        void*               m_UserData1;
+        void*               m_UserData2;
+        // Vector3             m_Position;
+    };
+
+    enum RigEventType
+    {
+        RIG_EVENT_TYPE_UNKNOWN = 0,
+        RIG_EVENT_TYPE_DONE    = 1,
+        RIG_EVENT_TYPE_SPINE   = 2
+    };
+
+    struct RigEventData
+    {
+        RigEventType m_Type;
+        union {
+            struct
+            {
+                uint64_t  m_AnimationId;
+                uint32_t  m_Playback;
+            } m_DataDone;
+            struct
+            {
+                uint64_t  m_EventId;
+                uint64_t  m_AnimationId;
+                float     m_T;
+                float     m_BlendWeight;
+                int32_t   m_Integer;
+                float     m_Float;
+                uint64_t  m_String;
+            } m_DataSpine;
+        };
+    };
+
+    typedef void (*RigEventCallback)(void*, const RigEventData&);
+
     // Notes on SpineModelComponent -> RigInstance changes;
     //  * m_NodeInstances has been removed, should be added to the corresponding
     //     user struct since it can be either GOs or a GUI nodes.
@@ -82,29 +128,24 @@ namespace dmRig
     //  either with color data or normals, see RigVertexData.
     struct RigInstance
     {
-        RigPlayer                   m_Players[2];
-        // dmMessage::URL              m_Listener;
-
-        // HRigContext                   m_Context;
+        RigPlayer                     m_Players[2];
         uint32_t                      m_Index;
-
-        // DM_ALIGNED(16) const dmArray<RigBone>* m_BindPose;
+        /// Rig input data
         const dmArray<RigBone>*       m_BindPose;
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
-
+        /// Event handling
+        RigEventCallback              m_EventCallback;
+        void*                         m_EventCBUserData;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
-
         /// Animated IK
-        // dmArray<IKAnimation>        m_IKAnimation;
-        /// Node instances corresponding to the bones
-        // dmArray<dmGameObject::HInstance> m_NodeInstances;
+        dmArray<IKAnimation>        m_IKAnimation;
+        // User IK constraint targets
+        dmArray<IKTarget>           m_IKTargets;
         /// Animated mesh properties
         dmArray<MeshProperties>     m_MeshProperties;
-        // User IK constraint targets
-        // dmArray<IKTarget>           m_IKTargets;
         /// Currently used mesh
         const dmRigDDF::MeshEntry*  m_MeshEntry;
         dmhash_t                    m_Skin;
@@ -114,7 +155,6 @@ namespace dmRig
         uint8_t                     m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
         uint8_t                     m_Blending : 1;
-
         /// Mesh type indicate how vertex data will be filled
         RigMeshType                 m_MeshType;
     };
@@ -154,7 +194,6 @@ namespace dmRig
     {
         Matrix4 m_ModelMatrix;
         void**  m_VertexData;
-        int     m_VertexDataSize;
         int     m_VertexStride;
     };
 
@@ -162,17 +201,21 @@ namespace dmRig
     // they hold information that was previously set directly in script_spine_model.cpp
     struct RigIKTargetParams
     {
-        HRigInstance            m_RigInstance;
-        dmhash_t                m_ConstraintId;
-        dmGameObject::HInstance m_GOInstance;
+        HRigInstance        m_RigInstance;
+        dmhash_t            m_ConstraintId;
+        float               m_Mix;
+        RigIKTargetCallback m_Callback;
+        void*               m_UserData1;
+        void*               m_UserData2;
     };
 
-    struct RigIKTargetPositionParams
-    {
-        HRigInstance             m_RigInstance;
-        dmhash_t                 m_ConstraintId;
-        Vectormath::Aos::Vector3 m_Position;
-    };
+    // struct RigIKTargetPositionParams
+    // {
+    //     HRigInstance             m_RigInstance;
+    //     dmhash_t                 m_ConstraintId;
+    //     float                    m_Mix;
+    //     Vectormath::Aos::Vector3 m_Position;
+    // };
 
     enum CreateResult
     {
@@ -196,8 +239,9 @@ namespace dmRig
 
     enum IKUpdate
     {
-        IKUPDATE_RESULT_OK    = 0,
-        IKUPDATE_RESULT_ERROR = 1
+        IKUPDATE_RESULT_OK        = 0,
+        IKUPDATE_RESULT_NOT_FOUND = 1,
+        IKUPDATE_RESULT_ERROR     = 2
     };
 
     struct NewContextParams {
@@ -207,17 +251,20 @@ namespace dmRig
 
     struct InstanceCreateParams
     {
-        HRigContext             m_Context;
-        HRigInstance*           m_Instance;
-        RigMeshType             m_MeshType;
+        HRigContext                   m_Context;
+        HRigInstance*                 m_Instance;
+        RigMeshType                   m_MeshType;
 
-        const char*             m_SkinId;
-        const char*             m_DefaultAnimation;
+        const char*                   m_SkinId;
+        const char*                   m_DefaultAnimation;
 
         const dmArray<RigBone>*       m_BindPose;
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
+
+        RigEventCallback              m_EventCallback;
+        void*                         m_EventCBUserData;
     };
 
     struct InstanceDestroyParams
@@ -233,34 +280,20 @@ namespace dmRig
     // External API:
     //////////////////////////////////////////////////////////////////
 
-    /* CompSpineModelNewWorld */
     CreateResult NewContext(const NewContextParams& params);
-
-    /* CompSpineModelDeleteWorld */
     CreateResult DeleteContext(HRigContext context);
-
-    /* CompSpineModelUpdate */
     UpdateResult Update(HRigContext context, float dt);
 
-    /* CompSpineModelCreate */
     CreateResult InstanceCreate(const InstanceCreateParams& params);
-
-    /* CompSpineModelDestroy */
     CreateResult InstanceDestroy(const InstanceDestroyParams& params);
 
-    /* CompSpineModelOnMessage */
     PlayResult PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration);
+    PlayResult CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-    /* CompSpineModelOnMessage */
-    PlayResult CancelAnimation(HRigInstance instance);
-
-    /* CompSpineModelRender */
     uint32_t GetVertexCount(HRigInstance instance);
     RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params);
 
-    // The following functions correspond to properties that previously
-    // would be returned/set in CompSpineModelGetProperty and CompSpineModelSetProperty;
     UpdateResult SetSkin(HRigInstance instance, dmhash_t skin);
     dmhash_t GetSkin(HRigInstance instance);
 
@@ -271,7 +304,6 @@ namespace dmRig
 
     // New IK related setters
     IKUpdate SetIKTarget(const RigIKTargetParams& params);
-    IKUpdate SetIKTargetPosition(const RigIKTargetPositionParams& params);
 
 }
 
