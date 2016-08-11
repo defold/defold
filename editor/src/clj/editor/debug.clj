@@ -6,32 +6,50 @@
 
 ;; Try/catching the requires here because the dependencies might be missing
 
+(defn- try-resolve
+  [sym]
+  (try
+    (require (symbol (namespace sym)))
+    (resolve sym)
+    (catch Exception _ false)))
+
 (defn- start-and-print
   [config]
-  (try
-    (require 'clojure.tools.nrepl.server)
-    (let [start-server (resolve 'clojure.tools.nrepl.server/start-server)
-          srv          (if config
-                         (apply start-server (mapcat identity config))
-                         (start-server))]
-      (println (format "Started REPL at nrepl://127.0.0.1:%s\n" (:port srv)))
-      srv)
-    (catch Exception _
-      (println "Failed to start NREPL server"))))
+  (if-let [start-server (try-resolve 'clojure.tools.nrepl.server/start-server)]
+    (try
+      (let [srv (if config
+                  (apply start-server (mapcat identity config))
+                  (start-server))]
+        (println (format "Started REPL at nrepl://127.0.0.1:%s\n" (:port srv)))
+        srv)
+      (catch Exception e
+        (println "Failed to start NREPL server")
+        (prn e)))
+    (println "NREPL library not found, not starting")))
+
+
+(defn- maybe-load-refactor-nrepl
+  [repl-config]
+  (if-let [wrap-refactor (try-resolve 'refactor-nrepl.middleware/wrap-refactor)]
+    (do (println "Adding refactor-nrepl middleware")
+        (update-in repl-config :handler wrap-refactor))
+    repl-config))
+
+(defn- maybe-load-cider
+  [repl-config]
+  (if-let [cider-handler (try-resolve 'cider.nrepl/cider-nrepl-handler)]
+    (do (println "Using CIDER nrepl handler")
+        (assoc repl-config :handler cider-handler))
+    repl-config))
 
 (defn start-server
   [port]
-  (try
-    (require 'cider.nrepl)
-    (require 'refactor-nrepl.middleware)
-    (let [wrap-refactor (resolve 'refactor-nrepl.middleware/wrap-refactor)
-          cider-handler (resolve 'cider.nrepl/cider-nrepl-handler)
-          repl-config   (cond-> {:handler (wrap-refactor cider-handler)}
-                          port (merge {:port port}))]
-      (send repl-server (constantly repl-config)))
-    (catch Exception _
-      (println "Failed to load NREPL middlewares")))
-  (send repl-server start-and-print))
+  (let [repl-config (cond-> {}
+                      true (maybe-load-cider)
+                      true (maybe-load-refactor-nrepl)
+                      port (assoc :port port))]
+    (send repl-server (constantly repl-config))
+    (send repl-server start-and-print)))
 
 (defn stop-server
   []
