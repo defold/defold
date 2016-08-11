@@ -17,6 +17,7 @@
 #include "script_http.h"
 #include "script_zlib.h"
 #include "script_luasocket.h"
+#include "script_bitop.h"
 
 extern "C"
 {
@@ -127,6 +128,7 @@ namespace dmScript
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
         InitializeLuasocket(L);
+        InitializeBitop(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);

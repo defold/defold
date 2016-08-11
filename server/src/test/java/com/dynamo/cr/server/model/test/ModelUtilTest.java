@@ -2,7 +2,6 @@ package com.dynamo.cr.server.model.test;
 
 import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
-import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import org.junit.Assert;
 import org.junit.Before;
@@ -11,6 +10,7 @@ import org.junit.Test;
 
 import javax.persistence.EntityManager;
 import javax.persistence.NoResultException;
+import javax.persistence.RollbackException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -21,7 +21,6 @@ public class ModelUtilTest {
     public EntityManagerRule entityManagerRule = new EntityManagerRule();
 
     private EntityManager entityManager;
-    private UserService userService;
 
     private static final String JOE_EMAIL = "joe.coder@gmail.com";
     private static final String BOB_EMAIL = "bob.coder@gmail.com";
@@ -35,7 +34,6 @@ public class ModelUtilTest {
     @Before
     public void setUp() throws Exception {
         entityManager = entityManagerRule.getEntityManager();
-        userService = new UserService(entityManager);
         createData();
     }
 
@@ -168,7 +166,7 @@ public class ModelUtilTest {
     public void testRemoveUser() throws Exception {
         Long joeUserId = joeUser.getId();
         entityManager.getTransaction().begin();
-        userService.remove(joeUser);
+        ModelUtil.removeUser(entityManager, joeUser);
         entityManager.getTransaction().commit();
 
         for(User member : bobProject.getMembers()) {
@@ -184,5 +182,12 @@ public class ModelUtilTest {
 
         User joeUser = entityManager.find(User.class, joeUserId);
         assertNull(joeUser);
+    }
+
+    @Test(expected=RollbackException.class)
+    public void testRemoveUserWithProject() throws Exception {
+        entityManager.getTransaction().begin();
+        ModelUtil.removeUser(entityManager, bobUser);
+        entityManager.getTransaction().commit();
     }
 }
