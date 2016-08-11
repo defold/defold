@@ -476,6 +476,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                 getFlow().show(lineIndex);
             }
 	}
+	
+	public void requestCellLayout(){
+		if (getFlow() != null){
+		getFlow().requestCellLayout();
+		}
+	}
 
 	/**
 	 * A line cell
@@ -520,6 +526,9 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 		@Override
 		protected void updateItem(Line arg0, boolean arg1) {
+			System.err.println("update item");
+			super.updateItem(arg0, arg1);
+
 			if (arg0 != null && !arg1) {
 				this.domainElement = arg0;
 				LineInfo lineInfo = DefoldStyledTextSkin.this.lineInfoMap.get(this);
@@ -536,10 +545,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				lineInfo.setLayoutY(getLayoutY());
 
 				DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) getGraphic();
+		
 
 				if (block == null) {
 					// System.err.println("CREATING NEW GRAPHIC BLOCK: " + this
-					// + " => " + this.domainElement);
+					//+ " => " + this.domainElement);
 					block = new DefoldStyledTextLayoutContainer(getSkinnable().focusedProperty());
 					block.getStyleClass().add("source-segment-container"); //$NON-NLS-1$
 					setGraphic(block);
@@ -610,10 +620,14 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				} else {
 					block.setCaretIndex(-1);
 				}
+				block.applyCss();
+				block.layoutChildren();
+				//getFlow().requestCellLayout();
+				
 			} else {
 				// FIND OUT WHY WE CLEAR SO OFTEN
-				// System.err.println("CLEARING GRAPHICS: " + this + " => " +
-				// this.domainElement);
+				 System.err.println("CLEARING GRAPHICS: " + this + " => " +
+				 this.domainElement);
 
 				setGraphic(null);
 				this.domainElement = null;
@@ -624,7 +638,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				}
 			}
 
-			super.updateItem(arg0, arg1);
 		}
 	}
 
