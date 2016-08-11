@@ -318,25 +318,34 @@
                                                 x-threshold 10]
                                             (cond
 
+                                              ;;; we are drag selecting up
                                               (and (neg? event-y) line-index)
                                               (let [line-num (cvx/prev-line-num source-viewer)]
                                                 (when (not (neg? line-num))
                                                   (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))
 
+                                              ;; we are off to the left of the doc (in the gutter)
                                               (and line-offset line-label)
-                                              (cvx/caret! text-area (+ line-offset) selection)
+                                              (cvx/caret! text-area line-offset selection)
 
+                                              ;; we are off to the left of the doc (but not in the gutter)
                                               (and line-offset (< event-x x-threshold))
-                                              (cvx/caret! text-area (+ line-offset) selection)
+                                              (cvx/caret! text-area line-offset selection)
 
+                                              ;; we are off to the right of the doc
                                               line-offset
                                               (cvx/caret! text-area (+ line-offset line-length) selection)
 
+                                              ;;; we are clicking below the end of the document (entire doc is in viewport)
+                                              ;; and we want to jump to the end
+                                              fcell
+                                              (cvx/caret! text-area doc-len selection)
+
+                                              ;; we are drag selecting down
                                               true
                                               (let [line-num (cvx/next-line-num source-viewer)]
                                                 (when line-num
-                                                  (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))
-))))
+                                                  (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))))))
                                       (cvx/show-line source-viewer)
                                       (catch Exception e
                                         (println "error updating cursor" (.printStackTrace e))))))]
