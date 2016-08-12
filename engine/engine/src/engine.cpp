@@ -1247,6 +1247,13 @@ bail:
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
             }
+            else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            {
+                if(dLib::IsDebugMode())
+                {
+                    self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
+                }
+            }
             else if (descriptor == dmEngineDDF::StartRecord::m_DDFDescriptor)
             {
                 dmEngineDDF::StartRecord* start_record = (dmEngineDDF::StartRecord*) message->m_Data;
