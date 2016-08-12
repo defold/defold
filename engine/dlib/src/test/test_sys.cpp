@@ -8,30 +8,36 @@
 #include "../dlib/path.h"
 #include "../dlib/log.h"
 
+#if defined(__ANDROID__)
+    #define TMPPATH "/data/local/tmp"
+#else
+    #define TMPPATH "tmp"
+#endif
+
 TEST(dmSys, Mkdir)
 {
     dmSys::Result r;
-    r = dmSys::Mkdir("tmp/dir", 0777);
+    r = dmSys::Mkdir(TMPPATH "/dir", 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
-    r = dmSys::Mkdir("tmp/dir", 0777);
+    r = dmSys::Mkdir(TMPPATH "/dir", 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
 
-    r = dmSys::Rmdir("tmp/dir");
+    r = dmSys::Rmdir(TMPPATH "/dir");
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 
 TEST(dmSys, Unlink)
 {
     dmSys::Result r;
-    r = dmSys::Unlink("tmp/afile");
+    r = dmSys::Unlink(TMPPATH "/afile");
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    FILE* f = fopen("tmp/afile", "wb");
+    FILE* f = fopen(TMPPATH "/afile", "wb");
     ASSERT_NE((FILE*) 0, f);
     fclose(f);
 
-    r = dmSys::Unlink("tmp/afile");
+    r = dmSys::Unlink(TMPPATH "/afile");
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 

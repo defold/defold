@@ -19,6 +19,8 @@ TEST(dmLog, Init)
     dmLogFinalize();
 }
 
+#if !defined(__ANDROID__)
+
 static void LogThread(void* arg)
 {
     dmLogWarning("a warning %d", 123);
@@ -73,6 +75,8 @@ TEST(dmLog, Client)
     dmThread::Join(log_thread);
     dmLogFinalize();
 }
+
+#endif // __ANDROID__
 
 TEST(dmLog, LogFile)
 {

@@ -107,6 +107,8 @@ def default_flags(self):
         stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_arch="%s/include" % stl_lib
 
+        pie = self.target.startswith("test_") and ('cprogram' in self.features or 'cxxprogram' in self.features)
+
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # NOTE:
             # -mthumb and -funwind-tables removed from default flags
@@ -124,6 +126,10 @@ def default_flags(self):
                                       '--sysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'])
 
+            if pie:
+                self.env.append_value(f, ['-fPIE', '-pie'])
+
+
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
         # -lgnustl_static -lsupc++
@@ -131,6 +137,11 @@ def default_flags(self):
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
                 '-L%s' % stl_lib])
+
+        if pie:
+            self.env.append_value('LINKFLAGS', ['-fPIE', '-pie'])
+
+
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
@@ -923,6 +934,26 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
+def copy_to_android(exe, target, chmod = None):
+    basename = os.path.basename(exe)
+    cmd = '%s push %s %s' % (Build.bld.env['ADB'], exe, target)
+    proc = subprocess.Popen(cmd, shell = True)
+    ret = proc.wait()
+    if ret != 0:
+        print("Failed to copy %s to %s" % (exe , target))
+        sys.exit(ret)
+
+    if chmod is not None:
+        cmd = '%s shell chmod %s %s' % (Build.bld.env['ADB'], chmod, target)
+        proc = subprocess.Popen(cmd, shell = True)
+        ret = proc.wait()
+        if ret != 0:
+            print("Failed to chmod %s to %s" % (target, chmod) )
+            sys.exit(ret)
+
+    print("Copied %s to %s" % (exe, target))
+
+
 def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
@@ -938,12 +969,26 @@ def run_gtests(valgrind = False, configfile = None):
         Logs.info('Not running tests. node.js not found')
         return
 
+    if 'android' in Options.options.platform and configfile:
+        configfiletarget = "/data/local/tmp/" + os.path.basename(configfile)
+        copy_to_android(configfile, configfiletarget)
+
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
-            cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
+            exe = os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target)
+            cmd = "%s %s" % (exe, configfile)
             if Build.bld.env.PLATFORM == 'js-web':
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
+            #elif Build.bld.env.PLATFORM == 'android' and Build.bld.env['ADB']:
+            elif 'android' in Options.options.platform:
+                if t.target.startswith("test_http") or t.target.startswith("test_web") or t.target.startswith("test_ssdp"):
+                    print("Cannot test HTTP/WEB yet (%s)" % t.target)
+                    continue
+
+                target = "/data/local/tmp/" + os.path.basename(exe)
+                copy_to_android(exe, target, '777')
+                cmd = '%s shell %s %s' % (Build.bld.env['ADB'], target, configfiletarget)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
@@ -1103,6 +1148,8 @@ def detect(conf):
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+
+        conf.find_program('adb', var='ADB', mandatory = False)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
