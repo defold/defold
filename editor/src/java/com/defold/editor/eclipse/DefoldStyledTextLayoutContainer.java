@@ -216,8 +216,9 @@ public class DefoldStyledTextLayoutContainer extends Region {
 				}
 			}
 
-			this.selectionEndNode.applyCss();
 			if (this.selectionStartNode != null && this.selectionEndNode != null) {
+				this.selectionEndNode.applyCss();
+				this.selectionStartNode.applyCss();
 				int charIndex = start - this.selectionStartNode.getStartOffset();
 				this.selectionStartX = this.selectionStartNode.getCharLocation(charIndex);
 				charIndex = end - this.selectionEndNode.getStartOffset();
