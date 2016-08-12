@@ -532,7 +532,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		@Override
 		protected void updateItem(Line arg0, boolean arg1) {
 			super.updateItem(arg0, arg1);
-			System.err.println("update");
 
 			if (arg0 != null && !arg1) {
 				this.domainElement = arg0;
@@ -625,7 +624,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				} else {
 					block.setCaretIndex(-1);
 				}
-				System.err.println("refreshing!");
 				immediateRefresh();
 				
 			} else {
@@ -1030,18 +1028,13 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		
 		
 		@Override
-		protected void startSBReleasedAnimation() {
-			super.startSBReleasedAnimation();
-			System.err.println("animation");
-		}
-		
-		@Override
 		public double adjustPixels(final double delta) {
 			double val = super.adjustPixels(delta);
-			System.err.println("adjustpixels");
+			//this is when the scrolling happens
 			immediateRefresh();
 			return val;
 		}
+		
 		
 
 		@Override
