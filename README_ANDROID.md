@@ -7,8 +7,8 @@
 **Note that the SDK version numbers aren't the same as the Api Level numbers!**
 
 * Download SDK Tools 24.3.4 (or later) from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html)
-* Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in **~/android/android-ndk-r10b** and **~/android/android-sdk** respectively
+* Download NDK 10e: [http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip](http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip)
+* Put NDK/SDK in **~/android/android-ndk-r10e** and **~/android/android-sdk** respectively
 
 Installer+GUI installation of those tools are a bit tricky, so it's recommended doing it via command line
 Here are some commands to help out with the process:
@@ -18,8 +18,8 @@ Here are some commands to help out with the process:
 
     # Supported: darwin,linux,windows
     PLATFORM=darwin
-    wget http://dl.google.com/android/ndk/android-ndk32-r10b-$PLATFORM-x86.tar.bz2
-    tar xvf android-ndk32-r10b-$PLATFORM-x86.tar.bz2
+    wget http://dl.google.com/android/repository/android-ndk-r10e-$PLATFORM-x86_64.zip
+    unzip android-ndk-r10e-$PLATFORM-x86_64.zip
 
     # Supported: macosx,linux,windows
     PLATFORM=macosx
@@ -34,6 +34,8 @@ Here are some commands to help out with the process:
     # you can use some aliases to install them
     # Note the API level version: E.g. "android-23"
     ./android-sdk/tools/android update sdk -a -u -t tools,android-23,extra-android-support,platform-tools,build-tools-20.0.0
+
+After installing SDK and NDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
 
 **Note** Newer version have the suffixes ".bin" or ".exe" as they are now installers.
 Simply use that as the suffix, and and extract with **7z**
