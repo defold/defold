@@ -269,7 +269,7 @@ namespace dmGameSystem
         component->m_DoRender = 0;
 
         // Create rig instance
-        dmRig::InstanceCreateParams create_params;
+        dmRig::InstanceCreateParams create_params = {0};
         create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
@@ -306,7 +306,7 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
         // component->m_IKTargets.SetCapacity(0);
 
-        dmRig::InstanceDestroyParams params;
+        dmRig::InstanceDestroyParams params = {0};
         params.m_Context = world->m_RigContext;
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
@@ -344,10 +344,10 @@ namespace dmGameSystem
         // Fill in vertex buffer
         SpineModelVertex *vb_begin = vertex_buffer.End();
         SpineModelVertex *vb_end = vb_begin;
+        dmRig::RigGenVertexDataParams params;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            dmRig::RigGenVertexDataParams params;
             params.m_ModelMatrix = c->m_World;
             params.m_VertexData = (void**)&vb_end;
             params.m_VertexStride = sizeof(SpineModelVertex);
@@ -676,13 +676,13 @@ namespace dmGameSystem
         // component->m_Resource = (SpineModelResource*)params.m_Resource;
 
         // destroy old rig
-        dmRig::InstanceDestroyParams destroy_params;
+        dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = world->m_RigContext;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
 
         // Create rig instance
-        dmRig::InstanceCreateParams create_params;
+        dmRig::InstanceCreateParams create_params = {0};
         create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
@@ -812,7 +812,7 @@ namespace dmGameSystem
         uint32_t ik_index = FindIKIndex(component, constraint_id);
         component->m_IKTargets[ik_index] = instance_id;
 
-        dmRig::RigIKTargetParams params;
+        dmRig::RigIKTargetParams params = {0};
         params.m_RigInstance = component->m_RigInstance;
         params.m_ConstraintId = constraint_id;
         params.m_Mix = mix;
@@ -829,7 +829,7 @@ namespace dmGameSystem
         uint32_t ik_index = FindIKIndex(component, constraint_id);
         component->m_IKTargetPositions[ik_index] = position;
 
-        dmRig::RigIKTargetParams params;
+        dmRig::RigIKTargetParams params = {0};
         params.m_RigInstance = component->m_RigInstance;
         params.m_ConstraintId = constraint_id;
         params.m_Mix = mix;

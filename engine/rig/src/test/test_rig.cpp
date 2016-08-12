@@ -12,7 +12,7 @@ public:
 
 protected:
     virtual void SetUp() {
-        dmRig::NewContextParams params;
+        dmRig::NewContextParams params = {0};
         params.m_Context = &m_Context;
         params.m_MaxRigInstanceCount = 2;
         if (dmRig::CREATE_RESULT_OK != dmRig::NewContext(params)) {
@@ -163,7 +163,7 @@ protected:
         RigContextTest::SetUp();
 
         m_Instance = 0x0;
-        dmRig::InstanceCreateParams create_params;
+        dmRig::InstanceCreateParams create_params = {0};
         create_params.m_Context = m_Context;
         create_params.m_Instance = &m_Instance;
 
@@ -187,7 +187,7 @@ protected:
     }
 
     virtual void TearDown() {
-        dmRig::InstanceDestroyParams destroy_params;
+        dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = m_Context;
         destroy_params.m_Instance = m_Instance;
         if (dmRig::CREATE_RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
@@ -206,7 +206,7 @@ protected:
 TEST_F(RigContextTest, InstanceCreation)
 {
     dmRig::HRigInstance instance = 0x0;
-    dmRig::InstanceCreateParams create_params;
+    dmRig::InstanceCreateParams create_params = {0};
     create_params.m_Context = m_Context;
     create_params.m_Instance = &instance;
 
@@ -227,7 +227,7 @@ TEST_F(RigContextTest, InstanceCreation)
     delete create_params.m_MeshSet;
     delete create_params.m_AnimationSet;
 
-    dmRig::InstanceDestroyParams destroy_params;
+    dmRig::InstanceDestroyParams destroy_params = {0};
     destroy_params.m_Context = m_Context;
     destroy_params.m_Instance = instance;
     ASSERT_EQ(dmRig::CREATE_RESULT_OK, dmRig::InstanceDestroy(destroy_params));

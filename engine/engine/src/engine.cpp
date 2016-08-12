@@ -628,7 +628,7 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
-        dmRig::NewContextParams rig_params;
+        dmRig::NewContextParams rig_params = {0};
         rig_params.m_Context = &engine->m_RigContext;
         rig_params.m_MaxRigInstanceCount = dmConfigFile::GetInt(engine->m_Config, dmRig::MAX_RIG_INSTANCE_COUNT_KEY, 128);
         dmRig::CreateResult rr = dmRig::NewContext(rig_params);
