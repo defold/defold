@@ -15,6 +15,7 @@
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
 #include "scripts/script_spine_model.h"
+#include "scripts/script_window.h"
 
 extern "C"
 {
@@ -47,6 +48,7 @@ namespace dmGameSystem
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptSpineModelRegister(context);
+        ScriptWindowRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -55,6 +57,7 @@ namespace dmGameSystem
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
         ScriptPhysicsFinalize(context);
+        ScriptWindowFinalize(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {
@@ -70,5 +73,16 @@ namespace dmGameSystem
             luaL_error(L, "no instance could be found in the current script environment");
         }
         return instance;
+    }
+
+
+    void OnWindowFocus(bool focus)
+    {
+        ScriptWindowOnWindowFocus(focus);
+    }
+
+    void OnWindowResized(int width, int height)
+    {
+        ScriptWindowOnWindowResized(width, height);
     }
 }

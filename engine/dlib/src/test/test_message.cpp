@@ -295,6 +295,7 @@ TEST(dmMessage, ThreadTest1)
     while (count < 1024 * 4)
     {
         count += dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0);
+        dmTime::Sleep(1000);
     }
     ASSERT_EQ(1024U * 4U, count);
 

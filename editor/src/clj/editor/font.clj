@@ -18,7 +18,9 @@
             [editor.properties :as properties]
             [editor.material :as material]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.types :as types]
+            [schema.core :as schema])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [editor.gl.shader ShaderLifecycle]
@@ -144,9 +146,9 @@
             max-width (reduce max 0 line-widths)]
         [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
-(def FontData {:type g/Keyword
-               :font-map g/Any
-               :texture g/Any})
+(g/deftype FontData {:type     schema/Keyword
+                     :font-map schema/Any
+                     :texture  schema/Any})
 
 (defn- cell->coords [cell font-map]
   (let [cw (:cache-cell-width font-map)
@@ -162,6 +164,27 @@
       (assoc glyph :x x :y y))
     (assoc glyph :width 0)))
 
+(defn layout-text [font-map text line-break? max-width text-tracking text-leading]
+  (let [text-layout {:width max-width
+                     :height 0
+                     :lines []
+                     :line-widths []
+                     :text-tracking text-tracking
+                     :text-leading text-leading}]
+    (if (or (nil? font-map) (nil? text) (nil? text))
+      text-layout
+      (let [glyphs (font-map->glyphs font-map)
+            line-height (+ (:max-descent font-map) (:max-ascent font-map))
+            text-tracking (* line-height text-tracking)
+            lines (split-text glyphs text line-break? max-width text-tracking)
+            line-widths (mapv (partial measure-line glyphs text-tracking) lines)
+            max-width (reduce max 0 line-widths)]
+        (assoc text-layout
+               :width max-width
+               :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
+               :lines lines
+               :line-widths line-widths)))))
+
 (defn gen-vertex-buffer [^GL2 gl {:keys [type font-map texture]} text-entries]
   (let [cache (scene-cache/request-object! ::glyph-caches texture gl [font-map])
         w (:cache-width font-map)
@@ -176,23 +199,25 @@
              (if-let [entry (first text-entries)]
                (let [colors (repeat (cond->> (into (:color entry) (concat (:outline entry) (:shadow entry)))
                                       (= type :distance-field) (into sdf-params)))
-                     text-tracking (* line-height (:text-tracking entry 0))
-                     text-leading (:text-leading entry 0)
+                     text-layout (:text-layout entry)
+                     text-tracking (* line-height (:text-tracking text-layout 0))
+                     text-leading (:text-leading text-layout 0)
                      offset (:offset entry)
                      xform (doto (Matrix4d.)
                              (.set (let [[x y] offset]
                                      (Vector3d. x y 0.0))))
                      _ (.mul xform ^Matrix4d (:world-transform entry) xform)
-                     lines (split-text glyphs (:text entry) (:line-break entry) (:max-width entry) text-tracking)
-                     line-widths (map (partial measure-line glyphs text-tracking) lines)
-                     max-width (reduce max 0 line-widths)
-                     lines (map vector lines line-widths)
+                     lines (:lines text-layout)
+                     line-widths (:line-widths text-layout)
+                     max-width (:width text-layout)
                      align (:align entry :center)
                      vs (loop [vs vs
                                lines lines
+                               line-widths line-widths
                                line-no 0]
-                          (if-let [[line line-width] (first lines)]
-                            (let [y (* line-no (- (* line-height text-leading)))
+                          (if-let [line (first lines)]
+                            (let [line-width (first line-widths)
+                                  y (* line-no (- (* line-height text-leading)))
                                   vs (loop [vs vs
                                             glyphs (map char->glyph line)
                                             x (case align
@@ -206,7 +231,7 @@
                                                vs (reduce conj! vs (map into (glyph-fn cursor glyph) colors))]
                                            (recur vs (rest glyphs) (+ x (:advance glyph) text-tracking)))
                                          vs))]
-                              (recur vs (rest lines) (inc line-no)))
+                              (recur vs (rest lines) (rest line-widths) (inc line-no)))
                             vs))]
                  (recur vs (rest text-entries)))
                (persistent! vs)))]
@@ -319,17 +344,21 @@
 (g/defnode FontNode
   (inherits project/ResourceNode)
 
-  (property font (g/protocol resource/Resource)
+  (property font resource/Resource
     (value (gu/passthrough font-resource))
-    (set (project/gen-resource-setter [[:resource :font-resource]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                    [:resource :font-resource])))
     (validate (validation/validate-resource font)))
 
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (project/gen-resource-setter [[:resource :material-resource]
-                                       [:build-targets :dep-build-targets]
-                                       [:samplers :material-samplers]
-                                       [:shader :material-shader]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                    [:resource :material-resource]
+                                    [:build-targets :dep-build-targets]
+                                    [:samplers :material-samplers]
+                                    [:shader :material-shader])))
     (validate (validation/validate-resource material)))
 
   (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
@@ -359,9 +388,9 @@
   (property cache-height g/Int)
 
   (input dep-build-targets g/Any :array)
-  (input font-resource (g/protocol resource/Resource))
-  (input material-resource (g/protocol resource/Resource))
-  (input material-samplers [{g/Keyword g/Any}])
+  (input font-resource resource/Resource)
+  (input material-resource resource/Resource)
+  (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
@@ -384,7 +413,7 @@
                                                  channels (:glyph-channels font-map)]
                                              (texture/empty-texture _node-id w h channels
                                                                    (material/sampler->tex-params (first material-samplers)) 0))))
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
                                             {:type type

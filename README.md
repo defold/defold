@@ -16,7 +16,7 @@ For Eclipse:
 ### Required Software
 
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
-* [Eclipse SDK 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
+* [Eclipse SDK 3.8.2]((***REMOVED***)/view?usp=sharing)
 * Python (on OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
 * Linux:
@@ -136,8 +136,7 @@ If eclipse doesn’t get the JDK setup automatically:
 
 
 
-Build Engine
-------------
+## Build Engine
 
 Setup build environment with `$PATH` and other environment variables.
 
@@ -171,9 +170,11 @@ specified. A typically workflow when working on a single test is to run
 With the flag `--gtest_filter=` it's possible to a single test in the suite,
 see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/AdvancedGuide#Running_a_Subset_of_the_Tests)
 
-Build and Run Editor
---------------------
 
+
+## Build and Run Editor
+
+* Ensure that `Java > Compiler > Compiler Compliance Level` is set to ´1.7´.
 * In the workspace, invoke `Project > Build All`
      - Generates Google Protocol Buffers etc
 * Refresh entire workspace
@@ -265,8 +266,7 @@ at org.eclipse.osgi.framework.util.SecureAction.start(SecureAction.java:440)
 If you get this error message, it’s most likely from not having the 64 bit binaries, did you build the engine with 64 bit support? E.g. “--platform=x86_64-darwin”
 To fix, rebuild engine in 64 bit, and in Eclipse, do a clean projects, refresh and rebuild them again
 
-Licenses
---------
+## Licenses
 
 * **Sony Vectormath Library**: [http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary](http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
@@ -289,8 +289,7 @@ Licenses
 * **xxtea-c** [https://github.com/xxtea](https://github.com/xxtea) **MIT**
 
 
-Tagging
--------
+## Tagging
 
 New tag
 
@@ -302,8 +301,7 @@ Push tags
     # git push origin --tags
 
 
-Folder Structure
-----------------
+## Folder Structure
 
 **ci** - Continious integration related files
 
@@ -317,8 +315,8 @@ Folder Structure
 
 **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
 
-Content pipeline
-----------------
+
+## Content pipeline
 
 The primary build tool is bob. Bob is used for the editor but also for engine-tests.
 In the first build-step a standalone version of bob is built. A legacy pipeline, waf/python and some classes from bob.jar,
@@ -326,23 +324,22 @@ is still used for gamesys and for built-in content. This might be changed in the
 is pretty hard as waf 1.5.x is very restrictive where source and built content is located. Built-in content is compiled
 , via .arc-files, to header-files, installed to $DYNAMO_HOME, etc In other words tightly integrated with waf.
 
-Byte order/endian
------------------
+
+## Byte order/endian
 
 By convention all graphics resources are expliticly in little-ending and specifically ByteOrder.LITTLE_ENDIAN in Java. Currently we support
 only little endian architectures. If this is about to change we would have to byte-swap at run-time or similar.
 As run-time editor code and pipeline code often is shared little-endian applies to both. For specific editor-code ByteOrder.nativeOrder() is
 the correct order to use.
 
-Platform Specifics
-------------------
+
+## Platform Specifics
 
 * [iOS](README_IOS.md)
 * [Android](README_ANDROID.md)
 
 
-OpenGL and jogl
----------------
+## OpenGL and jogl
 
 Prior to GLCanvas#setCurrent the GLDrawableFactory must be created on OSX. This might be a bug but the following code works:
 
@@ -355,12 +352,11 @@ created. Key is probably that GLCanvas.setCurrnet fails to set current context b
 are unknown though.
 
 
-Updating "Build Report" template
----------------------
+## Updating "Build Report" template
+
 The build report template is a single HTML file found under `com.dynamo.cr/com.dynamo.cr.bob/lib/report_template.html`. Third party JS and CSS libraries used (DataTables.js, Jquery, Bootstrap, D3 and Dimple.js) are concatenated into two HTML inline tags and added to this file. If the libraries need to be updated/changed please use the `inline_libraries.py` script found in `share/report_libs/`.
 
-Emscripten
-----------
+## Emscripten
 
 **TODO**
 
@@ -460,8 +456,8 @@ Some flags that is useful for emscripten projects would be to have:
 -s ERROR_ON_UNDEFINED_SYMBOLS=1
 '-fno-rtti'. Can't be used at the moment as gtest requires it, but it would be nice to have enabled
 
-Firefox OS
-----------
+
+## Firefox OS
 To bundle up a firefox OS app and deploy to a connected firefox OS phone, we need to have a manifest.webapp in the web root directory:
 ```
 {
@@ -485,8 +481,8 @@ adb forward tcp:6000 localfilesystem:/data/local/debugger-socket
 ```
 In that web app manager, you can see the console output, take screenshots or show other web developer options for the phone.
 
-Flash
------
+
+## Flash
 
 **TODO**
 
@@ -494,8 +490,7 @@ Flash
 * Verify that exceptions are disabled
 
 
-Asset loading
--------------
+## Asset loading
 
 Assets can be loaded from file-system, from an archive or over http.
 
@@ -509,8 +504,8 @@ of a resource-scheme.
 Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism
 used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.
 
-Engine Extensions
------------------
+
+## Engine Extensions
 
 Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the
 extension library and set "exported_symbols" in the wscript, see note below.
@@ -529,19 +524,27 @@ How to package a new Android Facebook SDK:
   * copy res/* into share/java/res/facebook
 * tar/gzip the new structure
 
-Energy Consumption
-------------------
+
+## Energy Consumption
 
 
 **Android**
 
       adb shell dumpsys cpuinfo
 
-Eclipse 4.4 issues
-------------------
+
+## Eclipse 4.4 issues
 
 * ApplicationWorkbenchWindowAdvisor#createWindowContents isn't invoked
 * Shortcuts doens't work in pfx-editor
 * No editor tips
 * Splash-monitor invoked after startup. See SplashHandler.java.
   Currently protected by if (splashShell == null) ...
+
+
+## Debugging
+
+### Extensions / modules
+
+* For debugging our IAP (in app purchase) extension: [DefoldIAPTester]((***REMOVED***)/1j-2m-YMcAryNO8il1P7m4cjNhrCTzS0QOsQODwvnTww/edit?usp=sharing)
+

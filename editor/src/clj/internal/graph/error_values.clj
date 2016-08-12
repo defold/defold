@@ -49,4 +49,8 @@
 
 (defn most-serious    [es] (first (reverse (sort-by :severity es))))
 
-(defn error-aggregate [es] (map->ErrorValue {:severity (apply max 0 (keep :severity es)) :causes es}))
+(defn error-aggregate
+  ([es]
+   (map->ErrorValue {:severity (apply max 0 (keep :severity es)) :causes es}))
+  ([es & kvs]
+   (apply assoc (error-aggregate es) kvs)))

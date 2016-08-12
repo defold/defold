@@ -16,6 +16,7 @@
 #include <dlib/sys.h>
 #include <dlib/http_client.h>
 #include <extension/extension.h>
+#include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -107,6 +108,8 @@ namespace dmEngine
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context
         dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
+
+        dmGameSystem::OnWindowResized(width, height);
     }
 
     bool OnWindowClose(void* user_data)
@@ -128,6 +131,8 @@ namespace dmEngine
         dmExtension::Event event;
         event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
         dmExtension::DispatchEvent( &params, &event );
+
+        dmGameSystem::OnWindowFocus(focus != 0);
     }
 
     Stats::Stats()
@@ -568,7 +573,7 @@ namespace dmEngine
         dmHID::Init(engine->m_HidContext);
 
         // The attempt to fallback to other audio devices only has meaning if:
-        // - sound2 is being used
+        // - sound is being used
         // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
         static const char* audio_devices[] = {
@@ -1002,7 +1007,7 @@ bail:
                     dmHID::KeyboardPacket keybdata;
                     dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
 
-                    if (engine->m_QuitOnEsc && (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED)))
+                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;

@@ -14,7 +14,7 @@
 (set! *warn-on-reflection* true)
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
-(def grid-color [0.44705 0.44314 0.5098 1.0])
+(def grid-color colors/mid-grey)
 (def x-axis-color colors/defold-red)
 (def y-axis-color colors/defold-green)
 (def z-axis-color colors/defold-blue)
@@ -82,7 +82,7 @@
       (render-grid-sizes dir grids)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
-(g/defnk grid-renderable :- pass/RenderData
+(g/defnk grid-renderable
   [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
@@ -144,7 +144,7 @@
                       (grid-snap-up   (-> aabb types/max-p .y) grid-size)
                       (grid-snap-up   (-> aabb types/max-p .z) grid-size))))
 
-(g/defnk update-grids :- g/Any
+(g/defnk update-grids
   [camera]
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)

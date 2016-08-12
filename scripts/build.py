@@ -611,7 +611,7 @@ instructions.configure=\
     def _build_cr(self, product):
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
     def check_editor2_reflections(self):
         cwd = join(self.defold_root, 'editor')

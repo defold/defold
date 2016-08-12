@@ -109,7 +109,7 @@ Inheritors are required to supply a production function for the :save output."
 
 (g/defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (g/protocol types/PathManipulation) (dynamic visible (g/always false)))
+  (property filename types/PathManipulation (dynamic visible (g/always false)))
 
   (output content g/Any :abstract))
 
@@ -125,16 +125,9 @@ Outputs:
   (output outline-label    g/Str :abstract)
   (output outline-commands [types/OutlineCommand] (g/always []))
   (output outline-tree     types/OutlineItem
-          (g/fnk [this outline-label outline-commands outline-children :- [types/OutlineItem]]
+          (g/fnk [this outline-label outline-commands outline-children]
                {:label outline-label
                 ;; :icon "my type of icon"
                 :node-ref (g/node-id this)
                 :commands outline-commands
                 :children outline-children})))
-
-(defprotocol MultiNode
-  (sub-nodes [self] "Return all contained nodes"))
-
-(defprotocol ICreate
-  "A node may implement this protocol if it needs to react after it is created."
-  (post-create [this basis message] "Process post-creation message. The message is any data structure. By convention, it is usually a map."))

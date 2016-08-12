@@ -60,9 +60,10 @@ namespace dmFacebook {
 
     /**
      * Convert a Lua table into a JSON object, encoded as a non-prettyfied null terminated string.
+     * If the destination buffer is null, the function will still return the number of characters needed to store the string (minus the null space character).
      * @param L Lua state
      * @param index Stack location of Lua table
-     * @param buffer Output JSON char buffer
+     * @param buffer Output JSON char buffer. May be null
      * @param buffer_size Output buffer size
      * @return Length of output string, 0 if conversion failed
      */

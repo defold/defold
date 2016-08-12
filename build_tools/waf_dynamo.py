@@ -63,7 +63,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -923,7 +923,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
-def run_gtests(valgrind = False):
+def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
@@ -941,13 +941,13 @@ def run_gtests(valgrind = False):
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
-            filename = os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target)
+            cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if Build.bld.env.PLATFORM == 'js-web':
-                filename = '%s %s' % (Build.bld.env['NODEJS'], filename)
+                cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
-                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, filename)
-            proc = subprocess.Popen(filename, shell = True)
+                cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
+            proc = subprocess.Popen(cmd, shell = True)
             ret = proc.wait()
             if ret != 0:
                 print("test failed %s" %(t.target) )

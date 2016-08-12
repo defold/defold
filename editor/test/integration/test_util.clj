@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
+            [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
@@ -26,11 +27,13 @@
             [editor.json :as json]
             [editor.mesh :as mesh]
             [editor.material :as material]
+            [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
             [util.http-server :as http-server])
   (:import [java.io File FilenameFilter FileOutputStream FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
+           [javafx.scene.control Tab]
            [org.apache.commons.io FilenameUtils FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -47,6 +50,7 @@
       (g/transact
        (concat
         (collection/register-resource-types workspace)
+        (collision-object/register-resource-types workspace)
         (font/register-resource-types workspace)
         (game-object/register-resource-types workspace)
         (game-project/register-resource-types workspace)
@@ -98,10 +102,14 @@
     (not (nil? (some #{tgt-node-id} sel)))))
 
 (g/defnode DummyAppView
-  (property active-tool g/Keyword))
+  (property active-tool g/Keyword)
+  (property active-tab Tab))
+
+(defn make-view-graph! []
+  (g/make-graph! :history false :volatility 2))
 
 (defn setup-app-view! []
-  (let [view-graph (g/make-graph! :history false :volatility 2)
+  (let [view-graph (make-view-graph!)
         app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph DummyAppView :active-tool :move))))]
     app-view))
 
@@ -116,21 +124,25 @@
   ([view type x y]
     (fake-input! view type x y []))
   ([view type x y modifiers]
+    (fake-input! view type x y modifiers 0))
+  ([view type x y modifiers click-count]
     (let [pos [x y 0.0]]
       (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
     (let [handlers  (g/sources-of view :input-handlers)
           user-data (g/node-value view :selected-tool-renderables)
-          action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
+          action    (reduce #(assoc %1 %2 true)
+                            {:type type :x x :y y :click-count click-count}
+                            modifiers)
           action    (scene/augment-action view action)]
-      (doseq [[node-id label] handlers]
-        (let [handler-fn (g/node-value node-id label)]
-          (handler-fn node-id action user-data))))))
+      (scene/dispatch-input handlers action user-data))))
 
 (defn mouse-press!
   ([view x y]
     (fake-input! view :mouse-pressed x y))
   ([view x y modifiers]
-    (fake-input! view :mouse-pressed x y modifiers)))
+    (fake-input! view :mouse-pressed x y modifiers 0))
+  ([view x y modifiers click-count]
+    (fake-input! view :mouse-pressed x y modifiers click-count)))
 
 (defn mouse-move! [view x y]
   (fake-input! view :mouse-moved x y))
@@ -142,8 +154,17 @@
   ([view x y]
     (mouse-click! view x y []))
   ([view x y modifiers]
-    (mouse-press! view x y modifiers)
+    (mouse-click! view x y modifiers 0))
+  ([view x y modifiers click-count]
+    (mouse-press! view x y modifiers (inc click-count))
     (mouse-release! view x y)))
+
+(defn mouse-dbl-click!
+  ([view x y]
+    (mouse-dbl-click! view x y []))
+  ([view x y modifiers]
+    (mouse-click! view x y modifiers)
+    (mouse-click! view x y modifiers 1)))
 
 (defn mouse-drag! [view x0 y0 x1 y1]
   (mouse-press! view x0 y0)
@@ -213,3 +234,7 @@
 
 (defn lib-server-url [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
+
+(defn handler-run [command command-contexts user-data]
+  (-> (handler/active command command-contexts user-data)
+    handler/run))

@@ -309,7 +309,7 @@ int main(int argc, char **argv)
 {
     // Memprofile is active if a dummy argument is passed
     // We could use dmMemProfile::IsEnabled but we are testing.
-    g_MemprofileActive = argc >= 2;
+    g_MemprofileActive = argc >= 3;
 
     dmMemProfile::Initialize();
     dmProfile::Initialize(128, 1024 * 1024, 16);

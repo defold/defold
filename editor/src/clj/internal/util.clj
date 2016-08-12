@@ -4,13 +4,14 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [plumbing.fnk.pfnk :as pf]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 
-(defn schema? [x] (satisfies? s/Schema x))
+(defn predicate? [x] (instance? schema.core.Predicate x))
+(defn schema?    [x] (satisfies? s/Schema x))
+(defn protocol?  [x] (and (map? x) (contains? x :on-interface)))
 
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
@@ -100,7 +101,9 @@
 
 (defn stackify [x]
   (if (coll? x)
-    (vec x)
+    (if (vector? x)
+      x
+      (vec x))
     [x]))
 
 (defn project
@@ -116,12 +119,79 @@
     (when (apply f args)
       (apply g args))))
 
-(defn fnk-schema
-  [f]
-  (when f
-    (pf/input-schema f)))
+(defn var?! [v] (when (var? v) v))
 
-(defn fnk-arguments
+(defn vgr [s] (some-> s resolve var?! var-get))
+
+(defn protocol-symbol?
+  [x]
+  (and (symbol? x)
+       (let [x' (vgr x)]
+         (and (map? x') (contains? x' :on-interface)))))
+
+(defn class-symbol?
+  [x]
+  (and (symbol? x)
+       (class? (resolve x))))
+
+(defn assert-form-kind [place required-kind-label required-kind-pred label form]
+  (assert (not (nil? form))
+          (str place " " label " requires a " required-kind-label " but got nil"))
+  (assert (required-kind-pred form)
+          (str place " " label " requires a " required-kind-label " not '" form "' of type " (type form))))
+
+(defn fnk-arguments [f] (set (:arguments (meta f))))
+
+(defn pfnk?
+  "True if the function a valid production function"
   [f]
-  (when f
-    (key-set (dissoc (fnk-schema f) s/Keyword))))
+  (and (fn? f) (contains? (meta f) :arguments)))
+
+(defn pfnksymbol? [x] (or (pfnk? x) (and (symbol? x) (pfnk? (vgr x)))))
+(defn pfnkvar?    [x] (or (pfnk? x) (and (var? x) (fn? (var-get-recursive x)))))
+
+(defn- quoted-var? [x] (and (seq? x) (= 'var (first x))))
+(defn- pfnk-form?  [x] (and (seq? x) (symbol? (first x)) (= "fnk" (name (first x)))))
+
+(defn- maybe-expand-macros
+  [[call & _ :as body]]
+  (if (or (= "fn" (name call)) (= "fnk" (name call)))
+    body
+    (macroexpand-1 body)))
+
+(defn- parse-fnk-arguments
+  [f]
+  (let [f (maybe-expand-macros f)]
+    (loop [args  #{}
+           forms (seq (second f))]
+      (if-let [arg (first forms)]
+        (if (= :- (first forms))
+          (recur args (drop 2 forms))
+          (recur (conj args (keyword (first forms))) (next forms)))
+        args))))
+
+(defn inputs-needed [x]
+  (cond
+    (pfnk? x)       (fnk-arguments x)
+    (symbol? x)     (inputs-needed (resolve x))
+    (var? x)        (inputs-needed (var-get x))
+    (quoted-var? x) (inputs-needed (var-get (resolve (second x))))
+    (pfnk-form? x)  (parse-fnk-arguments x)
+    :else           #{}))
+
+(defn- wrap-protocol
+  [tp tp-form]
+  (if (protocol? tp)
+    (list `s/protocol tp-form)
+    tp-form))
+
+(defn- wrap-enum
+  [tp tp-form]
+  (if (set? tp)
+    (do (println tp-form)
+      (list `s/enum tp-form))
+    tp-form))
+
+(defn update-paths
+  [m paths xf]
+  (reduce (fn [m [p v]] (assoc-in m p (xf p v (get-in m p)))) m paths))

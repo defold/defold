@@ -276,6 +276,7 @@ dmExtension::Result AppFinalizeIAC(dmExtension::AppParams* params)
     g_IAC.m_L = 0;
     g_IAC.m_Callback = LUA_NOREF;
     g_IAC.m_Self = LUA_NOREF;
+    dmMutex::Delete(g_IAC.m_Mutex);
     return dmExtension::RESULT_OK;
 }
 
@@ -295,7 +296,6 @@ dmExtension::Result FinalizeIAC(dmExtension::Params* params)
         g_IAC.m_Listener.m_Callback = LUA_NOREF;
         g_IAC.m_Listener.m_Self = LUA_NOREF;
     }
-    dmMutex::Delete(g_IAC.m_Mutex);
     return dmIAC::Finalize(params);
 }
 

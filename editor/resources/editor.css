@@ -428,16 +428,6 @@ Defold Orange       #fd6623             Guides etc
     -fx-border-color: transparent;
     -fx-text-fill: #b0b0b0; }
 
-.composite-property-control-container .field-error {
-  -fx-border-width: 1;
-  -fx-border-color: #ff4646;
-  -fx-effect: none; }
-
-.composite-property-control-container .field-warning {
-  -fx-border-width: 1;
-  -fx-border-color: #fbce2f;
-  -fx-effect: none; }
-
 .composite-property-control-container .button, .composite-property-control-container .button-small, .composite-property-control-container .button-large {
   -fx-background-radius: 0px;
   -fx-border-radius: 0px;
@@ -514,14 +504,14 @@ Defold Orange       #fd6623             Guides etc
   -fx-padding: 0; }
 
 .field-error {
-  -fx-border-width: 1;
-  -fx-border-color: #ff4646;
-  -fx-effect: none; }
+  -fx-border-width: 1 !important;
+  -fx-border-color: #ff4646 !important;
+  -fx-effect: none !important; }
 
 .field-warning {
-  -fx-border-width: 1;
-  -fx-border-color: #fbce2f;
-  -fx-effect: none; }
+  -fx-border-width: 1 !important;
+  -fx-border-color: #fbce2f !important;
+  -fx-effect: none !important; }
 
 .menu-button {
   -fx-background-radius: 3;
@@ -989,11 +979,6 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #aaaaff;
 }
 
-.lua.selection-marker,
-.glsl.selection-marker {
-    -fx-background-color: #8f9296;
-}
-
 .glsl.styled-text-area .directive {
     -styled-text-color: #fd6623;
 }
@@ -1026,6 +1011,10 @@ Defold Orange       #fd6623             Guides etc
 .styled-text-area .text-caret {
 	-fx-fill: white;
 	-fx-stroke: white;
+}
+
+.styled-text-area .selection-marker {
+	-fx-background-color: rgba(172,148,120,0.3)
 }
 
 /*
@@ -1075,3 +1064,26 @@ Line numbers:
 #console {
     -fx-highlight-fill: -defold-selected-blue;
 }
+
+/* Alert Dialog */
+
+.alert-dialog #message {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.alert-dialog #message:focused {
+    -fx-border-width: 0;
+}
+
+/* Curve View */
+#curve-editor-view {
+  -fx-border-color: #4a4b4f;
+  -fx-border-width: 0 0 0 1;
+  -fx-padding: 0.0em; }
+
+#curve-editor-list-anchor {
+  -fx-border-color: #4a4b4f;
+  -fx-border-width: 0 1 0 0;
+  -fx-padding: 0.0em; }

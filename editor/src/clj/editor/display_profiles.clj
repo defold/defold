@@ -11,7 +11,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.math :as math]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu])
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
@@ -126,7 +127,7 @@
   (output form-data g/Any :cached produce-form-data)
 
   (input profile-data g/Any :array)
-  (output profile-data g/Any (g/fnk [profile-data] profile-data))
+  (output profile-data g/Any (gu/passthrough profile-data))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 

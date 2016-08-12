@@ -3,10 +3,13 @@
             [editor.progress :as progress]
             [editor.workspace :as workspace]
             [editor.ui :as ui]
+            [editor.dialogs :as dialogs]
             [editor.changes-view :as changes-view]
             [editor.properties-view :as properties-view]
             [editor.text :as text]
+            [editor.build-errors-view :as build-errors-view]
             [editor.code-view :as code-view]
+            [editor.collision-object :as collision-object]
             [editor.scene :as scene]
             [editor.form-view :as form-view]
             [editor.collection :as colleciton]
@@ -28,6 +31,7 @@
             [editor.sprite :as sprite]
             [editor.gl.shader :as shader]
             [editor.tile-source :as tile-source]
+            [editor.targets :as targets]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.json :as json]
@@ -43,13 +47,14 @@
             [dynamo.graph :as g]
             [editor.display-profiles :as display-profiles]
             [editor.web-profiler :as web-profiler]
+            [editor.curve-view :as curve-view]
             [editor.login :as login]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
-            [javafx.scene.control Button TextArea SplitPane]))
+            [javafx.scene.control Button TextArea SplitPane TabPane Tab]))
 
 (set! *warn-on-reflection* true)
 
@@ -70,16 +75,6 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(g/defnode CurveEditor
-    (inherits editor.core/Scope)
-
-    editor.core/ICreate
-    (post-create
-     [this basis event]
-     (let [btn (Button.)]
-       (ui/text! btn "Curve Editor WIP!")
-       (.add (.getChildren ^VBox (:parent event)) btn))))
-
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
     (g/transact
@@ -91,6 +86,7 @@
     (g/transact
      (concat
       (collection/register-resource-types workspace)
+      (collision-object/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-project/register-resource-types workspace)
@@ -115,18 +111,36 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn load-stage [workspace project prefs]
 
+;; Slight hack to work around the fact that we have not yet found a
+;; reliable way of detecting when the application loses focus.
+
+;; If no application-owned windows have had focus within this
+;; threshold, we consider the application to have lost focus.
+(def application-unfocused-threshold-ms 500)
+
+(defn- watch-focus-state! [workspace]
+  (add-watch dialogs/focus-state :main-stage
+             (fn [key ref old new]
+               (when (and old
+                          (not (:focused? old))
+                          (:focused? new))
+                 (let [unfocused-ms (- (:t new) (:t old))]
+                   (when (< application-unfocused-threshold-ms unfocused-ms)
+                     (future
+                       (ui/with-disabled-ui
+                         (ui/with-progress [render-fn ui/default-render-progress!]
+                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+
+
+(defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (Stage.)
         scene      (Scene. root)]
-
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
-                  (when (true? new-val)
-                    (ui/with-disabled-ui
-                      (ui/with-progress [render-fn ui/default-render-progress!]
-                        (editor.workspace/resource-sync! workspace true [] render-fn))))))
+                  (dialogs/record-focus-change! new-val)))
+    (watch-focus-state! workspace)
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -137,7 +151,9 @@
       (.setWidth stage (:width dims))
       (.setHeight stage (:height dims)))
 
+    (ui/init-progress!)
     (ui/show! stage)
+    (targets/start)
 
     (ui/on-close-request! stage
                           (fn [_]
@@ -156,7 +172,8 @@
           search-console       (.lookup root "#search-console")
           splits               [(.lookup root "#main-split")
                                 (.lookup root "#center-split")
-                                (.lookup root "#right-split")]
+                                (.lookup root "#right-split")
+                                (.lookup root "#assets-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -165,10 +182,21 @@
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
                                                                  (partial app-view/remove-resource-tab editor-tabs))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hotload/url-prefix (hotload/build-handler project)})
+                                                            project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
+          build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
+                                                                         (partial app-view/open-resource
+                                                                                  app-view
+                                                                                  (g/node-value project :workspace)
+                                                                                  project))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
-                                                               (.lookup root "#changes-container"))]
+                                                               (.lookup root "#changes-container"))
+          curve-view           (curve-view/make-view! project *view-graph*
+                                                      (.lookup root "#curve-editor-container")
+                                                      (.lookup root "#curve-editor-list")
+                                                      (.lookup root "#curve-editor-view")
+                                                      {:tab (some #(and (= "curve-editor-tab" (.getId ^Tab %)) %)
+                                                                  (.getTabs tool-tabs))})]
 
       (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
         (doall (map (fn [^SplitPane sp pos]
@@ -183,16 +211,17 @@
                                :prev   prev-console})
 
       (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view      app-view
-                         :project       project
-                         :project-graph (project/graph project)
-                         :prefs         prefs
-                         :workspace     (g/node-value project :workspace)
-                         :outline-view  outline-view
-                         :web-server    web-server
-                         :changes-view  changes-view
-                         :main-stage    stage
-                         :splits        splits}]
+      (let [context-env {:app-view          app-view
+                         :project           project
+                         :project-graph     (project/graph project)
+                         :prefs             prefs
+                         :workspace         (g/node-value project :workspace)
+                         :outline-view      outline-view
+                         :web-server        web-server
+                         :build-errors-view build-errors-view
+                         :changes-view      changes-view
+                         :main-stage        stage
+                         :splits            splits}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
        (concat
@@ -206,17 +235,12 @@
     (reset! the-root root)
     root))
 
-(defn- create-view [game-project ^VBox root place node-type]
-  (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
-
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))
-        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))]
+        ^VBox root   (ui/run-now (load-stage workspace project prefs))]
     (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))

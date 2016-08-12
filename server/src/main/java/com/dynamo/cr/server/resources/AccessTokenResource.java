@@ -1,6 +1,7 @@
 package com.dynamo.cr.server.resources;
 
 import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
+import com.dynamo.inject.persist.Transactional;
 
 import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
@@ -23,6 +24,7 @@ public class AccessTokenResource extends BaseResource {
     }
 
     @POST
+    @Transactional
     public Response generateNewToken(@Context HttpServletRequest httpServletRequest) {
         return okResponse(accessTokenAuthenticator.createLifetimeToken(getUser(), httpServletRequest.getRemoteAddr()));
     }

@@ -1,5 +1,5 @@
 (ns editor.gui
-  (:require [clojure.string :as s]
+  (:require [schema.core :as s]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
@@ -36,6 +36,7 @@
            [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
            [org.apache.commons.io FilenameUtils]
            [editor.gl.shader ShaderLifecycle]))
+
 
 (set! *warn-on-reflection* true)
 
@@ -363,8 +364,9 @@
 (def ^:private layer-connections [[:name :layer-input]
                                   [:index :layer-index]])
 
-(def ^:private IDMap {g/Str g/NodeID})
-(def ^:private TemplateData {:resource (g/maybe (g/protocol resource/Resource)) :overrides {g/Str g/Any}})
+(g/deftype ^:private IDMap {s/Str s/Int})
+(g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
+                                   :overrides {s/Str s/Any}})
 
 (g/defnk override? [id-prefix] (some? id-prefix))
 (g/defnk no-override? [id-prefix] (nil? id-prefix))
@@ -385,8 +387,8 @@
   (property id g/Str (default "")
             (dynamic visible no-override?))
   (property generated-id g/Str
-            (dynamic label (g/fnk [] "Id"))
-            (value (g/fnk [id] id))
+            (dynamic label (g/always "Id"))
+            (value (gu/passthrough id))
             (dynamic read-only? (g/always true))
             (dynamic visible override?))
   (property size types/Vec3 (default [0 0 0])
@@ -408,7 +410,7 @@
             (dynamic edit-type (g/fnk [layer-ids] (properties/->choicebox (cons "" (map first layer-ids)))))
             (value (g/fnk [layer-input] (or layer-input "")))
             (set (fn [basis self _ new-value]
-                   (let [layer-ids (g/node-value self :layer-ids :basis basis)]
+                   (let [layer-ids (g/node-value self :layer-ids {:basis basis})]
                      (concat
                        (for [label (map second layer-connections)]
                          (g/disconnect-sources self label))
@@ -420,7 +422,7 @@
 
   (input parent g/Str)
   (input layer-ids IDMap)
-  (output layer-ids IDMap (g/fnk [layer-ids] layer-ids))
+  (output layer-ids IDMap (gu/passthrough layer-ids))
   (input layer-input g/Str)
   (input layer-index g/Int)
   (input child-scenes g/Any :array)
@@ -450,7 +452,7 @@
                   :outline-overridden? outline-overridden?}))
   (output pb-msg g/Any :cached produce-node-msg)
   (output pb-msgs g/Any :cached (g/fnk [pb-msg] [pb-msg]))
-  (output rt-pb-msgs g/Any (g/fnk [pb-msgs] pb-msgs))
+  (output rt-pb-msgs g/Any (gu/passthrough pb-msgs))
   (output aabb g/Any :abstract)
   (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
   (output scene-renderable g/Any :abstract)
@@ -486,7 +488,7 @@
   (input material-shader ShaderLifecycle)
   (input gpu-texture g/Any)
 
-  (output aabb-size g/Any (g/fnk [size] size))
+  (output aabb-size g/Any (gu/passthrough size))
   (output aabb g/Any :cached (g/fnk [pivot aabb-size]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
@@ -527,7 +529,7 @@
             (value (g/fnk [texture-input animation]
                      (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
             (set (fn [basis self _ ^String new-value]
-                   (let [textures (g/node-value self :texture-ids :basis basis)
+                   (let [textures (g/node-value self :texture-ids {:basis basis})
                          animation (let [sep (.indexOf new-value "/")]
                                      (if (>= sep 0) (subs new-value (inc sep)) ""))]
                      (concat
@@ -613,7 +615,7 @@
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output pie-data {g/Keyword g/Any} (g/fnk [outer-bounds inner-radius perimeter-vertices pie-fill-angle]
+  (output pie-data g/KeywordMap (g/fnk [outer-bounds inner-radius perimeter-vertices pie-fill-angle]
                                             {:outer-bounds outer-bounds :inner-radius inner-radius
                                              :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle}))
 
@@ -678,9 +680,9 @@
   (property line-break g/Bool (default false))
   (property font g/Str
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
-    (value (g/fnk [font-input] font-input))
+    (value (gu/passthrough font-input))
     (set (fn [basis self _ new-value]
-           (let [font-ids (g/node-value self :font-ids :basis basis)]
+           (let [font-ids (g/node-value self :font-ids {:basis basis})]
              (concat
                (for [label (map second font-connections)]
                  (g/disconnect-sources self label))
@@ -723,21 +725,26 @@
           (g/fnk [aabb pivot color text-data]
                  (let [min (types/min-p aabb)
                        max (types/max-p aabb)
-                       size [(- (.x max) (.x min)) (- (.y max) (.y min))]
+                       size [(- (.x max) (.x min)) (- (.y max) (.y min)) 0]
                        [w h _] size
                        offset (pivot-offset pivot size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                    {:line-data lines
-                    :color color
-                    :text-data (when-let [font-data (get text-data :font-data)]
-                                 (assoc text-data :offset (let [[x y] offset]
-                                                            [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))})))
-  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
-                                         (font/measure font-map text line-break (first size) text-tracking text-leading)))
-  (output text-data {g/Keyword g/Any} (g/fnk [text font-data line-break outline shadow size pivot text-leading text-tracking]
-                                        {:text text :font-data font-data
-                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)
-                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)})))
+                    :line-color [1.0 0.0 0.0 1.0]
+                    :color [1.0 0.0 0.0 1.0]
+                    :text-data text-data})))
+  (output text-layout g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
+                                           (font/layout-text font-map text line-break (first size) text-tracking text-leading)))
+  (output aabb-size g/Any :cached (g/fnk [text-layout]
+                                         [(:width text-layout) (:height text-layout) 0]))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break outline shadow aabb-size pivot text-leading text-tracking]
+                                        (cond-> {:text-layout text-layout
+                                                 :font-data font-data
+                                                 :outline outline :shadow shadow
+                                                 :align (pivot->h-align pivot)}
+                                          font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                         h (second aabb-size)]
+                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))))))
 
 ;; Template nodes
 
@@ -761,7 +768,7 @@
 
   (property template TemplateData
             (dynamic read-only? override?)
-            (dynamic edit-type (g/always {:type (g/protocol resource/Resource)
+            (dynamic edit-type (g/always {:type resource/Resource
                                           :ext "gui"
                                           :to-type (fn [v] (:resource v))
                                           :from-type (fn [r] {:resource r :overrides {}})}))
@@ -788,7 +795,7 @@
                                                                                                                       false))})
                                                                 id-mapping (:id-mapping override)
                                                                 or-scene (get id-mapping scene-node)
-                                                                node-mapping (comp id-mapping (g/node-value scene-node :node-ids :basis basis))]
+                                                                node-mapping (comp id-mapping (g/node-value scene-node :node-ids {:basis basis}))]
                                                             (concat
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
@@ -818,20 +825,20 @@
   (input scene-pb-msg g/Any)
   (input scene-rt-pb-msg g/Any)
   (input scene-build-targets g/Any)
-  (output scene-build-targets g/Any (g/fnk [scene-build-targets] scene-build-targets))
+  (output scene-build-targets g/Any (gu/passthrough scene-build-targets))
 
-  (input template-resource (g/protocol resource/Resource) :cascade-delete)
+  (input template-resource resource/Resource :cascade-delete)
   (input template-outline outline/OutlineData)
   (input template-scene g/Any)
   (input template-overrides g/Any)
   (output template-prefix g/Str (g/fnk [id] (str id "/")))
 
   (input texture-ids IDMap)
-  (output texture-ids IDMap (g/fnk [texture-ids] texture-ids))
+  (output texture-ids IDMap (gu/passthrough texture-ids))
   (input font-ids IDMap)
-  (output font-ids IDMap (g/fnk [font-ids] font-ids))
+  (output font-ids IDMap (gu/passthrough font-ids))
   (input current-layout g/Str)
-  (output current-layout g/Str (g/fnk [current-layout] current-layout))
+  (output current-layout g/Str (gu/passthrough current-layout))
   ; Overloaded outputs
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [template-outline current-layout]
                                                                      (get-in template-outline [:children 0 :children])))
@@ -872,7 +879,7 @@
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
-  (output packed-image BufferedImage (g/fnk [image] image))
+  (output packed-image BufferedImage (gu/passthrough image))
   (output anim-data g/Any (g/fnk [^BufferedImage image]
                             {nil {:width (.getWidth image)
                                   :height (.getHeight image)
@@ -883,24 +890,26 @@
   (inherits outline/OutlineNode)
 
   (property name g/Str)
-  (property texture (g/protocol resource/Resource)
+  (property texture resource/Resource
             (value (gu/passthrough texture-resource))
-            (set (project/gen-resource-setter [[:resource :texture-resource]
-                                               [:packed-image :image]
-                                               [:anim-data :anim-data]
-                                               [:anim-ids :anim-ids]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :texture-resource]
+                                                [:packed-image :image]
+                                                [:anim-data :anim-data]
+                                                [:anim-ids :anim-ids]
+                                                [:build-targets :dep-build-targets])))
             (validate (validation/validate-resource texture)))
 
-  (input texture-resource (g/protocol resource/Resource))
+  (input texture-resource resource/Resource)
   (input image BufferedImage)
   (input anim-data g/Any)
   (input anim-ids g/Any)
   (input image-texture g/NodeID :cascade-delete)
-  (input samplers [{g/Keyword g/Any}])
+  (input samplers [g/KeywordMap])
 
   (input dep-build-targets g/Any)
-  (output dep-build-targets g/Any (g/fnk [dep-build-targets] dep-build-targets))
+  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
                                     (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
@@ -923,24 +932,27 @@
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str)
-  (property font (g/protocol resource/Resource)
+  (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (project/gen-resource-setter [[:resource :font-resource]
-                                               [:font-map :font-map]
-                                               [:font-data :font-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:material-shader :font-shader]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter
+                    basis self old-value new-value
+                    [:resource :font-resource]
+                    [:font-map :font-map]
+                    [:font-data :font-data]
+                    [:gpu-texture :gpu-texture]
+                    [:material-shader :font-shader]
+                    [:build-targets :dep-build-targets])))
             (validate (validation/validate-resource font)))
 
-  (input font-resource (g/protocol resource/Resource))
+  (input font-resource resource/Resource)
   (input font-map g/Any)
   (input font-data font/FontData)
   (input font-shader ShaderLifecycle)
   (input gpu-texture g/Any)
 
   (input dep-build-targets g/Any)
-  (output dep-build-targets g/Any :cached (g/fnk [dep-build-targets] dep-build-targets))
+  (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
@@ -949,10 +961,10 @@
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
-  (output font-map g/Any (g/fnk [font-map] font-map))
-  (output font-data font/FontData (g/fnk [font-data] font-data))
-  (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
-  (output font-shader ShaderLifecycle (g/fnk [font-shader] font-shader))
+  (output font-map g/Any (gu/passthrough font-map))
+  (output font-data font/FontData (gu/passthrough font-data))
+  (output gpu-texture g/Any (gu/passthrough gpu-texture))
+  (output font-shader ShaderLifecycle (gu/passthrough font-shader))
   (output font-id IDMap (g/fnk [_node-id name] {name _node-id})))
 
 (g/defnode LayerNode
@@ -983,10 +995,10 @@
   (property name g/Str)
   (property nodes g/Any
             (dynamic visible (g/always false))
-            (value (g/fnk [layout-overrides] layout-overrides))
+            (value (gu/passthrough layout-overrides))
             (set (fn [basis self _ new-value]
                    (let [scene (ffirst (g/targets-of basis self :_node-id))
-                         node-tree (g/node-value scene :node-tree :basis basis)
+                         node-tree (g/node-value scene :node-tree {:basis basis})
                          or-data new-value
                          override (g/override basis node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                             (or (g/node-instance? basis GuiNode src)
@@ -994,7 +1006,7 @@
                                                                                 (g/node-instance? basis GuiSceneNode src)))})
                          id-mapping (:id-mapping override)
                          or-node-tree (get id-mapping node-tree)
-                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids :basis basis))]
+                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids {:basis basis}))]
                      (concat
                        (:tx-data override)
                        (for [[from to] [[:node-overrides :layout-overrides]
@@ -1003,6 +1015,7 @@
                                         [:node-outline :node-tree-node-outline]
                                         [:scene :node-tree-scene]]]
                          (g/connect or-node-tree from self to))
+
                        (for [[from to] [[:id-prefix :id-prefix]]]
                          (g/connect self from or-node-tree to))
                        (for [[id data] or-data
@@ -1025,19 +1038,19 @@
   (input node-tree-scene g/Any)
   (output layout-scene g/Any (g/fnk [name node-tree-scene] [name node-tree-scene]))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix)))
+  (output id-prefix g/Str (gu/passthrough id-prefix)))
 
-(defn- gen-outline-fnk [label order sort-children? child-reqs]
-  (g/fnk [_node-id child-outlines]
-         {:node-id _node-id
-          :label label
-          :icon virtual-icon
-          :order order
-          :read-only true
-          :child-reqs child-reqs
-          :children (if sort-children?
-                      (vec (sort-by :index child-outlines))
-                      child-outlines)}))
+(defmacro gen-outline-fnk [label order sort-children? child-reqs]
+  `(g/fnk [~'_node-id ~'child-outlines]
+          {:node-id ~'_node-id
+           :label ~label
+           :icon ~virtual-icon
+           :order ~order
+           :read-only true
+           :child-reqs ~child-reqs
+           :children ~(if sort-children?
+                       `(vec (sort-by :index ~'child-outlines))
+                       'child-outlines)}))
 
 (g/defnode NodeTree
   (property id g/Str (default (g/always ""))
@@ -1071,11 +1084,12 @@
   (input node-ids IDMap :array)
   (output node-ids IDMap :cached (g/fnk [node-ids] (into {} node-ids)))
   (input layer-ids IDMap)
-  (output layer-ids IDMap (g/fnk [layer-ids] layer-ids))
+  (output layer-ids IDMap (gu/passthrough layer-ids))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix))
+  (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
-  (output current-layout g/Str (g/fnk [current-layout] current-layout)))
+  (output current-layout g/Str (gu/passthrough current-layout)))
+
 
 (g/defnode TexturesNode
   (inherits outline/OutlineNode)
@@ -1210,19 +1224,25 @@
 (g/defnode GuiSceneNode
   (inherits project/ResourceNode)
 
-  (property script (g/protocol resource/Resource)
+  (property script resource/Resource
             (value (gu/passthrough script-resource))
-            (set (project/gen-resource-setter [[:resource :script-resource]
-                                               [:build-targets :dep-build-targets]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter
+                    basis self old-value new-value
+                    [:resource :script-resource]
+                    [:build-targets :dep-build-targets])))
             (validate (validation/validate-resource script)))
 
 
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (project/gen-resource-setter [[:resource :material-resource]
-                                       [:shader :material-shader]
-                                       [:samplers :samplers]
-                                       [:build-targets :dep-build-targets]]))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter
+            basis self old-value new-value
+            [:resource :material-resource]
+            [:shader :material-shader]
+            [:samplers :samplers]
+            [:build-targets :dep-build-targets])))
     (validate (validation/validate-resource material)))
 
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
@@ -1234,7 +1254,7 @@
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
 
-  (input script-resource (g/protocol resource/Resource))
+  (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
   (input fonts-node g/NodeID)
@@ -1247,11 +1267,11 @@
   (input current-layout g/Str)
   (output current-layout g/Str (g/fnk [current-layout visible-layout] (or current-layout visible-layout)))
   (input node-msgs g/Any)
-  (output node-msgs g/Any (g/fnk [node-msgs] node-msgs))
+  (output node-msgs g/Any (gu/passthrough node-msgs))
   (input node-rt-msgs g/Any)
   (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs] (map #(dissoc % :index) (flatten (sort-by #(get-in % [0 :index]) node-rt-msgs)))))
   (input node-overrides g/Any)
-  (output node-overrides g/Any :cached (g/fnk [node-overrides] node-overrides))
+  (output node-overrides g/Any :cached (gu/passthrough node-overrides))
   (input font-msgs g/Any :array)
   (input texture-msgs g/Any :array)
   (input layer-msgs g/Any :array)
@@ -1259,7 +1279,7 @@
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
   (input node-ids IDMap)
-  (output node-ids IDMap (g/fnk [node-ids] node-ids))
+  (output node-ids IDMap (gu/passthrough node-ids))
   (input texture-names g/Str :array)
   (input font-names g/Str :array)
   (input layer-names g/Str :array)
@@ -1269,11 +1289,11 @@
   (input font-ids IDMap :array)
   (input layer-ids IDMap :array)
 
-  (input material-resource (g/protocol resource/Resource))
+  (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
-  (input samplers [{g/Keyword g/Any}])
-  (output samplers [{g/Keyword g/Any}] (g/fnk [samplers] samplers))
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input samplers [g/KeywordMap])
+  (output samplers [g/KeywordMap] (gu/passthrough samplers))
   (output aabb AABB :cached (g/fnk [scene-dims child-scenes]
                                    (let [w (:width scene-dims)
                                          h (:height scene-dims)
@@ -1307,12 +1327,12 @@
                                               (let [w (get project-settings ["display" "width"])
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
-  (output layers [g/Str] :cached (g/fnk [layers] layers))
+  (output layers [g/Str] :cached (gu/passthrough layers))
   (output texture-ids IDMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
   (output font-ids IDMap :cached (g/fnk [font-ids] (into {} font-ids)))
   (output layer-ids IDMap :cached (g/fnk [layer-ids] (into {} layer-ids)))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix)))
+  (output id-prefix g/Str (gu/passthrough id-prefix)))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -1731,7 +1751,6 @@
 
 (handler/defhandler :set-gui-layout :global
   (active? [project active-resource] (boolean (resource->gui-scene project active-resource)))
-  (enabled? [project active-resource] (boolean (resource->gui-scene project active-resource)))
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]
                                                (g/transact (g/set-property scene :visible-layout user-data)))))

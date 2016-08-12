@@ -23,7 +23,8 @@
             [editor.validation :as validation]
             [editor.camera :as camera]
             [editor.handler :as handler]
-            [editor.core :as core])
+            [editor.core :as core]
+            [editor.types :as types])
   (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
@@ -144,18 +145,10 @@
       (conj! vb (into v color)))
     (persistent! vb)))
 
-(defn- scale-factor [camera viewport]
-  (let [inv-view (doto (Matrix4d. (camera/camera-view-matrix camera)) (.invert))
-        x-axis   (Vector4d.)
-        _        (.getColumn inv-view 0 x-axis)
-        cp1      (camera/camera-project camera viewport (Point3d.))
-        cp2      (camera/camera-project camera viewport (Point3d. (.x x-axis) (.y x-axis) (.z x-axis)))]
-    (/ 1.0 (Math/abs (- (.x cp1) (.x cp2))))))
-
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
-        scale-f (scale-factor camera viewport)]
+        scale-f (camera/scale-factor camera viewport)]
     (doseq [renderable renderables
             :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
@@ -165,7 +158,7 @@
             color (-> (if (:selected renderable) selected-color color)
                     (conj 1))
             vs (geom/transf-p world-transform (concat
-                                                (geom/scale [scale-f scale-f 1] vs-screen)
+                                                (geom/scale scale-f vs-screen)
                                                 vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
         (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
@@ -291,7 +284,7 @@
     (g/fnk [_node-id type]
       (let [mod-type (mod-types type)]
         {:node-id _node-id :label (:label mod-type) :icon modifier-icon})))
-  (output aabb AABB (g/fnk [] (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+  (output aabb AABB (g/always (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -410,14 +403,18 @@
                             (map first)
                             (mapv (fn [kw] (let [v (get-in properties [kw :value])]
                                             {:key kw
-                                             :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))
+                                             :points (->> (props/curve-vals v)
+                                                       (sort-by first)
+                                                       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))
                                              :spread (:spread v)}))))]
              [:particle-properties (->> (protobuf/enum-values Particle$ParticleKey)
                                      butlast
                                      (map first)
                                      (mapv (fn [kw] (let [v (get-in properties [kw :value])]
                                                      {:key kw
-                                                      :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))}))))]]))))
+                                                      :points (->> (props/curve-vals v)
+                                                                (sort-by first)
+                                                                (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))}))))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat
@@ -445,13 +442,15 @@
             (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/always "Emission Space")))
 
-  (property tile-source (g/protocol resource/Resource)
+  (property tile-source resource/Resource
             (dynamic label (g/always "Image"))
             (value (gu/passthrough tile-source-resource))
-            (set (project/gen-resource-setter [[:resource :tile-source-resource]
-                                               [:texture-set-data :texture-set-data]
-                                               [:gpu-texture :gpu-texture]
-                                               [:anim-data :anim-data]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :tile-source-resource]
+                                                [:texture-set-data :texture-set-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:anim-data :anim-data])))
             (validate (validation/validate-resource tile-source "Missing image"
                                                     [texture-set-data gpu-texture anim-data])))
 
@@ -461,9 +460,11 @@
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
 
-  (property material (g/protocol resource/Resource)
+  (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (project/gen-resource-setter [[:resource :material-resource]]))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                                [:resource :material-resource])))
             (validate (validation/validate-resource material)))
 
   (property blend-mode g/Keyword
@@ -481,8 +482,8 @@
   (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
-  (input tile-source-resource (g/protocol resource/Resource))
-  (input material-resource (g/protocol resource/Resource))
+  (input tile-source-resource resource/Resource)
+  (input material-resource resource/Resource)
   (input texture-set-data g/Any)
   (input gpu-texture g/Any)
   (input anim-data g/Any)
@@ -634,7 +635,7 @@
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
                                        {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
-  (output emitter-sim-data g/Any :cached (g/fnk [emitter-sim-data] emitter-sim-data))
+  (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]

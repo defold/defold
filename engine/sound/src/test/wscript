@@ -135,54 +135,18 @@ def build(bld):
         test_sound_perf = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
                                       uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs ,
-                                      uselib_local = 'sound2 embedded_wavs embedded_oggs',
+                                      uselib_local = 'sound embedded_wavs embedded_oggs',
                                       exported_symbols = exported_symbols,
                                       target = 'test_sound_perf',
                                       source = 'test_sound_perf.cpp')
         test_sound_perf.install_path = None
 
-        # enforce tremolo being used
-        test_sound_tremolo = bld.new_task_gen(features = 'cxx cprogram embed',
-                                      includes = '../../../src .',
-                                      uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL TREMOLO',
-                                      uselib_local = 'sound2 embedded_wavs embedded_oggs',
-                                      exported_symbols = ['AudioDecoderTremolo',
-                                      'AudioDecoderWav', 'DefaultSoundDevice'],
-                                      target = 'test_sound_tremolo',
-                                      source = 'test_sound.cpp')
-
-
-        test_sound_tremolo.install_path = None
-
     test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
                                   uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
-                                  uselib_local = 'sound2 embedded_wavs embedded_oggs',
+                                  uselib_local = 'sound embedded_wavs embedded_oggs',
                                   exported_symbols = exported_symbols,
                                   target = 'test_sound',
                                   source = 'test_sound.cpp')
 
     test_sound.install_path = None
-
-    test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
-                                  includes = '../../../src .',
-                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
-                                  uselib_local = 'sound_null embedded_wavs embedded_oggs',
-                                  exported_symbols = ['AudioDecoderStbVorbis', 'AudioDecoderWav'],
-                                  target = 'test_sound_null',
-                                  source = 'test_sound.cpp')
-
-
-    test_sound_null.install_path = None
-
-    test_sound2 = bld.new_task_gen(features = 'cxx cprogram embed test',
-                                  includes = '../../../src .',
-                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
-                                  uselib_local = 'sound2 embedded_wavs embedded_oggs',
-                                  exported_symbols = exported_symbols,
-                                  target = 'test_sound2',
-                                  source = 'test_sound2.cpp')
-
-    test_sound2.install_path = None
-
-

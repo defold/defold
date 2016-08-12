@@ -1,6 +1,7 @@
 (ns editor.outline
   (:require [dynamo.graph :as g]
             [editor.core :as core]
+            [schema.core :as s]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
@@ -41,30 +42,30 @@
         (recur (parent item-iterator) root-nodes)))
     nil))
 
-(def OutlineData {:node-id g/NodeID
-                  :label g/Str
-                  :icon g/Str
-                  (g/optional-key :children) [g/Any]
-                  (g/optional-key :child-reqs) [g/Any]
-                  (g/optional-key :outline-overridden?) g/Bool
-                  g/Keyword g/Any})
+(g/deftype OutlineData {:node-id                              s/Int
+                        :label                                s/Str
+                        :icon                                 s/Str
+                        (s/optional-key :children)            [s/Any]
+                        (s/optional-key :child-reqs)          [s/Any]
+                        (s/optional-key :outline-overridden?) s/Bool
+                        s/Keyword                             s/Any})
 
 (g/defnode OutlineNode
   (input source-outline OutlineData)
   (input child-outlines OutlineData :array)
 
   (output node-outline OutlineData :abstract)
-  (output outline-overridden? g/Bool :cached (g/fnk [_properties child-outlines]
+  (output outline-overridden? g/Bool :cached (g/fnk [_overridden-properties child-outlines]
                                                     (boolean
-                                                      (or (some :outline-overridden child-outlines)
-                                                          (some (fn [[k v]] (contains? v :original-value)) (:properties _properties)))))))
+                                                      (or (not (empty? _overridden-properties))
+                                                          (some :outline-overridden child-outlines))))))
 
 (defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
   (and (g/node-instance? OutlineNode tgt-node)
     (or (= :child-outlines tgt-label)
       (= :source-outline tgt-label))
     (not (and (g/node-instance? basis resource/ResourceNode src-node)
-           (some? (resource/path (g/node-value src-node :resource :basis basis)))))))
+      (some? (resource/path (g/node-value src-node :resource {:basis basis})))))))
 
 (defn copy
   ([src-item-iterators]

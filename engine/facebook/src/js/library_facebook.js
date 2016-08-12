@@ -3,7 +3,7 @@ var LibraryFacebook = {
 
         },
 
-        dmFacebookInitialize: function(app_id) {
+        dmFacebookInitialize: function(app_id, version) {
             // We assume that the Facebook javascript SDK is loaded by now.
             // This should be done via a script tag (synchronously) in the html page:
             // <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
@@ -13,12 +13,12 @@ var LibraryFacebook = {
                     appId      : Pointer_stringify(app_id),
                     status     : false,
                     xfbml      : false,
-                    version    : 'v2.0',
+                    version    : Pointer_stringify(version),
                 });
 
                 window._dmFacebookUpdateMe = function(callback) {
                     try {
-                        FB.api('/me', function (response) {
+                        FB.api('/me', 'get', { fields: 'id,name,email,first_name,last_name,link,gender,updated_time' }, function (response) {
                             var e = (response && response.error ? response.error.message : 0);
                             if(e == 0) {
                                 var me_data = JSON.stringify(response);
