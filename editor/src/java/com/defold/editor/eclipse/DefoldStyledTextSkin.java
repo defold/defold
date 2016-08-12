@@ -226,6 +226,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								sb.setValue(0);
 							}
 						}
+						p.applyCss();
+						p.layoutChildren();
 						getFlow().requestLayout();
 						immediateRefresh();
 
@@ -265,6 +267,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								}
 							} else {
 								block.setSelection(new TextSelection(0, 0));
+								block.applyCss();
+								block.layoutChildren();
 							}
 							
 						}
