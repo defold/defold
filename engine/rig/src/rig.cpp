@@ -66,32 +66,34 @@ namespace dmRig
     PlayResult PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
-        if (anim != 0x0)
+        if (anim == 0x0)
         {
-            if (blend_duration > 0.0f)
-            {
-                instance->m_BlendTimer = 0.0f;
-                instance->m_BlendDuration = blend_duration;
-                instance->m_Blending = 1;
-            }
-            else
-            {
-                RigPlayer* player = GetPlayer(instance);
-                player->m_Playing = 0;
-            }
-            RigPlayer* player = SwitchPlayer(instance);
-            player->m_AnimationId = animation_id;
-            player->m_Animation = anim;
-            player->m_Cursor = 0.0f;
-            player->m_Playing = 1;
-            player->m_Playback = playback;
-            if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmGameObject::PLAYBACK_LOOP_BACKWARD)
-                player->m_Backwards = 1;
-            else
-                player->m_Backwards = 0;
-            return PLAY_RESULT_OK;
+            return PLAY_RESULT_ANIM_NOT_FOUND;
         }
-        return PLAY_RESULT_ANIM_NOT_FOUND;
+
+        if (blend_duration > 0.0f)
+        {
+            instance->m_BlendTimer = 0.0f;
+            instance->m_BlendDuration = blend_duration;
+            instance->m_Blending = 1;
+        }
+        else
+        {
+            RigPlayer* player = GetPlayer(instance);
+            player->m_Playing = 0;
+        }
+        RigPlayer* player = SwitchPlayer(instance);
+        player->m_AnimationId = animation_id;
+        player->m_Animation = anim;
+        player->m_Cursor = 0.0f;
+        player->m_Playing = 1;
+        player->m_Playback = playback;
+        if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmGameObject::PLAYBACK_LOOP_BACKWARD)
+            player->m_Backwards = 1;
+        else
+            player->m_Backwards = 0;
+
+        return PLAY_RESULT_OK;
     }
 
     PlayResult CancelAnimation(HRigInstance instance)
@@ -113,6 +115,28 @@ namespace dmRig
         return instance->m_Skin;
     }
 
+    static void UpdateMeshProperties(HRigInstance instance)
+    {
+        if (instance->m_MeshEntry != 0x0) {
+            uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
+            instance->m_MeshProperties.SetSize(mesh_count);
+            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
+                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
+                float* color = mesh->m_Color.m_Data;
+                MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+                properties->m_Color[0] = color[0];
+                properties->m_Color[1] = color[1];
+                properties->m_Color[2] = color[2];
+                properties->m_Color[3] = color[3];
+                properties->m_Order = mesh->m_DrawOrder;
+                properties->m_Visible = mesh->m_Visible;
+            }
+            // instance->m_DoRender = 1;
+        } else {
+            instance->m_MeshProperties.SetSize(0);
+        }
+    }
+
     UpdateResult SetSkin(HRigInstance instance, dmhash_t skin)
     {
         const dmRigDDF::MeshEntry* mesh_entry = 0x0;
@@ -131,6 +155,9 @@ namespace dmRig
         }
         instance->m_MeshEntry = mesh_entry;
         instance->m_Skin = skin;
+
+        UpdateMeshProperties(instance);
+
         return dmRig::UPDATE_RESULT_OK;
     }
 
@@ -633,25 +660,26 @@ namespace dmRig
 
         for (uint32_t i = 0; i < count; ++i)
         {
-            RigInstance& instance = *instances[i];
-            if (instance.m_MeshEntry != 0x0) {
-                uint32_t mesh_count = instance.m_MeshEntry->m_Meshes.m_Count;
-                instance.m_MeshProperties.SetSize(mesh_count);
-                for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-                    const dmRigDDF::Mesh* mesh = &instance.m_MeshEntry->m_Meshes[mesh_index];
-                    float* color = mesh->m_Color.m_Data;
-                    MeshProperties* properties = &instance.m_MeshProperties[mesh_index];
-                    properties->m_Color[0] = color[0];
-                    properties->m_Color[1] = color[1];
-                    properties->m_Color[2] = color[2];
-                    properties->m_Color[3] = color[3];
-                    properties->m_Order = mesh->m_DrawOrder;
-                    properties->m_Visible = mesh->m_Visible;
-                }
-                // instance.m_DoRender = 1;
-            } else {
-                instance.m_MeshProperties.SetSize(0);
-            }
+            // RigInstance& instance = *instances[i];
+            UpdateMeshProperties(instances[i]);
+            // if (instance.m_MeshEntry != 0x0) {
+            //     uint32_t mesh_count = instance.m_MeshEntry->m_Meshes.m_Count;
+            //     instance.m_MeshProperties.SetSize(mesh_count);
+            //     for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
+            //         const dmRigDDF::Mesh* mesh = &instance.m_MeshEntry->m_Meshes[mesh_index];
+            //         float* color = mesh->m_Color.m_Data;
+            //         MeshProperties* properties = &instance.m_MeshProperties[mesh_index];
+            //         properties->m_Color[0] = color[0];
+            //         properties->m_Color[1] = color[1];
+            //         properties->m_Color[2] = color[2];
+            //         properties->m_Color[3] = color[3];
+            //         properties->m_Order = mesh->m_DrawOrder;
+            //         properties->m_Visible = mesh->m_Visible;
+            //     }
+            //     // instance.m_DoRender = 1;
+            // } else {
+            //     instance.m_MeshProperties.SetSize(0);
+            // }
         }
 
         Animate(context, dt);
@@ -662,8 +690,8 @@ namespace dmRig
     UpdateResult PostUpdate(HRigContext context)
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
-        uint32_t n = instances.Size();
-        for (uint32_t i = 0; i < n; ++i)
+        uint32_t count = instances.Size();
+        for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
@@ -925,8 +953,8 @@ namespace dmRig
         RigInstance* instance = *params.m_Instance;
 
         uint32_t index = context->m_Instances.Alloc();
-        instance->m_Index = index;
         memset(instance, 0, sizeof(RigInstance));
+        instance->m_Index = index;
         context->m_Instances.Set(index, instance);
         instance->m_Skin = dmHashString64(params.m_SkinId);
 

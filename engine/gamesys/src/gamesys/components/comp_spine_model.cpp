@@ -473,7 +473,7 @@ namespace dmGameSystem
 
             // Include instance transform in the GO instance reflecting the root bone
             dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component.m_RigInstance);
-            if (pose.Size() > 0) {
+            if (!pose.Empty()) {
                 dmTransform::Transform root_t = pose[0];
                 // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
                 dmGameObject::HInstance first_bone_go = component.m_NodeInstances[0];
@@ -671,28 +671,43 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static void OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
+    static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
     {
-        // dmGameSystem::SpineSceneResource* scene = component->m_Resource->m_Scene;
-        // component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
-        // AllocateMeshProperties(scene->m_MeshSetRes->m_MeshSet, component->m_MeshProperties);
-        // component->m_MeshEntry = FindMeshEntry(scene->m_MeshSetRes->m_MeshSet, component->m_Skin);
-        // dmhash_t default_anim_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
-        // for (uint32_t i = 0; i < 2; ++i)
-        // {
-        //     SpinePlayer* player = &component->m_Players[i];
-        //     if (player->m_Playing)
-        //     {
-        //         player->m_Animation = FindAnimation(scene->m_AnimationSetRes->m_AnimationSet, player->m_AnimationId);
-        //         if (player->m_Animation == 0x0)
-        //         {
-        //             player->m_AnimationId = default_anim_id;
-        //             player->m_Animation = FindAnimation(scene->m_AnimationSetRes->m_AnimationSet, player->m_AnimationId);
-        //         }
-        //     }
-        // }
-        // DestroyPose(component);
-        // CreatePose(world, component);
+        // component->m_Resource = (SpineModelResource*)params.m_Resource;
+
+        // destroy old rig
+        dmRig::InstanceDestroyParams destroy_params;
+        destroy_params.m_Context = world->m_RigContext;
+        destroy_params.m_Instance = component->m_RigInstance;
+        dmRig::InstanceDestroy(destroy_params);
+
+        // Create rig instance
+        dmRig::InstanceCreateParams create_params;
+        create_params.m_Context = world->m_RigContext;
+        create_params.m_Instance = &component->m_RigInstance;
+
+        create_params.m_EventCallback = CompSpineModelEventCallback;
+        create_params.m_EventCBUserData = component;
+
+        RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
+        create_params.m_BindPose         = &rig_resource->m_BindPose;
+        create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
+        create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
+        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_SkinId           = component->m_Resource->m_Model->m_Skin;
+        create_params.m_DefaultAnimation = component->m_Resource->m_Model->m_DefaultAnimation;
+
+        dmRig::CreateResult res = dmRig::InstanceCreate(create_params);
+        if (res != dmRig::CREATE_RESULT_OK) {
+            dmLogError("Failed to create a rig instance needed by spine model: %d.", res);
+            return false;
+        }
+
+        ReHash(component);
+
+        // Create GO<->bone representation
+        CreateGOBones(world, component);
+        return true;
     }
 
     void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
@@ -700,7 +715,7 @@ namespace dmGameSystem
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
-        OnResourceReloaded(world, component);
+        (void)OnResourceReloaded(world, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
