@@ -64,7 +64,8 @@ private:
 
         m_BindPose.SetCapacity(bone_count);
         m_BindPose.SetSize(bone_count);
-        // TMP: code from res_rig_scene.h
+
+        // code from res_rig_scene.h
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             dmRig::RigBone* bind_bone = &m_BindPose[i];
@@ -145,9 +146,85 @@ private:
              |
              |
              v
-            (1)---->(x)
+            (1)
+             |
+             |
+             v
+            (x)
 
         */
+
+        // Dummy mesh data
+        m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[1];
+        m_MeshSet->m_MeshEntries.m_Count = 1;
+
+        dmRigDDF::MeshEntry& mesh_entry0 = m_MeshSet->m_MeshEntries.m_Data[0];
+        mesh_entry0.m_Id = dmHashString64("test");
+        mesh_entry0.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+        mesh_entry0.m_Meshes.m_Count = 1;
+
+        uint32_t vert_count = 3;
+        dmRigDDF::Mesh& mesh0 = mesh_entry0.m_Meshes.m_Data[0];
+        mesh0.m_Positions.m_Data = new float[vert_count*3];
+        mesh0.m_Positions.m_Count = vert_count*3;
+        mesh0.m_Positions.m_Data[0] = 0.0f;
+        mesh0.m_Positions.m_Data[1] = 0.0f;
+        mesh0.m_Positions.m_Data[2] = 0.0f;
+        mesh0.m_Positions.m_Data[3] = 1.0f;
+        mesh0.m_Positions.m_Data[4] = 0.0f;
+        mesh0.m_Positions.m_Data[5] = 0.0f;
+        mesh0.m_Positions.m_Data[6] = 2.0f;
+        mesh0.m_Positions.m_Data[7] = 0.0f;
+        mesh0.m_Positions.m_Data[8] = 0.0f;
+
+        // create buffers, don't need the data
+        mesh0.m_Texcoord0.m_Data       = new float[vert_count*2];
+        mesh0.m_Texcoord0.m_Count      = vert_count*2;
+        mesh0.m_Color.m_Data           = new float[vert_count*4];
+        mesh0.m_Color.m_Count          = vert_count*4;
+        mesh0.m_Indices.m_Data         = new uint32_t[vert_count];
+        mesh0.m_Indices.m_Count        = vert_count;
+        mesh0.m_Indices.m_Data[0]      = 0;
+        mesh0.m_Indices.m_Data[1]      = 1;
+        mesh0.m_Indices.m_Data[2]      = 2;
+        mesh0.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
+        mesh0.m_BoneIndices.m_Count    = vert_count*4;
+        mesh0.m_BoneIndices.m_Data[0]  = 0;
+        mesh0.m_BoneIndices.m_Data[1]  = 1;
+        mesh0.m_BoneIndices.m_Data[2]  = 0;
+        mesh0.m_BoneIndices.m_Data[3]  = 0;
+        mesh0.m_BoneIndices.m_Data[4]  = 0;
+        mesh0.m_BoneIndices.m_Data[5]  = 1;
+        mesh0.m_BoneIndices.m_Data[6]  = 0;
+        mesh0.m_BoneIndices.m_Data[7]  = 0;
+        mesh0.m_BoneIndices.m_Data[8]  = 0;
+        mesh0.m_BoneIndices.m_Data[9]  = 1;
+        mesh0.m_BoneIndices.m_Data[10] = 0;
+        mesh0.m_BoneIndices.m_Data[11] = 0;
+
+        mesh0.m_Weights.m_Data         = new float[vert_count*4];
+        mesh0.m_Weights.m_Count        = vert_count*4;
+
+        mesh0.m_Weights.m_Data[0]      = 1.0f;
+        mesh0.m_Weights.m_Data[1]      = 0.0f;
+        mesh0.m_Weights.m_Data[2]      = 0.0f;
+        mesh0.m_Weights.m_Data[3]      = 0.0f;
+
+        mesh0.m_Weights.m_Data[4]      = 0.0f;
+        mesh0.m_Weights.m_Data[5]      = 1.0f;
+        mesh0.m_Weights.m_Data[6]      = 0.0f;
+        mesh0.m_Weights.m_Data[7]      = 0.0f;
+
+        mesh0.m_Weights.m_Data[8]      = 0.0f;
+        mesh0.m_Weights.m_Data[9]      = 1.0f;
+        mesh0.m_Weights.m_Data[10]     = 0.0f;
+        mesh0.m_Weights.m_Data[11]     = 0.0f;
+
+        mesh0.m_Normals.m_Data         = new float[vert_count*3];
+        mesh0.m_Normals.m_Count        = vert_count*3;
+
+        mesh0.m_Visible = true;
+        mesh0.m_DrawOrder = 0;
     }
 
     void TearDownSimpleSpine() {
@@ -156,6 +233,16 @@ private:
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data;
         delete [] m_Skeleton->m_Bones.m_Data;
+
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_Normals.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_Weights.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_Indices.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_Color.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data[0].m_Positions.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data[0].m_Meshes.m_Data;
+        delete [] m_MeshSet->m_MeshEntries.m_Data;
     }
 
 protected:
@@ -178,7 +265,7 @@ protected:
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
 
-        create_params.m_SkinId           = (const char*)"dummy";
+        create_params.m_SkinId           = (const char*)"test";
         create_params.m_DefaultAnimation = (const char*)"";
 
         if (dmRig::CREATE_RESULT_OK != dmRig::InstanceCreate(create_params)) {
@@ -367,21 +454,62 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
 
 }
 
+TEST_F(RigInstanceTest, GetVertexCount)
+{
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_EQ(3, dmRig::GetVertexCount(m_Instance));
+}
+
+TEST_F(RigInstanceTest, GenerateVertexData)
+{
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
+
+    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
+    dmRig::RigGenVertexDataParams params;
+    params.m_ModelMatrix = Matrix4::identity();
+    params.m_VertexData = (void**)&data;
+    params.m_VertexStride = sizeof(dmRig::RigVertexData);
+
+    // sample 0
+    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
+    ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
+
+    // sample 1
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
+    ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
+
+    // sample 2
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
+    ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
+
+    delete [] data;
+}
+
 #undef ASSERT_VEC3
 #undef ASSERT_VEC4
 
 /*
     Left to test:
-        GenerateVertexData(...)
-        GetSkin(...)
-        SetSkin(...)
-        GetAnimation(...)
-        SetAnimation(...)
-        GetPose(...)
-        GetCursor(...)
-        SetCursor(...)
-        SetIKTarget(...)
-        SetIKTargetPosition(...)
+
+        SetSkin
+        GetSkin
+        GetCursor
+        SetCursor
+        GetPose
+        SetIKTarget
 */
 
 int main(int argc, char **argv)

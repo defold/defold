@@ -823,6 +823,10 @@ namespace dmRig
 
     uint32_t GetVertexCount(HRigInstance instance)
     {
+        if (instance->m_MeshEntry == 0x0) {
+            return 0;
+        }
+
         uint32_t vertex_count = 0;
         uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
         for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
