@@ -109,15 +109,29 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			@Override
 			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
 				int lineIndex = getSkinnable().getContent().getLineAtOffset(newValue.intValue());
-                                if (lineIndex < 0){
-                                    return;
-                                 }
+				if (lineIndex < 0){
+					return;
+				}
 				Line lineObject = DefoldStyledTextSkin.this.lineList.get(lineIndex);
-                                if (lineObject == null){
-                                    return;
-                                }
+				if (lineObject == null){
+					return;
+				}
+				
+				int oldLineIndex = getSkinnable().getContent().getLineAtOffset(oldValue.intValue());
+				if (lineIndex < 0){
+					return;
+				}
+				Line oldLineObject = DefoldStyledTextSkin.this.lineList.get(oldLineIndex);
+				
 
-               
+				for (LineCell c : lineInfoMap.keySet()) {
+					if (c.domainElement == oldLineObject) {
+						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
+						if (p != null){
+							p.setCaretIndex(-1);
+						}
+					}
+				}
                   //getFlow().show(lineIndex);
                
 
@@ -130,12 +144,12 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						}
 
 						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
-                                                if (p == null){
-                                                    return;
-                                                }
+						if (p == null){
+							return;
+						}
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
 						Point2D caretLocation = p.getCaretLocation(newValue.intValue() - p.getStartOffset());
-                                                if (caretLocation == null) { return;};
+						if (caretLocation == null) {return;}
 						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(caretLocation));
                                                 if (tmp == null) {return;}
 						double prevCaretX = 0;
@@ -212,9 +226,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								sb.setValue(0);
 							}
 						}
-						p.applyCss();
-						p.layoutChildren();
 						getFlow().requestLayout();
+						immediateRefresh();
 
 						return;
 					}
@@ -253,10 +266,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 							} else {
 								block.setSelection(new TextSelection(0, 0));
 							}
-							block.applyCss();
-							block.layoutChildren();
+							
 						}
 						getFlow().requestLayout();
+						immediateRefresh();
 					}
 				}
 			}
