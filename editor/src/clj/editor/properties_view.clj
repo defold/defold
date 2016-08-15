@@ -138,41 +138,50 @@
                         ctrls))
     box))
 
-(defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv (fn [l] (doto (TextField.)
-                                     (.setPrefWidth 5000)
-                                     (GridPane/setFillWidth true)))
-                           labels)
-        box          (doto (GridPane.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
-                                                                      [t (str (properties/unify-values
-                                                                               (map #(nth % i) values)))])
-                                                                    text-fields)]
-                         (ui/text! t v)
-                         (ui/editable! t (not read-only?)))
-                       (update-field-message text-fields message))]
-    (doseq [[t f] (map-indexed (fn [i t]
-                                 [t (fn [_]
-                                      (let [v            (to-double (.getText ^TextField t))
-                                            current-vals (properties/values (property-fn))]
-                                        (if v
-                                          (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                        (properties/read-only? (property-fn))))))])
-                               text-fields)]
-      (ui/on-action! ^TextField t f)
-      (auto-commit! t f))
-    (doall (map-indexed (fn [idx [t label]]
-                          (let [comp (create-property-component [(doto (Label. label)
-                                                                   (.setMinWidth 25))
-                                                                 t])]
-                            (ui/add-child! box comp)
-                            (GridPane/setConstraints comp idx 0)
-                            (GridPane/setFillWidth comp true)))
-                        (map vector text-fields labels)))
-    [box update-ui-fn]))
+(defn- create-multi-textfield!
+  ([labels property-fn]
+    (create-multi-textfield! labels property-fn identity identity))
+  ([labels property-fn from-type-fn to-type-fn]
+    (let [text-fields  (mapv (fn [l] (doto (TextField.)
+                                       (.setPrefWidth 5000)
+                                       (GridPane/setFillWidth true)))
+                             labels)
+          box          (doto (GridPane.)
+                         (.setPrefWidth Double/MAX_VALUE))
+          update-ui-fn (fn [values message read-only?]
+                         (let [values (mapv from-type-fn values)]
+                           (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
+                                                                          [t (str (properties/unify-values
+                                                                                    (map #(nth % i) values)))])
+                                                                        text-fields)]
+                             (ui/text! t v)
+                             (ui/editable! t (not read-only?))))
+                         (update-field-message text-fields message))]
+      (doseq [[t f] (map-indexed (fn [i t]
+                                   [t (fn [_]
+                                        (let [v            (to-double (.getText ^TextField t))
+                                              current-vals (properties/values (property-fn))]
+                                          (if v
+                                            (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
+                                            (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                          (properties/read-only? (property-fn))))))])
+                                 text-fields)]
+        (ui/on-action! ^TextField t f)
+        (auto-commit! t f))
+      (doall (map-indexed (fn [idx [t label]]
+                            (let [comp (create-property-component [(doto (Label. label)
+                                                                     (.setMinWidth 25))
+                                                                   t])]
+                              (ui/add-child! box comp)
+                              (GridPane/setConstraints comp idx 0)
+                              (GridPane/setFillWidth comp true)))
+                          (map vector text-fields labels)))
+      [box update-ui-fn])))
+
+(defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
+  (let [{:keys [labels]
+         :or {labels ["X" "Y"]}} edit-type]
+    (create-multi-textfield! labels property-fn)))
 
 (defmethod create-property-control! types/Vec3 [edit-type _ property-fn]
   (let [{:keys [labels]

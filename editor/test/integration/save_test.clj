@@ -10,12 +10,15 @@
   (:import [java.io StringReader]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
-           [com.dynamo.particle.proto Particle$ParticleFX]))
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
-                           "particlefx" Particle$ParticleFX})
+                           "particlefx" Particle$ParticleFX
+                           "spinescene" Spine$SpineSceneDesc
+                           "spinemodel" Spine$SpineModelDesc})
 
 (deftest save-all
   (let [queries ["**/level1.platformer"
@@ -35,7 +38,9 @@
                  "**/fireworks_big.particlefx"
                  "**/new.collisionobject"
                  "**/three_shapes.collisionobject"
-                 "**/tile_map_collision_shape.collisionobject"]]
+                 "**/tile_map_collision_shape.collisionobject"
+                 "**/spineboy.spinescene"
+                 "**/spineboy.spinemodel"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
