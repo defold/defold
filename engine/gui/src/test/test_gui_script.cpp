@@ -5,6 +5,7 @@
 #include <script/lua_source_ddf.h>
 
 #include "../gui.h"
+#include "../gui_private.h"
 #include "../gui_script.h"
 
 extern "C"
@@ -475,6 +476,130 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
 
     dmGui::DeleteScene(scene);
 
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderMinimum)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::Result result = dmGui::RESULT_OK;
+
+    dmGui::SetSceneResolution(scene, 1, 1);
+
+    result = dmGui::SetSceneScript(scene, script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    const char* src =
+            "function init(self)\n"
+            "    gui.set_render_order(0)\n"
+            "end\n";
+
+    result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+    ASSERT_EQ(0, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderMaximum)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::Result result = dmGui::RESULT_OK;
+
+    dmGui::SetSceneResolution(scene, 1, 1);
+
+    result = dmGui::SetSceneScript(scene, script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    const char* src =
+            "function init(self)\n"
+            "    gui.set_render_order(15)\n"
+            "end\n";
+
+    result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+    ASSERT_EQ(15, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderUnderflow)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::Result result = dmGui::RESULT_OK;
+
+    dmGui::SetSceneResolution(scene, 1, 1);
+
+    result = dmGui::SetSceneScript(scene, script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    const char* src =
+            "function init(self)\n"
+            "    gui.set_render_order(-1)\n"
+            "end\n";
+
+    result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+    ASSERT_EQ(0, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderOverflow)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::Result result = dmGui::RESULT_OK;
+
+    dmGui::SetSceneResolution(scene, 1, 1);
+
+    result = dmGui::SetSceneScript(scene, script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    const char* src =
+            "function init(self)\n"
+            "    gui.set_render_order(16)\n"
+            "end\n";
+
+    result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+    ASSERT_EQ(15, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
     dmGui::DeleteScript(script);
 }
 
