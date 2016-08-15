@@ -1088,7 +1088,7 @@
     (loop [i           start-line-num
            caret-delta 0]
       (if (<= i end-line-num)
-        (recur (inc i) (+ caret-delta (do-indent-line selection i)))
+        (recur (inc i) (int (+ caret-delta (do-indent-line selection i))))
         (if (= caret-offset region-start)
           (do (caret! selection (+ region-start region-len caret-delta) false)
               (caret! selection caret-offset true))
