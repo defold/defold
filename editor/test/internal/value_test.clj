@@ -4,7 +4,9 @@
             [internal.util :as util]
             [internal.node :as in]
             [internal.transaction :as it]
-            [support.test-support :refer :all]))
+            [support.test-support :refer :all]
+            [internal.graph.error-values :as ie])
+  (:import [internal.graph.error_values ErrorValue]))
 
 (def ^:dynamic *calls*)
 
@@ -376,6 +378,10 @@
 (g/defnode ConstantPropertyNode
   (property a-property g/Any))
 
+(defn- cause [ev]
+  (when (instance? ErrorValue ev)
+    (first (:causes ev))))
+
 (deftest error-values-are-not-wrapped-from-properties
   (with-clean-system
     (let [[node]      (tx-nodes (g/make-node world ConstantPropertyNode))
@@ -404,18 +410,10 @@
                                              (g/connect sender :a-property receiver :single)))
             _                 (g/mark-defective! sender (g/error-fatal "Bad news, my friend."))
             error-value       (g/node-value receiver :single-output)]
-        (is (g/error? error-value))
-        (is (= 1 (count       (:causes  error-value))))
-        (is (= receiver       (:_node-id error-value)))
-        (is (= :single-output (:_label   error-value)))
-        (is (= g/FATAL        (:severity error-value)))
-
-        (let [cause (first (:causes error-value))]
-          (is (g/error? cause))
-          (is (empty?        (:causes   cause)))
-          (is (= sender      (:_node-id cause)))
-          (is (= :a-property (:_label   cause)))
-          (is (= g/FATAL     (:severity cause)))))))
+        (are [node label sev e] (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
+          receiver :single-output g/FATAL   error-value
+          receiver :single        g/FATAL   (cause error-value)
+          sender   :a-property    g/FATAL   (cause (cause error-value))))))
 
   (testing "multi-valued input with an error results in a single error out."
     (with-clean-system
@@ -430,16 +428,45 @@
                                                               (g/connect sender3 :a-property receiver :multi)))
             _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
             error-value                        (g/node-value receiver :multi-output)]
-        (is (g/error? error-value))
-        (is (= 1 (count       (:causes  error-value))))
-        (is (= receiver       (:_node-id error-value)))
-        (is (= :multi-output  (:_label   error-value)))
-        (is (= g/FATAL        (:severity error-value)))
+        (are [node label sev e] (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
+          receiver :multi-output g/FATAL   error-value
+          receiver :multi        g/FATAL   (cause error-value)
+          sender2  :a-property   g/FATAL   (cause (cause error-value)))))))
 
+(g/defnode ListOutput
+  (output list-output       g/Any (g/fnk []                  (list 1)))
+  (output recycle           g/Any (g/fnk [list-output]       list-output))
+  (output inner-list-output g/Any (g/fnk []                  [(list 1)]))
+  (output inner-recycle     g/Any (g/fnk [inner-list-output] inner-list-output)))
 
-        (let [cause (first (:causes error-value))]
-          (is (g/error? cause))
-          (is (empty?        (:causes   cause)))
-          (is (= sender2     (:_node-id cause)))
-          (is (= :a-property (:_label   cause)))
-          (is (= g/FATAL     (:severity cause))))))))
+(g/defnode ListInput
+  (input list-input       g/Any)
+  (input inner-list-input g/Any))
+
+(g/defnode ConstantOutputNode
+  (property real-val g/Any (default (list 1)))
+  (output val g/Any (g/fnk [real-val] real-val)))
+
+(deftest seq-values-are-preserved
+  (with-clean-system
+    (let [list-type      (type (list 1))
+          [output input] (tx-nodes
+                          (g/make-nodes world
+                                        [output ListOutput
+                                         input  ListInput]
+                                        (g/connect output :list-output       input :list-input)
+                                        (g/connect output :inner-list-output input :inner-list-input)))]
+      (is (= list-type (type (g/node-value output :recycle))))
+      (is (= list-type (type (g/node-value input  :list-input))))
+      (is (= list-type (type (first (g/node-value output :inner-recycle)))))
+      (is (= list-type (type (first (g/node-value input :inner-list-input))))))))
+
+(deftest values-are-not-reconstructed-on-happy-path
+  (with-clean-system
+    (let [[const input] (tx-nodes
+                         (g/make-nodes world
+                                       [const  ConstantOutputNode
+                                        input  ListInput]
+                                       (g/connect const :val input :list-input)))]
+      (is (identical? (g/node-value const :val) (g/node-value const :val)))
+      (is (identical? (g/node-value const :val) (g/node-value input :list-input))))))
