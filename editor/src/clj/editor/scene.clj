@@ -677,17 +677,26 @@
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height :drawable (make-drawable width height) :select-buffer (make-select-buffer)))
 
+
+(defmulti attach-tool-controller
+  (fn [tool-node-type tool-node-id view-id resource-node]
+    (:key @tool-node-type)))
+
+(defmethod attach-tool-controller :default
+  [_ tool-node view-id resource-node])
+
 (defn setup-view [view-id resource-node opts]
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
-        project     (:project opts)]
+        project     (:project opts)
+        tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (concat
      (g/make-nodes view-graph
                    [background background/Gradient
                     selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
                     camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
                     grid       grid/Grid
-                    tool-controller scene-tools/ToolController
+                    tool-controller tool-controller-type
                     rulers     [rulers/Rulers]]
                    (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
@@ -711,7 +720,8 @@
                    (g/connect view-id              :viewport                  tool-controller  :viewport)
                    (g/connect camera               :camera                    tool-controller  :camera)
                    (g/connect view-id              :selected-renderables      tool-controller  :selected-renderables)
-
+                   (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
+                   
                    (when (not (:grid opts))
                      (g/delete-node grid))
 
