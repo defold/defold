@@ -163,11 +163,9 @@
 (def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
                        "release_input_focus" "request_transform" "set_parent" "transform_response"})
 
-(def constant-pattern #"^(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)")
-(def operator-pattern #"^(\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
+(def constant-keywords #{"false" "nil" "true" "_G" "VERSION"})
 
-(defn match-constant [s]
-  (code/match-regex constant-pattern s))
+(def operator-pattern #"^(\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
 
 (defn match-operator [s]
   (code/match-regex operator-pattern s))
@@ -249,10 +247,10 @@
               {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords logic-keywords :class "logic-keywords"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords control-flow-keywords :class "control-flow-keyword"}
+              {:type :keyword :start? is-word-start :part? is-word-part :keywords constant-keywords :class "constant-keywords"}
               {:type :word :start? is-word-start :part? is-word-part :class "default"}
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
               {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
-              {:type :custom :scanner match-constant :class "constant"}
               {:type :custom :scanner code/match-number :class "number"}
               {:type :custom :scanner match-operator :class "operator"}
               {:type :number :class "number"}
