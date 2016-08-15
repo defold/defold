@@ -861,8 +861,7 @@ public class SpineScene {
                             } else {
                                 mesh = null;
                             }
-                        } else if ((spineVersion != null) && (spineVersion.compareTo("3.4.02") < 0)) {
-                            // spineVersion < 3.4.02
+                        } else {
                             if (type.equals("region")) {
                                 scene.loadRegion(attNode, mesh, bone);
                             } else if (type.equals("mesh")) {
