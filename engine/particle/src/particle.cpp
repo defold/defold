@@ -541,7 +541,7 @@ namespace dmParticle
             instance->m_PlayTime += dt;
             Prototype* prototype = instance->m_Prototype;
             uint32_t emitter_count = instance->m_Emitters.Size();
-            uint32_t total_particle_count = 0;
+            uint32_t TotalAliveParticles = 0;
             for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
             {
                 Emitter* emitter = &instance->m_Emitters[emitter_i];
@@ -551,7 +551,7 @@ namespace dmParticle
                 UpdateEmitterVelocity(instance, emitter, emitter_ddf, dt);
                 UpdateEmitter(prototype, instance, emitter_prototype, emitter, emitter_ddf, dt);
 
-                total_particle_count += (uint32_t)emitter->m_Particles.Size();
+                TotalAliveParticles += (uint32_t)emitter->m_Particles.Size();
 
                 FetchAnimation(emitter, emitter_prototype, fetch_animation_callback);
 
@@ -560,7 +560,7 @@ namespace dmParticle
                     vertex_index += UpdateRenderData(context, instance, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt);
             }
 
-            DM_COUNTER("Particles alive", total_particle_count)
+            DM_COUNTER("Particles alive", TotalAliveParticles)
         }
 
         context->m_Stats.m_Particles = vertex_index / 6;
