@@ -28,18 +28,7 @@
 
 (defn worse-than
   [severity x]
-  (cond
-    (sequential? x)          (filter #(sev? severity %) x)
-    (instance? ErrorValue x) (when (sev? severity x) x)
-    :else                    nil))
-
-(defn use-original-value
-  [x]
-  (cond
-    (vector? x)              (mapv use-original-value x)
-    (list? x)                (into (empty x) (map use-original-value x))
-    (instance? ErrorValue x) (:value x)
-    :else                    x))
+  (when (instance? ErrorValue x) (sev? severity x)))
 
 (defn severity? [level e]  (= level (:severity e)))
 
@@ -47,8 +36,6 @@
 (def  error-warning? (partial severity? WARNING))
 (def  error-severe?  (partial severity? SEVERE))
 (def  error-fatal?   (partial severity? FATAL))
-
-(defn most-serious    [es] (first (reverse (sort-by :severity es))))
 
 (defn error-aggregate
   ([es]
