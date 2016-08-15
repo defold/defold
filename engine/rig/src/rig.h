@@ -287,8 +287,9 @@ namespace dmRig
     UpdateResult SetSkin(HRigInstance instance, dmhash_t skin);
     dmhash_t GetSkin(HRigInstance instance);
 
-    float GetCursor(HRigInstance instance);
-    PlayResult SetCursor(HRigInstance instance, float cursor);
+    float GetCursor(HRigInstance instance, bool normalized);
+    PlayResult SetCursor(HRigInstance instance, float cursor, bool normalized);
+
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
 
     IKUpdate SetIKTarget(const RigIKTargetParams& params);

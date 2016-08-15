@@ -177,6 +177,11 @@ namespace dmRig
 
     static float GetCursorDuration(RigPlayer* player, const dmRigDDF::RigAnimation* animation)
     {
+        if (!animation)
+        {
+            return 0.0f;
+        }
+
         float duration = animation->m_Duration;
         if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
         {
@@ -518,7 +523,6 @@ namespace dmRig
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
             const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-            // dmArray<dmTransform::Transform>& pose_world = instance->m_PoseWorld;
             // Reset pose
             uint32_t bone_count = pose.Size();
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -749,17 +753,13 @@ namespace dmRig
 
     static dmRig::CreateResult CreatePose(HRigContext context, HRigInstance instance)
     {
-        const dmArray<RigBone>* bind_pose = instance->m_BindPose;
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         instance->m_Pose.SetCapacity(bone_count);
         instance->m_Pose.SetSize(bone_count);
-        // instance->m_PoseWorld.SetCapacity(bone_count);
-        // instance->m_PoseWorld.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             instance->m_Pose[i].SetIdentity();
-            // instance->m_PoseWorld[i].SetIdentity();
         }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
@@ -777,10 +777,50 @@ namespace dmRig
         return &instance->m_Pose;
     }
 
-    // dmArray<dmTransform::Transform>* GetPoseWorld(HRigInstance instance)
-    // {
-    //     return &instance->m_PoseWorld;
-    // }
+
+    float GetCursor(HRigInstance instance, bool normalized)
+    {
+        RigPlayer* player = GetPlayer(instance);
+        if (!player) {
+            return 0.0f;
+        }
+
+        float duration = GetCursorDuration(player, player->m_Animation);
+        if (duration == 0.0f) {
+            return 0.0f;
+        }
+
+        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
+        if (normalized) {
+            t = t / duration;
+        }
+        return t;
+
+    }
+
+    PlayResult SetCursor(HRigInstance instance, float cursor, bool normalized)
+    {
+        float t = cursor;
+
+        RigPlayer* player = GetPlayer(instance);
+        if (!player) {
+            return PLAY_RESULT_UNKNOWN_ERROR;
+        }
+
+        float duration = GetCursorDuration(player, player->m_Animation);
+        if (normalized) {
+            t = t * duration;
+        }
+
+        t = fmod(t, duration);
+        if (cursor < 0) {
+            t = duration + t;
+        }
+
+        player->m_Cursor = t;
+
+        return PLAY_RESULT_OK;
+    }
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
 #define TO_SHORT(val) (uint16_t)((val) * 65535.0f)
@@ -936,7 +976,6 @@ namespace dmRig
         RigInstance* instance = context->m_Instances.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
-        // instance->m_PoseWorld.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
         delete instance;
