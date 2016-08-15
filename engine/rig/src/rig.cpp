@@ -631,15 +631,6 @@ namespace dmRig
                             user_target_position = ik_targets[i].m_Callback(ik_targets[i].m_UserData1, ik_targets[i].m_UserData2);
                         }
 
-                        // transform local pose of parent bone into worldspace, since we can only rely on worldspace coordinates for target
-                        // dmTransform::Transform t = parent_t_local;
-                        // t = dmTransform::Mul((dmTransform::Mul(dmGameObject::GetWorldTransform(instance->m_Instance), instance->m_Transform)), t);
-                        // user_target_position -=  t.GetTranslation();
-                        // Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(instance->m_Instance) * instance->m_Transform.GetRotation());
-                        // user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(instance->m_Instance));
-                        // user_target_position = dmTransform::Apply();
-                        // if (ik->m_Parent)
-                        // parent_parent_t = dmTransform::Mul(parent_parent_t, dmTransform::Inv(pose[0]));
                         if(parent_parent_index != INVALID_BONE_INDEX)
                             user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
 
@@ -664,26 +655,7 @@ namespace dmRig
 
         for (uint32_t i = 0; i < count; ++i)
         {
-            // RigInstance& instance = *instances[i];
             UpdateMeshProperties(instances[i]);
-            // if (instance.m_MeshEntry != 0x0) {
-            //     uint32_t mesh_count = instance.m_MeshEntry->m_Meshes.m_Count;
-            //     instance.m_MeshProperties.SetSize(mesh_count);
-            //     for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-            //         const dmRigDDF::Mesh* mesh = &instance.m_MeshEntry->m_Meshes[mesh_index];
-            //         float* color = mesh->m_Color.m_Data;
-            //         MeshProperties* properties = &instance.m_MeshProperties[mesh_index];
-            //         properties->m_Color[0] = color[0];
-            //         properties->m_Color[1] = color[1];
-            //         properties->m_Color[2] = color[2];
-            //         properties->m_Color[3] = color[3];
-            //         properties->m_Order = mesh->m_DrawOrder;
-            //         properties->m_Visible = mesh->m_Visible;
-            //     }
-            //     // instance.m_DoRender = 1;
-            // } else {
-            //     instance.m_MeshProperties.SetSize(0);
-            // }
         }
 
         Animate(context, dt);
