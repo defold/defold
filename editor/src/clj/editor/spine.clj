@@ -21,9 +21,10 @@
             [editor.types :as types]
             [editor.json :as json]
             [editor.outline :as outline]
-            [editor.properties :as properties])
+            [editor.properties :as properties]
+            [editor.rig :as rig])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]
@@ -379,21 +380,15 @@
                    (apply assoc m mesh-pairs))))
              {} skin))
 
-(defn- build-spine-scene [self basis resource dep-resources user-data]
-  (let [pb (:spine-scene-pb user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
-(g/defnk produce-scene-build-targets [_node-id resource spine-scene-pb atlas dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:texture-set atlas]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-spine-scene
-      :user-data {:spine-scene-pb spine-scene-pb
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+
+(g/defnk produce-scene-build-targets
+  [_node-id resource spine-scene-pb atlas dep-build-targets]
+  (rig/make-rig-scene-build-targets _node-id
+                                    resource
+                                    spine-scene-pb
+                                    dep-build-targets
+                                    [[:texture-set atlas]]))
 
 (defn- connect-atlas [project node-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
@@ -764,13 +759,14 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                     :ext "spinescene"
-                                     :label "Spine Scene"
-                                     :node-type SpineSceneNode
-                                     :load-fn load-spine-scene
-                                     :icon spine-scene-icon
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}})
+                                      :ext "spinescene"
+                                      :build-ext "rigscenec"
+                                      :label "Spine Scene"
+                                      :node-type SpineSceneNode
+                                      :load-fn load-spine-scene
+                                      :icon spine-scene-icon
+                                      :view-types [:scene :text]
+                                      :view-opts {:scene {:grid true}})
     (workspace/register-resource-type workspace
                                      :ext "spinemodel"
                                      :label "Spine Model"
