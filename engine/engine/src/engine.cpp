@@ -1027,7 +1027,7 @@ bail:
                     dmHID::KeyboardPacket keybdata;
                     dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
 
-                    if (engine->m_QuitOnEsc && (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED)))
+                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;
@@ -1268,6 +1268,13 @@ bail:
             else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
+            }
+            else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            {
+                if(dLib::IsDebugMode())
+                {
+                    self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
+                }
             }
             else if (descriptor == dmEngineDDF::StartRecord::m_DDFDescriptor)
             {

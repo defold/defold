@@ -447,3 +447,8 @@
     {:type :choicebox
      :options (zipmap (map first options)
                       (map (comp :display-name second) options))}))
+
+(defn vec3->vec2 [default-z]
+  {:type t/Vec2
+   :from-type (fn [[x y _]] [x y])
+   :to-type (fn [[x y]] [x y default-z])})

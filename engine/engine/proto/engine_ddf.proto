@@ -44,7 +44,17 @@ message HideApp {}
  */
 message ToggleProfile {}
 
-
+/*# shows/hides the on-screen physics visual debugging
+ * This message can only be sent to the designated <code>@system</code> socket.
+ *
+ * @message
+ * @name toggle_physics_debug
+ * @examples
+ * <pre>
+ * msg.post("@system:", "toggle_physics_debug")
+ * </pre>
+ */
+message TogglePhysicsDebug {}
 
 /*# starts video recording
  * Starts video recording of the game frame-buffer to file. Current video format is the
