@@ -805,7 +805,7 @@ namespace dmGui
      * How to start a simple color animation, where the node fades in to white during 0.5 seconds:
      * <pre>
      * gui.set_color(node, vmath.vector4(0, 0, 0, 0)) -- node is fully transparent
-     * gui.animate(node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5) -- start animation
+     * gui.animate(node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5) -- start animation
      * </pre>
      * </p>
      * <p>
@@ -814,7 +814,7 @@ namespace dmGui
      * <pre>
      * local function on_animation_done(self, node)
      *     -- fade out node, but wait 2 seconds before the animation starts
-     *     gui.animate(node, gui.COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_OUTQUAD, 0.5, 2.0)
+     *     gui.animate(node, gui.PROP_COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_OUTQUAD, 0.5, 2.0)
      * end
      *
      * function init(self)
@@ -823,7 +823,7 @@ namespace dmGui
      *     -- node is initially set to fully transparent
      *     gui.set_color(my_node, vmath.vector4(0, 0, 0, 0))
      *     -- animate the node immediately and call on_animation_done when the animation has completed
-     *     gui.animate(my_node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5, 0.0, on_animation_done)
+     *     gui.animate(my_node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5, 0.0, on_animation_done)
      * end
      * </pre>
      * <p>How to animate a node's y position using a crazy custom easing curve:</p>
@@ -1352,11 +1352,16 @@ namespace dmGui
         return 0;
     }
 
-    /*# pause or unpause the node flipbook animation
-     * Pause or unpause the node flipbook animation.
+    /*# cancel a node flipbook animation
+     * Cancels any running flipbook animation on the specified node.
      *
      * @name gui.cancel_flipbook
      * @param node node cancel flipbook animation for (node)
+     * @examples
+     * <pre>
+     * local node = gui.get_node("anim_node")
+     * gui.cancel_flipbook(node)
+     * </pre>     
      */
     static int LuaCancelFlipbook(lua_State* L)
     {

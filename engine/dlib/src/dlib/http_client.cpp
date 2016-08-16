@@ -27,6 +27,8 @@ namespace dmHttpClient
     // Be careful with this buffer. See comment in Receive about ssl_read.
     const int BUFFER_SIZE = 64 * 1024;
 
+    const unsigned int HTTP_CLIENT_MAXIMUM_CACHE_AGE = 30U * 24U * 60U * 60U; // 30 days
+
     const uint32_t MAX_POOL_CONNECTIONS = 32;
 
     const int SOCKET_TIMEOUT = 500 * 1000;
@@ -441,11 +443,10 @@ namespace dmHttpClient
             const char* max_age = strstr(value, "max-age=");
             if (max_age) {
                 max_age += strlen(substr);
-                resp->m_MaxAge = atoi(max_age);
-                // This logic is questionable...
-                if (resp->m_MaxAge > 60U * 60U * 24U * 30U) {
-                    dmLogWarning("max-age > 30 days - ignoring. Bad response?");
-                    resp->m_MaxAge = 0;
+                resp->m_MaxAge = dmMath::Max(0, atoi(max_age));
+                if (resp->m_MaxAge > HTTP_CLIENT_MAXIMUM_CACHE_AGE)
+                {
+                    resp->m_MaxAge = HTTP_CLIENT_MAXIMUM_CACHE_AGE;
                 }
             }
         }
@@ -1046,7 +1047,7 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
-        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
         client->m_RequestStart = dmTime::GetTime();
 
         Result r;
@@ -1103,7 +1104,7 @@ bail:
         if (strcmp(method, "GET") == 0) {
             return Get(client, path);
         } else {
-            DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+            DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
             client->m_RequestStart = dmTime::GetTime();
             Result r = DoRequest(client, path, method);
             return r;

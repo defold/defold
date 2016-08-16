@@ -3,35 +3,174 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [tx-nodes with-clean-system]])
-  (:import clojure.lang.Compiler$CompilerException))
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [internal.util :as util]
+            [schema.core :as s])
+  (:import clojure.lang.Compiler))
+
+(g/deftype Int s/Int)
+
+(def int-ref (in/->ValueTypeRef :internal.defnode-test/Int))
+
+(deftest parsing-type-forms
+  (testing "aliases for the same type ref"
+    (are [x] (= {:value-type int-ref :flags #{}}
+                (in/parse-type-form "test" x))
+      `Int
+      :internal.defnode-test/Int
+      'internal.defnode-test/Int))
+
+  (testing "multivalued cases"
+    (are [x] (= {:value-type int-ref :flags #{:collection}}
+                (in/parse-type-form "test" x))
+      `[Int]
+      [:internal.defnode-test/Int]
+      '[internal.defnode-test/Int]))
+
+  (testing "unhappy path"
+    (are [x] (thrown? AssertionError (in/parse-type-form "sadpath test" x))
+      'NoSuchSymbol
+      `NoSuchSymbol)))
+
+(defprotocol Prot
+  (a-method [this]))
+(defrecord   Rec [])
+
+(g/deftype W s/Any)
+(g/deftype X java.lang.String)
+(g/deftype Y Prot)
+(g/deftype Z Rec)
+
+(g/defnode DispatchValuesNode
+  (property any-deftyped      W)
+  (property string-deftyped   X)
+  (property string-direct     String)
+  (property protocol-deftyped Y)
+  (property protocol-direct   Prot)
+  (property record-deftyped   Z)
+  (property record-direct     Rec))
+
+(deftest dispatch-values-depend-on-usage
+  (are [expected tp] (= expected (g/value-type-dispatch-value tp))
+    W W
+    X X
+    Y Y
+    Z Z)
+  (are [expected prop] (= expected (-> @DispatchValuesNode :property prop :value-type g/value-type-dispatch-value))
+    W      :any-deftyped
+    X      :string-deftyped
+    String :string-direct
+    Y      :protocol-deftyped
+    Prot   :protocol-direct
+    Z      :record-deftyped
+    Rec    :record-direct))
+
+(g/defnode JavaClassesTypeNode
+  (input an-input java.util.concurrent.BlockingDeque)
+  (property a-property java.util.Vector)
+  (output an-output java.util.concurrent.BlockingDeque (g/fnk [an-input] an-input)))
+
+(defmulti class-based-dispatch (fn [value-type] (in/value-type-dispatch-value value-type)))
+
+(defmethod class-based-dispatch java.util.Collection [_] :collection)
+(defmethod class-based-dispatch java.util.concurrent.BlockingDeque [_] :blocking-deque)
+(defmethod class-based-dispatch java.util.AbstractList [_] :abstract-list)
+(defmethod class-based-dispatch :default [_] :fail)
+
+(deftest java-classes-are-types
+  (testing "classes can appear as type forms"
+    (is (= (in/->ValueTypeRef :java.lang.String)
+           (:value-type (in/parse-type-form (str 'java-classes-are-types) 'java.lang.String)))))
+
+  (testing "classes are registered after parsing"
+    (in/unregister-value-type :java.util.LinkedList)
+    (eval '(dynamo.graph/defnode JavaClassNode (input a java.util.LinkedList)))
+    (is (in/value-type-resolve :java.util.LinkedList))
+    (is (= java.util.LinkedList (in/schema (in/value-type-resolve :java.util.LinkedList)))))
+
+  (testing "classes can be used as inputs, outputs, and properties"
+    (are [expected kind label] (= expected (-> @JavaClassesTypeNode kind label :value-type in/value-type-schema))
+      java.util.concurrent.BlockingDeque :input    :an-input
+      java.util.concurrent.BlockingDeque :output   :an-output
+      java.util.Vector                   :property :a-property))
+
+  (testing "classes can be used as multimethod dispatch values"
+    (are [expected kind label] (= expected (class-based-dispatch (-> @JavaClassesTypeNode kind label :value-type)))
+      :blocking-deque :input    :an-input
+      :blocking-deque :output   :an-output
+      :abstract-list  :property :a-property)))
+
+(defprotocol CustomProtocol)
+(defrecord CustomProtocolImplementerA []
+  CustomProtocol)
+(defrecord CustomProtocolImplementerB []
+  CustomProtocol)
+(defrecord CustomProtocolImplementerC []
+  CustomProtocol)
+
+(g/defnode ProtocolTypeNode
+  (input an-input CustomProtocolImplementerA)
+  (property a-property CustomProtocol)
+  (output an-output CustomProtocol (g/fnk [an-input] an-input)))
+
+(defmulti protocol-based-dispatch (fn [value-type] (in/value-type-dispatch-value value-type)))
+
+(defmethod protocol-based-dispatch CustomProtocol [_] :protocol)
+(defmethod protocol-based-dispatch CustomProtocolImplementerA [_] :a)
+(defmethod protocol-based-dispatch CustomProtocolImplementerB [_] :b)
+(defmethod protocol-based-dispatch :default [_] :fail)
+
+(defprotocol AutoRegisteredProtocol)
+
+(deftest protocols-are-parsed-as-types
+  (testing "protocols can appear as type forms"
+    (is (= (in/->ValueTypeRef :internal.defnode-test/AutoRegisteredProtocol)
+           (:value-type (in/parse-type-form (str 'protocols-are-types) 'internal.defnode-test/AutoRegisteredProtocol)))))
+
+  (testing "protocols are registered after defnode is parsed"
+    (in/unregister-value-type :internal.defnode-test/AutoRegisteredProtocol)
+    (eval '(dynamo.graph/defnode AutoRegisteredInputNode (input a internal.defnode-test/AutoRegisteredProtocol)))
+    (is (in/value-type-resolve :internal.defnode-test/AutoRegisteredProtocol))))
+
+(deftest protocols-are-types
+  (testing "protocols can be used as inputs, outputs, and properties"
+    (are [expected kind label] (= expected (-> @ProtocolTypeNode kind label :value-type in/value-type-schema :p))
+      CustomProtocol :output   :an-output
+      CustomProtocol :property :a-property)
+
+    (are [expected kind label] (= expected (-> @ProtocolTypeNode kind label :value-type in/value-type-schema))
+      CustomProtocolImplementerA :input    :an-input))
+
+  (testing "protocols can be used as multimethod dispatch values"
+    (are [expected kind label] (= expected (protocol-based-dispatch (-> @ProtocolTypeNode kind label :value-type)))
+      :a        :input    :an-input
+      :protocol :output   :an-output
+      :protocol :property :a-property)))
+
+(defrecord CustomRecord [])
+
+(deftest records-are-types
+  (testing "records can appear as type forms"
+    (is (= (in/->ValueTypeRef :internal.defnode_test.CustomRecord)
+           (:value-type (in/parse-type-form (str 'records-are-types) 'internal.defnode_test.CustomRecord))))))
+
+(g/deftype Str java.lang.String)
+
+(defmulti type-based-dispatch (fn [x] (in/value-type-dispatch-value x)))
+(defmethod type-based-dispatch Str [_] :str)
+(defmethod type-based-dispatch java.lang.String [_] :java.lang.String)
+(defmethod type-based-dispatch :default [_] :fail)
+
+(deftest deftypes-with-classes-dispatch-as-type-not-class
+  (is (= :str (type-based-dispatch Str))))
 
 (defn substitute-value-fn [& _] "substitute value")
-
-(deftest nodetype
-  (testing "is created from a data structure"
-    (is (satisfies? g/NodeType (in/make-node-type {:inputs {:an-input g/Str}}))))
-  (testing "supports direct inheritance"
-    (let [super-type (in/make-node-type {:inputs {:an-input g/Str}})
-          node-type  (in/make-node-type {:supertypes [super-type]})]
-      (is (= [super-type] (g/supertypes node-type)))
-      (is (= {:an-input g/Str} (g/declared-inputs node-type)))))
-  (testing "supports multiple inheritance"
-    (let [super-type (in/make-node-type {:inputs {:an-input g/Str}})
-          mixin-type (in/make-node-type {:inputs {:mixin-input g/Str}})
-          node-type  (in/make-node-type {:supertypes [super-type mixin-type]})]
-      (is (= [super-type mixin-type] (g/supertypes node-type)))
-      (is (= {:an-input g/Str :mixin-input g/Str} (g/declared-inputs node-type)))))
-  (testing "supports inheritance hierarchy"
-    (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input g/Str}})
-          parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input g/Str}})
-          node-type        (in/make-node-type {:supertypes [parent-type]})]
-      (is (= {:parent-input g/Str :grandparent-input g/Str} (g/declared-inputs node-type))))))
 
 (g/defnode BasicNode)
 
 (deftest basic-node-definition
-  (is (satisfies? g/NodeType BasicNode))
+  (is (instance? clojure.lang.IDeref BasicNode))
+  (is (satisfies? g/NodeType @BasicNode))
   (is (= BasicNode (g/node-type (g/construct BasicNode)))))
 
 (g/defnode IRootNode)
@@ -45,14 +184,14 @@
   (inherits MixinNode))
 
 (deftest inheritance
-  (is (= [IRootNode]           (g/supertypes ChildNode)))
-  (is (= ChildNode             (g/node-type (g/construct ChildNode))))
-  (is (= [ChildNode]           (g/supertypes GChild)))
-  (is (= GChild                (g/node-type (g/construct GChild))))
-  (is (= [ChildNode MixinNode] (g/supertypes GGChild)))
-  (is (= GGChild               (g/node-type (g/construct GGChild))))
-  (is (thrown? Compiler$CompilerException (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
-  (is (thrown? Compiler$CompilerException (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
+  (is (= [IRootNode]                       (g/supertypes ChildNode)))
+  (is (= ChildNode                         (g/node-type (g/construct ChildNode))))
+  (is (= [ChildNode IRootNode]             (g/supertypes GChild)))
+  (is (= GChild                            (g/node-type (g/construct GChild))))
+  (is (= [ChildNode MixinNode IRootNode]   (g/supertypes GGChild)))
+  (is (= GGChild                           (g/node-type (g/construct GGChild))))
+  (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
+  (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
 
 (g/defnode OneInputNode
   (input an-input g/Str))
@@ -64,12 +203,12 @@
   (input for-injection g/Int :inject))
 
 (g/defnode SubstitutingInputNode
-  (input substitute-fn  String :substitute substitute-value-fn)
-  (input var-to-fn      String :substitute #'substitute-value-fn)
-  (input inline-literal String :substitute "inline literal"))
+  (input substitute-fn  g/Str :substitute substitute-value-fn)
+  (input var-to-fn      g/Str :substitute #'substitute-value-fn)
+  (input inline-literal g/Str :substitute "inline literal"))
 
 (g/defnode CardinalityInputNode
-  (input single-scalar-value        g/Str)
+  (input single-scalar-value        String)
   (input single-collection-value    [g/Str])
   (input multiple-scalar-values     g/Str :array)
   (input multiple-collection-values [g/Str] :array))
@@ -79,7 +218,7 @@
 
 (deftest nodes-can-have-inputs
   (testing "inputs must be defined with symbols"
-    (is (thrown? Compiler$CompilerException
+    (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadInput (input :not-a-symbol g/Str))))))
   (testing "inputs must be defined with a schema"
     (is (thrown? AssertionError
@@ -88,12 +227,12 @@
     (let [node (g/construct OneInputNode)]
       (is (:an-input (g/declared-inputs OneInputNode)))
       (is (= g/Str (g/input-type OneInputNode :an-input)))
-      (is (= g/Str (-> OneInputNode g/declared-inputs (get :an-input))))))
+      (is (= g/Str (-> OneInputNode g/declared-inputs :an-input :value-type)))))
   (testing "inherited input"
     (let [node (g/construct InheritedInputNode)]
       (is (:an-input (g/declared-inputs InheritedInputNode)))
       (is (= g/Str (g/input-type InheritedInputNode :an-input)))
-      (is (= g/Str (-> InheritedInputNode g/declared-inputs (get :an-input))))))
+      (is (= g/Str (-> InheritedInputNode g/declared-inputs :an-input :value-type)))))
   (testing "inputs can be flagged for injection"
     (let [node (g/construct InjectableInputNode)]
       (is (:for-injection (g/injectable-inputs InjectableInputNode)))))
@@ -111,107 +250,11 @@
     (is (= :many (g/input-cardinality CardinalityInputNode :multiple-collection-values))))
 
   (testing "inputs can declare a cascade-delete flag"
-    (is (= #{}           (g/cascade-deletes CardinalityInputNode)))
+    (is (= (empty?       (g/cascade-deletes CardinalityInputNode))))
     (is (= #{:component} (g/cascade-deletes CascadingInputNode)))))
 
 
-(definterface MarkerInterface)
-(definterface SecondaryInterface)
-
-(g/defnode MarkerInterfaceNode
-  MarkerInterface)
-
-(g/defnode MarkerAndSecondaryInterfaceNode
-  MarkerInterface
-  SecondaryInterface)
-
-(g/defnode InheritedInterfaceNode
- (inherits MarkerInterfaceNode))
-
-(definterface OneMethodInterface
-  (oneMethod [^Long x]))
-
 (defn- private-function [x] [x :ok])
-
-(g/defnode OneMethodNode
-  (input an-input g/Str)
-
-  OneMethodInterface
-  (oneMethod [this ^Long x] (private-function x)))
-
-(g/defnode InheritedMethodNode
-  (inherits OneMethodNode))
-
-(g/defnode OverriddenMethodNode
-  (inherits OneMethodNode)
-
-  OneMethodInterface
-  (oneMethod [this x] [x :overridden]))
-
-(deftest nodes-can-implement-interfaces
-  (testing "implement a single interface"
-    (let [node (g/construct MarkerInterfaceNode)]
-      (is (= #{`MarkerInterface} (g/interfaces MarkerInterfaceNode)))
-      (is (instance? MarkerInterface node))
-      (is (not (instance? SecondaryInterface node)))))
-  (testing "implement two interfaces"
-    (let [node (g/construct MarkerAndSecondaryInterfaceNode)]
-      (is (= #{`MarkerInterface `SecondaryInterface} (g/interfaces MarkerAndSecondaryInterfaceNode)))
-      (is (instance? MarkerInterface node))
-      (is (instance? SecondaryInterface node))))
-  (testing "implement interface with methods"
-    (let [node (g/construct OneMethodNode)]
-      (is (instance? OneMethodInterface node))
-      (is (= [5 :ok] (.oneMethod node 5)))))
-  (testing "interface inheritance"
-    (let [node (g/construct InheritedInterfaceNode)]
-      (is (instance? MarkerInterface node)))
-    (let [node (g/construct InheritedMethodNode)]
-      (is (instance? OneMethodInterface node))
-      (is (= [5 :ok] (.oneMethod node 5))))
-    (let [node (g/construct OverriddenMethodNode)]
-      (is (instance? OneMethodInterface node))
-      (is (= [42 :overridden] (.oneMethod node 42)))))
-  (testing "preserves type hints"
-    (let [[arglist _] (get (g/method-impls OneMethodNode) 'oneMethod)]
-      (is (= 2 (count arglist)))
-      (is (= {:tag 'Long} (meta (second arglist)))))))
-
-(defprotocol LocalProtocol
-  (protocol-method [this x y]))
-
-(g/defnode LocalProtocolNode
-  LocalProtocol
-  (protocol-method [this x y] [:ok x y]))
-
-(g/defnode InheritedLocalProtocol
-  (inherits LocalProtocolNode))
-
-(g/defnode InheritedProtocolOverride
-  (inherits LocalProtocolNode)
-  (protocol-method [this x y] [:override-ok x y]))
-
-(g/defnode ProtocolWithDestructuring
-  LocalProtocol
-  (protocol-method
-   [this {:keys [a b c] :as x} [y1 & ys]]
-   a))
-
-(deftest nodes-can-support-protocols
-  (testing "support a single protocol"
-    (let [node (g/construct LocalProtocolNode)]
-      (is (= #{`LocalProtocol} (g/protocols LocalProtocolNode)))
-      (is (satisfies? LocalProtocol node))
-      (is (= [:ok 5 10] (protocol-method node 5 10))))
-    (let [node (g/construct InheritedLocalProtocol)]
-      (is (satisfies? LocalProtocol node))
-      (is (= [:ok 5 10] (protocol-method node 5 10))))
-    (let [node (g/construct InheritedProtocolOverride)]
-      (is (satisfies? LocalProtocol node))
-      (is (= [:override-ok 5 10] (protocol-method node 5 10)))))
-  (testing "call protocol methods with destructuring"
-    (let [node (g/construct ProtocolWithDestructuring)]
-      (is (= "yes!" (protocol-method node {:a "yes!" :b 'no :c "wrong answer"} (range 10)))))))
 
 (g/defnode SinglePropertyNode
   (property a-property g/Str))
@@ -248,6 +291,10 @@
   (property weirdo g/Any
             (value (g/fnk [this a b c] [this a b c]))))
 
+(g/defnode ReflexivePropertyValueFnNode
+  (property zort g/Int
+            (value (g/fnk [zort] zort))))
+
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
@@ -277,35 +324,43 @@
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
+  (testing "property value types are inherited"
+    (are [t p vt] (= vt (in/property-type t p))
+      SinglePropertyNode    :a-property       g/Str
+      TwoPropertyNode       :a-property       g/Str
+      TwoPropertyNode       :another-property g/Int
+      InheritedPropertyNode :a-property       g/Str
+      InheritedPropertyNode :another-property g/Int))
+
   (testing "property defaults can be inherited or overridden"
     (let [node (g/construct InheritedPropertyNode)]
       (is (= "default value" (:a-property node)))
       (is (= -1              (:another-property node)))))
 
   (testing "output dependencies include properties"
-    (let [node (g/construct InheritedPropertyNode)]
-      (is (= {:_node-id             #{:_node-id}
-              :_declared-properties #{:_properties}
-              :another-property     #{:_declared-properties :_properties :another-property}
-              :a-property           #{:_declared-properties :_properties :a-property}
-              :_output-jammers      #{:_output-jammers}}
-             (-> node g/node-type g/input-dependencies)))))
+    (let [deps (g/input-dependencies InheritedPropertyNode)]
+      (are [x y] (= y (get deps x))
+        :_node-id             #{:_node-id}
+        :_declared-properties #{:_properties}
+        :another-property     #{:_declared-properties :_properties :another-property}
+        :a-property           #{:_declared-properties :_properties :a-property}
+        :_output-jammers      #{:_output-jammers})))
 
   (testing "property value functions' dependencies are reported"
-    (is (= {:_node-id             #{:_node-id}
-            :_declared-properties #{:_properties}
-            :_output-jammers      #{:_output-jammers}
-            :reports-higher       #{:_declared-properties :_properties}}
-           (g/input-dependencies GetterFnPropertyNode)))
+    (are [x y] (= y (get (g/input-dependencies GetterFnPropertyNode) x))
+      :_node-id             #{:_node-id}
+      :_declared-properties #{:_properties}
+      :_output-jammers      #{:_output-jammers}
+      :reports-higher       #{:_declared-properties :_properties})
 
-    (is (= {:_node-id             #{:_node-id}
-            :_declared-properties #{:_properties}
-            :_output-jammers      #{:_output-jammers}
-            :weirdo               #{:_declared-properties :_properties}
-            :a                    #{:weirdo :_declared-properties :_properties}
-            :b                    #{:weirdo :_declared-properties :_properties}
-            :c                    #{:weirdo :_declared-properties :_properties}}
-           (g/input-dependencies ComplexGetterFnPropertyNode))))
+    (are [x y] (= y (get (g/input-dependencies ComplexGetterFnPropertyNode) x))
+      :_node-id             #{:_node-id}
+      :_declared-properties #{:_properties}
+      :_output-jammers      #{:_output-jammers}
+      :weirdo               #{:_declared-properties :_properties}
+      :a                    #{:weirdo :_declared-properties :_properties}
+      :b                    #{:weirdo :_declared-properties :_properties}
+      :c                    #{:weirdo :_declared-properties :_properties}))
 
   (testing "setter functions are only invoked when the node gets added to the graph"
     (with-clean-system
@@ -323,12 +378,26 @@
 
           (is (= 11 (g/node-value ingraph-id :self-incrementing)))))))
 
+  (testing "empty property set can still be fetched"
+    (with-clean-system
+      (let [basic-id (first (g/tx-nodes-added
+                              (g/transact
+                                (g/make-node world BasicNode))))]
+        (is (= {:properties {} :display-order []} (g/node-value basic-id :_properties))))))
+
   (testing "getter functions are invoked when supplying values"
     (with-clean-system
       (let [[getter-node] (g/tx-nodes-added
                            (g/transact
                             (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
         (is (= 1 (g/node-value getter-node :reports-higher))))))
+
+  (testing "getter functions are used when supplying :_declared-properties"
+    (with-clean-system
+      (let [[getter-node] (g/tx-nodes-added
+                           (g/transact
+                            (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
+        (is (= 1 (->  (g/node-value getter-node :_declared-properties) :properties :reports-higher :value))))))
 
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
@@ -342,16 +411,22 @@
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
-    (is (thrown? Compiler$CompilerException
+    (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadProperty
                           (property :not-a-symbol dynamo.graph/Keyword))))))
 
-  (testing "property types have schemas"
+  (testing "property value types must exist when referenced"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadPropertyType
+                          (property a-property (in/->ValueTypeRef :foo.bar/baz)))))))
+
+  (testing "properties must have values"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadProperty
-                          (property a-symbol :not-a-type)))))))
+                          (property no-schema (fn [] "no value type provided"))))))))
 
 (g/defnode ExternNode
+  (property internal-resource g/Str (default "/bar"))
   (extern external-resource g/Str (default "/foo")))
 
 (deftest node-externs
@@ -362,7 +437,6 @@
       (is (contains? (g/externs ExternNode) :external-resource))
       (is (some #{:external-resource} (keys node))))))
 
-
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this] 42)
 
@@ -370,10 +444,10 @@
   (input integer-input g/Int)
   (input string-input g/Str)
 
-  (output string-output         g/Str                                                 string-production-fnk)
-  (output integer-output        g/Int                                                 integer-production-fnk)
-  (output cached-output         g/Str           :cached                               string-production-fnk)
-  (output inline-string         g/Str                                                 (g/fnk [string-input] "inline-string")))
+  (output string-output  g/Str         string-production-fnk)
+  (output integer-output g/Int         integer-production-fnk)
+  (output cached-output  g/Str :cached string-production-fnk)
+  (output inline-string  g/Str         (g/fnk [string-input] "inline-string")))
 
 (g/defnode AbstractOutputNode
   (output abstract-output g/Str :abstract))
@@ -392,123 +466,96 @@
 
 (deftest nodes-can-have-outputs
   (testing "outputs must be defined with symbols"
-    (is (thrown? Compiler$CompilerException
+    (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.graph/Str :abstract))))))
+
   (testing "outputs must be defined with a schema"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output (fn [] "not a schema") :abstract))))))
+
   (testing "outputs must have flags after the schema and before the production function"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str (dynamo.graph/fnk []) :cached))))))
+
   (testing "outputs must either have a production function defined or be marked as abstract"
-    (is (thrown? Compiler$CompilerException
+    (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str))))))
+
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]
-        (is (get (g/output-labels MultipleOutputNode) expected-output)))
-      (doseq [[label expected-schema] {:string-output g/Str
-                                       :integer-output g/Int
-                                       :cached-output g/Str
-                                       :inline-string g/Str}]
-        (is (= expected-schema (-> MultipleOutputNode g/transform-types (get label)))))
+      (are [o] (not (nil? (get (g/output-labels MultipleOutputNode) o)))
+        :string-output
+        :integer-output
+        :cached-output
+        :inline-string)
+      (are [label expected-schema] (= expected-schema (get (g/transform-types MultipleOutputNode) label))
+        :string-output  g/Str
+        :integer-output g/Int
+        :cached-output  g/Str
+        :inline-string  g/Str)
       (is (:cached-output (g/cached-outputs MultipleOutputNode)))))
 
   (testing "output inheritance"
-    (let [node (g/construct InheritedOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :abstract-output]]
-        (is (get (g/output-labels InheritedOutputNode) expected-output)))
-      (doseq [[label expected-schema] {:string-output g/Str
-                                       :integer-output g/Int
-                                       :cached-output g/Str
-                                       :inline-string g/Str
-                                       :abstract-output g/Str}]
-        (is (= expected-schema (-> InheritedOutputNode g/transform-types (get label)))))
-      (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
+    (are [t o] (contains? (g/output-labels t) o)
+      MultipleOutputNode  :string-output
+      MultipleOutputNode  :integer-output
+      MultipleOutputNode  :cached-output
+      MultipleOutputNode  :inline-string
+      AbstractOutputNode  :abstract-output
+      InheritedOutputNode :string-output
+      InheritedOutputNode :integer-output
+      InheritedOutputNode :cached-output
+      InheritedOutputNode :inline-string
+      InheritedOutputNode :abstract-output)
+
+    (are [t o vt] (= vt (get (g/transform-types t) o))
+      MultipleOutputNode  :string-output   g/Str
+      MultipleOutputNode  :integer-output  g/Int
+      MultipleOutputNode  :cached-output   g/Str
+      MultipleOutputNode  :inline-string   g/Str
+      AbstractOutputNode  :abstract-output g/Str
+      InheritedOutputNode :string-output   g/Str
+      InheritedOutputNode :integer-output  g/Int
+      InheritedOutputNode :cached-output   g/Str
+      InheritedOutputNode :inline-string   g/Str
+      InheritedOutputNode :abstract-output g/Str)
+
+    (are [t co] (contains? (g/cached-outputs t) co)
+      MultipleOutputNode  :cached-output
+      InheritedOutputNode :cached-output))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:_node-id             #{:_node-id}
-            :string-input         #{:inline-string}
-            :integer-input        #{:string-output :cached-output}
-            :_declared-properties #{:_properties}
-            :_output-jammers      #{:_output-jammers}}
-           (g/input-dependencies MultipleOutputNode)))
-    (is (= {:_node-id             #{:_node-id}
-            :string-input         #{:inline-string}
-            :integer-input        #{:string-output :abstract-output :cached-output}
-            :_declared-properties #{:_properties}
-            :_output-jammers      #{:_output-jammers}}
-           (g/input-dependencies InheritedOutputNode))))
+    (are [input outputs] (= outputs (get (g/input-dependencies MultipleOutputNode) input))
+      :_node-id             #{:_node-id}
+      :string-input         #{:inline-string}
+      :integer-input        #{:string-output :cached-output}
+      :_declared-properties #{:_properties}
+      :_output-jammers      #{:_output-jammers})
+
+    (are [input outputs] (= outputs (get (g/input-dependencies InheritedOutputNode) input))
+      :_node-id             #{:_node-id}
+      :string-input         #{:inline-string}
+      :integer-input        #{:string-output :abstract-output :cached-output}
+      :_declared-properties #{:_properties}
+      :_output-jammers      #{:_output-jammers}))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (is (= {:_node-id             #{:_node-id}
-            :a-property           #{:direct-calculation :indirect-calculation :_declared-properties :_properties :a-property}
-            :direct-calculation   #{:indirect-calculation}
-            :_declared-properties #{:_properties}
-            :_output-jammers      #{:_output-jammers}}
-           (g/input-dependencies TwoLayerDependencyNode))))
+    (are [input outputs] (= outputs (get (g/input-dependencies TwoLayerDependencyNode) input))
+      :_node-id             #{:_node-id}
+      :a-property           #{:direct-calculation :indirect-calculation :_declared-properties :_properties :a-property}
+      :direct-calculation   #{:indirect-calculation}
+      :_declared-properties #{:_properties}
+      :_output-jammers      #{:_output-jammers}))
 
   (testing "outputs defined without the type cause a compile error"
     (is (not (nil? (eval '(dynamo.graph/defnode FooNode
                             (output my-output dynamo.graph/Any :abstract))))))
-    (is (thrown? Compiler$CompilerException
+    (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output :abstract)))))
-    (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode FooNode
-                          (output my-output (dynamo.graph/fnk [] "constant string")))))))
-
-  (testing "outputs defined without the production function being a fnk or a val cause an Assertion error"
-    (is (thrown? AssertionError
-                 (eval '(let [foo-fn (fn [x] "foo")]
-                          (dynamo.graph/defnode FooNode
-                            (output my-output dynamo.graph/Any foo-fn))))))
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode FooNode
-                          (output my-output dynamo.graph/Any (fn [x] "foo"))))))))
-
-(g/defnode NodeWithPropertyVariations
-  (property typed-internal g/Int)
-  (property default-internal g/Int
-            (default 0))
-  (property validated-internal g/Int
-            (validate (g/always true)))
-  (property literally-disabled g/Int
-            (dynamic enabled (g/always false))))
-
-(g/defnode InheritsPropertyVariations
-  (inherits NodeWithPropertyVariations))
-
-(def original-node-definition
-  '(dynamo.graph/defnode MutagenicNode
-     (property a-property schema.core/Str  (default "a-string"))
-     (property b-property schema.core/Bool (default true))))
-
-(def replacement-node-definition
-  '(dynamo.graph/defnode MutagenicNode
-     (property a-property schema.core/Str  (default "Genosha"))
-     (property b-property schema.core/Bool (default false))
-     (property c-property schema.core/Int  (default 42))
-     internal.defnode_test.MarkerInterface))
-
-(deftest redefining-nodes-updates-existing-world-instances
-  (with-clean-system
-    (binding [*ns* (find-ns 'internal.defnode-test)]
-      (eval original-node-definition))
-
-    (let [node-type-var          (resolve 'internal.defnode-test/MutagenicNode)
-          node-type              (var-get node-type-var)
-          [original-node-id] (tx-nodes (g/make-node world node-type))
-          node-before-mutation  (g/node-by-id original-node-id)]
-      (binding [*ns* (find-ns 'internal.defnode-test)]
-        (eval replacement-node-definition))
-
-      (let [node-after-mutation (g/node-by-id original-node-id)]
-        (is (not (instance? MarkerInterface node-before-mutation)))
-        (is (= "a-string" (:a-property node-after-mutation)))
-        (is (= true       (:b-property node-after-mutation)))
-        (is (= 42         (:c-property node-after-mutation)))
-        (is (instance? MarkerInterface node-after-mutation))))))
+                          (output my-output (dynamo.graph/fnk [] "constant string"))))))))
 
 (g/defnode PropertyDynamicsNode
   (input an-input       g/Num)
@@ -521,28 +568,39 @@
             (validate (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
   (property internal-multiple g/Num
             (dynamic one-dynamic (g/fnk [fourth-input] false))
-            (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings"))))
+            (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings")))
 
-(defn affects-properties
-  [node-type input]
-  (contains? (get (g/input-dependencies node-type) input) :_properties))
+  (output   passthrough g/Num (g/fnk [fifth-input] fifth-input)))
+
+(g/defnode InheritedPropertyDynamicsNode
+  (inherits PropertyDynamicsNode)
+  (property another-property g/Num)
+  (output   output-from-inherited-property g/Num :cached (g/fnk [an-input third-input] an-input))
+  (output   output-from-inherited-input    g/Num :cached (g/fnk [third-input] third-input))
+  (output   output-from-inherited-output   g/Num :cached (g/fnk [passthrough] passthrough))
+  (output   output-from-combined-labels    g/Num         (g/fnk [another-property an-input passthrough] passthrough)))
 
 (deftest node-properties-depend-on-dynamic-inputs
-  (let [all-inputs [:an-input :third-input :fourth-input :fifth-input]]
-   (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
+  (let [dependencies              (g/input-dependencies PropertyDynamicsNode)
+        affects-properties-output #(contains? (get dependencies %) :_properties)]
 
-(g/defproperty NeedsADifferentInput g/Num
-  (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false)))
 
-(deftest compile-error-using-property-with-missing-argument-for-dynamic
-  (is (thrown? AssertionError
-               (eval '(dynamo.graph/defnode BadDynamicArgument
-                        (property foo internal.defnode-test/NeedsADifferentInput))))))
+    (are [t x] (contains? (-> t g/input-dependencies x) :_properties)
+      PropertyDynamicsNode          :an-input
+      PropertyDynamicsNode          :third-input
+      PropertyDynamicsNode          :fourth-input
+      PropertyDynamicsNode          :fifth-input
+
+      InheritedPropertyDynamicsNode :an-input
+      InheritedPropertyDynamicsNode :third-input
+      InheritedPropertyDynamicsNode :fourth-input
+      InheritedPropertyDynamicsNode :fifth-input
+      InheritedPropertyDynamicsNode :another-property)))
 
 ;;; example taken from editor/collection.clj
-(def Vec3    [(g/one g/Num "x")
-              (g/one g/Num "y")
-              (g/one g/Num "z")])
+(g/deftype Vec3 [(s/one g/Num "x")
+                 (s/one g/Num "y")
+                 (s/one g/Num "z")])
 
 (g/defnode SceneNode
   (property position Vec3)
@@ -572,15 +630,15 @@
 
   (display-order [:overlay ["Material"] :subtitle])
 
-  (property overlay String)
-  (property subtitle String)
-  (property description String))
+  (property overlay g/Str)
+  (property subtitle g/Str)
+  (property description g/Str))
 
 (g/defnode PartialDisplayOrder
   (inherits SpecificDisplayOrder)
 
-  (property overlay String)
-  (property subtitle String)
+  (property overlay g/Str)
+  (property subtitle g/Str)
   (display-order [:overlay ["Material"]]))
 
 (g/defnode EmitterKeys
@@ -599,12 +657,239 @@
 
 (deftest properties-have-a-display-order
   (testing "The default display order is declaration order"
-    (are [expected type] (= expected (g/property-display-order type))
-      [:position :rotation]                                                    SceneNode
-      [:scale :position :rotation]                                             ScalableSceneNode
-      [:id :path :scale :position :rotation]                                   CollectionInstanceNode
-      [["Material" :specular :ambient] :position :rotation]                    SpecificDisplayOrder
-      [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
-      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
-      [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
+    (are [type expected] (= expected (g/property-display-order type))
+      SceneNode              [:position :rotation]
+      ScalableSceneNode      [:scale :position :rotation]
+      CollectionInstanceNode [:id :path :scale :position :rotation]
+      SpecificDisplayOrder   [["Material" :specular :ambient] :position :rotation]
+      DisplayGroupOrdering   [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation]
+      PartialDisplayOrder    [:overlay ["Material" :specular :ambient] :subtitle :position :rotation]
+      GroupingBySymbol       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha])))
 
+(defprotocol AProtocol
+  (path      [this])
+  (children  [this])
+  (workspace [this]))
+
+(g/defnode ProtocolPropertyNode
+  (property protocol-property AProtocol)
+  (property protocol-property-multi [AProtocol]))
+
+(g/defnode InheritsProtocolPropertyNode
+  (inherits ProtocolPropertyNode))
+
+(g/defnode ProtocolOutputNode
+  (output protocol-output AProtocol (g/fnk [] nil))
+  (output protocol-output-multi [AProtocol] (g/fnk [] nil)))
+
+(g/defnode InheritsProtocolOutputNode
+  (inherits ProtocolOutputNode))
+
+(g/defnode ProtocolInputNode
+  (input protocol-input AProtocol)
+  (input protocol-input-multi [AProtocol] :array))
+
+(g/defnode InheritsProtocolInputNode
+  (inherits ProtocolInputNode))
+
+(g/defnk fnk-without-arguments [])
+(g/defnk fnk-with-arguments [a b c d])
+
+(g/deftype KeywordNumMap {g/Keyword g/Num})
+
+(g/defnode OutputFunctionArgumentsNode
+  (property in1 g/Any)
+  (property in2 g/Any)
+  (property in3 g/Any)
+  (property a   g/Any)
+  (property b   g/Any)
+  (property c   g/Any)
+  (property d   g/Any)
+  (property commands [g/Str])
+  (property roles    g/Any)
+  (property blah     KeywordNumMap)
+  (output inline-arguments                   g/Any (g/fnk [in1 in2 in3]))
+  (output arguments-from-nilary-fnk          g/Any fnk-without-arguments)
+  (output arguments-from-fnk                 g/Any fnk-with-arguments)
+  (output arguments-from-fnk-as-var          g/Any #'fnk-with-arguments))
+
+(deftest output-function-arguments
+  (testing "arguments with inline function definition"
+    (are [o x] (= x (in/output-arguments OutputFunctionArgumentsNode o))
+      :inline-arguments                   #{:in1 :in2 :in3}
+      :arguments-from-nilary-fnk          #{}
+      :arguments-from-fnk                 #{:a :b :c :d}
+      :arguments-from-fnk-as-var          #{:a :b :c :d})))
+
+(deftest inheritance-across-namespaces
+  (let [original-ns (symbol (str *ns*))
+        ns1 (gensym "ns")
+        ns2 (gensym "ns")]
+    (try
+      (eval `(do
+               (ns ~ns1)
+               ;; define a node type in one namespace
+               (dynamo.graph/defnode ~'ANode (~'property ~'anode-property dynamo.graph/Num))
+
+               ;; inherit from it in another
+               (ns ~ns2 (:require [~ns1 :as ~'n]))
+               (dynamo.graph/defnode ~'BNode (~'inherits ~'n/ANode))))
+      (finally
+        (in-ns original-ns)))))
+
+(g/defnode ValidationUsesInputs
+  (input single-valued g/Any)
+  (input multi-valued  [g/Any] :array)
+  (input single-valued-with-sub g/Any :substitute false)
+  (input multi-valued-with-sub  [g/Any] :array :substitute 0)
+
+  (property valid-on-single-valued-input g/Any
+            (validate (g/fnk [single-valued] true)))
+
+  (property valid-on-multi-valued-input g/Any
+            (validate (g/fnk [multi-valued] true)))
+
+  (property valid-on-single-valued-with-sub g/Any
+            (validate (g/fnk [single-valued-with-sub] true)))
+
+  (input  overloading-single-valued g/Any)
+  (output overloading-single-valued g/Any :cached (g/fnk [overloading-single-valued] overloading-single-valued))
+  (property valid-on-overloading-single-valued g/Any
+            (validate (g/fnk [single-valued overloading-single-valued] overloading-single-valued))))
+
+(g/defnode PropertyWithSetter
+  (property string-property g/Str
+            (set (fn [basis self old-value new-value]))))
+
+(g/defnode InheritingSetter
+  (inherits PropertyWithSetter))
+
+(deftest inherited-property-setters-work
+  (with-clean-system
+    (let [[nid] (tx-nodes (g/make-node world InheritingSetter))]
+      (g/set-property! nid :string-property "bang!"))))
+
+(defmacro fnk-generator
+  ([x]
+   `(g/fnk [] ~x))
+  ([x y]
+   `(g/fnk [~x] ~y))
+  ([x y z]
+   `(g/fnk [~x ~y] ~z)))
+
+(g/defnode MacroMembers
+  (input input-one g/Any)
+  (input input-two g/Any)
+  (input input-three g/Any)
+
+  (property a-property g/Any
+            (default (fnk-generator false))
+            (validate (fnk-generator input-three (nil? input-three)))
+            (value   (fnk-generator input-two (inc input-two))))
+
+  (output an-output g/Any
+          (fnk-generator input-one a-property :ok)))
+
+(deftest fnks-from-macros
+  (testing "as output"
+    (are [x] (contains? (get (g/input-dependencies MacroMembers) x) :an-output)
+      :input-one
+      :input-two
+      :a-property)))
+
+(g/defnode PropertiesWithDynamics
+  (input input-one g/Any)
+  (input input-two g/Any)
+  (input input-three g/Any)
+
+  (property a-property g/Any
+            (default  (g/always false))
+            (validate (g/fnk [input-three] (nil? input-three)))
+            (value    (g/fnk [input-two] (inc input-two))))
+
+  (output an-output g/Any
+          (g/fnk [input-one a-property] :ok)))
+
+(defn- affected-by? [out in]
+  (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
+    (contains? affected-outputs out)))
+
+(deftest properties-depend-on-their-dynamic-inputs
+  (testing "as output"
+    (is (affected-by? :an-output :input-three)))
+
+  (testing "as property"
+    (are [input] (affected-by? :a-property input)
+      :input-two
+      :input-three)
+
+    (are [input] (not (affected-by? :a-property input))
+      :input-one
+      :_properties
+      :_declared-properties)))
+
+(g/defnode CustomPropertiesOutput
+  (output _properties g/Properties :cached
+          (g/fnk [_declared-properties]
+                 (assoc-in _declared-properties [:properties :from-custom-output] {:node-id 0
+                                                                                   :type    g/Bool
+                                                                                   :value true}))))
+
+(g/defnode InheritFromCustomProperties
+  (inherits CustomPropertiesOutput))
+
+(g/defnode InheritAndOverrideProperties
+  (output _properties g/Properties
+          (g/fnk [_declared-properties] _declared-properties)))
+
+(deftest inheriting-properties-output
+  (testing "custom _properties function is invoked"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world CustomPropertiesOutput))]
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
+
+  (testing "inherited function is invoked"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world InheritFromCustomProperties))]
+        (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
+
+  (testing "cached flag is not inherited"
+    (is (contains? (-> @CustomPropertiesOutput :output :_properties :flags) :cached))
+    (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
+
+(deftest declared-properties-is-cached
+  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
+
+(defn- override [node-id]
+  (-> (g/override node-id {})
+    :tx-data
+    tx-nodes))
+
+(deftest overridden-properties
+  (testing "is empty for an original node"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world BasicNode))]
+        (is (empty? (g/node-value n :_overridden-properties))))))
+
+  (testing "is empty for an override node with no properties set"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world BasicNode))
+            [onode] (override n)]
+        (is (empty? (g/node-value onode :_overridden-properties))))))
+
+  (testing "contains only properties with an override value"
+    (with-clean-system
+      (let [[n]     (tx-nodes (g/make-node world BasicNode))
+            [onode] (override n)
+            _       (g/set-property! onode :dynamic-property 99)
+            v1      (g/node-value onode :_overridden-properties)
+            _       (g/set-property! onode :background-color "cornflower blue")
+            v2      (g/node-value onode :_overridden-properties)
+            _       (g/clear-property! onode :dynamic-property)
+            v3      (g/node-value onode :_overridden-properties)
+            _       (g/clear-property! onode :background-color)
+            v4      (g/node-value onode :_overridden-properties)]
+        (is (= v1 {:dynamic-property 99} ))
+        (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"} ))
+        (is (= v3 {:background-color "cornflower blue"}))
+        (is (= v4 {}))))))

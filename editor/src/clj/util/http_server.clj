@@ -15,15 +15,23 @@
    :url (.toString (.getRequestURI e))})
 
 (defn- response->exchange! [response ^HttpExchange e]
-  (let [code (:code response 200)
-        body (.getBytes ^String (:body response "") "UTF-8")
-        length (count body)
-        headers (.getResponseHeaders e)]
+  (let [code       (:code response 200)
+        body       (:body response)
+        body-bytes (if (string? body)
+                     (.getBytes ^String (:body response "") "UTF-8")
+                     body)
+        length     (if body
+                     (count body)
+                     -1)
+        headers    (.getResponseHeaders e)]
     (doseq [[key value] (:headers response {})]
       (.add headers key value))
     (.sendResponseHeaders e code length)
-    (with-open [out (.getResponseBody e)]
-      (.write out body))))
+    (when body
+      (let [out (.getResponseBody e)]
+        (.write out ^bytes body-bytes)
+        (.close out)))
+    (.close e)))
 
 (defn ->server [port handlers]
   (let [server (HttpServer/create (InetSocketAddress. port) 0)]
@@ -48,3 +56,6 @@
 
 (defn local-url [^HttpServer server]
   (format "http://localhost:%d" (.getPort (.getAddress server))))
+
+(defn port [^HttpServer server]
+  (.getPort (.getAddress server)))

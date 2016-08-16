@@ -1,5 +1,20 @@
+[bootstrap]
+# This field does not support replacements.
+# It will probably only be used for testing purposes.
+# If left unset, it defaults to the installation resources path.
+resourcespath =
+[build]
+# These fields are filled in by bundle.py
+version = 2.0.0
+sha1 = 2.0.0
 [launcher]
-java = packages/jre/bin/java
-jar = packages/defold-2.0.0.jar
+jre = ${bootstrap.resourcespath}/packages/jre
+java = ${launcher.jre}/bin/java
+jar = ${bootstrap.resourcespath}/packages/defold-${build.sha1}.jar
 main = com.defold.editor.Start
 debug = 1
+vmargs = -Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.version=${build.version},-Ddefold.sha1=${build.sha1},-Djava.ext.dirs=${launcher.jre}/lib/ext,-Djava.net.preferIPv4Stack=true
+[platform]
+osx = -Xdock:icon=${bootstrap.resourcespath}/logo.icns
+windows =
+linux =

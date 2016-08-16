@@ -18,24 +18,23 @@ public class LocalPushDispatchActivity extends Activity {
         try {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
+                String payload = extras.getString("payload");
+                int uid = extras.getInt("uid");
+                boolean wasActivated = (extras.getByte("wasActivated") == 1);
 
                 if (Push.getInstance().hasListener()) {
-                    Push.getInstance().onLocalPush(extras.getString("payload"), extras.getInt("uid"));
+                    Push.getInstance().onLocalPush(payload, uid, wasActivated);
                 } else {
-
                     // need to save this to disk until a listener is set
-                    os = new PrintStream(openFileOutput(
-                            Push.SAVED_LOCAL_MESSAGE_NAME, MODE_PRIVATE));
-                    os.println(extras.getInt("uid"));
-                    os.print(extras.getString("payload"));
+                    os = new PrintStream(openFileOutput(Push.SAVED_LOCAL_MESSAGE_NAME, MODE_PRIVATE));
+                    os.println(uid);
+                    os.println(wasActivated);
+                    os.println(payload);
 
-                    Intent intent = getPackageManager().getLaunchIntentForPackage(
-                            getPackageName());
+                    Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
                     intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                     startActivity(intent);
                 }
-
-
             } else {
                 Log.e(Push.TAG, "Unable to queue message. extras is null");
             }

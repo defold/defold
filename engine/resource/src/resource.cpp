@@ -237,7 +237,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_HttpBuffer = 0;
     factory->m_HttpClient = 0;
     factory->m_HttpCache = 0;
-    if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0)
+    if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0 || strcmp(factory->m_UriParts.m_Scheme, "https") == 0)
     {
         factory->m_HttpCache = 0;
         if (params->m_Flags & RESOURCE_FACTORY_FLAGS_HTTP_CACHE)
@@ -280,7 +280,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         http_params.m_HttpContent = &HttpContent;
         http_params.m_Userdata = factory;
         http_params.m_HttpCache = factory->m_HttpCache;
-        factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port);
+        factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port, strcmp(factory->m_UriParts.m_Scheme, "https") == 0);
         if (!factory->m_HttpClient)
         {
             dmLogError("Invalid URI: %s", uri);

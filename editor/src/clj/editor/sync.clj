@@ -87,7 +87,6 @@
                                  (:untracked st))})))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
-  (println "advance" :pull state)
   (render-progress progress)
   (condp = state
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
@@ -284,6 +283,7 @@
 
                              nil)))]
     (def flw !flow)
+    (dialogs/observe-focus stage)
     (ui/set-main-stage stage)
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]

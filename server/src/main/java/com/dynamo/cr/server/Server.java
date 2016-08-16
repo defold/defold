@@ -5,9 +5,7 @@ import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.server.auth.GitSecurityFilter;
-import com.dynamo.cr.server.auth.OAuthAuthenticator;
-import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.auth.*;
 import com.dynamo.cr.server.git.GitGcReceiveFilter;
 import com.dynamo.cr.server.git.archive.ArchiveCache;
 import com.dynamo.cr.server.git.archive.GitArchiveProvider;
@@ -16,6 +14,7 @@ import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.resources.*;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.PersistFilter;
 import com.dynamo.inject.persist.jpa.JpaPersistModule;
 import com.google.inject.Guice;
@@ -39,8 +38,6 @@ import org.glassfish.grizzly.http.server.NetworkListener;
 import org.glassfish.grizzly.http.server.ServerConfiguration;
 import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.servlet.ServletHandler;
-import org.glassfish.grizzly.ssl.SSLContextConfigurator;
-import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -68,7 +65,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
     private static final int MAX_ACTIVE_LOGINS = 1024;
 
@@ -84,7 +80,6 @@ public class Server {
     private int openRegistrationMaxUsers;
 
     public static class Config extends GuiceServletContextListener {
-
         private final Server server;
 
         public Config(Server server) {
@@ -102,7 +97,7 @@ public class Server {
                     for (Entry<Object, Object> e : System.getProperties().entrySet()) {
                         props.put(e.getKey(), e.getValue());
                     }
-                    // TODO: Why this one AND EntityManagerFactoryProvider!?
+
                     install(new JpaPersistModule(server.getConfiguration().getPersistenceUnitName()).properties(props));
 
                     bind(Server.class).toInstance(server);
@@ -112,6 +107,8 @@ public class Server {
                     bind(ArchiveCache.class).in(Singleton.class);
                     bind(Configuration.class).toInstance(server.getConfiguration());
 
+                    bind(UserService.class);
+
                     bind(RepositoryResource.class);
                     bind(ProjectResource.class);
                     bind(ProjectsResource.class);
@@ -120,6 +117,8 @@ public class Server {
                     bind(LoginResource.class);
                     bind(LoginOAuthResource.class);
                     bind(ProspectsResource.class);
+                    bind(AccessTokenResource.class);
+                    bind(DiscourseSSOResource.class);
 
                     Map<String, String> params = new HashMap<>();
                     params.put("com.sun.jersey.config.property.resourceConfigClass",
@@ -161,38 +160,33 @@ public class Server {
         }
     }
 
-    private HttpServer createHttpServer() throws IOException {
+    @Inject
+    public Server(EntityManagerFactory emf, Configuration configuration, IMailProcessor mailProcessor, AccessTokenAuthenticator accessTokenAuthenticator)
+            throws IOException {
+
+        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
+        this.emf = emf;
+        this.configuration = configuration;
+        this.mailProcessor = mailProcessor;
+
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e1) {
+            throw new RuntimeException(e1);
+        }
+
+        bootStrapUsers();
+
         // Manually create server to be able to tweak timeouts
         HttpServer server = new HttpServer();
         ServerConfiguration serverConfig = server.getServerConfiguration();
         serverConfig.addHttpHandler(new StaticHttpHandler("/"), "/");
         NetworkListener listener = new NetworkListener("grizzly", NetworkListener.DEFAULT_NETWORK_HOST, new PortRange(
-                configuration.getServicePort()));
-        if (configuration.hasGrizzlyIdleTimeout()) {
-            listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
+                this.configuration.getServicePort()));
+        if (this.configuration.hasGrizzlyIdleTimeout()) {
+            listener.getKeepAlive().setIdleTimeoutInSeconds(this.configuration.getGrizzlyIdleTimeout());
         }
         server.addListener(listener);
-
-        if (configuration.hasSslServicePort() && configuration.hasKeystore()) {
-            SSLContextConfigurator sslCon = new SSLContextConfigurator();
-            sslCon.setKeyStoreFile(configuration.getKeystore());
-            String password = "defold";
-            if (configuration.hasKeystorePassword()) {
-                password = configuration.getKeystorePassword();
-            }
-            sslCon.setKeyStorePass(password);
-            NetworkListener sslListener = new NetworkListener("ssl_grizzly", NetworkListener.DEFAULT_NETWORK_HOST,
-                    new PortRange(configuration.getSslServicePort()));
-            sslListener.setSecure(true);
-            SSLEngineConfigurator ssle = new SSLEngineConfigurator(sslCon);
-            sslListener.setSSLEngineConfig(ssle);
-            ssle.setClientMode(false);
-
-            if (configuration.hasGrizzlyIdleTimeout()) {
-                sslListener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
-            }
-            server.addListener(sslListener);
-        }
 
         Config config = new Config(this);
         ServletHandler handler = new GuiceHandler(config);
@@ -224,31 +218,7 @@ public class Server {
 
         server.getServerConfiguration().addHttpHandler(handler, "/*");
         server.start();
-        return server;
-    }
-
-    public Server() {}
-
-    @Inject
-    public Server(EntityManagerFactory emf,
-                  Configuration configuration,
-                  IMailProcessor mailProcessor) throws IOException {
-
-        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
-
-        this.emf = emf;
-        this.configuration = configuration;
-        this.mailProcessor = mailProcessor;
-
-        try {
-            secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        } catch (NoSuchAlgorithmException e1) {
-            throw new RuntimeException(e1);
-        }
-
-        bootStrapUsers();
-
-        httpServer = createHttpServer();
+        httpServer = server;
 
         // TODO File caches are temporarily disabled to avoid two bugs:
         // * Content-type is incorrect for cached files:
@@ -283,8 +253,7 @@ public class Server {
         gitServlet.addReceivePackFilter(receiveFilter);
 
         ServletHandler gitHandler = new ServletHandler(gitServlet);
-
-        gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
+        gitHandler.addFilter(new GitSecurityFilter(emf, accessTokenAuthenticator), "gitAuth", null);
 
         gitHandler.addInitParameter("base-path", basePath);
         gitHandler.addInitParameter("export-all", "1");
@@ -348,14 +317,6 @@ public class Server {
             throw new ServerException(String.format("No such project %s", id));
 
         return project;
-    }
-
-    public User getUser(EntityManager em, String userId) throws ServerException {
-        User user = em.find(User.class, Long.parseLong(userId));
-        if (user == null)
-            throw new ServerException(String.format("No such user %s", userId), javax.ws.rs.core.Response.Status.NOT_FOUND);
-
-        return user;
     }
 
     public InvitationAccount getInvitationAccount(EntityManager em, String userId) throws ServerException {

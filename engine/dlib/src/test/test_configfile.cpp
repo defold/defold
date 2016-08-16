@@ -1,8 +1,13 @@
+#include <stdio.h>
 #include <stdint.h>
+#include <dlib/configfile.h>
+#include <dlib/log.h>
 #include <gtest/gtest.h>
 #include "dlib/configfile.h"
+#include "testutil.h"
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
+int g_HttpPort = -1;
 
 struct TestParam
 {
@@ -54,7 +59,9 @@ public:
         }
         else
         {
-            r = dmConfigFile::Load(param.m_Url, param.m_Argc, param.m_Argv, &config);
+            char url[1024];
+            sprintf(url, param.m_Url, g_HttpPort);
+            r = dmConfigFile::Load(url, param.m_Argc, param.m_Argv, &config);
         }
 
 
@@ -87,7 +94,7 @@ INSTANTIATE_TEST_CASE_P(Empty,
                         Empty,
                         ::testing::Values(TestParam("src/test/data/empty.config"),
                                           TestParam("src/test/data/empty.config", true),
-                                          TestParam("http://localhost:7000/src/test/data/test.config")));
+                                          TestParam("http://localhost:%d/src/test/data/test.config")));
 #else
 INSTANTIATE_TEST_CASE_P(Empty,
                         Empty,
@@ -107,7 +114,7 @@ TEST_P(MissingFile, MissingFile)
 INSTANTIATE_TEST_CASE_P(MissingFile,
                         MissingFile,
                         ::testing::Values(TestParam("does_not_exists"),
-                                          TestParam("http://localhost:7000/does_not_exists")));
+                                          TestParam("http://localhost:%d/does_not_exists")));
 #else
 INSTANTIATE_TEST_CASE_P(MissingFile,
                         MissingFile,
@@ -128,7 +135,7 @@ INSTANTIATE_TEST_CASE_P(NoSection,
                         NoSection,
                         ::testing::Values(TestParam("src/test/data/nosection.config"),
                                           TestParam("src/test/data/nosection.config", true),
-                                          TestParam("http://localhost:7000/src/test/data/nosection.config")));
+                                          TestParam("http://localhost:%d/src/test/data/nosection.config")));
 #else
 INSTANTIATE_TEST_CASE_P(NoSection,
                         NoSection,
@@ -148,7 +155,7 @@ INSTANTIATE_TEST_CASE_P(SectionError,
                         SectionError,
                         ::testing::Values(TestParam("src/test/data/section_error.config"),
                                           TestParam("src/test/data/section_error.config", true),
-                                          TestParam("http://localhost:7000/src/test/data/section_error.config")));
+                                          TestParam("http://localhost:%d/src/test/data/section_error.config")));
 #else
 INSTANTIATE_TEST_CASE_P(SectionError,
                         SectionError,
@@ -164,6 +171,9 @@ TEST_P(Test01, Test01)
 
     ASSERT_STREQ("123", dmConfigFile::GetString(config, "main.foo", 0));
     ASSERT_EQ(123, dmConfigFile::GetInt(config, "main.foo", 0));
+
+    ASSERT_STREQ("#value", dmConfigFile::GetString(config, "comments.pound", 0));
+    ASSERT_STREQ(";value", dmConfigFile::GetString(config, "comments.semi", 0));
 
     ASSERT_STREQ("456", dmConfigFile::GetString(config, "sub.bar", 0));
     ASSERT_EQ(456, dmConfigFile::GetInt(config, "sub.bar", 0));
@@ -181,7 +191,7 @@ INSTANTIATE_TEST_CASE_P(Test01,
                         Test01,
                         ::testing::Values(TestParam("src/test/data/test.config"),
                                           TestParam("src/test/data/test.config", true),
-                                          TestParam("http://localhost:7000/src/test/data/test.config")));
+                                          TestParam("http://localhost:%d/src/test/data/test.config")));
 #else
 INSTANTIATE_TEST_CASE_P(Test01,
                         Test01,
@@ -202,7 +212,7 @@ INSTANTIATE_TEST_CASE_P(MissingTrailingNewline,
                         MissingTrailingNewline,
                         ::testing::Values(TestParam("src/test/data/missing_trailing_nl.config"),
                                           TestParam("src/test/data/missing_trailing_nl.config", true),
-                                          TestParam("http://localhost:7000/src/test/data/missing_trailing_nl.config")));
+                                          TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")));
 #else
 INSTANTIATE_TEST_CASE_P(MissingTrailingNewline,
                         MissingTrailingNewline,
@@ -242,7 +252,7 @@ INSTANTIATE_TEST_CASE_P(CommandLine,
                         CommandLine,
                         ::testing::Values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
                                           TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true),
-                                          TestParam("http://localhost:7000/src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV)));
+                                          TestParam("http://localhost:%d/src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV)));
 #else
 INSTANTIATE_TEST_CASE_P(CommandLine,
                         CommandLine,
@@ -250,8 +260,33 @@ INSTANTIATE_TEST_CASE_P(CommandLine,
                                           TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)));
 #endif
 
+static void Usage()
+{
+    dmLogError("Usage: <exe> <config>");
+    dmLogError("Be sure to start the http server before starting this test.");
+    dmLogError("You can use the config file created by the server");
+}
+
 int main(int argc, char **argv)
 {
+    if(argc > 1)
+    {
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            Usage();
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        dmConfigFile::Delete(config);
+    }
+    else
+    {
+        Usage();
+        return 1;
+    }
+
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

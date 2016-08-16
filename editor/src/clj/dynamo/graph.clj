@@ -1,5 +1,6 @@
 (ns dynamo.graph
   "Main api for graph and node"
+  (:refer-clojure :exclude [deftype])
   (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
@@ -9,35 +10,24 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [internal.node :as in]
-            [internal.property :as ip]
             [internal.system :as is]
             [internal.transaction :as it]
             [plumbing.core :as pc]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.types Arc]
+           [internal.graph.error_values ErrorValue]
            [java.io ByteArrayOutputStream StringBufferInputStream]))
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [plumbing.core defnk fnk])
-
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
 (namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
-(namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
-(namespaces/import-vars [internal.property make-property-type])
-
-(namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
-
-(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-tags property-type? Properties])
-
-(namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids pre-traverse])
-
-(namespaces/import-macro schema.core/defn      s-defn)
-(namespaces/import-macro schema.core/defrecord s-defrecord)
+(namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
@@ -65,16 +55,16 @@
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/node (is/graph @*the-system* graph-id) node-id)))
+     (ig/graph->node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
-   (ig/node-by-id-at basis node-id)))
+   (gt/node-by-id-at basis node-id)))
 
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
    (node-type* (now) node-id))
   ([basis node-id]
-   (when-let [n (ig/node-by-id-at basis node-id)]
+   (when-let [n (gt/node-by-id-at basis node-id)]
      (gt/node-type n basis))))
 
 (defn node-type
@@ -199,30 +189,76 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
-(def node-intrinsics
-  [(list 'extern '_node-id `s/Int)
-   (list 'output '_properties `dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'extern '_output-jammers `{s/Keyword s/Any})])
+(defn strip-alias
+  "If the list ends with :as _something_, return _something_ and the
+  list without the last two elements"
+  [argv]
+  (if (and
+       (<= 2 (count argv))
+       (= :as (nth argv (- (count argv) 2))))
+    [(last argv) (take (- (count argv) 2) argv)]
+    [nil argv]))
+
+(defmacro fnk
+  [argv & tail]
+  (let [param        (gensym "m")
+        [alias argv] (strip-alias (vec argv))
+        arglist      (interleave argv (map #(list `get param (keyword %)) argv))]
+    (if alias
+      `(with-meta
+         (fn [~param]
+           (let [~alias ~param
+                 ~@(vec arglist)]
+             ~@tail))
+         {:arguments (quote ~(mapv keyword argv))})
+      `(with-meta
+         (fn [~param]
+           (let ~(vec arglist) ~@tail))
+         {:arguments (quote ~(mapv keyword argv))}))))
+
+(defmacro defnk
+  [symb & body]
+  (let [[name args]  (ctm/name-with-attributes symb body)]
+    (assert (symbol? name) (str "Name for defnk is not a symbol:" name))
+    `(def ~name (fnk ~@args))))
+
+(defmacro always [v] `(dynamo.graph/fnk [] ~v))
+
+(defmacro deftype
+  [symb & body]
+  (let [fqs           (symbol (str *ns*) (str symb))
+        key           (keyword fqs)]
+    `(do
+       (in/register-value-type '~fqs ~key)
+       (def ~symb (in/register-value-type ~key (in/make-value-type '~symb ~key ~@body))))))
+
+(deftype Any        s/Any)
+(deftype Bool       s/Bool)
+(deftype Str        String)
+(deftype Int        s/Int)
+(deftype Num        s/Num)
+(deftype NodeID     s/Int)
+(deftype Keyword    s/Keyword)
+(deftype KeywordMap {s/Keyword s/Any})
+(deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
+(deftype Dict       {s/Str s/Int})
+(deftype Properties
+    {:properties {s/Keyword {:node-id                              gt/NodeID
+                             (s/optional-key :validation-problems) s/Any
+                             :value                                (s/either s/Any ErrorValue)
+                             :type                                 s/Any
+                             s/Keyword                             s/Any}}
+     (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
+
+
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
-(defmacro defproperty [name value-type & body-forms]
-  "Defines a property that can later be referred to in a `defnode`
-
-   Example:
-
-      (defproperty StringWithDefault g/Str (default \"foo\"))
-
-      (defnode TestNode
-        (property a-prop StringWithDefault))"
-
-  (apply ip/def-property-type-descriptor name value-type body-forms))
-
 (declare become)
 
 (defn construct
-  "Creates an instance of a node. The node-type must have been
+  "Creates an instance of a node. The node type must have been
   previously defined via `defnode`.
 
   The node's properties will all have their default values. The caller
@@ -236,11 +272,10 @@
     (property acceleration Int (default 32))
 
   (construct GravityModifier :acceleration 16)"
-  [node-type & {:as args}]
-  (assert (::ctor node-type))
-  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (declared-properties node-type)))]
-    (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
-  ((::ctor node-type) args))
+  [node-type-ref & {:as args}]
+  (in/construct node-type-ref args))
+
+(defn- var-it [it] (list `var it))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -266,8 +301,18 @@
   (property _symbol_ _property-type_ & _options_)
 
   Define a property with schema and, possibly, default value and
-  constraints.  Property type and options have the same syntax as for
-  `dynamo.graph/defproperty`.
+  constraints. Property options include the following:
+    (default _value_)
+    Set a default value for the property. If no default is set, then the property will be nil.
+
+    (value _getter_)
+    Define a custom getter. It must be an fnk. The fnk's arguments are magically wired the same as an output producer.
+
+    (dynamic _label_ _evaluator_)
+    Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
+
+    (set (fn [this basis oldvalue newvalue]))
+    Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
 
   (output _symbol_ _type_ (:cached)? _producer_)
 
@@ -305,33 +350,32 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (let [[symb forms] (ctm/name-with-attributes symb body)
-        record-name  (in/classname-for symb)
-        ctor-name    (symbol (str 'map-> record-name))]
-    `(do
-       (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-forms symb (concat node-intrinsics forms))
-             replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
-                               (when (satisfies? NodeType x#) x#))
-             basis#          (is/basis @*the-system*)
-             all-graphs#     (util/map-vals deref (is/graphs @*the-system*))
-             to-be-replaced# (when (and all-graphs# replacing#)
-                               (filterv #(and (= replacing# (node-type basis# %)) (nil? (gt/original %))) (mapcat ig/node-values (vals all-graphs#))))
-             ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))
-             type# (in/make-node-type (assoc description# :dynamo.graph/ctor ctor#))]
-         (def ~symb type#)
-         (doseq [super-type# (gt/supertypes type#)]
-           (derive type# super-type#))
-         (in/declare-node-value-function-names '~symb ~symb)
-         (in/define-node-record  '~record-name '~symb ~symb)
-         (in/define-node-value-functions '~record-name '~symb ~symb)
-         (in/define-print-method '~record-name '~symb ~symb)
-         (when (< 0 (count to-be-replaced#))
-           (transact
-            (mapcat (fn [r#]
-                      (let [new# (construct ~symb)]
-                        (become r# new#)))
-                    (mapv node-id to-be-replaced#))))
+  (binding [in/*autotypes* (atom {})]
+    (let [[symb forms]  (ctm/name-with-attributes symb body)
+          fqs           (symbol (str *ns*) (str symb))
+          node-type-def (in/process-node-type-forms fqs forms)
+          fn-paths      (in/extract-functions node-type-def)
+          fn-defs       (for [[path func] fn-paths]
+                          (list `def (in/dollar-name symb path) func))
+          fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
+          node-type-def (util/update-paths node-type-def fn-paths
+                                           (fn [path func curr]
+                                             (assoc curr :fn (var-it (in/dollar-name symb path)))))
+          node-key      (:key node-type-def)
+          derivations   (for [tref (:supertypes node-type-def)]
+                          `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                             (derive ~node-key ~(:key (deref tref)))))
+          node-type-def (update node-type-def :supertypes #(list `quote %))
+          runtime-definer (symbol (str symb "*"))
+          type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
+      `(do
+         (declare ~symb)
+         ~@type-regs
+         ~@fwd-decls
+         ~@fn-defs
+         (defn ~runtime-definer [] ~node-type-def)
+         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+         ~@derivations
          (var ~symb)))))
 
 ;; ---------------------------------------------------------------------------
@@ -421,6 +465,7 @@
 
   `(transact (delete-node node-id))`"
   [node-id]
+  (assert node-id)
   (it/delete-node node-id))
 
 (defn delete-node!
@@ -430,8 +475,8 @@
   Example:
 
   `(delete-node! node-id)`"
-
   [node-id]
+  (assert node-id)
   (transact (delete-node node-id)))
 
 (defn connect
@@ -442,6 +487,8 @@
 
   `(transact (connect content-node :scalar view-node :first-name))`"
   [source-node-id source-label target-node-id target-label]
+  (assert source-node-id)
+  (assert target-node-id)
   (it/connect source-node-id source-label target-node-id target-label))
 
 (defn connect!
@@ -452,6 +499,8 @@
 
   `(connect! content-node :scalar view-node :first-name)`"
   [source-node-id source-label target-node-id target-label]
+  (assert source-node-id)
+  (assert target-node-id)
   (transact (connect source-node-id source-label target-node-id target-label)))
 
 (defn disconnect
@@ -464,6 +513,8 @@
 
   (`transact (disconnect aux-node :scalar view-node :last-name))`"
   [source-node-id source-label target-node-id target-label]
+  (assert source-node-id)
+  (assert target-node-id)
   (it/disconnect source-node-id source-label target-node-id target-label))
 
 (defn disconnect!
@@ -482,6 +533,7 @@
   ([target-node-id target-label]
     (disconnect-sources (now) target-node-id target-label))
   ([basis target-node-id target-label]
+   (assert target-node-id)
     (it/disconnect-sources basis target-node-id target-label)))
 
 (defn become
@@ -498,6 +550,7 @@
   labels that don't exist on new-node will be disconnected in the same
   transaction."
   [node-id new-node]
+  (assert node-id)
   (it/become node-id new-node))
 
 (defn become!
@@ -524,6 +577,7 @@
 
   `(transact (set-property root-id :touched 1))`"
   [node-id & kvs]
+  (assert node-id)
   (mapcat
    (fn [[p v]]
      (it/update-property node-id p (constantly v) []))
@@ -537,6 +591,7 @@
 
   `(set-property! root-id :touched 1)`"
   [node-id & kvs]
+  (assert node-id)
   (transact (apply set-property node-id kvs)))
 
 (defn update-property
@@ -548,6 +603,7 @@
 
   `(transact (g/update-property node-id :int-prop inc))`"
   [node-id p f & args]
+  (assert node-id)
   (it/update-property node-id p f args))
 
 (defn update-property!
@@ -558,11 +614,17 @@
 
   `g/update-property! node-id :int-prop inc)`"
   [node-id p f & args]
+  (assert node-id)
   (transact (apply update-property node-id p f args)))
 
 (defn clear-property
   [node-id p]
+  (assert node-id)
   (it/clear-property node-id p))
+
+(defn clear-property!
+  [node-id p]
+  (transact (clear-property node-id p)))
 
 (defn update-graph-value [graph-id k f & args]
   (it/update-graph-value graph-id update (into [k f] args)))
@@ -575,6 +637,7 @@
 
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
+  (assert graph-id)
   (it/update-graph-value graph-id assoc [k v]))
 
 (defn set-graph-value!
@@ -585,6 +648,7 @@
 
   (set-graph-value! 0 :string-value \"A String\")"
   [graph-id k v]
+  (assert graph-id)
   (transact (set-graph-value graph-id k v)))
 
 (defn invalidate
@@ -595,6 +659,7 @@
 
   `(transact (invalidate node-id))`"
   [node-id]
+  (assert node-id)
   (it/invalidate node-id))
 
 (defn invalidate!
@@ -604,6 +669,7 @@
 
   `(invalidate! node-id)`"
   [node-id]
+  (assert node-id)
   (transact (invalidate node-id)))
 
 (defn mark-defective
@@ -615,14 +681,16 @@
 
   `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
   ([node-id defective-value]
+   (assert node-id)
    (mark-defective node-id (node-type* node-id) defective-value))
   ([node-id node-type defective-value]
-   (let [outputs   (keys (gt/transforms node-type))
-         externs   (gt/externs node-type)]
+   (assert node-id)
+   (let [outputs   (in/output-labels node-type)
+         externs   (in/externs node-type)]
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)
-                            (repeat (always defective-value))))
+                            (repeat (constantly defective-value))))
       (invalidate node-id)))))
 
 (defn mark-defective!
@@ -634,6 +702,7 @@
 
   `(mark-defective! node-id (g/severe \"Resource Not Found\"))`"
   [node-id defective-value]
+  (assert node-id)
   (transact (mark-defective node-id defective-value)))
 
 ;; ---------------------------------------------------------------------------
@@ -655,14 +724,20 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (node-value node-id label :cache (cache) :basis (now)))
-  ([node-id label & {:as options}]
-    (let [options (cond-> options
-                    true (assoc :in-transaction? (it/in-transaction?))
-                    (not (:cache options))
-                    (assoc :cache (cache))
-                    (not (:basis options))
-                    (assoc :basis (now)))]
+   (node-value node-id label {:cache (cache) :basis (now)}))
+  ([node-id label options]
+   (let [options (cond-> options
+                   (it/in-transaction?)
+                   (assoc :in-transaction? true)
+
+                   (not (:cache options))
+                   (assoc :cache (cache))
+
+                   (not (:basis options))
+                   (assoc :basis (now))
+
+                   (:no-cache options)
+                   (dissoc :cache))]
       (in/node-value node-id label options))))
 
 (defn graph-value
@@ -763,7 +838,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (isa? (node-type basis node) type)))
+    (isa? (:key @(node-type basis node)) (:key @type))))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
@@ -771,7 +846,7 @@
   ([type node-id]
     (node-instance? (now) type node-id))
   ([basis type node-id]
-    (node-instance*? basis type (ig/node-by-id-at basis node-id))))
+    (node-instance*? basis type (gt/node-by-id-at basis node-id))))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for property getters & setters
@@ -823,15 +898,8 @@
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
-(def ^:private write-handlers
-  {internal.node.NodeTypeImpl (transit/write-handler
-                               (constantly "node-type")
-                               (fn [t] (select-keys t [:name])))})
-
-(def ^:private read-handlers
-  {"node-type"                (transit/read-handler
-                               (fn [{:keys [name]}]
-                                 (var-get (resolve (symbol name)))))})
+(def ^:private write-handlers (transit/record-write-handlers internal.node.NodeTypeRef internal.node.ValueTypeRef))
+(def ^:private read-handlers  (transit/record-read-handlers  internal.node.NodeTypeRef internal.node.ValueTypeRef))
 
 (defn read-graph
   "Read a graph fragment from a string. Returns a fragment suitable
@@ -879,15 +947,15 @@
 
 (defn default-node-serializer
   [basis node]
-  (let [node-id (gt/node-id node)
-        all-node-properties (into {} (map (fn [[key value]] [key (:value value)])
-                                          (:properties (node-value node-id :_declared-properties))))
+  (let [node-id                (gt/node-id node)
+        all-node-properties    (into {} (map (fn [[key value]] [key (:value value)])
+                                             (:properties (node-value node-id :_declared-properties))))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:node-type  (node-type basis node)
      :properties properties-without-fns}))
 
-(def opts-schema {(optional-key :traverse?) Runnable
-                  (optional-key :serializer) Runnable})
+(def opts-schema {(s/optional-key :traverse?) Runnable
+                  (s/optional-key :serializer) Runnable})
 
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
@@ -922,8 +990,8 @@
   ([root-ids opts]
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
-    (validate opts-schema opts)
-   (let [serializer     #(assoc (serializer basis (ig/node-by-id-at basis %2)) :serial-id %1)
+    (s/validate opts-schema opts)
+   (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids     (util/map-vals :serial-id replacements)
@@ -967,7 +1035,7 @@
   ([basis graph-id fragment {:keys [deserializer] :or {deserializer default-node-deserializer} :as opts}]
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
-         new-nodes     (remove #(ig/node-by-id-at basis (gt/node-id %)) nodes)
+         new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
          node-txs      (vec (mapcat it/new-node new-nodes))
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
@@ -980,7 +1048,7 @@
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
 (defn- traverse-cascade-delete [basis [src-id src-label tgt-id tgt-label]]
-  ((cascade-deletes (node-type* basis tgt-id)) tgt-label))
+  (get (cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
 (defn- make-override-node
   [graph-id override-id original-node-id]
@@ -1014,7 +1082,7 @@
   ([root-id]
     (overrides (now) root-id))
   ([basis root-id]
-    (ig/overrides basis root-id)))
+    (ig/get-overrides basis root-id)))
 
 (defn override-original
   ([node-id]

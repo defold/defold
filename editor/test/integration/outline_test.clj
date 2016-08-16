@@ -156,20 +156,25 @@
   (with-clean-system
     (let [[workspace project] (setup world)
           root (test-util/resource-node project "/collection/sub_props.collection")]
+      ; Original tree
+      ; + Collection (root)
+      ;   + props (collection)
+      ;     + props (go)
+      ;     + props_embedded (go)
       ; 1 collection instance
       (is (= 1 (child-count root)))
-      ; 1 go instance
-      (is (= 1 (child-count root [0])))
+      ; 2 go instances
+      (is (= 2 (child-count root [0])))
       (copy! root [0])
       (paste! project root)
       (is (= 2 (child-count root)))
-      (is (= 1 (child-count root [1])))
+      (is (= 2 (child-count root [1])))
       (cut! root [0 0])
       (paste! project root)
       ; 2 collection instances + 1 go instances
       (is (= 3 (child-count root)))
-      ; 0 go instances under coll instance
-      (is (= 0 (child-count root [0])))
+      ; 2 go instances under coll instance
+      (is (= 2 (child-count root [0])))
       (cut! root [2])
       (paste! project root [0])
       ; 2 collection instance
@@ -200,6 +205,14 @@
           (drop! project root)
           (is (= 2 (child-count root)))
           (is (= second-id (get (outline root [1]) :label))))))))
+
+(deftest copy-paste-dnd-collection
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/logic/atlas_sprite.collection")]
+      (copy-paste! project root [0])
+      (drag! root [0])
+      (drop! project root [1]))))
 
 (defn- read-only? [root path]
   (and (not (delete? root path))
@@ -364,3 +377,19 @@
           node-id (test-util/resource-node project "/graphics/sprites.tileset")
           ol (g/node-value node-id :node-outline)]
       (is (some? ol)))))
+
+(deftest copy-paste-particlefx
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/particlefx/fireworks_big.particlefx")]
+      ; Original tree
+      ; Root (particlefx)
+      ; + Drag (modifier)
+      ; + Acceleration (modifier)
+      ; + primary (emitter)
+      ; + secondary (emitter)
+      (is (= 4 (child-count root)))
+      (copy! root [2])
+      (paste! project root)
+      (is (= 5 (child-count root)))
+      (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))

@@ -395,7 +395,7 @@ namespace dmGameObject
      * @name go.get
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to retrieve (hash|string)
-     * @return the value of the specified property (number|hash|url|vector3|vector4|quaternion|boolean)
+     * @return the value of the specified property (any)
      * @examples
      * <p>Get a property "speed" from a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -438,7 +438,16 @@ namespace dmGameObject
             dmGameObject::LuaPushVar(L, property_desc.m_Variant);
             return 1;
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
-            return luaL_error(L, "'%s' does not have any property called '%s'", lua_tostring(L, 1), (const char*)dmHashReverse64(property_id, 0x0));
+            {
+                // The supplied URL parameter don't need to be a string,
+                // we let Lua handle the "conversion" to string using concatenation.
+                lua_pushliteral(L, "");
+                lua_pushvalue(L, 1);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+            }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
         default:
@@ -475,7 +484,7 @@ namespace dmGameObject
      * @name go.set
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to set (hash|string)
-     * @param value the value to set (number|hash|url|vector3|vector4|quaternion|boolean)
+     * @param value the value to set (any)
      * @examples
      * <p>Set a property "speed" of a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -522,6 +531,8 @@ namespace dmGameObject
             return 0;
         case PROPERTY_RESULT_NOT_FOUND:
             {
+                // The supplied URL parameter don't need to be a string,
+                // we let Lua handle the "conversion" to string using concatenation.
                 lua_pushliteral(L, "");
                 lua_pushvalue(L, 1);
                 lua_concat(L, 2);

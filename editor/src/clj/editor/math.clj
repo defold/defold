@@ -136,6 +136,25 @@
     1 (Vector3d. 0 1 0)
     2 (Vector3d. 0 0 1)))
 
+(defn ->mat4 ^Matrix4d []
+  (doto (Matrix4d.) (.setIdentity)))
+
+(defn ->mat4-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
+  (Matrix4d. rotation position scale))
+
+(defn ->mat4-non-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [s (doto (Matrix3d.)
+            (.setElement 0 0 (.x scale))
+            (.setElement 1 1 (.y scale))
+            (.setElement 2 2 (.z scale)))
+        rs (doto (Matrix3d.)
+             (.set rotation)
+             (.mul s))]
+    (doto (Matrix4d.)
+      (.setRotationScale rs)
+      (.setTranslation position)
+      (.setElement 3 3 1.0))))
+
 (defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
   (let [tmp (Vector4d.)
         _ (.getColumn mat 3 tmp)
@@ -182,3 +201,18 @@
                         (.m10 this) (.m11 this) (.m12 this) (.m13 this)
                         (.m20 this) (.m21 this) (.m22 this) (.m23 this)
                         (.m30 this) (.m31 this) (.m32 this) (.m33 this)]))
+
+(defn hermite [y0 y1 t0 t1 t]
+  (let [t2 (* t t)
+        t3 (* t2 t)]
+    (+ (* (+ (* 2 t3) (* -3 t2) 1.0) y0)
+       (* (+ t3 (* -2 t2) t) t0)
+       (* (+ (* -2 t3) (* 3 t2)) y1)
+       (* (- t3 t2) t1))))
+
+(defn hermite' [y0 y1 t0 t1 t]
+  (let [t2 (* t t)]
+    (+ (* (+ (* 6 t2) (* -6 t)) y0)
+       (* (+ (* 3 t2) (* -4 t) 1) t0)
+       (* (+ (* -6 t2) (* 6 t)) y1)
+       (* (+ (* 3 t2) (* -2 t)) t1))))

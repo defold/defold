@@ -17,6 +17,7 @@
 #include "scripts/script_spine_model.h"
 #include "scripts/script_gfx.h"
 #include "scripts/script_mesh.h"
+#include "scripts/script_window.h"
 
 extern "C"
 {
@@ -51,6 +52,7 @@ namespace dmGameSystem
         ScriptSpineModelRegister(context);
         ScriptGfxRegister(context);
         ScriptMeshRegister(context);
+        ScriptWindowRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -61,6 +63,7 @@ namespace dmGameSystem
         ScriptPhysicsFinalize(context);
         ScriptGfxFinalize(context);
         ScriptMeshFinalize(context);
+        ScriptWindowFinalize(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {
@@ -76,5 +79,16 @@ namespace dmGameSystem
             luaL_error(L, "no instance could be found in the current script environment");
         }
         return instance;
+    }
+
+
+    void OnWindowFocus(bool focus)
+    {
+        ScriptWindowOnWindowFocus(focus);
+    }
+
+    void OnWindowResized(int width, int height)
+    {
+        ScriptWindowOnWindowResized(width, height);
     }
 }

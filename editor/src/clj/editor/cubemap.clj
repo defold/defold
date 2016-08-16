@@ -95,6 +95,7 @@
                                  (render-cubemap gl render-args camera gpu-texture vertex-binding)))
                   :passes [pass/transparent]}}))
 
+
 (g/defnode CubemapNode
   (inherits project/ResourceNode)
   (inherits scene/SceneNode)

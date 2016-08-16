@@ -263,7 +263,8 @@ namespace dmGameObject
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
-            ret = dmScript::PCall(L, 4, LUA_MULTRET);
+            // An on_message function shouldn't return anything.
+            ret = dmScript::PCall(L, 4, 0);
             if (ret != 0)
             {
                 result = UPDATE_RESULT_UNKNOWN_ERROR;

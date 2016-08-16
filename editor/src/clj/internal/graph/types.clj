@@ -1,75 +1,36 @@
 (ns internal.graph.types
   (:require [internal.util :as util]
             [internal.graph.error-values :as ie]
-            [schema.core :as s])
-  (:import [internal.graph.error_values ErrorValue]))
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
-
-(defn pfnk?
-  "True if the function has a schema. (I.e., it is a valid production function"
-  [f]
-  (contains? (meta f) :schema))
-
-(defn always
-  "Takes a value and produces a constanly function that has a schema and
-   is a considered a valid pfnk"
-  [v]
-  (let [always-fn (constantly v)]
-   (vary-meta always-fn assoc :schema (s/=> (class v) {}))))
 
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
 
-(defprotocol NodeType
-  (supertypes             [this])
-  (interfaces             [this])
-  (protocols              [this])
-  (method-impls           [this])
-  (transforms             [this])
-  (transform-types        [this])
-  (declared-properties    [this])
-  (declared-inputs        [this])
-  (injectable-inputs      [this])
-  (declared-outputs       [this])
-  (cached-outputs         [this])
-  (input-dependencies     [this])
-  (substitute-for         [this input])
-  (input-type             [this input])
-  (input-cardinality      [this input])
-  (cascade-deletes        [this])
-  (output-type            [this output])
-  (passthroughs           [this])
-  (property-display-order [this]))
-
-(defn node-type? [x] (satisfies? NodeType x))
-
-(defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
-(defn output-labels       [node-type]          (-> node-type transforms keys set))
-(defn property-labels     [node-type]          (-> node-type declared-properties keys set))
-(defn internal-properties [node-type]          (->> node-type declared-properties (util/filter-vals :internal?)))
-(defn public-properties   [node-type]          (->> node-type declared-properties (util/filter-vals (comp not :internal?))))
-(defn externs             [node-type]          (->> node-type declared-properties (util/filter-vals :unjammable?)))
-(defn property-type       [node-type property] (-> node-type declared-properties (get property)))
-
 (def NodeID s/Int)
-
-(defprotocol Node
-  (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
-  (node-type           [this basis]        "Return the node type that created this node.")
-  (property-types      [this basis]        "Return the combined map of compile-time and runtime properties")
-  (get-property        [this basis property] "Return the value of the named property")
-  (set-property        [this basis property value] "Set the named property")
-  (clear-property      [this basis property] "Clear the named property (this is only valid for override nodes)")
-  (produce-value       [this output evaluation-context] "Return the value of the named output")
-  (override-id         [this] "Return the ID of the override this node belongs to, if any")
-  (original            [this] "Return the ID of the original of this node, if any")
-  (set-original        [this original-id] "Set the ID of the original of this node, if any"))
-
 (defn node-id? [v] (integer? v))
 
+(defprotocol Evaluation
+  (produce-value       [this label evaluation-context] "Pull a value using an evaluation context"))
+
+(defprotocol Node
+  (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
+  (node-type             [this basis]                    "Return the node type that created this node.")
+  (get-property          [this basis property]           "Return the value of the named property")
+  (set-property          [this basis property value]     "Set the named property")
+  (overridden-properties [this basis]                    "Return a map of property name to override value")
+  (property-overridden?  [this property]))
+
+(defprotocol OverrideNode
+  (clear-property      [this basis property]           "Clear the named property (this is only valid for override nodes)")
+  (override-id         [this]                          "Return the ID of the override this node belongs to, if any")
+  (original            [this]                          "Return the ID of the original of this node, if any")
+  (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
+
 (defprotocol IBasis
+  (node-by-id-at    [this node-id])
   (node-by-property [this label value])
   (arcs-by-head     [this node-id] [this node-id label])
   (arcs-by-tail     [this node-id] [this node-id label])
@@ -94,25 +55,6 @@
 
      Returns a collection of [node-id output-label] pairs.")
   (original-node    [this node-id]))
-
-(defn protocol? [x] (and (map? x) (contains? x :on-interface)))
-
-(defprotocol PropertyType
-  (property-value-type         [this]   "Prismatic schema for property value type")
-  (property-default-value      [this])
-  (property-tags               [this]))
-
-(defn property-type? [x] (satisfies? PropertyType x))
-
-(def Properties {:properties {s/Keyword {:node-id                              NodeID
-                                         (s/optional-key :validation-problems) s/Any
-                                         :value                                (s/either s/Any ErrorValue)
-                                         :type                                 (s/protocol PropertyType)
-                                         s/Keyword                             s/Any}}
-                 (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
-
-(defprotocol Dynamics
-  (dynamic-attributes          [this] "Return a map from label to fnk"))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers

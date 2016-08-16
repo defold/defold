@@ -232,11 +232,8 @@ def bundle(platform, options):
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
     config = ConfigParser.ConfigParser()
     config.read('bundle-resources/config')
-    config.set('launcher', 'jar', 'packages/defold-%s.jar' % sha1)
-    vmargs = ",".join(['-Ddefold.version=%s' % options.version,
-                       '-Ddefold.sha1=%s' % sha1])
-    config.set('launcher', 'vmargs', vmargs)
-
+    config.set('build', 'sha1', sha1)
+    config.set('build', 'version', options.version)
 
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
@@ -294,7 +291,7 @@ if __name__ == '__main__':
 
     print 'Building editor'
     exec_command('./scripts/lein clean')
-    exec_command('./scripts/lein uberjar')
+    exec_command('./scripts/lein with-profile +release uberjar')
 
     for platform in options.target_platform:
         bundle(platform, options)
@@ -307,4 +304,3 @@ if __name__ == '__main__':
                                   'action': 'copy'}]}
     with open('target/editor/update/manifest.json', 'w') as f:
         f.write(json.dumps(package_info, indent=4))
-

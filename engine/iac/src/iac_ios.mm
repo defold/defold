@@ -140,7 +140,10 @@ static void RunIACListener(NSDictionary *userdata, uint32_t type)
     }
     NSMutableDictionary* userdata = [[NSMutableDictionary alloc]initWithCapacity:2];
     [userdata setObject:[url absoluteString] forKey:@"url"];
-    [userdata setObject:sourceApplication forKey:@"origin"];
+    if( sourceApplication )
+    {
+        [userdata setObject:sourceApplication forKey:@"origin"];
+    }
     if (g_IAC.m_IACListener.m_Callback == LUA_NOREF)
     {
         g_IAC.m_SavedInvocation = userdata;

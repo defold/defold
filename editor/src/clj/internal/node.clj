@@ -1,30 +1,367 @@
 (ns internal.node
-  (:require [clojure.core.match :refer [match]]
-            [clojure.pprint :as pp]
+  (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
             [internal.util :as util]
             [internal.cache :as c]
-            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
-            [internal.property :as ip]
             [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf]
-            [schema.core :as s])
+            [schema.core :as s]
+            [clojure.walk :as walk]
+            [clojure.zip :as zip])
   (:import [internal.graph.types IBasis]
            [internal.graph.error_values ErrorValue]
-           [clojure.lang Named]))
+           [clojure.lang Named]
+           [schema.core Maybe Either]))
+
+
+;; TODO - replace use of 'transform' as a variable name with 'label'
 
 (set! *warn-on-reflection* true)
 
-(declare node-input-forms property-validation-exprs)
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
+
+(def ^:dynamic *node-value-debug* nil)
+
+(defn nodevalstr [this node-type label & t]
+  (apply str "\t" (:_node-id this) "\t"  (:name @node-type) label "\t" t))
+
+(prefer-method clojure.pprint/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
+(prefer-method clojure.pprint/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
+
+(defprotocol Ref
+  (ref-key [this]))
+
+(defn ref? [x] (and x (extends? Ref (class x))))
+
+(defprotocol Type
+  (describe* [type])
+  (ref*      [type]))
+
+(defn type? [x] (and (extends? Type (class x)) x))
+(defn- named? [x] (instance? clojure.lang.Named x))
+
+;;; ----------------------------------------
+;;; Node type definition
+(declare node-type-resolve value-type-resolve)
+
+(defn has-flag? [flag entry]
+  (contains? (:flags entry) flag))
+
+(def injectable?         (partial has-flag? :inject))
+(def cached?             (partial has-flag? :cached))
+(def cascade-deletes?    (partial has-flag? :cascade-delete))
+(def extern?             (partial has-flag? :unjammable))
+(def internal?           (partial has-flag? :internal))
+(def explicit?           (partial has-flag? :explicit))
+(def external-property?  (complement internal?))
+
+(def internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
+
+(defn- filterm [pred m]
+  (into {} (filter pred m)))
+
+(defprotocol NodeType)
+
+(defn node-type? [x] (satisfies? NodeType x))
+
+(defrecord NodeTypeRef [k]
+  Ref
+  (ref-key [this] k)
+
+  clojure.lang.IDeref
+  (deref [this]
+    (node-type-resolve k)))
+
+(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order]
+  NodeType
+  Type
+  (describe*              [this] (pr-str (select-keys this [:input :output :property])))
+  (ref*                   [this] (->NodeTypeRef key)))
+
+;;; accessors for node type information
+
+(defn supertypes             [nt]        (some-> nt deref :supertypes))
+(defn property-display-order [nt]        (some-> nt deref :property-display-order))
+(defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
+(defn transform-types        [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
+(defn all-properties         [nt]        (some-> nt deref :property))
+(defn declared-properties    [nt]        (some-> nt deref :property (->> (remove (comp internal? val)) (into {})))) ;; deprecated
+(defn internal-properties    [nt]        (some-> nt deref :property (->> (filter (comp internal? val)) (into {}))))
+(defn declared-inputs        [nt]        (some-> nt deref :input))
+(defn injectable-inputs      [nt]        (some-> nt deref :input (->> (filterm #(injectable? (val %))) util/key-set)))
+(defn declared-outputs       [nt]        (some-> nt deref :output))
+(defn cached-outputs         [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
+(defn input-dependencies     [nt]        (some-> nt deref :input-dependencies))
+(defn substitute-for         [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
+(defn input-type             [nt label]  (some-> nt deref (get-in [:input label :value-type])))
+(defn input-cardinality      [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
+(defn behavior               [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn cascade-deletes        [nt]        (some-> nt deref :input (->> (filterm #(cascade-deletes? (val %))) util/key-set)))
+(defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
+(defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
+(defn externs                [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
+(defn property-setter        [nt label]  (some-> nt deref (get-in [:property label :setter :fn]) util/var-get-recursive))
+(defn property-type          [nt label]  (some-> nt deref (get-in [:property label :value-type])))
+(defn has-input?             [nt label]  (some-> nt deref (get :input) (contains? label)))
+(defn has-output?            [nt label]  (some-> nt deref (get :output) (contains? label)))
+(defn has-property?          [nt label]  (some-> nt deref (get :property) (contains? label)))
+(defn property-labels        [nt]        (util/key-set (declared-properties nt)))
+(defn input-labels           [nt]        (util/key-set (declared-inputs nt)))
+(defn output-labels          [nt]        (util/key-set (declared-outputs nt)))
+(def  public-properties   declared-properties)
+
+
+;;; ----------------------------------------
+;;; Registry of node types
+
+(defn- type-resolve
+  [reg k]
+  (loop [type-name k]
+    (cond
+      (ref? type-name)           (recur (get reg (ref-key type-name)))
+      (named? type-name)         (recur (get reg type-name))
+      (symbol? type-name)        (recur (util/vgr type-name))
+      (type? type-name)          type-name
+      (util/protocol? type-name) type-name
+      (class? type-name)         type-name
+      :else                      nil)))
+
+(defn register-type
+  [reg-ref k type]
+  (assert (named? k))
+  (assert (or (type? type) (named? type) (util/schema? type) (util/protocol? type) (class? type)) (pr-str k type))
+  (swap! reg-ref assoc k type)
+  k)
+
+(defn unregister-type
+  [reg-ref k]
+  (swap! reg-ref dissoc k))
+
+(defonce ^:private node-type-registry-ref (atom {}))
+
+(defn node-type-registry [] @node-type-registry-ref)
+
+(defn node-type-resolve  [k] (type-resolve (node-type-registry) k))
+
+(defn node-type [x]
+  (cond
+    (type? x)  x
+    (named? x) (or (node-type-resolve x) (throw (Exception. (str "Unable to resolve node type: " (pr-str x)))))
+    :else      (throw (Exception. (str (pr-str x) " is not a node type")))))
+
+(defn register-node-type
+  [k node-type]
+  (assert (node-type? node-type))
+  (->NodeTypeRef (register-type node-type-registry-ref k node-type)))
+
+;;; ----------------------------------------
+;;; Value type definition
+
+(defprotocol ValueType
+  (dispatch-value [this])
+  (schema [this]      "Returns a schema.core/Schema that can conform values of this type"))
+
+(defrecord SchemaType [dispatch-value schema]
+  ValueType
+  (dispatch-value [_] dispatch-value)
+  (schema         [_] schema)
+
+  Type
+  (describe* [this] (when schema (s/explain schema))))
+
+(defrecord ClassType [dispatch-value ^Class class]
+  ValueType
+  (dispatch-value [_] dispatch-value)
+  (schema         [_] class)
+
+  Type
+  (describe* [this] (.getName class)))
+
+(defrecord ProtocolType [dispatch-value schema]
+  ValueType
+  (dispatch-value [_] dispatch-value)
+  (schema         [_] schema)
+
+  Type
+  (describe* [this] dispatch-value))
+
+(defn value-type? [x] (satisfies? ValueType x))
+
+;;; ----------------------------------------
+;;; Registry of value types
+
+(defonce ^:private value-type-registry-ref (atom {}))
+
+(defn value-type-registry [] @value-type-registry-ref)
+
+(defrecord ValueTypeRef [k]
+  Ref
+  (ref-key [this] k)
+
+  clojure.lang.IDeref
+  (deref [this]
+    (value-type-resolve k)))
+
+(defn register-value-type
+  [k value-type]
+  (assert value-type)
+  (->ValueTypeRef (register-type value-type-registry-ref k value-type)))
+
+(defn- make-protocol-value-type
+  [dispatch-value name]
+  (->ProtocolType dispatch-value (eval (list `s/protocol name))))
+
+(defn make-value-type
+  [name key body]
+  (let [dispatch-value (->ValueTypeRef key)]
+    (cond
+      (class? body)         (->ClassType dispatch-value body)
+      (util/protocol? body) (make-protocol-value-type dispatch-value name)
+      (util/schema? body)   (->SchemaType dispatch-value body))))
+
+(defn unregister-value-type
+  [k]
+  (unregister-type value-type-registry-ref k))
+
+(defn k->s [k] (symbol (namespace k) (name k)))
+
+(defn value-type-resolve [k]
+  (type-resolve (value-type-registry) k))
+
+(defn value-type-schema         [vtr] (when (ref? vtr) (some-> vtr deref schema)))
+(defn value-type-dispatch-value [vtr] (when (ref? vtr) (some-> vtr deref dispatch-value)))
+
+;;; ----------------------------------------
+;;; Construction support
+
+(defrecord NodeImpl [node-type]
+  gt/Node
+  (node-id [this]
+    (:_node-id this))
+
+  (node-type [_ _]
+    node-type)
+
+  (get-property [this basis property]
+    (get this property))
+
+  (set-property [this basis property value]
+    (assert (contains? (-> node-type deref :property util/key-set) property)
+            (format "Attempting to use property %s from %s, but it does not exist"
+                    property (:name node-type)))
+    (assoc this property value))
+
+  (overridden-properties [this basis] {})
+  (property-overridden?  [this property] false)
+
+  gt/Evaluation
+  (produce-value [this label evaluation-context]
+    (let [beh (behavior node-type label)]
+      (assert beh (str "No such output, input, or property " label
+                            " exists for node " (gt/node-id this)
+                            " of type " (:name @node-type)
+                            "\nIn production: " (get evaluation-context :in-production)))
+      (when *node-value-debug*
+        (println (nodevalstr this node-type label)))
+      ((:fn beh) this evaluation-context)))
+
+  gt/OverrideNode
+  (clear-property [this basis property]
+    (throw (ex-info (str "Not possible to clear property " property
+                         " of node type " (:name node-type)
+                         " since the node is not an override")
+                    {:label property :node-type node-type})))
+
+  (original [this]
+    nil)
+
+  (set-original [this original-id]
+    (throw (ex-info "Originals can't be changed for original nodes")))
+
+  (override-id [this]
+    nil))
+
+(defn defaults
+  "Return a map of default values for the node type."
+  [node-type-ref]
+  (util/map-vals #(some-> % :default :fn util/var-get-recursive (util/apply-if-fn {}))
+                 (public-properties node-type-ref)))
+
+(defn- assert-no-extra-args
+  [node-type-ref args]
+  (let [args-without-properties (set/difference
+                                 (util/key-set args)
+                                 (util/key-set (:property (deref node-type-ref))))]
+    (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type-ref)))))
+
+(defn construct
+  [node-type-ref args]
+  (assert (and node-type-ref (deref node-type-ref)))
+  (assert-no-extra-args node-type-ref args)
+  (-> (new internal.node.NodeImpl node-type-ref)
+      (merge (defaults node-type-ref))
+      (merge args)))
+
+;;; ----------------------------------------
+;;; Evaluating outputs
+
+(defn without [s exclusions] (reduce disj s exclusions))
+
+(defn- all-labels
+  [node-type]
+  (set/union (util/key-set (:output node-type)) (util/key-set (:input node-type))))
+
+(def ^:private special-labels #{:_declared-properties})
+
+(defn ordinary-output-labels
+  [description]
+  (without (util/key-set (:output description)) special-labels))
+
+(defn ordinary-input-labels
+  [description]
+  (without (util/key-set (:input description)) (util/key-set (:output description))))
+
+(defn- ordinary-property-labels
+  [node-type]
+  (without (util/key-set (declared-properties node-type)) special-labels))
+
+(defn- node-value*
+  [node-or-node-id label evaluation-context]
+  (let [cache              (:cache evaluation-context)
+        basis              (:basis evaluation-context)
+        node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
+        result             (and node (gt/produce-value node label evaluation-context))]
+    (when (and node cache)
+      (c/cache-hit cache @(:hits evaluation-context))
+      (c/cache-encache cache @(:local evaluation-context)))
+    result))
+
+(defn make-evaluation-context
+  [options]
+  (cond-> (assoc options
+                 :local           (atom {})
+                 :hits            (atom [])
+                 :in-production   #{})
+    (and (not (:no-cache options)) (:cache options))
+    (assoc :caching? true :snapshot (c/cache-snapshot (:cache options)))))
+
+(defn node-value
+  "Get a value, possibly cached, from a node. This is the entry point
+  to the \"plumbing\". If the value is cacheable and exists in the
+  cache, then return that value. Otherwise, produce the value by
+  gathering inputs to call a production function, invoke the function,
+  maybe cache the value that was produced, and return it."
+  [node-or-node-id label options]
+  (node-value* node-or-node-id label (make-evaluation-context options)))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
 (defn warn-input-schema [node-id node-type label value input-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
+    (println "Schema validation failed for node " node-id "(" node-type " ) label " label)
     (println "There were " (count (vals error)) " problems")
     (let [explanation (s/explain input-schema)]
       (doseq [[key val] error]
@@ -38,239 +375,205 @@
 
 (defn warn-output-schema [node-id node-type label value output-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
-    (println "Output:")
-    (println value)
-    (println "Should match:")
-    (println (s/explain output-schema))))
+    (println "Schema validation failed for node " node-id "(" node-type " ) label " label)
+    (println "Output value:" value)
+    (println "Should match:" (s/explain output-schema))
+    (println "But:" error)))
 
-(defn without [s exclusions] (reduce disj s exclusions))
+;;; ----------------------------------------
+;; Type checking
 
-(defn- all-properties
-  [node-type]
-  (gt/declared-properties node-type))
+(defn- check-single-type
+  [out in]
+  (or
+   (= s/Any in)
+   (= out in)
+   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
 
-(defn- all-labels
-  [node-type]
-  (set/union (util/key-set (gt/transforms node-type)) (util/key-set (gt/declared-inputs node-type))))
+(defn type-compatible?
+  [output-typeref input-typeref]
+  (let [output-schema (value-type-schema output-typeref)
+        input-schema  (value-type-schema input-typeref)
+        out-t-pl? (coll? output-schema)
+        in-t-pl?  (coll? input-schema)]
+    (or
+     (= s/Any input-schema)
+     (and out-t-pl? (= [s/Any] input-schema))
+     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
+     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
+     (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
+     (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema))))))
 
-(def ^:private special-labels #{:_declared-properties})
+(defn assert-type-compatible
+  [basis src-id src-label tgt-id tgt-label]
+  (let [output-nodetype (gt/node-type (gt/node-by-id-at basis src-id) basis)
+        output-valtype  (output-type output-nodetype src-label)
+        input-nodetype  (gt/node-type (gt/node-by-id-at basis tgt-id) basis)
+        input-valtype   (input-type input-nodetype tgt-label)]
+    (assert output-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
+                    src-id (:name @output-nodetype) src-label
+                    tgt-id (:name @input-nodetype) tgt-label
+                    (:name @output-nodetype) src-label))
+    (assert input-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+                    src-id (:name @output-nodetype) src-label
+                    tgt-id (:name @input-nodetype) tgt-label
+                    (:name @input-nodetype) tgt-label))
+    (assert (type-compatible? output-valtype input-valtype)
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
+                    src-id (:name @output-nodetype) src-label
+                    tgt-id (:name @input-nodetype) tgt-label
+                    (:k output-valtype) (:k input-valtype)))))
 
-(defn- ordinary-output-labels
-  [node-type]
-  (without (util/key-set (gt/transforms node-type)) special-labels))
 
-(defn- ordinary-input-labels
-  [node-type]
-  (without (util/key-set (gt/declared-inputs node-type)) (util/key-set (gt/transforms node-type))))
+;;; ----------------------------------------
+;;; Node type implementation
 
-(defn- ordinary-property-labels
-  [node-type]
-  (without (util/key-set (gt/declared-properties node-type)) special-labels))
+(defn- alias-of [ns s]
+  (get (ns-aliases ns) s))
 
-(defn- node-value*
-  [node-or-node-id label evaluation-context]
-  (let [cache              (:cache evaluation-context)
-        basis              (:basis evaluation-context)
-        node               (if (gt/node-id? node-or-node-id) (ig/node-by-id-at basis node-or-node-id) node-or-node-id)
-        result             (and node (gt/produce-value node label evaluation-context))]
-    (when (and node cache)
-      (c/cache-hit cache @(:hits evaluation-context))
-      (c/cache-encache cache @(:local evaluation-context)))
-    result))
+(defn localize
+  ([ctor s]   (ctor (str *ns*) s))
+  ([ctor n s] (ctor n s)))
 
-(defn node-value
-  "Get a value, possibly cached, from a node. This is the entry point
-  to the \"plumbing\". If the value is cacheable and exists in the
-  cache, then return that value. Otherwise, produce the value by
-  gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
-  [node-or-node-id label {:keys [cache ^IBasis basis ignore-errors skip-validation in-transaction?] :or {ignore-errors 0} :as options}]
-  (let [caching?           (and (not (:no-cache options)) cache)
-        evaluation-context {:local           (atom {})
-                            :cache           (when caching? cache)
-                            :snapshot        (if caching? (c/cache-snapshot cache) {})
-                            :hits            (atom [])
-                            :basis           basis
-                            :in-production   #{}
-                            :in-transaction? in-transaction?
-                            :ignore-errors   ignore-errors
-                            :skip-validation skip-validation
-                            :caching?        caching?}]
-    (node-value* node-or-node-id label evaluation-context)))
+(defn canonicalize [x]
+  (cond
+    (and (symbol? x) (namespace x))
+    (do (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
+        (if-let [n (alias-of *ns* (symbol (namespace x)))]
+          (symbol (str n) (name x))
+          x))
+
+    (util/class-symbol? x)
+    x
+
+    (and (symbol? x) (not (namespace x)))
+    (do
+      (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
+      (symbol (str *ns*) (name x)))
+
+    (and (keyword? x) (namespace x))
+    (if-let [n (alias-of *ns* (symbol (namespace x)))]
+      (keyword (str n) (name x))
+      x)
+
+    :else
+    x))
 
 (defn- display-group?
-  [label elem]
-  (and (vector? elem) (= label (first elem))))
+  "Return true if the coll is a display group.
+   A display group is a vector with a string label in the first position."
+  [label coll]
+  (and (vector? coll) (= label (first coll))))
 
 (defn- display-group
+  "Find a display group with the given label in the order."
   [order label]
   (first (filter #(display-group? label %) order)))
 
-(defn- join-display-groups
-  [[label & _ :as elem] order2]
-  (into elem (rest (display-group order2 label))))
+(defn join-display-groups
+  "Given a display group and an 'order' in the rhs, see if there is a
+  display group with the same label in the rhs. If so, attach its
+  members to the original display group."
+  [[label & _ :as lhs] rhs]
+  (let [group-in-rhs (display-group rhs label)]
+    (vec (into lhs (rest group-in-rhs)))))
 
 (defn- expand-node-types
+  "Replace every symbol that refers to a node type with the display
+  order of that node type. E.g., given node BaseNode with display
+  order [:a :b :c], then the input [:x :y BaseNode :z]
+  becomes [:x :y :a :b :c :z]"
   [coll]
   (flatten
-   (map #(if (gt/node-type? %) (gt/property-display-order %) %) coll)))
+   (map #(if (ref? %) (property-display-order %) %) coll)))
+
+(defn node-type-name? [x]
+  (node-type-resolve (keyword (and (named? x) (canonicalize x)))))
 
 (defn merge-display-order
+  "Premise: intelligently merge the right-hand display order into the left hand one.
+   Rules for merging are as follows:
+
+   - A keyword on the left is left alone.
+   - Any keywords on the right that do not appear on the left are appended to the end.
+   - A vector with a string in the first position is a display group.
+   - A display group on the left remains in the same relative position.
+   - A display group on the left is recursively merged with a display group on the right that has the same label.
+
+  When more than two display orders are given, each one is merged into the left successively."
   ([order] order)
   ([order1 order2]
    (loop [result []
           left   order1
           right  order2]
      (if-let [elem (first left)]
-       (cond
-         (gt/node-type? elem)
-         (recur result (concat (expand-node-types [elem]) (next left)) right)
+       (let [elem (if (node-type-name? elem) (canonicalize elem) elem)]
+         (cond
+           (ref? elem)
+           (recur result (concat (property-display-order elem) (next left)) right)
 
-         (keyword? elem)
-         (recur (conj result elem) (next left) (remove #{elem} right))
+           (keyword? elem)
+           (recur (conj result elem) (next left) (remove #{elem} right))
 
-         (sequential? elem)
-         (if (some gt/node-type? elem)
-           (recur result (cons (expand-node-types elem) (next left)) right)
-           (let [group-label   (first elem)
-                 group-member? (set (next elem))]
-             (recur (conj result (join-display-groups elem right))
-                    (next left)
-                    (remove #(or (group-member? %) (display-group? group-label %)) right)))))
+           (sequential? elem)
+           (let [header (first elem)
+                 group  (next elem)]
+             (if (some ref? elem)
+               (recur result (cons (expand-node-types elem) (next left)) right)
+               (let [group-label   header
+                     group-member? (set group)]
+                 (recur (conj result (join-display-groups elem right))
+                        (next left)
+                        (remove #(or (group-member? %) (display-group? group-label %)) right)))))))
        (into result right))))
   ([order1 order2 & more]
-   (if more
-     (recur (merge-display-order order1 order2) (first more) (next more))
-     (merge-display-order order1 order2))))
+   (reduce merge-display-order (merge-display-order order1 order2) more)))
 
-(defn setter-for
-  [basis node property]
-  (ip/setter-for (-> node (gt/node-type basis) gt/declared-properties (get property))))
+(def assert-symbol (partial util/assert-form-kind "defnode" "symbol" symbol?))
 
-;; ---------------------------------------------------------------------------
-;; Definition handling
-;; ---------------------------------------------------------------------------
-(defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls outputs transforms transform-types declared-properties passthroughs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes  property-display-order]
+;;; ----------------------------------------
+;;; Parsing defnode forms
 
-  gt/NodeType
-  (supertypes            [_] supertypes)
-  (interfaces            [_] interfaces)
-  (protocols             [_] protocols)
-  (method-impls          [_] method-impls)
-  (transforms            [_] transforms)
-  (transform-types       [_] transform-types)
-  (declared-properties   [_] declared-properties)
-  (declared-inputs       [_] inputs)
-  (injectable-inputs     [_] injectable-inputs)
-  (declared-outputs      [_] outputs)
-  (cached-outputs        [_] cached-outputs)
-  (input-dependencies    [_] input-dependencies)
-  (substitute-for        [_ input] (get substitutes input))
-  (input-type            [_ input] (get inputs input))
-  (input-cardinality     [_ input] (get cardinalities input))
-  (cascade-deletes       [_]        cascade-deletes)
-  (output-type           [_ output] (get transform-types output))
-  (passthroughs          [_] passthroughs)
-  (property-display-order [this] property-display-order)
-  Named
-  (getNamespace [_] (str (:ns (meta (resolve (symbol name))))))
-  (getName [_] (str (:name (meta (resolve (symbol name)))))))
+(defn dummy-produce-declared-properties []
+  `(fn [] (assert false "This is a dummy function. You're probably looking for declared-properties-function.")))
 
-(defmethod print-method NodeTypeImpl
-  [^NodeTypeImpl v ^java.io.Writer w]
-  (.write w (str "<NodeTypeImpl{:name " (:name v) ", :supertypes " (mapv :name (:supertypes v)) "}>")))
-
-(defn- from-supertypes [local op]                (map op (:supertypes local)))
-(defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
-
-(defn resolve-display-order
-  [{:keys [display-order-decl property-order-decl supertypes] :as description}]
-  (-> description
-      (assoc :property-display-order (apply merge-display-order display-order-decl property-order-decl (map gt/property-display-order supertypes)))
-      (dissoc :display-order-decl :property-order-decl)))
-
-(declare attach-output)
-
-(defn- dummy-produce-declared-properties []
-  (assert false "This is a dummy function. You're probably looking for declared-properties-function-forms."))
-
-(defn attach-properties-output
-  [node-type-description]
-  (let [properties      (util/filterm (comp not #{:_node-id :_output-jammers} key) (:declared-properties node-type-description))
-        argument-names  (into (util/key-set properties) (mapcat (comp ip/property-dependencies) properties))
-        argument-schema (zipmap argument-names (repeat s/Any))]
-    (attach-output
-     node-type-description
-      :_declared-properties gt/Properties #{} #{}
-      (s/schematize-fn dummy-produce-declared-properties (s/=> gt/Properties argument-schema)))))
-
-(defn inputs-for
-  [pfn]
-  (if (gt/pfnk? pfn)
-    (disj (util/fnk-arguments pfn) :this :basis)
-    #{}))
-
-(defn- warn-missing-arguments
-  [node-type-description property-name dynamic-name missing-args]
-  (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
-       missing-args ", because they are needed by its property '" (name property-name) "'."))
-
-(defn- assert-no-missing-args
-  [node-type-description property dynamic missing-args]
-  (assert (empty? missing-args)
-          (warn-missing-arguments node-type-description (first property) (first dynamic) missing-args)))
-
-(defn- all-inputs-and-properties
-  [node-type-description]
-  (util/key-set
-   (merge
-    (:inputs node-type-description)
-    (:declared-properties node-type-description))))
-
-(defn- all-inputs-and-properties-and-outputs
-  [node-type-description]
-  (set/union
-    (all-inputs-and-properties node-type-description)
-    (util/key-set
-      (:outputs node-type-description))))
-
-(defn missing-inputs-for-dynamic
-  [node-type-description dynamic]
-  (let [fnk           (second dynamic)
-        required-args (inputs-for fnk)]
-    (set/difference required-args
-                    (all-inputs-and-properties node-type-description))))
+(defn- all-available-arguments
+  [description]
+  (set/union #{:this :basis}
+             (util/key-set (:input description))
+             (util/key-set (:property description))
+             (util/key-set (:output description))))
 
 (defn verify-inputs-for-dynamics
-  [node-type-description]
-  (doseq [property (:declared-properties node-type-description)
-          dynamic  (gt/dynamic-attributes (second property))
-          :let     [missing-args (missing-inputs-for-dynamic node-type-description dynamic)]]
-    (assert-no-missing-args node-type-description property dynamic missing-args))
-  node-type-description)
+  [description]
+  (let [available-arguments (all-available-arguments description)]
+    (doseq [[property-name property-type]       (:property description)
+            [dynamic-name {:keys [arguments]}]  (:dynamics property-type)
+            :let     [missing-args (set/difference arguments available-arguments)]]
+      (assert (empty? missing-args)
+              (str "Node " (:name description) " must have inputs or properties for the label(s) "
+                   missing-args ", because they are needed by its property '" (name property-name) "'."))))
+  description)
 
 (defn verify-inputs-for-outputs
-  [node-type-description]
-  (doseq [[output fnk] #_(select-keys (:transforms node-type-description)
-                                     (keys (:outputs node-type-description)))
-          (:transforms node-type-description)
-          :let [required-args (inputs-for fnk)
-                missing-args (set/difference required-args
-                                             (all-inputs-and-properties-and-outputs node-type-description))]]
-    (assert (empty? missing-args)
-            (str "Node " (:name node-type-description) " must have inputs, properties or outputs for the label(s) "
-                 missing-args ", because they are needed by the output '" (name output) "'.")))
-  node-type-description)
+  [description]
+  (let [available-arguments (all-available-arguments description)]
+   (doseq [[output {:keys [arguments]}] (:output description)
+           :let [missing-args (set/difference arguments available-arguments)]]
+     (assert (empty? missing-args)
+             (str "Node " (:name description) " must have inputs, properties or outputs for the label(s) "
+                  missing-args ", because they are needed by the output '" (name output) "'."))))
+  description)
 
 (defn verify-labels
-  [node-type-description]
-  (let [inputs (set (keys (:inputs node-type-description)))
-        properties (set (keys (:declared-properties node-type-description)))
-        collisions (filter inputs properties)]
+  [description]
+  (let [inputs     (util/key-set (:input description))
+        properties (util/key-set (:property description))
+        collisions (set/intersection inputs properties)]
     (assert (empty? collisions) (str "inputs and properties can not be overloaded (problematic fields: " (str/join "," (map #(str "'" (name %) "'") collisions)) ")")))
-  node-type-description)
+  description)
 
 (defn invert-map
   [m]
@@ -283,190 +586,60 @@
   ([desc inputs]
    (dependency-seq desc #{} inputs))
   ([desc seen inputs]
-   (reduce
-    (fn [dependencies argument]
-      (conj
-       (if (not (seen argument))
-         (if-let [recursive (get-in desc [:transforms argument])]
-           (into dependencies (dependency-seq desc (conj seen argument) (inputs-for recursive)))
-           dependencies)
-         dependencies)
-       argument))
-    #{}
-    inputs)))
+   (disj
+    (reduce
+     (fn [dependencies argument]
+       (conj
+        (if (not (seen argument))
+          (if-let [recursive (get-in desc [:output argument :dependencies])]
+            (into dependencies (dependency-seq desc (conj seen argument) recursive))
+            dependencies)
+          dependencies)
+        argument))
+     #{}
+     inputs)
+    :this)))
 
 (defn description->input-dependencies
-  [{:keys [transforms properties] :as description}]
-  (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))]
-    (invert-map transforms)))
+  [{:keys [output] :as description}]
+  (let [outputs (zipmap (keys output)
+                        (map #(dependency-seq description (:dependencies %)) (vals output)))]
+    (invert-map outputs)))
 
 (defn attach-input-dependencies
   [description]
   (assoc description :input-dependencies (description->input-dependencies description)))
 
-(defn input-dependencies-non-transitive
-  "Return a map from input to affected outputs, but without including
-  the transitive effects on other outputs within the same node
-  type. This is a specialized case and if it's not apparent what it
-  means, you should probably call input-dependencies instead."
-  [node-type]
-  (let [transforms (gt/transforms node-type)]
-    (invert-map
-     (zipmap (keys transforms)
-             (map #(inputs-for %) (vals transforms))))))
+(declare node-output-value-function)
+(declare declared-properties-function)
+(declare node-input-value-function)
 
-(def ^:private map-merge (partial merge-with merge))
-(defn- flip [f] (fn [x y] (f y x)))
+(defn transform-outputs-plumbing-map [description]
+  (let [labels  (ordinary-output-labels description)]
+    (zipmap labels
+            (map (fn [label]
+                   {:fn (node-output-value-function description label)}) labels))))
 
-(defn make-node-type
-  "Create a node type object from a maplike description of the node.
-  This is really meant to be used during macro expansion of `defnode`,
-  not called directly."
+(defn attach-output-behaviors
   [description]
-  (-> description
-      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
-      (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
-      (update-in [:declared-properties]   combine-with merge      {} (from-supertypes description gt/declared-properties))
-      (update-in [:passthroughs]          combine-with set/union #{} (from-supertypes description gt/passthroughs))
-      (update-in [:outputs]               combine-with merge      {} (from-supertypes description gt/declared-outputs))
-      (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
-      (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
-      (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
-      (update-in [:interfaces]            combine-with set/union #{} (from-supertypes description gt/interfaces))
-      (update-in [:protocols]             combine-with set/union #{} (from-supertypes description gt/protocols))
-      (update-in [:method-impls]          combine-with merge      {} (from-supertypes description gt/method-impls))
-      (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
-      (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
-      (update-in [:cascade-deletes]       combine-with set/union #{} (from-supertypes description :cascade-deletes))
-      resolve-display-order
-      attach-properties-output
-      attach-input-dependencies
-      verify-labels
-      verify-inputs-for-dynamics
-      verify-inputs-for-outputs
-      map->NodeTypeImpl))
+  (update description :behavior merge (transform-outputs-plumbing-map description)))
 
-(def ^:private inputs-properties (juxt :inputs :declared-properties))
+(defn transform-inputs-plumbing-map [description]
+  (let [labels  (ordinary-input-labels description)]
+    (zipmap labels
+            (map (fn [input] {:fn (node-input-value-function description input)}) labels))))
 
-(defn- assert-form-kind [kind-label required-kind label form]
-  (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
-
-(def assert-symbol (partial assert-form-kind "symbol" symbol?))
-(def assert-schema (partial assert-form-kind "schema" util/schema?))
-(defn assert-pfnk [label production-fn]
-  (assert
-   (gt/pfnk? production-fn)
-   (format "Node output %s needs a production function that is a dynamo.graph/fnk" label)))
-
-(defn- name-available
-  [description label]
-  (not (some #{label} (mapcat keys (inputs-properties description)))))
-
-(defn attach-supertype
-  "Update the node type description with the given supertype."
-  [description supertype]
-  (assoc description :supertypes (conj (:supertypes description []) supertype)))
-
-(defn attach-input
-  "Update the node type description with the given input."
-  [description label schema flags options & [args]]
-  (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
-  (assert (not (gt/protocol? schema))
-          (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
-  (assert-schema "input" schema)
-
-  (let [property-schema (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)]
-    (cond->
-        (assoc-in description [:inputs label] property-schema)
-
-      (some #{:cascade-delete} flags)
-      (update :cascade-deletes #(conj (or % #{}) label))
-
-      (some #{:inject} flags)
-      (update :injectable-inputs #(conj (or % #{}) label))
-
-      (:substitute options)
-      (update :substitutes assoc label (:substitute options))
-
-      (not (some #{:array} flags))
-      (update :cardinalities assoc label :one)
-
-      (some #{:array} flags)
-      (update :cardinalities assoc label :many))))
+(defn attach-input-behaviors
+  [description]
+  (update description :behavior merge (transform-inputs-plumbing-map description)))
 
 (defn- abstract-function
   [label type]
-  (pc/fnk [this]
-          (throw (AssertionError.
-                  (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
-                          (gt/node-id this) label
-                          label type this)))))
-
-(defn attach-output
-  "Update the node type description with the given output."
-  [description label schema properties options & remainder]
-  (assert-schema "output" schema)
-  (let [production-fn (if (:abstract properties)
-                        (abstract-function label schema)
-                        (first remainder))
-        property-schema (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)]
-    (when-not (:abstract properties)
-      (assert-pfnk label production-fn))
-    (assert
-      (empty? (rest remainder))
-      (format "Options and flags for output %s must go before the production function." label))
-    (-> description
-      (update-in [:transform-types] assoc label schema)
-      (update-in [:passthroughs] #(disj (or % #{}) label))
-      (update-in [:transforms] assoc-in [label] production-fn)
-      (update-in [:outputs] assoc-in [label] property-schema)
-      (cond->
-
-        (:cached properties)
-        (update-in [:cached-outputs] #(conj (or % #{}) label))))))
-
-(def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
-
-(defn attach-property
-  "Update the node type description with the given property."
-  [description label property-type]
-  (let [property-type   (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)
-        getter          (or (ip/getter-for property-type)
-                            (eval `(pc/fnk [~'this ~'basis ~(symbol (name label))] (gt/get-property ~'this ~'basis ~label))))]
-    (-> description
-        (update    :declared-properties     assoc     label  property-type)
-        (update-in [:transforms]            assoc-in [label] getter)
-        (update-in [:transform-types]       assoc     label  (:value-type property-type))
-        (cond->
-            (not (internal-keys label))
-            (update-in [:property-order-decl] #(conj (or % []) label))
-
-            (and (nil? (ip/validation property-type))
-                 (nil? getter))
-            (update-in [:passthroughs] #(conj (or % #{}) label))))))
-
-(defn attach-extern
-  "Update the node type description with the given extern. It will be
-  a property as well as an extern."
-  [description label property-type]
-  (attach-property description label (assoc property-type :unjammable? true)))
-
-(defn attach-interface
-  "Update the node type description with the given interface."
-  [description interface]
-  (update-in description [:interfaces] #(conj (or % #{}) interface)))
-
-(defn attach-protocol
-  "Update the node type description with the given protocol."
-  [description protocol]
-  (update-in description [:protocols] #(conj (or % #{}) protocol)))
-
-(defn attach-method-implementation
-  "Update the node type description with the given function, which
-  must be part of a protocol or interface attached to the description."
-  [description sym argv fn-def]
-  (let [arglist     (mapv #(with-meta (gensym) (meta %)) argv)]
-    (assoc-in description [:method-impls sym] [arglist fn-def])))
+  (let [format-string (str "Node %d does not supply a production function for the abstract '" label "' output. Add (output " label " " type " your-function) to the definition")]
+    `(pc/fnk [~'this]
+             (throw (AssertionError.
+                     (format ~format-string
+                      (gt/node-id ~'this)))))))
 
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
@@ -481,103 +654,395 @@
         :else                 [flags options args])
       [flags options args])))
 
-(defn classname
-  [^Class c]
-  (.getName c))
+(def ^:dynamic *autotypes* (atom {}))
 
-(defn fqsymbol
-  [s]
-  (assert (symbol? s))
-  (let [{:keys [ns name]} (meta (resolve s))]
-    (symbol (str ns) (str name))))
+(defn- named->vtr
+  [symbol-or-keyword]
+  (->ValueTypeRef (keyword (canonicalize symbol-or-keyword))))
 
-(def ^:private input-flags   #{:inject :array :cascade-delete})
-(def ^:private input-options #{:substitute})
+;; A lot happens in parse-type-form. It creates information that is
+;; used during the rest of node compilation. If the type form was
+;; previously defined with deftype, then everything is easy.
+;;
+;; However, you can also use a Java class name or Clojure protocol
+;; name here.
+;;
+;; if you define a node type with a Java class (or Clojure record),
+;; then you use that class or record for multimethod dispatch.
+;;
+;; otoh, if you define a node type with a deftype'd type, then you
+;; use the typeref as the multimethod dispatch value.
+(defn parse-type-form
+  [where original-form]
+  (let [multivalued? (vector? original-form)
+        form         (if multivalued? (first original-form) original-form)
+        autotype     (cond
+                       (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
+                       (util/class-symbol? form)    `(->ClassType ~form ~form))
+        typeref      (cond
+                       (ref? form)                  form
+                       (util/protocol-symbol? form) (named->vtr form)
+                       (util/class-symbol? form)    (named->vtr (.getName ^Class (resolve form)))
+                       (named? form)                (named->vtr form))]
+    (assert (not (nil? typeref))
+            (str "defnode " where " requires a value type but was supplied with '"
+                 original-form "' which cannot be used as a type"))
+    (when (and (ref? typeref) (nil? autotype))
+      (assert (not (nil? (deref typeref)))
+              (str "defnode " where " requires a value type but was supplied with '"
+                   original-form "' which cannot be used as a type")))
+    (util/assert-form-kind "defnode" "registered value type"
+                           (some-fn ref? value-type?) where typeref)
+    (when autotype
+      ;; the next two steps look redundant but are not. when we build
+      ;; the release bundle, macroexpansion happens during compilation.
+      ;; we need type information for compilation
+      (register-type value-type-registry-ref (:k typeref)
+                     (cond
+                       (util/protocol-symbol? form)
+                       (let [pval (util/vgr form)]
+                         (make-protocol-value-type pval form))
+
+                       ;; note: this occurs in type position of a defnode clause. we use
+                       ;; the class itself as the dispatch value so multimethods can be
+                       ;; expressed most naturally.
+                       (util/class-symbol? form)
+                       (let [cls (resolve form)]
+                         (->ClassType cls cls))))
+
+      ;; when we run the bundle, compilation is long past, we we
+      ;; need to re-register the automatic types at runtime. defnode
+      ;; emits code to do that, based on the types we smuggle out via
+      ;; this (hacky) atom
+      (swap! *autotypes* assoc (:k typeref) autotype))
+    {:value-type typeref
+     :flags (if multivalued? #{:collection} #{})}))
+
+(defn macro-expression?
+  [f]
+  (when-let [term (and (seq? f) (symbol? (first f)) (first f))]
+    (let [v (resolve term)]
+      (and (var? v) (.isMacro ^clojure.lang.Var v)))))
+
+(defn fnk-expression?
+  [f]
+  (when-let [term (and (seq? f) (symbol? (first f)) (first f))]
+    (or (= "#'dynamo.graph/fnk" (str (resolve term))))))
+
+(defn maybe-macroexpand
+  [f]
+  (if (and (macro-expression? f) (not (fnk-expression? f)))
+    (macroexpand-1 f)
+    f))
+
+(def node-intrinsics
+  [(list 'extern '_node-id :dynamo.graph/NodeID)
+   (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
+   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'basis] (gt/overridden-properties ~'this ~'basis)))])
+
+(defn maybe-inject-intrinsics
+  [forms]
+  (if (some #(= 'inherits %) (map first forms))
+    forms
+    (concat node-intrinsics forms)))
+
+(defmulti process-property-form first)
+
+(defmethod process-property-form 'dynamic [[_ label forms]]
+  (assert-symbol "dynamic" label)
+  {:dynamics {(keyword label) {:fn (maybe-macroexpand forms)}}})
+
+(defmethod process-property-form 'value [[_ form]]
+  {:value {:fn (maybe-macroexpand form)}})
+
+(defmethod process-property-form 'set [[_ form]]
+  {:setter {:fn (maybe-macroexpand form)}})
+
+(defmethod process-property-form 'default [[_ form]]
+  {:default {:fn (maybe-macroexpand form)}})
+
+(defmethod process-property-form 'validate [[_ form]]
+  {:validate {:fn (maybe-macroexpand form)}})
+
+(defn process-property-forms
+  [[type-form & body-forms]]
+  (apply merge-with merge
+         (parse-type-form "property" type-form)
+         (for [b body-forms]
+           (process-property-form b))))
+
+(defmulti process-as first)
+
+(defmethod process-as 'extern [[_ label & forms]]
+  (assert-symbol "extern" label)
+  (update-in
+   (process-as (list* 'property label forms))
+   [:property (keyword label) :flags] #(conj (or % #{}) :unjammable)))
+
+(defmethod process-as 'property [[_ label & forms]]
+  (assert-symbol "property" label)
+  (let [klabel  (keyword label)
+        propdef (cond-> (process-property-forms forms)
+                  (contains? internal-keys klabel)
+                  (update :flags #(conj (or % #{}) :internal)))
+        outdef  (-> propdef
+                    (dissoc :setter :dynamics :value)
+                    (assoc :fn
+                           (if-let [evaluator (-> propdef :value :fn)]
+                             evaluator
+                             `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
+        desc    {:property            {klabel propdef}
+                 :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
+                 :output              {klabel outdef}}]
+    desc))
 
 (def ^:private output-flags   #{:cached :abstract})
 (def ^:private output-options #{})
 
-(defn- node-type-form
-  "Translate the sugared `defnode` forms into function calls that
-  build the node type description (map). These are emitted where you
-  invoked `defnode` so that symbols and vars resolve correctly."
-  [form]
-  (match [form]
-         [(['inherits supertype] :seq)]
-         (do (assert-symbol "inherits" supertype)
-             `(attach-supertype ~supertype))
+(defmethod process-as 'output [[_ label & forms]]
+  (assert-symbol "output" label)
+  (let [type-form                (first forms)
+        base                     (parse-type-form "output" type-form)
+        [flags options fn-forms] (parse-flags-and-options output-flags output-options (rest forms))
+        abstract?                (contains? flags :abstract)]
+    (assert (or abstract? (first fn-forms))
+            (format "Output %s has no production function and is not abstract" label))
+    (assert (not (next fn-forms))
+            (format "Output %s seems to have something after the production function: " label (next fn-forms)))
+    {:output
+     {(keyword label)
+      (merge-with into base {:flags   (into #{} (conj flags :explicit))
+                             :options options
+                             :fn      (if abstract?
+                                        (abstract-function label type-form)
+                                        (maybe-macroexpand (first fn-forms)))})}}))
 
-         [(['input label schema & remainder] :seq)]
-         (do (assert-symbol "input" label)
-             (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
-               `(attach-input ~(keyword label) ~schema ~properties ~options ~@args)))
+(def ^:private input-flags   #{:inject :array :cascade-delete})
+(def ^:private input-options #{:substitute})
 
-         [(['output label schema & remainder] :seq)]
-         (do (assert-symbol "output" label)
-             (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
-               (assert (or (:abstract properties) (not (empty? args)))
-                       (format "The output %s is missing a production function. Either define the production function or mark it as :abstract." label))
-               `(attach-output ~(keyword label) ~schema ~properties ~options ~@args)))
+(defmethod process-as 'input [[_ label & forms]]
+  (assert-symbol "input" label)
+  (let [type-form         (first forms)
+        base              (parse-type-form "input" type-form)
+        [flags options _] (parse-flags-and-options input-flags input-options (rest forms))]
+    {:input
+     {(keyword label)
+      (merge-with into base {:flags flags :options options})}}))
 
-         [(['property label tp & options] :seq)]
-         (do (assert-symbol "property" label)
-             `(attach-property ~(keyword label) ~(ip/property-type-descriptor (keyword label) tp options)))
+(defmethod process-as 'inherits [[_ & forms]]
+  {:supertypes
+   (for [f forms]
+     (do
+       (assert-symbol "inherits" f)
+       (let [typeref (util/vgr f)]
+         (assert (node-type-resolve typeref)
+                 (str "Cannot inherit from " f " it cannot be resolved in this context (from namespace " *ns* ".)"))
+         typeref)))})
 
-         [(['extern label tp & options] :seq)]
-         (do (assert-symbol "extern" label)
-             `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (keyword label) tp options)))
+(defmethod process-as 'display-order [[_ decl]]
+  {:display-order-decl decl})
 
-         [(['display-order ordering] :seq)]
-         `(assoc :display-order-decl ~ordering)
+(defn group-node-type-forms
+  [forms]
+  (let [parse (for [f forms :when (seq? f)]
+                (process-as f))]
+    (apply merge-with into parse)))
 
-         ;; Interface or protocol function
-         [([nm [& argvec] & remainder] :seq)]
-         `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
+(defn node-type-merge
+  ([] {})
+  ([l] l)
+  ([l r]
+   {:property            (merge-with merge (:property l) (:property r))
+    :input               (merge-with merge (:input l)    (:input r))
+    :output              (merge-with merge (:output l)   (:output r))
+    :supertypes          (into (:supertypes l)           (:supertypes r))
+    ;; Display order gets resolved at runtime
+    :property-order-decl (:property-order-decl r)
+    :display-order-decl  (:display-order-decl r)})
+  ([l r & more]
+   (reduce node-type-merge (node-type-merge l r) more)))
 
-         [impl :guard symbol?]
-         `(cond->
-              (class? ~impl)
-            (attach-interface (symbol (classname ~impl)))
+(defn merge-supertypes
+  [tree]
+  (let [supertypes (map deref (get tree :supertypes []))]
+    (node-type-merge (apply node-type-merge supertypes) tree)))
 
-            (not (class? ~impl))
-            (attach-protocol (fqsymbol '~impl)))))
+(defn defer-display-order-resolution
+  [tree]
+  (assoc tree :property-display-order
+         `(merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
+                                 ~@(map property-display-order (:supertypes tree)))))
 
-(defn node-type-forms
-  "Given all the forms in a defnode macro, emit the forms that will build the node type description."
-  [symb forms]
-  (concat [`-> {:name (str (symbol (str *ns*) (str symb)))}]
-          (map node-type-form forms)))
+(defn- wrap-when
+  [tree key-pred val-pred xf]
+  (walk/postwalk
+   (fn [f]
+     (if (vector? f)
+       (let [[k v] f]
+         (if (and (key-pred k) (val-pred v))
+           [k (xf v)]
+           f))
+       f))
+   tree))
 
-(defn defaults
-  "Return a map of default values for the node type."
-  [node-type]
-  (util/map-vals gt/property-default-value (gt/declared-properties node-type)))
+(defn wrap-constant-fns
+  [tree]
+  (wrap-when tree #(= :fn %)
+             (fn [v] (not (or (seq? v) (util/pfnksymbol? v) (util/pfnkvar? v))))
+             (fn [v] `(dynamo.graph/fnk [] ~(if (symbol? v) (resolve v) v)))))
 
-(defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
-(defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
+(defn- into-set [x v] (into (or x #{}) v))
 
-(defn has-input?     [node-type argument] (gt/input-type node-type argument))
-(defn has-property?  [node-type argument] (gt/property-type node-type argument))
-(defn has-output?    [node-type argument] (gt/output-type node-type argument))
-(defn has-declared-output? [node-type argument] (contains? (gt/declared-outputs node-type) argument))
+(defn extract-fn-arguments
+  [tree]
+  (walk/postwalk
+   (fn [f]
+     (if (and (map? f) (contains? f :fn))
+       (let [args (util/inputs-needed (:fn f))]
+         (-> f
+             (update :arguments #(into-set % args))
+             (update :dependencies #(into-set % args))))
+       f))
+   tree))
 
-(defn- property-overloads-output? [node-type argument output] (and (= output argument) (has-property? node-type argument) (has-declared-output? node-type argument)))
-(defn- unoverloaded-output?       [node-type argument output] (and (not= output argument) (has-declared-output? node-type argument)))
+(defn- prop+args [[pname pdef]]
+  (into #{pname} (:arguments pdef)))
 
-(defn property-schema
-  [node-type property]
-  (let [schema (gt/property-type node-type property)]
-    (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)))
+(defn attach-declared-properties
+  [description]
+  (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) internal-keys)]
+    (assoc-in description [:output :_declared-properties]
+              {:value-type   (->ValueTypeRef :dynamo.graph/Properties)
+               :flags        #{:cached}
+               :arguments    publics
+               :dependencies publics})))
 
-(defn- dollar-name
-  [node-type-name label]
-  (symbol (str node-type-name "$" (name label))))
+(defn attach-declared-properties-behavior
+  [description]
+  (assoc-in description [:behavior :_declared-properties :fn]
+            (declared-properties-function description)))
+
+(defn- recursive-filter
+  [m k]
+  (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
+
+(defn- all-subtree-dependencies
+  [tree]
+  (apply set/union (map :dependencies (recursive-filter tree :dependencies))))
+
+(defn merge-property-dependencies
+  [tree]
+  (update tree :property
+          (fn [properties]
+            (reduce-kv
+             (fn [props pname pdef]
+               (update-in props [pname :dependencies] #(disj (into-set % (all-subtree-dependencies pdef)) pname)))
+             properties
+             properties))))
+
+(defn apply-property-dependencies-to-outputs
+  [tree]
+  (reduce-kv
+   (fn [tree pname pdef]
+     (update-in tree [:output pname :dependencies] #(into-set % (:dependencies pdef))))
+   tree
+   (:property tree)))
+
+(defn process-node-type-forms
+  [fqs forms]
+  (-> (maybe-inject-intrinsics forms)
+      group-node-type-forms
+      merge-supertypes
+      (assoc :name (str fqs))
+      (assoc :key (keyword fqs))
+      wrap-constant-fns
+      defer-display-order-resolution
+      extract-fn-arguments
+      merge-property-dependencies
+      apply-property-dependencies-to-outputs
+      attach-declared-properties
+      attach-input-dependencies
+      attach-output-behaviors
+      attach-input-behaviors
+      attach-declared-properties-behavior
+      verify-inputs-for-dynamics
+      verify-inputs-for-outputs
+      verify-labels))
+
+(defn map-zipper [m]
+  (zip/zipper
+   (fn [x] (or (map? x) (map? (nth x 1))))
+   (fn [x] (seq (if (map? x) x (nth x 1))))
+   (fn [x children]
+     (if (map? x)
+       (into {} children)
+       (assoc x 1 (into {} children))))
+   m))
+
+(defn key-path
+  [z]
+  (map first (rest (zip/path z))))
+
+(defn extract-functions
+  [tree]
+  (loop [where (map-zipper tree)
+         what  []]
+    (if (zip/end? where)
+      what
+      (recur (zip/next where)
+             (if (= :fn (first (zip/node where)))
+               (conj what [(key-path where) (second (zip/node where))])
+               what)))))
+
+(defn dollar-name [prefix path]
+    (->> path
+         (map name)
+         (interpose "$")
+         (apply str prefix "$")
+         symbol))
+
+;;; ----------------------------------------
+;;; Code generation
+
+(defmacro gensyms
+  [[:as syms] & forms]
+  (let [bindings (vec (interleave syms (map (fn [s] `(gensym ~(name s))) syms)))]
+    `(let ~bindings
+       ~@forms)))
+
+(declare fnk-argument-forms property-validation-exprs)
+
+(defn- desc-has-input?     [description argument] (contains? (:input description) argument))
+(defn- desc-has-property?  [description argument] (contains? (:property description) argument))
+(defn- desc-has-output?    [description argument] (contains? (:output description) argument))
+(defn- desc-has-explicit-output?    [description argument]
+  (contains? (get-in description [:output argument :flags]) :explicit))
+
+(defn has-multivalued-input?  [description input-label]
+  (contains? (get-in description [:input input-label :flags]) :array))
+
+(defn has-singlevalued-input? [description input-label]
+  (and (desc-has-input? description input-label)
+       (not (has-multivalued-input? description input-label))))
+
+(defn has-substitute? [description input-label]
+  (contains? (get-in description [:input input-label :options]) :substitute))
+
+(defn property-overloads-output? [description argument output]
+  (and (= output argument)
+       (desc-has-property? description argument)
+       (desc-has-explicit-output? description argument)))
+
+(defn unoverloaded-output? [description argument output]
+  (and (not= output argument)
+       (desc-has-output? description argument)))
 
 (defn allow-nil [s]
-  (s/maybe s))
+  `(s/maybe ~s))
 
 (defn allow-error [s]
-  (s/either s ErrorValue))
+  `(s/either ~s ErrorValue))
 
 (defn relax-schema [s]
   (allow-error (allow-nil s)))
@@ -585,147 +1050,178 @@
 (defn deduce-argument-type
   "Return the type of the node's input label (or property). Take care
   with :array inputs."
-  [record-name node-type argument output]
+  [description argument output]
   (cond
     (= :this argument)
-    s/Any
+    `s/Any
 
-    (property-overloads-output? node-type argument output)
-    (relax-schema (property-schema node-type argument))
+    (property-overloads-output? description argument output)
+    (relax-schema (get-in description [:property argument :value-type]))
 
-    (unoverloaded-output? node-type argument output)
-    (relax-schema (gt/output-type node-type argument))
+    (unoverloaded-output? description argument output)
+    (relax-schema (get-in description [:output argument :value-type]))
 
-    (has-property? node-type argument)
-    (relax-schema (property-schema node-type argument))
+    (desc-has-property? description argument)
+    (relax-schema (get-in description [:property argument :value-type]))
 
-    (has-multivalued-input? node-type argument)
-    [(relax-schema (gt/input-type node-type argument))]
+    (has-multivalued-input? description argument)
+    [(relax-schema (get-in description [:input argument :value-type]))]
 
-    (has-singlevalued-input? node-type argument)
-    (relax-schema (gt/input-type node-type argument))
+    (has-singlevalued-input? description argument)
+    (relax-schema (get-in description [:input argument :value-type]))
 
-    (has-declared-output? node-type argument)
-    (relax-schema (gt/output-type node-type argument))))
+    (desc-has-output? description argument)
+    (relax-schema (get-in description [:output argument :value-type]))))
 
 (defn collect-argument-schema
   "Return a schema with the production function's input names mapped to the node's corresponding input type."
-  [transform argument-schema record-name node-type]
+  [transform argument-schema description]
   (persistent!
-   (reduce-kv
-    (fn [arguments desired-argument-name _]
+   (reduce
+    (fn [arguments desired-argument-name]
       (if (= s/Keyword desired-argument-name)
         arguments
-        (let [argument-type (deduce-argument-type record-name node-type desired-argument-name transform)]
+        (let [argument-type (deduce-argument-type description desired-argument-name transform)]
           (assoc! arguments desired-argument-name (or argument-type s/Any)))))
     (transient {})
     argument-schema)))
 
-(defn- first-input-value-form
-  [self-name ctx-name input]
-  `(let [[node-id# output-label#] (first (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input))]
-     (when-let [node# (and node-id# (ig/node-by-id-at (:basis ~ctx-name) node-id#))]
-       (gt/produce-value node# output-label# ~ctx-name))))
+(defn pull-first-input-value
+  [input node evaluation-context]
+  (let [basis                      (:basis evaluation-context)
+        [upstream-id output-label] (first (gt/sources basis (gt/node-id node) input))]
+     (when-let [upstream-node (and upstream-id (gt/node-by-id-at basis upstream-id))]
+       (gt/produce-value upstream-node output-label evaluation-context))))
 
-(defn- input-value-forms
-  [self-name ctx-name input]
-  `(mapv (fn [[node-id# output-label#]]
-           (let [node# (ig/node-by-id-at (:basis ~ctx-name) node-id#)]
-             (gt/produce-value node# output-label# ~ctx-name)))
-         (gt/sources (:basis ~ctx-name) (gt/node-id ~self-name) ~input)))
+(defn pull-first-input-with-substitute
+  [input sub node evaluation-context]
+  ;; todo - invoke substitute
+  (pull-first-input-value input node evaluation-context))
 
-(defn maybe-use-substitute [node-type input forms]
-  (if (gt/substitute-for node-type input)
-    `(let [input# ~forms]
-       (if (ie/error? input#)
-         (util/apply-if-fn ~(gt/substitute-for node-type input) input#)
-         input#))
+(defn first-input-value-form
+  [self-name ctx-name input]
+  `(pull-first-input-value ~input ~self-name ~ctx-name))
+
+(defn pull-input-values
+  [input node evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (mapv (fn [[upstream-id output-label]]
+            (let [upstream-node (gt/node-by-id-at basis upstream-id)]
+              (gt/produce-value upstream-node output-label evaluation-context)))
+          (gt/sources basis (gt/node-id node) input))))
+
+(defn  pull-input-values-with-substitute
+  [input sub node evaluation-context]
+  ;; todo - invoke substitute
+  (pull-input-values input evaluation-context node))
+
+(defn input-value-forms
+  [self-name ctx-name input]
+  `(pull-input-values ~input ~self-name ~ctx-name))
+
+(defn maybe-use-substitute [description input forms]
+  (if-let [sub (get-in description [:input input :options :substitute])]
+   `(let [input# ~forms]
+      (if (ie/error? input#)
+        (util/apply-if-fn ~sub input#)
+        input#))
     forms))
 
+(defn filter-error-vals
+  [threshold m]
+  (ie/worse-than threshold (flatten (vals m))))
+
 (defn call-with-error-checked-fnky-arguments
-  [self-name ctx-name propmap-sym label node-type-name node-type compile-time-fnk runtime-fnk-expr & [supplied-arguments]]
-  (let [base-args {:_node-id `(gt/node-id ~self-name) :basis `(:basis ~ctx-name)}
-        arglist          (without (util/fnk-arguments compile-time-fnk) (keys supplied-arguments))
-        argument-forms   (zipmap arglist (map #(get base-args % (if (= label %)
-                                                                  `(gt/get-property ~self-name (:basis ~ctx-name) ~label)
-                                                                  (node-input-forms self-name ctx-name propmap-sym label node-type-name node-type [% nil])))
-                                              arglist))
-        argument-forms   (merge argument-forms supplied-arguments)]
-    `(let [arg-forms# ~argument-forms
-           bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals arg-forms#)))]
-       (if (empty? bad-errors#)
-         (~runtime-fnk-expr arg-forms#)
-         (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label)))))
+  [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
+  (let [base-args      {:_node-id `(gt/node-id ~self-name) :basis `(:basis ~ctx-name)}
+        arglist        (without arguments (keys supplied-arguments))
+        argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
+                                                                `(gt/get-property ~self-name (:basis ~ctx-name) ~label)
+                                                                (fnk-argument-forms self-name ctx-name nodeid-sym label description %)))
+                                            arglist))
+        argument-forms (merge argument-forms supplied-arguments)]
+    (if (empty? argument-forms)
+      `(~runtime-fnk-expr {})
+      `(let [arg-forms# ~argument-forms
+             argument-errors#  (filter-error-vals (:ignore-errors ~ctx-name) arg-forms#)]
+         (if (empty? argument-errors#)
+           (~runtime-fnk-expr arg-forms#)
+           (ie/error-aggregate argument-errors# :_node-id ~nodeid-sym :_label ~label))))))
 
 (defn collect-base-property-value
-  [self-name ctx-name node-type-name node-type propmap-sym prop]
-  (if (ip/default-getter? (gt/property-type node-type prop))
-    `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
-    (call-with-error-checked-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
-                                            (ip/getter-for (gt/property-type node-type prop))
-                                            `(get-in ~propmap-sym [~prop :internal.property/value]))))
+  [self-name ctx-name nodeid-sym description prop-name]
+  (let [property-definition (get-in description [:property prop-name])
+        default?            (not (:value property-definition))]
+    (if default?
+      `(gt/get-property ~self-name (:basis ~ctx-name) ~prop-name)
+      (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop-name description
+                                              (:arguments (:value property-definition))
+                                              `(var ~(symbol (dollar-name (:name description) [:property prop-name :value])))))))
 
 (defn collect-property-value
-  [self-name ctx-name node-type-name node-type propmap-sym prop]
-  (let [property-definition (gt/property-type node-type prop)
-        default?            (ip/default-getter? property-definition)
-        validation          (ip/validation property-definition)
+  [self-name ctx-name nodeid-sym description prop]
+  (let [property-definition (get-in description [:property prop])
+        default?            (not (:value property-definition))
+        validation          (:validate property-definition)
         get-expr            (if default?
                               `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
                               `(if (:in-transaction? ~ctx-name)
                                  (gt/get-property ~self-name (:basis ~ctx-name) ~prop)
-                                 ~(call-with-error-checked-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
-                                             (ip/getter-for (gt/property-type node-type prop))
-                                             `(get-in ~propmap-sym [~prop :internal.property/value]))))
-        validate-expr       (property-validation-exprs self-name ctx-name node-type-name node-type propmap-sym prop)]
+                                 ~(call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym prop description
+                                                                         (get-in property-definition [:value :arguments])
+                                                                         `(var ~(dollar-name (:name description) [:property prop :value])))))
+        validate-expr       (property-validation-exprs self-name ctx-name description nodeid-sym prop)]
     (if validation
-      `(let [~'v ~get-expr]
+      `(let [v# ~get-expr]
          (if (:skip-validation ~ctx-name)
-           ~'v
-           (if (ie/error? ~'v)
-             ~'v
-             (let [~'valid-v ~validate-expr]
-               (if (nil? ~'valid-v) ~'v ~'valid-v)))))
+           v#
+           (if (ie/error? v#)
+             v#
+             (let [valid-v# ~validate-expr]
+               (if (nil? valid-v#) v# valid-v#)))))
       get-expr)))
 
-(defn- node-input-forms
-  [self-name ctx-name propmap-sym output node-type-name node-type [argument _]]
+(defn fnk-argument-forms
+  [self-name ctx-name nodeid-sym output description argument]
   (cond
     (= :this argument)
-    'this
+    self-name
 
     (= :basis argument)
     `(:basis ~ctx-name)
 
-    (property-overloads-output? node-type argument output)
-    (collect-property-value self-name ctx-name node-type-name node-type propmap-sym argument)
+    (property-overloads-output? description argument output)
+    (collect-property-value self-name ctx-name nodeid-sym description argument)
 
-    (unoverloaded-output? node-type argument output)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)
+    (unoverloaded-output? description argument output)
+    `(gt/produce-value  ~self-name ~argument ~ctx-name)
 
-    (has-property? node-type argument)
+    (desc-has-property? description argument)
     (if (= output argument)
-      `(gt/get-property ~self-name (:basis ~ctx-name) ~argument)
-      (collect-property-value self-name ctx-name node-type-name node-type propmap-sym argument))
+      `(gt/get-property  ~self-name (:basis ~ctx-name) ~argument)
+      (collect-property-value self-name ctx-name nodeid-sym description argument))
 
-    (has-multivalued-input? node-type argument)
+    (has-multivalued-input? description argument)
     (maybe-use-substitute
-      node-type argument
+      description argument
       (input-value-forms self-name ctx-name argument))
 
-    (has-singlevalued-input? node-type argument)
+    (has-singlevalued-input? description argument)
     (maybe-use-substitute
-      node-type argument
-      (first-input-value-form self-name ctx-name argument))
+     description argument
+     (first-input-value-form self-name ctx-name argument))
 
-    (has-declared-output? node-type argument)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)))
+    (desc-has-output? description argument)
+    `(gt/produce-value  ~self-name ~argument ~ctx-name)
+
+    :else
+    (assert false (str "A function needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
 
 (def ^:private jammable? (complement internal-keys))
 
 (defn original-root [basis node-id]
-  (let [node (ig/node-by-id-at basis node-id)
-        orig-id (gt/original node)]
+  (let [node (gt/node-by-id-at basis node-id)
+        orig-id (:original-id node)]
     (if orig-id
       (recur basis orig-id)
       node-id)))
@@ -733,8 +1229,8 @@
 (defn jam [self-name ctx-name nodeid-sym transform forms]
   (if (jammable? transform)
     `(let [basis# (:basis ~ctx-name)
-           original# (if (gt/original ~self-name)
-                       (ig/node-by-id-at basis# (original-root basis# ~nodeid-sym))
+           original# (if (:original-id ~self-name)
+                       (gt/node-by-id-at basis# (original-root basis# ~nodeid-sym))
                        ~self-name)]
        (if-let [jammer# (get (:_output-jammers original#) ~transform)]
         (let [jam-value# (jammer#)]
@@ -744,36 +1240,36 @@
         ~forms))
     forms))
 
-(defn- property-has-default-getter? [node-type transform] (ip/default-getter? (gt/property-type node-type transform)))
-(defn- property-has-no-overriding-output? [node-type transform] (not (contains? (gt/declared-outputs node-type) transform)))
-(defn- has-validation? [node-type prop] (ip/validation (get (gt/declared-properties node-type) prop)))
+(defn property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
+(defn property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
+(defn has-validation?                    [description label] (get-in description [:property label :validate]))
 
-(defn apply-default-property-shortcut [self-name ctx-name transform node-type forms]
-  (let [property? (and (some? (gt/property-type node-type transform)) (property-has-no-overriding-output? node-type transform))
-        default? (and (property-has-default-getter? node-type transform)
-                      (property-has-no-overriding-output? node-type transform)
-                      (not (has-validation? node-type transform)))]
+(defn apply-default-property-shortcut [self-name ctx-name property-name description forms]
+  (let [property? (and (desc-has-property? description property-name) (property-has-no-overriding-output? description property-name))
+        default?  (and (property-has-default-getter? description property-name)
+                       (property-has-no-overriding-output? description property-name)
+                       (not (has-validation? description property-name)))]
     (if default?
-      `(gt/get-property ~self-name (:basis ~ctx-name) ~transform)
+      `(gt/get-property ~self-name (:basis ~ctx-name) ~property-name)
       (if property?
         `(if (:in-transaction? ~ctx-name)
-           (gt/get-property ~self-name (:basis ~ctx-name) ~transform)
+           (gt/get-property ~self-name (:basis ~ctx-name) ~property-name)
            ~forms)
         forms))))
 
-(defn detect-cycles [ctx-name nodeid-sym transform node-type-name forms]
-  `(do
-     (assert (not (contains? (:in-production ~ctx-name) [~nodeid-sym ~transform]))
-             (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
+(defn in-production [ctx node-type-name node-id label]
+  (assert (not (contains? (:in-production ctx) [node-id label]))
+          (format "Cycle detected on node type %s and output %s" node-type-name label))
+  (update ctx :in-production conj [node-id label]))
+
+(defn mark-in-production [ctx-name nodeid-sym transform description forms]
+  `(let [~ctx-name (in-production ~ctx-name ~(:name description) ~nodeid-sym ~transform)]
      ~forms))
 
-(defn mark-in-production [ctx-name nodeid-sym transform forms]
-  `(let [~ctx-name (update ~ctx-name :in-production conj [~nodeid-sym ~transform])]
-     ~forms))
-
-(defn check-caches [ctx-name nodeid-sym node-type transform forms]
-  (if ((gt/cached-outputs node-type) transform)
-    `(let [local# @(:local ~ctx-name)
+(defn check-caches [ctx-name nodeid-sym description transform local-cache-sym forms]
+  (if (get-in description [:output transform :flags :cached])
+    `(let [~local-cache-sym (:local ~ctx-name)
+           local#  (deref ~local-cache-sym)
            global# (:snapshot ~ctx-name)
            key# [~nodeid-sym ~transform]]
        (cond
@@ -783,184 +1279,153 @@
          true ~forms))
     forms))
 
-(defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym record-name node-type-name node-type transform production-function forms]
-  (let [arg-names       (util/fnk-schema production-function)
-        argument-schema (collect-argument-schema transform arg-names record-name node-type)
-        argument-forms  (zipmap (keys argument-schema)
-                                (map (partial node-input-forms self-name ctx-name propmap-sym transform node-type-name node-type) argument-schema))]
+(defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function forms]
+  (let [arg-names       (get-in description [:output transform :arguments])
+        argument-forms  (zipmap arg-names (map #(fnk-argument-forms self-name ctx-name nodeid-sym transform description %) arg-names))
+        argument-forms  (assoc argument-forms :_node-id nodeid-sym :basis `(:basis ~ctx-name))]
     (list `let
-          [input-sym argument-forms schema-sym argument-schema]
+          [input-sym argument-forms]
           forms)))
 
-(defn input-error-check [self-name ctx-name node-type label input-sym tail]
-  (let [internal?    (internal-keys label)
-        multivalued? (seq? ((gt/transform-types node-type) label))]
-    (if internal?
-      tail
-      `(let [bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals ~input-sym)))]
-         (if (empty? bad-errors#)
-           (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
-             ~tail)
-           (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label))))))
+(defn input-error-check [self-name ctx-name description label nodeid-sym input-sym tail]
+  (if (contains? internal-keys label)
+    tail
+    `(let [serious-input-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
+       (if (empty? serious-input-errors#)
+         (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
+           ~tail)
+         (ie/error-aggregate serious-input-errors# :_node-id ~nodeid-sym :_label ~label)))))
 
-(defn call-production-function [self-name ctx-name node-type node-type-name transform input-sym nodeid-sym output-sym forms]
-  `(let [production-function# (get (gt/transforms ~node-type-name) ~transform)
-         ~output-sym (production-function# (assoc ~input-sym :_node-id ~nodeid-sym :basis (:basis ~ctx-name)))]
+(defn call-production-function [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
+  `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
      ~forms))
 
-(defn cache-output [ctx-name node-type transform nodeid-sym output-sym forms]
-  `(do
-     ~@(when ((gt/cached-outputs node-type) transform)
-         `[(swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)])
-     ~forms))
+(defn cache-output [ctx-name description transform nodeid-sym output-sym local-cache-sym forms]
+  (if (contains? (get-in description [:output transform :flags]) :cached)
+    `(do
+       (swap! ~local-cache-sym assoc [~nodeid-sym ~transform] ~output-sym)
+       ~forms)
+    forms))
 
 (defn deduce-output-type
-  [node-type output]
-  (cond
-    (property-has-no-overriding-output? node-type output)
-    (relax-schema (property-schema node-type output))
+  [self-name description transform]
+  (let [schema (some-> (get-in description [:output transform :value-type]) value-type-schema)
+        schema (if (get-in description [:output transform :flags :collection])
+                 (vector schema)
+                 schema)]
+    (relax-schema schema)))
 
-    :else
-    (do (assert (has-output? node-type output) "Unknown output type")
-        (relax-schema (gt/output-type node-type output)))))
+(defn report-schema-error
+  [node-type-name transform nodeid-sym output-sym output-schema validation-error]
+  (warn-output-schema nodeid-sym node-type-name transform output-sym output-schema validation-error)
+  (throw (ex-info "SCHEMA-VALIDATION"
+                  {:node-id          nodeid-sym
+                   :type             node-type-name
+                   :output           transform
+                   :expected         output-schema
+                   :actual           output-sym
+                   :validation-error validation-error})))
 
-(defn schema-check-output [self-name ctx-name node-type node-type-name transform nodeid-sym output-sym forms]
-  (let [output-schema (deduce-output-type node-type transform)]
-    `(if-let [validation-error# (s/check ~output-schema ~output-sym)]
-       (do
-         (warn-output-schema ~nodeid-sym ~node-type-name ~transform ~output-sym ~output-schema validation-error#)
-         (throw (ex-info "SCHEMA-VALIDATION"
-                  {:node-id          ~nodeid-sym
-                   :type             ~node-type-name
-                   :output           ~transform
-                   :expected         ~output-schema
-                   :actual           ~output-sym
-                   :validation-error validation-error#})))
-      ~forms)))
+(defn schema-check-output [self-name ctx-name description transform nodeid-sym output-sym forms]
+  (if *check-schemas*
+    `(let [output-schema# ~(deduce-output-type self-name description transform)]
+       (try
+         (if-let [validation-error# (s/check output-schema# ~output-sym)]
+           (report-schema-error ~(:name description) ~transform ~nodeid-sym ~output-sym output-schema# validation-error#)
+           ~forms)
+         (catch IllegalArgumentException iae#
+           (throw (ex-info "MALFORMED-SCHEMA"
+                           {:transform ~transform :node-type ~(:name description)}
+                           iae#)))))
+    forms))
 
-(defn validate-output [self-name ctx-name node-type node-type-name transform nodeid-sym propmap-sym output-sym forms]
-  (if (and (has-property? node-type transform)
-           (property-has-no-overriding-output? node-type transform)
-           (has-validation? node-type transform))
-    (let [property-definition (gt/property-type node-type transform)
-          validation (ip/validation property-definition)
-          validate-expr (property-validation-exprs self-name ctx-name node-type-name node-type propmap-sym transform)]
+(defn validate-output [self-name ctx-name description transform nodeid-sym output-sym forms]
+  (if (and (desc-has-property? description transform)
+           (property-has-no-overriding-output? description transform)
+           (has-validation? description transform))
+    (let [validate-expr (property-validation-exprs self-name ctx-name description nodeid-sym transform)]
       `(if (or (:skip-validation ~ctx-name) (ie/error? ~output-sym))
          ~forms
-         (let [error# ~validate-expr
-               bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (if error# [error#] []))]
-           (if (empty? bad-errors#)
+         (let [error#         ~validate-expr
+               output-errors# (if error# (filter-error-vals (:ignore-errors ~ctx-name) {:_ error#}) [])]
+           (if (empty? output-errors#)
              ~forms
-             (let [~output-sym (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~transform)]
+             (let [~output-sym (ie/error-aggregate output-errors# :_node-id ~nodeid-sym :_label ~transform)]
                ~forms)))))
     forms))
 
 (defn node-output-value-function
-  [self-name ctx-name record-name node-type-name node-type transform]
-  (let [production-function (get (gt/transforms node-type) transform)
-        nodeid-sym          (gensym "node-id")
-        input-sym           (gensym "pfn-input")
-        schema-sym          (gensym "schema")
-        propmap-sym         (gensym "propmap")
-        output-sym          (gensym "output")
-        ovf
-    `(defn ~(with-meta (dollar-name node-type-name transform) {:no-doc true}) [~self-name ~ctx-name]
-       (let [~nodeid-sym (gt/node-id ~self-name)
-             ~propmap-sym (gt/declared-properties ~node-type-name)]
-         ~(if (= transform :this)
-            nodeid-sym
-            (jam self-name ctx-name nodeid-sym transform
-              (apply-default-property-shortcut self-name ctx-name transform node-type
-                (detect-cycles ctx-name nodeid-sym transform node-type-name
-                  (mark-in-production ctx-name nodeid-sym transform
-                    (check-caches ctx-name nodeid-sym node-type transform
-                      (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym record-name node-type-name node-type transform production-function
-                        (input-error-check self-name ctx-name node-type transform input-sym
-                          (call-production-function self-name ctx-name node-type node-type-name transform input-sym nodeid-sym output-sym
-                            (schema-check-output self-name ctx-name node-type node-type-name transform nodeid-sym output-sym
-                              (validate-output self-name ctx-name node-type node-type-name transform nodeid-sym propmap-sym output-sym
-                                (cache-output ctx-name node-type transform nodeid-sym output-sym
-                                  output-sym))))))))))))))]
-    ovf))
-
-(defn node-output-value-function-forms
-  [self-name ctx-name record-name node-type-name node-type]
-  (for [transform (ordinary-output-labels node-type)]
-    (node-output-value-function self-name ctx-name record-name node-type-name node-type transform)))
-
-(defn- has-dynamics? [ptype] (not (nil? (gt/dynamic-attributes ptype))))
-
-(defn attach-property-dynamics
-  [self-name ctx-name node-type-name node-type propmap-sym property-name property-type value-form]
-  (let [dynsym (gensym "dynamics")]
-    `(let [~dynsym (gt/dynamic-attributes (get ~propmap-sym ~property-name))]
-       ~(reduce (fn [m [d dfnk]]
-                  (assoc m d (call-with-error-checked-fnky-arguments self-name ctx-name propmap-sym d node-type-name node-type
-                                                                     dfnk
-                                                                     `(get ~dynsym ~d))))
-                value-form
-                (gt/dynamic-attributes property-type)))))
+  [description transform]
+  (let [production-function (get-in description [:output transform :fn])]
+    (gensyms [self-name ctx-name nodeid-sym input-sym schema-sym output-sym local-cache-sym]
+      `(fn [~self-name ~ctx-name]
+         (let [~nodeid-sym (gt/node-id ~self-name)]
+           ~(if (= transform :this)
+              nodeid-sym
+              (jam self-name ctx-name nodeid-sym transform
+                (apply-default-property-shortcut self-name ctx-name transform description
+                  (mark-in-production ctx-name nodeid-sym transform description
+                    (check-caches ctx-name nodeid-sym description transform local-cache-sym
+                      (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
+                        (input-error-check self-name ctx-name description transform nodeid-sym input-sym
+                          (call-production-function self-name ctx-name description transform input-sym nodeid-sym output-sym
+                            (schema-check-output self-name ctx-name description transform nodeid-sym output-sym
+                              (validate-output self-name ctx-name description transform nodeid-sym output-sym
+                                (cache-output ctx-name description transform nodeid-sym output-sym local-cache-sym
+                                   output-sym))))))))))))))))
 
 (defn collect-property-values
-  [self-name ctx-name propmap-sym record-name node-type-name node-type nodeid-sym value-sym forms]
-  (let [props        (gt/declared-properties node-type)
-        fetch-exprs  (partial collect-base-property-value self-name ctx-name node-type-name node-type propmap-sym)
-        add-dynamics (partial attach-property-dynamics self-name ctx-name node-type-name node-type propmap-sym)]
-    `(let [~value-sym ~(apply hash-map
-                              (mapcat identity
-                                      (for [[p ptype] props
-                                            :when (not (:internal? ptype))]
-                                        (let [basic-val `{:type    (get ~propmap-sym ~p)
-                                                          :value   ~(fetch-exprs p)
-                                                          :node-id ~nodeid-sym}]
-                                          (if (has-dynamics? ptype)
-                                            [p (add-dynamics p ptype basic-val)]
-                                            [p basic-val])))))]
+  [self-name ctx-name beh-sym description nodeid-sym value-sym forms]
+  (let [props (:property description)]
+    `(let [~value-sym ~(apply merge {}
+                              (for [[p _] (filter (comp external-property? val) props)]
+                                {p `((get-in ~beh-sym [~p :fn]) ~self-name ~ctx-name)}))]
        ~forms)))
 
 (defn- create-validate-argument-form
-  [self-name ctx-name propmap-sym node-type-name node-type argument]
-  ;; This is  similar to node-input-forms, but simpler as we don't have to deal with the case where we're calling
+  [self-name ctx-name nodeid-sym description argument]
+  ;; This is  similar to fnk-argument-forms, but simpler as we don't have to deal with the case where we're calling
   ;; an output function refering to an argument property with the same name.
   (cond
-    (and (has-property? node-type argument) (property-has-no-overriding-output? node-type argument))
-    (collect-base-property-value self-name ctx-name node-type-name node-type propmap-sym argument)
+    (and (desc-has-property? description argument) (property-has-no-overriding-output? description argument))
+    (collect-base-property-value self-name ctx-name nodeid-sym description argument)
 
-    (has-declared-output? node-type argument)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)
+    (desc-has-output? description argument)
+    `(gt/produce-value  ~self-name ~argument ~ctx-name)
 
-    (has-multivalued-input? node-type argument)
+    (has-multivalued-input? description argument)
     (maybe-use-substitute
-     node-type argument
+     description argument
      (input-value-forms self-name ctx-name argument))
 
-    (has-singlevalued-input? node-type argument)
+    (has-singlevalued-input? description argument)
     (maybe-use-substitute
-     node-type argument
+     description argument
      (first-input-value-form self-name ctx-name argument))
 
     (= :this argument)
-    'this
+    `~'this
 
     :else (assert false (str "unknown argument " argument " in call to validate function"))))
 
 (defn property-validation-exprs
-  [self-name ctx-name node-type-name node-type propmap-sym prop & [supplied-arguments]]
-  (when (has-validation? node-type prop)
-    (let [compile-time-validation-fnk (ip/validation (gt/property-type node-type prop))
-          arglist (without (util/fnk-arguments compile-time-validation-fnk) (keys supplied-arguments))
-          argument-forms (zipmap arglist (map #(create-validate-argument-form self-name ctx-name propmap-sym node-type-name node-type % ) arglist))
+  [self-name ctx-name description nodeid-sym prop & [supplied-arguments]]
+  (when (has-validation? description prop)
+    (let [validator      (get-in description [:property prop :validate])
+          arglist        (without (:arguments validator) (keys supplied-arguments))
+          argument-forms (zipmap arglist (map #(create-validate-argument-form self-name ctx-name nodeid-sym description % ) arglist))
           argument-forms (merge argument-forms supplied-arguments)]
       `(let [arg-forms# ~argument-forms
-             bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals arg-forms#)))]
-         (if (empty? bad-errors#)
-           ((get-in ~propmap-sym [~prop :internal.property/validate]) arg-forms#)
-           (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~prop)))))) ; TODO: decorate with :production :validate?
+             val-arg-errors# (filter-error-vals (:ignore-errors ~ctx-name) arg-forms#)]
+         (if (empty? val-arg-errors#)
+           ((var ~(dollar-name (:name description) [:property prop :validate])) arg-forms#)
+           (ie/error-aggregate val-arg-errors# :_node-id ~nodeid-sym :_label ~prop))))))
+;;; TODO: decorate with :production :validate?
 
 (defn collect-validation-problems
-  [self-name ctx-name propmap-sym record-name node-type-name node-type value-map validation-map forms]
-  (let [props-with-validation (util/map-vals ip/validation (gt/declared-properties node-type))
-        validation-exprs      (partial property-validation-exprs self-name ctx-name node-type-name node-type propmap-sym)]
+  [self-name ctx-name nodeid-sym description value-map validation-map forms]
+  (let [props-with-validation (util/map-vals :validate (:property description))
+        validation-exprs      (partial property-validation-exprs self-name ctx-name description nodeid-sym)]
     `(let [~validation-map ~(apply hash-map
                                    (mapcat identity
                                            (for [[p validator] props-with-validation
@@ -983,8 +1448,8 @@
      ~forms))
 
 (defn collect-display-order
-  [self-name ctx-name record-name node-type-name node-type display-order-sym forms]
-  `(let [~display-order-sym (gt/property-display-order ~node-type-name)]
+  [self-name ctx-name description display-order-sym forms]
+  `(let [~display-order-sym ~(:property-display-order description)]
      ~forms))
 
 (defn- assemble-properties-map
@@ -992,178 +1457,145 @@
   `(hash-map :properties    ~value-sym
              :display-order ~display-sym))
 
-(defn declared-properties-function-forms
-  [self-name ctx-name record-name node-type-name node-type]
-  (let [fn-name        (dollar-name node-type-name :_declared-properties)
-        kwarg-sym      (gensym "kwargs")
-        value-map      (gensym "values")
-        validation-map (gensym "problems")
-        nodeid-sym     (gensym "_node-id")
-        display-order  (gensym "display-order")
-        propmap-sym    (gensym "propmap")]
-    `(defn ~(with-meta fn-name {:no-doc true}) [~self-name ~ctx-name]
-       (let [~nodeid-sym (gt/node-id ~self-name)
-             ~propmap-sym (gt/declared-properties ~node-type-name)]
-         ~(collect-property-values self-name ctx-name propmap-sym record-name node-type-name node-type nodeid-sym value-map
-            (collect-validation-problems self-name ctx-name propmap-sym record-name node-type-name node-type value-map validation-map
-              (merge-values-and-validation-problems value-map validation-map
-                (collect-display-order self-name ctx-name record-name node-type-name node-type display-order
-                  (assemble-properties-map value-map display-order)))))))))
+(defn property-dynamics
+  [self-name ctx-name nodeid-sym description property-name property-type value-form]
+  (apply merge
+         (for [[dynamic-label {:keys [arguments] :as dynamic}] (get property-type :dynamics)]
+           {dynamic-label (call-with-error-checked-fnky-arguments self-name ctx-name nodeid-sym dynamic-label description arguments `(var ~(dollar-name (:name description) [:property property-name :dynamics dynamic-label])))})))
 
-(defn node-input-value-function-forms
-  [self-name ctx-name record-name node-type-name node-type]
-  (for [[input input-schema] (gt/declared-inputs node-type)]
-    (let [funcname (with-meta (dollar-name node-type-name input) {:no-doc true})]
-      `(defn ~funcname [~self-name ~ctx-name]
-         ~(maybe-use-substitute
-           node-type input
-           (cond
-             (has-multivalued-input? node-type input)
-             (input-value-forms self-name ctx-name input)
+(defn property-value-exprs
+  [self-name ctx-name nodeid-sym description prop-name prop-type]
+  (let [basic-val `{:type    ~(:value-type prop-type)
+                    :value   ~(collect-base-property-value self-name ctx-name nodeid-sym description prop-name)
+                    :node-id ~nodeid-sym}]
+    (if (not (empty? (:dynamics prop-type)))
+      (let [dyn-exprs (property-dynamics self-name ctx-name nodeid-sym description prop-name prop-type basic-val)]
+        (merge basic-val dyn-exprs))
+      basic-val)))
 
-             (has-singlevalued-input? node-type input)
-             (first-input-value-form self-name ctx-name input)))))))
+(defn declared-properties-function
+  [description]
+  (let [validations? (not (empty? (keep :validate (vals (:property description)))))
+        props        (:property description)]
+    (gensyms [self-name ctx-name value-map validation-map nodeid-sym display-order]
+       (if validations?
+           `(fn [~self-name ~ctx-name]
+              (let [~nodeid-sym    (gt/node-id ~self-name)
+                    node-type-sym# (gt/node-type ~self-name (:basis ~ctx-name))
+                    ~value-map     ~(apply merge {}
+                                           (for [[p _] (filter (comp external-property? val) props)]
+                                             {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
+                ~(collect-validation-problems self-name ctx-name nodeid-sym description value-map validation-map
+                   (merge-values-and-validation-problems value-map validation-map
+                     (collect-display-order self-name ctx-name description display-order
+                       (assemble-properties-map value-map display-order))))))
+           `(fn [~self-name ~ctx-name]
+              (let [~nodeid-sym    (gt/node-id ~self-name)
+                    node-type-sym# (gt/node-type ~self-name (:basis ~ctx-name))
+                    ~value-map     ~(apply merge {}
+                                           (for [[p _] (filter (comp external-property? val) props)]
+                                             {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
+                ~(collect-display-order self-name ctx-name description display-order
+                   (assemble-properties-map value-map display-order))))))))
 
-(defn define-node-value-functions
-  [record-name node-type-name node-type]
-  (eval
-   `(do
-      ~(declared-properties-function-forms 'this 'evaluation-context record-name node-type-name node-type)
-      ~@(node-input-value-function-forms 'this 'evaluation-context record-name node-type-name node-type)
-      ~@(node-output-value-function-forms 'this 'evaluation-context record-name node-type-name node-type))))
+(defn node-input-value-function
+  [description input]
+  (gensyms [self-name ctx-name nodeid-sym]
+     `(fn [~self-name ~ctx-name]
+        ~(maybe-use-substitute
+          description input
+          (cond
+            (has-multivalued-input? description input)
+            (input-value-forms self-name ctx-name input)
 
-(defn node-value-function-names
-  [node-type-name node-type]
-  (map (partial dollar-name node-type-name) (all-labels node-type)))
+            (has-singlevalued-input? description input)
+            (first-input-value-form self-name ctx-name input))))))
 
-(defn declare-node-value-function-names
-  [node-type-name node-type]
-  (eval `(declare ~@(node-value-function-names node-type-name node-type))))
 
-(defn classname-for [prefix] (symbol (str prefix "__")))
+(defn node-input-value-function
+  [description input]
+  (let [sub?   (has-substitute?        description input)
+        multi? (has-multivalued-input? description input)]
+    (cond
+      (and (not sub?) (not multi?))
+      `(partial pull-first-input-value ~input)
 
-(defn- state-vector
-  [node-type]
-  (mapv (comp symbol name) (keys (gt/declared-properties node-type))))
+      (and (not sub?) multi?)
+      `(partial pull-input-values ~input)
 
-(defn- subtract-keys
-  [m1 m2]
-  (set/difference (set (keys m1)) (set (keys m2))))
+      (not multi?)
+      `(partial pull-first-input-with-substitute ~input ~sub?)
 
-(defn- ordinary-output-case
-  [self-name ctx-name node-type-name an-output]
-  [an-output (list (dollar-name node-type-name an-output) self-name ctx-name)])
+      :else
+      `(partial pull-input-values-with-substitute ~input ~sub?))))
 
-(defn- ordinary-input-case
-  [self-name ctx-name node-type-name an-input]
-  [an-input  (list (dollar-name node-type-name an-input) self-name ctx-name)])
-
-(defn node-record-sexps
-  [record-name node-type-name node-type]
-  `(do
-     (defrecord ~record-name ~(state-vector node-type)
-       gt/Node
-       (node-id        [this#]    (:_node-id this#))
-       (node-type      [_ _]        ~node-type-name)
-       (property-types [_ _]     (gt/public-properties ~node-type-name))
-       (get-property   [~'this basis# property#] (get ~'this property#))
-       (set-property   [~'this basis# property# value#]
-         (let [type# (gt/node-type ~'this basis#)]
-           (assert (contains? (gt/property-labels type#) property#)
-                   (format "Attempting to use property %s from %s, but it does not exist" property# (:name type#))))
-         (assoc ~'this property# value#))
-       (clear-property [~'this basis# property#]
-         (throw (ex-info (str "Not possible to clear property " property# " of node type " (:name ~node-type-name) " since the node is not an override")
-                         {:label property# :node-type ~node-type-name})))
-       (produce-value  [~'this label# ~'evaluation-context]
-         (case label#
-           :_declared-properties (~(dollar-name node-type-name :_declared-properties) ~'this ~'evaluation-context)
-           ~@(mapcat (partial ordinary-output-case 'this 'evaluation-context node-type-name) (ordinary-output-labels node-type))
-           ~@(mapcat (partial ordinary-input-case 'this 'evaluation-context node-type-name)  (ordinary-input-labels node-type))
-           (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
-                           {:label label# :node-type ~node-type-name}))))
-       (original [this] nil)
-       (set-original [this original-id] (throw (ex-info "Originals can't be changed for original nodes")))
-       (override-id [this] nil)
-       ~@(gt/interfaces node-type)
-       ~@(gt/protocols node-type)
-       ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type)))
-     (alter-meta! (var ~(symbol (str "map->" record-name))) assoc :no-doc true)
-     (alter-meta! (var ~(symbol (str "->" record-name))) assoc :no-doc true)))
-
-(defn define-node-record
-  "Create a new class for the node type. This builds a defrecord with
-  the node's properties as fields. The record will implement all the interfaces
-  and protocols that the node type requires."
-  [record-name node-type-name node-type]
-  (eval (node-record-sexps record-name node-type-name node-type)))
-
-(defn- interpose-every
-  [n elt coll]
-  (mapcat (fn [l r] (conj l r)) (partition-all n coll) (repeat elt)))
-
-(defn- print-method-forms
-  [record-name node-type-name node-type]
-  (let [node (vary-meta 'node assoc :tag (resolve record-name))]
-    `(defmethod print-method ~record-name
-       [~node w#]
-       (.write
-        ^java.io.Writer w#
-        (str "#" '~node-type-name "{" (:_node-id ~node)
-             ~@(interpose-every 3 ", "
-                                (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
-                                        (keys (gt/declared-properties node-type))))
-             "}")))))
-
-(defn define-print-method
-  "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
-  [record-name node-type-name node-type]
-  (eval (print-method-forms record-name node-type-name node-type)))
-
-(defn- output-fn [type output]
-  (find-var (dollar-name (:name type) output)))
+;;; ----------------------------------------
+;;; Overrides
 
 (defrecord OverrideNode [override-id node-id original-id properties]
   gt/Node
-  (node-id             [this] node-id)
-  (node-type           [this basis] (gt/node-type (ig/node-by-id-at basis original-id) basis))
-  (property-types      [this basis] (gt/public-properties (gt/node-type this basis)))
-  (get-property        [this basis property] (get properties property (gt/get-property (ig/node-by-id-at basis original-id) basis property)))
-  (set-property        [this basis property value] (if (= :_output-jammers property)
-                                                     (throw (ex-info "Not possible to mark override nodes as defective" {}))
-                                                     (assoc-in this [:properties property] value)))
-  (clear-property      [this basis property] (update this :properties dissoc property))
-  (produce-value       [this output evaluation-context]
-    (let [basis (:basis evaluation-context)
-          original (ig/node-by-id-at basis original-id)
-          type (gt/node-type original basis)]
-      (cond
-        (= :_node-id output) node-id
-        (or (= :_declared-properties output)
-            (= :_properties output)) (let [f (output-fn type output)
-                                           props (f this evaluation-context)
-                                           orig-props (:properties (f original evaluation-context))
-                                           dynamic-props (without (set (keys properties)) (set (keys (gt/property-types this basis))))]
-                                       (reduce (fn [props [k v]]
-                                                 (cond-> props
-                                                   (and (= :_properties output)
-                                                        (dynamic-props k))
-                                                   (assoc-in [:properties k :value] v)
+  (node-id               [this]                      node-id)
+  (node-type             [this basis]                (gt/node-type (gt/node-by-id-at basis original-id) basis))
+  (get-property          [this basis property]
+    (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
+  (set-property          [this basis property value]
+    (if (= :_output-jammers property)
+      (throw (ex-info "Not possible to mark override nodes as defective" {}))
+      (assoc-in this     [:properties property] value)))
+  (overridden-properties [this basis] properties)
+  (property-overridden?  [this property] (contains? properties property))
 
-                                                   (contains? orig-props k)
-                                                   (assoc-in [:properties k :original-value]
-                                                             (get-in orig-props [k :value]))))
-                                               props properties))
-        (or ((gt/passthroughs type) output)
-            ((gt/transforms type) output)
-            ((gt/input-labels type) output)) ((output-fn type output) this evaluation-context)
-        true (let [dyn-properties (node-value* original :_properties evaluation-context)]
-               (if (contains? (:properties dyn-properties) output)
-                 (get properties output)
-                 (node-value* original output evaluation-context))))))
-  (override-id [this] override-id)
-  (original [this] original-id)
-  (set-original [this original-id] (assoc this :original-id original-id)))
+  gt/Evaluation
+  (produce-value       [this output evaluation-context]
+    (let [basis    (:basis evaluation-context)
+          type     (gt/node-type this basis)]
+      (when *node-value-debug*
+        (println (nodevalstr this type output " (override node)")))
+      (cond
+        (= :_node-id output)
+        node-id
+
+        (or (= :_declared-properties output)
+            (= :_properties output))
+        (let [beh           (behavior type output)
+              props         ((:fn beh) this evaluation-context)
+              original      (gt/node-by-id-at basis original-id)
+              orig-props    (:properties (gt/produce-value original output evaluation-context))
+              static-props  (all-properties type)
+              props         (reduce-kv (fn [p k v]
+                                         (if (and (not (contains? static-props k))
+                                                  (= original-id (:node-id v)))
+                                           (cond-> p
+                                             (contains? v :original-value)
+                                             (assoc-in [:properties k :value] (:value v)))
+                                           p))
+                                       props orig-props)]
+          (reduce (fn [props [k v]]
+                    (cond-> props
+                      (and (= :_properties output)
+                           (not (contains? static-props k)))
+                      (assoc-in [:properties k :value] v)
+
+                      (contains? orig-props k)
+                      (assoc-in [:properties k :original-value]
+                                (get-in orig-props [k :value]))))
+                  props properties))
+
+        (or (has-output? type output)
+            (has-input? type output))
+        (let [beh (behavior type output)]
+          ((:fn beh) this evaluation-context))
+
+        true
+        (if (contains? (all-properties type) output)
+          (get properties output)
+          (node-value* (gt/node-by-id-at basis original-id) output evaluation-context)))))
+
+  gt/OverrideNode
+  (clear-property [this basis property] (update this :properties dissoc property))
+  (override-id    [this]                override-id)
+  (original       [this]                original-id)
+  (set-original   [this original-id]    (assoc this :original-id original-id)))
 
 (defn make-override-node [override-id node-id original-id properties]
   (->OverrideNode override-id node-id original-id properties))

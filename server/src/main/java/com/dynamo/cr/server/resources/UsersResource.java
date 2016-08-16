@@ -9,11 +9,13 @@ import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.security.RolesAllowed;
+import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -27,6 +29,9 @@ import java.util.stream.Collectors;
 public class UsersResource extends BaseResource {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UsersResource.class);
+
+    @Inject
+    private UserService userService;
 
     private static UserInfo createUserInfo(User u) {
         UserInfo.Builder b = UserInfo.newBuilder();
@@ -58,9 +63,11 @@ public class UsersResource extends BaseResource {
     @PUT
     @Path("/{user}/connections/{user2}")
     @Transactional
-    public void connect(@PathParam("user2") String user2) {
+    public void connect(@PathParam("user2") Long user2) {
         User u = getUser();
-        User u2 = server.getUser(em, user2);
+        User u2 = userService.find(user2)
+                .orElseThrow(() -> new ServerException(String.format("No such user %s", user2), Status.NOT_FOUND));
+
         if (Objects.equals(u.getId(), u2.getId())) {
             throw new ServerException("A user can not be connected to him/herself.", Response.Status.FORBIDDEN);
         }
@@ -112,7 +119,7 @@ public class UsersResource extends BaseResource {
         deleteProjects(ownedProjects);
 
         LOGGER.info(String.format("Deleting user with ID %s", userId));
-        ModelUtil.removeUser(em, user);
+        userService.remove(user);
 
         return okResponse("User %s deleted", userId);
     }

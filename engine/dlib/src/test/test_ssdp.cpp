@@ -239,6 +239,7 @@ TEST_F(dmSSDPTest, Renew)
     Init(1);
     dmTime::Sleep(1000000);
     UpdateServer();
+    WaitPackage();
     UpdateClient();
     ASSERT_TRUE(TestDeviceDiscovered());
 }

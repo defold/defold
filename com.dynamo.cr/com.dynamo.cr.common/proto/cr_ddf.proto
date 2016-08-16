@@ -12,9 +12,6 @@ message ProjectTemplate {
 message Configuration
 {
     required int32 service_port = 4;
-    optional int32 ssl_service_port = 41;
-    optional string keystore = 42;
-    optional string keystore_password = 43;
     // Exposed port to the client, i.e. editor
     required int32 git_port = 40;
     required string persistence_unit_name = 6;
@@ -54,6 +51,10 @@ message Configuration
     optional int32 git_gc_interval = 44 [default=1440];
     // Garbage collect unused object expiration for pruning
     optional string git_prune_expiration = 45 [default="2 weeks ago"];
+
+    // Discourse SSO configuration
+    required string discourse_url = 46;
+    required string discourse_sso_key = 47;
 }
 
 message EMailTemplate

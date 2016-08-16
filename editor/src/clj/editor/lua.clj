@@ -1,59 +1,14 @@
 (ns editor.lua
-  (:require [clojure.string :as str]
+  (:require [clojure.string :as string]
             [clojure.java.io :as io]
+            [clojure.edn :as edn]
             [editor.code :as code])
- 
   (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)")
-(def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)")
-
-(defn- make-parse-result [namespace function in-function start end]
-  {:namespace namespace
-   :function function
-   :in-function in-function
-   :start start
-   :end end})
-
-(defn- default-parse-result []
-  {:namespace ""
-   :function ""
-   :in-function false
-   :start 0
-   :end 0})
-
-(defn- parse-unscoped-line [line]
-  (let [matcher1 (re-matcher pattern1 line)]
-    (loop [match (re-find matcher1)
-           result nil]
-      (if-not match
-        result
-        (let [in-function (> (count (nth match 2)) 0)
-              start (.start matcher1)
-              end (- (.start matcher1) (if in-function 1 0))]
-          (recur (re-find matcher1)
-                 (make-parse-result "" (nth match 1) in-function start end)))))))
-
-(defn- parse-scoped-line [line]
-  (let [matcher2 (re-matcher pattern2 line)]
-        (loop [match (re-find matcher2)
-               result nil]
-          (if-not match
-            result
-            (let [in-function (> (count (nth match 3)) 0)
-                  start (.start matcher2)
-                  end (- (.end matcher2) (if in-function 1 0))]
-              (recur (re-find matcher2)
-                     (make-parse-result (nth match 1) (nth match 2) in-function start end)))))))
-
-(defn parse-line [line]
-  (or (parse-scoped-line line)
-      (parse-unscoped-line line)))
-
 (defn- load-sdoc [path]
-  (try 
+  (try
     (with-open [in (io/input-stream (io/resource path))]
       (let [doc (-> (ScriptDoc$Document/newBuilder)
                   (.mergeFrom in)
@@ -71,12 +26,12 @@
       (.printStackTrace e)
       {})))
 
-(def ^:private docs (str/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
+(def ^:private docs (string/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
 
-(defn- load-documentation []
+(defn load-documentation []
   (let [ns-elements (reduce
                      (fn [sofar doc]
                        (merge-with concat sofar (load-sdoc (sdoc-path doc))))
@@ -98,27 +53,9 @@
      ns-elements
      namespaces)))
 
-(def ^:private the-documentation (atom nil))
-
-(defn- documentation []
-  (when (nil? @the-documentation)
-    (reset! the-documentation (load-documentation)))
-  @the-documentation)
-
-(defn filter-elements [elements prefix]
-  (filter #(.startsWith (str/lower-case (.getName ^ScriptDoc$Element %)) prefix) elements))
-
-(defn get-documentation [{:keys [namespace function]}]
-  (let [namespace (str/lower-case namespace)
-        function (str/lower-case function)
-        qualified (if (str/blank? namespace) function (format "%s.%s" namespace function))
-        elements (filter-elements (get (documentation) namespace) qualified)
-        sorted-elements (sort #(compare (str/lower-case (.getName ^ScriptDoc$Element %1)) (str/lower-case (.getName ^ScriptDoc$Element %2))) elements)]
-    (into-array ScriptDoc$Element sorted-elements)))
-
 (defn- element-additional-info [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-    (str/join
+    (string/join
      (concat
       [(.getDescription element)]
       ["<br><br>"]
@@ -138,69 +75,80 @@
          ["&#160;&#160;&#160;&#160;<b>"]
          [(.getReturn element)]))))))
 
-(defn- element-display-string [^ScriptDoc$Element element]
+(defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-               (str/join
-                (concat
-                 ["("
-                  (str/join ", "
-                            (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-                              [(.getName parameter)]))
-                  ")"])))]
-    (str/join [base rest])))
+               (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
+                              (.getName parameter))
+                     display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
+                 (str "(" (string/join "," display-params) ")")))]
+    (str base rest)))
 
-(defn doc-element-to-hint [{:keys [in-function namespace function start end]} offset element]
-  (let [display-string (element-display-string element)
-        additional-info (element-additional-info element)
-        image "icons/32/Icons_29-AT-Unkown.png"
-        complete-length (+ (count namespace) (count function) 1)
-        cursor-position (- (count display-string) complete-length)]
-    (if in-function
-      {:replacement ""
-       :offset offset
-       :length 0
-       :position 0
-       :image image
-       :display-string display-string
-       :additional-info additional-info}
-      ;; logic for replacement offsets etc as lifted from old editor was borked so below is also broken and just for testing
-      ;; probably need prefix length info etc from saner parsing
-      (if (str/blank? namespace)
-        (let [match-length (- end start) 
-              replacement-offset offset
-              replacement-length 0
-              replacement-string (subs display-string match-length)
-              new-cursor-position (+ cursor-position 1)]
-          {:replacement replacement-string
-           :offset replacement-offset
-           :length replacement-length
-           :position new-cursor-position
-           :image image
-           :display-string display-string
-           :additional-info additional-info})
-        (let [match-length (- end start)
-              replacement-offset offset
-              replacement-length 0
-              replacement-string (subs display-string (+ (count namespace) 1))
-              new-cursor-position (+ cursor-position (count function))]
-          {:replacement replacement-string
-           :offset replacement-offset
-           :length replacement-length
-           :position new-cursor-position
-           :image image
-           :display-string display-string
-           :additional-info additional-info})))))
+(defn- element-tab-triggers [^ScriptDoc$Element element]
+  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
+    (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
+                   (.getName parameter))]
+      {:select (remove #(= \[ (first %)) params) :exit (when params ")")})))
 
-(defn- doc-elements-to-hints [elements parse-result offset]
-  (map (partial doc-element-to-hint parse-result offset) elements))
+(defn defold-documentation []
+  (reduce
+   (fn [result [ns elements]]
+     (let [global-results (get result "" [])
+           new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
+                                                                          (element-display-string e true)
+                                                                          (element-display-string e false)
+                                                                          (element-additional-info e)
+                                                                          (element-tab-triggers e))) elements)))]
+       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint ns))))))
+   {}
+   (load-documentation)))
 
-(defn compute-proposals [^String text offset ^String line]
-  (try 
-    (when-let [parse-result (or (parse-line line) (default-parse-result))]
-      (doc-elements-to-hints (get-documentation parse-result) parse-result offset))
+(def defold-docs (atom (defold-documentation)))
+
+(defn lua-std-libs-documentation []
+  (let [base-items (->  (io/resource "lua-standard-libs.edn")
+                        slurp
+                        edn/read-string)
+        hints (for [item base-items]
+                (let [insert-string (string/replace item #"\[.*\]" "")
+                      params (re-find #"(\()(.*)(\))" insert-string)
+                      tab-triggers (when (< 3 (count params)) (remove #(= "" %) (string/split (nth params 2) #",")))]
+                  (code/create-hint
+                   (first (string/split item #"\("))
+                   item
+                   insert-string
+                   ""
+                   {:select tab-triggers :exit (when tab-triggers ")")})))
+        completions (group-by #(let [names (string/split (:name %) #"\.")]
+                                         (if (= 2 (count names)) (first names) "")) hints)
+        package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
+    (merge-with into completions package-completions)))
+
+(defn lua-base-documentation []
+  {"" (-> (io/resource "lua-base-snippets.edn")
+          slurp
+          edn/read-string)})
+
+(def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
+
+
+(defn filter-proposals [completions ^String text offset ^String line]
+  (try
+    (let
+        [{:keys [namespace function] :as parse-result} (or (code/parse-line line) (code/default-parse-result))
+         items (if namespace (get completions (string/lower-case namespace)) (get completions ""))
+         pattern (string/lower-case (code/proposal-filter-pattern namespace function))
+         results (filter (fn [i] (string/starts-with? (:name i) pattern)) items)]
+      (->> results (sort-by :display-string) (partition-by :display-string) (mapv first)))
     (catch Exception e
       (.printStackTrace e))))
+
+(defn lua-module->path [module]
+  (str "/" (string/replace module #"\." "/") ".lua"))
+
+(defn lua-module->build-path [module]
+  (str (lua-module->path module) "c"))
+
 
 (def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
                 "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
@@ -247,15 +195,25 @@
       (when-let [match-body (code/match-until-eol (:body match-open))]
         (code/combine-matches match-open match-body)))))
 
+(defn increase-indent? [s]
+  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
+
+(defn decrease-indent? [s]
+  (re-find #"^\s*(elseif|else|end|\}).*$" s))
+
 ;; TODO: splitting into partitions using multiline (MultiLineRule) in combination with FastPartitioner does not work properly when
 ;; :eof is false. The initial "/*" does not start a comment partition, and when the ending "*/" is added (on another line) the document
 ;; is repartitioned only from the beginning of that final line - meaning the now complete multiline comment is not detected as a partition.
 ;; After inserting some text on the opening ("/*" ) line, the partition is detected however.
-;; Workaround: the whole language is treated as one single default partition type.
+;; Workaround: the whole language is treated as one single default
+;; partition type.
 
 (def lua {:language "lua"
           :syntax
           {:line-comment "-- "
+           :indentation {:indent-chars "\t"
+                         :increase? increase-indent?
+                         :decrease? decrease-indent?}
            :scanner
            [#_{:partition "__multicomment"
                :type :multiline
@@ -295,10 +253,11 @@
               {:type :singleline :start "\"" :end "\"" :esc \\ :class "string"}
               {:type :singleline :start "'" :end "'" :esc \\ :class "string"}
               {:type :custom :scanner match-constant :class "constant"}
+              {:type :custom :scanner code/match-number :class "number"}
               {:type :custom :scanner match-operator :class "operator"}
               {:type :number :class "number"}
               {:type :default :class "default"}
               ]}
             ]}
-          :assist compute-proposals
+          :assist filter-proposals
           })

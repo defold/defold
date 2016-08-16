@@ -22,6 +22,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.ButtonBase;
 import javafx.stage.Modality;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +30,8 @@ import com.defold.editor.Updater.UpdateInfo;
 import com.defold.libs.NativeArtifacts;
 
 import javafx.application.Application;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.stage.Stage;
 
 
@@ -136,7 +139,7 @@ public class Start extends Application {
     private ClassLoader makeClassLoader() {
         ArrayList<URL> urls = extractURLs(System.getProperty("java.class.path"));
         // The "boot class-loader", i.e. for java.*, sun.*, etc
-        ClassLoader parent = ClassLoader.getSystemClassLoader().getParent();
+        ClassLoader parent = ClassLoader.getSystemClassLoader();
         // Per instance class-loader
         ClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[urls.size()]), parent);
         return classLoader;
@@ -179,48 +182,55 @@ public class Start extends Application {
         run.invoke(editorApplication, new Object[] { args });
     }
 
+    private void kickLoading(Splash splash) {
+        threadPool.submit(() -> {
+            try {
+                NativeArtifacts.extractNatives();
+                ClassLoader parent = ClassLoader.getSystemClassLoader();
+                Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
+                Method init = glprofile.getMethod("initSingleton");
+                init.invoke(null);
+            } catch (Exception e) {
+                logger.error("failed to extract native libs", e);
+            }
+            try {
+                pool.add(makeEditor());
+                javafx.application.Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            openEditor(new String[0]);
+                            splash.close();
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
+                    }
+                });
+            } catch (Throwable t) {
+                t.printStackTrace();
+                String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+                javafx.application.Platform.runLater(() -> {
+                    splash.setLaunchError(message);
+                    splash.setErrorShowing(true);
+                });
+            }
+            return null;
+        });
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
-        try {
-	        Splash splash = new Splash();
-
-	        Future<?> extractFuture = threadPool.submit(() -> {
-	            try {
-	                NativeArtifacts.extractNatives();
-	            } catch (Exception e) {
-	                logger.error("failed to extract native libs", e);
-	            }
-	        });
-
-	        threadPool.submit(() -> {
-	            try {
-	                pool.add(makeEditor());
-	                javafx.application.Platform.runLater(new Runnable() {
-	                    @Override
-	                    public void run() {
-	                        try {
-	                            extractFuture.get();
-	                            openEditor(new String[0]);
-	                            splash.close();
-	                        } catch (Throwable t) {
-	                            t.printStackTrace();
-	                        }
-	                    }
-	                });
-	            } catch (Throwable t) {
-	                t.printStackTrace();
-	                String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
-	                javafx.application.Platform.runLater(() -> {
-	                    splash.setLaunchError(message);
-	                    splash.setErrorShowing(true);
-	                });
-	            }
-	            return null;
-	        });
-        } catch (Throwable t) {
-            t.printStackTrace(System.err);
-            throw t;
-        }
+        final Splash splash = new Splash();
+        splash.showingProperty().addListener(new ChangeListener<Boolean>() {
+            @Override
+            public void changed(ObservableValue<? extends Boolean> observable,
+                    Boolean oldValue, Boolean newValue) {
+                if (newValue.booleanValue()) {
+                    kickLoading(splash);
+                }
+            }
+        });
+        splash.show();
     }
 
     @Override
