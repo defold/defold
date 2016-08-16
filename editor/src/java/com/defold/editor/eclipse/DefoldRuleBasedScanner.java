@@ -8,8 +8,9 @@ public class DefoldRuleBasedScanner extends RuleBasedScanner {
     //Reads from offset all at once to the end of the doc as a peek
     public String readString() {
         try {
-            if (fOffset < fDocument.getLength()){
-                 int len = fDocument.getLength() - fOffset;
+            int docLen = fDocument.getLength();
+            if (fOffset < docLen){
+                 int len = docLen - fOffset;
                  return fDocument.get(fOffset, len);
             }else{
                 return "";

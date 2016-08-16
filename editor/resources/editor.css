@@ -944,7 +944,7 @@ Defold Orange       #fd6623             Guides etc
     -styled-text-color: #fd6623;
 }
 
-.lua.styled-text-area .constant {
+.lua.styled-text-area .constant-keywords {
     -styled-text-color: #FFBBFF;
 }
 

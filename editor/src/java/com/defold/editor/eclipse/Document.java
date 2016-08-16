@@ -1,7 +1,10 @@
 package com.defold.editor.eclipse;
 
+import java.nio.CharBuffer;
+
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.GapTextStore;
+import org.eclipse.jface.text.ITextStore;
 import org.eclipse.jface.text.GapTextStore;
 import org.eclipse.jface.text.CopyOnWriteTextStore;
 import org.eclipse.jface.text.DefaultLineTracker;
@@ -11,12 +14,65 @@ import org.eclipse.jface.text.DefaultLineTracker;
  *SafeRunner and org/osgi/framework/BundleActivator
  */
 public class Document extends AbstractDocument {
+	
+	private static class CharArrayTextStore implements ITextStore {
+
+		public char[] fContent;
+
+		/**
+		 * Creates a new string text store with the given content.
+		 *
+		 * @param content the content
+		 */
+
+		public CharArrayTextStore() {
+		}
+
+		@Override
+		public char get(int offset) {
+			return fContent[offset];
+		}
+
+		@Override
+		public String get(int offset, int length) {
+			return CharBuffer.wrap(fContent, offset, length).toString();
+		}
+
+		@Override
+		public int getLength() {
+			return fContent.length;
+		}
+
+		@Override
+		public void replace(int offset, int length, String text) {
+			try{
+			StringBuffer sb = new StringBuffer(new String(fContent));
+			sb.replace(offset, offset + length, text);
+			fContent = sb.toString().toCharArray();
+			}
+			catch (Exception e){
+				e.printStackTrace();
+			}
+
+		}
+
+		@Override
+		public void set(String text) {
+			fContent = text.toCharArray();
+
+		}
+
+	}
+		
+
+
 	/**
 	 * Creates a new empty document.
 	 */
 	public Document() {
+		
 		super();
-		setTextStore(new CopyOnWriteTextStore(new GapTextStore()));
+		setTextStore(new CharArrayTextStore());
 		setLineTracker(new DefaultLineTracker());
 		completeInitialization();
 	}
@@ -28,7 +84,7 @@ public class Document extends AbstractDocument {
 	 */
 	public Document(String initialContent) {
 		super();
-		setTextStore(new CopyOnWriteTextStore(new GapTextStore()));
+		setTextStore(new CharArrayTextStore());
 		setLineTracker(new DefaultLineTracker());
 		getStore().set(initialContent);
 		getTracker().set(initialContent);
