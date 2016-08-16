@@ -411,10 +411,17 @@
     (when (.hasString this)
       (.getString this))))
 
+(defn- caret-at-start-or-end-of-selection? [source-viewer offset]
+  (and (pos? (cvx/selection-length source-viewer))
+       (or (= offset (cvx/selection-offset source-viewer))
+           (= offset (+ (cvx/selection-length source-viewer)
+                        (cvx/selection-offset source-viewer))))))
+
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer)
-              (cvx/adjust-bounds (cvx/text source-viewer) offset)
-              select?))
+  (let [select-value (and select? (not (caret-at-start-or-end-of-selection? source-viewer offset)))]
+   (cvx/caret! (.getTextWidget ^SourceViewer source-viewer)
+               (cvx/adjust-bounds (cvx/text source-viewer) offset)
+               select-value)))
 
 (declare skin)
 

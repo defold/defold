@@ -338,7 +338,7 @@
         (select-prev-word! source-viewer)
         (is (= "the " (text-selection source-viewer)))
         (select-prev-word! source-viewer)
-        (is (= "the " (text-selection source-viewer)))))))
+        (is (= "" (text-selection source-viewer)))))))
 
 (defn- line-begin! [source-viewer]
   (cvx/handler-run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
