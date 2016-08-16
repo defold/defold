@@ -129,7 +129,7 @@ public class SecurityFilter implements ContainerRequestFilter {
                 // are used in tests
                 return user;
             } else {
-                LOGGER.warn("User authentication failed");
+                LOGGER.warn("User authentication failed for user {}", email);
                 throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
             }
         }
@@ -144,7 +144,11 @@ public class SecurityFilter implements ContainerRequestFilter {
         Cookie emailCookie = cookies.get("email");
         Cookie authCookie = cookies.get("auth");
         if (emailCookie != null && authCookie != null) {
-            return authenticateAccessToken(emailCookie.getValue(), authCookie.getValue(), em);
+            try {
+                return authenticateAccessToken(URLDecoder.decode(emailCookie.getValue(), "UTF-8"), authCookie.getValue(), em);
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         /*
@@ -165,7 +169,7 @@ public class SecurityFilter implements ContainerRequestFilter {
         if (user != null && accessTokenAuthenticator.authenticate(user, token, httpServletRequest.getRemoteAddr())) {
             return user;
         }
-        LOGGER.warn("User authentication failed");
+        LOGGER.warn("User authentication failed for user {}", email);
         throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
     }
 
