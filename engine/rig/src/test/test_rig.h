@@ -122,24 +122,39 @@ private:
         /*
 
             Bones:
-            (0)---->(1)---->(x)
+            A:
+            (0)---->(1)---->
+             |
+         B:  |
+             v
+            (2)
+             |
+             |
+             v
+            (3)
+             |
+             |
+             v
 
-            0: Pos; (0,0), rotation: 0
+         A: 0: Pos; (0,0), rotation: 0
             1: Pos; (1,0), rotation: 0
+
+         B: 0: Pos; (0,0), rotation: 0
+            2: Pos; (0,1), rotation: 0
+            3: Pos; (0,2), rotation: 0
 
         ------------------------------------
 
-            Animation (id: "valid"):
+            Animation (id: "valid") for Bone A:
 
             I:
-            (0)---->(1)---->(x)
+            (0)---->(1)---->
 
             II:
             (0)---->(1)
                      |
                      |
                      v
-                    (x)
 
             III:
             (0)
@@ -150,11 +165,15 @@ private:
              |
              |
              v
-            (x)
+
+
+        ------------------------------------
+
+            Animation (id: "ik_anim") for IK on Bone B.
 
         */
 
-        uint32_t bone_count = 2;
+        uint32_t bone_count = 5;
         m_Skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
         m_Skeleton->m_Bones.m_Count = bone_count;
 
@@ -178,8 +197,49 @@ private:
         bone1.m_InheritScale = false;
         bone1.m_Length       = 1.0f;
 
+        // Bone 2
+        dmRigDDF::Bone& bone2 = m_Skeleton->m_Bones.m_Data[2];
+        bone2.m_Parent       = 0;
+        bone2.m_Id           = 2;
+        bone2.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+        bone2.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone2.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone2.m_InheritScale = false;
+        bone2.m_Length       = 1.0f;
+
+        // Bone 3
+        dmRigDDF::Bone& bone3 = m_Skeleton->m_Bones.m_Data[3];
+        bone3.m_Parent       = 2;
+        bone3.m_Id           = 3;
+        bone3.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+        bone3.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone3.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone3.m_InheritScale = false;
+        bone3.m_Length       = 1.0f;
+
+        // Bone 4
+        dmRigDDF::Bone& bone4 = m_Skeleton->m_Bones.m_Data[4];
+        bone4.m_Parent       = 3;
+        bone4.m_Id           = 4;
+        bone4.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+        bone4.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone4.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone4.m_InheritScale = false;
+        bone4.m_Length       = 1.0f;
+
         m_BindPose.SetCapacity(bone_count);
         m_BindPose.SetSize(bone_count);
+
+        // IK
+        m_Skeleton->m_Iks.m_Data = new dmRigDDF::IK[1];
+        m_Skeleton->m_Iks.m_Count = 1;
+        dmRigDDF::IK& ik_target = m_Skeleton->m_Iks.m_Data[0];
+        ik_target.m_Id       = dmHashString64("test_ik");
+        ik_target.m_Parent   = 3;
+        ik_target.m_Child    = 2;
+        ik_target.m_Target   = 4;
+        ik_target.m_Positive = true;
+        ik_target.m_Mix      = 1.0f;
 
         // Calculate bind pose
         // (code from res_rig_scene.h)
@@ -206,20 +266,27 @@ private:
         }
 
         // Bone animations
-        uint32_t animation_count = 1;
+        uint32_t animation_count = 2;
         m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         m_AnimationSet->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
+        dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
         anim0.m_EventTracks.m_Count = 0;
         anim0.m_MeshTracks.m_Count  = 0;
         anim0.m_IkTracks.m_Count    = 0;
+        anim1.m_Id = dmHashString64("ik_anim");
+        anim1.m_Duration            = 3.0f;
+        anim1.m_SampleRate          = 1.0f;
+        anim1.m_Tracks.m_Count      = 0;
+        anim1.m_EventTracks.m_Count = 0;
+        anim1.m_MeshTracks.m_Count  = 0;
 
-        uint32_t track_count = 2;
-        anim0.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
-        anim0.m_Tracks.m_Count = track_count;
+        uint32_t bone_track_count = 2;
+        anim0.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[bone_track_count];
+        anim0.m_Tracks.m_Count = bone_track_count;
         dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
         dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
 
@@ -246,6 +313,24 @@ private:
         ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
         ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
 
+        // IK animation
+        anim1.m_IkTracks.m_Data = new dmRigDDF::IKAnimationTrack[1];
+        anim1.m_IkTracks.m_Count = 1;
+        dmRigDDF::IKAnimationTrack& ik_track = anim1.m_IkTracks.m_Data[0];
+        ik_track.m_IkIndex = 0;
+        ik_track.m_Mix.m_Data = new float[samples];
+        ik_track.m_Mix.m_Count = samples;
+        ik_track.m_Mix.m_Data[0] = 1.0f;
+        ik_track.m_Mix.m_Data[1] = 1.0f;
+        ik_track.m_Mix.m_Data[2] = 1.0f;
+        ik_track.m_Mix.m_Data[3] = 1.0f;
+        ik_track.m_Positive.m_Data = new bool[samples];
+        ik_track.m_Positive.m_Count = samples;
+        ik_track.m_Positive.m_Data[0] = 1.0f;
+        ik_track.m_Positive.m_Data[1] = 1.0f;
+        ik_track.m_Positive.m_Data[2] = 1.0f;
+        ik_track.m_Positive.m_Data[3] = 1.0f;
+
         // Meshes / skins
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
         m_MeshSet->m_MeshEntries.m_Count = 2;
@@ -256,11 +341,16 @@ private:
     }
 
     void TearDownSimpleSpine() {
+
+        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data;
         delete [] m_Skeleton->m_Bones.m_Data;
+        delete [] m_Skeleton->m_Iks.m_Data;
 
         for (int i = 0; i < 2; ++i)
         {

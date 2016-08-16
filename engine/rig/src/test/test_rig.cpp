@@ -275,7 +275,8 @@ TEST_F(RigInstanceTest, SetSkinValid)
     delete [] data;
 }
 
-TEST_F(RigInstanceTest, CursorNoAnim) {
+TEST_F(RigInstanceTest, CursorNoAnim)
+{
 
     // no anim
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
@@ -292,7 +293,8 @@ TEST_F(RigInstanceTest, CursorNoAnim) {
 
 }
 
-TEST_F(RigInstanceTest, CursorGet) {
+TEST_F(RigInstanceTest, CursorGet)
+{
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
@@ -323,7 +325,8 @@ TEST_F(RigInstanceTest, CursorGet) {
 
 }
 
-TEST_F(RigInstanceTest, CursorSet) {
+TEST_F(RigInstanceTest, CursorSet)
+{
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
@@ -357,8 +360,8 @@ TEST_F(RigInstanceTest, CursorSet) {
     ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 }
 
-
-TEST_F(RigInstanceTest, CursorSetOutside) {
+TEST_F(RigInstanceTest, CursorSetOutside)
+{
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
@@ -376,15 +379,55 @@ TEST_F(RigInstanceTest, CursorSetOutside) {
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
 }
 
+static Vector3 IKTargetPositionCallback(void* user_data, void*)
+{
+    return *(Vector3*)user_data;
+}
+
+TEST_F(RigInstanceTest, SetIKTarget)
+{
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik_anim"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
+
+    Vector3 tmp_val = Vector3(0.0f, 100.0f, 0.0f);
+
+    dmRig::RigIKTargetParams params = {0};
+    params.m_RigInstance = m_Instance;
+    params.m_ConstraintId = dmHashString64("test_ik");
+    params.m_Mix = 1.0f;
+    params.m_Callback = IKTargetPositionCallback;
+    params.m_UserData1 = (void*)&tmp_val;
+    params.m_UserData2 = 0x0;
+    ASSERT_EQ(dmRig::IKUPDATE_RESULT_OK, dmRig::SetIKTarget(params));
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
+
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+
+    tmp_val.setX(4.0f);
+    tmp_val.setY(0.0f);
+
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    Quat q = Quat::rotationZ(-(float)M_PI / 2.0f);
+    Quat p3 = pose[3].GetRotation();
+    // printf("rotZ90: %f, %f, %f, %f\n", q.getX(), q.getY(), q.getZ(), q.getW());
+    // printf("pose3: %f, %f, %f, %f\n", p3.getX(), p3.getY(), p3.getZ(), p3.getW());
+    // ASSERT_VEC4(q, p3);
+    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+}
+
 #undef ASSERT_VEC3
 #undef ASSERT_VEC4
-
-/*
-    Left to test:
-        GetCursor
-        SetCursor
-        SetIKTarget
-*/
 
 int main(int argc, char **argv)
 {
