@@ -46,10 +46,14 @@
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
-                                {:node-id _node-id
-                                 :label (or (:label rt) (:ext rt) "unknown")
-                                 :icon (or (:icon rt) unknown-icon)}))))
+    (g/fnk [_node-id resource source-outline child-outlines]
+           (let [rt (resource/resource-type resource)
+                 children (cond-> child-outlines
+                            source-outline (into (:children source-outline)))]
+             {:node-id _node-id
+              :label (or (:label rt) (:ext rt) "unknown")
+              :icon (or (:icon rt) unknown-icon)
+              :children children}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))

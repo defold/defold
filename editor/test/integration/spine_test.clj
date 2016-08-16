@@ -18,16 +18,33 @@
 (defn- prop! [node-id label val]
   (g/transact (g/set-property node-id label val)))
 
+(defn- outline-label [nid path]
+  (get (test-util/outline nid path) :label))
+
+(deftest load-spine-scene-json
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/spine/player/export/spineboy.json")]
+      (is (= "hip" (outline-label node-id [0])))
+      (is (= "front_thigh" (outline-label node-id [0 0])))
+      (is (= "front_shin" (outline-label node-id [0 0 0])))
+      (let [root (:skeleton (g/node-value node-id :structure))]
+        (is (some? (:transform root)))
+        (is (= "hip" (:name root)))))))
+
 (deftest load-spine-scene
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/spine/player/spineboy.spinescene")]
-      (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.)))))))
+      (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.))))
+      (is (= "hip" (outline-label node-id [0]))))))
 
 (deftest load-spine-model
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/spine/player/spineboy.spinemodel")]
-      (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.)))))))
+      (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.))))
+      (is (= "hip" (outline-label node-id [0]))))))
