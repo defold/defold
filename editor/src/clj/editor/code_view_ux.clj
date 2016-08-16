@@ -429,11 +429,11 @@
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (up-line selection preferred-offset)
-        start-of-doc? (= next-pos 0)]
-    (if (and (not start-of-doc?)
-             (= (selection-offset selection) next-pos))
-      (caret! selection next-pos false)
-      (caret! selection next-pos true))
+        start-of-doc? (= (caret selection) 0)]
+    (when (not start-of-doc?)
+      (if (= (caret selection) next-pos)
+        (caret! selection 0 true)
+        (caret! selection next-pos true)))
     (when show? (show-line selection))))
 
 (defn down [selection show?]
@@ -450,11 +450,11 @@
   (let [doc (text selection)
         preferred-offset (preferred-offset selection)
         next-pos (down-line selection preferred-offset)
-        end-of-doc? (= next-pos (count doc))]
-    (if (and (not end-of-doc?)
-             (= (+ (selection-length selection) (selection-offset selection)) next-pos))
-      (caret! selection next-pos false)
-      (caret! selection next-pos true)))
+        end-of-doc? (= (caret selection) (count doc))]
+    (when (not end-of-doc?)
+     (if (= (caret selection) next-pos)
+       (caret! selection (count doc) true)
+       (caret! selection next-pos true))))
   (when show? (show-line selection)))
 
 (handler/defhandler :up :code-view
