@@ -858,6 +858,9 @@ namespace dmRig
         const Matrix4& model_matrix = params.m_ModelMatrix;
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        if (!instance->m_MeshEntry) {
+            return write_ptr;
+        }
         uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
 
         if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
