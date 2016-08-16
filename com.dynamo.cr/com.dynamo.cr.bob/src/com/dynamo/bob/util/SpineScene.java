@@ -808,7 +808,9 @@ public class SpineScene {
                 return scene;
             }
 
-            String spineVersion  = JsonUtil.get(node.get("skeleton"), "spine", (String) null);
+            JsonNode skeleton = node.get("skeleton");
+            String spineVersion = (skeleton != null) ? JsonUtil.get(skeleton, "spine", (String) null) : null;
+
             Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
             while (skinIt.hasNext()) {
                 Map.Entry<String, JsonNode> entry = skinIt.next();
