@@ -162,6 +162,20 @@ namespace dmGameSystem
 
     }
 
+    static void CompSpineModelPoseCallback(void* user_data)
+    {
+        SpineModelComponent* component = (SpineModelComponent*)user_data;
+
+        // Include instance transform in the GO instance reflecting the root bone
+        dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
+        if (!pose.Empty()) {
+            // dmTransform::Transform root_t = pose[0];
+            // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
+            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], pose.Begin(), pose.Size());
+            // pose[0] = root_t;
+        }
+    }
+
     static void ReHash(SpineModelComponent* component)
     {
         // Hash resource-ptr, material-handle, blend mode and render constants
@@ -273,6 +287,7 @@ namespace dmGameSystem
         create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
+        create_params.m_PoseCallback = CompSpineModelPoseCallback;
         create_params.m_EventCallback = CompSpineModelEventCallback;
         create_params.m_EventCBUserData = component;
 
@@ -421,7 +436,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
-            // if (c->m_MeshEntry != 0x0)
+            if (dmRig::IsValid(c->m_RigInstance))
             {
                 const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
@@ -471,15 +486,15 @@ namespace dmGameSystem
                 }
             }
 
-            // Include instance transform in the GO instance reflecting the root bone
-            dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component.m_RigInstance);
-            if (!pose.Empty()) {
-                dmTransform::Transform root_t = pose[0];
-                // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
-                dmGameObject::HInstance first_bone_go = component.m_NodeInstances[0];
-                dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
-                // pose[0] = root_t;
-            }
+            // // Include instance transform in the GO instance reflecting the root bone
+            // dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component.m_RigInstance);
+            // if (!pose.Empty()) {
+            //     dmTransform::Transform root_t = pose[0];
+            //     // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
+            //     dmGameObject::HInstance first_bone_go = component.m_NodeInstances[0];
+            //     dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
+            //     // pose[0] = root_t;
+            // }
 
             component.m_DoRender = 1;
         }
@@ -615,10 +630,12 @@ namespace dmGameSystem
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 1;
+            dmRig::SetEnabled(component->m_RigInstance, true);
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 0;
+            dmRig::SetEnabled(component->m_RigInstance, 0);
         }
         else if (params.m_Message->m_Descriptor != 0x0)
         {
@@ -686,6 +703,7 @@ namespace dmGameSystem
         create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
+        create_params.m_PoseCallback = CompSpineModelPoseCallback;
         create_params.m_EventCallback = CompSpineModelEventCallback;
         create_params.m_EventCBUserData = component;
 

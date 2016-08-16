@@ -185,7 +185,7 @@ private:
         bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
         bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
         bone0.m_InheritScale = false;
-        bone0.m_Length       = 1.0f;
+        bone0.m_Length       = 0.0f;
 
         // Bone 1
         dmRigDDF::Bone& bone1 = m_Skeleton->m_Bones.m_Data[1];

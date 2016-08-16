@@ -61,6 +61,12 @@ namespace dmRig
 
     struct RigPlayer
     {
+        RigPlayer() : m_Animation(0x0),
+                      m_AnimationId(0x0),
+                      m_Cursor(0.0f),
+                      m_Playback(dmGameObject::PLAYBACK_ONCE_FORWARD),
+                      m_Playing(0x0),
+                      m_Backwards(0x0) {};
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
         dmhash_t                      m_AnimationId;
@@ -161,6 +167,7 @@ namespace dmRig
     };
 
     typedef void (*RigEventCallback)(void*, const RigEventData&);
+    typedef void (*RigPoseCallback)(void*);
 
     struct RigInstance
     {
@@ -171,6 +178,8 @@ namespace dmRig
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
+        RigPoseCallback               m_PoseCallback;
+        void*                         m_PoseCBUserData;
         /// Event handling
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData;
@@ -193,6 +202,8 @@ namespace dmRig
         uint8_t                       m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
         uint8_t                       m_Blending : 1;
+        uint8_t                       m_Enabled : 1;
+        uint8_t                       m_DoRender : 1;
     };
 
     struct InstanceCreateParams
@@ -208,7 +219,8 @@ namespace dmRig
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
-
+        RigPoseCallback               m_PoseCallback;
+        void*                         m_PoseCBUserData;
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData;
     };
@@ -252,7 +264,7 @@ namespace dmRig
     CreateResult NewContext(const NewContextParams& params);
     CreateResult DeleteContext(HRigContext context);
     UpdateResult Update(HRigContext context, float dt);
-    UpdateResult PostUpdate(HRigContext context);
+    // UpdateResult PostUpdate(HRigContext context);
 
     CreateResult InstanceCreate(const InstanceCreateParams& params);
     CreateResult InstanceDestroy(const InstanceDestroyParams& params);
@@ -268,6 +280,9 @@ namespace dmRig
     PlayResult SetCursor(HRigInstance instance, float cursor, bool normalized);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
     IKUpdate SetIKTarget(const RigIKTargetParams& params);
+    void SetEnabled(HRigInstance instance, bool enabled);
+    bool GetEnabled(HRigInstance instance);
+    bool IsValid(HRigInstance instance);
 
 }
 

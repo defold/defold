@@ -1020,8 +1020,6 @@ bail:
                         }
                     }
 
-                    dmRig::Update(engine->m_RigContext, dt);
-
                     dmSound::Update();
 
                     dmHID::KeyboardPacket keybdata;
@@ -1052,11 +1050,14 @@ bail:
                         dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
                     }
 
+
                     dmGameObject::UpdateContext update_context;
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
-                    dmRig::PostUpdate(engine->m_RigContext);
+                    dmRig::Update(engine->m_RigContext, dt);
+
+                    // dmRig::PostUpdate(engine->m_RigContext);
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);

@@ -410,20 +410,35 @@ TEST_F(RigInstanceTest, SetIKTarget)
     ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
     ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
 
-    tmp_val.setX(4.0f);
-    tmp_val.setY(0.0f);
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
+    ASSERT_VEC3(Vector3(-1.0f, 1.0f, 0.0f), pose[3].GetTranslation());
+    ASSERT_VEC3(Vector3(-2.0f, 1.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+
+    tmp_val.setX(100.0f);
+    tmp_val.setY(1.0f);
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    Quat q = Quat::rotationZ(-(float)M_PI / 2.0f);
-    Quat p3 = pose[3].GetRotation();
     // printf("rotZ90: %f, %f, %f, %f\n", q.getX(), q.getY(), q.getZ(), q.getW());
     // printf("pose3: %f, %f, %f, %f\n", p3.getX(), p3.getY(), p3.getZ(), p3.getW());
-    // ASSERT_VEC4(q, p3);
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[2].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI / 2.0f), pose[3].GetRotation());
     ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+
+    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
+    ASSERT_VEC3(Vector3(-1.0f, 1.0f, 0.0f), pose[3].GetTranslation());
+    ASSERT_VEC3(Vector3(-1.0f, 2.0f, 0.0f), pose[4].GetTranslation());
 }
 
 #undef ASSERT_VEC3

@@ -117,6 +117,7 @@ namespace dmRig
 
     static void UpdateMeshProperties(HRigInstance instance)
     {
+        instance->m_DoRender = 0;
         if (instance->m_MeshEntry != 0x0) {
             uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
             instance->m_MeshProperties.SetSize(mesh_count);
@@ -131,7 +132,7 @@ namespace dmRig
                 properties->m_Order = mesh->m_DrawOrder;
                 properties->m_Visible = mesh->m_Visible;
             }
-            // instance->m_DoRender = 1;
+            instance->m_DoRender = 1;
         } else {
             instance->m_MeshProperties.SetSize(0);
         }
@@ -517,7 +518,7 @@ namespace dmRig
         {
             RigInstance* instance = instances[i];
             // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
-            if (instance->m_Pose.Empty())
+            if (instance->m_Pose.Empty() || !instance->m_Enabled)
                 continue;
 
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
@@ -648,22 +649,7 @@ namespace dmRig
         }
     }
 
-    UpdateResult Update(HRigContext context, float dt)
-    {
-        dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
-        const uint32_t count = instances.Size();
-
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            UpdateMeshProperties(instances[i]);
-        }
-
-        Animate(context, dt);
-
-        return dmRig::UPDATE_RESULT_OK;
-    }
-
-    UpdateResult PostUpdate(HRigContext context)
+    static UpdateResult PostUpdate(HRigContext context)
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t count = instances.Size();
@@ -674,6 +660,10 @@ namespace dmRig
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
             if (pose.Empty())
                 continue;
+
+            if (instance->m_PoseCallback) {
+                instance->m_PoseCallback(instance->m_EventCBUserData);
+            }
 
             for (uint32_t bi = 0; bi < pose.Size(); ++bi)
             {
@@ -697,6 +687,24 @@ namespace dmRig
 
         return dmRig::UPDATE_RESULT_OK;
     }
+
+    UpdateResult Update(HRigContext context, float dt)
+    {
+        dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
+        const uint32_t count = instances.Size();
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            UpdateMeshProperties(instances[i]);
+        }
+
+        Animate(context, dt);
+
+        return PostUpdate(context);
+
+        // return dmRig::UPDATE_RESULT_OK;
+    }
+
 
     static void AllocateMeshProperties(const dmRig::MeshSet* mesh_set, dmArray<MeshProperties>& mesh_properties) {
         uint32_t max_mesh_count = 0;
@@ -835,7 +843,7 @@ namespace dmRig
 
     uint32_t GetVertexCount(HRigInstance instance)
     {
-        if (instance->m_MeshEntry == 0x0) {
+        if (!instance->m_MeshEntry || !instance->m_DoRender) {
             return 0;
         }
 
@@ -858,7 +866,7 @@ namespace dmRig
         const Matrix4& model_matrix = params.m_ModelMatrix;
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        if (!instance->m_MeshEntry) {
+        if (!instance->m_MeshEntry || !instance->m_DoRender) {
             return write_ptr;
         }
         uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
@@ -930,6 +938,21 @@ namespace dmRig
         return ik_index;
     }
 
+    void SetEnabled(HRigInstance instance, bool enabled)
+    {
+        instance->m_Enabled = enabled;
+    }
+
+    bool GetEnabled(HRigInstance instance)
+    {
+        return instance->m_Enabled;
+    }
+
+    bool IsValid(HRigInstance instance)
+    {
+        return (instance->m_MeshEntry != 0x0);
+    }
+
     IKUpdate SetIKTarget(const RigIKTargetParams& params)
     {
         uint32_t ik_index = FindIKIndex(params.m_RigInstance, params.m_ConstraintId);
@@ -976,6 +999,7 @@ namespace dmRig
         context->m_Instances.Set(index, instance);
         instance->m_Skin = dmHashString64(params.m_SkinId);
 
+        instance->m_PoseCallback = params.m_PoseCallback;
         instance->m_EventCallback = params.m_EventCallback;
         instance->m_EventCBUserData = params.m_EventCBUserData;
 
@@ -983,6 +1007,7 @@ namespace dmRig
         instance->m_Skeleton = params.m_Skeleton;
         instance->m_MeshSet = params.m_MeshSet;
         instance->m_AnimationSet = params.m_AnimationSet;
+        instance->m_Enabled = 1;
 
         AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
         instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_Skin);
@@ -993,14 +1018,12 @@ namespace dmRig
             return result;
         }
 
+
         dmhash_t default_animation_id = dmHashString64(params.m_DefaultAnimation);
         if (default_animation_id != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            PlayResult r = PlayAnimation(instance, default_animation_id, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
-            if (r == PLAY_RESULT_ANIM_NOT_FOUND) {
-                dmLogError("Could not find (and play) default rig animation: %s", params.m_DefaultAnimation);
-            }
+            (void)PlayAnimation(instance, default_animation_id, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
         }
 
         return dmRig::CREATE_RESULT_OK;
