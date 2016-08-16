@@ -99,7 +99,7 @@
         (left! source-viewer)
         (left! source-viewer)
         (is (= 0 (caret source-viewer))))
-      (testing "with chunk of selected text, right takes cursor to end of chunk"
+      (testing "with chunk of selected text, and the cursor at the start, right takes cursor to end of chunk"
         (caret! source-viewer 0 false)
         (text-selection! source-viewer 0 5)
         (is (= 0 (caret source-viewer)))
@@ -107,11 +107,27 @@
         (right! source-viewer)
         (is (= "" (text-selection source-viewer)))
         (is (= 5 (caret source-viewer))))
-      (testing "with chunk of selected text, left takes cursor to beginning of chunk"
+      (testing "with chunk of selected text, and the cursor at the end, right takes cursor one forward"
+        (caret! source-viewer 4 false)
+        (text-selection! source-viewer 0 4)
+        (is (= 4 (caret source-viewer)))
+        (is (= "hell" (text-selection source-viewer)))
+        (right! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 5 (caret source-viewer))))
+      (testing "with chunk of selected text, and the cursor at the end, left takes cursor to beginning of chunk"
         (caret! source-viewer 5 false)
         (text-selection! source-viewer 0 5)
         (is (= 5 (caret source-viewer)))
         (is (= "hello" (text-selection source-viewer)))
+        (left! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 0 (caret source-viewer))))
+      (testing "with chunk of selected text, and the cursor at the start, left takes cursor one step back"
+        (caret! source-viewer 1 false)
+        (text-selection! source-viewer 1 4)
+        (is (= 1 (caret source-viewer)))
+        (is (= "ello" (text-selection source-viewer)))
         (left! source-viewer)
         (is (= "" (text-selection source-viewer)))
         (is (= 0 (caret source-viewer)))))))

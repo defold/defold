@@ -324,11 +324,16 @@
           (replace-text-selection selection clipboard-text)
           (replace-text-and-caret selection caret 0 clipboard-text (+ caret (count clipboard-text))))))))
 
+(defn- caret-at-left-of-selection? [source-viewer]
+  (= (caret source-viewer)
+     (selection-offset source-viewer)))
+
 (defn right [selection]
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
-        next-pos (if (pos? (count selected-text))
+        next-pos (if (and (pos? (count selected-text))
+                          (caret-at-left-of-selection? selection))
                    (adjust-bounds doc (+ c (count selected-text)))
                    (adjust-bounds doc (inc c)))]
     (clear-snippet-tab-triggers! selection)
@@ -348,7 +353,8 @@
   (let [c (caret selection)
         doc (text selection)
         selected-text (text-selection selection)
-        next-pos (if (pos? (count selected-text))
+        next-pos (if (and (pos? (count selected-text))
+                      (not (caret-at-left-of-selection? selection)))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
     (clear-snippet-tab-triggers! selection)
