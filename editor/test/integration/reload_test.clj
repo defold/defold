@@ -17,7 +17,7 @@
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.spine.proto Spine$SpineScene]
+           [com.dynamo.rig.proto Rig$RigScene]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
            [editor.types Region]

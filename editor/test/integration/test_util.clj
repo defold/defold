@@ -20,6 +20,7 @@
             [editor.workspace :as workspace]
             [editor.gl.shader :as shader]
             [editor.tile-source :as tile-source]
+            [editor.rig :as rig]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.particlefx :as particlefx]
@@ -59,6 +60,7 @@
         (atlas/register-resource-types workspace)
         (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
+        (rig/register-resource-types workspace)
         (switcher/register-resource-types workspace)
         (sprite/register-resource-types workspace)
         (script/register-resource-types workspace)

@@ -26,6 +26,7 @@
             [editor.platformer :as platformer]
             [editor.prefs :as prefs]
             [editor.protobuf-types :as protobuf-types]
+            [editor.rig :as rig]
             [editor.script :as script]
             [editor.switcher :as switcher]
             [editor.sprite :as sprite]
@@ -95,6 +96,7 @@
       (atlas/register-resource-types workspace)
       (platformer/register-resource-types workspace)
       (protobuf-types/register-resource-types workspace)
+      (rig/register-resource-types workspace)
       (script/register-resource-types workspace)
       (switcher/register-resource-types workspace)
       (sprite/register-resource-types workspace)
