@@ -262,7 +262,7 @@ namespace dmRig
     };
 
     CreateResult NewContext(const NewContextParams& params);
-    CreateResult DeleteContext(HRigContext context);
+    void DeleteContext(HRigContext context);
     UpdateResult Update(HRigContext context, float dt);
 
     CreateResult InstanceCreate(const InstanceCreateParams& params);

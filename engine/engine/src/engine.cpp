@@ -150,6 +150,7 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_RigContext(0x0)
     , m_SharedScriptContext(0x0)
     , m_GOScriptContext(0x0)
     , m_RenderScriptContext(0x0)
@@ -162,7 +163,6 @@ namespace dmEngine
     , m_GameInputBinding(0x0)
     , m_DisplayProfiles(0x0)
     , m_TrackingContext(0x0)
-    , m_RigContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     , m_WasIconified(true)
@@ -226,11 +226,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRig::CreateResult rr = dmRig::DeleteContext(engine->m_RigContext);
-        if (rr != dmRig::CREATE_RESULT_OK)
-        {
-            dmLogError("Error while deleting rig context: %d", rr);
-        }
+        dmRig::DeleteContext(engine->m_RigContext);
 
         dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 

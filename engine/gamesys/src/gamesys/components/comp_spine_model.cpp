@@ -72,7 +72,6 @@ namespace dmGameSystem
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
-        // world->m_ScratchInstances.SetCapacity(0);
 
         dmResource::UnregisterResourceReloadedCallback(((SpineModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
 
@@ -483,16 +482,6 @@ namespace dmGameSystem
                 }
             }
 
-            // // Include instance transform in the GO instance reflecting the root bone
-            // dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component.m_RigInstance);
-            // if (!pose.Empty()) {
-            //     dmTransform::Transform root_t = pose[0];
-            //     // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
-            //     dmGameObject::HInstance first_bone_go = component.m_NodeInstances[0];
-            //     dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
-            //     // pose[0] = root_t;
-            // }
-
             component.m_DoRender = 1;
         }
 
@@ -632,7 +621,7 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 0;
-            dmRig::SetEnabled(component->m_RigInstance, 0);
+            dmRig::SetEnabled(component->m_RigInstance, false);
         }
         else if (params.m_Message->m_Descriptor != 0x0)
         {
@@ -783,7 +772,7 @@ namespace dmGameSystem
         }
     }
 
-    static Vector3 CompSpineIKTargetInstanceCallback(void* user_data1, void* user_data2)
+    static Vector3 UpdateIKInstanceCallback(void* user_data1, void* user_data2)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data1;
         dmhash_t target_instance_id = *(dmhash_t*)user_data2;
@@ -798,7 +787,7 @@ namespace dmGameSystem
         return (Vector3)dmGameObject::GetWorldPosition(target_instance);
     }
 
-    static Vector3 CompSpineIKTargetPositionCallback(void* user_data1, void* user_data2)
+    static Vector3 UpdateIKPositionCallback(void* user_data1, void* user_data2)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data1;
         Point3 position = *(Point3*)user_data2;
@@ -831,7 +820,7 @@ namespace dmGameSystem
         params.m_RigInstance = component->m_RigInstance;
         params.m_ConstraintId = constraint_id;
         params.m_Mix = mix;
-        params.m_Callback = CompSpineIKTargetInstanceCallback;
+        params.m_Callback = UpdateIKInstanceCallback;
         params.m_UserData1 = (void*)component;
         params.m_UserData2 = (void*)&component->m_IKTargets[ik_index];
 
@@ -848,7 +837,7 @@ namespace dmGameSystem
         params.m_RigInstance = component->m_RigInstance;
         params.m_ConstraintId = constraint_id;
         params.m_Mix = mix;
-        params.m_Callback = CompSpineIKTargetPositionCallback;
+        params.m_Callback = UpdateIKPositionCallback;
         params.m_UserData1 = (void*)component;
         params.m_UserData2 = (void*)&component->m_IKTargetPositions[ik_index];
 

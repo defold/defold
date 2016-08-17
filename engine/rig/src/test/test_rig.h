@@ -21,9 +21,7 @@ protected:
     }
 
     virtual void TearDown() {
-        if (dmRig::CREATE_RESULT_OK != dmRig::DeleteContext(m_Context)) {
-            dmLogError("Could not delete rig context!");
-        }
+        dmRig::DeleteContext(m_Context);
     }
 };
 

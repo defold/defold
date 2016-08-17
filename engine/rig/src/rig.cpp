@@ -25,12 +25,11 @@ namespace dmRig
         return dmRig::CREATE_RESULT_OK;
     }
 
-    CreateResult DeleteContext(HRigContext context)
+    void DeleteContext(HRigContext context)
     {
         if (context) {
             delete context;
         }
-        return dmRig::CREATE_RESULT_OK;
     }
 
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)

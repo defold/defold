@@ -124,8 +124,8 @@ message MeshSet
 
 message RigScene
 {
-    optional string skeleton = 1;
-    optional string animation_set = 2;
-    required string mesh_set = 3;
+    optional string skeleton = 1 [(resource)=true];
+    optional string animation_set = 2 [(resource)=true];
+    required string mesh_set = 3 [(resource)=true];
     required string texture_set = 4 [(resource)=true];
 }

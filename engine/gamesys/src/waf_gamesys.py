@@ -187,7 +187,6 @@ def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
     msg.animation_set = msg.skeleton.replace('.animationset', '.animationsetc')
     msg.mesh_set = msg.skeleton.replace('.meshset', '.meshsetc')
-    # msg.texture_set = msg.skeleton.replace('.textureset', '.texturesetc')
     return msg
 
 def write_embedded(task):
@@ -465,19 +464,6 @@ def compile_spinescene(task):
 
         msg_out = rig.rig_ddf_pb2.RigScene()
 
-        # name = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
-        # name = os.path.splitext(task.inputs[0].abspath())[0]
-        # msg_out.skeleton = name + ".skeletonc"
-        # msg_out.animation_set = name + ".animationsetc"
-        # msg_out.mesh_set = name + ".meshsetc"
-        # print(task.outputs[1].srcpath())
-        # stderr_lock.acquire()
-        # print >>sys.stderr, 'can I use: %s' % (task.inputs[0].srcpath(task.env))
-        # print >>sys.stderr,
-        # stderr_lock.release()
-        # msg_out.skeleton = "/" + task.outputs[1].srcpath(task.env)
-        # msg_out.animation_set = "/" + task.outputs[2].srcpath(task.env)
-        # msg_out.mesh_set = "/" + task.outputs[3].srcpath(task.env)
         msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
         msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
         msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
