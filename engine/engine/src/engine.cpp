@@ -1057,8 +1057,6 @@ bail:
 
                     dmRig::Update(engine->m_RigContext, dt);
 
-                    // dmRig::PostUpdate(engine->m_RigContext);
-
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);

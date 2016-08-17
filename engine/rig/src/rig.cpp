@@ -661,14 +661,15 @@ namespace dmRig
             if (pose.Empty())
                 continue;
 
+            // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
                 instance->m_PoseCallback(instance->m_EventCBUserData);
             }
 
+            // Convert every transform into model space
             for (uint32_t bi = 0; bi < pose.Size(); ++bi)
             {
                 dmTransform::Transform& transform = pose[bi];
-                // Convert every transform into model space
                 if (bi > 0) {
                     const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
                     if (bone->m_InheritScale)
@@ -701,8 +702,6 @@ namespace dmRig
         Animate(context, dt);
 
         return PostUpdate(context);
-
-        // return dmRig::UPDATE_RESULT_OK;
     }
 
 

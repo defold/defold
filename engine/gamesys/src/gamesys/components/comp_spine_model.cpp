@@ -169,10 +169,7 @@ namespace dmGameSystem
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
         if (!pose.Empty()) {
-            // dmTransform::Transform root_t = pose[0];
-            // pose[0] = dmTransform::Mul(component.m_Transform, root_t);
             dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], pose.Begin(), pose.Size());
-            // pose[0] = root_t;
         }
     }
 

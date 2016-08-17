@@ -33,7 +33,6 @@ TEST_F(RigContextTest, InstanceCreation)
 TEST_F(RigContextTest, UpdateEmptyContext)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 }
 
 TEST_F(RigInstanceTest, PlayInvalidAnimation)
@@ -47,7 +46,6 @@ TEST_F(RigInstanceTest, PlayInvalidAnimation)
     ASSERT_EQ(empty_id, dmRig::GetAnimation(m_Instance));
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 }
 
 TEST_F(RigInstanceTest, PlayValidAnimation)
@@ -59,7 +57,6 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
     ASSERT_EQ(valid_anim_id, dmRig::GetAnimation(m_Instance));
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 }
 
 #define ASSERT_VEC3(exp, act)\
@@ -76,7 +73,6 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
 TEST_F(RigInstanceTest, PoseNoAnim)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
@@ -87,7 +83,6 @@ TEST_F(RigInstanceTest, PoseNoAnim)
     ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
@@ -98,7 +93,6 @@ TEST_F(RigInstanceTest, PoseNoAnim)
 TEST_F(RigInstanceTest, PoseAnim)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
@@ -110,7 +104,6 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 1
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -119,7 +112,6 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 2
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -129,7 +121,6 @@ TEST_F(RigInstanceTest, PoseAnim)
 
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 0 (looped)
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -141,7 +132,6 @@ TEST_F(RigInstanceTest, PoseAnim)
 TEST_F(RigInstanceTest, PoseAnimCancel)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
@@ -154,7 +144,6 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
 
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::CancelAnimation(m_Instance));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
 
     // sample 1
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -167,14 +156,12 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
 TEST_F(RigInstanceTest, GetVertexCount)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(3, dmRig::GetVertexCount(m_Instance));
 }
 
 TEST_F(RigInstanceTest, GenerateVertexData)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
@@ -191,7 +178,6 @@ TEST_F(RigInstanceTest, GenerateVertexData)
 
     // sample 1
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
@@ -199,7 +185,6 @@ TEST_F(RigInstanceTest, GenerateVertexData)
 
     // sample 2
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
@@ -211,7 +196,6 @@ TEST_F(RigInstanceTest, GenerateVertexData)
 TEST_F(RigInstanceTest, SetSkinInvalid)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
@@ -231,7 +215,6 @@ TEST_F(RigInstanceTest, SetSkinInvalid)
     ASSERT_EQ(dmHashString64("test"), dmRig::GetSkin(m_Instance));
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
     ASSERT_EQ(0, data[0].r);
     ASSERT_EQ(0, data[0].g);
@@ -245,7 +228,6 @@ TEST_F(RigInstanceTest, SetSkinInvalid)
 TEST_F(RigInstanceTest, SetSkinValid)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
@@ -265,7 +247,6 @@ TEST_F(RigInstanceTest, SetSkinValid)
     ASSERT_EQ(new_skin, dmRig::GetSkin(m_Instance));
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
     ASSERT_EQ(255, data[0].r);
     ASSERT_EQ(255, data[0].g);
@@ -281,14 +262,12 @@ TEST_F(RigInstanceTest, CursorNoAnim)
     // no anim
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
 
     // no anim + set cursor
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::SetCursor(m_Instance, 100.0f, false));
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
 
 }
@@ -296,30 +275,25 @@ TEST_F(RigInstanceTest, CursorNoAnim)
 TEST_F(RigInstanceTest, CursorGet)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(2.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 
     // "half a sample"
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 0.5f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(2.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 
     // animation restarted/looped
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 0.5f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 
@@ -328,13 +302,11 @@ TEST_F(RigInstanceTest, CursorGet)
 TEST_F(RigInstanceTest, CursorSet)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 
@@ -355,7 +327,6 @@ TEST_F(RigInstanceTest, CursorSet)
     ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_NEAR(2.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
 }
@@ -363,7 +334,6 @@ TEST_F(RigInstanceTest, CursorSet)
 TEST_F(RigInstanceTest, CursorSetOutside)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     ASSERT_NEAR(dmRig::PLAY_RESULT_OK, dmRig::SetCursor(m_Instance, 4.0f, false), RIG_EPSILON);
@@ -387,7 +357,6 @@ static Vector3 IKTargetPositionCallback(void* user_data, void*)
 TEST_F(RigInstanceTest, SetIKTarget)
 {
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_EQ(dmRig::PLAY_RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik_anim"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     Vector3 tmp_val = Vector3(0.0f, 100.0f, 0.0f);
@@ -404,41 +373,26 @@ TEST_F(RigInstanceTest, SetIKTarget)
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
-    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
-
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
     ASSERT_VEC3(Vector3(-1.0f, 1.0f, 0.0f), pose[3].GetTranslation());
     ASSERT_VEC3(Vector3(-2.0f, 1.0f, 0.0f), pose[4].GetTranslation());
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[4].GetRotation());
 
     tmp_val.setX(100.0f);
     tmp_val.setY(1.0f);
 
     ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
-    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    // printf("rotZ90: %f, %f, %f, %f\n", q.getX(), q.getY(), q.getZ(), q.getW());
-    // printf("pose3: %f, %f, %f, %f\n", p3.getX(), p3.getY(), p3.getZ(), p3.getW());
-    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[2].GetRotation());
-    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI / 2.0f), pose[3].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
-
-    ASSERT_EQ(dmRig::UPDATE_RESULT_OK, dmRig::PostUpdate(m_Context));
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
     ASSERT_VEC3(Vector3(-1.0f, 1.0f, 0.0f), pose[3].GetTranslation());
     ASSERT_VEC3(Vector3(-1.0f, 2.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
 }
 
 #undef ASSERT_VEC3
