@@ -745,6 +745,16 @@ public class RigScene {
         }
     }
 
+    private static long getIteratorSize(Iterator<?> iterator) {
+        long size = 0;
+        while (iterator.hasNext()) {
+            size += 1;
+            iterator.next();
+        }
+
+        return size;
+    }
+
     public static RigScene loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
         RigScene scene = new RigScene();
         ObjectMapper m = new ObjectMapper();
@@ -797,6 +807,10 @@ public class RigScene {
             if (!node.has("skins")) {
                 return scene;
             }
+
+            JsonNode skeleton = node.get("skeleton");
+            String spineVersion = (skeleton != null) ? JsonUtil.get(skeleton, "spine", (String) null) : null;
+
             Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
             while (skinIt.hasNext()) {
                 Map.Entry<String, JsonNode> entry = skinIt.next();
@@ -828,14 +842,37 @@ public class RigScene {
                         mesh.path = path;
                         mesh.slot = slot;
                         mesh.visible = attName.equals(slot.attachment);
-                        if (type.equals("region")) {
-                            scene.loadRegion(attNode, mesh, bone);
-                        } else if (type.equals("mesh")) {
-                            scene.loadMesh(attNode, mesh, bone, false);
-                        } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
-                            scene.loadMesh(attNode, mesh, bone, true);
+
+                        if ((spineVersion != null) && (spineVersion.compareTo("3.4.02") >= 0)) {
+                            // spineVersion >= 3.4.02
+                            if (type.equals("region")) {
+                                scene.loadRegion(attNode, mesh, bone);
+                            } else if (type.equals("mesh")) {
+                                // For each vertex either an x,y pair or, for a weighted mesh, first
+                                // the number of bones which influence the vertex, then for that
+                                // many bones: bone index, bind position X, bind position Y, weight.
+                                // A mesh is weighted if the number of vertices > number of UVs.
+                                // http://esotericsoftware.com/spine-json-format
+                                long verticesSize = getIteratorSize(attNode.get("vertices").getElements());
+                                long uvSize = getIteratorSize(attNode.get("uvs").getElements());
+                                if (verticesSize > uvSize) {
+                                    scene.loadMesh(attNode, mesh, bone, true);
+                                } else {
+                                    scene.loadMesh(attNode, mesh, bone, false);
+                                }
+                            } else {
+                                mesh = null;
+                            }
                         } else {
-                            mesh = null;
+                            if (type.equals("region")) {
+                                scene.loadRegion(attNode, mesh, bone);
+                            } else if (type.equals("mesh")) {
+                                scene.loadMesh(attNode, mesh, bone, false);
+                            } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
+                                scene.loadMesh(attNode, mesh, bone, true);
+                            } else {
+                                mesh = null;
+                            }
                         }
                         // Silently ignore unsupported types
                         if (mesh != null) {

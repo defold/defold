@@ -12,6 +12,7 @@
             [editor.collision-object :as collision-object]
             [editor.scene :as scene]
             [editor.form-view :as form-view]
+            [editor.factory :as factory]
             [editor.collection :as colleciton]
             [editor.font :as font]
             [editor.game-object :as game-object]
@@ -89,6 +90,7 @@
       (collection/register-resource-types workspace)
       (collision-object/register-resource-types workspace)
       (font/register-resource-types workspace)
+      (factory/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-project/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
