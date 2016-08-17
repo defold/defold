@@ -34,7 +34,7 @@ main: |
 platforms:
   x86-osx:
     context:
-        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound2", "tremolo", "vpx"]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx"]
         libPaths: ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
 
     exeExt: ''
