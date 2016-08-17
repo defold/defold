@@ -20,7 +20,7 @@
 (def ^:const project-path "resources/build_project/SideScroller")
 
 (defn- with-http-server [f]
-  (let [server (http/start! (http/->server 0 {project/hot-reload-url-prefix (hotload/build-handler *project*)}))]
+  (let [server (http/start! (http/->server 0 {project/hot-reload-url-prefix (partial hotload/build-handler *project*)}))]
     (binding [*port* (.getPort (.getAddress server))]
       (f))
     (http/stop! server)))
@@ -60,10 +60,10 @@
         (assoc :status (:code res)))))
 
 (deftest build-endpoint-test
-  (let [res  (handler-get (hotload/build-handler *project*) "/main/main.collectionc")
+  (let [res  (handler-get (partial hotload/build-handler *project*) "/main/main.collectionc")
         data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
     (is (= 200 (:status res)))
     (is (= "parallax" (:name data)))
     (is (= 9 (count (:instances data)))))
 
-  (is (= 404 (:status (handler-get (hotload/build-handler *project*) "foobar")))))
+  (is (= 404 (:status (handler-get (partial hotload/build-handler *project*) "foobar")))))

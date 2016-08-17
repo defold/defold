@@ -121,16 +121,16 @@
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
-                                               []))))
+                                               [])))
+  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
+                                                  (merge-with into _declared-properties source-properties))))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
 
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 save-data]
-                                              (gen-embed-ddf id position rotation-q4 save-data)))
-  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (merge-with into _declared-properties source-properties))))
+                                              (gen-embed-ddf id position rotation-q4 save-data))))
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -147,7 +147,7 @@
                                                     ddf-properties))}))
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id :basis basis)]
+                     (if-let [old-source (g/node-value self :source-id {:basis basis})]
                        (g/delete-node old-source)
                        [])
                      (let [new-resource (:resource new-value)
@@ -199,10 +199,7 @@
   (output node-outline-label g/Str :cached (g/fnk [id source-resource]
                                                   (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 source-resource ddf-properties ddf-property-decls]
-                                              (gen-ref-ddf id position rotation-q4 source-resource ddf-properties ddf-property-decls)))
-  ;; TODO - cache it, not possible now because of dynamic prop invalidation bug
-  (output _properties g/Properties #_:cached (g/fnk [_declared-properties source-properties]
-                                                    (merge-with into _declared-properties source-properties))))
+                                              (gen-ref-ddf id position rotation-q4 source-resource ddf-properties ddf-property-decls))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf

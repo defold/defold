@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import java.lang.*?>
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox prefHeight="50.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<VBox prefHeight="200.0" prefWidth="500.0" spacing="12.0" styleClass="alert-dialog" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
-     <Label id="message" text="Message"/>
-	   <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
+      <TextArea id="message" editable="false" text="Message&#10;Message&#10;Message" wrapText="true" VBox.vgrow="ALWAYS" />
+	   <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" AnchorPane.bottomAnchor="0.0" AnchorPane.rightAnchor="0.0" />
    </children>
    <padding>
      <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />

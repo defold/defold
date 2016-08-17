@@ -82,7 +82,7 @@
                                   (let [selection-set (set selection)
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
                                     (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
-        selection (or (not-empty (sel-filter-fn (map :node-id selection))) (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
+        selection (or (not-empty (sel-filter-fn selection)) (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
     (select-fn selection op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})

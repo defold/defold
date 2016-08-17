@@ -4,7 +4,6 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [plumbing.fnk.pfnk :as pf]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]))
 
@@ -102,7 +101,9 @@
 
 (defn stackify [x]
   (if (coll? x)
-    (vec x)
+    (if (vector? x)
+      x
+      (vec x))
     [x]))
 
 (defn project
@@ -117,16 +118,6 @@
   (fn [& args]
     (when (apply f args)
       (apply g args))))
-
-(defn fnk-schema
-  [f]
-  (when f
-    (pf/input-schema f)))
-
-(defn fnk-arguments
-  [f]
-  (when f
-    (key-set (dissoc (fnk-schema f) s/Keyword))))
 
 (defn var?! [v] (when (var? v) v))
 
@@ -149,10 +140,12 @@
   (assert (required-kind-pred form)
           (str place " " label " requires a " required-kind-label " not '" form "' of type " (type form))))
 
+(defn fnk-arguments [f] (set (:arguments (meta f))))
+
 (defn pfnk?
-  "True if the function has a schema. (I.e., it is a valid production function"
+  "True if the function a valid production function"
   [f]
-  (and (fn? f) (contains? (meta f) :schema)))
+  (and (fn? f) (contains? (meta f) :arguments)))
 
 (defn pfnksymbol? [x] (or (pfnk? x) (and (symbol? x) (pfnk? (vgr x)))))
 (defn pfnkvar?    [x] (or (pfnk? x) (and (var? x) (fn? (var-get-recursive x)))))

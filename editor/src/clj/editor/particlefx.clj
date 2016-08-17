@@ -145,18 +145,10 @@
       (conj! vb (into v color)))
     (persistent! vb)))
 
-(defn- scale-factor [camera viewport]
-  (let [inv-view (doto (Matrix4d. (camera/camera-view-matrix camera)) (.invert))
-        x-axis   (Vector4d.)
-        _        (.getColumn inv-view 0 x-axis)
-        cp1      (camera/camera-project camera viewport (Point3d.))
-        cp2      (camera/camera-project camera viewport (Point3d. (.x x-axis) (.y x-axis) (.z x-axis)))]
-    (/ 1.0 (Math/abs (- (.x cp1) (.x cp2))))))
-
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
-        scale-f (scale-factor camera viewport)]
+        scale-f (camera/scale-factor camera viewport)]
     (doseq [renderable renderables
             :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
@@ -166,7 +158,7 @@
             color (-> (if (:selected renderable) selected-color color)
                     (conj 1))
             vs (geom/transf-p world-transform (concat
-                                                (geom/scale [scale-f scale-f 1] vs-screen)
+                                                (geom/scale scale-f vs-screen)
                                                 vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
         (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
@@ -411,14 +403,18 @@
                             (map first)
                             (mapv (fn [kw] (let [v (get-in properties [kw :value])]
                                             {:key kw
-                                             :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))
+                                             :points (->> (props/curve-vals v)
+                                                       (sort-by first)
+                                                       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))
                                              :spread (:spread v)}))))]
              [:particle-properties (->> (protobuf/enum-values Particle$ParticleKey)
                                      butlast
                                      (map first)
                                      (mapv (fn [kw] (let [v (get-in properties [kw :value])]
                                                      {:key kw
-                                                      :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals v))}))))]]))))
+                                                      :points (->> (props/curve-vals v)
+                                                                (sort-by first)
+                                                                (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))}))))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat

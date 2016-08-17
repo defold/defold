@@ -1,8 +1,13 @@
 package com.dynamo.upnp;
 
+
 import java.io.IOException;
 
 public interface ISSDP {
+
+    public void enableLogTracing(boolean logTracing);
+
+    public boolean setup() throws IOException;
 
     public boolean update(boolean search) throws IOException;
 
@@ -12,6 +17,7 @@ public interface ISSDP {
 
     public void clearDiscovered();
 
-    DeviceInfo[] getDevices();
+    public DeviceInfo[] getDevices();
 
+    public boolean isConnected();
 }
