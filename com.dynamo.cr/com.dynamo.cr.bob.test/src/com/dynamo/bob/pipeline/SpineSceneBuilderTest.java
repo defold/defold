@@ -156,10 +156,13 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         src.append(" atlas: \"/skeleton_atlas.atlas\"");
         List<Message> outputs = build("/test.spinescene", src.toString());
         Rig.RigScene scene = (Rig.RigScene)outputs.get(0);
+        Rig.Skeleton skeleton = (Rig.Skeleton)outputs.get(1);
+        Rig.MeshSet meshset = (Rig.MeshSet)outputs.get(2);
+        Rig.AnimationSet animationset = (Rig.AnimationSet)outputs.get(3);
 
-//        assertSkeleton(scene.getSkeleton());
-  //      assertMeshSet(scene.getMeshSet());
-    //    assertAnimSet(scene.getAnimationSet());
-  //      assertIK(scene.getSkeleton());
+        assertSkeleton(skeleton);
+        assertMeshSet(meshset);
+        assertAnimSet(animationset);
+        assertIK(skeleton);
     }
 }

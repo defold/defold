@@ -130,7 +130,7 @@ void GamesysTest<T>::SetUp()
     dmRig::NewContextParams rig_params;
     rig_params.m_Context = &m_RigContext;
     rig_params.m_MaxRigInstanceCount = 2;
-    assert(dmRig::CREATE_RESULT_OK == dmRig::NewContext(rig_params));
+    assert(dmRig::RESULT_OK == dmRig::NewContext(rig_params));
 
     m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(m_HidContext);

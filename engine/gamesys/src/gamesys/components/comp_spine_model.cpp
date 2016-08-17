@@ -295,8 +295,8 @@ namespace dmGameSystem
         create_params.m_SkinId           = component->m_Resource->m_Model->m_Skin;
         create_params.m_DefaultAnimation = component->m_Resource->m_Model->m_DefaultAnimation;
 
-        dmRig::CreateResult res = dmRig::InstanceCreate(create_params);
-        if (res != dmRig::CREATE_RESULT_OK) {
+        dmRig::Result res = dmRig::InstanceCreate(create_params);
+        if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by spine model: %d.", res);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
@@ -628,7 +628,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::PLAY_RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -701,8 +701,8 @@ namespace dmGameSystem
         create_params.m_SkinId           = component->m_Resource->m_Model->m_Skin;
         create_params.m_DefaultAnimation = component->m_Resource->m_Model->m_DefaultAnimation;
 
-        dmRig::CreateResult res = dmRig::InstanceCreate(create_params);
-        if (res != dmRig::CREATE_RESULT_OK) {
+        dmRig::Result res = dmRig::InstanceCreate(create_params);
+        if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by spine model: %d.", res);
             return false;
         }
@@ -748,8 +748,8 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
 
-            dmRig::UpdateResult res = dmRig::SetSkin(component->m_RigInstance, params.m_Value.m_Hash);
-            if (res == dmRig::UPDATE_RESULT_FAILED)
+            dmRig::Result res = dmRig::SetSkin(component->m_RigInstance, params.m_Value.m_Hash);
+            if (res == dmRig::RESULT_FAILED)
             {
                 dmLogError("Could not find skin '%s' on the spine model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
@@ -824,7 +824,7 @@ namespace dmGameSystem
         params.m_UserData1 = (void*)component;
         params.m_UserData2 = (void*)&component->m_IKTargets[ik_index];
 
-        return dmRig::SetIKTarget(params) == dmRig::IKUPDATE_RESULT_OK;
+        return dmRig::SetIKTarget(params) == dmRig::RESULT_OK;
     }
 
     bool CompSpineSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position)
@@ -841,7 +841,7 @@ namespace dmGameSystem
         params.m_UserData1 = (void*)component;
         params.m_UserData2 = (void*)&component->m_IKTargetPositions[ik_index];
 
-        return dmRig::SetIKTarget(params) == dmRig::IKUPDATE_RESULT_OK;
+        return dmRig::SetIKTarget(params) == dmRig::RESULT_OK;
     }
 
 }

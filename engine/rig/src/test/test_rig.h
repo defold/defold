@@ -15,7 +15,7 @@ protected:
         dmRig::NewContextParams params = {0};
         params.m_Context = &m_Context;
         params.m_MaxRigInstanceCount = 2;
-        if (dmRig::CREATE_RESULT_OK != dmRig::NewContext(params)) {
+        if (dmRig::RESULT_OK != dmRig::NewContext(params)) {
             dmLogError("Could not create rig context!");
         }
     }
@@ -387,7 +387,7 @@ protected:
         create_params.m_SkinId           = (const char*)"test";
         create_params.m_DefaultAnimation = (const char*)"";
 
-        if (dmRig::CREATE_RESULT_OK != dmRig::InstanceCreate(create_params)) {
+        if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params)) {
             dmLogError("Could not create rig instance!");
         }
     }
@@ -396,7 +396,7 @@ protected:
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = m_Context;
         destroy_params.m_Instance = m_Instance;
-        if (dmRig::CREATE_RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
+        if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
             dmLogError("Could not delete rig instance!");
         }
 

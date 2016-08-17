@@ -26,31 +26,13 @@ namespace dmRig
     typedef struct RigContext*  HRigContext;
     typedef struct RigInstance* HRigInstance;
 
-    enum CreateResult
+    enum Result
     {
-        CREATE_RESULT_OK    = 0,
-        CREATE_RESULT_ERROR = 1
-    };
-
-    enum UpdateResult
-    {
-        UPDATE_RESULT_OK     = 0,
-        UPDATE_RESULT_FAILED = 1,
-        UPDATE_RESULT_ERROR  = 2
-    };
-
-    enum PlayResult
-    {
-        PLAY_RESULT_OK             = 0,
-        PLAY_RESULT_ANIM_NOT_FOUND = 1,
-        PLAY_RESULT_UNKNOWN_ERROR  = 2
-    };
-
-    enum IKUpdate
-    {
-        IKUPDATE_RESULT_OK        = 0,
-        IKUPDATE_RESULT_NOT_FOUND = 1,
-        IKUPDATE_RESULT_ERROR     = 2
+        RESULT_OK             = 0,
+        RESULT_ERROR          = 1,
+        RESULT_FAILED         = 2,
+        RESULT_ANIM_NOT_FOUND = 3,
+        RESULT_NOT_FOUND      = 4
     };
 
     enum RigMeshType
@@ -258,27 +240,27 @@ namespace dmRig
     {
         Matrix4 m_ModelMatrix;
         void**  m_VertexData;
-        int     m_VertexStride;
+        int32_t m_VertexStride;
     };
 
-    CreateResult NewContext(const NewContextParams& params);
+    Result NewContext(const NewContextParams& params);
     void DeleteContext(HRigContext context);
-    UpdateResult Update(HRigContext context, float dt);
+    Result Update(HRigContext context, float dt);
 
-    CreateResult InstanceCreate(const InstanceCreateParams& params);
-    CreateResult InstanceDestroy(const InstanceDestroyParams& params);
+    Result InstanceCreate(const InstanceCreateParams& params);
+    Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    PlayResult PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration);
-    PlayResult CancelAnimation(HRigInstance instance);
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration);
+    Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);
     RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params);
-    UpdateResult SetSkin(HRigInstance instance, dmhash_t skin);
+    Result SetSkin(HRigInstance instance, dmhash_t skin);
     dmhash_t GetSkin(HRigInstance instance);
     float GetCursor(HRigInstance instance, bool normalized);
-    PlayResult SetCursor(HRigInstance instance, float cursor, bool normalized);
+    Result SetCursor(HRigInstance instance, float cursor, bool normalized);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
-    IKUpdate SetIKTarget(const RigIKTargetParams& params);
+    Result SetIKTarget(const RigIKTargetParams& params);
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);

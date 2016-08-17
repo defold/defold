@@ -12,17 +12,17 @@ namespace dmRig
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* MAX_RIG_INSTANCE_COUNT_KEY = "rig.max_instance_count";
 
-    CreateResult NewContext(const NewContextParams& params)
+    Result NewContext(const NewContextParams& params)
     {
         *params.m_Context = new RigContext();
         RigContext* context = *params.m_Context;
         if (!context) {
-            return dmRig::CREATE_RESULT_ERROR;
+            return dmRig::RESULT_ERROR;
         }
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
 
-        return dmRig::CREATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
     void DeleteContext(HRigContext context)
@@ -62,12 +62,12 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    PlayResult PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
         {
-            return PLAY_RESULT_ANIM_NOT_FOUND;
+            return dmRig::RESULT_ANIM_NOT_FOUND;
         }
 
         if (blend_duration > 0.0f)
@@ -92,15 +92,15 @@ namespace dmRig
         else
             player->m_Backwards = 0;
 
-        return PLAY_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
-    PlayResult CancelAnimation(HRigInstance instance)
+    Result CancelAnimation(HRigInstance instance)
     {
         RigPlayer* player = GetPlayer(instance);
         player->m_Playing = 0;
 
-        return PLAY_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
     dmhash_t GetAnimation(HRigInstance instance)
@@ -137,7 +137,7 @@ namespace dmRig
         }
     }
 
-    UpdateResult SetSkin(HRigInstance instance, dmhash_t skin)
+    Result SetSkin(HRigInstance instance, dmhash_t skin)
     {
         const dmRigDDF::MeshEntry* mesh_entry = 0x0;
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
@@ -151,14 +151,14 @@ namespace dmRig
         }
         if (mesh_entry == 0x0)
         {
-            return dmRig::UPDATE_RESULT_FAILED;
+            return dmRig::RESULT_FAILED;
         }
         instance->m_MeshEntry = mesh_entry;
         instance->m_Skin = skin;
 
         UpdateMeshProperties(instance);
 
-        return dmRig::UPDATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
     static void UpdateBlend(RigInstance* instance, float dt)
@@ -648,7 +648,7 @@ namespace dmRig
         }
     }
 
-    static UpdateResult PostUpdate(HRigContext context)
+    static Result PostUpdate(HRigContext context)
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t count = instances.Size();
@@ -685,10 +685,10 @@ namespace dmRig
             }
         }
 
-        return dmRig::UPDATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
-    UpdateResult Update(HRigContext context, float dt)
+    Result Update(HRigContext context, float dt)
     {
         dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         const uint32_t count = instances.Size();
@@ -729,7 +729,7 @@ namespace dmRig
         return 0x0;
     }
 
-    static dmRig::CreateResult CreatePose(HRigContext context, HRigInstance instance)
+    static dmRig::Result CreatePose(HRigContext context, HRigInstance instance)
     {
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -747,7 +747,7 @@ namespace dmRig
         instance->m_IKAnimation.SetCapacity(skeleton->m_Iks.m_Count);
         instance->m_IKAnimation.SetSize(skeleton->m_Iks.m_Count);
 
-        return dmRig::CREATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance)
@@ -776,13 +776,13 @@ namespace dmRig
 
     }
 
-    PlayResult SetCursor(HRigInstance instance, float cursor, bool normalized)
+    Result SetCursor(HRigInstance instance, float cursor, bool normalized)
     {
         float t = cursor;
 
         RigPlayer* player = GetPlayer(instance);
         if (!player) {
-            return PLAY_RESULT_UNKNOWN_ERROR;
+            return dmRig::RESULT_FAILED;
         }
 
         float duration = GetCursorDuration(player, player->m_Animation);
@@ -797,7 +797,7 @@ namespace dmRig
 
         player->m_Cursor = t;
 
-        return PLAY_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
@@ -951,12 +951,12 @@ namespace dmRig
         return (instance->m_MeshEntry != 0x0);
     }
 
-    IKUpdate SetIKTarget(const RigIKTargetParams& params)
+    Result SetIKTarget(const RigIKTargetParams& params)
     {
         uint32_t ik_index = FindIKIndex(params.m_RigInstance, params.m_ConstraintId);
         if (ik_index == ~0u) {
             dmLogError("Could not find IK constraint (%llu)", params.m_ConstraintId);
-            return IKUPDATE_RESULT_NOT_FOUND;
+            return dmRig::RESULT_NOT_FOUND;
         }
         dmRig::IKTarget& ik_target = params.m_RigInstance->m_IKTargets[ik_index];
         ik_target.m_Mix = params.m_Mix;
@@ -964,7 +964,7 @@ namespace dmRig
         ik_target.m_UserData1 = params.m_UserData1;
         ik_target.m_UserData2 = params.m_UserData2;
 
-        return IKUPDATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
     static void DestroyInstance(HRigContext context, uint32_t index)
@@ -978,14 +978,14 @@ namespace dmRig
         context->m_Instances.Free(index, true);
     }
 
-    CreateResult InstanceCreate(const InstanceCreateParams& params)
+    Result InstanceCreate(const InstanceCreateParams& params)
     {
         RigContext* context = (RigContext*)params.m_Context;
 
         if (context->m_Instances.Full())
         {
             dmLogError("Rig Instance could not be created since the buffer is full (%d).", context->m_Instances.Capacity());
-            return dmRig::CREATE_RESULT_ERROR;
+            return dmRig::RESULT_ERROR;
         }
 
         *params.m_Instance = new RigInstance;
@@ -1010,8 +1010,8 @@ namespace dmRig
         AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
         instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_Skin);
 
-        CreateResult result = CreatePose(context, instance);
-        if (result != CREATE_RESULT_OK) {
+        Result result = CreatePose(context, instance);
+        if (result != dmRig::RESULT_OK) {
             DestroyInstance(context, index);
             return result;
         }
@@ -1024,13 +1024,13 @@ namespace dmRig
             (void)PlayAnimation(instance, default_animation_id, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
         }
 
-        return dmRig::CREATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
-    CreateResult InstanceDestroy(const InstanceDestroyParams& params)
+    Result InstanceDestroy(const InstanceDestroyParams& params)
     {
         DestroyInstance((RigContext*)params.m_Context, params.m_Instance->m_Index);
-        return dmRig::CREATE_RESULT_OK;
+        return dmRig::RESULT_OK;
     }
 
 }
