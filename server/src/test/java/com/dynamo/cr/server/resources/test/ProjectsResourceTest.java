@@ -466,54 +466,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(0, list.getProjectsList().size());
     }
 
-    @Test
-    public void newProjectCap() throws Exception {
-        /*
-         * Bob creates one project
-         * Bob adds joe as member to ensure that we count only projects that the user own
-         * Joe creates maxProjectCount projects
-         * Joe creates one additional project that should fail
-         */
-        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-
-        NewProject newProject = NewProject.newBuilder()
-                .setName("bob's test project")
-                .setDescription("New test project").build();
-        ProjectInfo projectInfo = bobProjectsWebResource
-                .path(bobUser.getId().toString())
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .post(ProjectInfo.class, newProject);
-
-        // Add joe as member
-        bobProjectsWebResource.path(String.format("/%d/%d/members", bobUser.getId(), projectInfo.getId())).post(joeEmail);
-
-        for (int i = 0; i < maxProjectCount; ++i) {
-            newProject = NewProject.newBuilder()
-                    .setName("test project" + i)
-                    .setDescription("New test project").build();
-            joeProjectsWebResource
-                    .path(joeUser.getId().toString())
-                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                    .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-                    .post(ProjectInfo.class, newProject);
-        }
-        // Should fail
-        newProject = NewProject.newBuilder()
-                .setName("test project")
-                .setDescription("New test project").build();
-        try {
-            joeProjectsWebResource
-                    .path(joeUser.getId().toString())
-                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                    .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-                    .post(ProjectInfo.class, newProject);
-            assertTrue(false);
-        } catch (UniformInterfaceException e) {
-            assertThat(e.getResponse().getStatus(), is(400));
-        }
-    }
-
     private static ProjectInfo createTemplateProject(TestUser testUser, String templateId) {
         ObjectMapper m = new ObjectMapper();
         ObjectNode project = m.createObjectNode();
