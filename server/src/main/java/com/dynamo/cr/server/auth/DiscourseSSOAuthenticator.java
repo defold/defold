@@ -91,6 +91,11 @@ public class DiscourseSSOAuthenticator {
      * @return Nonce.
      */
     private String extractNonce(String payload) {
-        return Base64.base64Decode(payload).substring(6);
+        String decodedPayload = Base64.base64Decode(payload);
+        int i = decodedPayload.indexOf('&');
+        if (i > 0) {
+            return decodedPayload.substring(6, i);
+        }
+        return decodedPayload.substring(6);
     }
 }
