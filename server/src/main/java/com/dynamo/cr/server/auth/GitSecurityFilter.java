@@ -61,7 +61,7 @@ public class GitSecurityFilter implements Filter {
             }
         }
 
-        LOGGER.warn("Authentication failed (Authorization header: {})", authorizationHeader);
+        LOGGER.debug("Authentication failed (Authorization header: {})", authorizationHeader);
         response.setHeader("WWW-Authenticate", "Basic realm=\"" + REALM + "\"");
         response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
         return null;

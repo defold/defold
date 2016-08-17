@@ -138,44 +138,55 @@
                         ctrls))
     box))
 
-(defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv (fn [l] (doto (TextField.)
-                                     (.setPrefWidth 5000)
-                                     (GridPane/setFillWidth true)))
-                           labels)
-        box          (doto (GridPane.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
-                                                                      [t (str (properties/unify-values
-                                                                               (map #(nth % i) values)))])
-                                                                    text-fields)]
-                         (ui/text! t v)
-                         (ui/editable! t (not read-only?)))
-                       (update-field-message text-fields message))]
-    (doseq [[t f] (map-indexed (fn [i t]
-                                 [t (fn [_]
-                                      (let [v            (to-double (.getText ^TextField t))
-                                            current-vals (properties/values (property-fn))]
-                                        (if v
-                                          (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                        (properties/read-only? (property-fn))))))])
-                               text-fields)]
-      (ui/on-action! ^TextField t f)
-      (auto-commit! t f))
-    (doall (map-indexed (fn [idx [t label]]
-                          (let [comp (create-property-component [(doto (Label. label)
-                                                                   (.setMinWidth 25))
-                                                                 t])]
-                            (ui/add-child! box comp)
-                            (GridPane/setConstraints comp idx 0)
-                            (GridPane/setFillWidth comp true)))
-                        (map vector text-fields labels)))
-    [box update-ui-fn]))
+(defn- create-multi-textfield!
+  ([labels property-fn]
+    (create-multi-textfield! labels property-fn identity identity))
+  ([labels property-fn from-type-fn to-type-fn]
+    (let [text-fields  (mapv (fn [l] (doto (TextField.)
+                                       (.setPrefWidth 5000)
+                                       (GridPane/setFillWidth true)))
+                             labels)
+          box          (doto (GridPane.)
+                         (.setPrefWidth Double/MAX_VALUE))
+          update-ui-fn (fn [values message read-only?]
+                         (let [values (mapv from-type-fn values)]
+                           (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
+                                                                          [t (str (properties/unify-values
+                                                                                    (map #(nth % i) values)))])
+                                                                        text-fields)]
+                             (ui/text! t v)
+                             (ui/editable! t (not read-only?))))
+                         (update-field-message text-fields message))]
+      (doseq [[t f] (map-indexed (fn [i t]
+                                   [t (fn [_]
+                                        (let [v            (to-double (.getText ^TextField t))
+                                              current-vals (properties/values (property-fn))]
+                                          (if v
+                                            (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
+                                            (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                          (properties/read-only? (property-fn))))))])
+                                 text-fields)]
+        (ui/on-action! ^TextField t f)
+        (auto-commit! t f))
+      (doall (map-indexed (fn [idx [t label]]
+                            (let [comp (create-property-component [(doto (Label. label)
+                                                                     (.setMinWidth 25))
+                                                                   t])]
+                              (ui/add-child! box comp)
+                              (GridPane/setConstraints comp idx 0)
+                              (GridPane/setFillWidth comp true)))
+                          (map vector text-fields labels)))
+      [box update-ui-fn])))
 
-(defmethod create-property-control! types/Vec3 [_ _ property-fn]
-  (create-multi-textfield! ["X" "Y" "Z"] property-fn))
+(defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
+  (let [{:keys [labels]
+         :or {labels ["X" "Y"]}} edit-type]
+    (create-multi-textfield! labels property-fn)))
+
+(defmethod create-property-control! types/Vec3 [edit-type _ property-fn]
+  (let [{:keys [labels]
+         :or {labels ["X" "Y" "Z"]}} edit-type]
+    (create-multi-textfield! labels property-fn)))
 
 (defmethod create-property-control! types/Vec4 [_ _ property-fn]
   (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
@@ -463,38 +474,57 @@
       (hide-message-tooltip ctrl))))
 
 (defn- create-property-label [label]
-  (doto (Label. label) (ui/add-style! "property-label")))
+  (doto (Label. label)
+    (ui/add-style! "property-label")
+    (.setMinHeight 28.0)))
 
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
-  (let [label (create-property-label (properties/label property))
+  (let [^Label label (create-property-label (properties/label property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
-                    (.setVisible (properties/overridden? property))
                     (ui/add-styles! ["clear-button" "small-button"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
                                      (.requestFocus control))))
+
+        label-box (let [box (GridPane.)]
+                    (.setPrefWidth box Double/MAX_VALUE)
+                    (GridPane/setFillWidth label true)
+                    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                                        (.setFillWidth true)
+                                                        (.setHgrow Priority/ALWAYS))))
+                    box)
+
+        update-label-box (fn [overridden?]
+                           (if overridden?
+                             (do
+                               (ui/children! label-box [label reset-btn])
+                               (GridPane/setConstraints label 0 0)
+                               (GridPane/setConstraints reset-btn 1 0))
+                             (do
+                               (ui/children! label-box [label])
+                               (GridPane/setConstraints label 0 0))))
+
         update-ui-fn (fn [property]
-                       (let [overridden? (properties/overridden? property)]
-                         (let [f (if overridden? ui/add-style! ui/remove-style!)]
-                           (doseq [c [label control]]
-                             (f c "overridden")))
-                         (.setVisible reset-btn overridden?)
+                       (let [overridden? (properties/overridden? property)
+                             f (if overridden? ui/add-style! ui/remove-style!)]
+                         (doseq [c [label control]]
+                           (f c "overridden"))
+                         (update-label-box overridden?)
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
 
-    (GridPane/setConstraints label 0 row)
-    (GridPane/setConstraints reset-btn 1 row)
-    (GridPane/setConstraints control 2 row)
+    (update-label-box (properties/overridden? property))
 
-    (.add (.getChildren grid) label)
+    (GridPane/setConstraints label-box 0 row)
+    (GridPane/setConstraints control 1 row)
+
+    (.add (.getChildren grid) label-box )
     (.add (.getChildren grid) control)
-    (.add (.getChildren grid) reset-btn)
 
-    (GridPane/setFillWidth label true)
-    (GridPane/setFillWidth reset-btn true)
+    (GridPane/setFillWidth label-box true)
     (GridPane/setFillWidth control true)
 
     [key update-ui-fn]))
@@ -509,12 +539,10 @@
   (let [grid (doto (GridPane.)
                (.setHgap grid-hgap)
                (.setVgap grid-vgap))
-        cc1  (doto (ColumnConstraints.) (.setFillWidth true) (.setHgrow Priority/SOMETIMES))
-        cc2  (doto (ColumnConstraints.) (.setFillWidth true) (.setHgrow Priority/NEVER))
-        cc3  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 75) (.setHgrow Priority/ALWAYS))]
+        cc1  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 20) (.setHgrow Priority/ALWAYS))
+        cc2  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 80) (.setHgrow Priority/ALWAYS))]
     (.. grid getColumnConstraints (add cc1))
     (.. grid getColumnConstraints (add cc2))
-    (.. grid getColumnConstraints (add cc3))
 
     (ui/add-child! parent grid)
     (ui/add-style! grid "form")

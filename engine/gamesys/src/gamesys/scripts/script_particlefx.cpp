@@ -108,23 +108,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static bool GetHash(lua_State* L, int index, dmhash_t* v)
-    {
-        if (lua_isstring(L, index))
-        {
-            *v = dmHashString64(lua_tostring(L, index));
-        }
-        else if (dmScript::IsHash(L, index))
-        {
-            *v = dmScript::CheckHash(L, index);
-        }
-        else
-        {
-            return false;
-        }
-        return true;
-    }
-
     /*# set a shader constant for a particle FX emitter
      * The constant must be defined in the material assigned to the emitter.
      * Setting a constant through this function will override the value set for that constant in the material.
@@ -156,31 +139,20 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        dmhash_t emitter_id;
-        if (!GetHash(L, 2, &emitter_id))
-            return luaL_error(L, "emitter_id must be either a hash or a string");
-
-        dmhash_t name_hash;
-        if (!GetHash(L, 3, &name_hash))
-            return luaL_error(L, "name must be either a hash or a string");
-
+        dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 3);
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 4);
 
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::SetConstantParticleFX* request = (dmGameSystemDDF::SetConstantParticleFX*)buffer;
-
-        uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantParticleFX);
-
-        request->m_EmitterId = emitter_id;
-        request->m_NameHash = name_hash;
-        request->m_Value = *value;
+        dmGameSystemDDF::SetConstantParticleFX msg;
+        msg.m_EmitterId = emitter_id;
+        msg.m_NameHash = name_hash;
+        msg.m_Value = *value;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg));
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -213,29 +185,18 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 3);
 
-        dmhash_t emitter_id;
-        if (!GetHash(L, 2, &emitter_id))
-            return luaL_error(L, "emitter_id must be either a hash or a string");
-
-        dmhash_t name_hash;
-        if (!GetHash(L, 3, &name_hash))
-            return luaL_error(L, "name must be either a hash or a string");
-
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::ResetConstantParticleFX* request = (dmGameSystemDDF::ResetConstantParticleFX*)buffer;
-
-        uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantParticleFX);
-
-        request->m_EmitterId = emitter_id;
-        request->m_NameHash = name_hash;
+        dmGameSystemDDF::ResetConstantParticleFX msg;
+        msg.m_EmitterId = emitter_id;
+        msg.m_NameHash = name_hash;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg));
         assert(top == lua_gettop(L));
         return 0;
     }

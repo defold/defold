@@ -18,13 +18,13 @@
         <repository>
             <id>juno</id>
             <layout>p2</layout>
-            <url>http://download.eclipse.org/eclipse/updates/${eclipse-version}</url>
+            <url>http://ftp.sunet.se/mirror/eclipse.org/eclipse/updates/${eclipse-version}</url>
         </repository>
 
         <repository>
             <id>eclipselink</id>
             <layout>p2</layout>
-            <url>http://download.eclipse.org/rt/eclipselink/updates/</url>
+            <url>http://ftp.sunet.se/mirror/eclipse.org/rt/eclipselink/updates/</url>
         </repository>
 
     </repositories>

@@ -49,5 +49,5 @@
 
 (defmacro validate-animation [animation anim-data]
   `(g/fnk [~animation ~anim-data]
-     (when (not (contains? ~anim-data ~animation))
+     (when (and (some? ~anim-data) (not (contains? ~anim-data ~animation)))
        (g/error-severe (format "The animation \"%s\" could not be found in the specified image" ~animation)))))

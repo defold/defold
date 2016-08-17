@@ -19,6 +19,9 @@ def build(bld):
     else:
         script.source.remove(os.path.join('.', 'script_http_js.cpp'))
 
+    # luabitop
+    script.find_sources_in_dirs('bitop')
+
     # luasocket
     script.find_sources_in_dirs('luasocket')
     script.source.remove(os.path.join('luasocket', 'mime.c'))

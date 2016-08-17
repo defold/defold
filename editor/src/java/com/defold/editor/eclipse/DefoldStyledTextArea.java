@@ -1222,7 +1222,8 @@ public class DefoldStyledTextArea extends StyledTextArea {
 	 */
 	public void setSelection(@NonNull TextSelection selection) {
 		if (selection.length == 0) {
-			setCaretOffset(selection.offset);
+                    //setCaretOffset(selection.offset);
+			//Defold caused trouble with horizontal scrolling
 		} else {
 			// this.caretOffsetProperty.set(selection.offset+selection.length);
 			this.currentSelection.set(selection);

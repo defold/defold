@@ -410,7 +410,7 @@
             (dynamic edit-type (g/fnk [layer-ids] (properties/->choicebox (cons "" (map first layer-ids)))))
             (value (g/fnk [layer-input] (or layer-input "")))
             (set (fn [basis self _ new-value]
-                   (let [layer-ids (g/node-value self :layer-ids :basis basis)]
+                   (let [layer-ids (g/node-value self :layer-ids {:basis basis})]
                      (concat
                        (for [label (map second layer-connections)]
                          (g/disconnect-sources self label))
@@ -529,7 +529,7 @@
             (value (g/fnk [texture-input animation]
                      (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
             (set (fn [basis self _ ^String new-value]
-                   (let [textures (g/node-value self :texture-ids :basis basis)
+                   (let [textures (g/node-value self :texture-ids {:basis basis})
                          animation (let [sep (.indexOf new-value "/")]
                                      (if (>= sep 0) (subs new-value (inc sep)) ""))]
                      (concat
@@ -682,7 +682,7 @@
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
     (value (gu/passthrough font-input))
     (set (fn [basis self _ new-value]
-           (let [font-ids (g/node-value self :font-ids :basis basis)]
+           (let [font-ids (g/node-value self :font-ids {:basis basis})]
              (concat
                (for [label (map second font-connections)]
                  (g/disconnect-sources self label))
@@ -725,21 +725,26 @@
           (g/fnk [aabb pivot color text-data]
                  (let [min (types/min-p aabb)
                        max (types/max-p aabb)
-                       size [(- (.x max) (.x min)) (- (.y max) (.y min))]
+                       size [(- (.x max) (.x min)) (- (.y max) (.y min)) 0]
                        [w h _] size
                        offset (pivot-offset pivot size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                    {:line-data lines
-                    :color color
-                    :text-data (when-let [font-data (get text-data :font-data)]
-                                 (assoc text-data :offset (let [[x y] offset]
-                                                            [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))})))
-  (output aabb-size g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
-                                         (font/measure font-map text line-break (first size) text-tracking text-leading)))
-  (output text-data g/KeywordMap (g/fnk [text font-data line-break outline shadow size pivot text-leading text-tracking]
-                                        {:text text :font-data font-data
-                                         :line-break line-break :outline outline :shadow shadow :max-width (first size)
-                                         :text-leading text-leading :text-tracking text-tracking :align (pivot->h-align pivot)})))
+                    :line-color [1.0 0.0 0.0 1.0]
+                    :color [1.0 0.0 0.0 1.0]
+                    :text-data text-data})))
+  (output text-layout g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
+                                           (font/layout-text font-map text line-break (first size) text-tracking text-leading)))
+  (output aabb-size g/Any :cached (g/fnk [text-layout]
+                                         [(:width text-layout) (:height text-layout) 0]))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break outline shadow aabb-size pivot text-leading text-tracking]
+                                        (cond-> {:text-layout text-layout
+                                                 :font-data font-data
+                                                 :outline outline :shadow shadow
+                                                 :align (pivot->h-align pivot)}
+                                          font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                         h (second aabb-size)]
+                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))))))
 
 ;; Template nodes
 
@@ -790,7 +795,7 @@
                                                                                                                       false))})
                                                                 id-mapping (:id-mapping override)
                                                                 or-scene (get id-mapping scene-node)
-                                                                node-mapping (comp id-mapping (g/node-value scene-node :node-ids :basis basis))]
+                                                                node-mapping (comp id-mapping (g/node-value scene-node :node-ids {:basis basis}))]
                                                             (concat
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
@@ -993,7 +998,7 @@
             (value (gu/passthrough layout-overrides))
             (set (fn [basis self _ new-value]
                    (let [scene (ffirst (g/targets-of basis self :_node-id))
-                         node-tree (g/node-value scene :node-tree :basis basis)
+                         node-tree (g/node-value scene :node-tree {:basis basis})
                          or-data new-value
                          override (g/override basis node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                             (or (g/node-instance? basis GuiNode src)
@@ -1001,7 +1006,7 @@
                                                                                 (g/node-instance? basis GuiSceneNode src)))})
                          id-mapping (:id-mapping override)
                          or-node-tree (get id-mapping node-tree)
-                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids :basis basis))]
+                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids {:basis basis}))]
                      (concat
                        (:tx-data override)
                        (for [[from to] [[:node-overrides :layout-overrides]
@@ -1746,7 +1751,6 @@
 
 (handler/defhandler :set-gui-layout :global
   (active? [project active-resource] (boolean (resource->gui-scene project active-resource)))
-  (enabled? [project active-resource] (boolean (resource->gui-scene project active-resource)))
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]
                                                (g/transact (g/set-property scene :visible-layout user-data)))))

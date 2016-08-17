@@ -16,12 +16,11 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.SecurityContext;
-import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.*;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.security.Principal;
+import java.util.Map;
 import java.util.Objects;
 
 public class SecurityFilter implements ContainerRequestFilter {
@@ -64,8 +63,6 @@ public class SecurityFilter implements ContainerRequestFilter {
     }
 
     private User authenticate(ContainerRequest request) {
-        String authToken = request.getHeaderValue("X-Auth");
-        String email = request.getHeaderValue("X-Email");
 
         if (request.getMethod().equals("OPTIONS")) {
             // Skip authentication for method OPTION
@@ -77,21 +74,24 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         EntityManager em = emf.createEntityManager();
 
+        /*
+            X-header authentication.
+         */
+        String authToken = request.getHeaderValue("X-Auth");
+        String email = request.getHeaderValue("X-Email");
+
         if (authToken != null && email != null) {
             try {
                 email = URLDecoder.decode(email, "UTF-8");
-                User user = ModelUtil.findUserByEmail(em, email);
-                if (user != null && accessTokenAuthenticator.authenticate(user, authToken, httpServletRequest.getRemoteAddr())) {
-                    return user;
-                } else {
-                    throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
-                }
             } catch (UnsupportedEncodingException e) {
                 throw new RuntimeException(e);
             }
+            return authenticateAccessToken(email, authToken, em);
         }
 
-        // Extract authentication credentials
+        /*
+            Basic authentication.
+         */
         String authentication = request.getHeaderValue(ContainerRequest.AUTHORIZATION);
 
         if (authentication != null && authentication.startsWith("Basic ")) {
@@ -129,23 +129,48 @@ public class SecurityFilter implements ContainerRequestFilter {
                 // are used in tests
                 return user;
             } else {
-                LOGGER.warn("User authentication failed");
-                throw new MappableContainerException(new AuthenticationException(
-                        "Invalid username or password", REALM));
+                LOGGER.warn("User authentication failed for user {}", email);
+                throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
             }
-        } else {
-            /*
-             * This experimental. Return an anonymous user if not
-             * authToken/email header is set. We could perhaps get rid of
-             * !path.startsWith("..") above?
-             * The first test is to allow anonymous download of the engine using
-             * a provided secret key in the url
-             */
-            User anonymous = new User();
-            anonymous.setEmail("anonymous");
-            anonymous.setRole(Role.ANONYMOUS);
-            return anonymous;
         }
+
+        /*
+            Cookie authentication.
+
+            Note: This is used by the Discourse SSO solution in order to authenticate users that are logged in in the
+             dashboard.
+         */
+        Map<String, Cookie> cookies = request.getCookies();
+        Cookie emailCookie = cookies.get("email");
+        Cookie authCookie = cookies.get("auth");
+        if (emailCookie != null && authCookie != null) {
+            try {
+                return authenticateAccessToken(URLDecoder.decode(emailCookie.getValue(), "UTF-8"), authCookie.getValue(), em);
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        /*
+         * This experimental. Return an anonymous user if not
+         * authToken/email header is set. We could perhaps get rid of
+         * !path.startsWith("..") above?
+         * The first test is to allow anonymous download of the engine using
+         * a provided secret key in the url
+         */
+        User anonymous = new User();
+        anonymous.setEmail("anonymous");
+        anonymous.setRole(Role.ANONYMOUS);
+        return anonymous;
+    }
+
+    private User authenticateAccessToken(String email, String token, EntityManager entityManager) {
+        User user = ModelUtil.findUserByEmail(entityManager, email);
+        if (user != null && accessTokenAuthenticator.authenticate(user, token, httpServletRequest.getRemoteAddr())) {
+            return user;
+        }
+        LOGGER.warn("User authentication failed for user {}", email);
+        throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
     }
 
     private class Authorizer implements SecurityContext {

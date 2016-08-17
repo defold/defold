@@ -1,4 +1,3 @@
-
 (ns integration.save-test
   (:require [clojure.test :refer :all]
             [clojure.data :as data]
@@ -11,12 +10,15 @@
   (:import [java.io StringReader]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
-           [com.dynamo.particle.proto Particle$ParticleFX]))
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
-                           "particlefx" Particle$ParticleFX})
+                           "particlefx" Particle$ParticleFX
+                           "spinescene" Spine$SpineSceneDesc
+                           "spinemodel" Spine$SpineModelDesc})
 
 (deftest save-all
   (let [queries ["**/level1.platformer"
@@ -33,7 +35,14 @@
                  "game.project"
                  "**/super_scene.gui"
                  "**/scene.gui"
-                 "**/fireworks_big.particlefx"]]
+                 "**/fireworks_big.particlefx"
+                 "**/new.collisionobject"
+                 "**/three_shapes.collisionobject"
+                 "**/tile_map_collision_shape.collisionobject"
+                 "**/spineboy.spinescene"
+                 "**/spineboy.spinemodel"
+                 "**/new.factory"
+                 "**/with_prototype.factory"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
@@ -52,3 +61,17 @@
                         (is (nil? disk))
                         (is (nil? save)))
                       (is (= file (:content save)))))))))))
+
+(deftest save-all-literal-equality
+  (let [queries ["**/embedded_instances.collection"
+                 "**/embedded_components.go"]]
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)
+            save-data (group-by :resource (project/save-data project))]
+        (doseq [query queries]
+          (testing (format "Saving %s" query)
+            (let [[resource _] (first (project/find-resources project query))
+                  save (first (get save-data resource))
+                  file (slurp resource)]
+               (is (= file (:content save))))))))))

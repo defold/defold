@@ -170,7 +170,7 @@
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:_declared-properties :_properties :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
@@ -314,18 +314,18 @@
   (property target g/Keyword
             (value (g/fnk [label] (println :target :value-fn label) label))
             (set (fn [basis self _ new-value]
-                   (when-let [src (g/node-value self :source-id :basis basis)]
+                   (when-let [src (g/node-value self :source-id {:basis basis})]
                      (println :target :connecting src new-value :to self :label)
                      (g/connect src new-value self :label)))))
   (property second g/Keyword
             (set (fn [basis self old-value new-value]
                    (println :second :new-value new-value)
-                   (when-let [t (g/node-value self :target :basis basis)]
+                   (when-let [t (g/node-value self :target {:basis basis})]
                      (println :second :t t)
                      (g/set-property self :second t)))))
   (property third g/Keyword
             (set (fn [basis self old-value new-value]
-                   (when-let [t (g/node-value self :implicit-target :basis basis)]
+                   (when-let [t (g/node-value self :implicit-target {:basis basis})]
                      (g/set-property self :third t)))))
   (input source-id g/NodeID)
   (input label g/Keyword)

@@ -69,8 +69,8 @@
   (or (match-regex number-pattern s)
       (match-regex leading-decimal-number-pattern s)))
 
-(def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)")
-(def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)")
+(def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)$")
+(def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)$")
 
 (defn- make-parse-result [namespace function in-function start end]
   {:namespace namespace
