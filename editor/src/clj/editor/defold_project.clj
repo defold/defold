@@ -646,7 +646,7 @@
         (or (when-let [target (get-selected-target prefs)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
                 (engine/reboot (:url target) local-url)))
-            (launch-engine workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+            (launch-engine (workspace project) (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
   (run [user-data prefs]
