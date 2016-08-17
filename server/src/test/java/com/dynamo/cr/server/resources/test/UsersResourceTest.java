@@ -26,6 +26,8 @@ import javax.ws.rs.core.*;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
@@ -483,6 +485,18 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(0, is(invitations(em).size()));
     }
 
+    private String getRedirectUrl(ClientResponse response) throws Exception {
+        String content = response.getEntity(String.class).toString();
+
+        Pattern p = Pattern.compile("window.location = '([^']+)';");
+        Matcher m = p.matcher(content);
+        if (!m.find()) {
+            return null;
+        }
+
+        return m.group(1);
+    }
+
     @Test
     public void testOath() throws Exception {
         String redirectUrl = "/redirect";
@@ -491,13 +505,14 @@ public class UsersResourceTest extends AbstractResourceTest {
                 .queryParam("redirect_to", redirectUrl)
                 .get(ClientResponse.class);
 
-        String locationUrl = serverResponse.getHeaders().get("Location").get(0);
+        String locationUrl = getRedirectUrl(serverResponse);
+        assertNotNull(locationUrl);
         AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
         String authState = Base64.base64Decode(codeRequestUrl.getState());
         ObjectMapper mapper = new ObjectMapper();
         JsonNode node = mapper.readTree(authState);
 
-        assertEquals(307, serverResponse.getClientResponseStatus().getStatusCode());
+        assertEquals(200, serverResponse.getClientResponseStatus().getStatusCode());
         assertNotNull(node.get("login_token").getTextValue());
         assertEquals(redirectUrl, node.get("redirect_to").getTextValue());
     }
@@ -508,13 +523,14 @@ public class UsersResourceTest extends AbstractResourceTest {
         ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1")
                 .get(ClientResponse.class);
 
-        String locationUrl = serverResponse.getHeaders().get("Location").get(0);
+        String locationUrl = getRedirectUrl(serverResponse);
+        assertNotNull(locationUrl);
         AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
         String authState = Base64.base64Decode(codeRequestUrl.getState());
         ObjectMapper mapper = new ObjectMapper();
         JsonNode node = mapper.readTree(authState);
 
-        assertEquals(307, serverResponse.getClientResponseStatus().getStatusCode());
+        assertEquals(200, serverResponse.getClientResponseStatus().getStatusCode());
         assertNotNull(node.get("login_token").getTextValue());
         assertEquals("/", node.get("redirect_to").getTextValue());
     }
@@ -527,7 +543,8 @@ public class UsersResourceTest extends AbstractResourceTest {
                 .queryParam("redirect_to", redirectUrl)
                 .get(ClientResponse.class);
 
-        String locationUrl = oathResponse.getHeaders().get("Location").get(0);
+        String locationUrl = getRedirectUrl(oathResponse);
+        assertNotNull(locationUrl);
         AuthorizationCodeRequestUrl codeRequestUrl = new AuthorizationCodeRequestUrl(locationUrl, "testuser");
 
         ClientResponse serverResponse = anonymousResource.path("/login/oauth/-1/response")
@@ -576,7 +593,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         UserService userService = new UserService(em);
         User inviter = userService.find(joeUser.getId()).orElseThrow(RuntimeException::new);
         // Delete
-        ModelUtil.removeUser(em, inviter);
+        userService.remove(inviter);
         em.getTransaction().commit();
 
         // The message contains only the key, see config-file

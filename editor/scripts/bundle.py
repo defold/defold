@@ -291,7 +291,7 @@ if __name__ == '__main__':
 
     print 'Building editor'
     exec_command('./scripts/lein clean')
-    exec_command('./scripts/lein uberjar')
+    exec_command('./scripts/lein with-profile +release uberjar')
 
     for platform in options.target_platform:
         bundle(platform, options)
@@ -304,4 +304,3 @@ if __name__ == '__main__':
                                   'action': 'copy'}]}
     with open('target/editor/update/manifest.json', 'w') as f:
         f.write(json.dumps(package_info, indent=4))
-

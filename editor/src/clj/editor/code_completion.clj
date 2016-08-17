@@ -20,7 +20,7 @@
         fns  (map (fn [[fname {:keys [params]}]]
                     (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)
                           display-string (str n "(" (string/join "," params)  ")")]
-                      (code/create-hint n display-string display-string "" params)))
+                      (code/create-hint n display-string display-string "" {:select params})))
                   fn-info)]
     (set (concat vars fns))))
 

@@ -26,19 +26,23 @@
     name
     (subs 2)))
 
-(defn- ->spline [points]
-  (sort-by first points))
+(defn ->spline [points]
+  (->> points
+    (sort-by first)
+    vec))
 
-(defn- spline-cp [spline x]
+(defn spline-cp [spline x]
   (let [x (min (max x 0.0) 1.0)
-        [[cp0 cp1]] (filter (fn [[[x0] [x1]]] (and (<= x0 x) (< x x1))) (partition 2 1 spline))]
+        [cp0 cp1] (some (fn [cps] (and (<= (ffirst cps) x) (<= x (first (second cps))) cps)) (partition 2 1 spline))]
     (when (and cp0 cp1)
       (let [[x0 y0 s0 t0] cp0
             [x1 y1 s1 t1] cp1
             dx (- x1 x0)
-            t (/ (- x (first cp0)) (- (first cp1) (first cp0)))
-            y (math/hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)
-            ty (/ (math/hermite' y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t) dx)
+            t (/ (- x x0) (- x1 x0))
+            d0 (* dx (/ t0 s0))
+            d1 (* dx (/ t1 s1))
+            y (math/hermite y0 y1 d0 d1 t)
+            ty (/ (math/hermite' y0 y1 d0 d1 t) dx)
             l (Math/sqrt (+ 1.0 (* ty ty)))
             ty (/ ty l)
             tx (/ 1.0 l)]
@@ -63,21 +67,37 @@
     (update curve :points iv/iv-into points)))
 
 (defn- curve-delete [curve ids]
-  (update curve :points iv/iv-remove-ids ids))
+  (let [include (->> (iv/iv-mapv identity (:points curve))
+                  (sort-by (comp first second))
+                  (map first)
+                  (drop 1)
+                  (butlast)
+                  (into #{}))]
+    (update curve :points iv/iv-remove-ids (filter include ids))))
 
 (defn- curve-update [curve ids f]
   (let [ids (set ids)]
-    (assoc curve :points (iv/iv-mapv (fn [entry]
-                                       (let [[id v] entry]
-                                         (if (ids id) [id (f v)] entry))) (:points curve)))))
+    (update curve :points (partial iv/iv-update-ids f) ids)))
 
 (defn- curve-transform [curve ids ^Matrix4d transform]
-  (let [p (Point3d.)]
-    (t/geom-update curve ids (fn [v]
-                               (let [[x y] v]
-                                 (.set p x y 0.0)
-                                 (.transform transform p)
-                                 [(.getX p) (.getY p) 0.0])))))
+  (let [p (Point3d.)
+        cps (->> (:points curve) iv/iv-vals (mapv first) sort vec)
+        margin 0.01
+        limits (->> cps
+                 (partition 3 1)
+                 (mapv (fn [[min x max]] [x [(+ min margin) (- max margin)]]))
+                 (into {}))
+        limits (-> limits
+                 (assoc (first cps) [0.0 0.0]
+                        (last cps) [1.0 1.0]))]
+    (curve-update curve ids (fn [v]
+                              (let [[x y] v]
+                                (.set p x y 0.0)
+                                (.transform transform p)
+                                (let [[min-x max-x] (limits x)
+                                      x (max min-x (min max-x (.getX p)))
+                                      y (.getY p)]
+                                  (assoc v 0 x 1 y)))))))
 
 (defrecord Curve [points]
   Sampler
@@ -351,15 +371,18 @@
         (g/update-property node-id (first key) assoc-in (rest key) value)
         (g/set-property node-id (:key property) value)))))
 
+(defn keyword->name [kw]
+  (-> kw
+    name
+    camel/->Camel_Snake_Case_String
+    (clojure.string/replace "_" " ")))
+
 (defn label
   [property]
   (or (:label property)
       (let [k (:key property)
            k (if (vector? k) (last k) k)]
-       (-> k
-         name
-         camel/->Camel_Snake_Case_String
-         (clojure.string/replace "_" " ")))))
+       (keyword->name k))))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -424,3 +447,8 @@
     {:type :choicebox
      :options (zipmap (map first options)
                       (map (comp :display-name second) options))}))
+
+(defn vec3->vec2 [default-z]
+  {:type t/Vec2
+   :from-type (fn [[x y _]] [x y])
+   :to-type (fn [[x y]] [x y default-z])})

@@ -15,8 +15,7 @@
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
-            GameSystem$CollectionProxyDesc GameSystem$LightDesc]
+           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
            [com.dynamo.camera.proto Camera$CameraDesc]
@@ -45,18 +44,6 @@
                :resource-fields [:script [:materials :material]]
                :view-types [:form-view :text]
                :label "Render"}
-              {:ext "factory"
-               :label "Factory"
-               :icon "icons/32/Icons_07-Factory.png"
-               :pb-class GameSystem$FactoryDesc
-               :resource-fields [:prototype]
-               :tags #{:component}}
-              {:ext "collectionfactory"
-               :label "Collection Factory"
-               :icon "icons/32/Icons_08-Collection-factory.png"
-               :pb-class GameSystem$CollectionFactoryDesc
-               :resource-fields [:prototype]
-               :tags #{:component}}
               {:ext "collectionproxy"
                :label "Collection Proxy"
                :icon "icons/32/Icons_09-Collection.png"
@@ -67,13 +54,6 @@
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"
                :pb-class GameSystem$LightDesc
-               :tags #{:component}}
-              {:ext "collisionobject"
-               :label "Collision Object"
-               ; TODO - missing icon
-               :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
-               :pb-class Physics$CollisionObjectDesc
-               :resources-fields [:collision_shape]
                :tags #{:component}}
               {:ext "gamepads"
                :label "Gamepads"

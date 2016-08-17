@@ -276,8 +276,10 @@
   (assert bounds "rect->aabb require boundaries")
   (let [x1 (.x bounds)
         y1 (.y bounds)
-        x2 (+ x1 (.width bounds))
-        y2 (+ y1 (.height bounds))]
+        x2 (+ x1 (* 0.5 (.width bounds)))
+        y2 (+ y1 (* 0.5 (.height bounds)))
+        x1 (- x1 (* 0.5 (.width bounds)))
+        y1 (- y1 (* 0.5 (.height bounds)))]
     (-> (null-aabb)
         (aabb-incorporate (Point3d. x1 y1 0))
         (aabb-incorporate (Point3d. x2 y2 0)))))

@@ -293,7 +293,7 @@ dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samp
 
     LoopbackBuffer* b = 0;
     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
-        if (loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
+        if ((uint64_t)loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
             continue;
         if (loopback->m_Time - loopback->m_Buffers[i]->m_Queued > LOOPBACK_DEVICE_PROCESS_TIME) {
             b = loopback->m_Buffers[i];
@@ -316,7 +316,7 @@ uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 
     uint32_t n = 0;
     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
-        if (loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
+        if ((uint64_t)loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
             continue;
         uint64_t diff = loopback->m_Time - loopback->m_Buffers[i]->m_Queued;
         if (diff > LOOPBACK_DEVICE_PROCESS_TIME) {
@@ -371,7 +371,7 @@ TEST_P(dmSoundVerifyTest, Mix)
     const float mix_rate = params.m_MixRate;
 
     const int n = (frame_count * 44100) / (int) mix_rate;
-    for (uint32_t i = 0; i < n - 1; i++) {
+    for (int32_t i = 0; i < n - 1; i++) {
         const double f = 44100.0;
         int index = i * mix_rate / f;
         double a1 = 0.8 * 32768.0 * sin((index * 2.0 * 3.14159265 * rate) / mix_rate);
@@ -847,13 +847,11 @@ TEST_P(dmSoundMixerTest, Mixer)
     const int n = dmMath::Max(n1, n2);
     float sum_square = 0.0f;
     float last_rms = 0.0f;
-    for (uint32_t i = 0; i < n - 1; i++) {
+    for (int32_t i = 0; i < n - 1; i++) {
         const double f = 44100.0;
 
         double ax = 0;
         double ay = 0;
-        int16_t axs = 0;
-        int16_t ays = 0;
 
         int index1 = i * mix_rate1 / f;
         float ramp1 = params.m_Ramp1 ? ((n - 1) - i) / (float) n : 1.0f;
@@ -861,7 +859,6 @@ TEST_P(dmSoundMixerTest, Mixer)
         double a2x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin(((index1 + 1) * 2.0 * 3.14159265 * rate1) / mix_rate1);
         double frac1 = fmod(i * mix_rate1 / 44100.0, 1.0);
         ax = a1x * (1.0 - frac1) + a2x * frac1;
-        axs = (int16_t) ax;
 
         int index2 = i * mix_rate2 / f;
         float ramp2 = params.m_Ramp2 ? ((n - 1) - i) / (float) n : 1.0f;
@@ -869,7 +866,6 @@ TEST_P(dmSoundMixerTest, Mixer)
         double a2y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin(((index2 + 1) * 2.0 * 3.14159265 * rate2) / mix_rate2);
         double frac2 = fmod(i * mix_rate2 / 44100.0, 1.0);
         ay = a1y * (1.0 - frac2) + a2y * frac2;
-        ays = (int16_t) ay;
 
         double a = ax + ay;
         a = dmMath::Min(32767.0, a);
@@ -884,7 +880,7 @@ TEST_P(dmSoundMixerTest, Mixer)
         int16_t as = (int16_t) a;
 
         const int abs_error = 36;
-        if (i > params.m_BufferFrameCount * 2) {
+        if ((uint32_t)i > params.m_BufferFrameCount * 2) {
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain, abs_error);
         }

@@ -1361,7 +1361,7 @@ namespace dmGui
      * <pre>
      * local node = gui.get_node("anim_node")
      * gui.cancel_flipbook(node)
-     * </pre>     
+     * </pre>
      */
     static int LuaCancelFlipbook(lua_State* L)
     {
@@ -2898,7 +2898,7 @@ namespace dmGui
      * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words
      * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
      *
-     * The number must be in the range 0 to 7.
+     * The number must be in the range 0 to 15.
      *
      * @name gui.set_render_order
      * @param order rendering order (number)
@@ -2908,10 +2908,10 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
         int order = luaL_checkinteger(L, 1);
         // NOTE: The range reflects the current bits allocated in RenderKey for order
-        if (order < 0 || order > 7) {
-            dmLogWarning("Render must be in range [0,7]");
+        if (order < 0 || order > 15) {
+            dmLogWarning("Render must be in range [0,15]");
         }
-        order = dmMath::Clamp(order, 0, 7);
+        order = dmMath::Clamp(order, 0, 15);
         scene->m_RenderOrder = (uint16_t) order;
         return 0;
     }

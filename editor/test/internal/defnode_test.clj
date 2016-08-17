@@ -83,9 +83,10 @@
            (:value-type (in/parse-type-form (str 'java-classes-are-types) 'java.lang.String)))))
 
   (testing "classes are registered after parsing"
-    (in/unregister-value-type :java.util.concurrent.BlockingDeque)
-    (let [{:keys [value-type]} (in/parse-type-form (str 'java-classes-are-types) 'java.util.concurrent.BlockingDeque)]
-      (is (= java.util.concurrent.BlockingDeque (in/value-type-schema value-type)))))
+    (in/unregister-value-type :java.util.LinkedList)
+    (eval '(dynamo.graph/defnode JavaClassNode (input a java.util.LinkedList)))
+    (is (in/value-type-resolve :java.util.LinkedList))
+    (is (= java.util.LinkedList (in/schema (in/value-type-resolve :java.util.LinkedList)))))
 
   (testing "classes can be used as inputs, outputs, and properties"
     (are [expected kind label] (= expected (-> @JavaClassesTypeNode kind label :value-type in/value-type-schema))
@@ -119,18 +120,19 @@
 (defmethod protocol-based-dispatch CustomProtocolImplementerB [_] :b)
 (defmethod protocol-based-dispatch :default [_] :fail)
 
-(deftest protocols-are-types
+(defprotocol AutoRegisteredProtocol)
+
+(deftest protocols-are-parsed-as-types
   (testing "protocols can appear as type forms"
-    (is (= (in/->ValueTypeRef :internal.defnode-test/CustomProtocol)
-           (:value-type (in/parse-type-form (str 'protocols-are-types) 'internal.defnode-test/CustomProtocol)))))
+    (is (= (in/->ValueTypeRef :internal.defnode-test/AutoRegisteredProtocol)
+           (:value-type (in/parse-type-form (str 'protocols-are-types) 'internal.defnode-test/AutoRegisteredProtocol)))))
 
-  (testing "protocols are registered after parsing"
-    (in/unregister-value-type :internal.defnode-test/CustomProtocol)
-    (let [{:keys [value-type]} (in/parse-type-form (str 'protocols-are-types) 'internal.defnode-test/CustomProtocol)]
-      (is (satisfies? schema.core/Schema (in/value-type-schema value-type)))
-      (is (instance? schema.core.Protocol (in/value-type-schema value-type)))
-      (is (= internal.defnode-test/CustomProtocol (:p (in/value-type-schema value-type))))))
+  (testing "protocols are registered after defnode is parsed"
+    (in/unregister-value-type :internal.defnode-test/AutoRegisteredProtocol)
+    (eval '(dynamo.graph/defnode AutoRegisteredInputNode (input a internal.defnode-test/AutoRegisteredProtocol)))
+    (is (in/value-type-resolve :internal.defnode-test/AutoRegisteredProtocol))))
 
+(deftest protocols-are-types
   (testing "protocols can be used as inputs, outputs, and properties"
     (are [expected kind label] (= expected (-> @ProtocolTypeNode kind label :value-type in/value-type-schema :p))
       CustomProtocol :output   :an-output
@@ -709,8 +711,7 @@
   (output inline-arguments                   g/Any (g/fnk [in1 in2 in3]))
   (output arguments-from-nilary-fnk          g/Any fnk-without-arguments)
   (output arguments-from-fnk                 g/Any fnk-with-arguments)
-  (output arguments-from-fnk-as-var          g/Any #'fnk-with-arguments)
-  (output inline-arguments-with-input-schema g/Any (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])))
+  (output arguments-from-fnk-as-var          g/Any #'fnk-with-arguments))
 
 (deftest output-function-arguments
   (testing "arguments with inline function definition"
@@ -718,8 +719,7 @@
       :inline-arguments                   #{:in1 :in2 :in3}
       :arguments-from-nilary-fnk          #{}
       :arguments-from-fnk                 #{:a :b :c :d}
-      :arguments-from-fnk-as-var          #{:a :b :c :d}
-      :inline-arguments-with-input-schema #{:commands :roles :blah})))
+      :arguments-from-fnk-as-var          #{:a :b :c :d})))
 
 (deftest inheritance-across-namespaces
   (let [original-ns (symbol (str *ns*))
@@ -856,3 +856,40 @@
   (testing "cached flag is not inherited"
     (is (contains? (-> @CustomPropertiesOutput :output :_properties :flags) :cached))
     (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
+
+(deftest declared-properties-is-cached
+  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
+
+(defn- override [node-id]
+  (-> (g/override node-id {})
+    :tx-data
+    tx-nodes))
+
+(deftest overridden-properties
+  (testing "is empty for an original node"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world BasicNode))]
+        (is (empty? (g/node-value n :_overridden-properties))))))
+
+  (testing "is empty for an override node with no properties set"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-node world BasicNode))
+            [onode] (override n)]
+        (is (empty? (g/node-value onode :_overridden-properties))))))
+
+  (testing "contains only properties with an override value"
+    (with-clean-system
+      (let [[n]     (tx-nodes (g/make-node world BasicNode))
+            [onode] (override n)
+            _       (g/set-property! onode :dynamic-property 99)
+            v1      (g/node-value onode :_overridden-properties)
+            _       (g/set-property! onode :background-color "cornflower blue")
+            v2      (g/node-value onode :_overridden-properties)
+            _       (g/clear-property! onode :dynamic-property)
+            v3      (g/node-value onode :_overridden-properties)
+            _       (g/clear-property! onode :background-color)
+            v4      (g/node-value onode :_overridden-properties)]
+        (is (= v1 {:dynamic-property 99} ))
+        (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"} ))
+        (is (= v3 {:background-color "cornflower blue"}))
+        (is (= v4 {}))))))

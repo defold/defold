@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <gtest/gtest.h>
+#include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"
@@ -11,8 +12,15 @@
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
+#include "testutil.h"
 
-const char* g_URI = "http://localhost:7000";
+int g_HttpPort = -1;
+int g_HttpPortSSL = -1;
+int g_HttpPortSSLTest = -1;
+
+#define NAME_SOCKET "{server_socket}"
+#define NAME_SOCKET_SSL "{server_socket_ssl}"
+#define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
 
 class dmHttpClientTest: public ::testing::TestWithParam<const char*>
 {
@@ -65,7 +73,30 @@ public:
     {
         m_Client = 0;
 
-        dmURI::Result parse_r = dmURI::Parse(GetParam(), &m_URI);
+        char url[1024];
+        strcpy(url, GetParam());
+
+        char* portstr = strrchr(url, ':');
+        ++portstr;
+
+        int port = -1;
+        if( strcmp(NAME_SOCKET, portstr) == 0 )
+        {
+            port = g_HttpPort;
+        }
+        else if( strcmp(NAME_SOCKET_SSL, portstr) == 0 )
+        {
+            port = g_HttpPortSSL;
+        }
+        else if( strcmp(NAME_SOCKET_SSL_TEST, portstr) == 0 )
+        {
+            port = g_HttpPortSSLTest;
+        }
+        ASSERT_NE(-1, port);
+
+        sprintf(portstr, "%d", port);
+
+        dmURI::Result parse_r = dmURI::Parse(url, &m_URI);
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
 
         int ret = system("python src/test/test_httpclient.py");
@@ -693,11 +724,11 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
                         dmHttpClientTest,
-                        ::testing::Values("http://localhost:7000", "https://localhost:7001"));
+                        ::testing::Values("http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL));
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL,
                         dmHttpClientTestSSL,
-                        ::testing::Values("https://localhost:7002"));
+                        ::testing::Values("https://localhost:" NAME_SOCKET_SSL_TEST));
 
 
 class dmHttpClientTestCache : public dmHttpClientTest
@@ -899,14 +930,14 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
                         dmHttpClientTestCache,
-                        ::testing::Values("http://localhost:7000"));
+                        ::testing::Values("http://localhost:" NAME_SOCKET));
 
 #endif // #ifndef _WIN32
 
 TEST(dmHttpClient, HostNotFound)
 {
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", 7000);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", g_HttpPort);
     ASSERT_EQ((void*) 0, client);
 }
 
@@ -921,8 +952,33 @@ TEST(dmHttpClient, ConnectionRefused)
     dmHttpClient::Delete(client);
 }
 
+static void Usage()
+{
+    dmLogError("Usage: <exe> <config>");
+    dmLogError("Be sure to start the http server before starting this test.");
+    dmLogError("You can use the config file created by the server");
+}
+
 int main(int argc, char **argv)
 {
+    if(argc > 1)
+    {
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            Usage();
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
+        dmConfigFile::Delete(config);
+    }
+    else
+    {
+        Usage();
+        return 1;
+    }
+
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);

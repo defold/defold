@@ -34,6 +34,12 @@
                               vec))))
     iv))
 
+(defn iv-update-ids [f iv ids]
+  (if ids
+    (let [ids (set ids)]
+      (update iv :v (fn [v] (mapv (fn [[id v]] [id (if (ids id) (f v) v)]) v))))
+    iv))
+
 (defn iv-remove-ids [iv ids]
   (let [ids (set ids)]
     (update iv :v (fn [v] (->> v

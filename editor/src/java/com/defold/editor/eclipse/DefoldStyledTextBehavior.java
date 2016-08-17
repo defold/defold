@@ -6,6 +6,7 @@ import org.eclipse.fx.ui.controls.styledtext.StyledTextArea;
 import org.eclipse.fx.ui.controls.styledtext.StyledTextLayoutContainer;
 import org.eclipse.fx.ui.controls.styledtext.behavior.StyledTextBehavior;
 import com.defold.editor.eclipse.DefoldStyledTextSkin.LineCell;
+import javafx.scene.control.Label;
 
 import javafx.event.Event;
 import javafx.geometry.Bounds;
@@ -21,7 +22,7 @@ public class DefoldStyledTextBehavior extends StyledTextBehavior {
 
 	}
 	
-	public void defoldUpdateCursor(MouseEvent event, List<LineCell> visibleCells, boolean selection) {
+    public void defoldUpdateCursor(MouseEvent event, List<LineCell> visibleCells, boolean selection, Label lineLabel) {
 		//proxied in the Clojure code-view
 	}
 
