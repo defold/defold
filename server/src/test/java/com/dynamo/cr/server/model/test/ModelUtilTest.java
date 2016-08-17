@@ -116,20 +116,6 @@ public class ModelUtilTest {
     }
 
     @Test
-    public void testCountProjectMembers() throws Exception {
-        long bobProjectCount = ModelUtil.getProjectCount(entityManager, bobUser);
-        assertEquals(1, bobProjectCount);
-
-        long joeProjectCount = ModelUtil.getProjectCount(entityManager, joeUser);
-        assertEquals(0, joeProjectCount);
-
-        // Remove owner from the project member list
-        removeMember(bobProject, bobUser);
-        bobProjectCount = ModelUtil.getProjectCount(entityManager, bobUser);
-        assertEquals(1, bobProjectCount);
-    }
-
-    @Test
     public void testSubscribeToNewsletter() throws Exception {
         String userLastName = "Coder";
         NewsSubscriber existingSubscriber = getNewsSubscriber(BOB_EMAIL);
