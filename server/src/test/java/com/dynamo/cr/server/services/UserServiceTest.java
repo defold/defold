@@ -13,6 +13,8 @@ import javax.persistence.EntityManager;
 import javax.persistence.RollbackException;
 import java.util.Date;
 
+import static org.mockito.Mockito.mock;
+
 public class UserServiceTest {
     @Rule
     public EntityManagerRule entityManagerRule = new EntityManagerRule();
@@ -21,7 +23,7 @@ public class UserServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        userService = new UserService(entityManagerRule.getEntityManager());
+        userService = new UserService(entityManagerRule.getEntityManager(), null, mock(EmailService.class));
         createData();
     }
 

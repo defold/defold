@@ -1,24 +1,20 @@
 package com.dynamo.cr.server.mail;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
+import com.dynamo.cr.server.queue.ExponentialBackoff;
+import com.dynamo.cr.server.queue.JobQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.mail.MessagingException;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.dynamo.cr.server.queue.ExponentialBackoff;
-import com.dynamo.cr.server.queue.JobQueue;
-import com.google.common.base.Function;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 
 public class MailProcessor implements Runnable, IMailProcessor {
-
-    protected static Logger logger = LoggerFactory.getLogger(MailProcessor.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MailProcessor.class);
 
     private volatile boolean run = true;
     private IMailer mailer;
@@ -49,7 +45,7 @@ public class MailProcessor implements Runnable, IMailProcessor {
             }
             try {
                 Thread.sleep(updateInterval * 1000);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignored) {
             }
         }
     }
@@ -65,25 +61,22 @@ public class MailProcessor implements Runnable, IMailProcessor {
     @Override
     public void send(EntityManager em, EMail email) {
         jobQueue.newJob(em, email.serialize());
+
+        // Flush and interrupt in order to trigger direct email processing.
+        em.flush();
+        process();
     }
 
     private void processQueue(EntityManager em) {
-        jobQueue.process(em, new Function<byte[], Void>() {
-            @Override
-            public Void apply(byte[] arg) {
-                try {
-                    ObjectInputStream os = new ObjectInputStream(new ByteArrayInputStream(arg));
-                    EMail email = (EMail) os.readObject();
-                    mailer.send(email);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                } catch (MessagingException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
+        jobQueue.process(em, serializedEmailObject -> {
+            try {
+                ObjectInputStream os = new ObjectInputStream(new ByteArrayInputStream(serializedEmailObject));
+                EMail email = (EMail) os.readObject();
+                mailer.send(email);
+            } catch (IOException | ClassNotFoundException | MessagingException e) {
+                throw new RuntimeException(e);
             }
+            return null;
         });
     }
 
@@ -106,8 +99,7 @@ public class MailProcessor implements Runnable, IMailProcessor {
         try {
             thread.join();
         } catch (InterruptedException e) {
-            logger.error("", e);
+            LOGGER.error("", e);
         }
     }
-
 }
