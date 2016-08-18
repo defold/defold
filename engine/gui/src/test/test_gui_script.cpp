@@ -5,6 +5,7 @@
 #include <script/lua_source_ddf.h>
 
 #include "../gui.h"
+#include "../gui_private.h"
 #include "../gui_script.h"
 
 extern "C"
@@ -475,6 +476,82 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
 
     dmGui::DeleteScene(scene);
 
+    dmGui::DeleteScript(script);
+}
+
+static void InitializeScriptScene(dmGui::HContext* context,
+    dmGui::HScript* script, dmGui::HScene* scene, void* user_data, const char* source)
+{
+    *script = dmGui::NewScript(*context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = user_data;
+    *scene = dmGui::NewScene(*context, &params);
+
+    dmGui::Result result = dmGui::RESULT_OK;
+
+    dmGui::SetSceneResolution(*scene, 1, 1);
+
+    result = dmGui::SetSceneScript(*scene, *script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = SetScript(*script, LuaSourceFromStr(source));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(*scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderMinimum)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(0)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(0, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderMaximum)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(15)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(15, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderUnderflow)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(-1)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(0, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderOverflow)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(16)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(15, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
     dmGui::DeleteScript(script);
 }
 
