@@ -8,6 +8,7 @@ import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.providers.JsonProviders;
 import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.dynamo.cr.server.services.EmailService;
 import com.dynamo.cr.server.services.UserService;
 import com.google.api.client.auth.oauth2.AuthorizationCodeRequestUrl;
 import com.sun.jersey.api.client.*;
@@ -26,11 +27,12 @@ import javax.ws.rs.core.*;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.List;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 class DefoldAuthFilter extends ClientFilter {
 
@@ -439,6 +441,7 @@ public class UsersResourceTest extends AbstractResourceTest {
     @Test
     public void testInviteRegistration() throws Exception {
         EntityManager em = emf.createEntityManager();
+        UserService userService = new UserService(em, null, mock(EmailService.class));
 
         String email = "newuser@foo.com";
         assertNull(ModelUtil.findUserByEmail(em, email));
@@ -477,7 +480,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         User u = ModelUtil.findUserByEmail(em, email);
         assertThat("first", is(u.getFirstName()));
         assertThat("last", is(u.getLastName()));
-        InvitationAccount a = server.getInvitationAccount(em, u.getId().toString());
+        InvitationAccount a = userService.getInvitationAccount(u.getId().toString());
         assertThat(2, is(a.getOriginalCount()));
         assertThat(2, is(a.getCurrentCount()));
 
@@ -590,7 +593,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         // Delete inviter
         em.getTransaction().begin();
         // Get managed entity
-        UserService userService = new UserService(em);
+        UserService userService = new UserService(em, null, mock(EmailService.class));
         User inviter = userService.find(joeUser.getId()).orElseThrow(RuntimeException::new);
         // Delete
         userService.remove(inviter);
@@ -606,7 +609,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         User u = ModelUtil.findUserByEmail(em, email);
         assertThat("first", is(u.getFirstName()));
         assertThat("last", is(u.getLastName()));
-        InvitationAccount a = server.getInvitationAccount(em, u.getId().toString());
+        InvitationAccount a = userService.getInvitationAccount(u.getId().toString());
         assertThat(2, is(a.getOriginalCount()));
         assertThat(2, is(a.getCurrentCount()));
 
