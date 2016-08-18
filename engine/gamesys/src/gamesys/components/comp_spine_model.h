@@ -27,8 +27,8 @@ namespace dmGameSystem
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         /// User IK constraint targets
-        dmhash_t                    m_IKTargets[32];
-        Point3                      m_IKTargetPositions[32];
+        dmArray<dmhash_t>           m_IKTargets;
+        dmArray<Point3>             m_IKTargetPositions;
         uint8_t                     m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;

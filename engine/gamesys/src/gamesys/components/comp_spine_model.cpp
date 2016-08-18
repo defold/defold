@@ -306,6 +306,12 @@ namespace dmGameSystem
         // Create GO<->bone representation
         CreateGOBones(world, component);
 
+        const dmRigDDF::Skeleton* skeleton = rig_resource->m_SkeletonRes->m_Skeleton;
+        component->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
+        component->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
+        component->m_IKTargetPositions.SetCapacity(skeleton->m_Iks.m_Count);
+        component->m_IKTargetPositions.SetSize(skeleton->m_Iks.m_Count);
+
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -315,7 +321,8 @@ namespace dmGameSystem
         SpineModelComponent* component = world->m_Components.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
-        // component->m_IKTargets.SetCapacity(0);
+        component->m_IKTargets.SetCapacity(0);
+        component->m_IKTargetPositions.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
         params.m_Context = world->m_RigContext;
@@ -812,7 +819,6 @@ namespace dmGameSystem
 
     bool CompSpineSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
     {
-        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t ik_index = FindIKIndex(component, constraint_id);
         component->m_IKTargets[ik_index] = instance_id;
 
@@ -829,7 +835,6 @@ namespace dmGameSystem
 
     bool CompSpineSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position)
     {
-        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t ik_index = FindIKIndex(component, constraint_id);
         component->m_IKTargetPositions[ik_index] = position;
 
