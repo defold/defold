@@ -984,7 +984,7 @@ namespace dmRig
 
         if (context->m_Instances.Full())
         {
-            dmLogError("Rig Instance could not be created since the buffer is full (%d).", context->m_Instances.Capacity());
+            dmLogError("Rig Instance could not be created since the buffer is full (%d), consider increasing %s.", context->m_Instances.Capacity(), MAX_RIG_INSTANCE_COUNT_KEY);
             return dmRig::RESULT_ERROR;
         }
 
@@ -1029,6 +1029,10 @@ namespace dmRig
 
     Result InstanceDestroy(const InstanceDestroyParams& params)
     {
+        if (!params.m_Context || !params.m_Instance) {
+            return dmRig::RESULT_ERROR;
+        }
+
         DestroyInstance((RigContext*)params.m_Context, params.m_Instance->m_Index);
         return dmRig::RESULT_OK;
     }
