@@ -34,6 +34,99 @@ extern "C"
 
 namespace dmGameObject
 {
+/* 
+    PROP_FLOAT(SCALE, scale);
+*/
+
+    /*# game object position (vector3)
+     *
+     * The position of the game object.
+     * The type of the property is vector3.
+     *
+     * @name position
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to query a game object's position, either as a vector3 or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- get position from "player"
+     *   local pos = go.get("player", "position")
+     *   local posx = go.get("player", "position.x")
+     *   -- do something useful
+     *   assert(pos.x == posx)
+     * end
+     * </pre>
+     */
+
+    /*# game object rotation (quaternion)
+     *
+     * The rotation of the game object.
+     * The type of the property is quaternion.
+     *
+     * @name rotation
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set a game object's rotation:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- set "player" rotation to 45 degrees around z.
+     *   local rotz = vmath.quat_rotation_z(3.141592 / 4)
+     *   go.set("player", "rotation", rotz)
+     * end
+     * </pre>
+     */
+
+    /*# game object euler rotation (vector3)
+     *
+     * The rotation of the game object expressed in euler angles.
+     * Euler angles are specified in degrees.
+     * The type of the property is vector3.
+     *
+     * @name euler
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set a game object's rotation with euler angles, either as a vector3 or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- set "player" euler z rotation component to 45 degrees around z.
+     *   local rotz = 45
+     *   go.set("player", "euler.z", rotz)
+     *   local rot = go.get("player", "euler")
+     *   -- do something useful
+     *   assert(rot.z == rotz)
+     * end
+     * </pre>
+     */
+
+    /*# game object scale (vector3)
+     *
+     * The non-uniform scale of the game object. The type of the property is vector3.
+     *
+     * @name scale
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to scale a game object independently along the X and Y axis:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- Double the y-axis scaling on "player"
+     *   local yscale = go.get("player", "scale.y")
+     *   go.set("player", "scale.y", yscale * 2)
+     * end
+     * </pre>
+     */
+
 #define SCRIPTINSTANCE "GOScriptInstance"
 #define SCRIPT "GOScript"
 

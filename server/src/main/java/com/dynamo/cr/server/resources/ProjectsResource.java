@@ -47,12 +47,6 @@ public class ProjectsResource extends BaseResource {
     public ProjectInfo newProject(NewProject newProject) {
         User user = getUser();
 
-        long projectCount = ModelUtil.getProjectCount(em, user);
-        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-        if (projectCount >= maxProjectCount) {
-            throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount));
-        }
-
         Project project = ModelUtil.newProject(em, user, newProject.getName(), newProject.getDescription());
         em.flush();
 

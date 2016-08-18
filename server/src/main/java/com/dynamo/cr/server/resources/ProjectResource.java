@@ -285,23 +285,12 @@ public class ProjectResource extends BaseResource {
                 .orElseThrow(() -> new ServerException(String.format("No such user %s", newOwnerId), Status.NOT_FOUND));
         for (User member : project.getMembers()) {
             if (Objects.equals(member.getId(), newOwner.getId())) {
-                validateMaxProjectCount(newOwner);
                 logger.debug(String.format("Changing project %d ownership to user %s", project.getId(), newOwnerId));
                 project.setOwner(newOwner);
                 return true;
             }
         }
         return false;
-    }
-
-    private void validateMaxProjectCount(User newOwner) throws ServerException {
-        long projectCount = ModelUtil.getProjectCount(em, newOwner);
-        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-
-        if (projectCount >= maxProjectCount) {
-            throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount),
-                    Status.FORBIDDEN);
-        }
     }
 
     @GET

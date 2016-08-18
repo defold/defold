@@ -116,15 +116,4 @@ public class ModelUtil {
             em.persist(ns);
         }
     }
-
-    /**
-     * Get the number of projects owned by the user. Please notice: owner must be present in the project members list
-     * @param em {@link EntityManager}
-     * @param user Project owner
-     * @return Number of projects owned by the user
-     */
-    public static long getProjectCount(EntityManager em, User user) {
-        return em.createQuery("select count(p.id) from Project p where p.owner = :user", Long.class)
-                .setParameter("user", user).getSingleResult();
-    }
 }
