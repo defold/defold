@@ -92,9 +92,17 @@ namespace dmRig
     typedef struct IKTarget IKTarget;
     typedef Vector3 (*RigIKTargetCallback)(IKTarget*);
 
+    // IK targets can either use a static position or a callback (that is
+    // called during the context update). A pointer to the IKTarget struct
+    // is passed to the callback as the only argument. If the IK target
+    // becomes invalid (for example the GO is removed in the collection,
+    // or a GUI node in the GUI scene) it is up the callback to reset the
+    // struct fields.
     struct IKTarget {
         float               m_Mix;
+        /// Static IK target position
         Vector3             m_Position;
+        /// Callback to dynamically set the IK target position.
         RigIKTargetCallback m_Callback;
         void*               m_UserPtr;
         dmhash_t            m_UserHash;
@@ -171,7 +179,7 @@ namespace dmRig
         dmArray<dmTransform::Transform> m_Pose;
         /// Animated IK
         dmArray<IKAnimation>          m_IKAnimation;
-        // User IK constraint targets
+        /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
         /// Animated mesh properties
         dmArray<MeshProperties>       m_MeshProperties;
