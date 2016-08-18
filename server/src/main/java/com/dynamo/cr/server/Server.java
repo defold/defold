@@ -1,17 +1,19 @@
 package com.dynamo.cr.server;
 
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.proto.Config.EMailTemplate;
-import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.server.auth.*;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
+import com.dynamo.cr.server.auth.GitSecurityFilter;
+import com.dynamo.cr.server.auth.OAuthAuthenticator;
+import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.git.GitGcReceiveFilter;
 import com.dynamo.cr.server.git.archive.ArchiveCache;
 import com.dynamo.cr.server.git.archive.GitArchiveProvider;
-import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
-import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.resources.*;
 import com.dynamo.cr.server.services.UserService;
@@ -49,20 +51,18 @@ import javax.inject.Singleton;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Query;
-import javax.persistence.TypedQuery;
 import javax.servlet.Filter;
 import javax.servlet.ServletContextEvent;
-import javax.ws.rs.core.Response.Status;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Properties;
 
 public class Server {
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
@@ -73,7 +73,6 @@ public class Server {
     private EntityManagerFactory emf;
     private SecureRandom secureRandom;
     private IMailProcessor mailProcessor;
-    private ExecutorService executorService;
 
     // Value it retrieved from configuration in order to
     // be run-time changeable. Required for unit-tests
@@ -106,6 +105,7 @@ public class Server {
                     bind(GitArchiveProvider.class).in(Singleton.class);
                     bind(ArchiveCache.class).in(Singleton.class);
                     bind(Configuration.class).toInstance(server.getConfiguration());
+                    bind(IMailProcessor.class).toInstance(server.getMailProcessor());
 
                     bind(UserService.class);
 
@@ -263,12 +263,6 @@ public class Server {
         httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
 
         this.mailProcessor.start();
-
-        this.executorService = Executors.newSingleThreadExecutor();
-    }
-
-    private ExecutorService getExecutorService() {
-        return executorService;
     }
 
     private IMailProcessor getMailProcessor() {
@@ -311,29 +305,12 @@ public class Server {
         emf.close();
     }
 
-    public Project getProject(EntityManager em, String id) throws ServerException {
+    private Project getProject(EntityManager em, String id) throws ServerException {
         Project project = em.find(Project.class, Long.parseLong(id));
         if (project == null)
             throw new ServerException(String.format("No such project %s", id));
 
         return project;
-    }
-
-    public InvitationAccount getInvitationAccount(EntityManager em, String userId) throws ServerException {
-        InvitationAccount invitationAccount = em.find(InvitationAccount.class, Long.parseLong(userId));
-        if (invitationAccount == null)
-            throw new ServerException(String.format("No such invitation account %s", userId), javax.ws.rs.core.Response.Status.NOT_FOUND);
-
-        return invitationAccount;
-    }
-
-    private int getInvitationCount(int originalCount) {
-        for (InvitationCountEntry entry : this.configuration.getInvitationCountMapList()) {
-            if (entry.getKey() == originalCount) {
-                return entry.getValue();
-            }
-        }
-        return 0;
     }
 
     public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException, GitAPIException {
@@ -413,10 +390,6 @@ public class Server {
         return sb.toString();
     }
 
-    private int getOpenRegistrationMaxUsers() {
-        return openRegistrationMaxUsers;
-    }
-
     public void setOpenRegistrationMaxUsers(int openRegistrationMaxUsers) {
         this.openRegistrationMaxUsers = openRegistrationMaxUsers;
     }
@@ -424,53 +397,7 @@ public class Server {
     public boolean openRegistration(EntityManager em) {
         Query query = em.createQuery("select count(u.id) from User u");
         Number count = (Number) query.getSingleResult();
-        int maxUsers = getOpenRegistrationMaxUsers();
+        int maxUsers = openRegistrationMaxUsers;
         return count.intValue() < maxUsers;
-    }
-
-    public void invite(EntityManager em, String email, String inviter, String inviterEmail, int originalInvitationCount) {
-        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.email = :email", Invitation.class);
-        List<Invitation> lst = q.setParameter("email", email).getResultList();
-        if (lst.size() > 0) {
-            String msg = String.format("The email %s is already registred. An invitation will be sent to you as soon as we can " +
-                                       "handle the high volume of registrations.", email);
-            ResourceUtil.throwWebApplicationException(Status.CONFLICT, msg);
-        }
-
-        // Remove prospects
-        Prospect p = ModelUtil.findProspectByEmail(em, email);
-        if (p != null) {
-            em.remove(p);
-        }
-
-        String key = UUID.randomUUID().toString();
-
-        EMailTemplate template = getConfiguration().getInvitationTemplate();
-        Map<String, String> params = new HashMap<>();
-        params.put("inviter", inviter);
-        params.put("key", key);
-        EMail emailMessage = EMail.format(template, email, params);
-
-        Invitation invitation = new Invitation();
-        invitation.setEmail(email);
-        invitation.setInviterEmail(inviterEmail);
-        invitation.setRegistrationKey(key);
-        invitation.setInitialInvitationCount(getInvitationCount(originalInvitationCount));
-        em.persist(invitation);
-        getMailProcessor().send(em, emailMessage);
-        em.flush();
-
-        // NOTE: This is totally arbitrary. server.getMailProcessor().process()
-        // should be invoked *after* the transaction is commited. Commits are
-        // however container managed. Thats why we run a bit later.. budget..
-        // The mail is eventually sent though as we periodically process the queue
-        getExecutorService().execute(() -> {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) { e.printStackTrace(); }
-            getMailProcessor().process();
-        });
-
-        ModelUtil.subscribeToNewsLetter(em, email, "", "");
     }
 }
