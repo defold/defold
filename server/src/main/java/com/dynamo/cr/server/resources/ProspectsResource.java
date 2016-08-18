@@ -1,27 +1,33 @@
 package com.dynamo.cr.server.resources;
 
-import java.util.List;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Prospect;
+import com.dynamo.cr.server.services.UserService;
+import com.dynamo.inject.persist.Transactional;
 
+import javax.inject.Inject;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Prospect;
-import com.dynamo.inject.persist.Transactional;
+import java.util.List;
 
 @Path("/prospects")
 public class ProspectsResource extends BaseResource {
+    @Inject
+    private UserService userService;
+
+    public ProspectsResource() {
+    }
 
     @PUT
     @Path("/{email}")
     @Transactional
     public Response newProspect(@PathParam("email") String email) {
         if (server.openRegistration(em)) {
-            server.invite(em, email, "Defold", "info@defold.se", server.getConfiguration().getOpenInvitationCount());
+            userService.invite(email, "Defold", "info@defold.se", server.getConfiguration().getOpenInvitationCount());
             String msg = "An invitation email has been sent to %s. " +
             		     "Instructions and registration link is in the email. Please check the spam folder if no registration email " +
             		     "is found in your inbox.";
@@ -44,5 +50,4 @@ public class ProspectsResource extends BaseResource {
             return okResponse(msg);
         }
     }
-
 }

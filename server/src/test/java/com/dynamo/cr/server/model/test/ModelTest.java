@@ -1,6 +1,7 @@
 package com.dynamo.cr.server.model.test;
 
 import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.services.EmailService;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import com.dynamo.cr.server.test.TestUser;
@@ -20,6 +21,7 @@ import java.util.UUID;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 public class ModelTest {
 
@@ -36,7 +38,7 @@ public class ModelTest {
     @Before
     public void setUp() throws Exception {
         em = entityManagerRule.getEntityManager();
-        userService = new UserService(em);
+        userService = new UserService(em, null, mock(EmailService.class));
         createData();
     }
 

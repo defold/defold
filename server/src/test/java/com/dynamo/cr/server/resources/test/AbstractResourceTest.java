@@ -13,6 +13,7 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.providers.JsonProviders;
 import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.Util;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -117,6 +118,7 @@ public class AbstractResourceTest {
             bind(IMailer.class).toInstance(mailer);
             bind(AccessTokenStore.class);
             bind(AccessTokenAuthenticator.class);
+            bind(UserService.class);
 
             Properties props = new Properties();
             props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
