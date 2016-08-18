@@ -306,12 +306,6 @@ namespace dmGameSystem
         // Create GO<->bone representation
         CreateGOBones(world, component);
 
-        const dmRigDDF::Skeleton* skeleton = rig_resource->m_SkeletonRes->m_Skeleton;
-        component->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
-        component->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
-        component->m_IKTargetPositions.SetCapacity(skeleton->m_Iks.m_Count);
-        component->m_IKTargetPositions.SetSize(skeleton->m_Iks.m_Count);
-
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -321,8 +315,6 @@ namespace dmGameSystem
         SpineModelComponent* component = world->m_Components.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
-        component->m_IKTargets.SetCapacity(0);
-        component->m_IKTargetPositions.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
         params.m_Context = world->m_RigContext;
@@ -683,9 +675,7 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
     {
-        // component->m_Resource = (SpineModelResource*)params.m_Resource;
-
-        // destroy old rig
+        // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = world->m_RigContext;
         destroy_params.m_Instance = component->m_RigInstance;
@@ -779,74 +769,47 @@ namespace dmGameSystem
         }
     }
 
-    static Vector3 UpdateIKInstanceCallback(void* user_data1, void* user_data2)
+    static Vector3 UpdateIKInstanceCallback(dmRig::IKTarget* ik_target)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data1;
-        dmhash_t target_instance_id = *(dmhash_t*)user_data2;
+        SpineModelComponent* component = (SpineModelComponent*)ik_target->m_UserPtr;
+        dmhash_t target_instance_id = ik_target->m_UserHash;
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), target_instance_id);
         if(target_instance == 0x0)
         {
             // instance have been removed, disable animation
             dmLogError("Could not get IK position for target %s, removed?", (const char*)dmHashReverse64(target_instance_id, 0x0))
+            ik_target->m_Callback = 0x0;
+            ik_target->m_Mix = 0x0;
             return Vector3(0.0f);
         }
 
         return (Vector3)dmGameObject::GetWorldPosition(target_instance);
     }
 
-    static Vector3 UpdateIKPositionCallback(void* user_data1, void* user_data2)
+    bool CompSpineModelSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data1;
-        Point3 position = *(Point3*)user_data2;
-        return (Vector3)dmTransform::Apply(dmTransform::Inv(dmTransform::Mul(dmGameObject::GetWorldTransform(component->m_Instance), component->m_Transform)), position);
-    }
-
-    static uint32_t FindIKIndex(SpineModelComponent* component, dmhash_t constraint_id)
-    {
-        const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
+        dmRig::IKTarget* target = dmRig::GetIKTarget(component->m_RigInstance, constraint_id);
+        if (!target) {
+            return false;
         }
-        return ik_index;
+        target->m_Callback = UpdateIKInstanceCallback;
+        target->m_Mix = mix;
+        target->m_UserPtr = component;
+        target->m_UserHash = instance_id;
+
+        return true;
     }
 
-    bool CompSpineSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
+    bool CompSpineModelSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position)
     {
-        uint32_t ik_index = FindIKIndex(component, constraint_id);
-        component->m_IKTargets[ik_index] = instance_id;
-
-        dmRig::RigIKTargetParams params = {0};
-        params.m_RigInstance = component->m_RigInstance;
-        params.m_ConstraintId = constraint_id;
-        params.m_Mix = mix;
-        params.m_Callback = UpdateIKInstanceCallback;
-        params.m_UserData1 = (void*)component;
-        params.m_UserData2 = (void*)&component->m_IKTargets[ik_index];
-
-        return dmRig::SetIKTarget(params) == dmRig::RESULT_OK;
-    }
-
-    bool CompSpineSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position)
-    {
-        uint32_t ik_index = FindIKIndex(component, constraint_id);
-        component->m_IKTargetPositions[ik_index] = position;
-
-        dmRig::RigIKTargetParams params = {0};
-        params.m_RigInstance = component->m_RigInstance;
-        params.m_ConstraintId = constraint_id;
-        params.m_Mix = mix;
-        params.m_Callback = UpdateIKPositionCallback;
-        params.m_UserData1 = (void*)component;
-        params.m_UserData2 = (void*)&component->m_IKTargetPositions[ik_index];
-
-        return dmRig::SetIKTarget(params) == dmRig::RESULT_OK;
+        dmRig::IKTarget* target = dmRig::GetIKTarget(component->m_RigInstance, constraint_id);
+        if (!target) {
+            return false;
+        }
+        target->m_Callback = 0x0;
+        target->m_Mix = mix;
+        target->m_Position = (Vector3)position;
+        return true;
     }
 
 }

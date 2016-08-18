@@ -26,9 +26,6 @@ namespace dmGameSystem
         dmArray<Vector4>            m_PrevRenderConstants;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
-        /// User IK constraint targets
-        dmArray<dmhash_t>           m_IKTargets;
-        dmArray<Point3>             m_IKTargetPositions;
         uint8_t                     m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;
@@ -84,8 +81,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
-    bool CompSpineSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
-    bool CompSpineSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
+    bool CompSpineModelSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
+    bool CompSpineModelSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
 }
 
 #endif // DM_GAMESYS_COMP_SPINE_MODEL_H

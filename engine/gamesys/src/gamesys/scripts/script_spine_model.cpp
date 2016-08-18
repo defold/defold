@@ -227,7 +227,7 @@ namespace dmGameSystem
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
 
-        if (!CompSpineSetIKTargetPosition(component, ik_constraint_id, 1.0f, (Point3)*position))
+        if (!CompSpineModelSetIKTargetPosition(component, ik_constraint_id, 1.0f, (Point3)*position))
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
@@ -283,7 +283,7 @@ namespace dmGameSystem
         if (target_instance == 0)
             return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
 
-        if (!CompSpineSetIKTargetInstance(component, ik_constraint_id, 1.0f, target.m_Path))
+        if (!CompSpineModelSetIKTargetInstance(component, ik_constraint_id, 1.0f, target.m_Path))
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }

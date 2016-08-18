@@ -807,21 +807,23 @@ static Vector3 IKTargetPositionCallback(void* user_data, void*)
     return *(Vector3*)user_data;
 }
 
-TEST_F(RigInstanceTest, SetIKTarget)
+TEST_F(RigInstanceTest, InvalidIKTarget)
+{
+    // Getting invalid ik constraint
+    ASSERT_EQ((dmRig::IKTarget*)0x0, dmRig::GetIKTarget(m_Instance, dmHashString64("invalid_ik_name")));
+}
+
+TEST_F(RigInstanceTest, IKTarget)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik_anim"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
 
-    Vector3 tmp_val = Vector3(0.0f, 100.0f, 0.0f);
+    dmRig::IKTarget* target = dmRig::GetIKTarget(m_Instance, dmHashString64("test_ik"));
+    ASSERT_NE((dmRig::IKTarget*)0x0, target);
+    target->m_Callback = 0x0;
+    target->m_Mix = 1.0f;
+    target->m_Position = Vector3(0.0f, 100.0f, 0.0f);
 
-    dmRig::RigIKTargetParams params = {0};
-    params.m_RigInstance = m_Instance;
-    params.m_ConstraintId = dmHashString64("test_ik");
-    params.m_Mix = 1.0f;
-    params.m_Callback = IKTargetPositionCallback;
-    params.m_UserData1 = (void*)&tmp_val;
-    params.m_UserData2 = 0x0;
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetIKTarget(params));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
@@ -834,8 +836,8 @@ TEST_F(RigInstanceTest, SetIKTarget)
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[3].GetRotation());
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[4].GetRotation());
 
-    tmp_val.setX(100.0f);
-    tmp_val.setY(1.0f);
+    target->m_Position.setX(100.0f);
+    target->m_Position.setY(1.0f);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 

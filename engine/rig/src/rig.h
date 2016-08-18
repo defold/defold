@@ -89,13 +89,15 @@ namespace dmRig
         bool m_Positive;
     };
 
-    typedef Vector3 (*RigIKTargetCallback)(void*,void*);
+    typedef struct IKTarget IKTarget;
+    typedef Vector3 (*RigIKTargetCallback)(IKTarget*);
 
     struct IKTarget {
         float               m_Mix;
+        Vector3             m_Position;
         RigIKTargetCallback m_Callback;
-        void*               m_UserData1;
-        void*               m_UserData2;
+        void*               m_UserPtr;
+        dmhash_t            m_UserHash;
     };
 
     struct RigIKTargetParams
@@ -260,7 +262,7 @@ namespace dmRig
     float GetCursor(HRigInstance instance, bool normalized);
     Result SetCursor(HRigInstance instance, float cursor, bool normalized);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
-    Result SetIKTarget(const RigIKTargetParams& params);
+    IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id);
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);

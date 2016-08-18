@@ -621,15 +621,25 @@ namespace dmRig
                     Vector3 parent_position = parent_t.GetTranslation();
                     Vector3 target_position = target_t.GetTranslation();
 
-                    const float target_mix = ik_targets[i].m_Mix;
-                    if(target_mix != 0.0f)
+                    if(ik_targets[i].m_Mix != 0.0f)
                     {
                         // get custom target position either from go or vector position
                         Vector3 user_target_position = target_position;
-                        if(ik_targets[i].m_Callback != 0)
+                        if (ik_targets[i].m_UserHash == 0)
                         {
-                            user_target_position = ik_targets[i].m_Callback(ik_targets[i].m_UserData1, ik_targets[i].m_UserData2);
+                            user_target_position = ik_targets[i].m_Position;
+                        } else {
+                            if(ik_targets[i].m_Callback != 0)
+                            {
+                                user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
+                            } else {
+                                // instance have been removed, disable animation
+                                ik_targets[i].m_UserHash = 0;
+                                ik_targets[i].m_Mix = 0.0f;
+                            }
                         }
+
+                        const float target_mix = ik_targets[i].m_Mix;
 
                         if(parent_parent_index != INVALID_BONE_INDEX)
                             user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
@@ -951,20 +961,18 @@ namespace dmRig
         return (instance->m_MeshEntry != 0x0);
     }
 
-    Result SetIKTarget(const RigIKTargetParams& params)
+    IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id)
     {
-        uint32_t ik_index = FindIKIndex(params.m_RigInstance, params.m_ConstraintId);
-        if (ik_index == ~0u) {
-            dmLogError("Could not find IK constraint (%llu)", params.m_ConstraintId);
-            return dmRig::RESULT_NOT_FOUND;
+        if (!instance) {
+            return 0x0;
         }
-        dmRig::IKTarget& ik_target = params.m_RigInstance->m_IKTargets[ik_index];
-        ik_target.m_Mix = params.m_Mix;
-        ik_target.m_Callback = params.m_Callback;
-        ik_target.m_UserData1 = params.m_UserData1;
-        ik_target.m_UserData2 = params.m_UserData2;
+        uint32_t ik_index = FindIKIndex(instance, constraint_id);
+        if (ik_index == ~0u) {
+            dmLogError("Could not find IK constraint (%llu)", constraint_id);
+            return 0x0;
+        }
 
-        return dmRig::RESULT_OK;
+        return &instance->m_IKTargets[ik_index];
     }
 
     static void DestroyInstance(HRigContext context, uint32_t index)
