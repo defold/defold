@@ -1,6 +1,5 @@
 package com.dynamo.cr.server.resources;
 
-import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.Server;
@@ -122,9 +121,6 @@ public class ProjectResource extends BaseResource {
 
     @Inject
     private ProjectService projectService;
-
-    @Inject
-    private Config.Configuration configuration;
 
     @HEAD
     @Path("/archive/{version}")

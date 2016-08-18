@@ -2,6 +2,7 @@ package com.dynamo.cr.server.model.test;
 
 import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.model.User.Role;
+import com.dynamo.cr.server.services.EmailService;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import org.junit.Assert;
@@ -14,6 +15,7 @@ import javax.persistence.NoResultException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Mockito.mock;
 
 public class ModelUtilTest {
 
@@ -35,7 +37,7 @@ public class ModelUtilTest {
     @Before
     public void setUp() throws Exception {
         entityManager = entityManagerRule.getEntityManager();
-        userService = new UserService(entityManager);
+        userService = new UserService(entityManager, null, mock(EmailService.class));
         createData();
     }
 
@@ -93,11 +95,6 @@ public class ModelUtilTest {
     private void addMember(Project project, User user) {
         project.getMembers().add(user);
         user.getProjects().add(project);
-    }
-
-    private void removeMember(Project project, User user) {
-        project.getMembers().remove(user);
-        user.getProjects().remove(project);
     }
 
     private void connect(User u1, User u2) {
