@@ -390,17 +390,20 @@ bail:
             // Skip past all non-matching entries (that must have been destroyed)
             while (j < ssdp->m_LocalAddrCount && ssdp->m_LocalAddr[j].m_Address < addr)
             {
+                dmLogDebug("SSDP Update: Destroying socket previously on #%02d", j);
                 DestroyListeningSocket(ssdp, j++);
             }
 
             // If matches address and the socket is valid, keep it. Otherwise make a new.
             if (j < ssdp->m_LocalAddrCount && ssdp->m_LocalAddr[j].m_Address == addr && ssdp->m_LocalAddrSocket[j] != dmSocket::INVALID_SOCKET_HANDLE)
             {
+                dmLogDebug("SSDP Update: Keeping socket on #%02d, previously on #%02d", i, j);
                 new_socket[i] = ssdp->m_LocalAddrSocket[j];
                 j++;
             }
             else
             {
+                dmLogDebug("SSDP Update: Creating new socket on #%02d", i);
                 new_socket[i] = dmSocket::INVALID_SOCKET_HANDLE;
 
                 if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
@@ -1075,7 +1078,6 @@ bail:
 
         // Send announces on all interfaces.
         dev->m_IfAddrStateCount = ssdp->m_LocalAddrCount;
-        bool announced = false;
         for (uint32_t i=0;i!=ssdp->m_LocalAddrCount;i++)
         {
             Device::IfAddrState *dst = &dev->m_IfAddrState[i];
@@ -1084,10 +1086,7 @@ bail:
             {
                 if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
                 {
-                    if (SendAnnounce(ssdp, dev, i))
-                    {
-                        announced = true;
-                    }
+                    (void) SendAnnounce(ssdp, dev, i);
                 }
 
                 dst->m_Expires = next;
@@ -1096,11 +1095,6 @@ bail:
             {
                 dst->m_Expires = new_expires[i];
             }
-        }
-
-        if (!announced)
-        {
-            dmLogWarning("Failed to broadcast service announcement on all %d interface(s)", ssdp->m_LocalAddrCount);
         }
     }
 

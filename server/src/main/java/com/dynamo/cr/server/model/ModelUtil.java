@@ -11,7 +11,7 @@ public class ModelUtil {
      * @param entityManager entity manager
      * @param owner owner of the project
      * @param name name of the project
-     * @param description
+     * @param description project description
      * @return new project
      */
     public static Project newProject(EntityManager entityManager, User owner, String name, String description) {
@@ -33,35 +33,6 @@ public class ModelUtil {
      */
     public static void removeProject(EntityManager entityManager, Project project) {
         entityManager.remove(project);
-    }
-
-    /**
-     * Remove user. First user is removed to every project the user belongs to. Then the user is removed.
-     * @param entityManager entity manager
-     * @param user user to remove
-     */
-    public static void removeUser(EntityManager entityManager, User user) {
-        // Remove user from projects user is member of
-        for (Project p : user.getProjects()) {
-            p.getMembers().remove(user);
-        }
-
-        // Find all users with connections to this user and remove their connection.
-        List<User> connectedUsers = entityManager
-                .createQuery("SELECT u FROM User u WHERE :user MEMBER OF u.connections", User.class)
-                .setParameter("user", user)
-                .getResultList();
-        for (User connectedUser : connectedUsers) {
-            connectedUser.getConnections().remove(user);
-        }
-
-        // Remove invitation account if exists
-        InvitationAccount account = entityManager.find(InvitationAccount.class, user.getId());
-        if (account != null) {
-            entityManager.remove(account);
-        }
-
-        entityManager.remove(user);
     }
 
     /**
@@ -106,17 +77,6 @@ public class ModelUtil {
         u2.getConnections().add(u1);
     }
 
-    public static Prospect findProspectByEmail(EntityManager entityManager, String email) {
-        List<Prospect> list = entityManager.createQuery("select p from Prospect p where p.email = :email", Prospect.class).setParameter("email", email).getResultList();
-        if (list.size() == 0) {
-            return null;
-        }
-        else {
-            assert list.size() == 1;
-            return list.get(0);
-        }
-    }
-
     /**
      * Subscribe to news-letter. If user is found in subscription status is kept as is
      * but first and last-name are updated. For user invited via email first and last name are unknown
@@ -144,16 +104,5 @@ public class ModelUtil {
             ns.setLastName(lastName);
             em.persist(ns);
         }
-    }
-
-    /**
-     * Get the number of projects owned by the user. Please notice: owner must be present in the project members list
-     * @param em {@link EntityManager}
-     * @param user Project owner
-     * @return Number of projects owned by the user
-     */
-    public static long getProjectCount(EntityManager em, User user) {
-        return em.createQuery("select count(p.id) from Project p where p.owner = :user", Long.class)
-                .setParameter("user", user).getSingleResult();
     }
 }

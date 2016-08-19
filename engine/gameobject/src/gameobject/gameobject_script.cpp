@@ -34,6 +34,95 @@ extern "C"
 
 namespace dmGameObject
 {
+    /*# game object position (vector3)
+     *
+     * The position of the game object.
+     * The type of the property is vector3.
+     *
+     * @name position
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to query a game object's position, either as a vector3 or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- get position from "player"
+     *   local pos = go.get("player", "position")
+     *   local posx = go.get("player", "position.x")
+     *   -- do something useful
+     *   assert(pos.x == posx)
+     * end
+     * </pre>
+     */
+
+    /*# game object rotation (quaternion)
+     *
+     * The rotation of the game object.
+     * The type of the property is quaternion.
+     *
+     * @name rotation
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set a game object's rotation:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- set "player" rotation to 45 degrees around z.
+     *   local rotz = vmath.quat_rotation_z(3.141592 / 4)
+     *   go.set("player", "rotation", rotz)
+     * end
+     * </pre>
+     */
+
+    /*# game object euler rotation (vector3)
+     *
+     * The rotation of the game object expressed in euler angles.
+     * Euler angles are specified in degrees.
+     * The type of the property is vector3.
+     *
+     * @name euler
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set a game object's rotation with euler angles, either as a vector3 or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- set "player" euler z rotation component to 45 degrees around z.
+     *   local rotz = 45
+     *   go.set("player", "euler.z", rotz)
+     *   local rot = go.get("player", "euler")
+     *   -- do something useful
+     *   assert(rot.z == rotz)
+     * end
+     * </pre>
+     */
+
+    /*# game object scale (vector3)
+     *
+     * The non-uniform scale of the game object. The type of the property is vector3.
+     *
+     * @name scale
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to scale a game object independently along the X and Y axis:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- Double the y-axis scaling on "player"
+     *   local yscale = go.get("player", "scale.y")
+     *   go.set("player", "scale.y", yscale * 2)
+     * end
+     * </pre>
+     */
+
 #define SCRIPTINSTANCE "GOScriptInstance"
 #define SCRIPT "GOScript"
 
@@ -438,7 +527,16 @@ namespace dmGameObject
             dmGameObject::LuaPushVar(L, property_desc.m_Variant);
             return 1;
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
-            return luaL_error(L, "'%s' does not have any property called '%s'", lua_tostring(L, 1), (const char*)dmHashReverse64(property_id, 0x0));
+            {
+                // The supplied URL parameter don't need to be a string,
+                // we let Lua handle the "conversion" to string using concatenation.
+                lua_pushliteral(L, "");
+                lua_pushvalue(L, 1);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+            }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
         default:
@@ -522,6 +620,8 @@ namespace dmGameObject
             return 0;
         case PROPERTY_RESULT_NOT_FOUND:
             {
+                // The supplied URL parameter don't need to be a string,
+                // we let Lua handle the "conversion" to string using concatenation.
                 lua_pushliteral(L, "");
                 lua_pushvalue(L, 1);
                 lua_concat(L, 2);
@@ -1266,12 +1366,13 @@ namespace dmGameObject
 
     /*# constructs a ray in world space from a position in screen space
      *
-     * NOTE! Don't use this function, WIP!
+     * @note Do not use this function, WIP!
      *
      * @name go.screen_ray
      * @param x x-coordinate of the screen space position (number)
      * @param y y-coordinate of the screen space position (number)
-     * @return position and direction of the ray in world space (vector3, vector3)
+     * @return position of the ray in world-space (vector3)
+     * @return direction of the ray in world space (vector3)
      */
     int Script_ScreenRay(lua_State* L)
     {

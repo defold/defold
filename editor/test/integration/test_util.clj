@@ -5,6 +5,7 @@
             [editor.collection :as collection]
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
+            [editor.factory :as factory]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
             [editor.image :as image]
@@ -51,6 +52,7 @@
        (concat
         (collection/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
+        (factory/register-resource-types workspace)
         (font/register-resource-types workspace)
         (game-object/register-resource-types workspace)
         (game-project/register-resource-types workspace)

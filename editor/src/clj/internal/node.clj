@@ -16,7 +16,6 @@
            [clojure.lang Named]
            [schema.core Maybe Either]))
 
-
 ;; TODO - replace use of 'transform' as a variable name with 'label'
 
 (set! *warn-on-reflection* true)
@@ -1119,17 +1118,37 @@
   [self-name ctx-name input]
   `(pull-input-values ~input ~self-name ~ctx-name))
 
-(defn maybe-use-substitute [description input forms]
-  (if-let [sub (get-in description [:input input :options :substitute])]
-   `(let [input# ~forms]
-      (if (ie/error? input#)
-        (util/apply-if-fn ~sub input#)
-        input#))
-    forms))
+(defn maybe-ignore-error-in-value
+  [self-name ctx-name nodeid-sym description input forms]
+  (let [sub       (get-in description [:input input :options :substitute])
+        input-val (gensym)]
+    `(let [~input-val ~forms]
+       (if (instance? ErrorValue ~input-val)
+         (if (ie/worse-than (:ignore-errors ~ctx-name) ~input-val)
+           ~(if sub
+              `(util/apply-if-fn ~sub ~input-val)
+              `(ie/error-aggregate [~input-val] :_node-id ~nodeid-sym :_label ~input))
+           (:value ~input-val))
+         ~input-val))))
+
+(defn maybe-ignore-error-in-array
+  [self-name ctx-name nodeid-sym description input forms]
+  (let [sub            (get-in description [:input input :options :substitute])
+        input-array    (gensym)
+        serious-errors (gensym)]
+    `(let [~input-array ~forms]
+       (if (some #(instance? ErrorValue %) ~input-array)
+         (let [~serious-errors (filter #(ie/worse-than (:ignore-errors ~ctx-name) %) ~input-array)]
+           (if (empty? ~serious-errors)
+             (mapv #(if (instance? ErrorValue %) (:value %) %) ~input-array)
+             ~(if sub
+                `(util/apply-if-fn ~sub ~input-array)
+                `(ie/error-aggregate ~serious-errors :_node-id ~nodeid-sym :_label ~input))))
+         ~input-array))))
 
 (defn filter-error-vals
   [threshold m]
-  (ie/worse-than threshold (flatten (vals m))))
+  (filter (partial ie/worse-than threshold) (flatten (vals m))))
 
 (defn call-with-error-checked-fnky-arguments
   [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
@@ -1202,13 +1221,13 @@
       (collect-property-value self-name ctx-name nodeid-sym description argument))
 
     (has-multivalued-input? description argument)
-    (maybe-use-substitute
-      description argument
-      (input-value-forms self-name ctx-name argument))
+    (maybe-ignore-error-in-array
+     self-name ctx-name nodeid-sym description argument
+     (input-value-forms self-name ctx-name argument))
 
     (has-singlevalued-input? description argument)
-    (maybe-use-substitute
-     description argument
+    (maybe-ignore-error-in-value
+     self-name ctx-name nodeid-sym description argument
      (first-input-value-form self-name ctx-name argument))
 
     (desc-has-output? description argument)
@@ -1290,10 +1309,10 @@
 (defn input-error-check [self-name ctx-name description label nodeid-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(let [serious-input-errors# (filter ie/error? (vals ~input-sym))]
+    `(let [serious-input-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
        (if (empty? serious-input-errors#)
          ~tail
-         (ie/error-aggregate (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym) :_node-id ~nodeid-sym :_label ~label)))))
+         (ie/error-aggregate serious-input-errors# :_node-id ~nodeid-sym :_label ~label)))))
 
 (defn call-production-function [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
   `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
@@ -1393,13 +1412,13 @@
     `(gt/produce-value  ~self-name ~argument ~ctx-name)
 
     (has-multivalued-input? description argument)
-    (maybe-use-substitute
-     description argument
+    (maybe-ignore-error-in-array
+     self-name ctx-name nodeid-sym description argument
      (input-value-forms self-name ctx-name argument))
 
     (has-singlevalued-input? description argument)
-    (maybe-use-substitute
-     description argument
+    (maybe-ignore-error-in-value
+     self-name ctx-name nodeid-sym description argument
      (first-input-value-form self-name ctx-name argument))
 
     (= :this argument)
@@ -1499,17 +1518,17 @@
 
 (defn node-input-value-function
   [description input]
-  (gensyms [self-name ctx-name nodeid-sym]
-     `(fn [~self-name ~ctx-name]
-        ~(maybe-use-substitute
-          description input
-          (cond
-            (has-multivalued-input? description input)
-            (input-value-forms self-name ctx-name input)
-
-            (has-singlevalued-input? description input)
-            (first-input-value-form self-name ctx-name input))))))
-
+  (let [filter-fn-for-input-type (cond (has-multivalued-input? description input) maybe-ignore-error-in-array
+                                       (has-singlevalued-input? description input) maybe-ignore-error-in-value)
+        self-name                (gensym)
+        ctx-name                 (gensym)
+        nodeid-sym               (gensym)
+        filter-exprs             (filter-fn-for-input-type
+                                  self-name ctx-name nodeid-sym description input
+                                  (input-value-forms self-name ctx-name input))]
+    `(fn [~self-name ~ctx-name]
+       (let [~nodeid-sym (gt/node-id ~self-name)]
+         ~filter-exprs))))
 
 (defn node-input-value-function
   [description input]

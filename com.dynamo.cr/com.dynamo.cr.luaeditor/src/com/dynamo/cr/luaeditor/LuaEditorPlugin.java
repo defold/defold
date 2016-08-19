@@ -112,7 +112,6 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                     .setName(ns)
                     .setBrief("")
                     .setDescription("")
-                    .setReturn("")
                     .build();
             if (!e.getName().equals("")) {
                 // NOTE: Do not add namespace "" to "", i.e. to itself

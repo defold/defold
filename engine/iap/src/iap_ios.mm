@@ -373,6 +373,7 @@ int IAP_List(lua_State* L)
 
 /*# buy product
  *
+ * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
  * @name iap.buy
  * @param id product to buy (identifier)
  * @param options table of optional parameters as properties.
@@ -381,8 +382,6 @@ int IAP_List(lua_State* L)
  * <ul>
  * <li> request_id: custom unique request id -- optional argument only available for Facebook IAP transactions
  * </ul>
- *
- * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
  *
  * @examples
  *
@@ -430,10 +429,11 @@ int IAP_Buy(lua_State* L)
 
 /*# finish buying product
  *
+ * Explicitly finish a product transaction.
+ *
  * @name iap.finish
  * @param transaction transaction table parameter as supplied in listener callback
- *
- * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings (otherwise ignored).
+ * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings (otherwise ignored).
  * The transaction.state field must equal iap.TRANS_STATE_PURCHASED.
  *
  */

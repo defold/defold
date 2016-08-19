@@ -1,6 +1,5 @@
 package com.dynamo.cr.server.resources;
 
-import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.Server;
@@ -122,9 +121,6 @@ public class ProjectResource extends BaseResource {
 
     @Inject
     private ProjectService projectService;
-
-    @Inject
-    private Config.Configuration configuration;
 
     @HEAD
     @Path("/archive/{version}")
@@ -285,23 +281,12 @@ public class ProjectResource extends BaseResource {
                 .orElseThrow(() -> new ServerException(String.format("No such user %s", newOwnerId), Status.NOT_FOUND));
         for (User member : project.getMembers()) {
             if (Objects.equals(member.getId(), newOwner.getId())) {
-                validateMaxProjectCount(newOwner);
                 logger.debug(String.format("Changing project %d ownership to user %s", project.getId(), newOwnerId));
                 project.setOwner(newOwner);
                 return true;
             }
         }
         return false;
-    }
-
-    private void validateMaxProjectCount(User newOwner) throws ServerException {
-        long projectCount = ModelUtil.getProjectCount(em, newOwner);
-        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-
-        if (projectCount >= maxProjectCount) {
-            throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount),
-                    Status.FORBIDDEN);
-        }
     }
 
     @GET
