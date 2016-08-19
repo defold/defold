@@ -32,5 +32,3 @@
       (is (= 1 (count vbs)))
       (let [vb (first vbs)]
         (= (count vb) (get-in (g/node-value node-id :content) [:components 0 :primitive-count]))))))
-
-(vbs)

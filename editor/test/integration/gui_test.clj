@@ -206,13 +206,13 @@
           project (test-util/setup-project! workspace)])))
 
 (deftest gui-template-outline-perf
-  (testing "loading"
-           ;; WARM-UP
-           (dotimes [i 10]
-             (test-load))
-           (let [elapsed (measure [i 20]
-                                  (test-load))]
-             (is (< elapsed 750))))
+  #_(testing "loading"
+            ;; WARM-UP
+            (dotimes [i 10]
+              (test-load))
+            (let [elapsed (measure [i 20]
+                                   (test-load))]
+              (is (< elapsed 750))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
@@ -227,7 +227,10 @@
                ;; GO!
                (let [elapsed (measure [i 500]
                                       (drag-pull-outline! node-id box i))]
+                 (prn "el" elapsed)
                  (is (< elapsed 12)))))))
+
+(gui-template-outline-perf)
 
 (deftest gui-template-ids
   (with-clean-system
