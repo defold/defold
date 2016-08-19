@@ -178,10 +178,10 @@ the `do-gl` macro from `editor.gl`."
         arglist         (into [] (concat ['slices 'idx] names))
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx [~@names]]
+    `(fn [~(with-meta 'slices {:tag "[Ljava.nio.ByteBuffer;"}) ~'idx [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
-                 (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
+                 (list setter (with-meta (list `aget 'slices i) {:tag `ByteBuffer}) refer nm))
                (range (count names)) names setters references)))))
 
 (defn- make-vertex-getter
@@ -190,10 +190,10 @@ the `do-gl` macro from `editor.gl`."
         vsteps          (attribute-vsteps  vertex-format)
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx]
+    `(fn [~(with-meta 'slices {:tag "[Ljava.nio.ByteBuffer;"}) ~'idx]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
-                   (list getter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) (list `int refer)))
+                   (list getter (with-meta (list `aget 'slices i) {:tag `ByteBuffer}) (list `int refer)))
                  (range (count getters)) getters references)]))))
 
 (declare new-persistent-vertex-buffer)
