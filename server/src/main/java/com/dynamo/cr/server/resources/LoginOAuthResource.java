@@ -177,9 +177,7 @@ public class LoginOAuthResource extends BaseResource {
                         .execute();
 
                 String accessToken = response.getAccessToken();
-                String jwt = response.getIdToken();
                 authenticator.authenticate(flow.getTransport().createRequestFactory(), loginToken, accessToken);
-
             } finally {
                 lock.unlock();
             }
@@ -243,14 +241,8 @@ public class LoginOAuthResource extends BaseResource {
     @PUT
     @Path("/register/{token}")
     @Transactional
-    public Response register(@PathParam("token") String token,
-                             @QueryParam("key") String key) {
-
-        if (key == null || key.isEmpty()) {
-            throw new ServerException("A registration key is required", Status.UNAUTHORIZED);
-        }
-
-        User user = userService.create(key, token);
+    public Response register(@PathParam("token") String token) {
+        User user = userService.create(token);
 
         String authToken = accessTokenAuthenticator.createSessionToken(user, null);
 
