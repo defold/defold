@@ -229,12 +229,6 @@ message Log
     repeated CommitDesc commits = 1;
 }
 
-message InvitationAccountInfo
-{
-    required int32 original_count = 1;
-    required int32 current_count = 2;
-}
-
 message NewsSubscriber {
     required string email = 1;
     required string first_name = 2;

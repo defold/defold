@@ -1,8 +1,10 @@
 package com.dynamo.cr.server.model.test;
 
-import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.NewsSubscriber;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
-import com.dynamo.cr.server.services.EmailService;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import org.junit.Assert;
@@ -15,7 +17,6 @@ import javax.persistence.NoResultException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-import static org.mockito.Mockito.mock;
 
 public class ModelUtilTest {
 
@@ -37,7 +38,7 @@ public class ModelUtilTest {
     @Before
     public void setUp() throws Exception {
         entityManager = entityManagerRule.getEntityManager();
-        userService = new UserService(entityManager, null, mock(EmailService.class));
+        userService = new UserService(entityManager);
         createData();
     }
 
@@ -45,9 +46,6 @@ public class ModelUtilTest {
         joeUser = newUser(JOE_EMAIL, "Joe", "Coder", JOE_PASSWD);
         joeUser.setRole(Role.USER);
         entityManager.persist(joeUser);
-        InvitationAccount joeAccount = newInvitationAccount(joeUser, 1);
-        joeAccount.setCurrentCount(2);
-        entityManager.persist(joeAccount);
 
         bobUser = newUser(BOB_EMAIL, "Bob", "Coder", BOB_PASSWD);
         bobUser.setRole(Role.USER);
@@ -71,14 +69,6 @@ public class ModelUtilTest {
         u.setLastName(lastName);
         u.setPassword(password);
         return u;
-    }
-
-    private InvitationAccount newInvitationAccount(User user, int originalCount) {
-        InvitationAccount account = new InvitationAccount();
-        account.setUser(user);
-        account.setOriginalCount(originalCount);
-        account.setCurrentCount(originalCount);
-        return account;
     }
 
     private Project newProject(User owner, String name, String description) {
@@ -161,9 +151,6 @@ public class ModelUtilTest {
         for(User connection : bobUser.getConnections()) {
             Assert.assertNotEquals(connection.getId(), joeUserId);
         }
-
-        InvitationAccount account = entityManager.find(InvitationAccount.class, joeUserId);
-        assertNull(account);
 
         User joeUser = entityManager.find(User.class, joeUserId);
         assertNull(joeUser);
