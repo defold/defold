@@ -105,7 +105,8 @@ public class Server {
                     bind(GitArchiveProvider.class).in(Singleton.class);
                     bind(ArchiveCache.class).in(Singleton.class);
                     bind(Configuration.class).toInstance(server.getConfiguration());
-                    bind(IMailProcessor.class).toInstance(server.getMailProcessor());
+                    bind(IMailProcessor.class).toInstance(server.mailProcessor);
+                    bind(SecureRandom.class).toInstance(server.secureRandom);
 
                     bind(UserService.class);
 
@@ -263,14 +264,6 @@ public class Server {
         httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
 
         this.mailProcessor.start();
-    }
-
-    private IMailProcessor getMailProcessor() {
-        return mailProcessor;
-    }
-
-    public SecureRandom getSecureRandom() {
-        return secureRandom;
     }
 
     private void bootStrapUsers() {
