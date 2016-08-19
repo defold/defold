@@ -6,20 +6,27 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.auth.AccessTokenStore;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.cr.server.resources.ResourceUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
+import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.Response;
+import java.security.SecureRandom;
 import java.util.*;
 
 public class UserService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserService.class);
     @Inject
     private EntityManager entityManager;
     @Inject
     private Configuration configuration;
     @Inject
     private EmailService emailService;
+    @Inject
+    private SecureRandom secureRandom;
 
     public UserService() {
     }
@@ -28,6 +35,10 @@ public class UserService {
         this.entityManager = entityManager;
         this.configuration = configuration;
         this.emailService = emailService;
+    }
+
+    public void save(User user) {
+        entityManager.persist(user);
     }
 
     public Optional<User> find(long userId) {
@@ -45,6 +56,68 @@ public class UserService {
         }
 
         return Optional.of(resultList.get(0));
+    }
+
+    public User create(String key, String token) {
+        int initialInvitationCount;
+
+        String testKey = configuration.getTestRegistrationKey();
+        if (testKey.equals(key)) {
+            initialInvitationCount = configuration.getTestInvitationCount();
+        } else {
+            TypedQuery<Invitation> q = entityManager.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
+            List<Invitation> lst = q.setParameter("key", key).getResultList();
+            if (lst.size() == 0) {
+                throw new ServerException("Invalid registration key", Response.Status.UNAUTHORIZED);
+            }
+            Invitation invitation = lst.get(0);
+            initialInvitationCount = invitation.getInitialInvitationCount();
+            // Remove invitation
+            entityManager.remove(lst.get(0));
+        }
+
+        List<NewUser> list = entityManager
+                .createNamedQuery("NewUser.findByLoginToken", NewUser.class)
+                .setParameter("loginToken", token)
+                .getResultList();
+
+        if (list.size() == 0) {
+            LOGGER.error("Unable to find NewUser row for {}", token);
+            throw new ServerException("Unable to register.", Response.Status.BAD_REQUEST);
+        }
+
+        NewUser newUser = list.get(0);
+
+        // Remove prospect (if registered with different email than invitation
+        Prospect p = ModelUtil.findProspectByEmail(entityManager, newUser.getEmail());
+        if (p != null) {
+            entityManager.remove(p);
+        }
+
+        // Generate some random password for OpenID accounts.
+        byte[] passwordBytes = new byte[32];
+        secureRandom.nextBytes(passwordBytes);
+        String password = org.apache.commons.codec.binary.Base64.encodeBase64String(passwordBytes);
+
+        User user = new User();
+        user.setEmail(newUser.getEmail());
+        user.setFirstName(newUser.getFirstName());
+        user.setLastName(newUser.getLastName());
+        user.setPassword(password);
+        entityManager.persist(user);
+        InvitationAccount account = new InvitationAccount();
+        account.setUser(user);
+        account.setOriginalCount(initialInvitationCount);
+        account.setCurrentCount(initialInvitationCount);
+        entityManager.persist(account);
+        entityManager.remove(newUser);
+        entityManager.flush();
+
+        LOGGER.info("New user registered: {}", user.getEmail());
+
+        ModelUtil.subscribeToNewsLetter(entityManager, newUser.getEmail(), newUser.getFirstName(), newUser.getLastName());
+
+        return user;
     }
 
     public void remove(User user) {
@@ -83,7 +156,7 @@ public class UserService {
         List<Invitation> invitations = query.setParameter("email", email).getResultList();
 
         if (invitations.size() > 0) {
-            String msg = String.format("The email %s is already registred. An invitation will be sent to you as soon as we can " +
+            String msg = String.format("The email %s is already registered. An invitation will be sent to you as soon as we can " +
                     "handle the high volume of registrations.", email);
             ResourceUtil.throwWebApplicationException(Response.Status.CONFLICT, msg);
         }
@@ -129,4 +202,21 @@ public class UserService {
 
         return invitationAccount;
     }
+
+    public void signup(String email, String firstName, String lastName, String token) {
+        // Delete old pending NewUser entries first.
+        Query deleteQuery = entityManager.createNamedQuery("NewUser.delete").setParameter("email", email);
+
+        if (deleteQuery.executeUpdate() > 0) {
+            LOGGER.info("Removed old NewUser row for {}", email);
+        }
+
+        NewUser newUser = new NewUser();
+        newUser.setFirstName(firstName);
+        newUser.setLastName(lastName);
+        newUser.setEmail(email);
+        newUser.setLoginToken(token);
+        entityManager.persist(newUser);
+    }
+
 }

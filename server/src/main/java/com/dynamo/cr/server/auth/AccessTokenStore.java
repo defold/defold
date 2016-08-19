@@ -21,13 +21,6 @@ public class AccessTokenStore {
         entityManagerProvider.get().persist(accessToken);
     }
 
-    public void storeInTransaction(AccessToken accessToken) {
-        EntityManager entityManager = entityManagerProvider.get();
-        entityManager.getTransaction().begin();
-        entityManager.persist(accessToken);
-        entityManager.getTransaction().commit();
-    }
-
     public List<AccessToken> find(User user) {
         TypedQuery<AccessToken> query = entityManagerProvider.get().createNamedQuery("AccessToken.findUserTokens", AccessToken.class);
         query.setParameter("user", user);
