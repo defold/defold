@@ -77,17 +77,6 @@ public class ModelUtil {
         u2.getConnections().add(u1);
     }
 
-    public static Prospect findProspectByEmail(EntityManager entityManager, String email) {
-        List<Prospect> list = entityManager.createQuery("select p from Prospect p where p.email = :email", Prospect.class).setParameter("email", email).getResultList();
-        if (list.size() == 0) {
-            return null;
-        }
-        else {
-            assert list.size() == 1;
-            return list.get(0);
-        }
-    }
-
     /**
      * Subscribe to news-letter. If user is found in subscription status is kept as is
      * but first and last-name are updated. For user invited via email first and last name are unknown
