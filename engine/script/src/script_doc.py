@@ -64,6 +64,13 @@ def _parse_comment(str):
             element.name = value
         elif tag == 'return':
             element.return_ = value
+            # Support for multiple @return tags in "returnvalues" field
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            ret = element.returnvalues.add()
+            ret.name = tmp[0]
+            ret.doc = tmp[1]            
         elif tag == 'param':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
