@@ -31,12 +31,11 @@ message Element
     required string name = 2;
     required string brief = 3;
     required string description = 4;
-    required string return_ = 5;
+    repeated ReturnValue returnvalues = 5;
     repeated Parameter parameters = 6;
     optional string examples = 7 [default=""];
     optional string note = 8 [default=""];
     optional string deprecated = 9 [default=""];
-    repeated ReturnValue returnvalues = 10;
 }
 
 message Document
