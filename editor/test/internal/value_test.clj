@@ -443,11 +443,17 @@
   (input list-input       g/Any)
   (input inner-list-input g/Any))
 
-(g/defnode ConstantOutputNode
-  (property real-val g/Any (default (list 1)))
-  (output val g/Any (g/fnk [real-val] real-val)))
+(g/defnode VecOutput
+  (output vec-output       g/Any (g/fnk []                  [1]))
+  (output recycle          g/Any (g/fnk [vec-output]        vec-output))
+  (output inner-vec-output g/Any (g/fnk []                  (list [1])))
+  (output inner-recycle    g/Any (g/fnk [inner-vec-output]  inner-vec-output)))
 
-(deftest seq-values-are-preserved
+(g/defnode VecInput
+  (input vec-input       g/Any)
+  (input inner-vec-input g/Any))
+
+(deftest list-values-are-preserved
   (with-clean-system
     (let [list-type      (type (list 1))
           [output input] (tx-nodes
@@ -460,6 +466,24 @@
       (is (= list-type (type (g/node-value input  :list-input))))
       (is (= list-type (type (first (g/node-value output :inner-recycle)))))
       (is (= list-type (type (first (g/node-value input :inner-list-input))))))))
+
+(deftest vec-values-are-preserved
+  (with-clean-system
+    (let [vec-type       (type (vector 1))
+          [output input] (tx-nodes
+                          (g/make-nodes world
+                                        [output VecOutput
+                                         input  VecInput]
+                                        (g/connect output :vec-output       input :vec-input)
+                                        (g/connect output :inner-vec-output input :inner-vec-input)))]
+      (is (= vec-type (type (g/node-value output :recycle))))
+      (is (= vec-type (type (g/node-value input  :vec-input))))
+      (is (= vec-type (type (first (g/node-value output :inner-recycle)))))
+      (is (= vec-type (type (first (g/node-value input :inner-vec-input))))))))
+
+(g/defnode ConstantOutputNode
+  (property real-val g/Any (default (list 1)))
+  (output val g/Any (g/fnk [real-val] real-val)))
 
 (deftest values-are-not-reconstructed-on-happy-path
   (with-clean-system
