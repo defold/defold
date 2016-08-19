@@ -50,7 +50,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
-import javax.persistence.Query;
 import javax.servlet.Filter;
 import javax.servlet.ServletContextEvent;
 import java.io.File;
@@ -73,10 +72,6 @@ public class Server {
     private EntityManagerFactory emf;
     private SecureRandom secureRandom;
     private IMailProcessor mailProcessor;
-
-    // Value it retrieved from configuration in order to
-    // be run-time changeable. Required for unit-tests
-    private int openRegistrationMaxUsers;
 
     public static class Config extends GuiceServletContextListener {
         private final Server server;
@@ -117,7 +112,6 @@ public class Server {
                     bind(NewsListResource.class);
                     bind(LoginResource.class);
                     bind(LoginOAuthResource.class);
-                    bind(ProspectsResource.class);
                     bind(AccessTokenResource.class);
                     bind(DiscourseSSOResource.class);
 
@@ -165,7 +159,6 @@ public class Server {
     public Server(EntityManagerFactory emf, Configuration configuration, IMailProcessor mailProcessor, AccessTokenAuthenticator accessTokenAuthenticator)
             throws IOException {
 
-        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
         this.emf = emf;
         this.configuration = configuration;
         this.mailProcessor = mailProcessor;
@@ -381,16 +374,5 @@ public class Server {
         }
 
         return sb.toString();
-    }
-
-    public void setOpenRegistrationMaxUsers(int openRegistrationMaxUsers) {
-        this.openRegistrationMaxUsers = openRegistrationMaxUsers;
-    }
-
-    public boolean openRegistration(EntityManager em) {
-        Query query = em.createQuery("select count(u.id) from User u");
-        Number count = (Number) query.getSingleResult();
-        int maxUsers = openRegistrationMaxUsers;
-        return count.intValue() < maxUsers;
     }
 }
