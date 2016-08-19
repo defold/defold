@@ -1,14 +1,13 @@
 package com.dynamo.cr.server.model;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import javax.persistence.*;
 
 @Entity
 @Table(name="new_users")
+@NamedQueries({
+        @NamedQuery(name = "NewUser.delete", query = "DELETE FROM NewUser u WHERE u.email = :email"),
+        @NamedQuery(name = "NewUser.findByLoginToken", query = "SELECT u FROM NewUser u WHERE u.loginToken = :loginToken")
+})
 public class NewUser {
 
     @Id
