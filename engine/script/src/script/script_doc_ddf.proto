@@ -9,6 +9,12 @@ message Parameter
     required string doc = 2;
 }
 
+message ReturnValue
+{
+    required string name = 1;
+    required string doc = 2;
+}
+
 enum Type
 {
     FUNCTION = 0;
@@ -30,6 +36,7 @@ message Element
     optional string examples = 7 [default=""];
     optional string note = 8 [default=""];
     optional string deprecated = 9 [default=""];
+    repeated ReturnValue returnvalues = 10;
 }
 
 message Document
