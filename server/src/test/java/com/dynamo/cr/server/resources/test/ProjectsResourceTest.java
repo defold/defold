@@ -236,64 +236,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         response.getEntity(ProjectInfo.class);
     }
 
-    private class StressRunnable implements Runnable {
-        private long projectId;
-        public Throwable exception;
-
-        StressRunnable(long projectId) {
-            this.projectId = projectId;
-        }
-
-        @Override
-        public void run() {
-            try {
-                for (int i = 0; i < 1000; ++i) {
-                    ClientResponse response;
-                    response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", joeUser.getId(), projectId)).get(ClientResponse.class);
-                    assertEquals(200, response.getStatus());
-                    response.getEntity(ProjectInfo.class);
-
-                    @SuppressWarnings("unused")
-                    UserInfoList joesConnections = joeUsersWebResource
-                        .path(String.format("/%d/connections", joeUser.getId()))
-                        .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                        .get(UserInfoList.class);
-                }
-            } catch (Throwable e) {
-                this.exception = e;
-            }
-        }
-
-    }
-
-    @Test
-    public void testStress() throws Exception {
-        NewProject newProject = NewProject.newBuilder()
-                .setName("test project")
-                .setDescription("New test project").build();
-
-        final ProjectInfo projectInfo = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .post(ProjectInfo.class, newProject);
-
-
-
-        StressRunnable runnable1 = new StressRunnable(projectInfo.getId());
-        StressRunnable runnable2 = new StressRunnable(projectInfo.getId());
-
-        Thread t1 = new Thread(runnable1);
-        Thread t2 = new Thread(runnable2);
-        t1.start();
-        t2.start();
-        t1.join(100000);
-        t2.join(100000);
-
-        assertEquals(null, runnable1.exception);
-        assertEquals(null, runnable2.exception);
-    }
-
     @Test
     public void testProjectInfoForbidden() throws Exception {
         NewProject newProject = NewProject.newBuilder()
@@ -645,50 +587,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(sha1, sha2);
         verifyArchive(response2);
     }
-
-
-    private class ArchiveStressRunnable implements Runnable {
-        private long projectId;
-        public Throwable exception;
-
-        ArchiveStressRunnable(long projectId) {
-            this.projectId = projectId;
-        }
-
-        @Override
-        public void run() {
-            try {
-                for(int i=0; i < 1000; ++i) {
-                    String path = String.format("/%d/%d/archive/", -1, projectId);
-                    WebResource resource = joeProjectsWebResource.path(path);
-
-                    ClientResponse response = resource.get(ClientResponse.class);
-                    assertEquals(200, response.getStatus());
-                    verifyArchive(response);
-                }
-            } catch (Throwable e) {
-                this.exception = e;
-            }
-        }
-    }
-
-    @Test
-    public void archiveStressTest() throws Exception {
-        final ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
-        ArchiveStressRunnable runnable1 = new ArchiveStressRunnable(projectInfo.getId());
-        ArchiveStressRunnable runnable2 = new ArchiveStressRunnable(projectInfo.getId());
-
-        Thread t1 = new Thread(runnable1);
-        Thread t2 = new Thread(runnable2);
-        t1.start();
-        t2.start();
-        t1.join(100000);
-        t2.join(100000);
-
-        assertEquals(null, runnable1.exception);
-        assertEquals(null, runnable2.exception);
-    }
-
 
     private ClientResponse getArchiveETag(String version) {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
