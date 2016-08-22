@@ -1,6 +1,5 @@
 package com.dynamo.cr.server.resources;
 
-import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
@@ -133,27 +132,6 @@ public class UsersResource extends BaseResource {
                 throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
             }
         }
-    }
-
-    @POST
-    @RolesAllowed(value = {"admin"})
-    @Transactional
-    public UserInfo registerUser(RegisterUser registerUser) {
-        /*
-         * NOTE: Old registration method as admin role
-         * OpenID registration is the only supported method. We should
-         * probably remove this and related tests soon
-         */
-
-        User user = new User();
-        user.setEmail(registerUser.getEmail());
-        user.setFirstName(registerUser.getFirstName());
-        user.setLastName(registerUser.getLastName());
-        user.setPassword(registerUser.getPassword());
-        em.persist(user);
-        em.flush();
-
-        return createUserInfo(user);
     }
 }
 
