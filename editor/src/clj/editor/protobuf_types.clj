@@ -20,7 +20,6 @@
            [com.dynamo.input.proto Input$GamepadMaps]
            [com.dynamo.camera.proto Camera$CameraDesc]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -64,12 +63,6 @@
                :label "Camera"
                :icon "icons/32/Icons_20-Camera.png"
                :pb-class Camera$CameraDesc
-               :tags #{:component}}
-              {:ext "model"
-               :label "Model"
-               :icon "icons/32/Icons_22-Model.png"
-               :resource-fields [:mesh :material [:textures]]
-               :pb-class Model$ModelDesc
                :tags #{:component}}
               {:ext "convexshape"
                :label "Convex Shape"

@@ -23,7 +23,8 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [editor.graph-util :as gu])
+            [editor.graph-util :as gu]
+            [editor.image :as image])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -414,7 +415,7 @@
   (run [selection] (add-animation-group-handler selection)))
 
 (defn- add-images-handler [workspace labels parent scope-node] ; parent = new parent of images
-  (when-let [images (seq (dialogs/make-resource-dialog workspace {:ext ["jpg" "png"] :title "Select Images" :selection :multiple}))]
+  (when-let [images (seq (dialogs/make-resource-dialog workspace {:ext image/exts :title "Select Images" :selection :multiple}))]
     (g/transact
      (concat
       (g/operation-label "Add Images")

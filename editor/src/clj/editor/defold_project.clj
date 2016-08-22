@@ -541,7 +541,8 @@
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
-  (output display-profiles g/Any :cached (gu/passthrough display-profiles)))
+  (output display-profiles g/Any :cached (gu/passthrough display-profiles))
+  (output nil-resource resource/Resource (g/always nil)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
