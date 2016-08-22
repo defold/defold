@@ -292,8 +292,8 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_SkinId           = component->m_Resource->m_Model->m_Skin;
-        create_params.m_DefaultAnimation = component->m_Resource->m_Model->m_DefaultAnimation;
+        create_params.m_Skin             = dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
@@ -695,8 +695,8 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_SkinId           = component->m_Resource->m_Model->m_Skin;
-        create_params.m_DefaultAnimation = component->m_Resource->m_Model->m_DefaultAnimation;
+        create_params.m_Skin             = dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {

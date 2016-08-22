@@ -1003,7 +1003,7 @@ namespace dmRig
         memset(instance, 0, sizeof(RigInstance));
         instance->m_Index = index;
         context->m_Instances.Set(index, instance);
-        instance->m_Skin = dmHashString64(params.m_SkinId);
+        instance->m_Skin = params.m_Skin;
 
         instance->m_PoseCallback = params.m_PoseCallback;
         instance->m_EventCallback = params.m_EventCallback;
@@ -1024,12 +1024,10 @@ namespace dmRig
             return result;
         }
 
-
-        dmhash_t default_animation_id = dmHashString64(params.m_DefaultAnimation);
-        if (default_animation_id != NULL_ANIMATION)
+        if (params.m_DefaultAnimation != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            (void)PlayAnimation(instance, default_animation_id, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
+            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
         }
 
         return dmRig::RESULT_OK;

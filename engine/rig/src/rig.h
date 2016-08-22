@@ -204,8 +204,8 @@ namespace dmRig
         HRigInstance*                 m_Instance;
         RigMeshType                   m_MeshType;
 
-        const char*                   m_SkinId;
-        const char*                   m_DefaultAnimation;
+        dmhash_t                      m_Skin;
+        dmhash_t                      m_DefaultAnimation;
 
         const dmArray<RigBone>*       m_BindPose;
         const dmRigDDF::Skeleton*     m_Skeleton;

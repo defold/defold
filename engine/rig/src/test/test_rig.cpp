@@ -384,8 +384,8 @@ protected:
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
 
-        create_params.m_SkinId           = (const char*)"test";
-        create_params.m_DefaultAnimation = (const char*)"";
+        create_params.m_Skin             = dmHashString64((const char*)"test");
+        create_params.m_DefaultAnimation = dmHashString64((const char*)"");
 
         if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params)) {
             dmLogError("Could not create rig instance!");
@@ -423,8 +423,8 @@ TEST_F(RigContextTest, InstanceCreation)
     create_params.m_MeshSet      = new dmRigDDF::MeshSet();
     create_params.m_AnimationSet = new dmRigDDF::AnimationSet();
 
-    create_params.m_SkinId           = (const char*)"dummy";
-    create_params.m_DefaultAnimation = (const char*)"";
+    create_params.m_Skin             = dmHashString64((const char*)"dummy");
+    create_params.m_DefaultAnimation = dmHashString64((const char*)"");
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(create_params));
     ASSERT_NE((dmRig::HRigInstance)0x0, instance);
@@ -452,8 +452,8 @@ TEST_F(RigContextTest, InvalidInstanceCreation)
     create_params.m_Skeleton     = new dmRigDDF::Skeleton();
     create_params.m_MeshSet      = new dmRigDDF::MeshSet();
     create_params.m_AnimationSet = new dmRigDDF::AnimationSet();
-    create_params.m_SkinId           = (const char*)"dummy";
-    create_params.m_DefaultAnimation = (const char*)"";
+    create_params.m_Skin             = dmHashString64((const char*)"dummy");
+    create_params.m_DefaultAnimation = dmHashString64((const char*)"");
 
     create_params.m_Instance = &instance0;
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(create_params));
