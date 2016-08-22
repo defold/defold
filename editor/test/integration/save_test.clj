@@ -44,7 +44,9 @@
                  "**/new.factory"
                  "**/with_prototype.factory"
                  "**/new.sound"
-                 "**/tink.sound"]]
+                 "**/tink.sound"
+                 "**/new.camera"
+                 "**/non_default.camera"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
