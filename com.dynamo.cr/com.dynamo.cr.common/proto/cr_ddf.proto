@@ -55,6 +55,12 @@ message Configuration
     // Discourse SSO configuration
     required string discourse_url = 46;
     required string discourse_sso_key = 47;
+
+    // Sign-up activation email
+    required EMailTemplate signup_email_template = 48;
+
+    // Forgot password email
+    required EMailTemplate forgot_password_email_template = 49;
 }
 
 message EMailTemplate

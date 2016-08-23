@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.resources.test;
+package com.dynamo.cr.server.resources;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
@@ -128,6 +128,10 @@ public class AbstractResourceTest {
         }
     }
 
+    static int getServicePort() {
+        return server.getConfiguration().getServicePort();
+    }
+
     User createUser(String email, String password, String firstName, String lastName, Role role) {
         EntityManager em = emf.createEntityManager();
         em.getTransaction().begin();
@@ -182,10 +186,8 @@ public class AbstractResourceTest {
         clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
         Client client = Client.create(clientConfig);
+        URI uri = UriBuilder.fromUri(baseURI).port(getServicePort()).build();
 
-        int port = injector.getInstance(Configuration.class).getServicePort();
-
-        URI uri = UriBuilder.fromUri(baseURI).port(port).build();
         return client.resource(uri);
     }
 

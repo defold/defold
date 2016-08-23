@@ -1,33 +1,33 @@
-package com.dynamo.cr.server.resources.test;
+package com.dynamo.cr.server.resources;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+class TestUtil {
 
-public class TestUtil {
+    private static Logger logger = LoggerFactory.getLogger(TestUtil.class);
 
-    protected static Logger logger = LoggerFactory.getLogger(TestUtil.class);
-
-    public static class Result {
-        public StringBuffer stdOut = new StringBuffer();
-        public StringBuffer stdErr = new StringBuffer();
-        public int exitValue = 0;
+    static class Result {
+        StringBuffer stdOut = new StringBuffer();
+        StringBuffer stdErr = new StringBuffer();
+        int exitValue = 0;
     }
 
-    public interface IListener {
-        public void onStdErr(StringBuffer buffer);
-        public void onStdOut(StringBuffer buffer);
+    interface IListener {
+        void onStdErr(StringBuffer buffer);
+        void onStdOut(StringBuffer buffer);
     }
 
-    public static Result execCommand(String workingDir, IListener listener, String[] command) throws IOException {
+    private static Result execCommand(String workingDir, IListener listener, String[] command) throws IOException {
         return execCommand(workingDir, listener, command, null);
     }
 
-    public static Result execCommand(String workingDir, IListener listener, String[] command, Map<String, String> env) throws IOException {
+    private static Result execCommand(String workingDir, IListener listener, String[] command, Map<String, String> env) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(command);
         if (workingDir != null)
             pb.directory(new File(workingDir));
@@ -87,8 +87,7 @@ public class TestUtil {
         return res;
     }
 
-    public static Result execCommand(String[] command) throws IOException {
+    static Result execCommand(String[] command) throws IOException {
         return execCommand(null, null, command);
     }
-
 }
