@@ -1,8 +1,6 @@
-package com.dynamo.cr.server.resources.test;
+package com.dynamo.cr.server.resources;
 
 import com.dynamo.cr.protocol.proto.Protocol.*;
-import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
-import com.dynamo.cr.server.auth.AccessTokenStore;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
@@ -12,7 +10,6 @@ import com.google.common.io.Files;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.ClientResponse.Status;
-import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
@@ -37,7 +34,6 @@ import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;

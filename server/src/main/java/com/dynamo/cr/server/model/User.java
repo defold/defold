@@ -72,6 +72,15 @@ public class User {
     }
 
     /**
+     * Stores a already hashed password.
+     *
+     * @param hashedPassword Hashed password.
+     */
+    public void setHashedPassword(String hashedPassword) {
+        this.password = hashedPassword;
+    }
+
+    /**
      * Validates a clear text password towards hashed password retrieved from the database.
      *
      * @param password Clear text password.

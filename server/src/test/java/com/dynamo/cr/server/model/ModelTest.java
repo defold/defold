@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.model.test;
+package com.dynamo.cr.server.model;
 
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;

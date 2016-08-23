@@ -64,7 +64,7 @@ public class UserServiceTest {
     @Test(expected=RollbackException.class)
     public void userThatIsProjectMemberCanNotBeRemoved() throws Exception {
         EntityManager em = entityManagerRule.getEntityManager();
-        User u = ModelUtil.findUserByEmail(em, TestUser.LISA.email);
+        User u = userService.findByEmail(TestUser.LISA.email).orElseThrow(RuntimeException::new);
         em.remove(u);
         em.getTransaction().commit();
     }
@@ -72,15 +72,14 @@ public class UserServiceTest {
     @Test(expected=RollbackException.class)
     public void userThatIsProjectOwnerCanNotBeRemoved() throws Exception {
         EntityManager em = entityManagerRule.getEntityManager();
-        User u = ModelUtil.findUserByEmail(em, TestUser.CARL.email);
+        User u = userService.findByEmail(TestUser.CARL.email).orElseThrow(RuntimeException::new);
         userService.remove(u);
         em.getTransaction().commit();
     }
 
     @Test
     public void userShouldBeRemovedIfNotOwnerOfAnyProject() throws Exception {
-        EntityManager em = entityManagerRule.getEntityManager();
-        User u = ModelUtil.findUserByEmail(em, TestUser.LISA.email);
+        User u = userService.findByEmail(TestUser.LISA.email).orElseThrow(RuntimeException::new);
         userService.remove(u);
     }
 }

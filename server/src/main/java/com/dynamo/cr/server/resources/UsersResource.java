@@ -1,8 +1,8 @@
 package com.dynamo.cr.server.resources;
 
-import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
-import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
+import com.dynamo.cr.protocol.proto.Protocol.*;
 import com.dynamo.cr.server.ServerException;
+import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -13,7 +13,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
@@ -22,13 +24,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Path("/users")
-@RolesAllowed(value = {"user"})
 public class UsersResource extends BaseResource {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UsersResource.class);
 
     @Inject
     private UserService userService;
+
+    @Inject
+    private AccessTokenAuthenticator accessTokenAuthenticator;
 
     private static UserInfo createUserInfo(User u) {
         UserInfo.Builder b = UserInfo.newBuilder();
@@ -39,20 +43,71 @@ public class UsersResource extends BaseResource {
         return b.build();
     }
 
+    @POST
+    @Path("signup")
+    @Transactional
+    public void signup(SignupRequest signupRequest) {
+        userService.signupEmailPassword(signupRequest.getEmail(), signupRequest.getFirstName(),
+                signupRequest.getLastName(), signupRequest.getPassword());
+    }
+
+    @GET
+    @Path("signup/verify/{token}")
+    @Transactional
+    public SignupVerificationResponse verify(@PathParam("token") String token, @Context HttpServletRequest request) {
+        // Create user from activation token.
+        User user = userService.create(token);
+
+        // Login user.
+        String accessToken = accessTokenAuthenticator.createSessionToken(user, request.getRemoteAddr());
+
+        return SignupVerificationResponse.newBuilder()
+                .setAuth(accessToken)
+                .setEmail(user.getEmail())
+                .setUserId(user.getId())
+                .setFirstName(user.getFirstName())
+                .setLastName(user.getLastName())
+                .build();
+    }
+
+    @PUT
+    @Path("{user}/password/change")
+    @Transactional
+    @RolesAllowed(value = {"user"})
+    public void changePassword(@PathParam("user") Long userId,
+                               PasswordChangeRequest passwordChangeRequest) {
+        userService.changePassword(userId, passwordChangeRequest.getCurrentPassword(), passwordChangeRequest.getNewPassword());
+    }
+
+    @POST
+    @Path("password/forgot")
+    @Transactional
+    public void forgotPassword(@QueryParam("email") String email) {
+        userService.forgotPassword(email);
+    }
+
+    @POST
+    @Path("password/reset")
+    @Transactional
+    public void resetPassword(PasswordResetRequest passwordResetRequest) {
+        userService.resetPassword(passwordResetRequest.getEmail(), passwordResetRequest.getToken(),
+                passwordResetRequest.getNewPassword());
+    }
+
     @GET
     @Path("/{email}")
+    @RolesAllowed(value = {"user"})
     public UserInfo getUserInfo(@PathParam("email") String email) {
-        User u = ModelUtil.findUserByEmail(em, email);
-        if (u == null) {
-            throw new WebApplicationException(Response.Status.NOT_FOUND);
-        }
+        User user = userService.findByEmail(email)
+                .orElseThrow(() -> new WebApplicationException(Response.Status.NOT_FOUND));
 
-        return createUserInfo(u);
+        return createUserInfo(user);
     }
 
     @PUT
     @Path("/{user}/connections/{user2}")
     @Transactional
+    @RolesAllowed(value = {"user"})
     public void connect(@PathParam("user2") Long user2) {
         User u = getUser();
         User u2 = userService.find(user2)
@@ -68,6 +123,7 @@ public class UsersResource extends BaseResource {
 
     @GET
     @Path("/{user}/connections")
+    @RolesAllowed(value = {"user"})
     public UserInfoList getConnections() {
         User u = getUser();
 
@@ -83,6 +139,7 @@ public class UsersResource extends BaseResource {
     @GET
     @Path("/{user}/remove")
     @Transactional
+    @RolesAllowed(value = {"user"})
     public Response remove(@PathParam("user") Long userId) {
         User user = getUser();
 

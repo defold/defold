@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.archive.test;
+package com.dynamo.cr.server.archive;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
