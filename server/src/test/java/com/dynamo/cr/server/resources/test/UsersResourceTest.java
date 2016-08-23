@@ -19,13 +19,11 @@ import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.node.ObjectNode;
 import org.junit.Before;
 import org.junit.Test;
 
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.*;
-import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -250,63 +248,6 @@ public class UsersResourceTest extends AbstractResourceTest {
         UserInfoList userList = response.getEntity(UserInfoList.class);
         assertEquals(1, userList.getUsersCount());
         assertEquals(bobEmail, userList.getUsers(0).getEmail());
-    }
-
-    @Test
-    public void testRegister() throws Exception {
-        ObjectMapper m = new ObjectMapper();
-        ObjectNode user = m.createObjectNode();
-        user.put("email", "test@foo.com");
-        user.put("first_name", "mr");
-        user.put("last_name", "test");
-        user.put("password", "verysecret");
-
-        UserInfo userInfo = adminUsersWebResource
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(UserInfo.class, user.toString());
-
-        assertEquals("test@foo.com", userInfo.getEmail());
-        assertEquals("mr", userInfo.getFirstName());
-        assertEquals("test", userInfo.getLastName());
-    }
-
-    @Test
-    public void testRegisterTextAccept() throws Exception {
-        ObjectMapper m = new ObjectMapper();
-        ObjectNode user = m.createObjectNode();
-        user.put("email", "test@foo.com");
-        user.put("first_name", "mr");
-        user.put("last_name", "test");
-        user.put("password", "verysecret");
-
-        String userInfoText = adminUsersWebResource
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(String.class, user.toString());
-
-        ObjectMapper om = new ObjectMapper();
-        JsonNode node = om.readValue(new ByteArrayInputStream(userInfoText.getBytes()), JsonNode.class);
-
-        assertEquals("test@foo.com", node.get("email").getTextValue());
-        assertEquals("mr", node.get("first_name").getTextValue());
-        assertEquals("test", node.get("last_name").getTextValue());
-    }
-
-    @Test
-    public void testRegisterAsJoe() throws Exception {
-        ObjectMapper m = new ObjectMapper();
-        ObjectNode user = m.createObjectNode();
-        user.put("email", "test@foo.com");
-        user.put("first_name", "mr");
-        user.put("last_name", "test");
-        user.put("password", "verysecret");
-
-        ClientResponse response = joeUsersWebResource
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(ClientResponse.class, user.toString());
-        assertEquals(403, response.getStatus());
     }
 
     @Test
