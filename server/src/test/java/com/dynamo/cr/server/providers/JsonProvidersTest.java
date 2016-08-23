@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.providers.test;
+package com.dynamo.cr.server.providers;
 
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.State;
