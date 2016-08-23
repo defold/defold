@@ -32,6 +32,7 @@ namespace dmGameSystem
 {
     dmRender::HRenderType g_GuiRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
     dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
+    bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
     struct GuiWorld;
     struct GuiRenderNode
@@ -240,6 +241,10 @@ namespace dmGameSystem
                 dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
             break;
 
+            case dmGuiDDF::NodeDesc::TYPE_SPINE:
+                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineAnimationId), dmHashString64(node_desc->m_SpineSkinId));
+            break;
+
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
                 dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
                 result = false;
@@ -317,6 +322,16 @@ namespace dmGameSystem
             dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
+                return false;
+            }
+        }
+
+        for (uint32_t i = 0; i < scene_resource->m_RigScenes.Size(); ++i)
+        {
+            const char* name = scene_desc->m_SpineScenes[i].m_Name;
+            dmGui::Result r = dmGui::AddSpineScene(scene, name, (void*) scene_resource->m_RigScenes[i]);
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to add spine scene '%s' to GUI scene (%d)", name,  r);
                 return false;
             }
         }
@@ -473,6 +488,7 @@ namespace dmGameSystem
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
+        scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
@@ -1305,6 +1321,17 @@ namespace dmGameSystem
         {
             return dmGui::FETCH_ANIMATION_NOT_FOUND;
         }
+    }
+
+    bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
+    {
+        RigSceneResource* rig_res = (RigSceneResource*)spine_scene;
+        out_data->m_BindPose = &rig_res->m_BindPose;
+        out_data->m_Skeleton = rig_res->m_SkeletonRes->m_Skeleton;
+        out_data->m_MeshSet = rig_res->m_MeshSetRes->m_MeshSet;
+        out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
+
+        return true;
     }
 
     dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {

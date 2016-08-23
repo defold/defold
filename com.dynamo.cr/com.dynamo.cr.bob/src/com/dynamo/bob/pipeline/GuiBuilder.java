@@ -28,6 +28,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
@@ -186,7 +187,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> fontNames, Set<String> textureNames, Set<String> layerNames) throws CompileExceptionError {
+    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> fontNames, Set<String> spineSceneNames, Set<String> textureNames, Set<String> layerNames) throws CompileExceptionError {
         if(builder == null) {
             return;
         }
@@ -198,6 +199,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if (n.hasFont() && !n.getFont().isEmpty()) {
             if (!fontNames.contains(n.getFont())) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
+            }
+        }
+        if (n.hasSpineScene() && !n.getSpineScene().isEmpty()) {
+            if (!spineSceneNames.contains(n.getSpineScene())) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_SPINESCENE, n.getSpineScene()));
             }
         }
         if (n.hasLayer() && !n.getLayer().isEmpty()) {
@@ -299,6 +305,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         // register resources
         Set<String> fontNames = new HashSet<String>();
         List<FontDesc> newFontList = new ArrayList<FontDesc>();
+        Set<String> spineSceneNames = new HashSet<String>();
+        List<SpineSceneDesc> newSpineSceneList = new ArrayList<SpineSceneDesc>();
         Set<String> textureNames = new HashSet<String>();
         List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
         Set<String> layerNames = new HashSet<String>();
@@ -315,6 +323,16 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 fontNames.add(f.getName());
                 newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
             }
+
+            for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
+                if (spineSceneNames.contains(f.getName())) {
+                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_SPINESCENE,
+                            f.getName()));
+                }
+                spineSceneNames.add(f.getName());
+                newSpineSceneList.add(SpineSceneDesc.newBuilder().mergeFrom(f).setSpineScene(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".rigscenec")).build());
+            }
+            
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
                 if (textureNames.contains(f.getName())) {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_TEXTURE,
@@ -337,6 +355,10 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             for (FontDesc f : sceneBuilder.getFontsList()) {
                 fontNames.add(f.getName());
                 newFontList.add(f);
+            }
+            for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
+                spineSceneNames.add(f.getName());
+                newSpineSceneList.add(f);
             }
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
                 textureNames.add(f.getName());
@@ -377,11 +399,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             // add current scene nodes
             newScene.get("").add(node);
-            validateNodeResources(node, builder, input, fontNames, textureNames, layerNames);
+            validateNodeResources(node, builder, input, fontNames, spineSceneNames, textureNames, layerNames);
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
-                    validateNodeResources(n, builder, input, fontNames, textureNames, layerNames);
+                    validateNodeResources(n, builder, input, fontNames, spineSceneNames, textureNames, layerNames);
                     newScene.get(layout).add(n);
                 }
             }
@@ -438,6 +460,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     fontNames.add(f.getName());
                     newFontList.add(f);
                 }
+                for (SpineSceneDesc f : templateBuilder.getSpineScenesList()) {
+                    if (spineSceneNames.contains(f.getName())) {
+                        continue;
+                    }
+                    spineSceneNames.add(f.getName());
+                    newSpineSceneList.add(f);
+                }
                 for (TextureDesc f : templateBuilder.getTexturesList()) {
                     if (textureNames.contains(f.getName())) {
                         continue;
@@ -469,6 +498,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearFonts();
         sceneBuilder.addAllFonts(newFontList);
+
+        sceneBuilder.clearSpineScenes();
+        sceneBuilder.addAllSpineScenes(newSpineSceneList);
 
         sceneBuilder.clearTextures();
         sceneBuilder.addAllTextures(newTextureList);

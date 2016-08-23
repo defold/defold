@@ -115,6 +115,10 @@
                node-type="com.dynamo.cr.guied.nodes.layoutNode">
          </reference-node-type>
       </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.nodes.spineScenesNode"
+            node="com.dynamo.cr.guied.core.SpineScenesNode">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.editors">
@@ -273,6 +277,22 @@
                </or>
             </visibleWhen>
          </menu>
+         <command
+               commandId="com.dynamo.cr.guied.commands.addSpineScene"
+               label="Add Spine Scene"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.spineScenesNodeSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -515,6 +535,18 @@
             </or>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.spineScenesNodeSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.guied.core.SpineScenesNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -659,6 +691,25 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.fontsNodeSelected">
+                  </reference>
+               </or>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.AddSpineSceneHandler"
+            commandId="com.dynamo.cr.guied.commands.addSpineScene">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.spineScenesNodeSelected">
                   </reference>
                </or>
             </and>
@@ -933,6 +984,10 @@
             id="com.dynamo.cr.guied.commands.cycleLayouts"
             name="Cycle Layouts">
       </command>
+      <command
+            id="com.dynamo.cr.guied.commands.addSpineScene"
+            name="Add Spine Scene">
+      </command>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -960,6 +1015,9 @@
             <reference-resource-type
                   resource-type="com.dynamo.cr.guied.resourcetypes.gui">
             </reference-resource-type>
+            <reference-type-class
+                  type-class="spinescene">
+            </reference-type-class>
          </references>
       </resource-type>
    </extension>

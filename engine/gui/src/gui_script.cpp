@@ -3128,6 +3128,7 @@ namespace dmGui
         params->m_PhysicalWidth = 640;
         params->m_PhysicalHeight = 960;
         params->m_Dpi = 360;
+        params->m_RigContext = 0x0;
     }
 
     /*# sets the node size

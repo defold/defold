@@ -41,6 +41,8 @@ extern uint32_t BUG352_LUA_SIZE;
  *
  * Adjust reference
  *
+ * Spine
+ *
  */
 
 #define MAX_NODES 64U
@@ -86,6 +88,37 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_p
     return dmGui::FETCH_ANIMATION_OK;
 }
 
+bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
+{
+    if (!spine_scene) {
+        return false;
+    }
+
+    dmGui::RigSceneDataDesc* spine_scene_ptr = (dmGui::RigSceneDataDesc*)spine_scene;
+    out_data->m_BindPose = spine_scene_ptr->m_BindPose;
+    out_data->m_Skeleton = spine_scene_ptr->m_Skeleton;
+    out_data->m_MeshSet = spine_scene_ptr->m_MeshSet;
+    out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
+
+    // out_data->Init();
+    // static float uv_quad[] = {0,1,0,0, 1,0,1,1};
+    // out_data->m_TexCoords = &uv_quad[0];
+    // out_data->m_End = 1;
+    // out_data->m_FPS = 30;
+    // out_data->m_FlipHorizontal = 1;
+    // return dmGui::FETCH_ANIMATION_OK;
+
+    // struct RigSceneDataDesc
+    // {
+    //     const dmArray<dmRig::RigBone>* m_BindPose;
+    //     const dmRigDDF::Skeleton*      m_Skeleton;
+    //     const dmRigDDF::MeshSet*       m_MeshSet;
+    //     const dmRigDDF::AnimationSet*  m_AnimationSet;
+    // };
+
+    return true;
+}
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -119,6 +152,13 @@ public:
         m_Context->m_SceneTraversalCache.m_Data.SetCapacity(MAX_NODES);
         m_Context->m_SceneTraversalCache.m_Data.SetSize(MAX_NODES);
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &m_Context->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = 2;
+        if (dmRig::RESULT_OK != dmRig::NewContext(rig_params)) {
+            printf("Could not create rig context!");
+        }
+
         // Bogus font for the metric callback to be run (not actually using the default font)
         dmGui::SetDefaultFont(m_Context, (void*)0x1);
         dmGui::NewSceneParams params;
@@ -126,6 +166,7 @@ public:
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
@@ -154,6 +195,7 @@ public:
 
     virtual void TearDown()
     {
+        dmRig::DeleteContext(m_Context->m_RigContext);
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
@@ -4092,6 +4134,53 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
     dmGui::DeleteNode(m_Scene, node_level1);
     dmGui::DeleteNode(m_Scene, node_level0);
 
+}
+
+TEST_F(dmGuiTest, SpineNodeNoData)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0);
+}
+
+TEST_F(dmGuiTest, SpineNodeDummyData)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    // Dummy data
+    dmArray<dmRig::RigBone> bind_pose;
+    dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    dummy_data->m_BindPose = &bind_pose;
+    dummy_data->m_Skeleton = skeleton;
+    dummy_data->m_MeshSet = mesh_set;
+    dummy_data->m_AnimationSet = animation_set;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""));
+
+    delete dummy_data;
+    delete skeleton;
+    delete mesh_set;
+    delete animation_set;
 }
 
 int main(int argc, char **argv)

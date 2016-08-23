@@ -249,6 +249,7 @@ namespace dmGui
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
+        params->m_MaxSpineScenes = 8;
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
@@ -292,6 +293,7 @@ namespace dmGui
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
+        scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_Layouts.SetCapacity(1);
         scene->m_AdjustReference = params->m_AdjustReference;
@@ -304,6 +306,7 @@ namespace dmGui
         scene->m_Width = context->m_DefaultProjectWidth;
         scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
+        scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
@@ -525,6 +528,33 @@ namespace dmGui
         {
             if (scene->m_Nodes[i].m_Node.m_FontHash == font_hash)
                 scene->m_Nodes[i].m_Node.m_Font = 0;
+        }
+    }
+
+    Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene)
+    {
+        if (scene->m_SpineScenes.Full())
+            return RESULT_OUT_OF_RESOURCES;
+        uint64_t name_hash = dmHashString64(spine_scene_name);
+        scene->m_SpineScenes.Put(name_hash, spine_scene);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_SpineSceneHash == name_hash)
+                scene->m_Nodes[i].m_Node.m_SpineScene = spine_scene;
+        }
+        return RESULT_OK;
+    }
+
+    void RemoveSpineScene(HScene scene, const char* spine_scene_name)
+    {
+        uint64_t name_hash = dmHashString64(spine_scene_name);
+        scene->m_SpineScenes.Erase(name_hash);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_SpineSceneHash == name_hash)
+                scene->m_Nodes[i].m_Node.m_SpineScene = 0;
+            // TODO need to clean up m_RigInstance here
+                // SetNodeSpineScene(scene, i, name_hash, 0, 0);
         }
     }
 
@@ -1672,6 +1702,9 @@ namespace dmGui
             node->m_Node.m_FlipbookAnimPosition = 0.0f;
             node->m_Node.m_FontHash = 0;
             node->m_Node.m_Font = 0;
+            node->m_Node.m_SpineSceneHash = 0;
+            node->m_Node.m_SpineScene = 0;
+            node->m_Node.m_RigInstance = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
             node->m_Node.m_LayerIndex = 0;
             node->m_Node.m_NodeDescTable = 0;
@@ -1805,6 +1838,13 @@ namespace dmGui
     void DeleteNode(HScene scene, HNode node)
     {
         InternalNode*n = GetNode(scene, node);
+
+        if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
+            dmRig::InstanceDestroyParams params = {0};
+            params.m_Context = scene->m_Context->m_RigContext;
+            params.m_Instance = n->m_Node.m_RigInstance;
+            dmRig::InstanceDestroy(params);
+        }
 
         // Delete children first
         uint16_t child_index = n->m_ChildHead;
@@ -2162,6 +2202,60 @@ namespace dmGui
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id)
     {
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
+    }
+
+    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_NodeType = NODE_TYPE_SPINE;
+
+        if (n->m_Node.m_RigInstance) {
+            dmRig::InstanceDestroyParams params = {0};
+            params.m_Context = scene->m_Context->m_RigContext;
+            params.m_Instance = n->m_Node.m_RigInstance;
+            dmRig::InstanceDestroy(params);
+        }
+
+        // Create rig instance
+        dmRig::InstanceCreateParams create_params = {0};
+        create_params.m_Context = scene->m_Context->m_RigContext;
+        create_params.m_Instance = &n->m_Node.m_RigInstance;
+
+        create_params.m_PoseCallback = 0;
+        create_params.m_EventCallback = 0;
+        create_params.m_EventCBUserData = 0;
+
+        void** spine_scene_ptr = scene->m_SpineScenes.Get(spine_scene_id);
+        if (!scene->m_FetchRigSceneDataCallback || !spine_scene_ptr) {
+            dmLogError("Could not create the node, no spine data available.");
+            return RESULT_DATA_ERROR;
+        }
+
+        RigSceneDataDesc rig_data = {0};
+        if (!scene->m_FetchRigSceneDataCallback(*spine_scene_ptr, spine_scene_id, &rig_data)) {
+            dmLogError("Could not create the node, failed to get spine data.");
+            return RESULT_DATA_ERROR;
+        }
+
+        create_params.m_BindPose         = rig_data.m_BindPose;
+        create_params.m_Skeleton         = rig_data.m_Skeleton;
+        create_params.m_MeshSet          = rig_data.m_MeshSet;
+        create_params.m_AnimationSet     = rig_data.m_AnimationSet;
+        create_params.m_Skin             = skin_id;
+        create_params.m_DefaultAnimation = default_animation_id;
+
+        dmRig::Result res = dmRig::InstanceCreate(create_params);
+        if (res != dmRig::RESULT_OK) {
+            dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            return RESULT_DATA_ERROR;
+        }
+
+        return RESULT_OK;
+    }
+
+    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id)
+    {
+        return SetNodeSpineScene(scene, node, dmHashString64(spine_scene_id), skin_id, default_animation_id);
     }
 
     void* GetNodeFont(HScene scene, HNode node)

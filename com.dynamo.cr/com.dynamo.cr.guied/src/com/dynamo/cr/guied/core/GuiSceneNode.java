@@ -50,6 +50,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     private LabelNode nodesNode;
     private LabelNode texturesNode;
     private LabelNode fontsNode;
+    private LabelNode spineScenesNode;
     private LabelNode layersNode;
     private LabelNode layoutsNode;
     // Fallback to something sensible if game.project doesn't exists
@@ -68,11 +69,13 @@ public class GuiSceneNode extends ComponentTypeNode {
         nodesNode = new NodesNode();
         texturesNode = new TexturesNode();
         fontsNode = new FontsNode();
+        spineScenesNode = new SpineScenesNode();
         layersNode = new LayersNode();
         layoutsNode = new LayoutsNode();
         addChild(nodesNode);
         addChild(texturesNode);
         addChild(fontsNode);
+        addChild(spineScenesNode);
         addChild(layersNode);
         addChild(layoutsNode);
     }
@@ -127,6 +130,10 @@ public class GuiSceneNode extends ComponentTypeNode {
 
     public Node getFontsNode() {
         return fontsNode;
+    }
+    
+    public Node getSpineScenesNode() {
+        return spineScenesNode;
     }
 
     public Node getLayersNode() {

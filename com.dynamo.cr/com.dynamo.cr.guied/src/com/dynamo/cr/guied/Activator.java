@@ -30,6 +30,7 @@ public class Activator extends AbstractUIPlugin {
     public static final String TEXTURE_ATLAS_IMAGE_ID = "TEXTURE_ATLAS_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_TILESOURCE_IMAGE_ID = "TEXTURE_TILESOURCE_ICON"; //$NON-NLS-1$
     public static final String FONT_IMAGE_ID = "FONT_ICON"; //$NON-NLS-1$
+    public static final String SPINESCENE_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
     public static final String FOLDER_IMAGE_ID = "FOLDER_ICON"; //$NON-NLS-1$
     public static final String LAYER_IMAGE_ID = "LAYER_ICON"; //$NON-NLS-1$
     public static final String LAYOUT_IMAGE_ID = "LAYOUT_ICON"; //$NON-NLS-1$
@@ -85,6 +86,7 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, TEXTURE_ATLAS_IMAGE_ID, "icons/images.png");
         registerImage(reg, TEXTURE_TILESOURCE_IMAGE_ID, "icons/tile_set.png");
         registerImage(reg, FONT_IMAGE_ID, "icons/font.png");
+        registerImage(reg, SPINESCENE_IMAGE_ID, "icons/spine.png");
         registerImage(reg, FOLDER_IMAGE_ID, "icons/folder.png");
         registerImage(reg, LAYER_IMAGE_ID, "icons/layer.png");
         registerImage(reg, LAYOUT_IMAGE_ID, "icons/display_profile.png");

@@ -21,6 +21,7 @@ import com.dynamo.cr.guied.operations.AddFontsOperation;
 import com.dynamo.cr.guied.operations.AddGuiNodeOperation;
 import com.dynamo.cr.guied.operations.AddLayersOperation;
 import com.dynamo.cr.guied.operations.AddLayoutOperation;
+import com.dynamo.cr.guied.operations.AddSpineScenesOperation;
 import com.dynamo.cr.guied.operations.AddTexturesOperation;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -133,6 +134,18 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
                 nodes.add(new FontNode(font));
             }
             context.executeOperation(new AddFontsOperation(scene, nodes, context));
+        }
+    }
+    
+    public void onAddSpineSceneNode(IPresenterContext context) {
+        String[] spineScenes = context.selectFiles("Add Spine Scenes", new String[] { "spinescene" });
+        if (spineScenes != null) {
+            GuiSceneNode scene = findSceneFromSelection(context.getSelection());
+            List<Node> nodes = new ArrayList<Node>(spineScenes.length);
+            for (String spineScene : spineScenes) {
+                nodes.add(new SpineSceneNode(spineScene));
+            }
+            context.executeOperation(new AddSpineScenesOperation(scene, nodes, context));
         }
     }
 

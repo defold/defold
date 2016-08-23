@@ -9,6 +9,7 @@
 #include <dlib/easing.h>
 #include <dlib/image.h>
 #include <hid/hid.h>
+#include <rig/rig.h>
 
 #include <script/script.h>
 
@@ -119,6 +120,16 @@ namespace dmGui
      */
     typedef FetchTextureSetAnimResult (*FetchTextureSetAnimCallback)(void* texture_set_ptr, dmhash_t anim, TextureSetAnimDesc* out_data);
 
+    struct RigSceneDataDesc
+    {
+        dmArray<dmRig::RigBone>* m_BindPose;
+        dmRigDDF::Skeleton*      m_Skeleton;
+        dmRigDDF::MeshSet*       m_MeshSet;
+        dmRigDDF::AnimationSet*  m_AnimationSet;
+    };
+
+    typedef bool (*FetchRigSceneDataCallback)(void* spine_scene, dmhash_t rig_scene_id, RigSceneDataDesc* out_data);
+
 
     /**
      * Callback to set node from node descriptor
@@ -142,9 +153,11 @@ namespace dmGui
         uint32_t m_MaxAnimations;
         uint32_t m_MaxTextures;
         uint32_t m_MaxFonts;
+        uint32_t m_MaxSpineScenes;
         uint32_t m_MaxLayers;
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
+        FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
         AdjustReference m_AdjustReference;
 
@@ -220,6 +233,7 @@ namespace dmGui
         uint32_t                m_Dpi;
         dmHID::HContext         m_HidContext;
         dmResource::HFactory    m_Factory;
+        dmRig::HRigContext      m_RigContext;
 
         NewContextParams()
         {
@@ -237,6 +251,7 @@ namespace dmGui
         RESULT_TEXTURE_ALREADY_EXISTS = -6,
         RESULT_INVAL_ERROR = -7,
         RESULT_INF_RECURSION = -8,
+        RESULT_DATA_ERROR = -9,
     };
 
     enum Property
@@ -281,6 +296,7 @@ namespace dmGui
         NODE_TYPE_TEXT = 1,
         NODE_TYPE_PIE  = 2,
         NODE_TYPE_TEMPLATE = 3,
+        NODE_TYPE_SPINE = 4,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -571,6 +587,12 @@ namespace dmGui
     void ClearFonts(HScene scene);
 
     /**
+     * ---
+     */
+    Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene);
+    void RemoveSpineScene(HScene scene, const char* spine_scene_name);
+
+    /**
      * Set scene material
      * @param scene
      * @param material
@@ -833,6 +855,8 @@ namespace dmGui
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
+    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
+    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);

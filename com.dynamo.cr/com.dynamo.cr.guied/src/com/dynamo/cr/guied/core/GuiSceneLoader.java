@@ -34,6 +34,7 @@ import com.dynamo.gui.proto.Gui.SceneDesc.Builder;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
@@ -276,6 +277,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             texturesNode.addChild(texture);
         }
 
+        Node spineScenesNode = node.getSpineScenesNode();
+        for (SpineSceneDesc s : sceneBuilder.getSpineScenesList()) {
+            SpineSceneNode spineScene = new SpineSceneNode();
+            spineScene.setId(s.getName());
+            spineScene.setSpineScene(s.getSpineScene());
+            spineScenesNode.addChild(spineScene);
+        }
+
         Node layersNode = node.getLayersNode();
         for (LayerDesc l : sceneBuilder.getLayersList()) {
             LayerNode layer = new LayerNode();
@@ -417,6 +426,13 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setName(fontNode.getId());
             builder.setFont(fontNode.getFont());
             b.addFonts(builder);
+        }
+        for (Node n : node.getSpineScenesNode().getChildren()) {
+            SpineSceneNode spineSceneNode = (SpineSceneNode) n;
+            SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
+            builder.setName(spineSceneNode.getId());
+            builder.setSpineScene(spineSceneNode.getSpineScene());
+            b.addSpineScenes(builder);
         }
         for (Node n : node.getLayersNode().getChildren()) {
             LayerNode layerNode = (LayerNode) n;

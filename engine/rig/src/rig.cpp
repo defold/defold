@@ -1013,6 +1013,10 @@ namespace dmRig
 
         AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
         instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_Skin);
+        if (!instance->m_MeshEntry) {
+            dmLogError("Could not find mesh entry for skin: %x.", instance->m_Skin);
+            return dmRig::RESULT_ERROR;
+        }
 
         Result result = CreatePose(context, instance);
         if (result != dmRig::RESULT_OK) {

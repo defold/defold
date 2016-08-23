@@ -14,7 +14,8 @@ message NodeDesc
         TYPE_BOX  = 0 [(displayName) = "Box"];
         TYPE_TEXT = 1 [(displayName) = "Text"];
         TYPE_PIE  = 2 [(displayName) = "Pie"];
-        TYPE_TEMPLATE  = 3 [(displayName) = "Template"];
+        TYPE_TEMPLATE = 3 [(displayName) = "Template"];
+        TYPE_SPINE = 4 [(displayName) = "Spine"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -128,6 +129,11 @@ message NodeDesc
     optional float      text_tracking  = 37 [default = 0.0];
 
     optional SizeMode size_mode  = 38 [default = SIZE_MODE_MANUAL];
+
+    // Spine specific options
+    optional string spine_scene        = 39;
+    optional string spine_animation_id = 40;
+    optional string spine_skin_id      = 41;
 }
 
 message SceneDesc
@@ -158,6 +164,11 @@ message SceneDesc
         required string   name  = 1;
         repeated NodeDesc nodes = 2;
     }
+    message SpineSceneDesc
+    {
+        required string name         = 1;
+        required string spine_scene  = 2 [(resource)=true];
+    }
 
     required string      script                  = 1 [(resource)=true];
     repeated FontDesc    fonts                   = 2;
@@ -174,6 +185,8 @@ message SceneDesc
     optional AdjustReference adjust_reference    = 10 [default = ADJUST_REFERENCE_LEGACY];
 
     optional uint32      max_nodes               = 11 [default = 512];
+
+    repeated SpineSceneDesc spine_scenes         = 12;
 }
 
 /*# reports a layout change
