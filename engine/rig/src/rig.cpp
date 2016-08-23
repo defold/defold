@@ -625,24 +625,20 @@ namespace dmRig
                     {
                         // get custom target position either from go or vector position
                         Vector3 user_target_position = target_position;
-                        if (ik_targets[i].m_UserHash == 0)
+                        if(ik_targets[i].m_Callback != 0)
                         {
-                            user_target_position = ik_targets[i].m_Position;
+                            user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
                         } else {
-                            if(ik_targets[i].m_Callback != 0)
-                            {
-                                user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
-                            } else {
-                                // instance have been removed, disable animation
-                                ik_targets[i].m_UserHash = 0;
-                                ik_targets[i].m_Mix = 0.0f;
-                            }
+                            // instance have been removed, disable animation
+                            ik_targets[i].m_UserHash = 0;
+                            ik_targets[i].m_Mix = 0.0f;
                         }
 
                         const float target_mix = ik_targets[i].m_Mix;
 
-                        if(parent_parent_index != INVALID_BONE_INDEX)
-                            user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
+                        if (parent_parent_index != INVALID_BONE_INDEX) {
+                            user_target_position = dmTransform::Apply(parent_parent_t, user_target_position);
+                        }
 
                         // blend default target pose and target pose
                         target_position = target_mix == 1.0f ? user_target_position : dmTransform::lerp(target_mix, target_position, user_target_position);

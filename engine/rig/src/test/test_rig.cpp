@@ -813,6 +813,11 @@ TEST_F(RigInstanceTest, InvalidIKTarget)
     ASSERT_EQ((dmRig::IKTarget*)0x0, dmRig::GetIKTarget(m_Instance, dmHashString64("invalid_ik_name")));
 }
 
+static Vector3 UpdateIKPositionCallback(dmRig::IKTarget* ik_target)
+{
+    return (Vector3)ik_target->m_Position;
+}
+
 TEST_F(RigInstanceTest, IKTarget)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
@@ -820,7 +825,7 @@ TEST_F(RigInstanceTest, IKTarget)
 
     dmRig::IKTarget* target = dmRig::GetIKTarget(m_Instance, dmHashString64("test_ik"));
     ASSERT_NE((dmRig::IKTarget*)0x0, target);
-    target->m_Callback = 0x0;
+    target->m_Callback = UpdateIKPositionCallback;
     target->m_Mix = 1.0f;
     target->m_Position = Vector3(0.0f, 100.0f, 0.0f);
 

@@ -782,8 +782,13 @@ namespace dmGameSystem
             ik_target->m_Mix = 0x0;
             return Vector3(0.0f);
         }
+        return (Vector3)dmTransform::Apply(dmTransform::Inv(dmTransform::Mul(dmGameObject::GetWorldTransform(component->m_Instance), component->m_Transform)), dmGameObject::GetWorldPosition(target_instance));
+    }
 
-        return (Vector3)dmGameObject::GetWorldPosition(target_instance);
+    static Vector3 UpdateIKPositionCallback(dmRig::IKTarget* ik_target)
+    {
+        SpineModelComponent* component = (SpineModelComponent*)ik_target->m_UserPtr;
+        return (Vector3)dmTransform::Apply(dmTransform::Inv(dmTransform::Mul(dmGameObject::GetWorldTransform(component->m_Instance), component->m_Transform)), (Point3)ik_target->m_Position);
     }
 
     bool CompSpineModelSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id)
@@ -796,7 +801,6 @@ namespace dmGameSystem
         target->m_Mix = mix;
         target->m_UserPtr = component;
         target->m_UserHash = instance_id;
-
         return true;
     }
 
@@ -806,8 +810,9 @@ namespace dmGameSystem
         if (!target) {
             return false;
         }
-        target->m_Callback = 0x0;
+        target->m_Callback = UpdateIKPositionCallback;
         target->m_Mix = mix;
+        target->m_UserPtr = component;
         target->m_Position = (Vector3)position;
         return true;
     }
