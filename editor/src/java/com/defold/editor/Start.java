@@ -221,7 +221,7 @@ public class Start extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         final Splash splash = new Splash();
-        splash.showingProperty().addListener(new ChangeListener<Boolean>() {
+        splash.shownProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observable,
                     Boolean oldValue, Boolean newValue) {

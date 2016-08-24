@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [editor.code :as code])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,7 +45,6 @@
                    (.setName ns)
                    (.setBrief "")
                    (.setDescription "")
-                   (.setReturn "")
                    (.build))]
          (if (not= (.getName e) "")
            sofar
@@ -68,12 +67,13 @@
          ["</b> "]
          [(.getDoc parameter)]
          ["<br>"]))
-      (when (> (count (.getReturn element)) 0)
+      (when (< 0 (.getReturnvaluesCount element))
         (concat
          ["<br>"]
          ["<b>Returns:</b><br>"]
          ["&#160;&#160;&#160;&#160;<b>"]
-         [(.getReturn element)]))))))
+         (for [^ScriptDoc$ReturnValue retval (.getReturnvaluesList element)]
+           [(format "%s: %s" (.getName retval) (.getDoc retval))])))))))
 
 (defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
   (let [base (.getName element)
