@@ -55,12 +55,10 @@
    :rotation (math/vecmath->clj rotation-q4)
    :data (or (:content save-data) "")})
 
-(def sound-exts (into #{} (map :ext sound/sound-defs)))
-
 (defn- wrap-if-raw-sound [_node-id target]
   (let [source-path (resource/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
-    (if (sound-exts ext)
+    (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
