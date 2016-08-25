@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import javax.vecmath.Vector3d;
+
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -111,6 +113,13 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
             }
             context.executeOperation(new AddGuiNodeOperation(scene, templateScene, context));
         }
+    }
+    
+    public void onAddSpineNode(IPresenterContext context) {
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
+        SpineNode node = new SpineNode();
+        node.setId("spine");
+        context.executeOperation(new AddGuiNodeOperation(scene, node, context));
     }
 
     public void onAddTextureNode(IPresenterContext context) {

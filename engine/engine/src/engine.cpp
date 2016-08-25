@@ -663,6 +663,7 @@ namespace dmEngine
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
+        engine->m_GuiContext.m_RigContext = engine->m_RigContext;
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");

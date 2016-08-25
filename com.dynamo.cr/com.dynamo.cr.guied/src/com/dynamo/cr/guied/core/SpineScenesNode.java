@@ -3,17 +3,16 @@ package com.dynamo.cr.guied.core;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//import org.slf4j.Logger;
+//import org.slf4j.LoggerFactory;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 
 
 @SuppressWarnings("serial")
 public class SpineScenesNode extends LabelNode {
 
-    private static Logger logger = LoggerFactory.getLogger(SpineScenesNode.class);
+//    private static Logger logger = LoggerFactory.getLogger(SpineScenesNode.class);
 
     public SpineScenesNode() {
         super("Spine Scenes");
@@ -67,7 +66,7 @@ public class SpineScenesNode extends LabelNode {
         return spineScenes;
     }
 
-    public SpineSceneNode getSpineSceneNode(String spinescene) {
+    public SpineSceneNode getSpineScenesNode(String spinescene) {
         String baseSpineScene = spinescene.split("/")[0];
         for (Node n : getChildren()) {
             SpineSceneNode spineSceneNode = (SpineSceneNode) n;

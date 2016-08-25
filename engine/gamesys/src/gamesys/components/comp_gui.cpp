@@ -93,6 +93,8 @@ namespace dmGameSystem
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_create_params);
         dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
 
+        gui_world->m_RigContext = gui_context->m_RigContext;
+
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
 
@@ -242,7 +244,7 @@ namespace dmGameSystem
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_SPINE:
-                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineAnimationId), dmHashString64(node_desc->m_SpineSkinId));
+                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkinId), dmHashString64(node_desc->m_SpineAnimationId));
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
@@ -710,6 +712,81 @@ namespace dmGameSystem
         dmRender::FlushTexts(gui_context->m_RenderContext, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
+    void RenderSpineNodes(dmGui::HScene scene,
+                          const dmGui::RenderEntry* entries,
+                          const Matrix4* node_transforms,
+                          const float* node_opacities,
+                          const dmGui::StencilScope** stencil_scopes,
+                          uint32_t node_count,
+                          void* context)
+    {
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
+
+        dmGui::HNode first_node = entries[0].m_Node;
+        dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
+        assert(node_type == dmGui::NODE_TYPE_SPINE);
+
+        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
+        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
+
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
+
+        uint32_t vertex_count = 0;
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            const dmGui::HNode node = entries[i].m_Node;
+            const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
+            vertex_count += dmRig::GetVertexCount(rig_instance);
+        }
+
+        ro.Init();
+        ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
+        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_VertexCount = vertex_count;
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_WorldTransform = Matrix4::identity();
+
+        dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
+        SetBlendMode(ro, blend_mode);
+        ro.m_SetBlendFactors = 1;
+
+        ApplyStencilClipping(stencil_scopes[0], ro);
+
+        // Set default texture
+        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        if (texture) {
+            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+        } else {
+            ro.m_Textures[0] = gui_world->m_WhiteTexture;
+        }
+
+        if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
+        }
+
+        // Fill in vertex buffer
+        BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
+        BoxVertex *vb_end = vb_begin;
+
+        dmRig::RigGenVertexDataParams params;
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            const dmGui::HNode node = entries[i].m_Node;
+            const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
+            params.m_ModelMatrix = node_transforms[i];
+            params.m_VertexData = (void**)&vb_end;
+            params.m_VertexStride = sizeof(BoxVertex);
+
+            vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
+        }
+        gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
+    }
+
     void RenderBoxNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
@@ -1175,6 +1252,9 @@ namespace dmGameSystem
                     case dmGui::NODE_TYPE_PIE:
                         RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                         break;
+                    case dmGui::NODE_TYPE_SPINE:
+                        RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                        break;
                     default:
                         break;
                 }
@@ -1202,6 +1282,9 @@ namespace dmGameSystem
                     break;
                 case dmGui::NODE_TYPE_PIE:
                     RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    break;
+                case dmGui::NODE_TYPE_SPINE:
+                    RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 default:
                     break;

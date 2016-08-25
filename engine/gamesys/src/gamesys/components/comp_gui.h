@@ -67,6 +67,7 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;
         dmGraphics::HTexture             m_WhiteTexture;
+        dmRig::HRigContext               m_RigContext;
     };
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);

@@ -26,6 +26,9 @@ public class Activator extends AbstractUIPlugin {
     public static final String TEMPLATE_NODE_IMAGE_ID = "TEMPLATE_NODE_ICON"; //$NON-NLS-1$
     public static final String TEMPLATE_NODE_OVERRIDDEN_IMAGE_ID = "TEMPLATE_NODE_OVERRIDDEN_ICON"; //$NON-NLS-1$
     public static final String TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
+    public static final String SPINE_NODE_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
+    public static final String SPINE_NODE_OVERRIDDEN_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
+    public static final String SPINE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_IMAGE_ID = "TEXTURE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_ATLAS_IMAGE_ID = "TEXTURE_ATLAS_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_TILESOURCE_IMAGE_ID = "TEXTURE_TILESOURCE_ICON"; //$NON-NLS-1$

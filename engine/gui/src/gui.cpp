@@ -140,6 +140,7 @@ namespace dmGui
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
         context->m_HidContext = params->m_HidContext;
+        context->m_RigContext = params->m_RigContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
 
         return context;
@@ -718,7 +719,7 @@ namespace dmGui
     inline void CalculateNodeSize(InternalNode* in)
     {
         Node& n = in->m_Node;
-        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
+        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_NodeType == NODE_TYPE_SPINE) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
             return;
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
         int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
@@ -2177,7 +2178,7 @@ namespace dmGui
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture_info->m_Texture;
             n->m_Node.m_TextureSet = texture_info->m_TextureSet;
-            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (texture_info->m_Texture))
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (texture_info->m_Texture))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
@@ -2187,7 +2188,7 @@ namespace dmGui
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
             n->m_Node.m_TextureSet = 0x0;
-            if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
@@ -2256,6 +2257,12 @@ namespace dmGui
     Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id)
     {
         return SetNodeSpineScene(scene, node, dmHashString64(spine_scene_id), skin_id, default_animation_id);
+    }
+
+    dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RigInstance;
     }
 
     void* GetNodeFont(HScene scene, HNode node)
@@ -2484,7 +2491,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_SizeMode = (uint32_t) size_mode;
-        if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
+        if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE))
         {
             if (TextureInfo* texture_info = scene->m_Textures.Get(n->m_Node.m_TextureHash))
             {

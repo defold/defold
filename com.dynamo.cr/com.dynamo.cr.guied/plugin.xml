@@ -213,7 +213,27 @@
                   </reference>
                </or>
             </visibleWhen>
-         </command>         <command
+         </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.addQuinary"
+               label="Add Spine Node"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
+         <command
                commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
                label="Add Texture"
                style="push">
@@ -317,6 +337,11 @@
             <command
                   commandId="com.dynamo.cr.sceneed.ui.commands.addQuaternary"
                   label="Add Template Node"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addQuinary"
+                  label="Add Spine Node"
                   style="push">
             </command>
             <command
@@ -655,6 +680,28 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
                   </reference>
                </not>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.AddSpineNodeHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addQuinary">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
+               </or>
             </and>
          </activeWhen>
       </handler>

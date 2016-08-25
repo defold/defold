@@ -909,8 +909,8 @@ namespace dmRig
                 write_ptr->y = posed_vertex[1];
                 write_ptr->z = posed_vertex[2];
                 e = vi*2;
-                write_ptr->u = TO_SHORT(mesh->m_Texcoord0[e+0]);
-                write_ptr->v = TO_SHORT(mesh->m_Texcoord0[e+1]);
+                write_ptr->u = mesh->m_Texcoord0[e+0];
+                write_ptr->v = mesh->m_Texcoord0[e+1];
                 write_ptr->r = TO_BYTE(properties->m_Color[0]);
                 write_ptr->g = TO_BYTE(properties->m_Color[1]);
                 write_ptr->b = TO_BYTE(properties->m_Color[2]);
@@ -1013,10 +1013,6 @@ namespace dmRig
 
         AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
         instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_Skin);
-        if (!instance->m_MeshEntry) {
-            dmLogError("Could not find mesh entry for skin: %x.", instance->m_Skin);
-            return dmRig::RESULT_ERROR;
-        }
 
         Result result = CreatePose(context, instance);
         if (result != dmRig::RESULT_OK) {
