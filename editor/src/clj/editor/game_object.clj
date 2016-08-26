@@ -384,12 +384,13 @@
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (let [resource-types (workspace/get-resource-types workspace :component)]
-      (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                            :icon (:icon res-type)
-                            :command :add
-                            :user-data {:_node-id self :resource-type res-type}})
-            resource-types))))
+    (->> (workspace/get-resource-types workspace :component)
+         (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
+                              :icon (:icon res-type)
+                              :command :add
+                              :user-data {:_node-id self :resource-type res-type}}))
+         (sort-by :label)
+         vec)))
 
 (handler/defhandler :add :global
   (label [user-data] (add-embedded-component-label user-data))
