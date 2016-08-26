@@ -25,6 +25,32 @@ extern "C"
 
 namespace dmGameSystem
 {
+    void EmitterStateChangedCallback(dmhash_t component_id, dmhash_t emitter_id, int emitter_state, int lua_callback_ref, lua_State* L)
+    {
+        int arg_count = 4;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, lua_callback_ref);
+
+        lua_pushvalue(L, -2); //self
+        lua_pushnumber(L, component_id);
+        lua_pushnumber(L, emitter_id);
+        lua_pushnumber(L, emitter_state);
+
+        int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+        //int ret = lua_pcall(L, arg_count, 0, 0);
+        if(ret != 0)
+        {
+            dmLogError("error calling particle emitter callback, error: %s", lua_tostring(L, -1));
+        }
+
+        //unref lua function ref?
+        //lua_unref(L, LUA_REGISTRYINDEX, lua_callback_ref);
+
+        // Reset count of lua stack? Push nil values?
+    }
+
+    
+
     /*# ParticleFX documentation
      *
      * ParticleFX documentation
@@ -50,22 +76,83 @@ namespace dmGameSystem
      */
     int ParticleFX_Play(lua_State* L)
     {
+        //g_L = L;
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        if (top != 1)
+        if (top < 1)
         {
-            return luaL_error(L, "particlefx.play only takes a URL as parameter");
+            return luaL_error(L, "particlefx.play expects atleast URL as parameter");
         }
-        dmGameSystemDDF::PlayParticleFX msg;
-        uint32_t msg_size = sizeof(dmGameSystemDDF::PlayParticleFX);
+        
+        //dmGameSystemDDF::PlayParticleFX msg;
+        //uint32_t msg_size = sizeof(dmGameSystemDDF::PlayParticleFX);
+        char* msg_buf = 0x0;
+        uint32_t msg_size = 0;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
+        sender.m_Function = 0;
+        receiver.m_Function = 0;
+
+        dmParticle::EmitterStateChanged fun;
+
+        // TODO extract cb function ref and attach it to a buffer containing both msg and cb function?
+        // See script_http.cpp Http_Request(...) hos they read to var "int callback" (row 80). I think the
+        // reference to the LUA cb is attached to the URL obj ("sender" in script_http.cpp). Decoded in http_service.cpp:245.
+
+        // Second arg is ref to lua callback func for changed emitter state, append ref to sender object
+        if (top > 1 && !lua_isnil(L, 2))
+        {
+            // NOTE: + 2 as LUA_NOREF is defined as - 2 and 0 is interpreted as uninitialized (see script_http.cpp:80)
+            int callback = luaL_ref(L, LUA_REGISTRYINDEX); // pops value from lua stack
+            lua_pushnil(L); // push nil to lua stack to restore stack size (necessary? or just ditch the assert below?)
+
+            fun = EmitterStateChangedCallback;
+            /*
+            dmLogInfo("1 Address to fun: %p", fun);
+            dmLogInfo("1 Extracted callback ref = %i", callback);
+            dmLogInfo("1 Address to lua state: %p", L);
+            */
+            msg_size = sizeof(dmParticle::EmitterStateChanged) + sizeof(int) + sizeof(&L);
+            msg_buf = new char[msg_size];
+            memcpy(msg_buf, &fun, sizeof(dmParticle::EmitterStateChanged));
+            memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged), &callback, sizeof(int));
+            memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), &L, sizeof(&L));
+            
+            //fun(555, 1337, 1, callback);
+        }
+        
+        // Debugging, read funcptr and cb ref from buffer before posting
+        if(msg_buf != 0x0)
+        {
+            dmParticle::EmitterStateChangedData data;
+            memcpy(&(data.m_StateChangedCallback), msg_buf, sizeof(dmParticle::EmitterStateChanged));
+            data.m_LuaCallbackRef = *(int*)(msg_buf + sizeof(dmParticle::EmitterStateChanged));
+            memcpy(&(data.m_L), msg_buf + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), sizeof(lua_State*));
+            /*
+            dmLogInfo("-------");
+            dmLogInfo("1 BUF address to func ptr from buf: %p", data.m_StateChangedCallback);
+            dmLogInfo("1 BUF cb ref from buf: %i", data.m_LuaCallbackRef);
+            dmLogInfo("1 BUF Address to lua state from buf: %p", data.m_L);
+            */
+            //data.m_StateChangedCallback(1,2,3,data.m_LuaCallbackRef, data.m_L);
+        }
+
+        dmMessage::Post(
+            &sender, 
+            &receiver, 
+            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, 
+            (uintptr_t)instance, 
+            (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 
+            (void*)msg_buf, 
+            msg_size);
+
+        //delete[] msg_buf;
+
         assert(top == lua_gettop(L));
         return 0;
     }

@@ -15,6 +15,7 @@ namespace dmParticle
 
     struct EmitterPrototype;
     struct Prototype;
+    struct EmitterStateChangedData;
 
     /**
      * Key when sorting particles, based on life time with additional index for stable sort
@@ -146,6 +147,8 @@ namespace dmParticle
         dmTransform::TransformS1 m_WorldTransform;
         /// DDF resource.
         Prototype*              m_Prototype;
+        /// Emitter state changed callback
+        EmitterStateChangedData m_EmitterStateChangedData;
         /// Used when reloading to fast forward new emitters
         float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.

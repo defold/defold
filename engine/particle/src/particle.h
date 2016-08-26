@@ -7,6 +7,12 @@
 #include <ddf/ddf.h>
 #include "particle/particle_ddf.h"
 
+extern "C"
+{
+#include <lua/lua.h>
+#include <lua/lauxlib.h>
+}
+
 /**
  * System to handle particle systems
  */
@@ -26,6 +32,11 @@ namespace dmParticle
      * Instance handle
      */
     typedef uint32_t HInstance;
+
+    /**
+    * Callback for emitter state changed
+    */
+    typedef void (*EmitterStateChanged)(dmhash_t component_id, dmhash_t emitter_id, int emitter_state, int lua_callback_ref, lua_State* L);
 
     /**
      * Invalid context handle
@@ -52,6 +63,20 @@ namespace dmParticle
     {
         dmhash_t m_NameHash;
         Vector4 m_Value;
+    };
+
+    struct EmitterStateChangedData
+    {
+        EmitterStateChangedData()
+        {
+            memset(this, 0, sizeof(*this));
+            m_LuaCallbackRef = 0;
+        }
+
+        EmitterStateChanged m_StateChangedCallback;
+        dmhash_t m_ComponentId;
+        int m_LuaCallbackRef;
+        lua_State* m_L;
     };
 
     /**
@@ -185,7 +210,7 @@ namespace dmParticle
      * @param prototype Prototype of the instance to be created
      * @return Instance handle, or INVALID_INSTANCE when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype);
+    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype, EmitterStateChangedData* data = 0x0);
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.

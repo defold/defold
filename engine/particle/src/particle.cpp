@@ -153,7 +153,7 @@ namespace dmParticle
 
     static void ResetEmitter(Emitter* emitter);
 
-    HInstance CreateInstance(HContext context, HPrototype prototype)
+    HInstance CreateInstance(HContext context, HPrototype prototype, EmitterStateChangedData* data)
     {
         if (context->m_InstanceIndexPool.Remaining() == 0)
         {
@@ -172,6 +172,7 @@ namespace dmParticle
         context->m_Instances[index] = instance;
 
         instance->m_Prototype = prototype;
+        instance->m_EmitterStateChangedData = *data;
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
 
@@ -211,19 +212,35 @@ namespace dmParticle
         delete i;
     }
 
+    void SetEmitterState(const Instance* instance, Emitter* emitter, EmitterState state)
+    {
+        EmitterState old_emitter_state = emitter->m_State;
+        emitter->m_State = state;
+
+        if(state != old_emitter_state && instance->m_EmitterStateChangedData.m_LuaCallbackRef != 0)
+        {
+            instance->m_EmitterStateChangedData.m_StateChangedCallback(
+                instance->m_EmitterStateChangedData.m_ComponentId, 
+                emitter->m_Id, 
+                emitter->m_State, 
+                instance->m_EmitterStateChangedData.m_LuaCallbackRef, 
+                instance->m_EmitterStateChangedData.m_L);
+        }
+    }
+
     static bool IsSleeping(Emitter* emitter);
     static void UpdateEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
 
-    static void StartEmitter(Emitter* emitter)
+    static void StartEmitter(const Instance* instance, Emitter* emitter)
     {
         // TODO: Fix auto-start
-        emitter->m_State = EMITTER_STATE_PRESPAWN;
+        SetEmitterState(instance, emitter, EMITTER_STATE_PRESPAWN);
         emitter->m_Retiring = 0;
     }
 
-    static void StopEmitter(Emitter* emitter)
+    static void StopEmitter(const Instance* instance, Emitter* emitter)
     {
-        emitter->m_State = EMITTER_STATE_POSTSPAWN;
+        SetEmitterState(instance, emitter, EMITTER_STATE_POSTSPAWN);
         emitter->m_Retiring = 0;
     }
 
@@ -240,7 +257,7 @@ namespace dmParticle
 
     static void FastForwardEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float time)
     {
-        StartEmitter(emitter);
+        StartEmitter(instance, emitter);
         float timer = 0.0f;
         // Hard coded for now
         float dt = 1.0f / 60.0f;
@@ -343,7 +360,7 @@ namespace dmParticle
         uint32_t emitter_count = emitters.Size();
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
-            StartEmitter(&emitters[emitter_i]);
+            StartEmitter(i, &emitters[emitter_i]);
         }
     }
 
@@ -357,7 +374,7 @@ namespace dmParticle
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
             Emitter* emitter = &emitters[emitter_i];
-            StopEmitter(emitter);
+            StopEmitter(i, emitter);
         }
     }
 
@@ -628,7 +645,7 @@ namespace dmParticle
         {
             if (emitter->m_Timer >= emitter_ddf->m_StartDelay)
             {
-                emitter->m_State = EMITTER_STATE_SPAWNING;
+                SetEmitterState(instance, emitter, EMITTER_STATE_SPAWNING);
                 emitter->m_Timer -= emitter_ddf->m_StartDelay;
             }
         }
@@ -678,12 +695,12 @@ namespace dmParticle
             }
 
             if (!IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter_ddf->m_Duration)
-                StopEmitter(emitter);
+                StopEmitter(instance, emitter);
         }
         if (emitter->m_State == EMITTER_STATE_POSTSPAWN)
         {
             if (emitter->m_Particles.Empty())
-                emitter->m_State = EMITTER_STATE_SLEEPING;
+                SetEmitterState(instance, emitter, EMITTER_STATE_SLEEPING);
         }
     }
 
@@ -1745,7 +1762,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetContextMaxParticleCount, HContext);
     DM_PARTICLE_TRAMPOLINE2(void, SetContextMaxParticleCount, HContext, uint32_t);
 
-    DM_PARTICLE_TRAMPOLINE2(HInstance, CreateInstance, HContext, HPrototype);
+    DM_PARTICLE_TRAMPOLINE3(HInstance, CreateInstance, HContext, HPrototype, EmitterStateChangedData*);
     DM_PARTICLE_TRAMPOLINE2(void, DestroyInstance, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, ReloadInstance, HContext, HInstance, bool);
 
