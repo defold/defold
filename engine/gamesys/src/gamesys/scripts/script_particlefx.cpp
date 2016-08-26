@@ -28,23 +28,27 @@ namespace dmGameSystem
     void EmitterStateChangedCallback(dmhash_t component_id, dmhash_t emitter_id, int emitter_state, int lua_callback_ref, lua_State* L)
     {
         int arg_count = 4;
+        int top = lua_gettop(L);
+        //dmLogInfo("top before invokation: %i", top);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, lua_callback_ref);
 
         lua_pushvalue(L, -2); //self
-        lua_pushnumber(L, component_id);
-        lua_pushnumber(L, emitter_id);
+        dmScript::PushHash(L, component_id);
+        dmScript::PushHash(L, emitter_id);
         lua_pushnumber(L, emitter_state);
 
         int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
-        //int ret = lua_pcall(L, arg_count, 0, 0);
         if(ret != 0)
         {
             dmLogError("error calling particle emitter callback, error: %s", lua_tostring(L, -1));
         }
 
+        top = lua_gettop(L);
+        //dmLogInfo("top after invokation: %i", top);
+
         //unref lua function ref?
-        //lua_unref(L, LUA_REGISTRYINDEX, lua_callback_ref);
+        //lua_unref(L, lua_callback_ref);
 
         // Reset count of lua stack? Push nil values?
     }
@@ -76,7 +80,6 @@ namespace dmGameSystem
      */
     int ParticleFX_Play(lua_State* L)
     {
-        //g_L = L;
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -100,14 +103,8 @@ namespace dmGameSystem
 
         dmParticle::EmitterStateChanged fun;
 
-        // TODO extract cb function ref and attach it to a buffer containing both msg and cb function?
-        // See script_http.cpp Http_Request(...) hos they read to var "int callback" (row 80). I think the
-        // reference to the LUA cb is attached to the URL obj ("sender" in script_http.cpp). Decoded in http_service.cpp:245.
-
-        // Second arg is ref to lua callback func for changed emitter state, append ref to sender object
         if (top > 1 && !lua_isnil(L, 2))
         {
-            // NOTE: + 2 as LUA_NOREF is defined as - 2 and 0 is interpreted as uninitialized (see script_http.cpp:80)
             int callback = luaL_ref(L, LUA_REGISTRYINDEX); // pops value from lua stack
             lua_pushnil(L); // push nil to lua stack to restore stack size (necessary? or just ditch the assert below?)
 
@@ -121,26 +118,22 @@ namespace dmGameSystem
             msg_buf = new char[msg_size];
             memcpy(msg_buf, &fun, sizeof(dmParticle::EmitterStateChanged));
             memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged), &callback, sizeof(int));
-            memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), &L, sizeof(&L));
-            
-            //fun(555, 1337, 1, callback);
+            memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), &L, sizeof(L));
         }
         
         // Debugging, read funcptr and cb ref from buffer before posting
-        if(msg_buf != 0x0)
+        /*if(msg_buf != 0x0)
         {
             dmParticle::EmitterStateChangedData data;
             memcpy(&(data.m_StateChangedCallback), msg_buf, sizeof(dmParticle::EmitterStateChanged));
             data.m_LuaCallbackRef = *(int*)(msg_buf + sizeof(dmParticle::EmitterStateChanged));
             memcpy(&(data.m_L), msg_buf + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), sizeof(lua_State*));
-            /*
-            dmLogInfo("-------");
-            dmLogInfo("1 BUF address to func ptr from buf: %p", data.m_StateChangedCallback);
-            dmLogInfo("1 BUF cb ref from buf: %i", data.m_LuaCallbackRef);
-            dmLogInfo("1 BUF Address to lua state from buf: %p", data.m_L);
-            */
-            //data.m_StateChangedCallback(1,2,3,data.m_LuaCallbackRef, data.m_L);
-        }
+            
+            //dmLogInfo("-------");
+            //dmLogInfo("1 BUF address to func ptr from buf: %p", data.m_StateChangedCallback);
+            //dmLogInfo("1 BUF cb ref from buf: %i", data.m_LuaCallbackRef);
+            //dmLogInfo("1 BUF Address to lua state from buf: %p", data.m_L);
+        }*/
 
         dmMessage::Post(
             &sender, 
@@ -151,7 +144,7 @@ namespace dmGameSystem
             (void*)msg_buf, 
             msg_size);
 
-        //delete[] msg_buf;
+        delete[] msg_buf;
 
         assert(top == lua_gettop(L));
         return 0;

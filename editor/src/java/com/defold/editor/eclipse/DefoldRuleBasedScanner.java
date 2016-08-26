@@ -8,8 +8,11 @@ public class DefoldRuleBasedScanner extends RuleBasedScanner {
     //Reads from offset all at once to the end of the doc as a peek
     public String readString() {
         try {
-            if (fOffset < fDocument.getLength()){
-                 int len = fDocument.getLength() - fOffset;
+        	int docLen = fDocument.getLength();
+        	// This is a performance fix to handle large documents
+        	// should be revisited to see if we can handle regexes better in the Eclipse way of doing things
+            if (fOffset < docLen && (docLen < 1000)){
+                 int len = docLen - fOffset;
                  return fDocument.get(fOffset, len);
             }else{
                 return "";

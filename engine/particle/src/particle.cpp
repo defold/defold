@@ -153,7 +153,7 @@ namespace dmParticle
 
     static void ResetEmitter(Emitter* emitter);
 
-    HInstance CreateInstance(HContext context, HPrototype prototype, EmitterStateChangedData* data)
+    HInstance CreateInstance(HContext context, HPrototype prototype, EmitterStateChangedData* emitter_state_changed_data)
     {
         if (context->m_InstanceIndexPool.Remaining() == 0)
         {
@@ -172,7 +172,9 @@ namespace dmParticle
         context->m_Instances[index] = instance;
 
         instance->m_Prototype = prototype;
-        instance->m_EmitterStateChangedData = *data;
+
+        if(emitter_state_changed_data != 0x0) instance->m_EmitterStateChangedData = *emitter_state_changed_data;ß
+
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
 

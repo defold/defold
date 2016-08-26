@@ -5,6 +5,7 @@
 #include "hash.h"
 #include "mutex.h"
 #include "hashtable.h"
+#include "log.h"
 
 struct dmHashIncrementalStateKey32
 {
@@ -571,6 +572,7 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length)
 
         if (reverse)
         {
+            dmLogOnceWarning("ReverseHash is meant as assistance during development and cannot be used in release");
             if (length)
             {
                 *length = reverse->m_Length;
@@ -591,6 +593,7 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
 
         if (reverse)
         {
+            dmLogOnceWarning("ReverseHash is meant as assistance during development and cannot be used in release");
             if (length)
             {
                 *length = reverse->m_Length;

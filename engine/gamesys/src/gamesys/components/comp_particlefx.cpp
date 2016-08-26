@@ -258,8 +258,20 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    void DebugPrintHash(dmhash_t hash)
+    {
+        uint32_t length = 0;
+        const void* buf = dmHashReverse64(hash, &length);
 
-    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* data)
+        char* path = new char[length];
+        memcpy(path, buf, length);
+
+        dmLogInfo("Reverse hashed; %s", path);
+
+        delete[] path;
+    }
+
+    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
         if (!world->m_Components.Full())
         {
@@ -271,7 +283,7 @@ namespace dmGameSystem
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
             dmResource::HFactory factory = world->m_Context->m_Factory;
             dmResource::IncRef(factory, prototype->m_ParticlePrototype);
-            emitter->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, data);
+            emitter->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
             emitter->m_ParticlePrototype = prototype->m_ParticlePrototype;
             emitter->m_World = world;
             emitter->m_AddedToUpdate = prototype->m_AddedToUpdate;
@@ -291,31 +303,33 @@ namespace dmGameSystem
         {
             dmParticle::HContext context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
-            dmParticle::EmitterStateChangedData data;
+            dmParticle::EmitterStateChangedData emitter_state_changed_data;
 
             if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged)+sizeof(int)+sizeof(lua_State*))
             {
-                memcpy(&(data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
-                data.m_ComponentId = params.m_Message->m_Sender.m_Path;
-                data.m_LuaCallbackRef = *(int*)(params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged));
-                memcpy(&(data.m_L), params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), sizeof(lua_State*));
+                memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
+                emitter_state_changed_data.m_ComponentId = params.m_Message->m_Receiver.m_Path;
+                emitter_state_changed_data.m_LuaCallbackRef = *(int*)(params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged));
+                memcpy(&(emitter_state_changed_data.m_L), params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), sizeof(lua_State*));
+
+                DebugPrintHash(emitter_state_changed_data.m_ComponentId);
 
                 /*
                 dmLogInfo("----------");
-                dmLogInfo("2 data size: %u", params.m_Message->m_DataSize);
-                dmLogInfo("2 cb func adr from buf: %p", data.m_StateChangedCallback)
-                dmLogInfo("2 lua callback ref from buf: %i", data.m_LuaCallbackRef);
-                dmLogInfo("2 Address to lua state from buf: %p", data.m_L);
+                dmLogInfo("2 emitter_state_changed_data size: %u", params.m_Message->m_DataSize);
+                dmLogInfo("2 cb func adr from buf: %p", emitter_state_changed_data.m_StateChangedCallback)
+                dmLogInfo("2 lua callback ref from buf: %i", emitter_state_changed_data.m_LuaCallbackRef);
+                dmLogInfo("2 Address to lua state from buf: %p", emitter_state_changed_data.m_L);
                 */
                 
                 //For debugging, try to run callback with func pointer
-                //(*(data.m_StateChangedCallback))(777, 1338, 1, data.m_LuaCallbackRef, data.m_L);
+                //(*(emitter_state_changed_data.m_StateChangedCallback))(777, 1338, 1, emitter_state_changed_data.m_LuaCallbackRef, emitter_state_changed_data.m_L);
             }
 
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &data);
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);
 
             // params.m_Message->m_Sender.m_Path has id of sender (e.g "/level/lower_particles")
-            // params.m_Message->m_Data contains data of msg var in script_particlefx.cpp
+            // params.m_Message->m_Data contains emitter_state_changed_data of msg var in script_particlefx.cpp
             // params.m_Message->m_DataSize is num bytes in m_Data.
 
             if (prototype->m_AddedToUpdate) {
