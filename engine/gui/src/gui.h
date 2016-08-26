@@ -252,6 +252,7 @@ namespace dmGui
         RESULT_INVAL_ERROR = -7,
         RESULT_INF_RECURSION = -8,
         RESULT_DATA_ERROR = -9,
+        RESULT_WRONG_TYPE = -10,
     };
 
     enum Property
@@ -876,6 +877,10 @@ namespace dmGui
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
+
+    ///////////////////////////// SPINE STUFF
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend);
+    Result CancelNodeSpineAnim(HScene scene, HNode node);
 
     /**
      * Set node clipping mode

@@ -21,8 +21,8 @@ public class SpineNode extends GuiNode {
     @Property(editorType = EditorType.DROP_DOWN, category = "")
     private String spineScene = "";
     
-    @Property(editorType = EditorType.DROP_DOWN, category = "")
-    private String texture = "";
+//    @Property(editorType = EditorType.DROP_DOWN, category = "")
+//    private String texture = "";
 
     @Property(editorType = EditorType.DEFAULT, category = "")
     private String defaultAnimationId = "";
@@ -36,6 +36,10 @@ public class SpineNode extends GuiNode {
     
     public void setSize() {
         return;
+    }
+    
+    public boolean isTextureVisible() {
+        return false;
     }
     
     public boolean isAlphaVisible() {
@@ -94,48 +98,48 @@ public class SpineNode extends GuiNode {
     }
     
     // TEXTURE STUFF
-    public String getTexture() {
-        return this.texture;
-    }
-
-    public void setTexture(String texture) {
-        this.texture = texture;
-//        updateTexture();
-        GuiNodeStateBuilder.setField(this, "Texture", texture);
-    }
-
-    public void resetTexture() {
-        this.texture = (String)GuiNodeStateBuilder.resetField(this, "Texture");
-//        updateTexture();
-    }
-    
-
-    private TextureNode getTextureNode() {
-        TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
-        if(textureNode == null) {
-            TemplateNode parentTemplate = this.getParentTemplateNode();
-            if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-                textureNode = ((TexturesNode) parentTemplate.getTemplateScene().getTexturesNode()).getTextureNode(this.texture);
-            }
-        }
-        return textureNode;
-    }
-
-    private void updateTexture() {
-        if (!this.texture.isEmpty() && getModel() != null) {
-            TextureNode textureNode = this.getTextureNode();
-//            if(textureNode != null)
-//            {
-//                if (this.guiTextureNode == null) {
-//                    this.guiTextureNode = new GuiTextureNode();
-//                }
-//                this.guiTextureNode.setTexture(this, textureNode.getTexture(), this.texture);
-//                updateSize();
-//                return;
+//    public String getTexture() {
+//        return this.texture;
+//    }
+//
+//    public void setTexture(String texture) {
+//        this.texture = texture;
+////        updateTexture();
+//        GuiNodeStateBuilder.setField(this, "Texture", texture);
+//    }
+//
+//    public void resetTexture() {
+//        this.texture = (String)GuiNodeStateBuilder.resetField(this, "Texture");
+////        updateTexture();
+//    }
+//    
+//
+//    private TextureNode getTextureNode() {
+//        TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
+//        if(textureNode == null) {
+//            TemplateNode parentTemplate = this.getParentTemplateNode();
+//            if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
+//                textureNode = ((TexturesNode) parentTemplate.getTemplateScene().getTexturesNode()).getTextureNode(this.texture);
 //            }
-        }
-//        this.guiTextureNode = null;
-    }
+//        }
+//        return textureNode;
+//    }
+//
+//    private void updateTexture() {
+//        if (!this.texture.isEmpty() && getModel() != null) {
+//            TextureNode textureNode = this.getTextureNode();
+////            if(textureNode != null)
+////            {
+////                if (this.guiTextureNode == null) {
+////                    this.guiTextureNode = new GuiTextureNode();
+////                }
+////                this.guiTextureNode.setTexture(this, textureNode.getTexture(), this.texture);
+////                updateSize();
+////                return;
+////            }
+//        }
+////        this.guiTextureNode = null;
+//    }
 
     public Object[] getTextureOptions() {
         TexturesNode node = (TexturesNode) getScene().getTexturesNode();

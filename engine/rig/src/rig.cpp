@@ -62,7 +62,7 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
@@ -87,7 +87,7 @@ namespace dmRig
         player->m_Cursor = 0.0f;
         player->m_Playing = 1;
         player->m_Playback = playback;
-        if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmGameObject::PLAYBACK_LOOP_BACKWARD)
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
             player->m_Backwards = 1;
         else
             player->m_Backwards = 0;
@@ -183,7 +183,7 @@ namespace dmRig
         }
 
         float duration = animation->m_Duration;
-        if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG)
         {
             duration *= 2.0f;
         }
@@ -233,7 +233,7 @@ namespace dmRig
         {
             bool prev_backwards = player->m_Backwards;
             // Handle the flipping nature of ping pong
-            if (player->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
+            if (player->m_Playback == dmRig::PLAYBACK_LOOP_PINGPONG)
             {
                 prev_backwards = !player->m_Backwards;
             }
@@ -244,7 +244,7 @@ namespace dmRig
         {
             // Special handling when we reach the way back of once ping pong playback
             float half_duration = duration * 0.5f;
-            if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
+            if (player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
             {
                 // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
                 if (prev_cursor < half_duration)
@@ -272,7 +272,7 @@ namespace dmRig
 
         // Advance cursor
         float prev_cursor = player->m_Cursor;
-        if (player->m_Playback != dmGameObject::PLAYBACK_NONE)
+        if (player->m_Playback != dmRig::PLAYBACK_NONE)
         {
             player->m_Cursor += dt;
         }
@@ -285,23 +285,23 @@ namespace dmRig
         bool completed = false;
         switch (player->m_Playback)
         {
-        case dmGameObject::PLAYBACK_ONCE_FORWARD:
-        case dmGameObject::PLAYBACK_ONCE_BACKWARD:
-        case dmGameObject::PLAYBACK_ONCE_PINGPONG:
+        case dmRig::PLAYBACK_ONCE_FORWARD:
+        case dmRig::PLAYBACK_ONCE_BACKWARD:
+        case dmRig::PLAYBACK_ONCE_PINGPONG:
             if (player->m_Cursor >= duration)
             {
                 player->m_Cursor = duration;
                 completed = true;
             }
             break;
-        case dmGameObject::PLAYBACK_LOOP_FORWARD:
-        case dmGameObject::PLAYBACK_LOOP_BACKWARD:
+        case dmRig::PLAYBACK_LOOP_FORWARD:
+        case dmRig::PLAYBACK_LOOP_BACKWARD:
             while (player->m_Cursor >= duration && duration > 0.0f)
             {
                 player->m_Cursor -= duration;
             }
             break;
-        case dmGameObject::PLAYBACK_LOOP_PINGPONG:
+        case dmRig::PLAYBACK_LOOP_PINGPONG:
             while (player->m_Cursor >= duration && duration > 0.0f)
             {
                 player->m_Cursor -= duration;
@@ -436,7 +436,7 @@ namespace dmRig
         if (animation == 0x0)
             return;
         float duration = GetCursorDuration(player, animation);
-        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
+        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
 
         float fraction = t * animation->m_SampleRate;
         uint32_t sample = (uint32_t)fraction;
@@ -774,7 +774,7 @@ namespace dmRig
             return 0.0f;
         }
 
-        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
+        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
         if (normalized) {
             t = t / duration;
         }
@@ -1023,7 +1023,7 @@ namespace dmRig
         if (params.m_DefaultAnimation != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
+            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f);
         }
 
         return dmRig::RESULT_OK;

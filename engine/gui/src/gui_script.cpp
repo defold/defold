@@ -3194,6 +3194,67 @@ namespace dmGui
         return 1;
     }
 
+    /*# play a spine animation
+     *
+     * @name gui.play_spine
+     * @param node spine node that should play the animation
+     * @param node spine node that should play the animation
+     * @return node screen position (vector3)
+     */
+    // spine_node, anim_id, playback, blend_duration [, completion_fn]
+    int LuaPlaySpine(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
+        lua_Integer playback = luaL_checkinteger(L, 3);
+        lua_Number blend_duration = luaL_checknumber(L, 4);
+
+        // if (top > 4)
+        // {
+        //     if (lua_isfunction(L, 5))
+        //     {
+        //         lua_pushvalue(L, 5);
+        //         // see message.h for why 2 is added
+        //         sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+        //     }
+        // }
+
+        dmGui::Result res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration);
+        if (res == RESULT_WRONG_TYPE) {
+            dmLogError("Could not play spine animation on non-spine node.");
+        } else if (res == RESULT_INVAL_ERROR) {
+            dmLogError("Could not find and play spine animation (%llx).", anim_id);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# cancel a spine animation
+     *
+     * @name gui.cancel_spine
+     * @param node spine node that should cancel its animation
+     */
+    int LuaCancelSpine(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+
+        if (dmGui::CancelNodeSpineAnim(scene, hnode) != RESULT_OK) {
+            dmLogError("Could not cancel spine animation on GUI spine node.");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
         {"set_"#luaname, LuaSet##name},\
@@ -3280,6 +3341,13 @@ namespace dmGui
         {"get_tracking",    LuaGetTracking},
         {"set_size",        LuaSetSize},
         {"get_size",        LuaGetSize},
+
+        {"play_spine",      LuaPlaySpine},
+        {"cancel_spine",    LuaCancelSpine},
+        // {"get_node"},
+        // {"get_spine_cursor"},
+        // {"set_spine_cursor"},
+        // {"animate"},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

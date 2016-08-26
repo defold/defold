@@ -719,7 +719,7 @@ namespace dmGui
     inline void CalculateNodeSize(InternalNode* in)
     {
         Node& n = in->m_Node;
-        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_NodeType == NODE_TYPE_SPINE) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
+        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_NodeType == NODE_TYPE_SPINE) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
             return;
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
         int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
@@ -2331,6 +2331,52 @@ namespace dmGui
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
+    ////////////// SPINE STUFF
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        static struct PlaybackTranslation
+        {
+            dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
+            PlaybackTranslation()
+            {
+                m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
+                m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
+                m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
+                m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
+                m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
+                m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
+                m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
+            }
+        } ddf_playback_map;
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend)) {
+            return RESULT_INVAL_ERROR;
+        }
+
+        return RESULT_OK;
+    }
+
+    Result CancelNodeSpineAnim(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        if (dmRig::RESULT_OK != dmRig::CancelAnimation(rig_instance)) {
+            return RESULT_INVAL_ERROR;
+        }
+
+        return RESULT_OK;
+    }
+
     void SetNodeClippingMode(HScene scene, HNode node, ClippingMode mode)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2681,6 +2727,7 @@ namespace dmGui
             dmLogError("property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
         }
     }
+
 
     inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value)
     {

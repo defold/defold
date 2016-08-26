@@ -310,6 +310,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         Set<String> textureNames = new HashSet<String>();
         List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
         Set<String> layerNames = new HashSet<String>();
+        HashMap<String, String> spineSceneTextures = new HashMap<String, String>();
+        
         if(builder != null) {
             // transform and register scene external resources (if compiling)
             sceneBuilder.setScript(BuilderUtil.replaceExt(sceneBuilder.getScript(), ".gui_script", ".gui_scriptc"));
@@ -331,6 +333,21 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 }
                 spineSceneNames.add(f.getName());
                 newSpineSceneList.add(SpineSceneDesc.newBuilder().mergeFrom(f).setSpineScene(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".rigscenec")).build());
+                
+                // Add texture referenced in the spinescene file to GUI scene
+                String tex_name = f.getName() + "_tex";
+                textureNames.add(tex_name);
+                com.dynamo.spine.proto.Spine.SpineSceneDesc.Builder b = com.dynamo.spine.proto.Spine.SpineSceneDesc.newBuilder();
+                ProtoUtil.merge(builder.project.getResource(f.getSpineScene()), b);
+                
+                TextureDesc.Builder b_tex = TextureDesc.newBuilder();
+                b_tex.setName(tex_name);
+                b_tex.setTexture(replaceTextureName(b.getAtlas()));
+                newTextureList.add(b_tex.build());
+                
+                spineSceneTextures.put(f.getName(), tex_name);
+                
+                // TODO update gui spine nodes so their texture point to the correct entry
             }
             
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
@@ -394,6 +411,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 newNode.setAlpha(newNode.getColor().getW());
                 newNode.setShadowAlpha(newNode.getShadow().getW());
                 newNode.setOutlineAlpha(newNode.getOutline().getW());
+                node = newNode.build();
+            }
+            
+            if (node.getType() == Type.TYPE_SPINE) {
+                NodeDesc.Builder newNode = node.toBuilder();
+                newNode.mergeFrom(node);
+                newNode.setTexture(spineSceneTextures.get(node.getSpineScene()));
                 node = newNode.build();
             }
 

@@ -41,12 +41,24 @@ namespace dmRig
         RIG_MODEL = 2
     };
 
+    enum RigPlayback
+    {
+        PLAYBACK_NONE          = 0,
+        PLAYBACK_ONCE_FORWARD  = 1,
+        PLAYBACK_ONCE_BACKWARD = 2,
+        PLAYBACK_ONCE_PINGPONG = 3,
+        PLAYBACK_LOOP_FORWARD  = 4,
+        PLAYBACK_LOOP_BACKWARD = 5,
+        PLAYBACK_LOOP_PINGPONG = 6,
+        PLAYBACK_COUNT = 7,
+    };
+
     struct RigPlayer
     {
         RigPlayer() : m_Animation(0x0),
                       m_AnimationId(0x0),
                       m_Cursor(0.0f),
-                      m_Playback(dmGameObject::PLAYBACK_ONCE_FORWARD),
+                      m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
                       m_Playing(0x0),
                       m_Backwards(0x0) {};
         /// Currently playing animation
@@ -55,7 +67,7 @@ namespace dmRig
         /// Playback cursor in the interval [0,duration]
         float                         m_Cursor;
         /// Playback mode
-        dmGameObject::Playback        m_Playback;
+        RigPlayback                   m_Playback;
         /// Whether the animation is currently playing
         uint16_t                      m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
@@ -260,7 +272,7 @@ namespace dmRig
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration);
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration);
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);
