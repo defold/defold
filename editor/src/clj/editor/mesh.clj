@@ -51,8 +51,7 @@
   (varying vec2 var_texcoord0)
   (uniform sampler2D texture)
   (defn void main []
-    (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))
-    #_(setq gl_FragColor (vec4 var_normal 1.0))))
+    (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))))
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
@@ -60,7 +59,9 @@
   (let [pass (:pass render-args)
         renderable (first renderables)
         user-data (:user-data renderable)
-        vbs (:vbs user-data)]
+        vbs (:vbs user-data)
+        shader (:shader user-data)
+        textures (:textures user-data)]
     (cond
       (= pass pass/outline)
       (let [outline-vertex-binding (vtx/use-with ::mesh-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
@@ -69,15 +70,20 @@
 
       (= pass pass/opaque)
       (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with ::mesh-trans vb shader-pos-nrm-tex)]
-          (gl/with-gl-bindings gl render-args [texture/white-pixel shader-pos-nrm-tex vertex-binding]
+        (let [vertex-binding (vtx/use-with ::mesh-trans vb shader)]
+          (prn "t" texture/white-pixel)
+          (gl/with-gl-bindings gl render-args [shader vertex-binding]
+            (doseq [[name t] textures]
+              (gl/bind gl t render-args)
+              (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
             (gl/gl-enable gl GL/GL_CULL_FACE)
             (gl/gl-cull-face gl GL/GL_BACK)
             (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-            (shader/set-uniform shader-pos-nrm-tex gl "texture" 0)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
             (gl/gl-disable gl GL/GL_CULL_FACE)
-            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+            (doseq [[name t] textures]
+              (gl/unbind gl t)))))
 
       (= pass pass/selection)
       (doseq [vb vbs]
@@ -104,7 +110,9 @@
    :renderable {:render-fn render-mesh
                 :batch-key _node-id
                 :select-batch-key _node-id
-                :user-data {:vbs vbs}
+                :user-data {:vbs vbs
+                            :shader shader-pos-nrm-tex
+                            :textures {"texture" texture/white-pixel}}
                 :passes [pass/opaque pass/selection pass/outline]}})
 
 (defn- component->vb [c]

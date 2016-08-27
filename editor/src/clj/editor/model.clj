@@ -20,7 +20,8 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d]
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -74,7 +75,8 @@
                                             [:resource :mesh-resource]
                                             [:content :mesh-pb]
                                             [:aabb :aabb]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:scene :scene])))
             (validate (validation/validate-resource mesh)))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
@@ -82,7 +84,8 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
                                             [:samplers :samplers]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:shader :shader])))
             (validate (validation/validate-resource material)))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
@@ -107,11 +110,13 @@
   (input samplers g/Any)
   (input texture-resources resource/Resource :array)
   (input dep-build-targets g/Any :array)
+  (input scene g/Any)
+  (input shader ShaderLifecycle)
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/always {}))
+  (output scene g/Any (gu/passthrough scene))
   (input aabb AABB)
   (output aabb AABB (gu/passthrough aabb))
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties textures samplers]
