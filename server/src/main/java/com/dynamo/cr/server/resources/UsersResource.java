@@ -1,11 +1,8 @@
 package com.dynamo.cr.server.resources;
 
-import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
-import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
-import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -39,13 +36,6 @@ public class UsersResource extends BaseResource {
                 .setEmail(u.getEmail())
                 .setFirstName(u.getFirstName())
                 .setLastName(u.getLastName());
-        return b.build();
-    }
-
-    private static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
-        InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
-        b.setOriginalCount(a.getOriginalCount())
-                .setCurrentCount(a.getCurrentCount());
         return b.build();
     }
 
@@ -142,53 +132,6 @@ public class UsersResource extends BaseResource {
                 throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
             }
         }
-    }
-
-    @POST
-    @RolesAllowed(value = {"admin"})
-    @Transactional
-    public UserInfo registerUser(RegisterUser registerUser) {
-        /*
-         * NOTE: Old registration method as admin role
-         * OpenID registration is the only supported method. We should
-         * probably remove this and related tests soon
-         */
-
-        User user = new User();
-        user.setEmail(registerUser.getEmail());
-        user.setFirstName(registerUser.getFirstName());
-        user.setLastName(registerUser.getLastName());
-        user.setPassword(registerUser.getPassword());
-        em.persist(user);
-        em.flush();
-
-        return createUserInfo(user);
-    }
-
-    @PUT
-    @Path("/{user}/invite/{email}")
-    @Transactional
-    public Response invite(@PathParam("user") String user, @PathParam("email") String email) {
-        InvitationAccount a = server.getInvitationAccount(em, user);
-        if (a.getCurrentCount() == 0) {
-            throwWebApplicationException(Status.FORBIDDEN, "Inviter has no invitations left");
-        }
-        a.setCurrentCount(a.getCurrentCount() - 1);
-        em.persist(a);
-
-        User u = getUser();
-        String inviter = String.format("%s %s", u.getFirstName(), u.getLastName());
-        server.invite(em, email, inviter, u.getEmail(), a.getOriginalCount());
-
-        return okResponse("User %s invited", email);
-    }
-
-    @GET
-    @Path("/{user}/invitation_account")
-    @Transactional
-    public InvitationAccountInfo getInvitationAccount(@PathParam("user") String user) {
-        InvitationAccount a = server.getInvitationAccount(em, user);
-        return createInvitationAccountInfo(a);
     }
 }
 

@@ -216,8 +216,9 @@ public class DefoldStyledTextLayoutContainer extends Region {
 				}
 			}
 
-			this.selectionEndNode.applyCss();
 			if (this.selectionStartNode != null && this.selectionEndNode != null) {
+				this.selectionEndNode.applyCss();
+				this.selectionStartNode.applyCss();
 				int charIndex = start - this.selectionStartNode.getStartOffset();
 				this.selectionStartX = this.selectionStartNode.getCharLocation(charIndex);
 				charIndex = end - this.selectionEndNode.getStartOffset();
@@ -240,6 +241,8 @@ public class DefoldStyledTextLayoutContainer extends Region {
 		this.textLayoutNode.relocate(getInsets().getLeft(), getInsets().getTop());
 
 		if (this.selectionStartNode != null && this.selectionEndNode != null) {
+			this.selectionStartNode.applyCss();
+			this.selectionEndNode.applyCss();
 			double x1 = this.textLayoutNode.localToParent(this.selectionStartNode.getBoundsInParent().getMinX(), 0).getX() + this.selectionStartX;
 			double x2 = this.textLayoutNode.localToParent(this.selectionEndNode.getBoundsInParent().getMinX(), 0).getX() + this.selectionEndX;
 			this.selectionMarker.resizeRelocate(x1, 0, x2 - x1, getHeight());
@@ -341,7 +344,7 @@ public class DefoldStyledTextLayoutContainer extends Region {
 	 *            the index
 	 * @return the location relative to this node or <code>null</code>
 	 */
-	public @Nullable Point2D getCareLocation(int index) {
+	public @Nullable Point2D getCaretLocation(int index) {
 		for (DefoldStyledTextNode t : this.textNodes) {
 			if (t.getStartOffset() <= index && t.getEndOffset() >= index) {
 				double x = t.getCharLocation(index);

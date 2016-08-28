@@ -1,6 +1,8 @@
 package com.dynamo.cr.server.model.test;
 
-import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import com.dynamo.cr.server.test.TestUser;
@@ -14,11 +16,8 @@ import javax.persistence.EntityManager;
 import javax.persistence.RollbackException;
 import javax.persistence.TypedQuery;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
 
 public class ModelTest {
@@ -46,27 +45,13 @@ public class ModelTest {
         ModelUtil.validateDatabase(em);
     }
 
-    private InvitationAccount newInvitationAccount(User user, int originalCount) {
-        InvitationAccount account = new InvitationAccount();
-        account.setUser(user);
-        account.setOriginalCount(originalCount);
-        account.setCurrentCount(originalCount);
-        return account;
-    }
-
     private void createData() {
         User u1 = TestUtils.buildUser(TestUser.CARL);
         em.persist(u1);
-        InvitationAccount a1 = newInvitationAccount(u1, 1);
-        em.persist(a1);
         User u2 = TestUtils.buildUser(TestUser.JOE);
         em.persist(u2);
-        InvitationAccount a2 = newInvitationAccount(u2, 1);
-        em.persist(a2);
         User u3 = TestUtils.buildUser(TestUser.LISA);
         em.persist(u3);
-        InvitationAccount a3 = newInvitationAccount(u3, 1);
-        em.persist(a3);
 
         // Create new projects
         p1 = ModelUtil.newProject(em, u1, "Carl Contents Project", "Carl Contents Project Description");
@@ -189,99 +174,6 @@ public class ModelTest {
 
         allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(1, allProjects.size());
-    }
-
-    @Test
-    public void testInvitationAccount() throws Exception {
-        User inviter = TestUtils.buildUser(TestUser.JAMES);
-        InvitationAccount account = newInvitationAccount(inviter, 1);
-        em.persist(inviter);
-        em.persist(account);
-        em.getTransaction().commit();
-
-        em.getTransaction().begin();
-        userService.remove(inviter);
-        em.getTransaction().commit();
-    }
-
-    @Test
-    public void testInvitation() throws Exception {
-        User inviter = TestUtils.buildUser(TestUser.JAMES);
-        em.persist(inviter);
-        InvitationAccount account = newInvitationAccount(inviter, 1);
-        em.persist(account);
-        em.getTransaction().commit();
-
-        Invitation invitation = new Invitation();
-        invitation.setEmail("foo@bar.com");
-        invitation.setInviterEmail(inviter.getEmail());
-        invitation.setInitialInvitationCount(1);
-        invitation.setRegistrationKey(UUID.randomUUID().toString());
-        em.getTransaction().begin();
-        em.persist(invitation);
-        em.getTransaction().commit();
-
-        em.getTransaction().begin();
-        userService.remove(inviter);
-        em.getTransaction().commit();
-
-        List<Invitation> lst = em.createQuery("select i from Invitation i", Invitation.class).getResultList();
-        for (Invitation i : lst) {
-            System.out.println(i);
-        }
-    }
-
-    @Test(expected=RollbackException.class)
-    public void testInvitationDuplicate() throws Exception {
-        User inviter = TestUtils.buildUser(TestUser.JAMES);
-        em.persist(inviter);
-        InvitationAccount account = newInvitationAccount(inviter, 1);
-        em.persist(account);
-
-        Invitation invitation = new Invitation();
-        invitation.setEmail("foo@bar.com");
-        invitation.setInviterEmail(inviter.getEmail());
-        invitation.setInitialInvitationCount(1);
-        invitation.setRegistrationKey(UUID.randomUUID().toString());
-        em.persist(invitation);
-
-        invitation = new Invitation();
-        invitation.setEmail("foo@bar.com");
-        invitation.setInviterEmail(inviter.getEmail());
-        invitation.setInitialInvitationCount(1);
-        invitation.setRegistrationKey(UUID.randomUUID().toString());
-        em.persist(invitation);
-        em.getTransaction().commit();
-    }
-
-    @Test
-    public void testProspect() throws Exception {
-        Prospect prospect = new Prospect();
-        prospect.setEmail("foo@bar.com");
-        em.persist(prospect);
-        Date d = new Date();
-        em.getTransaction().commit();
-
-        List<Prospect> lst = em.createQuery("select p from Prospect p", Prospect.class).getResultList();
-        assertThat(lst.size(), is(1));
-        Prospect p = lst.get(0);
-        assertThat(p.getEmail(), is("foo@bar.com"));
-        boolean recently = (p.getDate().getTime() - d.getTime()) < 100;
-        assertTrue(recently);
-    }
-
-    @Test(expected=RollbackException.class)
-    public void testProspectDuplicate() throws Exception {
-        Prospect prospect = new Prospect();
-        prospect.setEmail("foo@bar.com");
-        em.persist(prospect);
-        em.getTransaction().commit();
-
-        prospect = new Prospect();
-        prospect.setEmail("foo@bar.com");
-        em.getTransaction().begin();
-        em.persist(prospect);
-        em.getTransaction().commit();
     }
 }
 

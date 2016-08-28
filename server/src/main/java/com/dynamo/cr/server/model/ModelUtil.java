@@ -77,17 +77,6 @@ public class ModelUtil {
         u2.getConnections().add(u1);
     }
 
-    public static Prospect findProspectByEmail(EntityManager entityManager, String email) {
-        List<Prospect> list = entityManager.createQuery("select p from Prospect p where p.email = :email", Prospect.class).setParameter("email", email).getResultList();
-        if (list.size() == 0) {
-            return null;
-        }
-        else {
-            assert list.size() == 1;
-            return list.get(0);
-        }
-    }
-
     /**
      * Subscribe to news-letter. If user is found in subscription status is kept as is
      * but first and last-name are updated. For user invited via email first and last name are unknown
@@ -115,16 +104,5 @@ public class ModelUtil {
             ns.setLastName(lastName);
             em.persist(ns);
         }
-    }
-
-    /**
-     * Get the number of projects owned by the user. Please notice: owner must be present in the project members list
-     * @param em {@link EntityManager}
-     * @param user Project owner
-     * @return Number of projects owned by the user
-     */
-    public static long getProjectCount(EntityManager em, User user) {
-        return em.createQuery("select count(p.id) from Project p where p.owner = :user", Long.class)
-                .setParameter("user", user).getSingleResult();
     }
 }

@@ -1,6 +1,9 @@
 package com.dynamo.cr.server.model.test;
 
-import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.NewsSubscriber;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
@@ -43,9 +46,6 @@ public class ModelUtilTest {
         joeUser = newUser(JOE_EMAIL, "Joe", "Coder", JOE_PASSWD);
         joeUser.setRole(Role.USER);
         entityManager.persist(joeUser);
-        InvitationAccount joeAccount = newInvitationAccount(joeUser, 1);
-        joeAccount.setCurrentCount(2);
-        entityManager.persist(joeAccount);
 
         bobUser = newUser(BOB_EMAIL, "Bob", "Coder", BOB_PASSWD);
         bobUser.setRole(Role.USER);
@@ -71,14 +71,6 @@ public class ModelUtilTest {
         return u;
     }
 
-    private InvitationAccount newInvitationAccount(User user, int originalCount) {
-        InvitationAccount account = new InvitationAccount();
-        account.setUser(user);
-        account.setOriginalCount(originalCount);
-        account.setCurrentCount(originalCount);
-        return account;
-    }
-
     private Project newProject(User owner, String name, String description) {
         Project p = new Project();
         p.setName(name);
@@ -95,11 +87,6 @@ public class ModelUtilTest {
         user.getProjects().add(project);
     }
 
-    private void removeMember(Project project, User user) {
-        project.getMembers().remove(user);
-        user.getProjects().remove(project);
-    }
-
     private void connect(User u1, User u2) {
         u1.getConnections().add(u2);
         u2.getConnections().add(u1);
@@ -113,20 +100,6 @@ public class ModelUtilTest {
         } catch (NoResultException nre) {
             return null;
         }
-    }
-
-    @Test
-    public void testCountProjectMembers() throws Exception {
-        long bobProjectCount = ModelUtil.getProjectCount(entityManager, bobUser);
-        assertEquals(1, bobProjectCount);
-
-        long joeProjectCount = ModelUtil.getProjectCount(entityManager, joeUser);
-        assertEquals(0, joeProjectCount);
-
-        // Remove owner from the project member list
-        removeMember(bobProject, bobUser);
-        bobProjectCount = ModelUtil.getProjectCount(entityManager, bobUser);
-        assertEquals(1, bobProjectCount);
     }
 
     @Test
@@ -178,9 +151,6 @@ public class ModelUtilTest {
         for(User connection : bobUser.getConnections()) {
             Assert.assertNotEquals(connection.getId(), joeUserId);
         }
-
-        InvitationAccount account = entityManager.find(InvitationAccount.class, joeUserId);
-        assertNull(account);
 
         User joeUser = entityManager.find(User.class, joeUserId);
         assertNull(joeUser);

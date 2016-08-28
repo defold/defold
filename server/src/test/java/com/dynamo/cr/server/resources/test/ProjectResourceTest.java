@@ -248,29 +248,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void changeProjectOwnerCapReached() throws Exception {
-        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
-        UserInfo projectOwner = projectInfo.getOwner();
-
-        // Create maximum amount of projects
-        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
-        em.getTransaction().begin();
-        for (int i = 0; i < maxProjectCount; ++i) {
-            ModelUtil.newProject(em, member, "member_proj" + i, String.format("member_proj%d description", i));
-        }
-        em.getTransaction().commit();
-
-        ClientResponse response = ownerProjectResource
-                .path("change_owner")
-                .queryParam("newOwnerId", Long.toString(memberInfo.getId()))
-                .post(ClientResponse.class, null);
-
-        assertEquals(403, response.getStatus());
-        projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
-        assertEquals(projectOwner.getId(), projectInfo.getOwner().getId());
-    }
-
-    @Test
     public void deleteProject() throws Exception {
         assertEquals(1, get(ownerProjectsResource, "/", ProjectInfoList.class).getProjectsCount());
 
