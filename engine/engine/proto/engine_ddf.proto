@@ -147,3 +147,21 @@ message SetUpdateFrequency
 {
     required int32 frequency = 1;
 }
+
+/*# set window size
+ * Changes window size at run-time
+ *
+ * @message
+ * @name set_window_size
+ * @param width Window width
+ * @param height Window height
+ * @examples
+ * <pre>
+ * msg.post("@system:", "set_window_size", { width = 800, height = 600 } )
+ * </pre>
+ */
+message SetWindowSize
+{
+    required int32 width = 1;
+    required int32 height = 2;
+}

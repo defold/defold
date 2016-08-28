@@ -1303,6 +1303,11 @@ bail:
                 dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
             }
+            else if (descriptor == dmEngineDDF::SetWindowSize::m_DDFDescriptor)
+            {
+                dmEngineDDF::SetWindowSize* m = (dmEngineDDF::SetWindowSize*) message->m_Data;
+                dmGraphics::SetWindowSize(self->m_GraphicsContext, (uint32_t) m->m_Width, (uint32_t) m->m_Height)
+            }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
