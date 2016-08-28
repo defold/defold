@@ -23,13 +23,3 @@
           samplers (g/node-value node-id :samplers)]
       (is (some? (g/node-value node-id :shader)))
       (is (= 1 (count samplers))))))
-
-(deftest material-form-data
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/materials/test.material")
-          form-data (g/node-value node-id :form-data)]
-      (prn "f" form-data))))
-
-(material-form-data)

@@ -85,10 +85,10 @@
                          "NORMAL" [0 0 1]
                          "TEXCOORD" [0 0]})
 
-(defn- extract [semantic sources tri-count]
+(defn- extract [semantic sources comp-count tri-count]
   (get sources semantic
        (let [default (defaults semantic)]
-         (-> (repeat (* 3 tri-count) default)
+         (-> (repeat (* comp-count tri-count) default)
            flatten
            vec))))
 
@@ -148,7 +148,10 @@
                     result))]
     {:primitive-type :triangles
      :components [{:name name
-                   :positions (extract "POSITION" sources tri-count)
-                   :normals (extract "NORMAL" sources tri-count)
-                   :texcoord0 (extract "TEXCOORD" sources tri-count)
+                   :positions (extract "POSITION" sources 3 tri-count)
+                   :normals (extract "NORMAL" sources 3 tri-count)
+                   :texcoord0 (->> (extract "TEXCOORD" sources 2 tri-count)
+                                (partition 2)
+                                (mapcat (fn [[u v]] [u (- 1.0 v)]))
+                                vec)
                    :primitive-count (* tri-count 3)}]}))

@@ -26,6 +26,17 @@
                   (->> (get-in content [:components 0 :normals])
                     (partition 3)))))))
 
+(deftest texcoords
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          content (-> (workspace/file-resource workspace "/mesh/plane.dae")
+                    io/input-stream
+                    collada/->mesh)]
+      (let [c (get-in content [:components 0])
+            ys (map second (partition 3 (:positions c)))
+            vs (map second (partition 2 (:texcoord0 c)))]
+        (is (every? identity (map (fn [y v] (= v (- 1.0 (* (+ y 1.0) 0.5)))) ys vs)))))))
+
 (deftest comma-decimal-points
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)

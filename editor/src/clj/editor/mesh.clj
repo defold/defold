@@ -71,7 +71,6 @@
       (= pass pass/opaque)
       (doseq [vb vbs]
         (let [vertex-binding (vtx/use-with ::mesh-trans vb shader)]
-          (prn "t" texture/white-pixel)
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (doseq [[name t] textures]
               (gl/bind gl t render-args)

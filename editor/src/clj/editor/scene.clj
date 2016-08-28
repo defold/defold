@@ -177,7 +177,7 @@
       (try
         (when gl-name
           (.glPushName gl gl-name))
-        (render-fn gl render-args renderables count)
+        (render-fn gl (assoc render-args :world (:world-transform (first renderables))) renderables count)
         (catch Exception e
           (log/error :exception e
                      :pass (:pass render-args)
@@ -689,7 +689,6 @@
                     grid       grid/Grid
                     tool-controller scene-tools/ToolController
                     rulers     [rulers/Rulers]]
-                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                    (g/connect resource-node        :scene                     view-id          :scene)
                    (g/set-graph-value view-graph   :camera                    camera)

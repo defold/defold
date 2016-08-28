@@ -4,6 +4,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.gl.texture :as texture]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -13,7 +14,8 @@
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.validation :as validation]
-            [editor.image :as image])
+            [editor.image :as image]
+            [editor.material :as material])
   (:import [com.dynamo.model.proto Model$ModelDesc]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -60,6 +62,21 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(g/defnk produce-gpu-textures [_node-id samplers images]
+  (->> (map (fn [s [i img]]
+              (let [request-id [_node-id i]
+                    params (material/sampler->tex-params s)
+                    unit i
+                    t (texture/image-texture request-id img params unit)]
+                [(:name s) t])) samplers (map-indexed vector images))
+   (into {})))
+
+(g/defnk produce-scene [scene shader gpu-textures]
+  (update-in scene [:renderable :user-data] (fn [u]
+                                              (cond-> u
+                                                shader (assoc :shader shader)
+                                                true (assoc :textures gpu-textures)))))
+
 (defn- vset [v i value]
   (let [c (count v)
         v (if (<= c i) (into v (repeat (- i c) nil)) v)]
@@ -92,7 +109,8 @@
             (set (fn [basis self old-value new-value]
                    (let [project (project/get-project self)
                          connections [[:resource :texture-resources]
-                                      [:build-targets :dep-build-targets]]]
+                                      [:build-targets :dep-build-targets]
+                                      [:content :images]]]
                      (concat
                        (for [r old-value]
                          (if r
@@ -109,6 +127,7 @@
   (input material-resource resource/Resource)
   (input samplers g/Any)
   (input texture-resources resource/Resource :array)
+  (input images BufferedImage :array)
   (input dep-build-targets g/Any :array)
   (input scene g/Any)
   (input shader ShaderLifecycle)
@@ -116,7 +135,8 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (gu/passthrough scene))
+  (output gpu-textures g/Any :cached produce-gpu-textures)
+  (output scene g/Any :cached produce-scene)
   (input aabb AABB)
   (output aabb AABB (gu/passthrough aabb))
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties textures samplers]
@@ -135,7 +155,8 @@
                                                                                                 (fn [basis self old-value new-value]
                                                                                                   (g/update-property self :textures vset i new-value))))])))]
                                                     (-> _declared-properties
-                                                      (update :properties into p))))))
+                                                      (update :properties into p)
+                                                      (update :display-order into (map first p)))))))
 
 (defn load-model [project self resource]
   (let [pb (protobuf/read-text Model$ModelDesc resource)]

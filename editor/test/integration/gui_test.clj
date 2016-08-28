@@ -227,7 +227,6 @@
                ;; GO!
                (let [elapsed (measure [i 500]
                                       (drag-pull-outline! node-id box i))]
-                 (prn "el" elapsed)
                  (is (< elapsed 12)))))))
 
 (gui-template-outline-perf)
