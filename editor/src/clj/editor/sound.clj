@@ -166,4 +166,5 @@
      (workspace/register-resource-type workspace
                                        :ext format
                                        :node-type SoundSourceNode
-                                       :icon sound-icon))))
+                                       :icon sound-icon
+                                       :tags #{:embeddable}))))
