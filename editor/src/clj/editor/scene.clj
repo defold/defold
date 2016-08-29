@@ -690,6 +690,8 @@
                     tool-controller scene-tools/ToolController
                     rulers     [rulers/Rulers]]
 
+                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
+
                    (g/connect resource-node        :scene                     view-id          :scene)
                    (g/set-graph-value view-graph   :camera                    camera)
 
