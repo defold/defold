@@ -330,7 +330,7 @@ namespace dmGui
     enum SizeMode
     {
         SIZE_MODE_MANUAL    = 0,
-        SIZE_MODE_AUTO      = 1,
+        SIZE_MODE_AUTOMATIC = 1,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)

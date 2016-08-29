@@ -2629,7 +2629,8 @@ namespace dmGui
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         int size_mode = (int) luaL_checknumber(L, 2);
-        n->m_Node.m_SizeMode = (AdjustMode) size_mode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmGui::SetNodeSizeMode(scene, GetNodeHandle(n), (SizeMode)size_mode);
         return 0;
     }
 
@@ -3488,6 +3489,19 @@ namespace dmGui
      * @variable
      */
 
+
+    /*# manual size mode
+     * The size of the node is determined by the size set in the editor, the constructor or by gui.set_size()
+     * @name gui.SIZE_MODE_MANUAL
+     * @variable
+     */
+
+    /*# automatic size mode
+     * The size of the node is determined by the currently assigned texture.
+     * @name gui.SIZE_MODE_AUTOMATIC
+     * @variable
+     */
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);
@@ -3674,6 +3688,14 @@ namespace dmGui
         SETBOUNDS(ELLIPSE)
 #undef SETBOUNDS
 
+
+#define SETSIZEMODE(name) \
+        lua_pushnumber(L, (lua_Number) SIZE_MODE_##name); \
+        lua_setfield(L, -2, "SIZE_MODE_"#name);\
+
+        SETSIZEMODE(MANUAL)
+        SETSIZEMODE(AUTOMATIC)
+#undef SETSIZEMODE
 
         lua_pop(L, 1);
 

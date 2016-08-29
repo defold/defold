@@ -380,7 +380,7 @@ TEST_F(dmGuiTest, SizeMode)
     ASSERT_EQ(10, size.getX());
     ASSERT_EQ(10, size.getY());
 
-    dmGui::SetNodeSizeMode(m_Scene, node, dmGui::SIZE_MODE_AUTO);
+    dmGui::SetNodeSizeMode(m_Scene, node, dmGui::SIZE_MODE_AUTOMATIC);
     size = dmGui::GetNodeSize(m_Scene, node);
     ASSERT_EQ(r, dmGui::RESULT_OK);
     ASSERT_EQ(1, size.getX());
