@@ -323,7 +323,8 @@
         (project/select project [comp-node])))))
 
 (defn add-component-handler [workspace go-id]
-  (let [component-exts (map :ext (workspace/get-resource-types workspace :component))]
+  (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
+                                         (workspace/get-resource-types workspace :embeddable)))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 
