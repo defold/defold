@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.resources.test;
+package com.dynamo.cr.server.resources;
 
 import com.dynamo.cr.server.model.User;
 import com.sun.jersey.api.client.WebResource;

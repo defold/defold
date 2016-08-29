@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.auth.test;
+package com.dynamo.cr.server.auth;
 
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator.Authentication;
