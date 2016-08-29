@@ -239,3 +239,29 @@ message NewsSubscriber {
 message NewsSubscriberList {
     repeated NewsSubscriber subscribers = 1;
 }
+
+message SignupRequest {
+    required string email = 1;
+    required string password = 2;
+    required string first_name = 3;
+    required string last_name = 4;
+}
+
+message PasswordChangeRequest {
+    required string currentPassword = 1;
+    required string newPassword = 2;
+}
+
+message PasswordResetRequest {
+    required string email = 1;
+    required string token = 2;
+    required string newPassword = 3;
+}
+
+message SignupVerificationResponse {
+    required string auth = 1;
+    required string email = 2;
+    required string first_name = 3;
+    required string last_name = 4;
+    required int64 user_id = 5;
+}
