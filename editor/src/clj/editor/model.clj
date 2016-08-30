@@ -94,7 +94,9 @@
                                             [:aabb :aabb]
                                             [:build-targets :dep-build-targets]
                                             [:scene :scene])))
-            (validate (validation/validate-resource mesh)))
+            (validate (validation/validate-resource mesh))
+            (dynamic edit-type (g/always {:type resource/Resource
+                                          :ext "dae"})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -103,7 +105,9 @@
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
                                             [:shader :shader])))
-            (validate (validation/validate-resource material)))
+            (validate (validation/validate-resource material))
+            (dynamic edit-type (g/always {:type resource/Resource
+                                          :ext "material"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
             (set (fn [basis self old-value new-value]
