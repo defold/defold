@@ -516,9 +516,9 @@
       (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
                                                (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
 
-(g/defnk produce-collision-groups-state
-  [collision-groups-state collision-group-nodes]
-  (swap! collision-groups-state collision-groups/allocate-collision-groups collision-group-nodes))
+(g/defnk produce-collision-groups-data
+  [collision-group-nodes]
+  (collision-groups/make-collision-groups-data collision-group-nodes))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -528,7 +528,6 @@
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
   (property sub-selection g/Any)
-  (property collision-groups-state g/Any)
 
   (input selected-node-ids g/Any :array)
   (input selected-node-properties g/Any :array)
@@ -549,7 +548,7 @@
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
-  (output collision-groups-state g/Any :cached produce-collision-groups-state))
+  (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -736,11 +735,7 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project
-                                      :workspace workspace-id
-                                      :build-cache (atom {})
-                                      :fs-build-cache (atom {})
-                                      :collision-groups-state (atom collision-groups/empty-state)]]
+                            [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-types project :resource-types)
                             (g/set-graph-value graph :project-id project)))))]
