@@ -108,10 +108,10 @@
   ([t :- (s/enum :perspective :orthographic)]
     (make-camera t identity))
   ([t :- (s/enum :perspective :orthographic) filter-fn :- Runnable]
-    (let [distance 10000.0
+    (let [distance 5000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (types/->Camera t position rotation 1 2000 30 30 (Vector4d. 0 0 0 1.0) filter-fn))))
+      (types/->Camera t position rotation 0 10000 30 30 (Vector4d. 0 0 0 1.0) filter-fn))))
 
 (s/defn set-orthographic :- Camera
   [camera :- Camera fov-x :- s/Num fov-y :- s/Num z-near :- s/Num z-far :- s/Num]
@@ -336,7 +336,7 @@
       (let [aspect (/ (double w) h)
             filter-fn (or (:filter-fn local-camera) identity)]
         (-> local-camera
-          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) -100000 100000)
+          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) 0 10000)
           filter-fn))
       local-camera)))
 
