@@ -3688,14 +3688,10 @@ namespace dmGui
         SETBOUNDS(ELLIPSE)
 #undef SETBOUNDS
 
-
-#define SETSIZEMODE(name) \
-        lua_pushnumber(L, (lua_Number) SIZE_MODE_##name); \
-        lua_setfield(L, -2, "SIZE_MODE_"#name);\
-
-        SETSIZEMODE(MANUAL)
-        SETSIZEMODE(AUTOMATIC)
-#undef SETSIZEMODE
+        lua_pushnumber(L, (lua_Number) SIZE_MODE_MANUAL);
+        lua_setfield(L, -2, "SIZE_MODE_MANUAL");
+        lua_pushnumber(L, (lua_Number) SIZE_MODE_AUTO);
+        lua_setfield(L, -2, "SIZE_MODE_AUTOMATIC");
 
         lua_pop(L, 1);
 
