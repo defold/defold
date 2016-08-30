@@ -55,12 +55,10 @@
    :rotation (math/vecmath->clj rotation-q4)
    :data (or (:content save-data) "")})
 
-(def sound-exts (into #{} (map :ext sound/sound-defs)))
-
 (defn- wrap-if-raw-sound [_node-id target]
   (let [source-path (resource/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
-    (if (sound-exts ext)
+    (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
@@ -325,7 +323,8 @@
         (project/select project [comp-node])))))
 
 (defn add-component-handler [workspace go-id]
-  (let [component-exts (map :ext (workspace/get-resource-types workspace :component))]
+  (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
+                                         (workspace/get-resource-types workspace :embeddable)))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 

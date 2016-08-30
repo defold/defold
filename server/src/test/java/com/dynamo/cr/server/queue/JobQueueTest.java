@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.queue.test;
+package com.dynamo.cr.server.queue;
 
 import com.dynamo.cr.server.queue.ConstantBackoff;
 import com.dynamo.cr.server.queue.ExponentialBackoff;
