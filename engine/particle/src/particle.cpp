@@ -173,7 +173,7 @@ namespace dmParticle
 
         instance->m_Prototype = prototype;
 
-        if(emitter_state_changed_data != 0x0) instance->m_EmitterStateChangedData = *emitter_state_changed_data;ß
+        if(emitter_state_changed_data != 0x0) instance->m_EmitterStateChangedData = *emitter_state_changed_data;
 
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
@@ -214,35 +214,45 @@ namespace dmParticle
         delete i;
     }
 
-    void SetEmitterState(const Instance* instance, Emitter* emitter, EmitterState state)
+    void SetEmitterState(Instance* instance, Emitter* emitter, EmitterState state)
     {
         EmitterState old_emitter_state = emitter->m_State;
         emitter->m_State = state;
 
-        if(state != old_emitter_state && instance->m_EmitterStateChangedData.m_LuaCallbackRef != 0)
+        if(state != old_emitter_state && instance->m_EmitterStateChangedData.m_UserData != 0x0)
         {
+            if(state == EMITTER_STATE_PRESPAWN)
+            {
+                instance->m_NumAwakeEmitters += 1;
+            }
+            else if(state == EMITTER_STATE_SLEEPING)
+            {
+                instance->m_NumAwakeEmitters -= 1;
+            }
+
             instance->m_EmitterStateChangedData.m_StateChangedCallback(
-                instance->m_EmitterStateChangedData.m_ComponentId, 
-                emitter->m_Id, 
-                emitter->m_State, 
-                instance->m_EmitterStateChangedData.m_LuaCallbackRef, 
-                instance->m_EmitterStateChangedData.m_L);
+                instance->m_NumAwakeEmitters,
+                emitter->m_Id,
+                emitter->m_State,
+                instance->m_EmitterStateChangedData.m_UserData);
         }
     }
 
     static bool IsSleeping(Emitter* emitter);
     static void UpdateEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
 
-    static void StartEmitter(const Instance* instance, Emitter* emitter)
+    static void StartEmitter(Instance* instance, Emitter* emitter)
     {
         // TODO: Fix auto-start
         SetEmitterState(instance, emitter, EMITTER_STATE_PRESPAWN);
         emitter->m_Retiring = 0;
     }
 
-    static void StopEmitter(const Instance* instance, Emitter* emitter)
+    static void StopEmitter(Instance* instance, Emitter* emitter)
     {
-        SetEmitterState(instance, emitter, EMITTER_STATE_POSTSPAWN);
+        if(emitter->m_State != EMITTER_STATE_SLEEPING)
+            SetEmitterState(instance, emitter, EMITTER_STATE_POSTSPAWN);
+
         emitter->m_Retiring = 0;
     }
 
@@ -501,7 +511,7 @@ namespace dmParticle
 
         UpdateParticles(instance, emitter, emitter_ddf, dt);
 
-        UpdateEmitterState(instance, emitter, emitter_prototype, emitter_ddf, dt);
+        UpdateEmitterState(instance, emitter, emitter_prototype, emitter_ddf, dt);        
 
         GenerateKeys(emitter, emitter_prototype->m_MaxParticleLifeTime);
         SortParticles(emitter);

@@ -305,36 +305,20 @@ namespace dmGameSystem
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
             dmParticle::EmitterStateChangedData emitter_state_changed_data;
 
-            if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged)+sizeof(int)+sizeof(lua_State*))
+            if(params.m_Message->m_DataSize == 24)
             {
+                emitter_state_changed_data.m_UserData = new char[20]; // where clean this up? :(
                 memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
-                emitter_state_changed_data.m_ComponentId = params.m_Message->m_Receiver.m_Path;
-                emitter_state_changed_data.m_LuaCallbackRef = *(int*)(params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged));
-                memcpy(&(emitter_state_changed_data.m_L), params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged) + sizeof(int), sizeof(lua_State*));
-
-                DebugPrintHash(emitter_state_changed_data.m_ComponentId);
-
-                /*
-                dmLogInfo("----------");
-                dmLogInfo("2 emitter_state_changed_data size: %u", params.m_Message->m_DataSize);
-                dmLogInfo("2 cb func adr from buf: %p", emitter_state_changed_data.m_StateChangedCallback)
-                dmLogInfo("2 lua callback ref from buf: %i", emitter_state_changed_data.m_LuaCallbackRef);
-                dmLogInfo("2 Address to lua state from buf: %p", emitter_state_changed_data.m_L);
-                */
-                
-                //For debugging, try to run callback with func pointer
-                //(*(emitter_state_changed_data.m_StateChangedCallback))(777, 1338, 1, emitter_state_changed_data.m_LuaCallbackRef, emitter_state_changed_data.m_L);
+                memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), 20);
             }
 
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);
 
-            // params.m_Message->m_Sender.m_Path has id of sender (e.g "/level/lower_particles")
-            // params.m_Message->m_Data contains emitter_state_changed_data of msg var in script_particlefx.cpp
-            // params.m_Message->m_DataSize is num bytes in m_Data.
-
-            if (prototype->m_AddedToUpdate) {
+            if (prototype->m_AddedToUpdate) 
+            {
                 dmParticle::StartInstance(context, instance);
             }
+            
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
             dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));

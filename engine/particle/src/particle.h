@@ -7,11 +7,11 @@
 #include <ddf/ddf.h>
 #include "particle/particle_ddf.h"
 
-extern "C"
+/*extern "C"
 {
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
-}
+}*/
 
 /**
  * System to handle particle systems
@@ -36,7 +36,7 @@ namespace dmParticle
     /**
     * Callback for emitter state changed
     */
-    typedef void (*EmitterStateChanged)(dmhash_t component_id, dmhash_t emitter_id, int emitter_state, int lua_callback_ref, lua_State* L);
+    typedef void (*EmitterStateChanged)(uint32_t num_awake_emitters, dmhash_t emitter_id, int emitter_state, void* user_data);
 
     /**
      * Invalid context handle
@@ -70,13 +70,11 @@ namespace dmParticle
         EmitterStateChangedData()
         {
             memset(this, 0, sizeof(*this));
-            m_LuaCallbackRef = 0;
+            m_UserData = 0x0;
         }
 
         EmitterStateChanged m_StateChangedCallback;
-        dmhash_t m_ComponentId;
-        int m_LuaCallbackRef;
-        lua_State* m_L;
+        void* m_UserData;
     };
 
     /**

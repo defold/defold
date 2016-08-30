@@ -133,7 +133,9 @@ namespace dmParticle
     {
         Instance()
         : m_Emitters()
+        , m_NumAwakeEmitters(0)
         , m_Prototype(0x0)
+        , m_EmitterStateChangedData()
         , m_PlayTime(0.0f)
         , m_VersionNumber(0)
         , m_ScaleAlongZ(0)
@@ -141,8 +143,10 @@ namespace dmParticle
             m_WorldTransform.SetIdentity();
         }
 
-        // Emitter buffer
+        /// Emitter buffer
         dmArray<Emitter>        m_Emitters;
+        /// Number of awake emitters
+        uint32_t                m_NumAwakeEmitters;
         /// World transform of the emitter.
         dmTransform::TransformS1 m_WorldTransform;
         /// DDF resource.
