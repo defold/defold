@@ -235,6 +235,9 @@ namespace dmGui
             case NODE_TYPE_TEXT:
                 lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
                 break;
+            case NODE_TYPE_SPINE:
+                lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                break;
             default:
                 lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
                 break;
@@ -3255,6 +3258,37 @@ namespace dmGui
         return 0;
     }
 
+    int LuaGetBoneNode(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        HNode spine_node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &spine_node);
+
+        dmhash_t bone_id;
+        if (lua_isstring(L, 2)) {
+            const char* bone_id_str = luaL_checkstring(L, 2);
+            bone_id = dmHashString64(bone_id_str);
+        } else {
+            bone_id = dmScript::CheckHash(L, 2);
+        }
+
+        HNode bone_node = GetNodeSpineBone(scene, spine_node, bone_id);
+        if (bone_node == 0)
+        {
+            return luaL_error(L, "no gui node found for the bone '%s'", lua_tostring(L, 2));
+        }
+
+        NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
+        node_proxy->m_Scene = scene;
+        node_proxy->m_Node = bone_node;
+        luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
+        lua_setmetatable(L, -2);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
         {"set_"#luaname, LuaSet##name},\
@@ -3341,13 +3375,9 @@ namespace dmGui
         {"get_tracking",    LuaGetTracking},
         {"set_size",        LuaSetSize},
         {"get_size",        LuaGetSize},
-
         {"play_spine",      LuaPlaySpine},
         {"cancel_spine",    LuaCancelSpine},
-        // {"get_node"},
-        // {"get_spine_cursor"},
-        // {"set_spine_cursor"},
-        // {"animate"},
+        {"get_bone_node",   LuaGetBoneNode},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

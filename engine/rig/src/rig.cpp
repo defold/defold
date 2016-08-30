@@ -668,7 +668,7 @@ namespace dmRig
 
             // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
-                instance->m_PoseCallback(instance->m_EventCBUserData);
+                instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
             }
 
             // Convert every transform into model space
@@ -1002,6 +1002,8 @@ namespace dmRig
         instance->m_Skin = params.m_Skin;
 
         instance->m_PoseCallback = params.m_PoseCallback;
+        instance->m_PoseCBUserData1 = params.m_PoseCBUserData1;
+        instance->m_PoseCBUserData2 = params.m_PoseCBUserData2;
         instance->m_EventCallback = params.m_EventCallback;
         instance->m_EventCBUserData = params.m_EventCBUserData;
 

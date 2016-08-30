@@ -858,7 +858,9 @@ namespace dmGui
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
     Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
     Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
+    dmhash_t GetNodeSpineScene(HScene scene, HNode node);
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
+    HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);

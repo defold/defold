@@ -171,7 +171,7 @@ namespace dmRig
     };
 
     typedef void (*RigEventCallback)(void*, const RigEventData&);
-    typedef void (*RigPoseCallback)(void*);
+    typedef void (*RigPoseCallback)(void*, void*);
 
     struct RigInstance
     {
@@ -183,7 +183,8 @@ namespace dmRig
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
         RigPoseCallback               m_PoseCallback;
-        void*                         m_PoseCBUserData;
+        void*                         m_PoseCBUserData1;
+        void*                         m_PoseCBUserData2;
         /// Event handling
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData;
@@ -224,7 +225,8 @@ namespace dmRig
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
         RigPoseCallback               m_PoseCallback;
-        void*                         m_PoseCBUserData;
+        void*                         m_PoseCBUserData1;
+        void*                         m_PoseCBUserData2;
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData;
     };

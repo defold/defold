@@ -142,8 +142,9 @@ namespace dmGui
 
         void**      m_NodeDescTable;
 
-        uint64_t    m_SpineSceneHash;
-        void*       m_SpineScene;
+        uint64_t            m_SpineSceneHash;
+        void*               m_SpineScene;
+        dmArray<HNode>*     m_SpineBoneNodes;
         dmRig::HRigInstance m_RigInstance;
     };
 

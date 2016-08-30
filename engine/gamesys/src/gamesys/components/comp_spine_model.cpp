@@ -161,9 +161,9 @@ namespace dmGameSystem
 
     }
 
-    static void CompSpineModelPoseCallback(void* user_data)
+    static void CompSpineModelPoseCallback(void* user_data1, void* user_data2)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data;
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -284,6 +284,8 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
         create_params.m_EventCBUserData = component;
 
@@ -687,6 +689,8 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
         create_params.m_EventCBUserData = component;
 
