@@ -1413,6 +1413,8 @@ namespace dmGameSystem
         out_data->m_Skeleton = rig_res->m_SkeletonRes->m_Skeleton;
         out_data->m_MeshSet = rig_res->m_MeshSetRes->m_MeshSet;
         out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
+        out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
+        out_data->m_TextureSet = rig_res->m_TextureSet->m_TextureSet;
 
         return true;
     }

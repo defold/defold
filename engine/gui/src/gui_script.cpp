@@ -1099,6 +1099,44 @@ namespace dmGui
         return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
     }
 
+    /*# creates a new spine node
+     *
+     * @name gui.new_spine_node
+     * @param pos node position (vector3|vector4)
+     * @param spine_scene spine scene id (string|hash)
+     * @return new spine node (node)
+     */
+    static int LuaNewSpineNode(lua_State* L)
+    {
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node = NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_SPINE);
+        if (!node)
+        {
+            return luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
+        }
+
+        dmhash_t spine_scene_id = dmScript::CheckHashOrString(L, 2);
+        if (RESULT_OK != SetNodeSpineScene(scene, node, spine_scene_id, 0, 0))
+        {
+            GetNode(scene, node)->m_Deleted = 1;
+            return luaL_error(L, "failed to set spine scene for new node");
+        }
+
+        LuaPushNode(L, scene, node);
+        return 1;
+    }
+
     /*# gets the node text
      * This is only useful for text nodes.
      *
@@ -3305,6 +3343,7 @@ namespace dmGui
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},
+        {"new_spine_node",  LuaNewSpineNode},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"set_line_break",  LuaSetLineBreak},

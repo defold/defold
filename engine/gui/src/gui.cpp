@@ -2332,6 +2332,10 @@ namespace dmGui
             return RESULT_DATA_ERROR;
         }
 
+        // Set spine texture and textureset
+        n->m_Node.m_Texture = rig_data.m_Texture;
+        n->m_Node.m_TextureSet = rig_data.m_TextureSet;
+
         // Create bone nodes
         const dmArray<dmRig::RigBone>& bind_pose = *rig_data.m_BindPose;
         const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;

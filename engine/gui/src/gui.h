@@ -126,6 +126,8 @@ namespace dmGui
         dmRigDDF::Skeleton*      m_Skeleton;
         dmRigDDF::MeshSet*       m_MeshSet;
         dmRigDDF::AnimationSet*  m_AnimationSet;
+        void*                    m_Texture;
+        void*                    m_TextureSet;
     };
 
     typedef bool (*FetchRigSceneDataCallback)(void* spine_scene, dmhash_t rig_scene_id, RigSceneDataDesc* out_data);
