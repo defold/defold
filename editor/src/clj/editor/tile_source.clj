@@ -144,11 +144,11 @@
 
   (property id g/Str
             ;; can't do this b/c cycle
-            #_(validate (g/fnk [collision-groups-state]
-                          (when (collision-groups/overallocated? collision-groups-state)
+            #_(validate (g/fnk [collision-groups-data]
+                          (when (collision-groups/overallocated? collision-groups-data)
                             (g/error-warning "More than 16 collision groups in use.")))))
 
-  (input collision-groups-state g/Any)
+  (input collision-groups-data g/Any)
 
   (output collision-group-node g/Any
           (g/fnk [_node-id id]
@@ -156,11 +156,11 @@
              :collision-group id}))
 
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id collision-groups-state]
+          (g/fnk [_node-id id collision-groups-data]
             {:node-id _node-id
              :label id
              :icon collision-icon
-             :color (collision-groups/color collision-groups-state id)})))
+             :color (collision-groups/color collision-groups-data id)})))
 
 
 (defn- boolean->int [b]
@@ -207,7 +207,7 @@
      (g/connect collision-group-node :node-outline self :child-outlines)
      (g/connect collision-group-node :id self :collision-groups)
      (g/connect collision-group-node :collision-group-node project :collision-group-nodes)
-     (g/connect project :collision-groups-state collision-group-node :collision-groups-state))))
+     (g/connect project :collision-groups-data collision-group-node :collision-groups-data))))
 
 (defn- outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v))) (when-let [label (:label v)] (str/lower-case label))])
@@ -306,7 +306,7 @@
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
-  [tile-set-attributes convex-hulls [scale-x scale-y] collision-groups-state]
+  [tile-set-attributes convex-hulls [scale-x scale-y] collision-groups-data]
   (let [w (:width tile-set-attributes)
         h (:height tile-set-attributes)
         rows (:tiles-per-column tile-set-attributes)
@@ -322,7 +322,7 @@
                      {:keys [points collision-group]} (nth convex-hulls (+ x (* y cols)) nil)
                      [cr cg cb ca] (if (seq points)
                                      (if collision-group
-                                       (collision-groups/color collision-groups-state collision-group)
+                                       (collision-groups/color collision-groups-data collision-group)
                                        [1.0 1.0 1.0 1.0])
                                      [0.15 0.15 0.15 0.15])]
                  (-> vbuf
@@ -334,8 +334,8 @@
              (for [y (range rows) x (range cols)] [x y])))))
 
 (defn- render-tile-outlines
-  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor collision-groups-state]
-  (let [vbuf (gen-tile-outlines-vbuf tile-set-attributes convex-hulls scale-factor collision-groups-state)
+  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor collision-groups-data]
+  (let [vbuf (gen-tile-outlines-vbuf tile-set-attributes convex-hulls scale-factor collision-groups-data)
         vb (vtx/use-with node-id vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
@@ -356,7 +356,7 @@
           (partition-all 2 hull-points)))
 
 (defn gen-hulls-vbuf
-  [tile-source-attributes convex-hulls [scale-x scale-y] collision-groups-state]
+  [tile-source-attributes convex-hulls [scale-x scale-y] collision-groups-data]
   (let [w (:width tile-source-attributes)
         h (:height tile-source-attributes)
         rows (:tiles-per-column tile-source-attributes)
@@ -370,15 +370,15 @@
                  (let [offset-x (+ 0.5 (* x (+ x-border w)) x-border)
                        offset-y (+ 0.5 (* (- rows y 1) (+ y-border h)) y-border)
                        translated-points (translate-hull-points points offset-x offset-y)
-                       color (collision-groups/color collision-groups-state collision-group)]
+                       color (collision-groups/color collision-groups-data collision-group)]
                    (conj-hull-outline! vbuf translated-points color))))
              (->pos-color-vtx (* 2 npoints))
              (for [y (range rows) x (range cols)] [x y])))))
 
 (defn- render-hulls
-  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor collision-groups-state]
+  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor collision-groups-data]
   (when (seq convex-hulls)
-    (let [vbuf (gen-hulls-vbuf tile-set-attributes convex-hulls scale-factor collision-groups-state)
+    (let [vbuf (gen-hulls-vbuf tile-set-attributes convex-hulls scale-factor collision-groups-data)
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
         (shader/set-uniform tile-shader gl "texture" 0)
@@ -387,7 +387,7 @@
 (defn render-tile-source
   [gl render-args renderables n]
   (let [{:keys [user-data]} (first renderables)
-        {:keys [node-id tile-source-attributes texture-set-data gpu-texture convex-hulls collision-groups-state]} user-data
+        {:keys [node-id tile-source-attributes texture-set-data gpu-texture convex-hulls collision-groups-data]} user-data
         scale-factor (camera/scale-factor (:camera render-args) (:viewport render-args))]
     (condp = (:pass render-args)
       pass/transparent
@@ -395,11 +395,11 @@
 
       pass/outline
       (do
-        (render-tile-outlines gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-state)
-        (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-state)))))
+        (render-tile-outlines gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)
+        (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))))
 
 (g/defnk produce-scene
-  [_node-id tile-source-attributes aabb texture-set-data gpu-texture convex-hulls collision-groups-state]
+  [_node-id tile-source-attributes aabb texture-set-data gpu-texture convex-hulls collision-groups-data]
   (when tile-source-attributes
     {:aabb aabb
      :renderable {:render-fn render-tile-source
@@ -408,7 +408,7 @@
                               :texture-set-data texture-set-data
                               :gpu-texture gpu-texture
                               :convex-hulls convex-hulls
-                              :collision-groups-state collision-groups-state}
+                              :collision-groups-data collision-groups-data}
                   :passes [pass/transparent pass/outline]}}))
 
 (g/defnk validate-tile-width [tile-width tile-margin ^BufferedImage image-content ^BufferedImage collision-content]
@@ -436,17 +436,17 @@
     original-convex-hulls))
 
 (g/defnk produce-convex-hulls
-  [convex-hull-points tile->collision-group-node collision-groups-state]
+  [convex-hull-points tile->collision-group-node collision-groups-data]
   (mapv (fn [points idx]
-          (assoc points :collision-group (collision-groups/node->group collision-groups-state (tile->collision-group-node idx))))
+          (assoc points :collision-group (collision-groups/node->group collision-groups-data (tile->collision-group-node idx))))
         convex-hull-points
         (range)))
 
 (g/defnk produce-tile->collision-group-node
-  [tile->collision-group-node collision-groups-state]
+  [tile->collision-group-node collision-groups-data]
   ;; remove tiles assigned collision group nodes that no longer exist
   (reduce-kv (fn [ret tile collision-group-node]
-               (if-not (collision-groups/node->group collision-groups-state collision-group-node)
+               (if-not (collision-groups/node->group collision-groups-data collision-group-node)
                  (dissoc ret tile)
                  ret))
              tile->collision-group-node
@@ -518,7 +518,7 @@
   (input image-content BufferedImage)
   (input collision-resource resource/Resource)
   (input collision-content BufferedImage)
-  (input collision-groups-state g/Any)
+  (input collision-groups-data g/Any)
 
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
@@ -538,7 +538,7 @@
   (output anim-data g/Any :cached produce-anim-data)
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 
-  (output collision-groups-state g/Any :cached (gu/passthrough collision-groups-state)))
+  (output collision-groups-data g/Any :cached (gu/passthrough collision-groups-data)))
 
 
 ;;--------------------------------------------------------------------
@@ -577,14 +577,14 @@
 (defn- render-tool
   [^GL2 gl render-args renderables n]
   (let [{:keys [user-data]} (first renderables)
-        {:keys [node-id tile-source-attributes active-tile collision-groups-state selected-collision-group-node]} user-data
+        {:keys [node-id tile-source-attributes active-tile collision-groups-data selected-collision-group-node]} user-data
         {:keys [width height]} tile-source-attributes
         [scale-x scale-y] (camera/scale-factor (:camera render-args) (:viewport render-args))
         x-border (* scale-x tile-border-size)
         y-border (* scale-y tile-border-size)
         [x y] active-tile
         w width h height]
-    (let [[r g b] (collision-groups/node->color collision-groups-state selected-collision-group-node)
+    (let [[r g b] (collision-groups/node->color collision-groups-data selected-collision-group-node)
           a (if (= pass/transparent (:pass render-args)) 0.30 1.0)
           vbuf (let [x0 (+ (* x (+ x-border w)) x-border)
                      x1 (+ x0 w)
@@ -601,14 +601,14 @@
         (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 (g/defnk produce-tool-renderables
-  [_node-id active-tile tile-source-attributes convex-hulls collision-groups-state selected-collision-group-node]
+  [_node-id active-tile tile-source-attributes convex-hulls collision-groups-data selected-collision-group-node]
   (when active-tile
     (let [render-data [{:render-fn render-tool
                         :user-data {:node-id _node-id
                                     :active-tile active-tile
                                     :tile-source-attributes tile-source-attributes
                                     :convex-hulls convex-hulls
-                                    :collision-groups-state collision-groups-state
+                                    :collision-groups-data collision-groups-data
                                     :selected-collision-group-node selected-collision-group-node}}]]
       {pass/outline render-data
        pass/transparent render-data})))
@@ -689,7 +689,7 @@
   (input selected-node-ids g/Any)
   (input tile-source-attributes g/Any)
   (input convex-hulls g/Any)
-  (input collision-groups-state g/Any)
+  (input collision-groups-data g/Any)
 
   (output active-tile g/Any :cached produce-active-tile)
   (output active-tile-idx g/Any :cached produce-active-tile-idx)
@@ -703,7 +703,7 @@
    (g/connect view-id :selection tool-id :selected-node-ids)
    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
    (g/connect resource-id :convex-hulls tool-id :convex-hulls)
-   (g/connect resource-id :collision-groups-state tool-id :collision-groups-state)
+   (g/connect resource-id :collision-groups-data tool-id :collision-groups-data)
    (g/set-property tool-id :tile-source-node resource-id)))
 
 (defn- int->boolean [i]
@@ -762,7 +762,7 @@
      (g/set-property self :collision collision)
      animation-nodes
      collision-group-nodes
-     (g/connect project :collision-groups-state self :collision-groups-state))))
+     (g/connect project :collision-groups-data self :collision-groups-data))))
 
 
 
@@ -791,8 +791,8 @@
 (defn- add-collision-group-node
   [self]
   (let [project (project/get-project self)
-        collision-groups-state (g/node-value project :collision-groups-state)
-        collision-group (gen-unique-name "New Collision Group" (collision-groups/collision-groups collision-groups-state))]
+        collision-groups-data (g/node-value project :collision-groups-data)
+        collision-group (gen-unique-name "New Collision Group" (collision-groups/collision-groups collision-groups-data))]
     (g/transact (make-collision-group-node self collision-group))))
 
 (handler/defhandler :add :global

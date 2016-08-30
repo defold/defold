@@ -499,7 +499,7 @@
                      :angular-damping (:angular-damping co)
                      :locked-rotation (:locked-rotation co))
      (g/connect self :collision-group-node project :collision-group-nodes)
-     (g/connect project :collision-groups-state self :collision-groups-state)
+     (g/connect project :collision-groups-data self :collision-groups-data)
      (when-let [embedded-shape (:embedded-collision-shape co)]
        (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
          (let [data (subvec (:data embedded-shape) index (+ index count))
@@ -571,8 +571,8 @@
       :deps dep-build-targets}]))
 
 (g/defnk produce-collision-group-color
-  [collision-groups-state group]
-  (collision-groups/color collision-groups-state group))
+  [collision-groups-data group]
+  (collision-groups/color collision-groups-data group))
 
 (g/defnode CollisionObjectNode
   (inherits project/ResourceNode)
@@ -581,7 +581,7 @@
   (input child-scenes g/Any :array)
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
-  (input collision-groups-state g/Any)
+  (input collision-groups-data g/Any)
 
   (property collision-shape resource/Resource
             (value (gu/passthrough collision-shape-resource))
