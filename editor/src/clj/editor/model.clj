@@ -115,6 +115,7 @@
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:content :images]]]
+                     (prn "tex" new-value)
                      (concat
                        (for [r old-value]
                          (if r
