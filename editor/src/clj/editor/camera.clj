@@ -136,11 +136,13 @@
 (s/defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
   (let [center (geom/aabb-center bounds)
-        view-matrix (camera-view-matrix camera)]
-    (.transform view-matrix center)
-    (set! (. center z) 0)
-    (.transform ^Matrix4d (geom/invert view-matrix) center)
-    (camera-set-position camera (.x center) (.y center) (.z center))))
+        view-matrix (camera-view-matrix camera)
+        position (Point3d. center)]
+    (.transform view-matrix position)
+    (.setZ position 0.0)
+    (.transform ^Matrix4d (geom/invert view-matrix) position)
+    (assoc camera :position position
+           :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
 
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
