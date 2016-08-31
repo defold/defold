@@ -153,5 +153,4 @@
                                     :build-ext "meshc"
                                     :node-type MeshNode
                                     :icon mesh-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}))
+                                    :view-types [:scene :text]))
