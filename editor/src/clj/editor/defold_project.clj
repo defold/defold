@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
+            [editor.collision-groups :as collision-groups]
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -515,6 +516,10 @@
       (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
                                                (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
 
+(g/defnk produce-collision-groups-data
+  [collision-group-nodes]
+  (collision-groups/make-collision-groups-data collision-group-nodes))
+
 (g/defnode Project
   (inherits core/Scope)
 
@@ -532,6 +537,7 @@
   (input node-resources g/Any :array)
   (input settings g/Any)
   (input display-profiles g/Any)
+  (input collision-group-nodes g/Any :array)
 
   (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
   (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
@@ -542,7 +548,8 @@
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
-  (output nil-resource resource/Resource (g/always nil)))
+  (output nil-resource resource/Resource (g/always nil))
+  (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))

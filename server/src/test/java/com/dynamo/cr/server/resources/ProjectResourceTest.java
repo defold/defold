@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.resources.test;
+package com.dynamo.cr.server.resources;
 
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;

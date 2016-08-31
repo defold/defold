@@ -18,8 +18,6 @@
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
-           [com.dynamo.camera.proto Camera$CameraDesc]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -59,11 +57,6 @@
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
                :view-types [:form-view :text]}
-              {:ext "camera"
-               :label "Camera"
-               :icon "icons/32/Icons_20-Camera.png"
-               :pb-class Camera$CameraDesc
-               :tags #{:component}}
               {:ext "convexshape"
                :label "Convex Shape"
                ; TODO - missing icon

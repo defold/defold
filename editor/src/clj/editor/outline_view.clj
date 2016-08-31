@@ -364,12 +364,19 @@
                                                                       (proxy-super setText nil)
                                                                       (proxy-super setGraphic nil)
                                                                       (proxy-super setContextMenu nil))
-                                                                    (let [{:keys [label icon outline-overridden?]} item]
+                                                                    (let [{:keys [label icon color outline-overridden?]} item]
                                                                       (proxy-super setText label)
                                                                       (proxy-super setGraphic (jfx/get-image-view icon 16))
                                                                       (if outline-overridden?
                                                                         (ui/add-style! this "overridden")
-                                                                        (ui/remove-style! this "overridden")))))))]
+                                                                        (ui/remove-style! this "overridden"))
+                                                                      (if-let [[r g b a] color]
+                                                                        (proxy-super setStyle (format "-fx-text-fill: rgba(%d,%d,%d,%f);"
+                                                                                                      (int (* 255 r))
+                                                                                                      (int (* 255 g))
+                                                                                                      (int (* 255 b))
+                                                                                                      a))
+                                                                        (proxy-super setStyle nil)))))))]
                                                    (doto cell
                                                      (.setOnDragEntered drag-entered-handler)
                                                      (.setOnDragExited drag-exited-handler))))))))
