@@ -320,6 +320,16 @@
       (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
       filter-fn)))
 
+(defn camera-orthographic-realign ^Camera
+  [^Camera camera ^Region viewport ^AABB aabb]
+  (assert (= :orthographic (:type camera)))
+  (let [focus ^Vector4d (:focus-point camera)
+        delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
+                          (.sub focus))
+        dist (.length delta)]
+    (assoc camera :position (Point3d. (.x focus) (.y focus) dist)
+           :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
+
 (s/defn camera-orthographic-frame-aabb-y :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))

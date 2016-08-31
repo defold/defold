@@ -116,7 +116,7 @@
   (let [^Matrix4d t (or world-transform geom/Identity4d)
         _ (.transform t tmp-p3d)
         p (c/camera-project camera viewport tmp-p3d)]
-    (long (* Integer/MAX_VALUE (.z p)))))
+    (long (* Integer/MAX_VALUE (max 0.0 (.z p))))))
 
 (defn render-key [camera viewport ^Matrix4d world-transform tmp-p3d]
   (- Long/MAX_VALUE (z-distance camera viewport world-transform tmp-p3d)))
@@ -496,6 +496,17 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
+(defn- set-camera! [camera-node start-camera end-camera animate?]
+  (if animate?
+    (let [duration 0.5]
+      (ui/anim! duration
+                (fn [t] (let [t (- (* t t 3) (* t t t 2))
+                              cam (c/interpolate start-camera end-camera t)]
+                          (g/transact
+                            (g/set-property camera-node :local-camera cam))))
+                (fn [])))
+    (g/transact (g/set-property camera-node :local-camera end-camera))))
+
 (defn frame-selection [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
@@ -503,15 +514,16 @@
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
-      (if animate?
-        (let [duration 0.5]
-          (ui/anim! duration
-                    (fn [t] (let [t (- (* t t 3) (* t t t 2))
-                                  cam (c/interpolate local-cam end-camera t)]
-                              (g/transact
-                                (g/set-property camera :local-camera cam))))
-                    (fn [])))
-        (g/transact (g/set-property camera :local-camera end-camera))))))
+      (set-camera! camera local-cam end-camera animate?))))
+
+(defn realign-camera [view animate?]
+  (when-let [aabb (g/node-value view :selected-aabb)]
+    (let [graph (g/node-id->graph-id view)
+          camera (g/graph-value graph :camera)
+          viewport (g/node-value view :viewport)
+          local-cam (g/node-value camera :local-camera)
+          end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
+      (set-camera! camera local-cam end-camera animate?))))
 
 (handler/defhandler :frame-selection :global
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
@@ -520,12 +532,20 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (frame-selection view true))))
 
+(handler/defhandler :realign-camera :global
+  (run [app-view] (when-let [view (active-scene-view app-view)]
+                    (realign-camera view true))))
+
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Scene"
                   :id ::scene
-                  :children [{:label "Frame"
-                              :acc "Shortcut+."
-                              :command :frame-selection}
+                  :children [{:label "Camera"
+                              :children [{:label "Frame Selection"
+                                          :acc "Shortcut+."
+                                          :command :frame-selection}
+                                         {:label "Realign"
+                                          :acc "Shortcut+,"
+                                          :command :realign-camera}]}
                              {:label "Play"
                               :acc "Shortcut+P"
                               :command :scene-play}
