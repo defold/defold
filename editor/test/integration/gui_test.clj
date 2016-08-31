@@ -229,8 +229,6 @@
                                       (drag-pull-outline! node-id box i))]
                  (is (< elapsed 12)))))))
 
-(gui-template-outline-perf)
-
 (deftest gui-template-ids
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)

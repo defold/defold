@@ -38,5 +38,3 @@
                   :properties
                   :texture2)]
           (properties/set-values! p [original-texture]))))))
-
-(textures)
