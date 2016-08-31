@@ -10,10 +10,10 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.bob.pipeline.ColladaUtil;
 import com.dynamo.bob.pipeline.LoaderException;
-import com.dynamo.bob.pipeline.Mesh;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.google.protobuf.Message;
+import com.dynamo.rig.proto.Rig.Mesh;
 
 public class MeshLoader implements INodeLoader<MeshNode> {
 

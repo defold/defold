@@ -69,7 +69,7 @@ public class ProtoBuilders {
         protected ModelDesc.Builder transform(Task<Void> task, IResource resource, ModelDesc.Builder messageBuilder) throws CompileExceptionError {
 
             BuilderUtil.checkResource(this.project, resource, "mesh", messageBuilder.getMesh());
-            messageBuilder.setMesh(BuilderUtil.replaceExt(messageBuilder.getMesh(), ".dae", ".meshc"));
+            messageBuilder.setMesh(BuilderUtil.replaceExt(messageBuilder.getMesh(), ".dae", ".rigscenec"));
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
             List<String> newTextureList = new ArrayList<String>();

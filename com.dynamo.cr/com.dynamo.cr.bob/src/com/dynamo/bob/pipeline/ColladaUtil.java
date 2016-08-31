@@ -16,6 +16,9 @@ import org.jagatoo.loaders.models.collada.stax.XMLInput;
 import org.jagatoo.loaders.models.collada.stax.XMLMesh;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 
+import com.dynamo.rig.proto.Rig.Mesh;
+
+
 public class ColladaUtil {
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
@@ -157,7 +160,11 @@ public class ColladaUtil {
 
         }
 
-        return new Mesh(position_list, normal_list, texcoord_list);
+        Mesh.Builder b = Mesh.newBuilder();
+        b.addAllPositions(position_list);
+        b.addAllNormals(normal_list);
+        b.addAllTexcoord0(texcoord_list);
+        return b.build();
     }
 
 }

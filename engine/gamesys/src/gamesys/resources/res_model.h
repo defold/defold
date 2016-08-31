@@ -4,27 +4,25 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
-
-#include <render/render.h>
-
-#include "res_mesh.h"
+#include "res_rig_scene.h"
+#include "model_ddf.h"
 
 namespace dmGameSystem
 {
-    struct Model
+    struct ModelResource
     {
-        Mesh* m_Mesh;
-        dmRender::HMaterial m_Material;
-        dmGraphics::HTexture m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmModelDDF::ModelDesc*  m_Model;
+        RigSceneResource*       m_RigScene;
+        dmRender::HMaterial     m_Material;
     };
 
-    dmResource::Result ResPreloadModel(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams& params);
 
-    dmResource::Result ResCreateModel(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams& params);
 
-    dmResource::Result ResDestroyModel(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams& params);
 
-    dmResource::Result ResRecreateModel(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMESYS_RES_MODEL_H

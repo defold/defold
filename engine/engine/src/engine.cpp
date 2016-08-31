@@ -185,6 +185,8 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_SpineModelContext.m_RenderContext = 0x0;
         m_SpineModelContext.m_MaxSpineModelCount = 0;
+        m_ModelContext.m_RenderContext = 0x0;
+        m_ModelContext.m_MaxModelCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -715,6 +717,11 @@ namespace dmEngine
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
+        engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_ModelContext.m_RigContext = engine->m_RigContext;
+        engine->m_ModelContext.m_Factory = engine->m_Factory;
+        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_RigContext = engine->m_RigContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
@@ -739,7 +746,7 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext);
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext, &engine->m_ModelContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 

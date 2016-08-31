@@ -6,6 +6,10 @@
 #import google.protobuf.internal.output_stream
 #google.protobuf.internal.output_stream.OutputStream = output_stream_fast.OutputStream
 
+from optparse import OptionParser
+
+'''
+
 from colladaImEx import collada
 from optparse import OptionParser
 import os
@@ -161,6 +165,7 @@ def Compile(file_name, output_file):
     f = open(output_file, "wb")
     f.write(mesh.SerializeToString())
     f.close()
+'''
 
 if __name__ == "__main__":
     usage = "usage: %prog [options] file"
@@ -170,4 +175,9 @@ if __name__ == "__main__":
     if not options.output_file:
         parser.error("Output file not specified (-o)")
 
-    Compile(sys.argv[1], options.output_file)
+#    Compile(sys.argv[1], options.output_file)
+    f = open(options.output_file, "wb")
+    f.write("dummy")
+    f.close()
+
+
