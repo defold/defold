@@ -131,9 +131,9 @@ message NodeDesc
     optional SizeMode size_mode  = 38 [default = SIZE_MODE_MANUAL];
 
     // Spine specific options
-    optional string spine_scene        = 39;
-    optional string spine_animation_id = 40;
-    optional string spine_skin_id      = 41;
+    optional string spine_scene             = 39;
+    optional string spine_default_animation = 40;
+    optional string spine_skin              = 41;
 }
 
 message SceneDesc

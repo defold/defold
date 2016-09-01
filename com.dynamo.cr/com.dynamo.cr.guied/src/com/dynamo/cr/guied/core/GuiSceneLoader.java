@@ -75,8 +75,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         } else if (builder.getType() == Type.TYPE_SPINE) {
             SpineNode spineNode = (SpineNode) node;
             spineNode.setSpineScene(builder.getSpineScene());
-            spineNode.setSkinId(builder.getSpineSkinId());
-            spineNode.setDefaultAnimationId(builder.getSpineAnimationId());
+            spineNode.setSkin(builder.getSpineSkin());
+            spineNode.setSpineDefaultAnimation(builder.getSpineDefaultAnimation());
             node = spineNode;
         }
         node.setSizeMode(builder.getSizeMode());
@@ -134,8 +134,8 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setType(NodeDesc.Type.TYPE_SPINE);
             SpineNode spine = (SpineNode)node;
             builder.setSpineScene(spine.getSpineScene());
-            builder.setSpineSkinId(spine.getSkinId());
-            builder.setSpineAnimationId(spine.getDefaultAnimationId());
+            builder.setSpineSkin(spine.getSkin());
+            builder.setSpineDefaultAnimation(spine.getSpineDefaultAnimation());
         }
         builder.setSizeMode(node.getSizeMode());
         builder.setId(node.getId());

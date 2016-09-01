@@ -39,15 +39,12 @@ public class SpineNode extends ClippingNode {
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
     private String spineScene = "";
-    
-//    @Property(editorType = EditorType.DROP_DOWN, category = "")
-//    private String texture = "";
 
-    @Property(editorType = EditorType.DEFAULT, category = "")
-    private String defaultAnimationId = "";
+    @Property(editorType = EditorType.DROP_DOWN, category = "")
+    private String spineDefaultAnimation = "";
 
-    @Property(editorType = EditorType.DEFAULT, category = "")
-    private String skinId= "";
+    @Property(editorType = EditorType.DROP_DOWN, category = "")
+    private String skin = "";
     
     private transient SpineSceneDesc sceneDesc;
     private transient RigScene scene;
@@ -105,20 +102,64 @@ public class SpineNode extends ClippingNode {
         return false;
     }
     
-    public String getSkinId() {
-        return this.skinId;
+    // Skin Id
+    public String getSkin() {
+        return this.skin;
     }
 
-    public void setSkinId(String skin_id) {
-        this.skinId = skin_id;
+    public void setSkin(String skin) {
+        this.skin = skin;
+        reloadResources();
+        GuiNodeStateBuilder.setField(this, "SpineSkin", skin);
     }
     
-    public String getDefaultAnimationId() {
-        return this.defaultAnimationId;
+    public void resetSkin() {
+        this.skin = (String)GuiNodeStateBuilder.resetField(this, "SpineSkin");
+        reloadResources();
+    }
+    
+    public boolean isSkinOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "SpineSkin", this.skin);
+    }
+    
+    // Default Animation Id
+    public String getSpineDefaultAnimation() {
+        return this.spineDefaultAnimation;
     }
 
-    public void setDefaultAnimationId(String default_animation_id) {
-        this.defaultAnimationId = default_animation_id;
+    public void setSpineDefaultAnimation(String spineDefaultAnimation) {
+        this.spineDefaultAnimation = spineDefaultAnimation;
+        reloadResources();
+        GuiNodeStateBuilder.setField(this, "SpineDefaultAnimation", spineDefaultAnimation);
+    }
+    
+    public void resetSpineDefaultAnimation() {
+        this.spineDefaultAnimation = (String)GuiNodeStateBuilder.resetField(this, "SpineDefaultAnimation");
+        reloadResources();
+    }
+    
+    public boolean isSpineDefaultAnimationOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "SpineDefaultAnimation", this.spineDefaultAnimation);
+    }
+
+    // Spine Scene
+    public String getSpineScene() {
+        return this.spineScene;
+    }
+
+    public void setSpineScene(String spineScene) {
+        this.spineScene = spineScene;
+        reloadResources();
+        GuiNodeStateBuilder.setField(this, "SpineScene", spineScene);
+    }
+
+    public void resetSpineScene() {
+        this.spineScene = (String)GuiNodeStateBuilder.resetField(this, "SpineScene");
+        reloadResources();
+    }
+
+    public boolean isSpineSceneOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "SpineScene", this.spineScene);
     }
     
 
@@ -194,25 +235,6 @@ public class SpineNode extends ClippingNode {
         TexturesNode node = (TexturesNode) getScene().getTexturesNode();
         return node.getTextures(getModel()).toArray();
     }
-
-    public String getSpineScene() {
-        return this.spineScene;
-    }
-
-    public void setSpineScene(String spineScene) {
-        this.spineScene = spineScene;
-        reloadResources();
-        GuiNodeStateBuilder.setField(this, "SpineScene", spineScene);
-    }
-
-    public void resetSpineScene() {
-        this.spineScene = (String)GuiNodeStateBuilder.resetField(this, "SpineScene");
-        reloadResources();
-    }
-
-    public boolean isSpineSceneOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "SpineScene", this.spineScene);
-    }
     
     public Object[] getSpineSceneOptions() {
         SpineScenesNode node = (SpineScenesNode)getScene().getSpineScenesNode();
@@ -277,8 +299,8 @@ public class SpineNode extends ClippingNode {
                 meshes.add(mesh);
             }
         }
-        if (!this.skinId.isEmpty() && this.scene.skins.containsKey(this.skinId)) {
-            List<Mesh> source = this.scene.skins.get(this.skinId);
+        if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
+            List<Mesh> source = this.scene.skins.get(this.skin);
             for (Mesh mesh : source) {
                 if (mesh.visible) {
                     meshes.add(mesh);

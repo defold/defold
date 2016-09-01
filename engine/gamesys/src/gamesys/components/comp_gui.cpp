@@ -244,7 +244,7 @@ namespace dmGameSystem
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_SPINE:
-                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkinId), dmHashString64(node_desc->m_SpineAnimationId));
+                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkin), dmHashString64(node_desc->m_SpineDefaultAnimation));
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
