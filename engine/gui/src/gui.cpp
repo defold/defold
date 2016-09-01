@@ -356,6 +356,16 @@ namespace dmGui
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
+            if (n->m_Node.m_RigInstance) {
+                dmRig::InstanceDestroyParams params = {0};
+                params.m_Context = scene->m_Context->m_RigContext;
+                params.m_Instance = n->m_Node.m_RigInstance;
+                dmRig::InstanceDestroy(params);
+                n->m_Node.m_RigInstance = 0x0;
+
+                delete n->m_Node.m_SpineBoneNodes;
+                n->m_Node.m_SpineBoneNodes = 0x0;
+            }
             if (n->m_Node.m_Text)
                 free((void*) n->m_Node.m_Text);
         }

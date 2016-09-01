@@ -36,6 +36,32 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.templateNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.core.nodes.spineNode"
+            node="com.dynamo.cr.guied.core.SpineNode"
+            renderer="com.dynamo.cr.guied.ui.SpineNodeRenderer">
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.boxNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.textNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.pieNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
       </node-type>
       <node-type
             display-group="Gui"
@@ -59,6 +85,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.templateNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.templateNode"
@@ -74,6 +103,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
          </reference-node-type>
       </node-type>
       <node-type
@@ -91,6 +123,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
          </reference-node-type>
       </node-type>
       <node-type

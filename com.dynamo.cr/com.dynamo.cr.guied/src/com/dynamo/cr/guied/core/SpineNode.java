@@ -1,22 +1,41 @@
 package com.dynamo.cr.guied.core;
 
-import javax.vecmath.Point2d;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+import javax.media.opengl.GL2;
 import javax.vecmath.Vector3d;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.bob.util.RigScene;
+import com.dynamo.bob.util.RigScene.Mesh;
+import com.dynamo.bob.util.RigScene.UVTransformProvider;
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.core.SpineScenesNode;
-import com.dynamo.cr.guied.core.GuiTextureNode.UVTransform;
+//import com.dynamo.cr.guied.core.GuiTextureNode.UVTransform;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.spine.scene.CompositeMesh;
+import com.dynamo.cr.spine.scene.SpineModelNode.TransformProvider;
+import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
+import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.gui.proto.Gui.NodeDesc.SizeMode;
+import com.dynamo.spine.proto.Spine.SpineSceneDesc;
+import com.google.protobuf.TextFormat;
 
 @SuppressWarnings("serial")
-public class SpineNode extends GuiNode {
+public class SpineNode extends ClippingNode {
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
     private String spineScene = "";
@@ -29,6 +48,11 @@ public class SpineNode extends GuiNode {
 
     @Property(editorType = EditorType.DEFAULT, category = "")
     private String skinId= "";
+    
+    private transient SpineSceneDesc sceneDesc;
+    private transient RigScene scene;
+    private transient TextureSetNode textureSetNode = null;
+    private transient CompositeMesh mesh = new CompositeMesh();
     
     public Vector3d getSize() {
         return new Vector3d(1.0, 1.0, 0.0);
@@ -50,7 +74,7 @@ public class SpineNode extends GuiNode {
     }
     
     public boolean isSizeVisible() {
-        return true;
+        return false;
     }
 
     public boolean isColorVisible() {
@@ -97,69 +121,93 @@ public class SpineNode extends GuiNode {
         this.defaultAnimationId = default_animation_id;
     }
     
-    // TEXTURE STUFF
-//    public String getTexture() {
-//        return this.texture;
-//    }
-//
-//    public void setTexture(String texture) {
-//        this.texture = texture;
-////        updateTexture();
-//        GuiNodeStateBuilder.setField(this, "Texture", texture);
-//    }
-//
-//    public void resetTexture() {
-//        this.texture = (String)GuiNodeStateBuilder.resetField(this, "Texture");
-////        updateTexture();
-//    }
-//    
-//
-//    private TextureNode getTextureNode() {
-//        TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
-//        if(textureNode == null) {
-//            TemplateNode parentTemplate = this.getParentTemplateNode();
-//            if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-//                textureNode = ((TexturesNode) parentTemplate.getTemplateScene().getTexturesNode()).getTextureNode(this.texture);
-//            }
-//        }
-//        return textureNode;
-//    }
-//
-//    private void updateTexture() {
-//        if (!this.texture.isEmpty() && getModel() != null) {
-//            TextureNode textureNode = this.getTextureNode();
-////            if(textureNode != null)
-////            {
-////                if (this.guiTextureNode == null) {
-////                    this.guiTextureNode = new GuiTextureNode();
-////                }
-////                this.guiTextureNode.setTexture(this, textureNode.getTexture(), this.texture);
-////                updateSize();
-////                return;
-////            }
-//        }
-////        this.guiTextureNode = null;
-//    }
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        if (this.textureSetNode != null) {
+            this.textureSetNode.dispose(gl);
+        }
+        this.mesh.dispose(gl);
+    }
+    
+    private static SpineSceneDesc loadSpineSceneDesc(ISceneModel model, String path) {
+        if (!path.isEmpty()) {
+            InputStream in = null;
+            try {
+                IFile file = model.getFile(path);
+                in = file.getContents();
+                SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
+                TextFormat.merge(new InputStreamReader(in), builder);
+                return builder.build();
+            } catch (Exception e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            } finally {
+                IOUtils.closeQuietly(in);
+            }
+        }
+        return null;
+    }
+    
+    private static RigScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
+        if (!path.isEmpty()) {
+            InputStream in = null;
+            try {
+                IFile file = model.getFile(path);
+                in = file.getContents();
+                return RigScene.loadJson(in, provider);
+            } catch (Exception e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            } finally {
+                IOUtils.closeQuietly(in);
+            }
+        }
+        return null;
+    }
+    
+
+    private static TextureSetNode loadTextureSetNode(ISceneModel model, String path) {
+        if (!path.isEmpty()) {
+            try {
+                Node node = model.loadNode(path);
+                if (node instanceof TextureSetNode) {
+                    node.setModel(model);
+                    return (TextureSetNode)node;
+                }
+            } catch (Exception e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            }
+        }
+        return null;
+    }
+
+    public CompositeMesh getCompositeMesh() {
+        return this.mesh;
+    }
+
+
+    public TextureSetNode getTextureSetNode() {
+        return this.textureSetNode;
+    }
 
     public Object[] getTextureOptions() {
         TexturesNode node = (TexturesNode) getScene().getTexturesNode();
         return node.getTextures(getModel()).toArray();
     }
 
-    // SPINE STUFF
     public String getSpineScene() {
         return this.spineScene;
     }
 
     public void setSpineScene(String spineScene) {
         this.spineScene = spineScene;
-        //updateTexture();
+        reloadResources();
         GuiNodeStateBuilder.setField(this, "SpineScene", spineScene);
     }
 
     public void resetSpineScene() {
         this.spineScene = (String)GuiNodeStateBuilder.resetField(this, "SpineScene");
-        //updateTexture();
+        reloadResources();
     }
 
     public boolean isSpineSceneOverridden() {
@@ -174,54 +222,25 @@ public class SpineNode extends GuiNode {
     private SpineSceneNode getSpineScenesNode() {
         SpineSceneNode spineSceneNode = ((SpineScenesNode) getScene().getSpineScenesNode()).getSpineScenesNode(this.spineScene);
         if(spineSceneNode == null) {
-            /*
             TemplateNode parentTemplate = this.getParentTemplateNode();
             if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-                spineSceneNode = ((TexturesNode) parentTemplate.getTemplateScene().getTexturesNode()).getTextureNode(this.spineScene);
+                spineSceneNode = ((SpineScenesNode) parentTemplate.getTemplateScene().getSpineScenesNode()).getSpineScenesNode(this.spineScene);
             }
-            */
         }
         return spineSceneNode;
-    }
-    
-    private void updateSpineScene() {
-        if (!this.spineScene.isEmpty() && getModel() != null) {
-            SpineSceneNode spineSceneNode = this.getSpineScenesNode();
-            if(spineSceneNode != null)
-            {
-//                if (this.guiSpineSceneNode == null) {
-//                    this.guiSpineSceneNode = new GuiSpineSceneNode();
-//                }
-//                this.guiTextureNode.setTexture(this, textureNode.getTexture(), this.spineScene);
-//                updateSize();
-                return;
-            }
-        }
-        //this.guiTextureNode = null;
     }
 
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
-        updateSpineScene();
+        if (model != null && this.textureSetNode == null) {
+            reloadResources();
+        }
     }
 
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
-        boolean reloaded = false;
-        /*
-        if (this.spineScene != null && !this.spineScene.isEmpty()) {
-            TextureNode textureNode = this.getTextureNode();
-            if(textureNode != null) {
-                IFile imgFile = getModel().getFile(textureNode.getTexture());
-                if (file.equals(imgFile)) {
-                    updateTexture();
-                    reloaded = true;
-                }
-            }
-        }
-        */
-        return reloaded;
+        return reloadResources();
     }
 
     @Override
@@ -234,36 +253,83 @@ public class SpineNode extends GuiNode {
         }
         return Activator.getDefault().getImageRegistry().get(Activator.SPINE_NODE_IMAGE_ID);
     }
-    
-    /*
-    public Vector4d getSlice9()
-    {
-        return new Vector4d(slice9);
-    }
-
-    public void setSlice9(Vector4d slice9)
-    {
-        this.slice9.set(slice9);
-        GuiNodeStateBuilder.setField(this, "Slice9", LoaderUtil.toVector4(slice9));
-    }
-
-    public void resetSlice9() {
-        this.slice9.set(LoaderUtil.toVector4((Vector4)GuiNodeStateBuilder.resetField(this, "Slice9")));
-    }
-
-
-    public boolean isSlice9Overridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Slice9", LoaderUtil.toVector4(this.slice9));
-    }
-    */
 
     @Override
     public void setSizeMode(SizeMode sizeMode) {
         super.setSizeMode(sizeMode);
-        updateSpineScene();
     }
 
     public boolean isSizeEditable() {
+        return false;
+    }
+    
+    private void updateMesh() {
+        if (this.scene == null || this.textureSetNode == null) {
+            return;
+        }
+        RuntimeTextureSet ts = this.textureSetNode.getRuntimeTextureSet();
+        if (ts == null) {
+            return;
+        }
+        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes.size());
+        for (Mesh mesh : this.scene.meshes) {
+            if (mesh.visible) {
+                meshes.add(mesh);
+            }
+        }
+        if (!this.skinId.isEmpty() && this.scene.skins.containsKey(this.skinId)) {
+            List<Mesh> source = this.scene.skins.get(this.skinId);
+            for (Mesh mesh : source) {
+                if (mesh.visible) {
+                    meshes.add(mesh);
+                }
+            }
+        }
+        Collections.sort(meshes, new Comparator<Mesh>() {
+            @Override
+            public int compare(Mesh o1, Mesh o2) {
+                return o1.slot.index - o2.slot.index;
+            }
+        });
+        this.mesh.update(meshes);
+    }
+    
+    private void updateAABB() {
+        AABB aabb = new AABB();
+        aabb.setIdentity();
+        if (this.scene != null) {
+            for (Mesh mesh : this.scene.meshes) {
+                float[] v = mesh.vertices;
+                int vertexCount = v.length / 5;
+                for (int i = 0; i < vertexCount; ++i) {
+                    int vi = i * 5;
+                    aabb.union(v[vi+0], v[vi+1], v[vi+2]);
+                }
+            }
+        }
+        setAABB(aabb);
+    }
+    
+    private boolean reloadResources() {
+        ISceneModel model = getModel();
+        if (model != null && getSpineScenesNode() != null) {
+            this.sceneDesc = loadSpineSceneDesc(model, getSpineScenesNode().getSpineScene());
+            if (this.sceneDesc != null) {
+                this.textureSetNode = loadTextureSetNode(model, this.sceneDesc.getAtlas());
+                if (this.textureSetNode != null) {
+                    this.scene = loadSpineScene(model, this.sceneDesc.getSpineJson(), new TransformProvider(this.textureSetNode.getRuntimeTextureSet()));
+                }
+            }
+            updateMesh();
+            updateAABB();
+            updateStatus();
+            // attempted to reload
+            return true;
+        } else {
+            this.scene = null;
+            this.sceneDesc = null;
+            this.textureSetNode = null;
+        }
         return false;
     }
 
