@@ -258,19 +258,6 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void DebugPrintHash(dmhash_t hash)
-    {
-        uint32_t length = 0;
-        const void* buf = dmHashReverse64(hash, &length);
-
-        char* path = new char[length];
-        memcpy(path, buf, length);
-
-        dmLogInfo("Reverse hashed; %s", path);
-
-        delete[] path;
-    }
-
     static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
         if (!world->m_Components.Full())
@@ -307,7 +294,7 @@ namespace dmGameSystem
 
             if(params.m_Message->m_DataSize == 24)
             {
-                emitter_state_changed_data.m_UserData = new char[20]; // where clean this up? :(
+                emitter_state_changed_data.m_UserData = new char[20]; // deallocated in callback method
                 memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
                 memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), 20);
             }

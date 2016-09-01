@@ -34,11 +34,6 @@ namespace dmParticle
     typedef uint32_t HInstance;
 
     /**
-    * Callback for emitter state changed
-    */
-    typedef void (*EmitterStateChanged)(uint32_t num_awake_emitters, dmhash_t emitter_id, int emitter_state, void* user_data);
-
-    /**
      * Invalid context handle
      */
     const HContext INVALID_CONTEXT = 0;
@@ -63,18 +58,6 @@ namespace dmParticle
     {
         dmhash_t m_NameHash;
         Vector4 m_Value;
-    };
-
-    struct EmitterStateChangedData
-    {
-        EmitterStateChangedData()
-        {
-            memset(this, 0, sizeof(*this));
-            m_UserData = 0x0;
-        }
-
-        EmitterStateChanged m_StateChangedCallback;
-        void* m_UserData;
     };
 
     /**
@@ -120,6 +103,34 @@ namespace dmParticle
         FETCH_ANIMATION_OK = 0,
         FETCH_ANIMATION_NOT_FOUND = -1,
         FETCH_ANIMATION_UNKNOWN_ERROR = -1000
+    };
+
+    enum EmitterState
+    {
+        EMITTER_STATE_SLEEPING = 0,
+        EMITTER_STATE_PRESPAWN = 1,
+        EMITTER_STATE_SPAWNING = 2,
+        EMITTER_STATE_POSTSPAWN = 3,
+    };
+
+    /**
+    * Callback for emitter state changed
+    */
+    typedef void (*EmitterStateChanged)(uint32_t num_awake_emitters, dmhash_t emitter_id, EmitterState emitter_state, void* user_data);
+
+    /**
+    * Data for emitter state change callback
+    */
+    struct EmitterStateChangedData
+    {
+        EmitterStateChangedData()
+        {
+            //memset(this, 0x0, sizeof(*this));
+            m_UserData = 0x0;
+        }
+
+        EmitterStateChanged m_StateChangedCallback;
+        void* m_UserData;
     };
 
     /**
@@ -208,7 +219,7 @@ namespace dmParticle
      * @param prototype Prototype of the instance to be created
      * @return Instance handle, or INVALID_INSTANCE when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype, EmitterStateChangedData* data = 0x0);
+    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype, EmitterStateChangedData* data);
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.

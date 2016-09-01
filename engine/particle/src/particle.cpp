@@ -37,6 +37,17 @@ namespace dmParticle
         memset(this, 0, sizeof(*this));
     }
 
+    void ResetEmitterStateChangedData(Instance* instance)
+    {
+        // Deallocate callback data if it is present
+        if(instance->m_EmitterStateChangedData.m_UserData != 0x0)
+        {
+            delete[] (char*)instance->m_EmitterStateChangedData.m_UserData;
+            instance->m_EmitterStateChangedData.m_UserData = 0x0;
+            instance->m_NumAwakeEmitters = 0;
+        }
+    }
+
     HContext CreateContext(uint32_t max_instance_count, uint32_t max_particle_count)
     {
         return new Context(max_instance_count, max_particle_count);
@@ -49,7 +60,10 @@ namespace dmParticle
         {
             Instance* instance = context->m_Instances[i];
             if (instance != 0x0)
+            {
                 ++lingering;
+                ResetEmitterStateChangedData(instance);
+            }
             delete instance;
         }
         if (lingering > 0)
@@ -173,7 +187,7 @@ namespace dmParticle
 
         instance->m_Prototype = prototype;
 
-        if(emitter_state_changed_data != 0x0) instance->m_EmitterStateChangedData = *emitter_state_changed_data;
+        if(emitter_state_changed_data != 0x0 && emitter_state_changed_data->m_UserData != 0x0) instance->m_EmitterStateChangedData = *emitter_state_changed_data;
 
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
@@ -222,13 +236,9 @@ namespace dmParticle
         if(state != old_emitter_state && instance->m_EmitterStateChangedData.m_UserData != 0x0)
         {
             if(state == EMITTER_STATE_PRESPAWN)
-            {
                 instance->m_NumAwakeEmitters += 1;
-            }
             else if(state == EMITTER_STATE_SLEEPING)
-            {
                 instance->m_NumAwakeEmitters -= 1;
-            }
 
             instance->m_EmitterStateChangedData.m_StateChangedCallback(
                 instance->m_NumAwakeEmitters,
@@ -300,6 +310,7 @@ namespace dmParticle
         if (instance == INVALID_INSTANCE) return;
         Instance* i = GetInstance(context, instance);
         if (!i) return;
+        ResetEmitterStateChangedData(i);
         dmArray<Emitter>& emitters = i->m_Emitters;
         uint32_t emitter_count = emitters.Size();
         Prototype* prototype = i->m_Prototype;
