@@ -65,19 +65,20 @@
 (defn render-mesh [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)
         renderable (first renderables)
+        node-id (:node-id renderable)
         user-data (:user-data renderable)
         vbs (:vbs user-data)
         shader (:shader user-data)
         textures (:textures user-data)]
     (cond
       (= pass pass/outline)
-      (let [outline-vertex-binding (vtx/use-with ::mesh-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
+      (let [outline-vertex-binding (vtx/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
         (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
 
       (= pass pass/opaque)
       (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with ::mesh-trans vb shader)]
+        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (doseq [[name t] textures]
               (gl/bind gl t render-args)
@@ -93,7 +94,7 @@
 
       (= pass pass/selection)
       (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with ::mesh-selection vb shader-pos-nrm-tex-passthrough)]
+        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader-pos-nrm-tex-passthrough)]
           (gl/with-gl-bindings gl render-args [shader-pos-nrm-tex-passthrough vertex-binding]
             (gl/gl-enable gl GL/GL_CULL_FACE)
             (gl/gl-cull-face gl GL/GL_BACK)
