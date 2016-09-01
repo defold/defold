@@ -192,6 +192,14 @@ namespace dmGui
         uint16_t m_Backwards : 1;
     };
 
+    struct SpineAnimation
+    {
+        HNode    m_Node;
+        AnimationComplete m_AnimationComplete;
+        void*    m_Userdata1;
+        void*    m_Userdata2;
+    };
+
     struct Script
     {
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
@@ -234,6 +242,7 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
+        dmArray<SpineAnimation> m_SpineAnimations;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;

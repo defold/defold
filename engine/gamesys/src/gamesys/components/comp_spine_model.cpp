@@ -97,9 +97,9 @@ namespace dmGameSystem
         return false;
     }
 
-    static void CompSpineModelEventCallback(void* user_data, const dmRig::RigEventData& event_data)
+    static void CompSpineModelEventCallback(const dmRig::RigEventData& event_data, void* user_data1, void* user_data2)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data;
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
 
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
@@ -287,7 +287,8 @@ namespace dmGameSystem
         create_params.m_PoseCBUserData1 = component;
         create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
@@ -692,7 +693,8 @@ namespace dmGameSystem
         create_params.m_PoseCBUserData1 = component;
         create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;

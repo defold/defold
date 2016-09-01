@@ -106,6 +106,23 @@ namespace dmGui
         return 0;
     }
 
+    static void RigEventCallback(const dmRig::RigEventData& event_data, void* userdata1, void* userdata2)
+    {
+        if (!userdata2) {
+            return;
+        }
+
+        HScene scene = (HScene)userdata1;
+        SpineAnimation* animation = (SpineAnimation*)userdata2;
+
+        if  (event_data.m_Type == dmRig::RIG_EVENT_TYPE_DONE) {
+            animation->m_AnimationComplete(scene, animation->m_Node, animation->m_Userdata1, animation->m_Userdata2);
+        } else {
+            dmLogWarning("Unknown and unhandled rig event received (%d).", event_data.m_Type);
+        }
+
+    }
+
     TextMetrics::TextMetrics()
     {
         memset(this, 0, sizeof(TextMetrics));
@@ -290,6 +307,7 @@ namespace dmGui
         scene->m_Nodes.SetSize(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
+        scene->m_SpineAnimations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Material = 0;
@@ -361,9 +379,9 @@ namespace dmGui
         ResetScene(scene);
     }
 
-    void SetSceneUserData(HScene scene, void* user_data)
+    void SetSceneUserData(HScene scene, void* userdata)
     {
-        scene->m_UserData = user_data;
+        scene->m_UserData = userdata;
     }
 
     void* GetSceneUserData(HScene scene)
@@ -1871,13 +1889,8 @@ namespace dmGui
         InternalNode*n = GetNode(scene, node);
 
         if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
-            // Delete bone nodes
-            uint32_t bone_count = n->m_Node.m_SpineBoneNodes->Size();
-            n->m_Node.m_SpineBoneNodes->SetCapacity(bone_count);
-            n->m_Node.m_SpineBoneNodes->SetSize(bone_count);
-            for (uint32_t i = 0; i < bone_count; ++i)
-            {
-                DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[i]);
+            if (!n->m_Node.m_SpineBoneNodes->Empty()) {
+                DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[0]);
             }
 
             dmRig::InstanceDestroyParams params = {0};
@@ -2248,10 +2261,10 @@ namespace dmGui
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
     }
 
-    static void SpinePoseCallback(void* user_data1, void* user_data2)
+    static void SpinePoseCallback(void* userdata1, void* userdata2)
     {
-        HScene scene = (HScene)user_data1;
-        InternalNode* n = (InternalNode*)user_data2;
+        HScene scene = (HScene)userdata1;
+        InternalNode* n = (InternalNode*)userdata2;
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(n->m_Node.m_RigInstance);
@@ -2259,10 +2272,6 @@ namespace dmGui
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             dmTransform::Transform transform = pose[i];
-            if (i == 0)
-            {
-                transform = dmTransform::Mul(dmTransform::ToTransform(n->m_Node.m_LocalTransform), transform);
-            }
             HNode b = (*n->m_Node.m_SpineBoneNodes)[i];
             SetNodePosition(scene, b, Point3(transform.GetTranslation()));
             SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
@@ -2278,12 +2287,9 @@ namespace dmGui
 
         // Delete previous spine scene and bones
         if (n->m_Node.m_RigInstance) {
-            uint32_t bone_count = n->m_Node.m_SpineBoneNodes->Size();
-            n->m_Node.m_SpineBoneNodes->SetCapacity(bone_count);
-            n->m_Node.m_SpineBoneNodes->SetSize(bone_count);
-            for (uint32_t i = 0; i < bone_count; ++i)
-            {
-                DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[i]);
+            // delete root bone node (this will delete all bone children)
+            if (!n->m_Node.m_SpineBoneNodes->Empty()) {
+                DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[0]);
             }
 
             dmRig::InstanceDestroyParams params = {0};
@@ -2304,8 +2310,9 @@ namespace dmGui
         create_params.m_PoseCallback = SpinePoseCallback;
         create_params.m_PoseCBUserData1 = scene;
         create_params.m_PoseCBUserData2 = n;
-        create_params.m_EventCallback = 0;
-        create_params.m_EventCBUserData = 0;
+        create_params.m_EventCallback = RigEventCallback;
+        create_params.m_EventCBUserData1 = scene;
+        create_params.m_EventCBUserData2 = 0;
 
         void** spine_scene_ptr = scene->m_SpineScenes.Get(spine_scene_id);
         if (!scene->m_FetchRigSceneDataCallback || !spine_scene_ptr) {
@@ -2346,10 +2353,6 @@ namespace dmGui
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-            if (i == 0)
-            {
-                transform = dmTransform::Mul(dmTransform::ToTransform(n->m_Node.m_LocalTransform), transform);
-            }
             (*n->m_Node.m_SpineBoneNodes)[i] = NewNode(scene, Point3(transform.GetTranslation()), Vector3(0, 0, 0), NODE_TYPE_BOX);
         }
 
@@ -2487,7 +2490,7 @@ namespace dmGui
     }
 
     ////////////// SPINE STUFF
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend)
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
@@ -2512,6 +2515,42 @@ namespace dmGui
         dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
         if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend)) {
             return RESULT_INVAL_ERROR;
+        }
+
+        if (animation_complete)
+        {
+            SpineAnimation animation;
+            uint32_t animation_index = 0xffffffff;
+
+            // Remove old animation for the same property
+            for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
+            {
+                const SpineAnimation* anim = &scene->m_SpineAnimations[i];
+                if (node == anim->m_Node)
+                {
+                    animation_index = i;
+                    break;
+                }
+            }
+
+            if (animation_index == 0xffffffff)
+            {
+                if (scene->m_SpineAnimations.Full())
+                {
+                    dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
+                    return RESULT_INVAL_ERROR;
+                }
+                animation_index = scene->m_SpineAnimations.Size();
+                scene->m_SpineAnimations.SetSize(animation_index+1);
+            }
+
+            animation.m_Node = node;
+            animation.m_AnimationComplete = animation_complete;
+            animation.m_Userdata1 = userdata1;
+            animation.m_Userdata2 = userdata2;
+            scene->m_SpineAnimations[animation_index] = animation;
+
+            SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
         }
 
         return RESULT_OK;

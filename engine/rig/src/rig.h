@@ -170,7 +170,7 @@ namespace dmRig
         uint32_t     m_MaxRigInstanceCount;
     };
 
-    typedef void (*RigEventCallback)(void*, const RigEventData&);
+    typedef void (*RigEventCallback)(const RigEventData&, void*, void*);
     typedef void (*RigPoseCallback)(void*, void*);
 
     struct RigInstance
@@ -187,7 +187,8 @@ namespace dmRig
         void*                         m_PoseCBUserData2;
         /// Event handling
         RigEventCallback              m_EventCallback;
-        void*                         m_EventCBUserData;
+        void*                         m_EventCBUserData1;
+        void*                         m_EventCBUserData2;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
         /// Animated IK
@@ -228,7 +229,8 @@ namespace dmRig
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
         RigEventCallback              m_EventCallback;
-        void*                         m_EventCBUserData;
+        void*                         m_EventCBUserData1;
+        void*                         m_EventCBUserData2;
     };
 
     struct InstanceDestroyParams
@@ -288,6 +290,7 @@ namespace dmRig
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);
+    void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
 }
 

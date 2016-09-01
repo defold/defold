@@ -505,6 +505,34 @@ namespace dmGui
         assert(top == lua_gettop(L));
     }
 
+    void LuaSpineEvent(HScene scene, HNode node, void* userdata1, void* userdata2)
+    {
+        lua_State* L = scene->m_Context->m_LuaState;
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::SetInstance(L);
+
+        int ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
+        int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
+        assert(lua_type(L, -3) == LUA_TFUNCTION);
+
+        dmScript::PCall(L, 2, 0);
+
+        lua_unref(L, ref);
+        lua_unref(L, node_ref);
+
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
+        assert(top == lua_gettop(L));
+    }
+
     /*# once forward
      *
      * @name gui.PLAYBACK_ONCE_FORWARD
@@ -3238,11 +3266,12 @@ namespace dmGui
     /*# play a spine animation
      *
      * @name gui.play_spine
-     * @param node spine node that should play the animation
-     * @param node spine node that should play the animation
-     * @return node screen position (vector3)
+     * @param node spine node that should play the animation (node)
+     * @param animation_id id of the animation to play (string|hash)
+     * @param playback playback mode (constant)
+     * @param blend_duration duration of a linear blend between the current and new animations
+     * @param [complete_function] function to call when the animation has completed (function)
      */
-    // spine_node, anim_id, playback, blend_duration [, completion_fn]
     int LuaPlaySpine(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -3254,17 +3283,26 @@ namespace dmGui
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = luaL_checknumber(L, 4);
 
-        // if (top > 4)
-        // {
-        //     if (lua_isfunction(L, 5))
-        //     {
-        //         lua_pushvalue(L, 5);
-        //         // see message.h for why 2 is added
-        //         sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
-        //     }
-        // }
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
+        if (top > 4)
+        {
+            if (lua_isfunction(L, 5))
+            {
+                lua_pushvalue(L, 5);
+                animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                lua_pushvalue(L, 1);
+                node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            }
+        }
 
-        dmGui::Result res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration);
+        dmGui::Result res;
+        if (animation_complete_ref == LUA_NOREF) {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, 0, 0, 0);
+        } else {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, &LuaSpineEvent, (void*) animation_complete_ref, (void*) node_ref);
+        }
+
         if (res == RESULT_WRONG_TYPE) {
             dmLogError("Could not play spine animation on non-spine node.");
         } else if (res == RESULT_INVAL_ERROR) {
@@ -3325,6 +3363,22 @@ namespace dmGui
 
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    int LuaSetSpineScene(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if (RESULT_OK != SetNodeSpineScene(scene, node, dmScript::CheckHashOrString(L, 2), 0, 0))
+        {
+            return luaL_error(L, "failed to set spine scene for gui node");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
 #define REGGETSET(name, luaname) \
@@ -3417,6 +3471,7 @@ namespace dmGui
         {"play_spine",      LuaPlaySpine},
         {"cancel_spine",    LuaCancelSpine},
         {"get_bone_node",   LuaGetBoneNode},
+        {"set_spine_scene", LuaSetSpineScene},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

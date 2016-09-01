@@ -413,13 +413,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 newNode.setOutlineAlpha(newNode.getOutline().getW());
                 node = newNode.build();
             }
-            
-            if (node.getType() == Type.TYPE_SPINE) {
-                NodeDesc.Builder newNode = node.toBuilder();
-                newNode.mergeFrom(node);
-                newNode.setTexture(spineSceneTextures.get(node.getSpineScene()));
-                node = newNode.build();
-            }
 
             // add current scene nodes
             newScene.get("").add(node);

@@ -883,7 +883,7 @@ namespace dmGui
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
     ///////////////////////////// SPINE STUFF
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend);
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
     /**

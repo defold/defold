@@ -154,16 +154,16 @@ public class SpineNode extends GuiNode {
     public void setSpineScene(String spineScene) {
         this.spineScene = spineScene;
         //updateTexture();
-        GuiNodeStateBuilder.setField(this, "Spine Scene", spineScene);
+        GuiNodeStateBuilder.setField(this, "SpineScene", spineScene);
     }
 
     public void resetSpineScene() {
-        this.spineScene = (String)GuiNodeStateBuilder.resetField(this, "Spine Scene");
+        this.spineScene = (String)GuiNodeStateBuilder.resetField(this, "SpineScene");
         //updateTexture();
     }
 
     public boolean isSpineSceneOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Spine Scene", this.spineScene);
+        return GuiNodeStateBuilder.isFieldOverridden(this, "SpineScene", this.spineScene);
     }
     
     public Object[] getSpineSceneOptions() {

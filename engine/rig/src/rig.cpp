@@ -215,7 +215,7 @@ namespace dmRig
                     event_data.m_DataSpine.m_Float = key->m_Float;
                     event_data.m_DataSpine.m_String = key->m_String;
 
-                    instance->m_EventCallback(instance->m_EventCBUserData, event_data);
+                    instance->m_EventCallback(event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
                 }
             }
         }
@@ -328,7 +328,7 @@ namespace dmRig
                 event_data.m_DataDone.m_AnimationId = player->m_AnimationId;
                 event_data.m_DataDone.m_Playback = player->m_Playback;
 
-                instance->m_EventCallback(instance->m_EventCBUserData, event_data);
+                instance->m_EventCallback(event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
             }
         }
     }
@@ -957,6 +957,17 @@ namespace dmRig
         return (instance->m_MeshEntry != 0x0);
     }
 
+    void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)
+    {
+        if (!instance) {
+            return;
+        }
+
+        instance->m_EventCallback = event_callback;
+        instance->m_EventCBUserData1 = user_data1;
+        instance->m_EventCBUserData2 = user_data2;
+    }
+
     IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id)
     {
         if (!instance) {
@@ -1005,7 +1016,8 @@ namespace dmRig
         instance->m_PoseCBUserData1 = params.m_PoseCBUserData1;
         instance->m_PoseCBUserData2 = params.m_PoseCBUserData2;
         instance->m_EventCallback = params.m_EventCallback;
-        instance->m_EventCBUserData = params.m_EventCBUserData;
+        instance->m_EventCBUserData1 = params.m_EventCBUserData1;
+        instance->m_EventCBUserData2 = params.m_EventCBUserData2;
 
         instance->m_BindPose = params.m_BindPose;
         instance->m_Skeleton = params.m_Skeleton;
