@@ -53,7 +53,14 @@
   (defn void main []
     (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))))
 
+(shader/defshader shader-frag-pos-nrm-tex-passthrough
+  (varying vec3 var_normal)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
+
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
+(def shader-pos-nrm-tex-passthrough (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex-passthrough))
 
 (defn render-mesh [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)
@@ -86,9 +93,12 @@
 
       (= pass pass/selection)
       (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with ::mesh-selection vb render/shader-tex-tint)]
-          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
+        (let [vertex-binding (vtx/use-with ::mesh-selection vb shader-pos-nrm-tex-passthrough)]
+          (gl/with-gl-bindings gl render-args [shader-pos-nrm-tex-passthrough vertex-binding]
+            (gl/gl-enable gl GL/GL_CULL_FACE)
+            (gl/gl-cull-face gl GL/GL_BACK)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (gl/gl-disable gl GL/GL_CULL_FACE)))))))
 
 (defn- build-mesh [self basis resource dep-resources user-data]
   (let [content (:content user-data)]

@@ -370,7 +370,7 @@
                        batches (batch-render gl render-args renderables true :select-batch-key)]
                    (render-sort (end-select gl select-buffer renderables batches) camera viewport))))
           flatten
-          (map :node-id)))
+          (mapv :node-id)))
       (finally
         (.release context)))
     []))
