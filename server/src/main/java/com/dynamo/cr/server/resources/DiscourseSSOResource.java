@@ -4,7 +4,6 @@ import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.auth.DiscourseSSOAuthenticator;
 import com.dynamo.cr.server.model.User;
 
-import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -15,7 +14,6 @@ import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 
 @Path("discourse")
-@RolesAllowed(value = {"user"})
 public class DiscourseSSOResource extends BaseResource {
 
     private final DiscourseSSOAuthenticator authenticator;
@@ -38,8 +36,16 @@ public class DiscourseSSOResource extends BaseResource {
     @Path("sso")
     public Response sso(@QueryParam("sso") String sso, @QueryParam("sig") String sig) {
 
-        if (authenticator.verifySignedRequest(sso, sig)) {
+        // If user is not logged in, send to dashboard
+        if (!isLoggedIn()) {
+            URI loginUri = UriBuilder
+                    .fromPath("http://dashboard.defold.com/oauth/")
+                    .queryParam("next", "https://forum.defold.com/login")
+                    .build();
+            return Response.temporaryRedirect(loginUri).build();
+        }
 
+        if (authenticator.verifySignedRequest(sso, sig)) {
             User user = getUser();
 
             String responsePayload = authenticator.createResponsePayload(
