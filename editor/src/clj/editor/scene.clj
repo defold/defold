@@ -504,7 +504,9 @@
                               cam (c/interpolate start-camera end-camera t)]
                           (g/transact
                             (g/set-property camera-node :local-camera cam))))
-                (fn [])))
+                (fn []
+                  (g/transact
+                    (g/set-property camera-node :local-camera end-camera)))))
     (g/transact (g/set-property camera-node :local-camera end-camera))))
 
 (defn frame-selection [view animate?]
