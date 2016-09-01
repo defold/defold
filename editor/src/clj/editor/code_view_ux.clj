@@ -186,7 +186,10 @@
                   [{:label :separator}]
                   (sort-by :order (map menu-data indent-commands)))}]))
 
+;; keep regex's in make-indent-split etc in sync with these
 (def tab-size 4)
+(def default-indentation "\t")
+
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
 (def last-command (atom nil))
@@ -291,13 +294,13 @@
     0
     n))
 
-(defn- replace-text-selection [selection s]
-  (let [np (selection-offset selection)
-        sel-len (selection-length selection)]
-    (text-selection! selection 0 0)
-    (replace! selection np sel-len s)
-    (caret! selection (inc np) false)
-    (show-line selection)))
+(defn- replace-text-selection [source-viewer s]
+  (let [np (selection-offset source-viewer)
+        sel-len (selection-length source-viewer)]
+    (text-selection! source-viewer 0 0)
+    (replace! source-viewer np sel-len s)
+    (caret! source-viewer (+ np sel-len) false)
+    (show-line source-viewer)))
 
 (defn- replace-text-and-caret [selection offset length s new-caret-pos]
   (let [doc (text selection)
@@ -1043,31 +1046,113 @@
               doc (text selection)]
           (prev-tab-trigger selection np))))))
 
+(defn- trim-indentation [line]
+  (second (re-find #"^(?:\s*)(.*)" line)))
+
 (defn- get-indentation [line]
-  (re-find #"^\s+" line))
+  (or (re-find #"^\s+" line) ""))
+
+(defn- untabify [whitespace]
+  (string/replace whitespace #"\t" "    "))
+
+(defn- make-indent-split [indentation]
+  (assert (= (get-indentation indentation) indentation))
+  (let [indents-pattern #"^(?:    |\t)+"
+        actual-indentation (or (re-find indents-pattern indentation) "")]
+    (let [indent-pattern #"(    |\t)"
+          indents (map first (re-seq indent-pattern actual-indentation))
+          flattened-indentation (untabify indentation)]
+      (if (< (- (count flattened-indentation)
+                (* (count indents) tab-size))
+             tab-size)
+        {:indents indents :remainder (subs indentation (count actual-indentation))}
+        (make-indent-split flattened-indentation)))))
+
+(defn- increase-indents [indent-split indentation]
+  (update indent-split :indents concat [indentation]))
+
+(defn- decrease-indents [indent-split]
+  (update indent-split :indents butlast))
+
+(defn- set-line-indents [indent-split line]
+  (str (string/join "" (:indents indent-split))
+       (:remainder indent-split)
+       (trim-indentation line)))
 
 (defn indent-line [selection line line-above]
   (when-let [indentation-data (:indentation (syntax selection))]
-    (let [{:keys [indent-chars increase? decrease?]} indentation-data
-          current-indentation (get-indentation line)]
+    (let [{:keys [increase? decrease?]} indentation-data]
       (cond
-        (decrease? line)
-        (let [line-above-indent (or (get-indentation line-above) "")
-              new-indent (string/replace-first line-above-indent (re-pattern indent-chars) "")
-              line-without-indent (string/replace-first line (re-pattern (str indent-chars "*")) "")]
-          (str new-indent line-without-indent))
+        ;; function asdf()
+        ;; end|
+        (and (decrease? line) (increase? line-above))
+        (-> (get-indentation line-above)
+            (make-indent-split)
+            (set-line-indents line))
 
+        ;; if foo
+        ;;     ...
+        ;;     ...
+        ;;     end|
+        (decrease? line)
+        (-> (get-indentation line-above)
+            (make-indent-split)
+            (decrease-indents)
+            (set-line-indents line))
+
+        ;; function foo()
+        ;; |
         (increase? line-above)
-        (let [line-above-indent (get-indentation line-above)
-              line-without-indent (string/replace-first line (re-pattern (str indent-chars "*")) "")]
-          (str line-above-indent indent-chars line-without-indent))
+        (-> (get-indentation line-above)
+            (make-indent-split)
+            (increase-indents default-indentation)
+            (set-line-indents line))
+
+        ;; function foo()
+        ;;     ...
+        ;;     ...
+        ;; |
+        :else
+        (-> (get-indentation line-above)
+            (make-indent-split)
+            (set-line-indents line))))))
+
+(defn unindent-line [selection line line-above]
+  (when-let [indentation-data (:indentation (syntax selection))]
+    (let [{:keys [increase? decrease?]} indentation-data]
+      (cond
+        ;; if foo
+        ;;     ...
+        ;;     end|
+        (and (decrease? line) (not (increase? line-above)))
+        (-> (get-indentation line-above)
+            (make-indent-split)
+            (decrease-indents)
+            (set-line-indents line))
+
+        ;; if foo
+        ;;     end|
+        (decrease? line)
+        (-> (get-indentation line-above)
+            (make-indent-split)
+            (set-line-indents line))
 
         :else
-        (let [line-above-indent (get-indentation line-above)
-              line-without-indent (string/replace-first line (re-pattern (str indent-chars "*")) "")
-              line-above-increase? (increase? line-above)
-              new-indent (if line-above-increase? (str line-above-indent indent-chars) line-above-indent)]
-          (str new-indent line-without-indent))))))
+        line))))
+
+(defn do-unindent-line [selection line-num]
+  (let [current-line (line-at-num selection line-num)
+        line-offset (line-offset-at-num selection line-num)
+        caret-offset (caret selection)
+        prev-line (if (= 0 line-num) "" (line-at-num selection (dec line-num)))
+        unindent-text (unindent-line selection current-line prev-line)
+        caret-delta (- (count unindent-text) (count current-line))]
+    (if unindent-text
+      (do
+        (replace! selection (adjust-bounds (text selection) line-offset) (count current-line) unindent-text)
+        (caret! selection (+ caret-offset caret-delta) false)
+        caret-delta)
+      0)))
 
 (defn do-indent-line [selection line-num]
   (let [current-line (line-at-num selection line-num)
@@ -1122,7 +1207,7 @@
       (clear-snippet-tab-triggers! selection)
       (if (= (caret selection) (line-end-pos selection))
         (do
-          (do-indent-line selection (line-num-at-offset selection (caret selection)))
+          (do-unindent-line selection (line-num-at-offset selection (caret selection)))
           (enter-key-text selection (System/getProperty "line.separator"))
           (do-indent-line selection (line-num-at-offset selection (caret selection)))
           (caret! selection (+ (line-offset selection) (count (line selection))) false)
