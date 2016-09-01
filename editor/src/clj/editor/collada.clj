@@ -1,30 +1,7 @@
 (ns editor.collada
-  (:require [clojure.java.io :as io]
-            [clojure.xml :as xml]
-            [clojure.string :as str]
-            [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
-            [clojure.data.json :as json]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.gl.texture :as texture]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.gl.pass :as pass]
-            [editor.geom :as geom]
-            [editor.render :as render])
-  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]
-           [java.text DecimalFormat DecimalFormatSymbols ParseException]))
+  (:require [clojure.xml :as xml]
+            [clojure.string :as str])
+  (:import [java.text DecimalFormat DecimalFormatSymbols ParseException]))
 
 (set! *warn-on-reflection* true)
 
