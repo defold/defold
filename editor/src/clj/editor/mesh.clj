@@ -8,10 +8,14 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.gl.texture :as texture]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.geom :as geom]
+            [editor.render :as render]
+            [editor.collada :as collada])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -26,6 +30,77 @@
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
 
+(vtx/defvertex vtx-pos-nrm-tex
+  (vec3 position)
+  (vec3 normal)
+  (vec2 texcoord0))
+
+(shader/defshader shader-ver-pos-nrm-tex
+  (attribute vec4 position)
+  (attribute vec3 normal)
+  (attribute vec2 texcoord0)
+  (varying vec3 var_normal)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)
+    (setq var_normal normal)))
+
+(shader/defshader shader-frag-pos-nrm-tex
+  (varying vec3 var_normal)
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (defn void main []
+    (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))))
+
+(shader/defshader shader-frag-pos-nrm-tex-passthrough
+  (varying vec3 var_normal)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
+
+(def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
+(def shader-pos-nrm-tex-passthrough (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex-passthrough))
+
+(defn render-mesh [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)
+        renderable (first renderables)
+        node-id (:node-id renderable)
+        user-data (:user-data renderable)
+        vbs (:vbs user-data)
+        shader (:shader user-data)
+        textures (:textures user-data)]
+    (cond
+      (= pass pass/outline)
+      (let [outline-vertex-binding (vtx/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
+        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+
+      (= pass pass/opaque)
+      (doseq [vb vbs]
+        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding]
+            (doseq [[name t] textures]
+              (gl/bind gl t render-args)
+              (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
+            (gl/gl-enable gl GL/GL_CULL_FACE)
+            (gl/gl-cull-face gl GL/GL_BACK)
+            (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (gl/gl-disable gl GL/GL_CULL_FACE)
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+            (doseq [[name t] textures]
+              (gl/unbind gl t)))))
+
+      (= pass pass/selection)
+      (doseq [vb vbs]
+        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader-pos-nrm-tex-passthrough)]
+          (gl/with-gl-bindings gl render-args [shader-pos-nrm-tex-passthrough vertex-binding]
+            (gl/gl-enable gl GL/GL_CULL_FACE)
+            (gl/gl-cull-face gl GL/GL_BACK)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (gl/gl-disable gl GL/GL_CULL_FACE)))))))
+
 (defn- build-mesh [self basis resource dep-resources user-data]
   (let [content (:content user-data)]
     {:resource resource :content (protobuf/map->bytes Mesh$MeshDesc content)}))
@@ -36,80 +111,51 @@
    :build-fn build-mesh
    :user-data {:content content}}])
 
-(defn- elements [node tag]
-  (filter #(= tag (:tag %)) (:content node)))
-
-(defn- element [node tag]
-  (first (elements node tag)))
-
-(defn- input [inputs semantic]
-  (first (filter #(= semantic (get-in % [:attrs :semantic])) inputs)))
-
-(defn- source [sources input]
-  (let [source-key (subs (get-in input [:attrs :source]) 1)]
-    (get sources source-key)))
-
-(defn- offset [input]
-  (Integer/parseInt (get-in input [:attrs :offset] "0")))
-
-(defn- source->floats [source]
-  (let [floats (first (-> source (element :float_array) (:content)))]
-    (mapv #(Float/parseFloat %) (str/split (str/triml floats) #"\s+"))))
-
-(defn- extract [input source comp-count tri-count tri-indices stride factor default]
-  (let [factor (or factor 1.0)
-        src-floats (source->floats source)]
-    (loop [tris (range tri-count)
-           values (transient [])]
-      (if-let [tri (first tris)]
-        (let [tri-index (+ (* tri stride 3) (offset input))
-              values (reduce (fn [values v-index]
-                               (let [v-offset (* comp-count (get tri-indices (+ tri-index (* v-index stride))))]
-                                 (reduce (fn [values comp-index]
-                                           (conj! values (* factor (get src-floats (+ v-offset comp-index) (get default comp-index)))))
-                                         values (range comp-count))))
-                             values (range 3))]
-          (recur (rest tris) values))
-        (persistent! values)))))
-
 (g/defnk produce-content [resource]
-  (let [collada (xml/parse (io/input-stream resource))
-        meter (Double/parseDouble (-> collada (element :asset) (element :unit) (get-in [:attrs :meter] "1")))
-        geometry (-> collada (element :library_geometries) (element :geometry))
-        name (get-in geometry [:attrs :name] "Unnamed")
-        mesh (-> collada (element :library_geometries) (element :geometry) (element :mesh))
-        sources-map (into {} (map #(do [(get-in % [:attrs :id]) %]) (elements mesh :source)))
-        vertices (element mesh :vertices)
-        triangles (or (element mesh :triangles) (element mesh :polylist))
-        vertices-inputs (-> mesh (element :vertices) (elements :input))
-        tri-inputs (elements triangles :input)
-        pos-input (input vertices-inputs "POSITION")
-        vertex-input (input tri-inputs "VERTEX")
-        normal-input (or
-                       (input tri-inputs "NORMAL")
-                       (input vertices-inputs "NORMAL"))
-        texcoord-input (input tri-inputs "TEXCOORD")
-        stride (inc (reduce max 0 (map offset tri-inputs)))
-        pos-source (source sources-map pos-input)
-        normal-source (source sources-map normal-input)
-        texcoord-source (source sources-map texcoord-input)
-        tri-count (Integer/parseInt (get-in triangles [:attrs :count] "0"))
-        tri-indices (mapv #(Integer/parseInt %) (str/split (str/triml (first (-> triangles (element :p) (:content)))) #"\s+"))
-        positions (extract vertex-input pos-source 3 tri-count tri-indices stride meter [0 0 0])
-        normals (extract normal-input normal-source 3 tri-count tri-indices stride nil [0 0 1])
-        texcoords (extract texcoord-input texcoord-source 2 tri-count tri-indices stride nil [0 0 1])]
-    {:primitive-type :triangles
-     :components [{:name name
-                   :positions positions
-                   :normals normals
-                   :texcoord0 texcoords
-                   :primitive-count (* tri-count 3)}]}))
+  (collada/->mesh (io/input-stream resource)))
+
+(g/defnk produce-scene [_node-id aabb vbs]
+  {:node-id _node-id
+   :aabb aabb
+   :renderable {:render-fn render-mesh
+                :batch-key _node-id
+                :select-batch-key _node-id
+                :user-data {:vbs vbs
+                            :shader shader-pos-nrm-tex
+                            :textures {"texture" texture/white-pixel}}
+                :passes [pass/opaque pass/selection pass/outline]}})
+
+(defn- component->vb [c]
+  (let [vcount (* 3 (:primitive-count c))]
+    (when (> vcount 0)
+      (loop [vb (->vtx-pos-nrm-tex vcount)
+             ps (partition 3 (:positions c))
+             ns (partition 3 (:normals c))
+             ts (partition 2 (:texcoord0 c))]
+        (if-let [[x y z] (first ps)]
+          (let [[nx ny nz] (first ns)
+                [tu tv] (first ts)]
+            (recur (conj! vb [x y z nx ny nz tu tv]) (rest ps) (rest ns) (rest ts)))
+          (persistent! vb))))))
 
 (g/defnode MeshNode
   (inherits project/ResourceNode)
 
   (output content g/Any :cached produce-content)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output aabb AABB :cached (g/fnk [content]
+                                   (reduce (fn [aabb [x y z]]
+                                             (geom/aabb-incorporate aabb x y z))
+                                           (geom/null-aabb)
+                                           (partition 3 (get-in content [:components 0 :positions])))))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output vbs g/Any :cached (g/fnk [content]
+                                   (loop [components (:components content)
+                                          vbs []]
+                                     (if-let [c (first components)]
+                                       (let [vb (component->vb c)]
+                                         (recur (rest components) (if vb (conj vbs vb) vbs)))
+                                       vbs))))
+  (output scene g/Any :cached produce-scene))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -117,4 +163,5 @@
                                     :label "Collada Mesh"
                                     :build-ext "meshc"
                                     :node-type MeshNode
-                                    :icon mesh-icon))
+                                    :icon mesh-icon
+                                    :view-types [:scene :text]))
