@@ -1,8 +1,0 @@
-image: "/parallax/cloud_small.png"
-tile_width: 128
-tile_height: 90
-tile_margin: 0
-tile_spacing: 0
-collision: ""
-material_tag: "tile"
-collision_groups: "default"

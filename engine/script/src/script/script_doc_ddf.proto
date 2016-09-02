@@ -20,9 +20,7 @@ enum Type
     FUNCTION = 0;
     VARIABLE = 1;
     MESSAGE = 2;
-    NAMESPACE = 3;
-    PROPERTY = 4;
-    PACKAGE = 5;
+    PROPERTY = 3;
 }
 
 message Element
@@ -38,7 +36,16 @@ message Element
     optional string deprecated = 9 [default=""];
 }
 
+message Info
+{
+    required string namespace = 1;
+    required string name = 2;
+    required string brief = 3;
+    required string description = 4;
+}
+
 message Document
 {
     repeated Element elements = 1;
+    required Info info = 2;
 }

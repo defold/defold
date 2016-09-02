@@ -1,4 +1,0 @@
-function init(self)
-	-- set blue background
-    msg.post("@render:", "clear_color", { color = vmath.vector4(96 / 255, 148 / 255, 185 / 255, 0) } )
-end

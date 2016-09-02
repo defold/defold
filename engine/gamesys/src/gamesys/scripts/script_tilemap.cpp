@@ -16,6 +16,14 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Tilemap API documentation
+     *
+     * Functions and messages used to manipulate tile map components.
+     *
+     * @name Tilemap
+     * @namespace tilemap
+     */
+
     /*# set a shader constant for a tile map
      * The constant must be defined in the material assigned to the tile map.
      * Setting a constant through this function will override the value set for that constant in the material.

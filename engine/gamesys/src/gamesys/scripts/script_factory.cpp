@@ -21,6 +21,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Factory API documentation
+     *
+     * Functions for controlling factory components which are used to 
+     * dynamically spawn game objects into the runtime.
+     *
+     * @name Factory
+     * @namespace factory
+     */
+
     /*# make a factory create a new game object
      * The URL identifies which factory should create the game object.
      * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.

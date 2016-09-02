@@ -16,6 +16,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Vector math API documentation
+     *
+     * Functions for mathematical operations on vectors, matrices and quaternions.
+     *
+     * @name Vector math
+     * @namespace vmath
+     */
+
 #define SCRIPT_LIB_NAME "vmath"
 #define SCRIPT_TYPE_NAME_VECTOR "vector" // Vector of unspecific length
 #define SCRIPT_TYPE_NAME_VECTOR3 "vector3"
