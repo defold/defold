@@ -1,8 +1,0 @@
-function init(self)
-	-- set a nice blue background
-	msg.post("@render:", "clear_color", {color = vmath.vector4(0, 0.3, 0.5, 0)})
-	-- deterministic "random" behaviour
-	math.randomseed(1337)
-	-- tell gui to start displaying the "level completed" scene
-	msg.post("#gui", "level_completed", {score = 102495, star_levels = {40000, 70000, 100000}})
-end

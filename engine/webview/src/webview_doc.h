@@ -1,3 +1,12 @@
+/*# Webview API documentation
+ *
+ * Functions and for creating and controlling webviews to show html pages
+ * or evaluate javascript.
+ *
+ * @name Webview
+ * @namespace webview
+ */
+
 
 /*# Creates a webview
 
