@@ -24,7 +24,6 @@ import com.dynamo.bob.util.RigScene.Mesh;
 import com.dynamo.bob.util.RigScene.UVTransformProvider;
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.core.SpineScenesNode;
-//import com.dynamo.cr.guied.core.GuiTextureNode.UVTransform;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
@@ -51,31 +50,31 @@ public class SpineNode extends ClippingNode {
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
     private String skin = "";
-    
+
     private transient SpineSceneDesc sceneDesc;
     private transient RigScene scene;
     private transient TextureSetNode textureSetNode = null;
     private transient CompositeMesh mesh = new CompositeMesh();
-    
+
     public Vector3d getSize() {
         return new Vector3d(1.0, 1.0, 0.0);
     }
-    
+
     public void setSize() {
         return;
     }
-    
+
     public boolean isTextureVisible() {
         return false;
     }
-    
+
     public boolean isAlphaVisible() {
         return false;
     }
     public boolean isInheritAlphaVisible() {
         return false;
     }
-    
+
     public boolean isSizeVisible() {
         return false;
     }
@@ -107,8 +106,8 @@ public class SpineNode extends ClippingNode {
     public boolean isSizeModeVisible() {
         return false;
     }
-    
-    // Skin Id
+
+    // Skin Id property
     public String getSkin() {
         return this.skin;
     }
@@ -118,16 +117,16 @@ public class SpineNode extends ClippingNode {
         reloadResources();
         GuiNodeStateBuilder.setField(this, "SpineSkin", skin);
     }
-    
+
     public void resetSkin() {
         this.skin = (String)GuiNodeStateBuilder.resetField(this, "SpineSkin");
         reloadResources();
     }
-    
+
     public boolean isSkinOverridden() {
         return GuiNodeStateBuilder.isFieldOverridden(this, "SpineSkin", this.skin);
     }
-    
+
     public Object[] getSkinOptions() {
         List<String> ids = new ArrayList<String>();
         if (this.scene != null) {
@@ -137,7 +136,7 @@ public class SpineNode extends ClippingNode {
         }
         return ids.toArray();
     }
-    
+
     public IStatus validateSkin() {
         if (!this.skin.isEmpty() && this.scene != null) {
             boolean exists = this.scene.skins.containsKey(this.skin);
@@ -147,8 +146,8 @@ public class SpineNode extends ClippingNode {
         }
         return Status.OK_STATUS;
     }
-    
-    // Default Animation Id
+
+    // Default Animation Id property
     public String getSpineDefaultAnimation() {
         return this.spineDefaultAnimation;
     }
@@ -158,16 +157,16 @@ public class SpineNode extends ClippingNode {
         reloadResources();
         GuiNodeStateBuilder.setField(this, "SpineDefaultAnimation", spineDefaultAnimation);
     }
-    
+
     public void resetSpineDefaultAnimation() {
         this.spineDefaultAnimation = (String)GuiNodeStateBuilder.resetField(this, "SpineDefaultAnimation");
         reloadResources();
     }
-    
+
     public boolean isSpineDefaultAnimationOverridden() {
         return GuiNodeStateBuilder.isFieldOverridden(this, "SpineDefaultAnimation", this.spineDefaultAnimation);
     }
-    
+
     public Object[] getSpineDefaultAnimationOptions() {
         List<String> ids = new ArrayList<String>();
         if (this.scene != null) {
@@ -177,7 +176,7 @@ public class SpineNode extends ClippingNode {
         }
         return ids.toArray();
     }
-    
+
     public IStatus validateSpineDefaultAnimation() {
         if (!this.spineDefaultAnimation.isEmpty() && this.scene != null) {
             boolean exists = this.scene.getAnimation(this.spineDefaultAnimation) != null;
@@ -189,7 +188,7 @@ public class SpineNode extends ClippingNode {
     }
 
 
-    // Spine Scene
+    // Spine Scene property
     public String getSpineScene() {
         return this.spineScene;
     }
@@ -208,7 +207,7 @@ public class SpineNode extends ClippingNode {
     public boolean isSpineSceneOverridden() {
         return GuiNodeStateBuilder.isFieldOverridden(this, "SpineScene", this.spineScene);
     }
-    
+
 
     @Override
     public void dispose(GL2 gl) {
@@ -218,7 +217,7 @@ public class SpineNode extends ClippingNode {
         }
         this.mesh.dispose(gl);
     }
-    
+
     private static SpineSceneDesc loadSpineSceneDesc(ISceneModel model, String path) {
         if (!path.isEmpty()) {
             InputStream in = null;
@@ -236,7 +235,7 @@ public class SpineNode extends ClippingNode {
         }
         return null;
     }
-    
+
     private static RigScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
         if (!path.isEmpty()) {
             InputStream in = null;
@@ -252,7 +251,6 @@ public class SpineNode extends ClippingNode {
         }
         return null;
     }
-    
 
     private static TextureSetNode loadTextureSetNode(ISceneModel model, String path) {
         if (!path.isEmpty()) {
@@ -278,16 +276,11 @@ public class SpineNode extends ClippingNode {
         return this.textureSetNode;
     }
 
-    public Object[] getTextureOptions() {
-        TexturesNode node = (TexturesNode) getScene().getTexturesNode();
-        return node.getTextures(getModel()).toArray();
-    }
-    
     public Object[] getSpineSceneOptions() {
         SpineScenesNode node = (SpineScenesNode)getScene().getSpineScenesNode();
         return node.getSpineScenes(getModel()).toArray();
     }
-    
+
     private SpineSceneNode getSpineScenesNode() {
         SpineSceneNode spineSceneNode = ((SpineScenesNode) getScene().getSpineScenesNode()).getSpineScenesNode(this.spineScene);
         if(spineSceneNode == null) {
@@ -323,24 +316,19 @@ public class SpineNode extends ClippingNode {
         return Activator.getDefault().getImageRegistry().get(Activator.SPINE_NODE_IMAGE_ID);
     }
 
-    @Override
-    public void setSizeMode(SizeMode sizeMode) {
-        super.setSizeMode(sizeMode);
-    }
-
     public boolean isSizeEditable() {
         return false;
     }
-    
+
     private void updateMesh() {
         if (this.scene == null || this.textureSetNode == null) {
             return;
         }
-        
+
         if (this.mesh == null) {
             this.mesh = new CompositeMesh();
         }
-        
+
         RuntimeTextureSet ts = this.textureSetNode.getRuntimeTextureSet();
         if (ts == null) {
             return;
@@ -367,7 +355,7 @@ public class SpineNode extends ClippingNode {
         });
         this.mesh.update(meshes);
     }
-    
+
     private void updateAABB() {
         AABB aabb = new AABB();
         aabb.setIdentity();
@@ -383,7 +371,7 @@ public class SpineNode extends ClippingNode {
         }
         setAABB(aabb);
     }
-    
+
     private boolean reloadResources() {
         ISceneModel model = getModel();
         if (model != null && getSpineScenesNode() != null) {

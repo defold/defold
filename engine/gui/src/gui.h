@@ -590,9 +590,21 @@ namespace dmGui
     void ClearFonts(HScene scene);
 
     /**
-     * ---
+     * Adds a spine scene with the specified name to the scene.
+     * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add spine scene to
+     * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
+     * @param spine_scene The spine scene to add
+     * @return Outcome of the operation
      */
     Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene);
+
+    /**
+     * Removes a spine scene with the specified name from the scene.
+     * @note Any nodes connected to the same spine_scene_name will also be disconnected from the spine scene. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to remove spine scene from
+     * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
+     */
     void RemoveSpineScene(HScene scene, const char* spine_scene_name);
 
     /**
@@ -858,6 +870,7 @@ namespace dmGui
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
+    dmhash_t GetNodeSpineSceneId(HScene scene, HNode node);
     Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
     Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
     dmhash_t GetNodeSpineScene(HScene scene, HNode node);
@@ -882,7 +895,6 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
-    ///////////////////////////// SPINE STUFF
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 

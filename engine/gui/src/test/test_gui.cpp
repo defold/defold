@@ -100,22 +100,6 @@ bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::
     out_data->m_MeshSet = spine_scene_ptr->m_MeshSet;
     out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
 
-    // out_data->Init();
-    // static float uv_quad[] = {0,1,0,0, 1,0,1,1};
-    // out_data->m_TexCoords = &uv_quad[0];
-    // out_data->m_End = 1;
-    // out_data->m_FPS = 30;
-    // out_data->m_FlipHorizontal = 1;
-    // return dmGui::FETCH_ANIMATION_OK;
-
-    // struct RigSceneDataDesc
-    // {
-    //     const dmArray<dmRig::RigBone>* m_BindPose;
-    //     const dmRigDDF::Skeleton*      m_Skeleton;
-    //     const dmRigDDF::MeshSet*       m_MeshSet;
-    //     const dmRigDDF::AnimationSet*  m_AnimationSet;
-    // };
-
     return true;
 }
 
@@ -155,9 +139,7 @@ public:
         dmRig::NewContextParams rig_params = {0};
         rig_params.m_Context = &m_Context->m_RigContext;
         rig_params.m_MaxRigInstanceCount = 2;
-        if (dmRig::RESULT_OK != dmRig::NewContext(rig_params)) {
-            printf("Could not create rig context!");
-        }
+        dmRig::NewContext(rig_params);
 
         // Bogus font for the metric callback to be run (not actually using the default font)
         dmGui::SetDefaultFont(m_Context, (void*)0x1);

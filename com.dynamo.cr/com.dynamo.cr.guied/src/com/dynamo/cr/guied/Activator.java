@@ -26,9 +26,9 @@ public class Activator extends AbstractUIPlugin {
     public static final String TEMPLATE_NODE_IMAGE_ID = "TEMPLATE_NODE_ICON"; //$NON-NLS-1$
     public static final String TEMPLATE_NODE_OVERRIDDEN_IMAGE_ID = "TEMPLATE_NODE_OVERRIDDEN_ICON"; //$NON-NLS-1$
     public static final String TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
-    public static final String SPINE_NODE_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
-    public static final String SPINE_NODE_OVERRIDDEN_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
-    public static final String SPINE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "SPINESCENE_ICON"; //$NON-NLS-1$
+    public static final String SPINE_NODE_IMAGE_ID = "SPINE_NODE_ICON"; //$NON-NLS-1$
+    public static final String SPINE_NODE_OVERRIDDEN_IMAGE_ID = "SPINE_NODE_OVERRIDDEN_ICON"; //$NON-NLS-1$
+    public static final String SPINE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "SPINE_NODE_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_IMAGE_ID = "TEXTURE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_ATLAS_IMAGE_ID = "TEXTURE_ATLAS_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_TILESOURCE_IMAGE_ID = "TEXTURE_TILESOURCE_ICON"; //$NON-NLS-1$
@@ -85,6 +85,9 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, TEMPLATE_NODE_IMAGE_ID, "icons/template.png");
         registerImage(reg, TEMPLATE_NODE_OVERRIDDEN_IMAGE_ID, "icons/template_overridden.png");
         registerImage(reg, TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/template_overridden_template.png");
+        registerImage(reg, SPINE_NODE_IMAGE_ID, "icons/spine.png");
+        registerImage(reg, SPINE_NODE_OVERRIDDEN_IMAGE_ID, "icons/spine_overridden.png");
+        registerImage(reg, SPINE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/spine_overridden_template.png");
         registerImage(reg, TEXTURE_IMAGE_ID, "icons/picture.png");
         registerImage(reg, TEXTURE_ATLAS_IMAGE_ID, "icons/images.png");
         registerImage(reg, TEXTURE_TILESOURCE_IMAGE_ID, "icons/tile_set.png");

@@ -582,8 +582,6 @@ namespace dmGui
         {
             if (scene->m_Nodes[i].m_Node.m_SpineSceneHash == name_hash)
                 scene->m_Nodes[i].m_Node.m_SpineScene = 0;
-            // TODO need to clean up m_RigInstance here
-                // SetNodeSpineScene(scene, i, name_hash, 0, 0);
         }
     }
 
@@ -1581,41 +1579,11 @@ namespace dmGui
         return result;
     }
 
-    void UpdateSpineNodes(HScene scene, float dt)
-    {
-        /*
-        const dmArray<dmRig::RigBone>& bind_pose = *rig_data.m_BindPose;
-        const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        n->m_Node.m_SpineBoneNodes = new dmArray<HNode>();
-        n->m_Node.m_SpineBoneNodes->SetCapacity(bone_count);
-        n->m_Node.m_SpineBoneNodes->SetSize(bone_count);
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-            if (i == 0)
-            {
-                transform = dmTransform::Mul(dmTransform::ToTransform(n->m_Node.m_LocalTransform), transform);
-            }
-            // HNode b = NewNode(scene, Point3(transform.GetTranslation()), Vector3(10, 10, 0), NODE_TYPE_BOX);
-            HNode b = NewNode(scene, Point3(transform.GetTranslation()), Vector3(10, 10, 0), NODE_TYPE_BOX);
-            SetNodePosition(scene, b, Point3(transform.GetTranslation()));
-            SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
-            // SetNodeProperty(scene, b, dmGui::PROPERTY_SCALE, transform.GetScale());
-            // TODO asdasd
-            (*n->m_Node.m_SpineBoneNodes)[i] = b;
-
-        }
-        */
-    }
-
     Result UpdateScene(HScene scene, float dt)
     {
         Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, LUA_NOREF, (void*)&dt);
 
         UpdateAnimations(scene, dt);
-
-        UpdateSpineNodes(scene, dt);
 
         uint32_t total_nodes = 0;
         uint32_t active_nodes = 0;
@@ -2276,7 +2244,6 @@ namespace dmGui
         HScene scene = (HScene)userdata1;
         InternalNode* n = (InternalNode*)userdata2;
 
-        // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(n->m_Node.m_RigInstance);
         uint32_t bone_count = pose.Size();
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -2287,6 +2254,12 @@ namespace dmGui
             SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
             SetNodeProperty(scene, b, dmGui::PROPERTY_SCALE, (Vector4)transform.GetScale());
         }
+    }
+
+    dmhash_t GetNodeSpineSceneId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_SpineSceneHash;
     }
 
     Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id)
@@ -2499,7 +2472,6 @@ namespace dmGui
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
-    ////////////// SPINE STUFF
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
