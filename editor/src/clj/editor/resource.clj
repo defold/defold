@@ -180,3 +180,5 @@
   (if resource
     (proj-path resource)
     ""))
+
+(g/deftype ResourceVec [(s/maybe (s/protocol Resource))])

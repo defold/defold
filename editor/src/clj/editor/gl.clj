@@ -136,6 +136,12 @@
            (p/unbind b# gl#)))
        res#)))
 
+(defn bind [^GL2 gl bindable render-args]
+  (p/bind bindable gl render-args))
+
+(defn unbind [^GL2 gl bindable]
+  (p/unbind bindable gl))
+
 (defmacro do-gl
   [glsymb render-args bindings & body]
   (assert (even? (count bindings)) "Bindings must contain an even number of forms")

@@ -13,7 +13,7 @@
             [editor.scene-text :as scene-text]
             [editor.types :as types])
   (:import  [javax.media.opengl GL GL2]
-            [javax.vecmath Point3d]
+            [javax.vecmath Matrix4d Point3d]
             [editor.types Camera]))
 
 (set! *warn-on-reflection* true)
@@ -50,29 +50,30 @@
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
 (defn render-lines [^GL2 gl render-args renderables rcount]
-  (let [camera (:camera render-args)
-        viewport (:viewport render-args)]
-    (doseq [renderable renderables
-            :let [lines (get-in renderable [:user-data :lines])
-                  tris (get-in renderable [:user-data :tris])
-                  texts (get-in renderable [:user-data :texts])]]
-      (when tris
-        (let [vcount (count tris)
-              vertex-binding (vtx/use-with ::tris tris line-shader)]
-          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
-      (when texts
-        (let [[r g b a] label-color]
-          (doseq [[[x y] msg align] texts]
-            (let [[w h] (scene-text/bounds gl msg)
-                  x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
-                  y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
-              (scene-text/overlay gl msg x y r g b a)))))
-      (when lines
-        (let [vcount (count lines)
-              vertex-binding (vtx/use-with ::lines lines line-shader)]
-          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))))
+  (let [view ^Matrix4d (:view render-args)
+        z (.getElement view 2 2)]
+    (when (= z 1.0)
+      (doseq [renderable renderables
+              :let [lines (get-in renderable [:user-data :lines])
+                    tris (get-in renderable [:user-data :tris])
+                    texts (get-in renderable [:user-data :texts])]]
+        (when tris
+          (let [vcount (count tris)
+                vertex-binding (vtx/use-with ::tris tris line-shader)]
+            (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+              (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
+        (when texts
+          (let [[r g b a] label-color]
+            (doseq [[[x y] msg align] texts]
+              (let [[w h] (scene-text/bounds gl msg)
+                    x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
+                    y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
+                (scene-text/overlay gl msg x y r g b a)))))
+        (when lines
+          (let [vcount (count lines)
+                vertex-binding (vtx/use-with ::lines lines line-shader)]
+            (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+              (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))))
 
 (defn- vb [vs vcount]
   (when (< 0 vcount)
