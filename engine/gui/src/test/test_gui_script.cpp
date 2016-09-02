@@ -845,6 +845,11 @@ TEST_F(dmGuiScriptTest, SpineScenes)
 
         dmGui::DeleteScene(scene);
         dmGui::DeleteScript(script);
+
+        delete dummy_data;
+        delete skeleton;
+        delete mesh_set;
+        delete animation_set;
 }
 
 int main(int argc, char **argv)
