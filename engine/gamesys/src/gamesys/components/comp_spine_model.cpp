@@ -109,51 +109,56 @@ namespace dmGameSystem
             return;
         }
 
-        switch (event_data.m_Type) {
-            case dmRig::RIG_EVENT_TYPE_DONE: {
-                    dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
+        switch (event_data.m_Type)
+        {
+            case dmRig::RIG_EVENT_TYPE_DONE:
+            {
+                dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
 
-                    dmGameSystemDDF::SpineAnimationDone message;
-                    message.m_AnimationId = event_data.m_DataDone.m_AnimationId;
-                    message.m_Playback    = event_data.m_DataDone.m_Playback;
+                dmGameSystemDDF::SpineAnimationDone message;
+                message.m_AnimationId = event_data.m_DataDone.m_AnimationId;
+                message.m_Playback    = event_data.m_DataDone.m_Playback;
 
-                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
-                    uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
-                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
-                    dmMessage::ResetURL(component->m_Listener);
-                    if (result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send animation_done to listener.");
-                    }
+                uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
+                uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                dmMessage::ResetURL(component->m_Listener);
+                if (result != dmMessage::RESULT_OK)
+                {
+                    dmLogError("Could not send animation_done to listener.");
+                }
 
-                } break;
-            case dmRig::RIG_EVENT_TYPE_SPINE: {
+                break;
+            }
+            case dmRig::RIG_EVENT_TYPE_SPINE:
+            {
+                if (!dmMessage::IsSocketValid(receiver.m_Socket))
+                {
+                    receiver = sender;
+                    receiver.m_Fragment = 0; // broadcast to sibling components
+                }
 
-                    if (!dmMessage::IsSocketValid(receiver.m_Socket))
-                    {
-                        receiver = sender;
-                        receiver.m_Fragment = 0; // broadcast to sibling components
-                    }
+                dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
 
-                    dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
+                dmGameSystemDDF::SpineEvent event;
+                event.m_EventId     = event_data.m_DataSpine.m_EventId;
+                event.m_AnimationId = event_data.m_DataSpine.m_AnimationId;
+                event.m_BlendWeight = event_data.m_DataSpine.m_BlendWeight;
+                event.m_T           = event_data.m_DataSpine.m_T;
+                event.m_Integer     = event_data.m_DataSpine.m_Integer;
+                event.m_Float       = event_data.m_DataSpine.m_Float;
+                event.m_String      = event_data.m_DataSpine.m_String;
 
-                    dmGameSystemDDF::SpineEvent event;
-                    event.m_EventId     = event_data.m_DataSpine.m_EventId;
-                    event.m_AnimationId = event_data.m_DataSpine.m_AnimationId;
-                    event.m_BlendWeight = event_data.m_DataSpine.m_BlendWeight;
-                    event.m_T           = event_data.m_DataSpine.m_T;
-                    event.m_Integer     = event_data.m_DataSpine.m_Integer;
-                    event.m_Float       = event_data.m_DataSpine.m_Float;
-                    event.m_String      = event_data.m_DataSpine.m_String;
+                uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
+                uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size);
+                if (result != dmMessage::RESULT_OK)
+                {
+                    dmLogError("Could not send spine_event to listener.");
+                }
 
-                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
-                    uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size);
-                    if (result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send spine_event to listener.");
-                    }
-                } break;
+                break;
+            }
             default:
                 dmLogError("Unknown rig event received (%d).", event_data.m_Type);
                 break;

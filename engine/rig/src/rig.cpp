@@ -139,26 +139,21 @@ namespace dmRig
 
     Result SetSkin(HRigInstance instance, dmhash_t skin)
     {
-        const dmRigDDF::MeshEntry* mesh_entry = 0x0;
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
         for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
         {
             if (skin == mesh_set->m_MeshEntries[i].m_Id)
             {
-                mesh_entry = &mesh_set->m_MeshEntries[i];
-                break;
+                instance->m_MeshEntry = &mesh_set->m_MeshEntries[i];
+                instance->m_Skin = skin;
+
+                UpdateMeshProperties(instance);
+
+                return dmRig::RESULT_OK;
             }
         }
-        if (mesh_entry == 0x0)
-        {
-            return dmRig::RESULT_FAILED;
-        }
-        instance->m_MeshEntry = mesh_entry;
-        instance->m_Skin = skin;
 
-        UpdateMeshProperties(instance);
-
-        return dmRig::RESULT_OK;
+        return dmRig::RESULT_FAILED;
     }
 
     static void UpdateBlend(RigInstance* instance, float dt)
@@ -557,12 +552,7 @@ namespace dmRig
                         blend_weight = 1.0f - fade_rate;
                     }
                     UpdatePlayer(instance, p, dt, blend_weight);
-                    bool draw_order = true;
-                    if (player == p) {
-                        draw_order = fade_rate >= 0.5f;
-                    } else {
-                        draw_order = fade_rate < 0.5f;
-                    }
+                    bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
                     ApplyAnimation(p, pose, ik_animation, properties, alpha, instance->m_Skin, draw_order);
                     if (player == p)
                     {

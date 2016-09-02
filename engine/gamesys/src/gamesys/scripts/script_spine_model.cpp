@@ -277,7 +277,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 3, &target, &sender);
         if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
         {
-            luaL_error(L, "spine.set_ik_target can only use instances within the same collection.");
+            return luaL_error(L, "spine.set_ik_target can only use instances within the same collection.");
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
