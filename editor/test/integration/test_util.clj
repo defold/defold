@@ -28,6 +28,7 @@
             [editor.gui :as gui]
             [editor.json :as json]
             [editor.mesh :as mesh]
+            [editor.model :as model]
             [editor.material :as material]
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
@@ -66,6 +67,7 @@
         (json/register-resource-types workspace)
         (material/register-resource-types workspace)
         (mesh/register-resource-types workspace)
+        (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
