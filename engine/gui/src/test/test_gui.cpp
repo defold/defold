@@ -195,10 +195,10 @@ public:
 
     virtual void TearDown()
     {
-        dmRig::DeleteContext(m_Context->m_RigContext);
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
+        dmRig::DeleteContext(m_Context->m_RigContext);
         dmMessage::DeleteSocket(m_Socket);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
@@ -4147,7 +4147,7 @@ TEST_F(dmGuiTest, SpineNodeNoData)
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0);
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0));
 }
 
 TEST_F(dmGuiTest, SpineNodeDummyData)
@@ -4175,9 +4175,104 @@ TEST_F(dmGuiTest, SpineNodeDummyData)
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)"")));
 
     delete dummy_data;
+    delete skeleton;
+    delete mesh_set;
+    delete animation_set;
+}
+
+static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton* skeleton)
+{
+    // Calculate bind pose
+    // (code from res_rig_scene.h)
+    uint32_t bone_count = skeleton->m_Bones.m_Count;
+    bind_pose->SetCapacity(bone_count);
+    bind_pose->SetSize(bone_count);
+    for (uint32_t i = 0; i < bone_count; ++i)
+    {
+        dmRig::RigBone* bind_bone = &(*bind_pose)[i];
+        dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
+        bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+        if (i > 0)
+        {
+            bind_bone->m_LocalToModel = dmTransform::Mul((*bind_pose)[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
+            if (!bone->m_InheritScale)
+            {
+                bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
+            }
+        }
+        else
+        {
+            bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
+        }
+        bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
+        bind_bone->m_ParentIndex = bone->m_Parent;
+        bind_bone->m_Length = bone->m_Length;
+    }
+}
+
+TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    // Dummy data
+    dmArray<dmRig::RigBone> bind_pose;
+    dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+
+    uint32_t bone_count = 2;
+    skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
+    skeleton->m_Bones.m_Count = bone_count;
+
+    // Bone 0
+    dmRigDDF::Bone& bone0 = skeleton->m_Bones.m_Data[0];
+    bone0.m_Parent       = 0xffff;
+    bone0.m_Id           = 0;
+    bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
+    bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone0.m_InheritScale = false;
+    bone0.m_Length       = 0.0f;
+
+    // Bone 1
+    dmRigDDF::Bone& bone1 = skeleton->m_Bones.m_Data[1];
+    bone1.m_Parent       = 0;
+    bone1.m_Id           = 1;
+    bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
+    bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
+    bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone1.m_InheritScale = false;
+    bone1.m_Length       = 1.0f;
+
+    BuildBindPose(&bind_pose, skeleton);
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    dummy_data->m_BindPose = &bind_pose;
+    dummy_data->m_Skeleton = skeleton;
+    dummy_data->m_MeshSet = mesh_set;
+    dummy_data->m_AnimationSet = animation_set;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)"")));
+
+    ASSERT_EQ(0, GetNodeSpineBone(m_Scene, node, 123));
+    ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 0));
+    ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 1));
+    ASSERT_EQ(0, GetNodeSpineBone(m_Scene, node, 2));
+
+    delete dummy_data;
+    delete [] skeleton->m_Bones.m_Data;
     delete skeleton;
     delete mesh_set;
     delete animation_set;
