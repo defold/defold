@@ -6,15 +6,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import javax.media.opengl.GL2;
 import javax.vecmath.Vector3d;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.bob.util.RigScene;
+import com.dynamo.bob.util.RigScene.Animation;
 import com.dynamo.bob.util.RigScene.Mesh;
 import com.dynamo.bob.util.RigScene.UVTransformProvider;
 import com.dynamo.cr.guied.Activator;
@@ -27,6 +32,7 @@ import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.spine.scene.CompositeMesh;
+import com.dynamo.cr.spine.scene.Messages;
 import com.dynamo.cr.spine.scene.SpineModelNode.TransformProvider;
 import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
@@ -122,6 +128,26 @@ public class SpineNode extends ClippingNode {
         return GuiNodeStateBuilder.isFieldOverridden(this, "SpineSkin", this.skin);
     }
     
+    public Object[] getSkinOptions() {
+        List<String> ids = new ArrayList<String>();
+        if (this.scene != null) {
+            for (Map.Entry<String, List<Mesh>> n : this.scene.skins.entrySet()) {
+                ids.add(n.getKey());
+            }
+        }
+        return ids.toArray();
+    }
+    
+    public IStatus validateSkin() {
+        if (!this.skin.isEmpty() && this.scene != null) {
+            boolean exists = this.scene.skins.containsKey(this.skin);
+            if (!exists) {
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpineModelNode_skin_INVALID, this.skin));
+            }
+        }
+        return Status.OK_STATUS;
+    }
+    
     // Default Animation Id
     public String getSpineDefaultAnimation() {
         return this.spineDefaultAnimation;
@@ -141,6 +167,27 @@ public class SpineNode extends ClippingNode {
     public boolean isSpineDefaultAnimationOverridden() {
         return GuiNodeStateBuilder.isFieldOverridden(this, "SpineDefaultAnimation", this.spineDefaultAnimation);
     }
+    
+    public Object[] getSpineDefaultAnimationOptions() {
+        List<String> ids = new ArrayList<String>();
+        if (this.scene != null) {
+            for (Map.Entry<String, Animation> n : this.scene.animations.entrySet()) {
+                ids.add(n.getKey());
+            }
+        }
+        return ids.toArray();
+    }
+    
+    public IStatus validateSpineDefaultAnimation() {
+        if (!this.spineDefaultAnimation.isEmpty() && this.scene != null) {
+            boolean exists = this.scene.getAnimation(this.spineDefaultAnimation) != null;
+            if (!exists) {
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpineModelNode_defaultAnimation_INVALID, this.spineDefaultAnimation));
+            }
+        }
+        return Status.OK_STATUS;
+    }
+
 
     // Spine Scene
     public String getSpineScene() {
@@ -289,6 +336,11 @@ public class SpineNode extends ClippingNode {
         if (this.scene == null || this.textureSetNode == null) {
             return;
         }
+        
+        if (this.mesh == null) {
+            this.mesh = new CompositeMesh();
+        }
+        
         RuntimeTextureSet ts = this.textureSetNode.getRuntimeTextureSet();
         if (ts == null) {
             return;
