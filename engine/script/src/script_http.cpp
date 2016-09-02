@@ -27,6 +27,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# HTTP API documentation
+     *
+     * Functions for performing HTTP requests.
+     *
+     * @name HTTP
+     * @namespace http
+     */
+
     dmHttpService::HHttpService g_Service = 0;
     int g_ServiceRefCount = 0;
     uint64_t g_Timeout = 0;

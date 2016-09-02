@@ -25,11 +25,13 @@ extern "C"
 
 namespace dmGameSystem
 {
-    /*# ParticleFX documentation
+    /*# Particle effects API documentation
      *
-     * ParticleFX documentation
-     * @name
-     * @package
+     * Functions for controlling particle effect component playback and
+     * shader constants.
+     *
+     * @name Particle effects
+     * @namespace particlefx
      */
 
     /*# start playing a particle FX

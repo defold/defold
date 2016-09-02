@@ -98,7 +98,7 @@ message TileGrid
 /*# (DEPRECATED) changes a tile in a tile map
  * Send this message to a tile map component to change the tile in one of its cells.
  *
- * DEPRECATED! Use <code>tilemap.set_tile()</code> instead.
+ * @deprecated Use <code>tilemap.set_tile()</code> instead.
  *
  * @examples
  * <p>
