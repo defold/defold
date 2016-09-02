@@ -2265,7 +2265,10 @@ namespace dmGui
     Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_Node.m_NodeType = NODE_TYPE_SPINE;
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
+            return RESULT_INVAL_ERROR;
+        }
+
         n->m_Node.m_SpineSceneHash = spine_scene_id;
 
         // Delete previous spine scene and bones

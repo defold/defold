@@ -31,6 +31,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
 }
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
+bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
 class dmGuiScriptTest : public ::testing::Test
 {
@@ -49,10 +50,16 @@ public:
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
         m_Context = dmGui::NewContext(&context_params);
+
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &m_Context->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = 2;
+        dmRig::NewContext(rig_params);
     }
 
     virtual void TearDown()
     {
+        dmRig::DeleteContext(m_Context->m_RigContext);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
@@ -64,6 +71,21 @@ void GetTextMetricsCallback(const void* font, const char* text, float width, boo
     out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
     out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
     out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
+}
+
+bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
+{
+    if (!spine_scene) {
+        return false;
+    }
+
+    dmGui::RigSceneDataDesc* spine_scene_ptr = (dmGui::RigSceneDataDesc*)spine_scene;
+    out_data->m_BindPose = spine_scene_ptr->m_BindPose;
+    out_data->m_Skeleton = spine_scene_ptr->m_Skeleton;
+    out_data->m_MeshSet = spine_scene_ptr->m_MeshSet;
+    out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
+
+    return true;
 }
 
 TEST_F(dmGuiScriptTest, URLOutsideFunctions)
@@ -776,6 +798,50 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
             }
             ++ticks;
         }
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, SpineScenes)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmArray<dmRig::RigBone> bind_pose;
+        dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
+        dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
+        dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        dummy_data->m_BindPose = &bind_pose;
+        dummy_data->m_Skeleton = skeleton;
+        dummy_data->m_MeshSet = mesh_set;
+        dummy_data->m_AnimationSet = animation_set;
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    local n = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    gui.set_pivot(n, gui.PIVOT_SW)\n"
+                "    gui.set_position(n, vmath.vector3(0, 0, 0))\n"
+                "    gui.animate(n, gui.PROP_SCALE, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, nil, gui.PLAYBACK_LOOP_FORWARD)\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
 
         dmGui::DeleteScene(scene);
         dmGui::DeleteScript(script);
