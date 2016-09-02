@@ -16,17 +16,30 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.*;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
+import javax.ws.rs.core.UriInfo;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.security.Principal;
-import java.util.Map;
 import java.util.Objects;
 
 public class SecurityFilter implements ContainerRequestFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityFilter.class);
-    private static final String REALM = "HTTPS Example authentication";
+    private static final String REALM = "Defold";
+
+    /**
+     * A request to a path that exactly matches any string in the array will be skipped by this filter.
+     */
+    private static final String[] SKIP_REQUEST_PATHS_EQUALS = {"/login"};
+
+    /**
+     * A request to a path that starts with any string in the array will be skipped by this filter.
+     */
+    private static final String[] SKIP_REQUEST_PATHS_PREFIXED = {"/login/openid/google", "/login/oauth/google",
+            "/login/openid/yahoo", "/login/openid/exchange", "/login/openid/register","/login/oauth/exchange",
+            "/login/oauth/register", "/prospects", "/discourse/sso"};
 
     @Context
     UriInfo uriInfo;
@@ -43,23 +56,33 @@ public class SecurityFilter implements ContainerRequestFilter {
     @Override
     public ContainerRequest filter(ContainerRequest request) {
         MDC.put("userId", Long.toString(-1));
+
         String path = request.getAbsolutePath().getPath();
-        if (!path.equals("/login")
-                && !path.startsWith("/login/openid/google")
-                && !path.startsWith("/login/oauth/google")
-                && !path.startsWith("/login/openid/yahoo")
-                && !path.startsWith("/login/openid/exchange") && !path.startsWith("/login/openid/register")
-                && !path.startsWith("/login/oauth/exchange") && !path.startsWith("/login/oauth/register")
-                && !path.startsWith("/prospects")) {
-            // Only authenticate users for paths != /login or != /login/openid or != /prospects
+
+        if (processRequestPath(path)) {
             User user = authenticate(request);
             request.setSecurityContext(new Authorizer(user));
+
             if (user != null && user.getId() != null /* id is null for anonymous */) {
                 MDC.put("userId", Long.toString(user.getId()));
             }
         }
 
         return request;
+    }
+
+    private boolean processRequestPath(String path) {
+        for (String s : SKIP_REQUEST_PATHS_EQUALS) {
+            if (path.equals(s)) {
+                return false;
+            }
+        }
+        for (String s : SKIP_REQUEST_PATHS_PREFIXED) {
+            if (path.startsWith(s)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private User authenticate(ContainerRequest request) {
@@ -135,23 +158,6 @@ public class SecurityFilter implements ContainerRequestFilter {
         }
 
         /*
-            Cookie authentication.
-
-            Note: This is used by the Discourse SSO solution in order to authenticate users that are logged in in the
-             dashboard.
-         */
-        Map<String, Cookie> cookies = request.getCookies();
-        Cookie emailCookie = cookies.get("email");
-        Cookie authCookie = cookies.get("auth");
-        if (emailCookie != null && authCookie != null) {
-            try {
-                return authenticateAccessToken(URLDecoder.decode(emailCookie.getValue(), "UTF-8"), authCookie.getValue(), em);
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        /*
          * This experimental. Return an anonymous user if not
          * authToken/email header is set. We could perhaps get rid of
          * !path.startsWith("..") above?
@@ -170,7 +176,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             return user;
         }
         LOGGER.warn("User authentication failed for user {}", email);
-        throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
+        throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
     }
 
     private class Authorizer implements SecurityContext {
