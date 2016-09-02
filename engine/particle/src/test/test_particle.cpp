@@ -43,9 +43,24 @@ protected:
     dmParticle::HPrototype m_Prototype;
     uint8_t* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
+
+    dmParticle::EmitterStateChanged m_CallbackFunc;
+    dmParticle::EmitterStateChangedData m_CallbackData;
 };
 
 static const float EPSILON = 0.000001f;
+
+struct EmitterStateChangedCallbackTestData
+{
+    EmitterStateChangedCallbackTestData()
+    : m_CallbackWasCalled(false)
+    , m_NumStateChanges(0)
+    {
+    }
+
+    bool m_CallbackWasCalled;
+    uint32_t m_NumStateChanges;
+};
 
 // tile is 0-based
 void ParticleTest::VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas)
@@ -200,9 +215,76 @@ void RenderInstanceCallback(void* usercontext, void* material, void* texture, co
     data->m_VertexCount = vertex_count;
 }
 
+void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
+{
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*) user_data;
+    data->m_CallbackWasCalled = true;
+    ++data->m_NumStateChanges;
+}
+
 TEST_F(ParticleTest, VertexBufferSize)
 {
     ASSERT_EQ(6 * sizeof(dmParticle::Vertex), dmParticle::GetVertexBufferSize(1));
+}
+
+/**
+* Verify emitter state change callback is called correct number of times
+*/
+TEST_F(ParticleTest, CallbackCalledCorrectNumTimes)
+{
+    float dt = 1.2f;
+    EmitterStateChangedCallbackTestData* data = new EmitterStateChangedCallbackTestData();
+    m_CallbackData.m_StateChangedCallback = EmitterStateChangedCallback;
+    m_CallbackData.m_UserData = (void*)data;
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, &m_CallbackData);
+    dmParticle::StartInstance(m_Context, instance); // Prespawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Spawning & Postspawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Sleeping
+    ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_TRUE(data->m_NumStateChanges == 4);
+    dmParticle::DestroyInstance(m_Context, instance);
+    delete data;
+}
+
+/**
+* Verify emitter state change callback is only called when there a state change has occured
+*/
+TEST_F(ParticleTest, CallbackCalledSingleTimePerStateChange)
+{
+    float dt = 0.1f;
+    EmitterStateChangedCallbackTestData* data = new EmitterStateChangedCallbackTestData();
+    m_CallbackData.m_StateChangedCallback = EmitterStateChangedCallback;
+    m_CallbackData.m_UserData = (void*)data;
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, &m_CallbackData);
+    dmParticle::StartInstance(m_Context, instance); // Prespawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Spawning & Postspawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Still in Spawning, should not trigger callback
+    ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_TRUE(data->m_NumStateChanges == 2);
+    dmParticle::DestroyInstance(m_Context, instance);
+    delete data;
+}
+
+/**
+* Verify emitter state change callback is called for all emitters
+*/
+TEST_F(ParticleTest, CallbackCalledMultipleEmitters)
+{
+    float dt = 1.2f;
+    EmitterStateChangedCallbackTestData* data = new EmitterStateChangedCallbackTestData();
+    m_CallbackData.m_StateChangedCallback = EmitterStateChangedCallback;
+    m_CallbackData.m_UserData = (void*)data;
+    ASSERT_TRUE(LoadPrototype("once_three_emitters.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, &m_CallbackData);
+    dmParticle::StartInstance(m_Context, instance); // Prespawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Spawning & Postspawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Sleeping
+    dmParticle::DestroyInstance(m_Context, instance);
+    ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_TRUE(data->m_NumStateChanges == 12);
+    delete data;
 }
 
 /**
