@@ -112,14 +112,16 @@
 (defn vp-not-empty? [^Region viewport]
   (not (types/empty-space? viewport)))
 
-(defn z-distance [camera viewport ^Matrix4d world-transform ^Point3d tmp-p3d]
-  (let [^Matrix4d t (or world-transform geom/Identity4d)
-        _ (.transform t tmp-p3d)
-        p (c/camera-project camera viewport tmp-p3d)]
-    (long (* Integer/MAX_VALUE (max 0.0 (.z p))))))
+(defn z-distance [^Matrix4d view-proj ^Matrix4d world-transform ^Vector4d tmp-v4d]
+  (let [^Matrix4d t (or world-transform geom/Identity4d)]
+    (.getColumn t 3 tmp-v4d)
+    (.transform view-proj tmp-v4d)
+    (let [ndc-z (/ (.z tmp-v4d) (.w tmp-v4d))
+          wz (min 1.0 (max 0.0 (* (+ ndc-z 1.0) 0.5)))]
+      (long (* Integer/MAX_VALUE (max 0.0 wz))))))
 
-(defn render-key [camera viewport ^Matrix4d world-transform tmp-p3d]
-  (- Long/MAX_VALUE (z-distance camera viewport world-transform tmp-p3d)))
+(defn render-key [^Matrix4d view-proj ^Matrix4d world-transform tmp-v4d]
+  (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d)))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -213,7 +215,7 @@
             (recur (subvec renderables count) (long end) (inc batch-index) (conj! batches [offset end])))))
       (persistent! batches))))
 
-(defn- render-sort [renderables camera viewport]
+(defn- render-sort [renderables]
   (sort-by :render-key renderables))
 
 (defn generic-render-args [viewport camera]
@@ -238,7 +240,7 @@
       (setup-pass context gl pass camera viewport)
       (batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(defn- flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables camera viewport tmp-p3d]
+(defn- flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
   (let [renderable (:renderable scene)
         ^Matrix4d trans (or (:transform scene) geom/Identity4d)
         parent-world world-transform
@@ -254,23 +256,24 @@
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world)
-                                :render-key (:index renderable (render-key camera viewport world-transform tmp-p3d))))]
+                                :render-key (:index renderable (render-key view-proj world-transform tmp-v4d))))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected-id (types/selection? pass))
         (conj! out-selected-renderables (assoc new-renderable :node-id selected-id))))
     (doseq [child-scene (:children scene)]
-      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d))))
+      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables view-proj tmp-v4d))))
 
-(defn produce-render-data [scene selection aux-renderables camera viewport]
+(defn produce-render-data [scene selection aux-renderables camera]
   (let [selection-set (set selection)
         out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
         out-selected-renderables (transient [])
         world-transform (doto (Matrix4d.) (.setIdentity))
-        tmp-p3d (Point3d.)
-        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d)
+        view-proj (c/camera-view-proj-matrix camera)
+        tmp-v4d (Vector4d.)
+        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables view-proj tmp-v4d)
         out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
-        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
+        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables)))]) out-renderables))
         out-selected-renderables (persistent! out-selected-renderables)]
     {:renderables out-renderables
      :selected-renderables out-selected-renderables}))
@@ -282,7 +285,7 @@
   (input aux-renderables pass/RenderData :array)
 
   (output viewport Region :abstract)
-  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
+  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera] (produce-render-data scene selection aux-renderables camera)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:renderables render-data)))
   (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
   (output selected-aabb AABB :cached (g/fnk [selected-renderables scene] (if (empty? selected-renderables)
@@ -368,7 +371,7 @@
                  (setup-pass context gl pass camera viewport picking-rect)
                  (let [renderables (get renderables pass)
                        batches (batch-render gl render-args renderables true :select-batch-key)]
-                   (render-sort (end-select gl select-buffer renderables batches) camera viewport))))
+                   (render-sort (end-select gl select-buffer renderables batches)))))
           flatten
           (mapv :node-id)))
       (finally
@@ -390,7 +393,7 @@
               (setup-pass context gl pass camera viewport tool-picking-rect)
               (let [renderables (get tool-renderables pass)
                     batches (batch-render gl render-args renderables true :select-batch-key)]
-                (render-sort (end-select gl select-buffer renderables batches) camera viewport))))))
+                (render-sort (end-select gl select-buffer renderables batches)))))))
       (finally
         (.release context)))
     []))
