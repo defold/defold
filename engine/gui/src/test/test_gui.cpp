@@ -197,8 +197,8 @@ public:
     {
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
-        dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmRig::DeleteContext(m_Context->m_RigContext);
+        dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmMessage::DeleteSocket(m_Socket);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
@@ -2524,12 +2524,12 @@ TEST_F(dmGuiTest, Picking)
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
 
     // Account for some loss in precision
-    Vector3 min(EPSILON, EPSILON, 0);
-    Vector3 max = size - min;
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), min.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), max.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, max.getX(), max.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, max.getX(), min.getY()));
+    Vector3 tmin(EPSILON, EPSILON, 0);
+    Vector3 tmax = size - tmin;
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmin.getX(), tmin.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmin.getX(), tmax.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmax.getX(), tmax.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmax.getX(), tmin.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(size.getX() + 0.5f), size.getY()));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
@@ -2558,15 +2558,15 @@ TEST_F(dmGuiTest, PickingDisabledAdjust)
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
 
     // Account for some loss in precision
-    Vector3 min(EPSILON, EPSILON, 0);
-    Vector3 max = size - min;
+    Vector3 tmin(EPSILON, EPSILON, 0);
+    Vector3 tmax = size - tmin;
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), min.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmin.getX(), tmin.getY()));
 
     // If the physical window is doubled (as in our case), the visual gui elements are at
     // 50% of their original positions/sizes since we have disabled adjustments.
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, min.getX(), max.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX()*ref_scale, max.getY()*ref_scale));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, tmin.getX(), tmax.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmin.getX()*ref_scale, tmax.getY()*ref_scale));
 }
 
 TEST_F(dmGuiTest, ScriptPicking)
