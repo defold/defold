@@ -17,7 +17,9 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.util.Optional;
 
 @Path("discourse")
@@ -56,7 +58,13 @@ public class DiscourseSSOResource extends BaseResource {
 
         if (email != null && authToken != null) {
 
-            Optional<User> userOptional = authenticate(email, authToken, httpServletRequest.getRemoteAddr());
+            Optional<User> userOptional;
+            try {
+                userOptional = authenticate(URLDecoder.decode(email, "UTF-8"), authToken, httpServletRequest.getRemoteAddr());
+            } catch (UnsupportedEncodingException e) {
+                LOGGER.error("Failed to decode cookie.", e);
+                throw new RuntimeException(e);
+            }
 
             if (userOptional.isPresent()) {
 
