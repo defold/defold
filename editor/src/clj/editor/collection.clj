@@ -22,6 +22,7 @@
             [editor.gl.pass :as pass]
             [editor.progress :as progress]
             [editor.properties :as properties]
+            [editor.util :as util]
             [clojure.string :as str])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -77,7 +78,7 @@
       new-scene)))
 
 (defn- label-sort-by-fn [v]
-  (when-let [label (:label v)] (str/lower-case label)))
+  (when-let [label (:label v)] (util/natural-order-key (str/lower-case label))))
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
