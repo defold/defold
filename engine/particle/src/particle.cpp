@@ -215,6 +215,7 @@ namespace dmParticle
         if (instance == INVALID_INSTANCE) return;
         Instance* i = GetInstance(context, instance);
         if (!i) return;
+        ResetEmitterStateChangedData(i);
         uint32_t index = instance & 0xffff;
         context->m_InstanceIndexPool.Push(index);
         context->m_Instances[index] = 0;

@@ -77,11 +77,10 @@ namespace dmGameSystem
             dmLogError("error calling particle emitter callback, error: %s", lua_tostring(data.m_L, -1));
         }
 
-        // The last emitter belonging to this particlefx har gone to sleep, release resources.
+        // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
         if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
         {
             lua_unref(data.m_L, data.m_LuaCallbackRef);
-            delete[] (char*)user_data;
         }
     }
 
