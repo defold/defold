@@ -1239,7 +1239,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             SpineModelComponent& component = *components[i];
-            if (!component.m_DoRender)
+            if (!component.m_DoRender || !component.m_Enabled)
                 continue;
 
             const Vector4 trans = component.m_World.getCol(3);
