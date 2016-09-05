@@ -32,7 +32,7 @@ namespace dmGameObject
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
-    const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
+    const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
     static Prototype EMPTY_PROTOTYPE;
 
