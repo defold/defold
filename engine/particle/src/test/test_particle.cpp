@@ -244,7 +244,6 @@ TEST_F(ParticleTest, CallbackCalledCorrectNumTimes)
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_TRUE(data->m_NumStateChanges == 4);
     dmParticle::DestroyInstance(m_Context, instance);
-    delete data;
 }
 
 /**
@@ -264,7 +263,6 @@ TEST_F(ParticleTest, CallbackCalledSingleTimePerStateChange)
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_TRUE(data->m_NumStateChanges == 2);
     dmParticle::DestroyInstance(m_Context, instance);
-    delete data;
 }
 
 /**
@@ -284,7 +282,6 @@ TEST_F(ParticleTest, CallbackCalledMultipleEmitters)
     dmParticle::DestroyInstance(m_Context, instance);
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_TRUE(data->m_NumStateChanges == 12);
-    delete data;
 }
 
 /**
