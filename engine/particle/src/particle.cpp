@@ -42,7 +42,7 @@ namespace dmParticle
         // Deallocate callback data if it is present
         if(instance->m_EmitterStateChangedData.m_UserData != 0x0)
         {
-            delete[] (char*)instance->m_EmitterStateChangedData.m_UserData;
+            free(instance->m_EmitterStateChangedData.m_UserData);
             instance->m_EmitterStateChangedData.m_UserData = 0x0;
             instance->m_NumAwakeEmitters = 0;
         }
@@ -187,7 +187,10 @@ namespace dmParticle
 
         instance->m_Prototype = prototype;
 
-        if(emitter_state_changed_data != 0x0 && emitter_state_changed_data->m_UserData != 0x0) instance->m_EmitterStateChangedData = *emitter_state_changed_data;
+        if(emitter_state_changed_data != 0x0 && emitter_state_changed_data->m_UserData != 0x0)
+        {
+            instance->m_EmitterStateChangedData = *emitter_state_changed_data;
+        }
 
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);

@@ -30,6 +30,12 @@ namespace dmGameSystem
         lua_State* m_L;
     };
 
+    struct EmitterStateCallbackMsg
+     {
+        void* m_CallbackFun;
+        EmitterStateChangedScriptData m_ScriptData;
+     };
+
     /**
      * Return current game object instance, if any.
      * Must be called from within a lua pcall, since it long jumps if no instance can be found.

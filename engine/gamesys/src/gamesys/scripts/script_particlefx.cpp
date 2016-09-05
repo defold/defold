@@ -25,27 +25,32 @@ extern "C"
 
 namespace dmGameSystem
 {
-    /*#
+    /*# sleeping state
+     *
      * @name particlefx.EMITTER_STATE_SLEEPING
      * @variable
      */
 
-     /*#
+    /*# prespawn state
+     * 
      * @name particlefx.EMITTER_STATE_PRESPAWN
      * @variable
      */
 
-     /*#
+    /*# spawning state
+     *
      * @name particlefx.EMITTER_STATE_SPAWNING
      * @variable
      */
 
-    /*#
+    /*# postspawn state
      * @name particlefx.EMITTER_STATE_POSTSPAWN
      * @variable
      */
 
-    void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data /*contains instance of EmitterStateChangedScriptData*/)
+     
+
+    void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
         EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
 
@@ -61,7 +66,7 @@ namespace dmGameSystem
             return;
         }
 
-        int arg_count = 4;
+        int top = lua_gettop(data.m_L);
 
         // push callback reference onto stack
         lua_rawgeti(data.m_L, LUA_REGISTRYINDEX, data.m_LuaCallbackRef);
@@ -71,7 +76,7 @@ namespace dmGameSystem
         dmScript::PushHash(data.m_L, emitter_id);
         lua_pushnumber(data.m_L, emitter_state);
 
-        int ret = dmScript::PCall(data.m_L, arg_count, LUA_MULTRET);
+        int ret = dmScript::PCall(data.m_L, 4, LUA_MULTRET);
         if(ret != 0)
         {
             dmLogError("error calling particle emitter callback, error: %s", lua_tostring(data.m_L, -1));
@@ -80,8 +85,11 @@ namespace dmGameSystem
         // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
         if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
         {
+            dmLogInfo("Dereferencing LUA callback function!");
             lua_unref(data.m_L, data.m_LuaCallbackRef);
         }
+
+        assert(top == lua_gettop(data.m_L));
     }
 
     /*# ParticleFX documentation
@@ -117,16 +125,17 @@ namespace dmGameSystem
      */
     int ParticleFX_Play(lua_State* L)
     {
-        int top = lua_gettop(L);
-
         dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        int top = lua_gettop(L);
 
         if (top < 1)
         {
             return luaL_error(L, "particlefx.play expects atleast URL as parameter");
         }
         
-        char* msg_buf = 0x0;
+        EmitterStateChangedScriptData data;
+        EmitterStateCallbackMsg callback_msg;
         uint32_t msg_size = 0;
 
         dmMessage::URL receiver;
@@ -135,8 +144,6 @@ namespace dmGameSystem
 
         sender.m_Function = 0;
         receiver.m_Function = 0;
-
-        EmitterStateChangedScriptData data;
 
         if (top > 1 && !lua_isnil(L, 2))
         {
@@ -148,9 +155,13 @@ namespace dmGameSystem
             
             // path-only url (e.g. "/level/particlefx") has empty fragment, and relative path (e.g. "#particlefx") has non-empty fragment.
             if(receiver.m_Fragment == 0)
+            {
                 data.m_ComponentId = receiver.m_Path;
+            }
             else
+            {
                 data.m_ComponentId = receiver.m_Fragment;
+            }
 
             data.m_LuaCallbackRef = callback;
             data.m_LuaSelfRef = self;
@@ -159,10 +170,10 @@ namespace dmGameSystem
             dmParticle::EmitterStateChanged fun;
             fun = EmitterStateChangedCallback;
 
-            msg_size = sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData);
-            msg_buf = new char[msg_size];
-            memcpy(msg_buf, &fun, sizeof(dmParticle::EmitterStateChanged));
-            memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged), &data, sizeof(EmitterStateChangedScriptData));
+            msg_size = sizeof(EmitterStateCallbackMsg);
+
+            callback_msg.m_CallbackFun = (void*)EmitterStateChangedCallback;
+            callback_msg.m_ScriptData = data;
         }
 
         dmMessage::Post(
@@ -171,10 +182,8 @@ namespace dmGameSystem
             dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, 
             (uintptr_t)instance, 
             (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 
-            (void*)msg_buf, 
+            (void*)&callback_msg, 
             msg_size);
-
-        delete[] msg_buf;
 
         assert(top == lua_gettop(L));
         return 0;

@@ -279,9 +279,9 @@ TEST_F(ParticleTest, CallbackCalledMultipleEmitters)
     dmParticle::StartInstance(m_Context, instance); // Prespawn
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Spawning & Postspawn
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0); // Sleeping
-    dmParticle::DestroyInstance(m_Context, instance);
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_TRUE(data->m_NumStateChanges == 12);
+    dmParticle::DestroyInstance(m_Context, instance);
 }
 
 /**

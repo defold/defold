@@ -6,7 +6,12 @@
 /share/ext/download
 /go/pkg
 /go/bin
-
+/scripts/build.py
+/build_tools/waf_dynamo.py
 /.ccache
 .idea
 *.iml
+/com.dynamo.cr/com.dynamo.cr.bob/libexec
+/com.dynamo.cr/com.dynamo.cr.common/.classpath
+/com.dynamo.cr/com.dynamo.cr.common/.settings/org.eclipse.jdt.core.prefs
+

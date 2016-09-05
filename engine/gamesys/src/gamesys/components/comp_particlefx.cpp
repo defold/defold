@@ -292,9 +292,9 @@ namespace dmGameSystem
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
             dmParticle::EmitterStateChangedData emitter_state_changed_data;
 
-            if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
+            if(params.m_Message->m_DataSize == sizeof(EmitterStateCallbackMsg))
             {
-                emitter_state_changed_data.m_UserData = new char[sizeof(EmitterStateChangedScriptData)];
+                emitter_state_changed_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
                 memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
                 memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }

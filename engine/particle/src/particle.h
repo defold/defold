@@ -125,7 +125,6 @@ namespace dmParticle
     {
         EmitterStateChangedData()
         {
-            //memset(this, 0x0, sizeof(*this));
             m_UserData = 0x0;
         }
 
