@@ -292,11 +292,11 @@ namespace dmGameSystem
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
             dmParticle::EmitterStateChangedData emitter_state_changed_data;
 
-            if(params.m_Message->m_DataSize == 24)
+            if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
             {
-                emitter_state_changed_data.m_UserData = new char[20]; // deallocated in callback method
+                emitter_state_changed_data.m_UserData = new char[sizeof(EmitterStateChangedScriptData)];
                 memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
-                memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), 20);
+                memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }
 
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);

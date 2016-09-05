@@ -25,19 +25,6 @@ extern "C"
 
 namespace dmGameSystem
 {
-    struct EmitterStateChangedScriptData
-    {
-        EmitterStateChangedScriptData()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        dmhash_t m_ComponentId;
-        int m_LuaCallbackRef;
-        int m_LuaSelfRef;
-        lua_State* m_L;
-    };
-
     /*#
      * @name particlefx.EMITTER_STATE_SLEEPING
      * @variable
@@ -61,6 +48,18 @@ namespace dmGameSystem
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data /*contains instance of EmitterStateChangedScriptData*/)
     {
         EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
+
+        if(data.m_LuaCallbackRef == LUA_NOREF)
+        {
+            dmLogError("No callback set");
+            return;
+        }
+
+        if(data.m_LuaSelfRef == LUA_NOREF)
+        {
+            dmLogError("Could not run callback because the instance has been deleted.");
+            return;
+        }
 
         int arg_count = 4;
 
