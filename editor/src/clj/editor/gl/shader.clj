@@ -477,31 +477,31 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (def ternary-operator-pattern #"^(\?|:)")
 
 (defn match-directive [s]
-  (code/match-regex directive-pattern s))
+  (code/match-regex s directive-pattern))
 
 (defn match-storage-types [s]
-  (code/match-regex storage-types-pattern s))
+  (code/match-regex s storage-types-pattern))
 
 (defn match-arithmetic-operator [s]
-  (code/match-regex arithmetic-operator-pattern s))
+  (code/match-regex s arithmetic-operator-pattern))
 
 (defn match-increment-decrement-operator [s]
-  (code/match-regex increment-decrement-operator-pattern s))
+  (code/match-regex s increment-decrement-operator-pattern))
 
 (defn match-bitwise-operator [s]
-  (code/match-regex bitwise-operator-pattern s))
+  (code/match-regex s bitwise-operator-pattern))
 
 (defn match-assignment-operator [s]
-  (code/match-regex assignment-operator-pattern s))
+  (code/match-regex s assignment-operator-pattern))
 
 (defn match-comparative-operator [s]
-  (code/match-regex comparative-operator-pattern s))
+  (code/match-regex s comparative-operator-pattern))
 
 (defn match-logical-operator [s]
-  (code/match-regex logical-operator-pattern s))
+  (code/match-regex s logical-operator-pattern))
 
 (defn match-ternary-operator [s]
-  (code/match-regex ternary-operator-pattern s))
+  (code/match-regex s ternary-operator-pattern))
 
 (def glsl-opts {:code {:language "glsl"
                        :syntax

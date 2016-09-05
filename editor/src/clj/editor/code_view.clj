@@ -151,12 +151,12 @@
       (.evaluate this scanner false))
     (evaluate [this scanner resume]
       (let [^DefoldRuleBasedScanner sc scanner
-            result (scanner-fn (.readString sc))]
-        (if result
-          (let [len (:length result)]
-            (when (pos? len) (.moveForward sc len))
-            token)
-          Token/UNDEFINED)))
+            ch-seq (.readSequence sc)]
+        (let [result (scanner-fn ch-seq)]
+          (if (and result (pos? (:length result)))
+            (do (.moveForward sc (:length result))
+                token)
+            Token/UNDEFINED))))
     (getSuccessToken ^IToken [this] token)))
 
 (defmethod make-rule :custom [{:keys [scanner]} token]
