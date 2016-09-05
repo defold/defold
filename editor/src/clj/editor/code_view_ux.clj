@@ -299,13 +299,13 @@
         sel-len (selection-length source-viewer)]
     (text-selection! source-viewer 0 0)
     (replace! source-viewer np sel-len s)
-    (caret! source-viewer (+ np sel-len) false)
+    (caret! source-viewer (+ np (count s)) false)
     (show-line source-viewer)))
 
 (defn- replace-text-and-caret [source-viewer offset length s new-caret-pos]
   (let [doc (text source-viewer)
         pos (adjust-bounds doc offset)
-        new-len (adjust-replace-length (text source-viewer) pos length)
+        new-len (adjust-replace-length doc pos length)
         new-pos (adjust-bounds doc new-caret-pos)]
     (replace! source-viewer pos new-len s)
     (caret! source-viewer (adjust-bounds (text source-viewer) new-caret-pos) false)
