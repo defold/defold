@@ -85,7 +85,6 @@ namespace dmGameSystem
         // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
         if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
         {
-            dmLogInfo("Dereferencing LUA callback function!");
             lua_unref(data.m_L, data.m_LuaCallbackRef);
         }
 

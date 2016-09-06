@@ -233,7 +233,7 @@ TEST_F(ParticleTest, VertexBufferSize)
 TEST_F(ParticleTest, CallbackCalledCorrectNumTimes)
 {
     float dt = 1.2f;
-    EmitterStateChangedCallbackTestData* data = new EmitterStateChangedCallbackTestData();
+    EmitterStateChangedCallbackTestData* data = new (malloc(sizeof(EmitterStateChangedCallbackTestData))) EmitterStateChangedCallbackTestData();
     m_CallbackData.m_StateChangedCallback = EmitterStateChangedCallback;
     m_CallbackData.m_UserData = (void*)data;
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
@@ -252,7 +252,7 @@ TEST_F(ParticleTest, CallbackCalledCorrectNumTimes)
 TEST_F(ParticleTest, CallbackCalledSingleTimePerStateChange)
 {
     float dt = 0.1f;
-    EmitterStateChangedCallbackTestData* data = new EmitterStateChangedCallbackTestData();
+    EmitterStateChangedCallbackTestData* data = new (malloc(sizeof(EmitterStateChangedCallbackTestData))) EmitterStateChangedCallbackTestData();
     m_CallbackData.m_StateChangedCallback = EmitterStateChangedCallback;
     m_CallbackData.m_UserData = (void*)data;
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
@@ -271,7 +271,7 @@ TEST_F(ParticleTest, CallbackCalledSingleTimePerStateChange)
 TEST_F(ParticleTest, CallbackCalledMultipleEmitters)
 {
     float dt = 1.2f;
-    EmitterStateChangedCallbackTestData* data = new EmitterStateChangedCallbackTestData();
+    EmitterStateChangedCallbackTestData* data = new (malloc(sizeof(EmitterStateChangedCallbackTestData))) EmitterStateChangedCallbackTestData();
     m_CallbackData.m_StateChangedCallback = EmitterStateChangedCallback;
     m_CallbackData.m_UserData = (void*)data;
     ASSERT_TRUE(LoadPrototype("once_three_emitters.particlefxc", &m_Prototype));
