@@ -15,6 +15,21 @@ namespace dmGameSystem
 #define COLLECTION_FACTORY_EXT "collectionfactoryc"
 #define COLLISION_OBJECT_EXT "collisionobjectc"
 
+    struct EmitterStateChangedScriptData
+    {
+        EmitterStateChangedScriptData()
+        {
+            memset(this, 0, sizeof(*this));
+            m_LuaCallbackRef = LUA_NOREF;
+            m_LuaSelfRef = LUA_NOREF;
+        }
+
+        dmhash_t m_ComponentId;
+        int m_LuaCallbackRef;
+        int m_LuaSelfRef;
+        lua_State* m_L;
+    };
+
     /**
      * Return current game object instance, if any.
      * Must be called from within a lua pcall, since it long jumps if no instance can be found.
