@@ -1,5 +1,9 @@
 package com.dynamo.cr.server.resources;
 
+import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.auth.UserPrincipal;
+import com.dynamo.cr.server.model.User;
+
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.Context;
@@ -7,10 +11,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
-
-import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.auth.UserPrincipal;
-import com.dynamo.cr.server.model.User;
 
 public class BaseResource {
     @Inject
@@ -22,7 +22,7 @@ public class BaseResource {
     @Inject
     protected EntityManager em;
 
-    protected static void throwWebApplicationException(Status status, String msg) {
+    static void throwWebApplicationException(Status status, String msg) {
         ResourceUtil.throwWebApplicationException(status, msg);
     }
 
@@ -31,16 +31,24 @@ public class BaseResource {
 
         // NOTE: We must re-fetch the user here and probably related to
         // different EntityManagers
-        User user = em.find(User.class, p.getUser().getId());
-        return user;
+        return em.find(User.class, p.getUser().getId());
     }
 
-    protected Response okResponse(String fmt, Object...args) {
+    /**
+     * Determines if the request is from a logged in (as non-anonymous) user.
+     *
+     * @return True if logged in, false otherwise.
+     */
+    boolean isLoggedIn() {
+        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
+        return userPrincipal.getUser() != null && userPrincipal.getUser().getRole() != User.Role.ANONYMOUS;
+    }
+
+    Response okResponse(String fmt, Object... args) {
         return Response
                 .status(Status.OK)
                 .type(MediaType.TEXT_PLAIN)
                 .entity(String.format(fmt, args))
                 .build();
     }
-
 }

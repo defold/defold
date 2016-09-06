@@ -1,0 +1,11 @@
+attribute vec4 position;
+attribute vec3 normal;
+attribute vec2 texcoord0;
+
+varying vec2 var_texcoord0;
+
+void main()
+{
+    gl_Position = position;
+    var_texcoord0 = texcoord0;
+}

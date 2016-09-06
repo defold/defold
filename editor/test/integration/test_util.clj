@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
+            [editor.camera-editor :as camera]
             [editor.collection :as collection]
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
@@ -20,6 +21,7 @@
             [editor.script :as script]
             [editor.workspace :as workspace]
             [editor.gl.shader :as shader]
+            [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]
             [editor.rig :as rig]
             [editor.sound :as sound]
@@ -28,6 +30,7 @@
             [editor.gui :as gui]
             [editor.json :as json]
             [editor.mesh :as mesh]
+            [editor.model :as model]
             [editor.material :as material]
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
@@ -47,35 +50,38 @@
   ([graph project-path]
     (let [workspace (workspace/make-workspace graph project-path)]
       (g/transact
-        (concat
-          (scene/register-view-types workspace)))
+       (concat
+         (scene/register-view-types workspace)))
       (g/transact
        (concat
+        (atlas/register-resource-types workspace)
+        (camera/register-resource-types workspace)
         (collection/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
+        (cubemap/register-resource-types workspace)
+        (display-profiles/register-resource-types workspace)
         (factory/register-resource-types workspace)
         (font/register-resource-types workspace)
         (game-object/register-resource-types workspace)
         (game-project/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
+        (gui/register-resource-types workspace)
         (image/register-resource-types workspace)
-        (atlas/register-resource-types workspace)
+        (json/register-resource-types workspace)
+        (material/register-resource-types workspace)
+        (mesh/register-resource-types workspace)
+        (model/register-resource-types workspace)
+        (particlefx/register-resource-types workspace)
         (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
         (rig/register-resource-types workspace)
-        (switcher/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
         (script/register-resource-types workspace)
         (shader/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)
         (sound/register-resource-types workspace)
         (spine/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)))
+        (sprite/register-resource-types workspace)
+        (switcher/register-resource-types workspace)
+        (tile-map/register-resource-types workspace)
+        (tile-source/register-resource-types workspace)))
       (workspace/resource-sync! workspace)
       workspace)))
 

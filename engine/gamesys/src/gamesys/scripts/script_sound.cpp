@@ -52,7 +52,8 @@ namespace dmGameSystem
      * @param group group name (hash|string)
      * @param window window length in seconds (number)
      * @name sound.get_rms
-     * @return rms values for left and right channel
+     * @return rms value for left channel (number)
+     * @return rms value for right channel (number)
      */
     int Sound_GetRMS(lua_State* L)
     {
@@ -83,7 +84,8 @@ namespace dmGameSystem
      * @param group group name (hash|string)
      * @param window window length in seconds (number)
      * @name sound.get_peak
-     * @return peak values for left and right channel
+     * @return peak value for left channel (number)
+     * @return peak value for right channel (number)
      */
     int Sound_GetPeak(lua_State* L)
     {

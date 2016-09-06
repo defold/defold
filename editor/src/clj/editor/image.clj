@@ -17,6 +17,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def exts ["jpg" "png"])
+
 ;; TODO - fix real profiles
 (def test-profile {:name "test-profile"
                    :platforms [{:os :os-id-generic
@@ -185,7 +187,7 @@ region will be identical to the nearest pixel of the source image."
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                      :ext ["jpg" "png"]
+                                      :ext exts
                                       :label "Image"
                                       :icon "icons/32/Icons_25-AT-Image.png"
                                       :build-ext "texturec"

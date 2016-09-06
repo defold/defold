@@ -282,10 +282,12 @@ namespace dmGameSystem
     }
 
     /*# get the bounds of a tile map
-     * Get the tile set at the specified position in the tilemap. The returned tile to set is identified
-     * by its index starting with 1 in the top left corner of the tile set. The coordinates of the tile is
-     * 1-indexed (see <code>tilemap.set_tile()</code>) Which tile map and layer to query is identified by
-     * the URL and the layer name parameters.
+     * Get the bounds for a tile map. This function returns multiple values:
+     * The lower left corner index x and y coordinates (1-indexed), 
+     * the tile map width and the tile map height. 
+     *
+     * The resulting values take all tile map layers into account, meaning that
+     * the bounds are calculated as if all layers were collapsed into one.
      *
      * @name tilemap.get_bounds
      * @param url the tile map (url)

@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [editor.code :as code])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter]))
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,7 +45,6 @@
                    (.setName ns)
                    (.setBrief "")
                    (.setDescription "")
-                   (.setReturn "")
                    (.build))]
          (if (not= (.getName e) "")
            sofar
@@ -68,12 +67,13 @@
          ["</b> "]
          [(.getDoc parameter)]
          ["<br>"]))
-      (when (> (count (.getReturn element)) 0)
+      (when (< 0 (.getReturnvaluesCount element))
         (concat
          ["<br>"]
          ["<b>Returns:</b><br>"]
          ["&#160;&#160;&#160;&#160;<b>"]
-         [(.getReturn element)]))))))
+         (for [^ScriptDoc$ReturnValue retval (.getReturnvaluesList element)]
+           [(format "%s: %s" (.getName retval) (.getDoc retval))])))))))
 
 (defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
   (let [base (.getName element)
@@ -196,7 +196,7 @@
         (code/combine-matches match-open match-body)))))
 
 (defn increase-indent? [s]
-  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
+  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$" s))
 
 (defn decrease-indent? [s]
   (re-find #"^\s*(elseif|else|end|\}).*$" s))
@@ -211,8 +211,7 @@
 (def lua {:language "lua"
           :syntax
           {:line-comment "-- "
-           :indentation {:indent-chars "\t"
-                         :increase? increase-indent?
+           :indentation {:increase? increase-indent?
                          :decrease? decrease-indent?}
            :scanner
            [#_{:partition "__multicomment"

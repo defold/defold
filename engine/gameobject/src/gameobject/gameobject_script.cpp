@@ -34,10 +34,6 @@ extern "C"
 
 namespace dmGameObject
 {
-/* 
-    PROP_FLOAT(SCALE, scale);
-*/
-
     /*# game object position (vector3)
      *
      * The position of the game object.
@@ -1370,12 +1366,13 @@ namespace dmGameObject
 
     /*# constructs a ray in world space from a position in screen space
      *
-     * NOTE! Don't use this function, WIP!
+     * @note Do not use this function, WIP!
      *
      * @name go.screen_ray
      * @param x x-coordinate of the screen space position (number)
      * @param y y-coordinate of the screen space position (number)
-     * @return position and direction of the ray in world space (vector3, vector3)
+     * @return position of the ray in world-space (vector3)
+     * @return direction of the ray in world space (vector3)
      */
     int Script_ScreenRay(lua_State* L)
     {

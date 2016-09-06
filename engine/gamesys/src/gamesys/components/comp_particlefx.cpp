@@ -258,8 +258,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-
-    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype)
+    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
         if (!world->m_Components.Full())
         {
@@ -271,7 +270,7 @@ namespace dmGameSystem
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
             dmResource::HFactory factory = world->m_Context->m_Factory;
             dmResource::IncRef(factory, prototype->m_ParticlePrototype);
-            emitter->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype);
+            emitter->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
             emitter->m_ParticlePrototype = prototype->m_ParticlePrototype;
             emitter->m_World = world;
             emitter->m_AddedToUpdate = prototype->m_AddedToUpdate;
@@ -291,10 +290,25 @@ namespace dmGameSystem
         {
             dmParticle::HContext context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype);
-            if (prototype->m_AddedToUpdate) {
+            // NOTE: We make a stack allocated instance of EmitterStateChangedData here and pass the address on to create the particle instance.
+            // dmParticle::CreateInstance can be called from outside this method (when reloading particlefx for example, where we don't care about callbacks)
+            // so we want to be able to pass 0x0 in that case. If there is a callback present we will make a shallow copy of the pointers to the callback and userdata,
+            // and transfer ownership of that memory to the particle instance.
+            dmParticle::EmitterStateChangedData emitter_state_changed_data;
+            if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
+            {
+                emitter_state_changed_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
+                memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
+                memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
+            }
+
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);
+
+            if (prototype->m_AddedToUpdate) 
+            {
                 dmParticle::StartInstance(context, instance);
             }
+            
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
             dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));
