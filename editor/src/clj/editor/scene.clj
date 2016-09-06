@@ -80,11 +80,11 @@
                                  (scene-text/overlay gl message 12.0 -22.0))))
                 :passes    [pass/overlay]}})
 
-; Avoid recreating the image each frame
+;; Avoid recreating the image each frame
 (defonce ^:private cached-buf-img-ref (atom nil))
 
-; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
-; We flip in JavaFX instead
+;; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
+;; We flip in JavaFX instead
 (defn- read-to-buffered-image [^long w ^long h]
   (let [^BufferedImage image (let [^BufferedImage image @cached-buf-img-ref]
                                (when (or (nil? image) (not= (.getWidth image) w) (not= (.getHeight image) h))
@@ -209,7 +209,7 @@
                 batch (subvec renderables 0 count)]
             (render-nodes gl render-args batch count gl-name))
           (let [end (+ offset count)]
-            ; TODO - long conversion should not be necessary?
+            ;; TODO - long conversion should not be necessary?
             (recur (subvec renderables count) (long end) (inc batch-index) (conj! batches [offset end])))))
       (persistent! batches))))
 
@@ -700,6 +700,16 @@
   (g/make-node! graph PreviewView :width width :height height :drawable (make-drawable width height) :select-buffer (make-select-buffer)))
 
 
+(defmulti attach-grid
+  (fn [grid-node-type grid-node-id view-id resource-node camera]
+    (:key @grid-node-type)))
+
+(defmethod attach-grid :editor.grid/Grid
+  [_ grid-node-id view-id resource-node camera]
+  (concat
+    (g/connect grid-node-id :renderable view-id      :aux-renderables)
+    (g/connect camera       :camera     grid-node-id :camera)))
+
 (defmulti attach-tool-controller
   (fn [tool-node-type tool-node-id view-id resource-node]
     (:key @tool-node-type)))
@@ -711,54 +721,58 @@
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
         project     (:project opts)
+        grid-type   (cond
+                      (true? (:grid opts)) grid/Grid
+                      (:grid opts) (:grid opts)
+                      :else grid/Grid)
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (concat
-     (g/make-nodes view-graph
-                   [background background/Gradient
-                    selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
-                    camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
-                    grid       grid/Grid
-                    tool-controller tool-controller-type
-                    rulers     [rulers/Rulers]]
+      (g/make-nodes view-graph
+                    [background      background/Gradient
+                     selection       [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
+                     camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
+                     grid            grid-type
+                     tool-controller tool-controller-type
+                     rulers          [rulers/Rulers]]
 
-                   (g/connect resource-node        :scene                     view-id          :scene)
-                   (g/set-graph-value view-graph   :camera                    camera)
+                    (g/connect resource-node        :scene                     view-id          :scene)
+                    (g/set-graph-value view-graph   :camera                    camera)
 
-                   (g/connect background           :renderable                view-id         :aux-renderables)
-                   (g/connect grid                 :renderable                view-id         :aux-renderables)
-                   (g/connect camera               :camera                    view-id         :camera)
-                   (g/connect camera               :input-handler             view-id          :input-handlers)
-                   (g/connect camera               :camera                    grid             :camera)
-                   (g/connect view-id              :viewport                  camera           :viewport)
+                    (g/connect background           :renderable                view-id         :aux-renderables)
 
-                   (g/connect project              :selected-node-ids         view-id          :selection)
+                    (g/connect camera               :camera                    view-id         :camera)
+                    (g/connect camera               :input-handler             view-id          :input-handlers)
+                    (g/connect view-id              :viewport                  camera           :viewport)
 
-                   (g/connect app-view-id          :active-tool               view-id          :active-tool)
+                    (g/connect project              :selected-node-ids         view-id          :selection)
 
-                   (g/connect tool-controller      :input-handler             view-id          :input-handlers)
-                   (g/connect tool-controller      :renderables               view-id         :tool-renderables)
-                   (g/connect view-id              :active-tool               tool-controller  :active-tool)
-                   (g/connect view-id              :viewport                  tool-controller  :viewport)
-                   (g/connect camera               :camera                    tool-controller  :camera)
-                   (g/connect view-id              :selected-renderables      tool-controller  :selected-renderables)
-                   (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
-                   
-                   (when (not (:grid opts))
-                     (g/delete-node grid))
+                    (g/connect app-view-id          :active-tool               view-id          :active-tool)
 
-                   (g/connect resource-node        :_node-id                  selection        :root-id)
-                   (g/connect selection            :renderable                view-id          :tool-renderables)
-                   (g/connect selection            :input-handler             view-id          :input-handlers)
-                   (g/connect selection            :picking-rect              view-id          :picking-rect)
-                   (g/connect view-id              :picking-selection         selection        :picking-selection)
-                   (g/connect view-id              :selection                 selection        :selection)
+                    (g/connect tool-controller      :input-handler             view-id          :input-handlers)
+                    (g/connect tool-controller      :renderables               view-id         :tool-renderables)
+                    (g/connect view-id              :active-tool               tool-controller  :active-tool)
+                    (g/connect view-id              :viewport                  tool-controller  :viewport)
+                    (g/connect camera               :camera                    tool-controller  :camera)
+                    (g/connect view-id              :selected-renderables      tool-controller  :selected-renderables)
+                    (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
-                   (g/connect camera :camera rulers :camera)
-                   (g/connect rulers :renderables view-id :aux-renderables)
-                   (g/connect view-id :viewport rulers :viewport)
-                   (g/connect view-id :cursor-pos rulers :cursor-pos))
-     (when-let [node-id (:select-node opts)]
-       (project/select project [node-id])))))
+                    (if (:grid opts)
+                      (attach-grid grid-type grid view-id resource-node camera)
+                      (g/delete-node grid))
+
+                    (g/connect resource-node        :_node-id                  selection        :root-id)
+                    (g/connect selection            :renderable                view-id          :tool-renderables)
+                    (g/connect selection            :input-handler             view-id          :input-handlers)
+                    (g/connect selection            :picking-rect              view-id          :picking-rect)
+                    (g/connect view-id              :picking-selection         selection        :picking-selection)
+                    (g/connect view-id              :selection                 selection        :selection)
+
+                    (g/connect camera :camera rulers :camera)
+                    (g/connect rulers :renderables view-id :aux-renderables)
+                    (g/connect view-id :viewport rulers :viewport)
+                    (g/connect view-id :cursor-pos rulers :cursor-pos))
+      (when-let [node-id (:select-node opts)]
+        (project/select project [node-id])))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
