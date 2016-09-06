@@ -168,6 +168,10 @@
           device-y (- (.bottom viewport) (.top viewport) ry 1)]
       (Point3d. rx device-y rz))))
 
+(defn camera-view-proj-matrix ^Matrix4d [camera]
+  (doto (camera-projection-matrix camera)
+    (.mul (camera-view-matrix camera))))
+
 (defmacro scale-to-doubleunit [x x-min x-max]
   `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))
 
