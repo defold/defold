@@ -684,6 +684,8 @@ namespace dmRig
 
     Result Update(HRigContext context, float dt)
     {
+        DM_PROFILE(Rig, "Update");
+
         dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         const uint32_t count = instances.Size();
 
@@ -866,6 +868,12 @@ namespace dmRig
         if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
             context->m_DrawOrderToMesh.SetCapacity(mesh_count);
 
+        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+        for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+        {
+            pose[bi] = dmTransform::Mul(pose[bi], bind_pose[bi].m_ModelToLocal);
+        }
+
         UpdateMeshDrawOrder(context, instance, mesh_count);
         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
             uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
@@ -889,7 +897,7 @@ namespace dmRig
                     if (bone_weights[bi] > 0.0f)
                     {
                         uint32_t bone_index = bone_indices[bi];
-                        out_p += Vector3(dmTransform::Apply(instance->m_Pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
+                        out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
                     }
                 }
                 Vector4 posed_vertex = model_matrix * out_p;
