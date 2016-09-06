@@ -290,8 +290,11 @@ namespace dmGameSystem
         {
             dmParticle::HContext context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+            // NOTE: We make a stack allocated instance of EmitterStateChangedData here and pass the address on to create the particle instance.
+            // dmParticle::CreateInstance can be called from outside this method (when reloading particlefx for example, where we don't care about callbacks)
+            // so we want to be able to pass 0x0 in that case. If there is a callback present we will make a shallow copy of the pointers to the callback and userdata,
+            // and transfer ownership of that memory to the particle instance.
             dmParticle::EmitterStateChangedData emitter_state_changed_data;
-
             if(params.m_Message->m_DataSize == sizeof(EmitterStateCallbackMsg))
             {
                 emitter_state_changed_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
