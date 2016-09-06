@@ -90,8 +90,8 @@
     (ParticleLibrary/Particle_SetScale context instance min-scale)
     instance))
 
-(defn- create-instance [^Pointer context ^Pointer prototype ^Matrix4d transform]
-  (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype)]
+(defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
+  (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
     (set-instance-transform context instance transform)))
 
 (def ^:private playback-map
@@ -129,7 +129,7 @@
 (defn make-sim [max-emitter-count max-particle-count prototype-msg instance-transforms]
   (let [context (create-context max-emitter-count max-particle-count)
         prototype (new-prototype prototype-msg)
-        instances (mapv (fn [^Matrix4d t] (create-instance context prototype t)) instance-transforms)
+        instances (mapv (fn [^Matrix4d t] (create-instance context prototype nil t)) instance-transforms)
         raw-vbuf (Buffers/newDirectByteBuffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count))
         vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
     {:context context

@@ -102,7 +102,7 @@ public class ParticleSystemTest {
         byte[] pfxData = pfxb.build().toByteArray();
 
         Pointer prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(pfxData), pfxData.length);
-        Pointer instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
+        Pointer instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null);
         assertNotNull(instance);
         ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(1, 2, 3));
         ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
