@@ -44,6 +44,7 @@ namespace dmGameSystem
      */
 
     /*# postspawn state
+     *
      * @name particlefx.EMITTER_STATE_POSTSPAWN
      * @variable
      */
@@ -132,7 +133,7 @@ namespace dmGameSystem
         }
         
         EmitterStateChangedScriptData data;
-        EmitterStateCallbackMsg callback_msg;
+        char msg_buf[sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData)];
         uint32_t msg_size = 0;
 
         dmMessage::URL receiver;
@@ -167,10 +168,10 @@ namespace dmGameSystem
             dmParticle::EmitterStateChanged fun;
             fun = EmitterStateChangedCallback;
 
-            msg_size = sizeof(EmitterStateCallbackMsg);
+            msg_size = sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData);
 
-            callback_msg.m_CallbackFun = (void*)EmitterStateChangedCallback;
-            callback_msg.m_ScriptData = data;
+            memcpy(msg_buf, &fun, sizeof(dmParticle::EmitterStateChanged));
+            memcpy(msg_buf + sizeof(dmParticle::EmitterStateChanged), &data, sizeof(EmitterStateChangedScriptData));
         }
 
         dmMessage::Post(
@@ -179,7 +180,7 @@ namespace dmGameSystem
             dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, 
             (uintptr_t)instance, 
             (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 
-            (void*)&callback_msg, 
+            (void*)msg_buf, 
             msg_size);
 
         assert(top == lua_gettop(L));

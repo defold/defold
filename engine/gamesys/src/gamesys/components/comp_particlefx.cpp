@@ -295,7 +295,7 @@ namespace dmGameSystem
             // so we want to be able to pass 0x0 in that case. If there is a callback present we will make a shallow copy of the pointers to the callback and userdata,
             // and transfer ownership of that memory to the particle instance.
             dmParticle::EmitterStateChangedData emitter_state_changed_data;
-            if(params.m_Message->m_DataSize == sizeof(EmitterStateCallbackMsg))
+            if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
             {
                 emitter_state_changed_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
                 memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));

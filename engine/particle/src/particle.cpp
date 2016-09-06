@@ -240,9 +240,13 @@ namespace dmParticle
         if(state != old_emitter_state && instance->m_EmitterStateChangedData.m_UserData != 0x0)
         {
             if(state == EMITTER_STATE_PRESPAWN)
+            {
                 instance->m_NumAwakeEmitters += 1;
+            }
             else if(state == EMITTER_STATE_SLEEPING)
+            {
                 instance->m_NumAwakeEmitters -= 1;
+            }
 
             instance->m_EmitterStateChangedData.m_StateChangedCallback(
                 instance->m_NumAwakeEmitters,
