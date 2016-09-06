@@ -18,7 +18,7 @@ using namespace Vectormath::Aos;
 
 namespace dmRig
 {
-    /// Config key to use for tweaking the total maximum number of particles in a context.
+    /// Config key to use for tweaking the total maximum number of rig instances in a context.
     extern const char* MAX_RIG_INSTANCE_COUNT_KEY;
 
     using namespace dmRigDDF;
@@ -30,9 +30,7 @@ namespace dmRig
     {
         RESULT_OK             = 0,
         RESULT_ERROR          = 1,
-        RESULT_FAILED         = 2,
-        RESULT_ANIM_NOT_FOUND = 3,
-        RESULT_NOT_FOUND      = 4
+        RESULT_ANIM_NOT_FOUND = 2
     };
 
     enum RigMeshType
@@ -120,31 +118,25 @@ namespace dmRig
 
     enum RigEventType
     {
-        RIG_EVENT_TYPE_UNKNOWN = 0,
-        RIG_EVENT_TYPE_DONE    = 1,
-        RIG_EVENT_TYPE_SPINE   = 2
+        RIG_EVENT_TYPE_COMPLETED = 0,
+        RIG_EVENT_TYPE_KEYFRAME  = 1
     };
 
-    struct RigEventData
+    struct RigCompletedEventData
     {
-        RigEventType m_Type;
-        union {
-            struct
-            {
-                uint64_t  m_AnimationId;
-                uint32_t  m_Playback;
-            } m_DataDone;
-            struct
-            {
-                uint64_t  m_EventId;
-                uint64_t  m_AnimationId;
-                float     m_T;
-                float     m_BlendWeight;
-                int32_t   m_Integer;
-                float     m_Float;
-                uint64_t  m_String;
-            } m_DataSpine;
-        };
+        uint64_t  m_AnimationId;
+        uint32_t  m_Playback;
+    };
+
+    struct RigKeyframeEventData
+    {
+        uint64_t  m_EventId;
+        uint64_t  m_AnimationId;
+        float     m_T;
+        float     m_BlendWeight;
+        int32_t   m_Integer;
+        float     m_Float;
+        uint64_t  m_String;
     };
 
     struct RigContext
@@ -158,7 +150,7 @@ namespace dmRig
         uint32_t     m_MaxRigInstanceCount;
     };
 
-    typedef void (*RigEventCallback)(void*, const RigEventData&);
+    typedef void (*RigEventCallback)(void*, RigEventType, const void*);
     typedef void (*RigPoseCallback)(void*);
 
     struct RigInstance
@@ -185,7 +177,7 @@ namespace dmRig
         dmArray<MeshProperties>       m_MeshProperties;
         /// Currently used mesh
         const dmRigDDF::MeshEntry*    m_MeshEntry;
-        dmhash_t                      m_Skin;
+        dmhash_t                      m_MeshId;
         float                         m_BlendDuration;
         float                         m_BlendTimer;
         /// Mesh type indicate how vertex data will be filled
@@ -204,7 +196,7 @@ namespace dmRig
         HRigInstance*                 m_Instance;
         RigMeshType                   m_MeshType;
 
-        dmhash_t                      m_Skin;
+        dmhash_t                      m_MeshId;
         dmhash_t                      m_DefaultAnimation;
 
         const dmArray<RigBone>*       m_BindPose;
@@ -265,8 +257,8 @@ namespace dmRig
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);
     RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params);
-    Result SetSkin(HRigInstance instance, dmhash_t skin);
-    dmhash_t GetSkin(HRigInstance instance);
+    Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
+    dmhash_t GetMesh(HRigInstance instance);
     float GetCursor(HRigInstance instance, bool normalized);
     Result SetCursor(HRigInstance instance, float cursor, bool normalized);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);

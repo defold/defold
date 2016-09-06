@@ -97,7 +97,7 @@ namespace dmGameSystem
         return false;
     }
 
-    static void CompSpineModelEventCallback(void* user_data, const dmRig::RigEventData& event_data)
+    static void CompSpineModelEventCallback(void* user_data, dmRig::RigEventType event_type, const void* event_data)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
 
@@ -109,15 +109,16 @@ namespace dmGameSystem
             return;
         }
 
-        switch (event_data.m_Type)
+        switch (event_type)
         {
-            case dmRig::RIG_EVENT_TYPE_DONE:
+            case dmRig::RIG_EVENT_TYPE_COMPLETED:
             {
                 dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
+                const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
 
                 dmGameSystemDDF::SpineAnimationDone message;
-                message.m_AnimationId = event_data.m_DataDone.m_AnimationId;
-                message.m_Playback    = event_data.m_DataDone.m_Playback;
+                message.m_AnimationId = completed_event->m_AnimationId;
+                message.m_Playback    = completed_event->m_Playback;
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
@@ -130,7 +131,7 @@ namespace dmGameSystem
 
                 break;
             }
-            case dmRig::RIG_EVENT_TYPE_SPINE:
+            case dmRig::RIG_EVENT_TYPE_KEYFRAME:
             {
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
@@ -139,15 +140,16 @@ namespace dmGameSystem
                 }
 
                 dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
+                const dmRig::RigKeyframeEventData* keyframe_event = (const dmRig::RigKeyframeEventData*)event_data;
 
                 dmGameSystemDDF::SpineEvent event;
-                event.m_EventId     = event_data.m_DataSpine.m_EventId;
-                event.m_AnimationId = event_data.m_DataSpine.m_AnimationId;
-                event.m_BlendWeight = event_data.m_DataSpine.m_BlendWeight;
-                event.m_T           = event_data.m_DataSpine.m_T;
-                event.m_Integer     = event_data.m_DataSpine.m_Integer;
-                event.m_Float       = event_data.m_DataSpine.m_Float;
-                event.m_String      = event_data.m_DataSpine.m_String;
+                event.m_EventId     = keyframe_event->m_EventId;
+                event.m_AnimationId = keyframe_event->m_AnimationId;
+                event.m_BlendWeight = keyframe_event->m_BlendWeight;
+                event.m_T           = keyframe_event->m_T;
+                event.m_Integer     = keyframe_event->m_Integer;
+                event.m_Float       = keyframe_event->m_Float;
+                event.m_String      = keyframe_event->m_String;
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
@@ -160,7 +162,7 @@ namespace dmGameSystem
                 break;
             }
             default:
-                dmLogError("Unknown rig event received (%d).", event_data.m_Type);
+                dmLogError("Unknown rig event received (%d).", event_type);
                 break;
         }
 
@@ -297,7 +299,7 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_Skin             = dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
@@ -700,7 +702,7 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_Skin             = dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
@@ -730,7 +732,7 @@ namespace dmGameSystem
         SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
         if (params.m_PropertyId == PROP_SKIN)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetSkin(component->m_RigInstance));
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetMesh(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_ANIMATION)
@@ -750,8 +752,8 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
 
-            dmRig::Result res = dmRig::SetSkin(component->m_RigInstance, params.m_Value.m_Hash);
-            if (res == dmRig::RESULT_FAILED)
+            dmRig::Result res = dmRig::SetMesh(component->m_RigInstance, params.m_Value.m_Hash);
+            if (res == dmRig::RESULT_ERROR)
             {
                 dmLogError("Could not find skin '%s' on the spine model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;

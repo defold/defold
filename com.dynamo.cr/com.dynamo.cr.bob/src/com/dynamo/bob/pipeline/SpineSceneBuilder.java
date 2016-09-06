@@ -282,11 +282,10 @@ public class SpineSceneBuilder extends Builder<Void> {
         ProtoUtil.merge(input, builder);
         BuilderUtil.checkResource(this.project, input, "spine_json", builder.getSpineJson());
         BuilderUtil.checkResource(this.project, input, "atlas", builder.getAtlas());
-
-        String spine_scene = FilenameUtils.removeExtension(builder.getSpineJson());
-        taskBuilder.addOutput(input.getResource(spine_scene + ".skeletonc").output());
-        taskBuilder.addOutput(input.getResource(spine_scene + ".meshsetc").output());
-        taskBuilder.addOutput(input.getResource(spine_scene + ".animationsetc").output());
+        
+        taskBuilder.addOutput(input.changeExt(".skeletonc"));
+        taskBuilder.addOutput(input.changeExt(".meshsetc"));
+        taskBuilder.addOutput(input.changeExt(".animationsetc"));
 
         taskBuilder.addInput(input.getResource(builder.getSpineJson()));
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
@@ -604,7 +603,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                     if (meshIndices != null) {
                         for (MeshIndex meshIndex : meshIndices) {
                             MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
-                            trackBuilder.setSkinId(skinId);
+                            trackBuilder.setMeshId(skinId);
                             trackBuilder.setMeshIndex(meshIndex.index);
                             toDDF(slot, track, trackBuilder, animation.duration, sampleRate, spf, meshIndex.name);
                             animBuilder.addMeshTracks(trackBuilder.build());
