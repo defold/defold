@@ -33,7 +33,10 @@
 #include "resources/res_sprite.h"
 #include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
-#include "resources/res_spine_scene.h"
+#include "resources/res_animationset.h"
+#include "resources/res_meshset.h"
+#include "resources/res_skeleton.h"
+#include "resources/res_rig_scene.h"
 #include "resources/res_spine_model.h"
 #include "resources/res_display_profiles.h"
 
@@ -110,7 +113,10 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
-        REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineScenePreload, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
+        REGISTER_RESOURCE_TYPE("animationsetc", 0, ResAnimationSetPreload, ResAnimationSetCreate, ResAnimationSetDestroy, ResAnimationSetRecreate);
+        REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, ResMeshSetDestroy, ResMeshSetRecreate);
+        REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, ResSkeletonDestroy, ResSkeletonRecreate);
+        REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, ResRigSceneDestroy, ResRigSceneRecreate);
         REGISTER_RESOURCE_TYPE(SPINE_MODEL_EXT, 0, ResSpineModelPreload, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
         REGISTER_RESOURCE_TYPE("display_profilesc", render_context, 0, ResDisplayProfilesCreate, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate);
 

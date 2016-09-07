@@ -8,8 +8,8 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
-import com.dynamo.bob.util.SpineScene;
-import com.dynamo.bob.util.SpineScene.Mesh;
+import com.dynamo.bob.util.RigScene;
+import com.dynamo.bob.util.RigScene.Mesh;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -50,7 +50,7 @@ public class SpineModelRenderer implements INodeRenderer<SpineModelNode> {
     }
 
     private boolean shouldRender(GL2 gl, SpineModelNode node) {
-        SpineScene scene = node.getScene();
+        RigScene scene = node.getScene();
         if (scene == null) {
             return false;
         }
