@@ -64,7 +64,6 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
-#   bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
     if 'js-web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/js-web/js', 'dlib/js/library_sys.js')
