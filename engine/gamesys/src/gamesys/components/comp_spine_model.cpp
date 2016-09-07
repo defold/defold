@@ -320,6 +320,7 @@ namespace dmGameSystem
     static void DestroyComponent(SpineModelWorld* world, uint32_t index)
     {
         SpineModelComponent* component = world->m_Components.Get(index);
+        dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
@@ -714,6 +715,7 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
+        dmGameObject::DeleteBones(component->m_Instance);
         CreateGOBones(world, component);
         return true;
     }
