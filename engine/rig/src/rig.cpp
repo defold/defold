@@ -858,6 +858,7 @@ namespace dmRig
 
         RigVertexData* write_ptr = *(dmRig::RigVertexData **)params.m_VertexData;
         const Matrix4& model_matrix = params.m_ModelMatrix;
+        const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
@@ -867,12 +868,6 @@ namespace dmRig
 
         if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
             context->m_DrawOrderToMesh.SetCapacity(mesh_count);
-
-        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-        for (uint32_t bi = 0; bi < pose.Size(); ++bi)
-        {
-            pose[bi] = dmTransform::Mul(pose[bi], bind_pose[bi].m_ModelToLocal);
-        }
 
         UpdateMeshDrawOrder(context, instance, mesh_count);
         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
@@ -897,7 +892,7 @@ namespace dmRig
                     if (bone_weights[bi] > 0.0f)
                     {
                         uint32_t bone_index = bone_indices[bi];
-                        out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
+                        out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
                     }
                 }
                 Vector4 posed_vertex = model_matrix * out_p;
