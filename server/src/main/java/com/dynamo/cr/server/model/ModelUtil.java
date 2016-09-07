@@ -41,6 +41,7 @@ public class ModelUtil {
      * @param email user email
      * @return user. null if user is not found
      */
+    @Deprecated // Use UserService.findByEmail() instead
     public static User findUserByEmail(EntityManager entityManager, String email) {
         List<User> list = entityManager.createQuery("select u from User u where u.email = :email", User.class).setParameter("email", email).getResultList();
         if (list.size() == 0) {
@@ -75,17 +76,6 @@ public class ModelUtil {
     public static void connect(User u1, User u2) {
         u1.getConnections().add(u2);
         u2.getConnections().add(u1);
-    }
-
-    public static Prospect findProspectByEmail(EntityManager entityManager, String email) {
-        List<Prospect> list = entityManager.createQuery("select p from Prospect p where p.email = :email", Prospect.class).setParameter("email", email).getResultList();
-        if (list.size() == 0) {
-            return null;
-        }
-        else {
-            assert list.size() == 1;
-            return list.get(0);
-        }
     }
 
     /**

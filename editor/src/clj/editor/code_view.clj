@@ -8,7 +8,7 @@
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
             DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
-           [javafx.scene Parent]
+           [javafx.scene Parent Cursor]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
@@ -74,6 +74,7 @@
       (cvx/text-selection! source-viewer selection-offset selection-length)
     )
     (cvx/caret! source-viewer caret-position false))
+  (cvx/show-line source-viewer)
   [code-node code caret-position])
 
 
@@ -269,7 +270,7 @@
         )))
   (caret [this] (.getCaretOffset this)))
 
-(defn setup-source-viewer [opts use-custom-skin?]
+(defn setup-source-viewer [opts]
   (let [source-viewer (DefoldSourceViewer.)
         source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
@@ -288,6 +289,7 @@
                                     ;;do nothing we are handling all the events
                                     )
                                   (defoldUpdateCursor [^MouseEvent event visible-cells selection line-label]
+                                    ;;; ported behavior from the underlying Java class
                                     (try
                                       (let [vcells (into [] visible-cells)
                                            doc-len (.getCharCount ^StyledTextArea text-area)
@@ -306,38 +308,62 @@
                                         (if-let [fcell (first found-cells)]
                                           (cvx/caret! text-area (+ (:start-offset fcell) (:caret-idx fcell)) selection)
                                           (let [closest-cell (some #(when (>= (:max-y %) event-y) %) caret-cells)
-                                                found-cell (first found-cells2)
+                                                found-cell (if (neg? event-y)
+                                                             (first caret-cells)
+                                                             (first found-cells2))
                                                 fcell (or found-cell closest-cell)
                                                 line-offset (:line-offset fcell)
                                                 line-length (:line-length fcell)
+                                                line-index (:line-index fcell)
                                                 x-threshold 10]
                                             (cond
 
+                                              ;;; we are drag selecting up
+                                              (and (neg? event-y) line-index)
+                                              (let [line-num (cvx/prev-line-num source-viewer)]
+                                                (when (not (neg? line-num))
+                                                  (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))
+
+                                              ;; we are off to the left of the doc (in the gutter)
                                               (and line-offset line-label)
-                                              (cvx/caret! text-area (+ line-offset) selection)
+                                              (cvx/caret! text-area line-offset selection)
 
+                                              ;; we are off to the left of the doc (but not in the gutter)
                                               (and line-offset (< event-x x-threshold))
-                                              (cvx/caret! text-area (+ line-offset) selection)
+                                              (cvx/caret! text-area line-offset selection)
 
+                                              ;; we are off to the right of the doc
                                               line-offset
                                               (cvx/caret! text-area (+ line-offset line-length) selection)
 
+                                              ;;; we are clicking below the end of the document (entire doc is in viewport)
+                                              ;; and we want to jump to the end
+                                              fcell
+                                              (cvx/caret! text-area doc-len selection)
+
+                                              ;; we are drag selecting down
                                               true
-                                              (cvx/caret! text-area doc-len selection)))))
-                                      (catch Exception e (println "error updating cursor")))))]
+                                              (let [line-num (cvx/next-line-num source-viewer)]
+                                                (when line-num
+                                                  (cvx/caret! source-viewer (cvx/line-offset-at-num source-viewer line-num) selection)))))))
+                                      (cvx/show-line source-viewer)
+                                      (catch Exception e
+                                        (println "error updating cursor" (.printStackTrace e))))))]
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_PRESSED
                         (ui/event-handler e (cvx/handle-key-pressed e source-viewer)))
       (.addEventHandler ^StyledTextArea text-area
                         KeyEvent/KEY_TYPED
                         (ui/event-handler e (cvx/handle-key-typed e source-viewer)))
-     (when use-custom-skin?
-       (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
-         (.setSkin text-area skin)
-         (.addEventHandler  ^ListView (.getListView skin)
-                            MouseEvent/MOUSE_CLICKED
-                            (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))))
-
+      (.setOnMouseEntered ^StyledTextArea text-area
+                          (ui/event-handler e
+                                            (.setCursor (.getScene text-area) Cursor/DEFAULT)))
+     (let [skin (new DefoldStyledTextSkin text-area styled-text-behavior)]
+       (.setSkin text-area skin)
+       (.addEventHandler  ^ListView (.getListView skin)
+                          MouseEvent/MOUSE_CLICKED
+                          (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))
+       (.setMinWidth (.getLineRuler skin) 50)) ; make it fit reasonably large line numbers to avoid jumps when scrolling
 
       (ui/user-data! text-area ::behavior styled-text-behavior)
       (ui/user-data! source-viewer ::assist (:assist opts))
@@ -385,10 +411,19 @@
     (when (.hasString this)
       (.getString this))))
 
+(defn- caret-at-start-or-end-of-selection? [source-viewer offset]
+  (and (pos? (cvx/selection-length source-viewer))
+       (or (= offset (cvx/selection-offset source-viewer))
+           (= offset (+ (cvx/selection-length source-viewer)
+                        (cvx/selection-offset source-viewer))))))
+
 (defn source-viewer-set-caret! [source-viewer offset select?]
-  (cvx/caret! (.getTextWidget ^SourceViewer source-viewer)
-              (cvx/adjust-bounds (cvx/text source-viewer) offset)
-              select?))
+  (let [select-value (and select? (not (caret-at-start-or-end-of-selection? source-viewer offset)))]
+   (cvx/caret! (.getTextWidget ^SourceViewer source-viewer)
+               (cvx/adjust-bounds (cvx/text source-viewer) offset)
+               select-value)))
+
+(declare skin)
 
 (extend-type SourceViewer
   workspace/SelectionProvider
@@ -434,7 +469,20 @@
     (let [text-area (.getTextWidget this)]
       (.requestFocus text-area)
       (.requestLayout text-area)))
-  cvx/TextStyles
+  (page-down [this]
+    (.pageDown ^DefoldStyledTextSkin (skin this)))
+  (page-up [this]
+    (.pageUp ^DefoldStyledTextSkin (skin this)))
+  (last-visible-row-number [this]
+    (.getLastVisibleRowNumber ^DefoldStyledTextSkin (skin this)))
+  (first-visible-row-number [this]
+    (.getFirstVisibleRowNumber ^DefoldStyledTextSkin (skin this)))
+  (show-line [this]
+    (let [caret (cvx/caret this)
+          skin (skin this)
+          line-num (cvx/line-num-at-offset this caret)]
+      (when skin (.showLine ^DefoldStyledTextSkin skin line-num))))
+    cvx/TextStyles
   (styles [this] (let [document-len (-> this (.getDocument) (.getLength))
                        text-widget (.getTextWidget this)
                        len (dec (.getCharCount text-widget))
@@ -459,7 +507,7 @@
           prefer-offset-changed? (not= prefer-offset (g/node-value code-node-id :prefer-offset))
           tab-triggers-changed? (not= tab-triggers (g/node-value code-node-id :tab-triggers))]
       (when (or code-changed? caret-changed? selection-changed? prefer-offset-changed? tab-triggers-changed?)
-        (g/transact (remove nil?
+        (let [tx-data (remove nil?
                             (concat
                              (when code-changed?  [(g/set-property code-node-id :code code)])
                              (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
@@ -467,32 +515,49 @@
                                [(g/set-property code-node-id :selection-offset selection-offset)
                                 (g/set-property code-node-id :selection-length selection-length)])
                              (when prefer-offset-changed? [(g/set-property code-node-id :prefer-offset prefer-offset)])
-                             (when tab-triggers-changed? [(g/set-property code-node-id :tab-triggers tab-triggers)])))))))
+                             (when tab-triggers-changed? [(g/set-property code-node-id :tab-triggers tab-triggers)])))]
+          (g/transact tx-data)))))
+  (typing-changes! [this]
+    (let [code-node-id (-> this (.getTextWidget) (code-node))
+          code (cvx/text this)
+          caret (cvx/caret this)
+          code-changed? (not= code (g/node-value code-node-id :code))]
+      (when code-changed?
+        (g/transact [(g/set-property code-node-id :code code)
+                     (g/set-property code-node-id :caret-position caret)]))))
   cvx/TextLine
   (line [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
           line-no (.getLineAtOffset text-area-content offset)]
       (.getLine text-area-content line-no)))
+  (prev-line-num [this]
+   (let [text-area-content (.getContent (.getTextWidget this))
+         offset (cvx/caret this)
+         line-no (.getLineAtOffset text-area-content offset)]
+     (dec line-no)))
   (prev-line [this]
     (let [text-area-content (.getContent (.getTextWidget this))
-          offset (cvx/caret this)
-          line-no (.getLineAtOffset text-area-content offset)
-          prev-line-num (dec line-no)]
+          prev-line-num (cvx/prev-line-num this)]
       (if (neg? prev-line-num)
         ""
         (.getLine text-area-content prev-line-num))))
-  (next-line [this]
+  (next-line-num [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
           line-no (.getLineAtOffset text-area-content offset)
           line-offset (.getOffsetAtLine text-area-content line-no)
           line-length (count (.getLine text-area-content line-no))
-          doc-length (count(cvx/text this))
+          doc-length (count (cvx/text this))
           end-of-doc? (<= doc-length (+ line-offset line-length))]
-      (if end-of-doc?
-        ""
-        (.getLine text-area-content (inc line-no)))))
+      (when (not end-of-doc?)
+        (inc line-no))))
+  (next-line [this]
+    (let [text-area-content (.getContent (.getTextWidget this))
+          line-num (cvx/next-line-num this)]
+      (if line-num
+        (.getLine text-area-content line-num)
+        "")))
   (line-offset [this]
     (let [text-area-content (.getContent (.getTextWidget this))
           offset (cvx/caret this)
@@ -557,8 +622,11 @@
   (clear-snippet-tab-triggers! [this]
     (reset! (tab-triggers this) nil)))
 
+(defn- ^DefoldStyledTextSkin skin [^SourceViewer source-viewer]
+  (-> source-viewer (.getTextWidget) (.getSkin)))
+
 (defn make-view [graph ^Parent parent code-node opts]
-  (let [source-viewer (setup-source-viewer opts true)
+  (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
@@ -569,7 +637,7 @@
     (cvx/refresh! source-viewer)
     (g/node-value view-id :new-content)
     (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                     (cvx/changes! source-viewer)))
+                                                                     (cvx/typing-changes! source-viewer)))
           stage (ui/parent->stage parent)]
       (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
       (ui/timer-stop-on-close! stage refresh-timer)

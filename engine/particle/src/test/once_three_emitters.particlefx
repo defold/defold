@@ -1,0 +1,72 @@
+emitters: {
+    id: "emitter1"
+    mode:               PLAY_MODE_ONCE
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+    duration:           1
+
+    tile_source:        ""
+    animation:          ""
+    material:           ""
+
+    max_particle_count: 1
+
+    type:               EMITTER_TYPE_SPHERE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 60 t_x: 1 t_y: 0 }
+    }
+
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 0.5 t_x: 1 t_y: 0 }
+    }
+}
+emitters: {
+    id: "emitter2"
+    mode:               PLAY_MODE_ONCE
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+    duration:           1
+
+    tile_source:        ""
+    animation:          ""
+    material:           ""
+
+    max_particle_count: 1
+
+    type:               EMITTER_TYPE_SPHERE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 60 t_x: 1 t_y: 0 }
+    }
+
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 0.4 t_x: 1 t_y: 0 }
+    }
+}
+emitters: {
+    id: "emitter3"
+    mode:               PLAY_MODE_ONCE
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+    duration:           1
+
+    tile_source:        ""
+    animation:          ""
+    material:           ""
+
+    max_particle_count: 1
+
+    type:               EMITTER_TYPE_SPHERE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 60 t_x: 1 t_y: 0 }
+    }
+
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 0.3 t_x: 1 t_y: 0 }
+    }
+}

@@ -41,8 +41,3 @@
   (is (not (error? :foo)))
   (is (error? [1 2 (error-fatal :boo) 4 5])))
 
-(deftest checking-seriousness
-  (is (error-info?    (most-serious [(error-info "info") (error-info "another")    (error-info "third")])))
-  (is (error-warning? (most-serious [(error-info "info") (error-warning "another") (error-warning "third")])))
-  (is (error-severe?  (most-serious [(error-info "info") (error-warning "another") (error-severe "third")])))
-  (is (error-fatal?   (most-serious [(error-info "info") (error-severe "another")  (error-fatal "third")]))))

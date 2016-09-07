@@ -37,4 +37,4 @@
                     viewport (g/node-value view :viewport)]
                 (doseq [i (range jit-retry-count)]
                   (System/gc)
-                  (scene/produce-render-data scene #{1 2 3} [] camera viewport)))))))
+                  (scene/produce-render-data scene #{1 2 3} [] camera)))))))

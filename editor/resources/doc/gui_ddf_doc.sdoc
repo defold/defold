@@ -1,0 +1,14 @@
+
+ûlayout_changedreports a layout change"l<p>
+This message is broadcast to every GUI component when a layout change has been initiated
+on device.
+</p>2;
+id5the id of the layout the engine is changing to (hash)2F
+previous_id7the id of the layout the engine is changing from (hash):Ú<pre>
+function on_message(self, message_id, message, sender)
+   if message_id == hash("layout_changed") and message.id == hash("Landscape") then
+       -- switching layout to "Landscape"...
+       ...
+   end
+end
+</pre>

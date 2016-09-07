@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class AccessTokenAuthenticator {
-    private static final Duration SESSION_PROLONG_DURATION = Duration.of(24, ChronoUnit.HOURS);
+    private static final Duration SESSION_PROLONG_DURATION = Duration.of(5, ChronoUnit.DAYS);
     private final AccessTokenFactory accessTokenFactory = new AccessTokenFactory();
     private final AccessTokenStore accessTokenStore;
     private TimeSource timeSource = new SystemTimeSource();

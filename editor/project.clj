@@ -101,4 +101,4 @@
                                 :java-source-paths ["dev/java"]
                                 :source-paths      ["dev/clj"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-XX:+UnlockCommercialFeatures" "-XX:+FlightRecorder"]}})
+                                :jvm-opts          ["-XX:+UnlockCommercialFeatures" "-XX:+FlightRecorder" "-XX:-OmitStackTraceInFastThrow"]}})
