@@ -106,19 +106,19 @@ namespace dmGui
         return 0;
     }
 
-    static void RigEventCallback(const dmRig::RigEventData& event_data, void* userdata1, void* userdata2)
+    static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        if (!userdata2) {
+        if (!user_data2) {
             return;
         }
 
-        HScene scene = (HScene)userdata1;
-        SpineAnimation* animation = (SpineAnimation*)userdata2;
+        HScene scene = (HScene)user_data1;
+        SpineAnimation* animation = (SpineAnimation*)user_data2;
 
-        if  (event_data.m_Type == dmRig::RIG_EVENT_TYPE_DONE) {
+        if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
             animation->m_AnimationComplete(scene, animation->m_Node, animation->m_Userdata1, animation->m_Userdata2);
         } else {
-            dmLogWarning("Unknown and unhandled rig event received (%d).", event_data.m_Type);
+            dmLogWarning("Unknown and unhandled rig event received (%d).", event_type);
         }
 
     }
@@ -2316,7 +2316,7 @@ namespace dmGui
         create_params.m_Skeleton         = rig_data.m_Skeleton;
         create_params.m_MeshSet          = rig_data.m_MeshSet;
         create_params.m_AnimationSet     = rig_data.m_AnimationSet;
-        create_params.m_Skin             = skin_id;
+        create_params.m_MeshId           = skin_id;
         create_params.m_DefaultAnimation = default_animation_id;
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);

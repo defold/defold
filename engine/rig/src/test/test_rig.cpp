@@ -384,7 +384,7 @@ protected:
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
 
-        create_params.m_Skin             = dmHashString64((const char*)"test");
+        create_params.m_MeshId           = dmHashString64((const char*)"test");
         create_params.m_DefaultAnimation = dmHashString64((const char*)"");
 
         if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params)) {
@@ -423,7 +423,7 @@ TEST_F(RigContextTest, InstanceCreation)
     create_params.m_MeshSet      = new dmRigDDF::MeshSet();
     create_params.m_AnimationSet = new dmRigDDF::AnimationSet();
 
-    create_params.m_Skin             = dmHashString64((const char*)"dummy");
+    create_params.m_MeshId           = dmHashString64((const char*)"dummy");
     create_params.m_DefaultAnimation = dmHashString64((const char*)"");
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(create_params));
@@ -452,7 +452,7 @@ TEST_F(RigContextTest, InvalidInstanceCreation)
     create_params.m_Skeleton     = new dmRigDDF::Skeleton();
     create_params.m_MeshSet      = new dmRigDDF::MeshSet();
     create_params.m_AnimationSet = new dmRigDDF::AnimationSet();
-    create_params.m_Skin             = dmHashString64((const char*)"dummy");
+    create_params.m_MeshId             = dmHashString64((const char*)"dummy");
     create_params.m_DefaultAnimation = dmHashString64((const char*)"");
 
     create_params.m_Instance = &instance0;
@@ -646,7 +646,7 @@ TEST_F(RigInstanceTest, GenerateVertexData)
     delete [] data;
 }
 
-TEST_F(RigInstanceTest, SetSkinInvalid)
+TEST_F(RigInstanceTest, SetMeshInvalid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
@@ -663,9 +663,9 @@ TEST_F(RigInstanceTest, SetSkinInvalid)
     ASSERT_EQ(0, data[0].b);
     ASSERT_EQ(0, data[0].a);
 
-    dmhash_t new_skin = dmHashString64("not_a_valid_skin");
-    ASSERT_EQ(dmRig::RESULT_FAILED, dmRig::SetSkin(m_Instance, new_skin));
-    ASSERT_EQ(dmHashString64("test"), dmRig::GetSkin(m_Instance));
+    dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
+    ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetMesh(m_Instance, new_mesh));
+    ASSERT_EQ(dmHashString64("test"), dmRig::GetMesh(m_Instance));
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
@@ -678,7 +678,7 @@ TEST_F(RigInstanceTest, SetSkinInvalid)
 }
 
 
-TEST_F(RigInstanceTest, SetSkinValid)
+TEST_F(RigInstanceTest, SetMeshValid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
@@ -695,9 +695,9 @@ TEST_F(RigInstanceTest, SetSkinValid)
     ASSERT_EQ(0, data[0].b);
     ASSERT_EQ(0, data[0].a);
 
-    dmhash_t new_skin = dmHashString64("secondary_skin");
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetSkin(m_Instance, new_skin));
-    ASSERT_EQ(new_skin, dmRig::GetSkin(m_Instance));
+    dmhash_t new_mesh = dmHashString64("secondary_skin");
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, new_mesh));
+    ASSERT_EQ(new_mesh, dmRig::GetMesh(m_Instance));
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
@@ -800,11 +800,6 @@ TEST_F(RigInstanceTest, CursorSetOutside)
 
     ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, -4.0f / 3.0f, true), RIG_EPSILON);
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-}
-
-static Vector3 IKTargetPositionCallback(void* user_data, void*)
-{
-    return *(Vector3*)user_data;
 }
 
 TEST_F(RigInstanceTest, InvalidIKTarget)
