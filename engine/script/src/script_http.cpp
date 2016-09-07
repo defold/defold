@@ -29,7 +29,7 @@ namespace dmScript
 {
     /*# HTTP API documentation
      *
-     * Functions for performing HTTP requests.
+     * Functions for performing HTTP and HTTPS requests.
      *
      * @name HTTP
      * @namespace http
@@ -39,12 +39,12 @@ namespace dmScript
     int g_ServiceRefCount = 0;
     uint64_t g_Timeout = 0;
 
-    /*# perform a HTTP request
-     * Perform a HTTP request.
+    /*# perform a HTTP/HTTPS request
+     * Perform a HTTP/HTTPS request.
      *
      * @name http.request
      * @param url target url
-     * @param method HTTP method, e.g. GET/PUT/POST/DELETE/...
+     * @param method HTTP/HTTPS method, e.g. GET/PUT/POST/DELETE/...
      * @param callback response callback
      * @param [headers] optional lua-table with custom headers
      * @param [post_data] optional data to send

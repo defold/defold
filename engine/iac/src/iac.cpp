@@ -12,7 +12,7 @@ extern int IAC_PlatformSetListener(lua_State* L);
  * Functions and constants for doing inter-app communication on iOS and 
  * Android.
  *
- * @name Inter-app comm
+ * @name Inter-app communication
  * @namespace iac
  */ 
 
