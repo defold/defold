@@ -61,6 +61,7 @@
                       "../engine/particle/proto/particle"
                       "../engine/render/proto/render"
                       "../engine/resource/proto"
+                      "../engine/rig/proto"                      
                       "../engine/script/src"
                       "../engine/vscript/proto"]
 

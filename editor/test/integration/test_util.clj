@@ -22,7 +22,8 @@
             [editor.workspace :as workspace]
             [editor.gl.shader :as shader]
             [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]            
+            [editor.tile-source :as tile-source]
+            [editor.rig :as rig]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.particlefx :as particlefx]
@@ -72,6 +73,7 @@
         (particlefx/register-resource-types workspace)
         (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
+        (rig/register-resource-types workspace)
         (script/register-resource-types workspace)
         (shader/register-resource-types workspace)
         (sound/register-resource-types workspace)

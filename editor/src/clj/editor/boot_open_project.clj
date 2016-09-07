@@ -38,6 +38,7 @@
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf-types :as protobuf-types]
+            [editor.rig :as rig]
             [editor.scene :as scene]
             [editor.script :as script]
             [editor.sound :as sound]
@@ -106,6 +107,7 @@
         (particlefx/register-resource-types workspace)
         (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
+        (rig/register-resource-types workspace)
         (script/register-resource-types workspace)
         (shader/register-resource-types workspace)
         (sound/register-resource-types workspace)
