@@ -803,6 +803,83 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         dmGui::DeleteScript(script);
 }
 
+static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton* skeleton)
+{
+    // Calculate bind pose
+    // (code from res_rig_scene.h)
+    uint32_t bone_count = skeleton->m_Bones.m_Count;
+    bind_pose->SetCapacity(bone_count);
+    bind_pose->SetSize(bone_count);
+    for (uint32_t i = 0; i < bone_count; ++i)
+    {
+        dmRig::RigBone* bind_bone = &(*bind_pose)[i];
+        dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
+        bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+        if (i > 0)
+        {
+            bind_bone->m_LocalToModel = dmTransform::Mul((*bind_pose)[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
+            if (!bone->m_InheritScale)
+            {
+                bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
+            }
+        }
+        else
+        {
+            bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
+        }
+        bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
+        bind_bone->m_ParentIndex = bone->m_Parent;
+        bind_bone->m_Length = bone->m_Length;
+    }
+}
+
+static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+{
+    dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+
+    uint32_t bone_count = 2;
+    skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
+    skeleton->m_Bones.m_Count = bone_count;
+
+    // Bone 0
+    dmRigDDF::Bone& bone0 = skeleton->m_Bones.m_Data[0];
+    bone0.m_Parent       = 0xffff;
+    bone0.m_Id           = dmHashString64("b0");
+    bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
+    bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone0.m_InheritScale = false;
+    bone0.m_Length       = 0.0f;
+
+    // Bone 1
+    dmRigDDF::Bone& bone1 = skeleton->m_Bones.m_Data[1];
+    bone1.m_Parent       = 0;
+    bone1.m_Id           = dmHashString64("b1");
+    bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
+    bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
+    bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone1.m_InheritScale = false;
+    bone1.m_Length       = 1.0f;
+
+    dummy_data->m_BindPose = new dmArray<dmRig::RigBone>();
+    dummy_data->m_Skeleton = skeleton;
+    dummy_data->m_MeshSet = mesh_set;
+    dummy_data->m_AnimationSet = animation_set;
+
+    BuildBindPose(dummy_data->m_BindPose, skeleton);
+}
+
+static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+{
+    delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
+    delete dummy_data->m_Skeleton;
+    delete dummy_data->m_MeshSet;
+    delete dummy_data->m_AnimationSet;
+    delete dummy_data;
+}
+
 TEST_F(dmGuiScriptTest, SpineScenes)
 {
     dmGui::HScript script = NewScript(m_Context);
@@ -815,16 +892,8 @@ TEST_F(dmGuiScriptTest, SpineScenes)
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);
 
-        dmArray<dmRig::RigBone> bind_pose;
-        dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
-        dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
-        dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
-
         dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-        dummy_data->m_BindPose = &bind_pose;
-        dummy_data->m_Skeleton = skeleton;
-        dummy_data->m_MeshSet = mesh_set;
-        dummy_data->m_AnimationSet = animation_set;
+        CreateSpineDummyData(dummy_data);
 
         ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
 
@@ -846,10 +915,158 @@ TEST_F(dmGuiScriptTest, SpineScenes)
         dmGui::DeleteScene(scene);
         dmGui::DeleteScript(script);
 
-        delete dummy_data;
-        delete skeleton;
-        delete mesh_set;
-        delete animation_set;
+        DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiScriptTest, DeleteSpine)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    n = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    gui.set_pivot(n, gui.PIVOT_SW)\n"
+                "end\n"
+                "function update(self, dt)\n"
+                "    -- produces a lua error since the spine nodes has been deleted\n"
+                "    gui.get_position(n)\n"
+                "    gui.delete_node(n)\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_NE(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiScriptTest, DeleteBone)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    n = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    gui.set_pivot(n, gui.PIVOT_SW)\n"
+                "    bone_node = gui.get_bone_node(n, \"b1\")\n"
+                "end\n"
+                "function update(self, dt)\n"
+                "    -- produces a lua error since bone nodes cannot be deleted on their own\n"
+                "    gui.get_position(bone_node)\n"
+                "    gui.delete_node(bone_node)\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_NE(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiScriptTest, SetBoneNodeProperties)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    spine_node = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    fake_parent = gui.new_box_node(vmath.vector3(1, 1, 1),vmath.vector3(1, 1, 1))\n"
+                "\n"
+                "    bone_node = gui.get_bone_node(spine_node, \"b1\")\n"
+                "    gui.set_position(bone_node, vmath.vector3(100, 100, 0))\n"
+                "    gui.set_size(bone_node, vmath.vector3(100, 100, 100))\n"
+                "    gui.set_scale(bone_node, vmath.vector3(100, 100, 100))\n"
+                "    gui.set_scale(bone_node, vmath.vector3(100, 100, 100))\n"
+                "    gui.set_parent(bone_node, fake_parent)\n"
+                "    gui.set_spine_scene(bone_node, \"test_spine\")\n"
+                "end\n"
+                "\n"
+                "function update(self, dt)\n"
+                "    -- properties should not have changed since it's not possible to set them directly for bones\n"
+                "    assert(gui.get_position(bone_node).x == 1.0)\n"
+                "    assert(gui.get_size(bone_node).x == 0.0)\n"
+                "    assert(gui.get_scale(bone_node).x == 1.0)\n"
+                "    assert(gui.get_parent(bone_node) ~= fake_parent)\n"
+                "    assert(gui.get_spine_scene(bone_node) == hash(\"\"))\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
 }
 
 int main(int argc, char **argv)

@@ -259,6 +259,13 @@ namespace dmRig
         Matrix4 m_ModelMatrix;
         void**  m_VertexData;
         int32_t m_VertexStride;
+        Vector4 m_Color;
+        RigGenVertexDataParams() {
+            m_ModelMatrix = Matrix4::identity();
+            m_VertexData = NULL;
+            m_VertexStride = 0;
+            m_Color = Vector4(1.0f,1.0f,1.0f,1.0f);
+        }
     };
 
     Result NewContext(const NewContextParams& params);

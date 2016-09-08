@@ -452,6 +452,11 @@ namespace dmGui
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if (n->m_Node.m_ReadOnly) {
+            return luaL_error(L, "Unable to delete bone nodes of a spine node.");
+            return 0;
+        }
+
         // Set deferred delete flag
         n->m_Deleted = 1;
 
@@ -2791,6 +2796,9 @@ namespace dmGui
     {
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if(n->m_Node.m_ReadOnly) {
+            return 0;
+        }
         HNode parent = INVALID_HANDLE;
         if (!lua_isnil(L, 2))
         {
@@ -2881,6 +2889,11 @@ namespace dmGui
         while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
         {
             InternalNode* node = &scene->m_Nodes[index];
+            if (dmGui::GetNodeReadOnly(scene, GetNodeHandle(node))) {
+                index = node->m_NextIndex;
+                continue;
+            }
+
             dmGui::HNode out_node;
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
@@ -3149,6 +3162,9 @@ namespace dmGui
         {\
             HNode hnode;\
             InternalNode* n = LuaCheckNode(L, 1, &hnode);\
+            if (n->m_Node.m_ReadOnly) {\
+                return 0;\
+            }\
             Vector4 v;\
             if (dmScript::IsVector3(L, 2))\
             {\
@@ -3215,6 +3231,10 @@ namespace dmGui
         if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
         {
             dmLogWarning("Can not set size on auto-sized nodes.");
+            return 0;
+        }
+        if(n->m_Node.m_ReadOnly)
+        {
             return 0;
         }
         Vector4 v;
@@ -3387,6 +3407,9 @@ namespace dmGui
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
+        if(dmGui::GetNodeReadOnly(scene, node)) {
+            return 0;
+        }
 
         if (RESULT_OK != SetNodeSpineScene(scene, node, dmScript::CheckHashOrString(L, 2), 0, 0))
         {

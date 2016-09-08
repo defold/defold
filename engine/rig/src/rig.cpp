@@ -878,6 +878,7 @@ namespace dmRig
         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
             uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
             const MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+            Vector4 color = mulPerElem(params.m_Color, Vector4(properties->m_Color[0], properties->m_Color[1], properties->m_Color[2], properties->m_Color[3]));
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
             if (!properties->m_Visible) {
                 continue;
@@ -907,10 +908,10 @@ namespace dmRig
                 e = vi*2;
                 write_ptr->u = mesh->m_Texcoord0[e+0];
                 write_ptr->v = mesh->m_Texcoord0[e+1];
-                write_ptr->r = TO_BYTE(properties->m_Color[0]);
-                write_ptr->g = TO_BYTE(properties->m_Color[1]);
-                write_ptr->b = TO_BYTE(properties->m_Color[2]);
-                write_ptr->a = TO_BYTE(properties->m_Color[3]);
+                write_ptr->r = TO_BYTE(color.getX());
+                write_ptr->g = TO_BYTE(color.getY());
+                write_ptr->b = TO_BYTE(color.getZ());
+                write_ptr->a = TO_BYTE(color.getW());
                 write_ptr = (dmRig::RigVertexData*)((uintptr_t)write_ptr + params.m_VertexStride);
             }
         }

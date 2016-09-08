@@ -1732,6 +1732,7 @@ namespace dmGui
             node->m_Node.m_SpineSceneHash = 0;
             node->m_Node.m_SpineScene = 0;
             node->m_Node.m_RigInstance = 0;
+            node->m_Node.m_ReadOnly = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
             node->m_Node.m_LayerIndex = 0;
             node->m_Node.m_NodeDescTable = 0;
@@ -2114,9 +2115,11 @@ namespace dmGui
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value)
     {
         assert(property < PROPERTY_COUNT);
-        InternalNode* n = GetNode(scene, node);
-        n->m_Node.m_Properties[property] = value;
-        n->m_Node.m_DirtyLocal = 1;
+        if (!GetNodeReadOnly(scene, node)) {
+            InternalNode* n = GetNode(scene, node);
+            n->m_Node.m_Properties[property] = value;
+            n->m_Node.m_DirtyLocal = 1;
+        }
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)
@@ -2339,7 +2342,9 @@ namespace dmGui
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-            (*n->m_Node.m_SpineBoneNodes)[i] = NewNode(scene, Point3(transform.GetTranslation()), Vector3(0, 0, 0), NODE_TYPE_BOX);
+            HNode bone_node = NewNode(scene, Point3(transform.GetTranslation()), Vector3(0, 0, 0), NODE_TYPE_BOX);
+            SetNodeReadOnly(scene, bone_node, true);
+            (*n->m_Node.m_SpineBoneNodes)[i] = bone_node;
         }
 
         // Set parents in reverse to account for child-prepending
@@ -2704,6 +2709,18 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Pivot = (uint32_t) pivot;
+    }
+
+    void SetNodeReadOnly(HScene scene, HNode node, bool read_only)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_ReadOnly = read_only;
+    }
+
+    bool GetNodeReadOnly(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_ReadOnly;
     }
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode)
@@ -3216,6 +3233,12 @@ namespace dmGui
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node)
     {
+        if (dmGui::GetNodeReadOnly(scene, node))
+        {
+            dmLogError("Could not clone a bone node.");
+            return RESULT_WRONG_TYPE;
+        }
+
         if (scene->m_NodePool.Remaining() == 0)
         {
             dmLogError("Could not create the node since the buffer is full (%d).", scene->m_NodePool.Capacity());
@@ -3247,6 +3270,12 @@ namespace dmGui
             out_n->m_ChildHead = INVALID_INDEX;
             out_n->m_ChildTail = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
+
+            if (n->m_Node.m_RigInstance != 0x0)
+            {
+                out_n->m_Node.m_RigInstance = 0x0;
+                SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), 0, 0);
+            }
             // Add to the top of the scene
             MoveNodeAbove(scene, *out_node, INVALID_HANDLE);
 

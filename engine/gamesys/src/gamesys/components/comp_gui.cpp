@@ -776,11 +776,14 @@ namespace dmGameSystem
         dmRig::RigGenVertexDataParams params;
         for (uint32_t i = 0; i < node_count; ++i)
         {
+
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             params.m_ModelMatrix = node_transforms[i];
             params.m_VertexData = (void**)&vb_end;
             params.m_VertexStride = sizeof(BoxVertex);
+            params.m_Color = Vector4(color.getXYZ() * node_opacities[i], node_opacities[i]); // Pre-multiplied alpha
 
             vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
         }

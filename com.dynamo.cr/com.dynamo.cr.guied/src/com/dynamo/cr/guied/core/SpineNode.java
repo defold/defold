@@ -80,7 +80,7 @@ public class SpineNode extends ClippingNode {
     }
 
     public boolean isColorVisible() {
-        return false;
+        return true;
     }
 
     public boolean isBlendModeVisible() {

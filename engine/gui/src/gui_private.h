@@ -146,6 +146,8 @@ namespace dmGui
         void*               m_SpineScene;
         dmArray<HNode>*     m_SpineBoneNodes;
         dmRig::HRigInstance m_RigInstance;
+
+        uint32_t            m_ReadOnly : 1;
     };
 
     struct InternalNode
