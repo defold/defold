@@ -4210,7 +4210,7 @@ TEST_F(dmGuiTest, SpineNodeNoData)
     ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0));
 }
 
-TEST_F(dmGuiTest, SpineNodeDummyData)
+TEST_F(dmGuiTest, SpineNode)
 {
     uint32_t width = 100;
     uint32_t height = 50;
@@ -4230,8 +4230,6 @@ TEST_F(dmGuiTest, SpineNodeDummyData)
 
     DeleteSpineDummyData(dummy_data);
 }
-
-
 
 TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
 {
@@ -4255,6 +4253,9 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
     ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 0));
     ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 1));
     ASSERT_EQ(0, GetNodeSpineBone(m_Scene, node, 2));
+
+    ASSERT_EQ(0, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 0)).getX());
+    ASSERT_EQ(1, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 1)).getX());
 
     DeleteSpineDummyData(dummy_data);
 }

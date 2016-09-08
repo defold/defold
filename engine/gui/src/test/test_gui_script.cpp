@@ -873,6 +873,7 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
 
 static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
 {
+    delete dummy_data->m_BindPose;
     delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
     delete dummy_data->m_Skeleton;
     delete dummy_data->m_MeshSet;
