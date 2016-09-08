@@ -22,6 +22,7 @@
    [editor.scene :as scene]
    [editor.outline :as outline]
    [editor.protobuf :as protobuf]
+   [editor.util :as util]
    [editor.validation :as validation])
   (:import
    [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
@@ -210,7 +211,8 @@
      (g/connect project :collision-groups-data collision-group-node :collision-groups-data))))
 
 (defn- outline-sort-by-fn [v]
-  [(:name (g/node-type* (:node-id v))) (when-let [label (:label v)] (str/lower-case label))])
+  [(:name (g/node-type* (:node-id v)))
+   (when-let [label (:label v)] (util/natural-order-key (str/lower-case label)))])
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   {:node-id _node-id
