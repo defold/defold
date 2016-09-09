@@ -213,6 +213,9 @@
 (handler/defhandler :report-issue :global
   (run [] (.browse (Desktop/getDesktop) (github/new-issue-link))))
 
+(handler/defhandler :report-praise :global
+  (run [] (.browse (Desktop/getDesktop) (github/new-praise-link))))
+
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
 
@@ -304,6 +307,8 @@
                               :command :documentation}
                              {:label "Report Issue"
                               :command :report-issue}
+                             {:label "Report Praise"
+                              :command :report-praise}
                              {:label "About"
                               :command :about}]}])
 
