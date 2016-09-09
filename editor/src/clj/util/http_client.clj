@@ -7,6 +7,8 @@
    (java.io ByteArrayOutputStream InputStream IOException)
    (java.net URI URL HttpURLConnection)))
 
+(set! *warn-on-reflection* true)
+
 ;; http client using HttpURLConnection, extracted from clj-http-lite
 
 (defn parse-headers
@@ -56,7 +58,7 @@
                       (when server-port (str ":" server-port))
                       uri
                       (when query-string (str "?" query-string)))
-        conn (.openConnection ^URL (URL. http-url))]
+        ^HttpURLConnection conn (.openConnection ^URL (URL. http-url))]
     (when (and content-type character-encoding)
       (.setRequestProperty conn "Content-Type" (str content-type
                                                     "; charset="
