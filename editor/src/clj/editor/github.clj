@@ -5,6 +5,8 @@
   (:import
    (java.net URI URLEncoder)))
 
+(set! *warn-on-reflection* true)
+
 (def issue-repo "https://github.com/defold/editor2-issues")
 
 (defn issue-body

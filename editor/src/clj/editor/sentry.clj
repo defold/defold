@@ -10,6 +10,7 @@
    (java.util.concurrent LinkedBlockingQueue TimeUnit)
    (java.time LocalDateTime ZoneOffset)))
 
+(set! *warn-on-reflection* true)
 
 (def user-agent "sentry-defold/1.0")
 
@@ -24,7 +25,7 @@
 (defn- exception-data
   [^Exception ex ^Thread thread]
   (let [frames (seq (.getStackTrace ex))
-        top (first frames)]
+        ^StackTraceElement top (first frames)]
     [{:type (str (.getClass ex))
       :value (.getMessage ex)
       :module (str (.getClassName top) "." (.getMethodName top))
