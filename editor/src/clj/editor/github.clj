@@ -25,3 +25,7 @@
   []
   (URI. (str issue-repo "/issues/new?title=&body="
              (URLEncoder/encode (issue-body)))))
+
+(defn new-praise-link
+  []
+  (URI. (str issue-repo "/issues/new?title=" (URLEncoder/encode "[PRAISE] "))))
