@@ -1,15 +1,11 @@
 package com.dynamo.cr.server.providers;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.StringWriter;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.lang.reflect.Type;
-import java.util.Iterator;
-import java.util.List;
+import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
+import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.Message;
+import org.codehaus.jackson.*;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
@@ -19,18 +15,12 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.Provider;
-
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerationException;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.map.ObjectMapper;
-
-import com.google.protobuf.Descriptors.Descriptor;
-import com.google.protobuf.Descriptors.EnumValueDescriptor;
-import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.Message;
+import java.io.*;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.Iterator;
+import java.util.List;
 
 public class JsonProviders {
 
@@ -138,7 +128,7 @@ public class JsonProviders {
             return Message.class.isAssignableFrom(type);
         }
 
-        void ObjectToJSON(Object o, JsonGenerator generator) throws JsonGenerationException, IOException {
+        void ObjectToJSON(Object o, JsonGenerator generator) throws IOException {
             if (o instanceof Integer) {
                 generator.writeNumber((Integer) o);
             }
@@ -195,8 +185,7 @@ public class JsonProviders {
                 generator = (new JsonFactory()).createJsonGenerator(writer);
                 MessageToJSON(m, generator);
                 generator.close();
-                byte[] bytes = writer.getBuffer().toString().getBytes("UTF-8");
-                return bytes;
+                return writer.getBuffer().toString().getBytes("UTF-8");
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

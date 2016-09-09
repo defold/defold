@@ -56,14 +56,18 @@ def _parse_comment(str):
     element.brief = str[0:desc_start]
     desc_end = min(len(str), str.find('\n@'))
     element.description = str[desc_start:desc_end].strip()
-    element.return_ = ''
 
     for (tag, value) in lst:
         value = value.strip()
         if tag == 'name':
             element.name = value
         elif tag == 'return':
-            element.return_ = value
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            ret = element.returnvalues.add()
+            ret.name = tmp[0]
+            ret.doc = tmp[1]            
         elif tag == 'param':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:

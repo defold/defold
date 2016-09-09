@@ -9,12 +9,9 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename)
     {
         dmResource::Result result;
-        if((resource->m_RigScene->m_TextureSet != 0x0) && (*resource->m_RigScene->m_TextureSet != 0x0))
-        {
-            result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
-            if (result != dmResource::RESULT_OK)
-                return result;
-        }
+        result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
+        if (result != dmResource::RESULT_OK)
+            return result;
         result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
         if (result != dmResource::RESULT_OK)
             return result;

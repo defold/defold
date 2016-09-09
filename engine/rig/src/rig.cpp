@@ -109,9 +109,9 @@ namespace dmRig
         return player->m_AnimationId;
     }
 
-    dmhash_t GetSkin(HRigInstance instance)
+    dmhash_t GetMesh(HRigInstance instance)
     {
-        return instance->m_Skin;
+        return instance->m_MeshId;
     }
 
     static void UpdateMeshProperties(HRigInstance instance)
@@ -137,28 +137,23 @@ namespace dmRig
         }
     }
 
-    Result SetSkin(HRigInstance instance, dmhash_t skin)
+    Result SetMesh(HRigInstance instance, dmhash_t mesh_id)
     {
-        const dmRigDDF::MeshEntry* mesh_entry = 0x0;
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
         for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
         {
-            if (skin == mesh_set->m_MeshEntries[i].m_Id)
+            if (mesh_id == mesh_set->m_MeshEntries[i].m_Id)
             {
-                mesh_entry = &mesh_set->m_MeshEntries[i];
-                break;
+                instance->m_MeshEntry = &mesh_set->m_MeshEntries[i];
+                instance->m_MeshId = mesh_id;
+
+                UpdateMeshProperties(instance);
+
+                return dmRig::RESULT_OK;
             }
         }
-        if (mesh_entry == 0x0)
-        {
-            return dmRig::RESULT_FAILED;
-        }
-        instance->m_MeshEntry = mesh_entry;
-        instance->m_Skin = skin;
 
-        UpdateMeshProperties(instance);
-
-        return dmRig::RESULT_OK;
+        return dmRig::RESULT_ERROR;
     }
 
     static void UpdateBlend(RigInstance* instance, float dt)
@@ -205,17 +200,16 @@ namespace dmRig
                     cursor = duration - cursor;
                 if (start_cursor <= cursor && cursor < end_cursor)
                 {
-                    RigEventData event_data;
-                    event_data.m_Type = RIG_EVENT_TYPE_SPINE;
-                    event_data.m_DataSpine.m_EventId = track->m_EventId;
-                    event_data.m_DataSpine.m_AnimationId = animation->m_Id;
-                    event_data.m_DataSpine.m_BlendWeight = blend_weight;
-                    event_data.m_DataSpine.m_T = key->m_T;
-                    event_data.m_DataSpine.m_Integer = key->m_Integer;
-                    event_data.m_DataSpine.m_Float = key->m_Float;
-                    event_data.m_DataSpine.m_String = key->m_String;
+                    RigKeyframeEventData event_data;
+                    event_data.m_EventId = track->m_EventId;
+                    event_data.m_AnimationId = animation->m_Id;
+                    event_data.m_BlendWeight = blend_weight;
+                    event_data.m_T = key->m_T;
+                    event_data.m_Integer = key->m_Integer;
+                    event_data.m_Float = key->m_Float;
+                    event_data.m_String = key->m_String;
 
-                    instance->m_EventCallback(instance->m_EventCBUserData, event_data);
+                    instance->m_EventCallback(instance->m_EventCBUserData, RIG_EVENT_TYPE_KEYFRAME, (void*)&event_data);
                 }
             }
         }
@@ -323,12 +317,11 @@ namespace dmRig
             // Only report completeness for the primary player
             if (player == GetPlayer(instance) && instance->m_EventCallback)
             {
-                RigEventData event_data;
-                event_data.m_Type = RIG_EVENT_TYPE_DONE;
-                event_data.m_DataDone.m_AnimationId = player->m_AnimationId;
-                event_data.m_DataDone.m_Playback = player->m_Playback;
+                RigCompletedEventData event_data;
+                event_data.m_AnimationId = player->m_AnimationId;
+                event_data.m_Playback = player->m_Playback;
 
-                instance->m_EventCallback(instance->m_EventCBUserData, event_data);
+                instance->m_EventCallback(instance->m_EventCBUserData, RIG_EVENT_TYPE_COMPLETED, (void*)&event_data);
             }
         }
     }
@@ -430,7 +423,7 @@ namespace dmRig
     }
 
 
-    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t skin_id, bool draw_order)
+    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t mesh_id, bool draw_order)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0)
@@ -485,7 +478,7 @@ namespace dmRig
         track_count = animation->m_MeshTracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti) {
             const dmRigDDF::MeshAnimationTrack* track = &animation->m_MeshTracks[ti];
-            if (skin_id == track->m_SkinId) {
+            if (mesh_id == track->m_MeshId) {
                 MeshProperties& props = properties[track->m_MeshIndex];
                 if (track->m_Colors.m_Count > 0) {
                     Vector4 color(props.m_Color[0], props.m_Color[1], props.m_Color[2], props.m_Color[3]);
@@ -557,13 +550,8 @@ namespace dmRig
                         blend_weight = 1.0f - fade_rate;
                     }
                     UpdatePlayer(instance, p, dt, blend_weight);
-                    bool draw_order = true;
-                    if (player == p) {
-                        draw_order = fade_rate >= 0.5f;
-                    } else {
-                        draw_order = fade_rate < 0.5f;
-                    }
-                    ApplyAnimation(p, pose, ik_animation, properties, alpha, instance->m_Skin, draw_order);
+                    bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
+                    ApplyAnimation(p, pose, ik_animation, properties, alpha, instance->m_MeshId, draw_order);
                     if (player == p)
                     {
                         alpha = 1.0f - fade_rate;
@@ -577,7 +565,7 @@ namespace dmRig
             else
             {
                 UpdatePlayer(instance, player, dt, 1.0f);
-                ApplyAnimation(player, pose, ik_animation, properties, 1.0f, instance->m_Skin, true);
+                ApplyAnimation(player, pose, ik_animation, properties, 1.0f, instance->m_MeshId, true);
             }
 
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -625,24 +613,20 @@ namespace dmRig
                     {
                         // get custom target position either from go or vector position
                         Vector3 user_target_position = target_position;
-                        if (ik_targets[i].m_UserHash == 0)
+                        if(ik_targets[i].m_Callback != 0)
                         {
-                            user_target_position = ik_targets[i].m_Position;
+                            user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
                         } else {
-                            if(ik_targets[i].m_Callback != 0)
-                            {
-                                user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
-                            } else {
-                                // instance have been removed, disable animation
-                                ik_targets[i].m_UserHash = 0;
-                                ik_targets[i].m_Mix = 0.0f;
-                            }
+                            // instance have been removed, disable animation
+                            ik_targets[i].m_UserHash = 0;
+                            ik_targets[i].m_Mix = 0.0f;
                         }
 
                         const float target_mix = ik_targets[i].m_Mix;
 
-                        if(parent_parent_index != INVALID_BONE_INDEX)
-                            user_target_position =  dmTransform::Apply(parent_parent_t, user_target_position);
+                        if (parent_parent_index != INVALID_BONE_INDEX) {
+                            user_target_position = dmTransform::Apply(parent_parent_t, user_target_position);
+                        }
 
                         // blend default target pose and target pose
                         target_position = target_mix == 1.0f ? user_target_position : dmTransform::lerp(target_mix, target_position, user_target_position);
@@ -700,6 +684,8 @@ namespace dmRig
 
     Result Update(HRigContext context, float dt)
     {
+        DM_PROFILE(Rig, "Update");
+
         dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         const uint32_t count = instances.Size();
 
@@ -726,12 +712,12 @@ namespace dmRig
         mesh_properties.SetCapacity(max_mesh_count);
     }
 
-    static const dmRigDDF::MeshEntry* FindMeshEntry(const dmRigDDF::MeshSet* mesh_set, dmhash_t skin_id)
+    static const dmRigDDF::MeshEntry* FindMeshEntry(const dmRigDDF::MeshSet* mesh_set, dmhash_t mesh_id)
     {
         for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
         {
             const dmRigDDF::MeshEntry* mesh_entry = &mesh_set->m_MeshEntries[i];
-            if (mesh_entry->m_Id == skin_id)
+            if (mesh_entry->m_Id == mesh_id)
             {
                 return mesh_entry;
             }
@@ -792,7 +778,7 @@ namespace dmRig
 
         RigPlayer* player = GetPlayer(instance);
         if (!player) {
-            return dmRig::RESULT_FAILED;
+            return dmRig::RESULT_ERROR;
         }
 
         float duration = GetCursorDuration(player, player->m_Animation);
@@ -882,6 +868,12 @@ namespace dmRig
         if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
             context->m_DrawOrderToMesh.SetCapacity(mesh_count);
 
+        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+        for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+        {
+            pose[bi] = dmTransform::Mul(pose[bi], bind_pose[bi].m_ModelToLocal);
+        }
+
         UpdateMeshDrawOrder(context, instance, mesh_count);
         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
             uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
@@ -905,7 +897,7 @@ namespace dmRig
                     if (bone_weights[bi] > 0.0f)
                     {
                         uint32_t bone_index = bone_indices[bi];
-                        out_p += Vector3(dmTransform::Apply(instance->m_Pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
+                        out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
                     }
                 }
                 Vector4 posed_vertex = model_matrix * out_p;
@@ -1003,7 +995,7 @@ namespace dmRig
         memset(instance, 0, sizeof(RigInstance));
         instance->m_Index = index;
         context->m_Instances.Set(index, instance);
-        instance->m_Skin = params.m_Skin;
+        instance->m_MeshId = params.m_MeshId;
 
         instance->m_PoseCallback = params.m_PoseCallback;
         instance->m_EventCallback = params.m_EventCallback;
@@ -1016,7 +1008,7 @@ namespace dmRig
         instance->m_Enabled = 1;
 
         AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
-        instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_Skin);
+        instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_MeshId);
 
         Result result = CreatePose(context, instance);
         if (result != dmRig::RESULT_OK) {

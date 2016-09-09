@@ -57,7 +57,7 @@ message IKAnimationTrack
 message MeshAnimationTrack
 {
     required uint32 mesh_index = 1;
-    required uint64 skin_id = 2;
+    required uint64 mesh_id = 2;
     // draw-index = draw-index + order_offset
     repeated int32 order_offset = 3;
     // visibility
@@ -98,6 +98,9 @@ message AnimationSet
 
 message Mesh
 {
+    // NOTE: Positions, texcoord0, color and normals might be something
+    // that should be moved to a more generic vertex message in the future
+    // when adding support for mesh/models in dmRig.
     repeated float positions = 1;
     repeated float texcoord0 = 2;
     repeated float color     = 3; // single color value for the entire mesh

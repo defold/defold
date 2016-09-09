@@ -1,16 +1,16 @@
 package com.dynamo.cr.server.model;
 
+import com.dynamo.cr.server.auth.PasswordHashGenerator;
+
 import javax.persistence.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name="users")
+@Table(name = "users")
 @NamedQueries({
-        @NamedQuery(name = "User.findAll", query = "SELECT u FROM User u")
+        @NamedQuery(name = "User.findByEmail", query = "SELECT u FROM User u WHERE u.email = :email")
 })
 public class User {
 
@@ -44,27 +44,11 @@ public class User {
     @Temporal(TemporalType.TIMESTAMP)
     private Date registrationDate = new Date();
 
-    @OneToMany(cascade={CascadeType.PERSIST})
+    @OneToMany(cascade = {CascadeType.PERSIST})
     private Set<Project> projects = new HashSet<>();
 
     @OneToMany
     private Set<User> connections = new HashSet<>();
-
-    private static String digest(String password) {
-        MessageDigest md;
-        try {
-            md = MessageDigest.getInstance("MD5");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        md.update(password.getBytes());
-        byte[] digest = md.digest();
-        StringBuilder sb = new StringBuilder();
-        for (byte b : digest) {
-            sb.append(Integer.toHexString(0xff & b));
-        }
-        return sb.toString();
-    }
 
     public Long getId() {
         return id;
@@ -78,12 +62,32 @@ public class User {
         this.email = email;
     }
 
+    /**
+     * Calculates the password hash and stores that in order to never store clear text passwords in the database.
+     *
+     * @param password Clear text password.
+     */
     public void setPassword(String password) {
-        this.password = digest(password);
+        this.password = PasswordHashGenerator.generateHash(password);
     }
 
+    /**
+     * Stores a already hashed password.
+     *
+     * @param hashedPassword Hashed password.
+     */
+    public void setHashedPassword(String hashedPassword) {
+        this.password = hashedPassword;
+    }
+
+    /**
+     * Validates a clear text password towards hashed password retrieved from the database.
+     *
+     * @param password Clear text password.
+     * @return True if password is correct, false otherwise.
+     */
     public boolean authenticate(String password) {
-        return digest(password).equals(this.password);
+        return PasswordHashGenerator.validatePassword(password, this.password);
     }
 
     public String getFirstName() {
@@ -110,14 +114,6 @@ public class User {
         this.role = role;
     }
 
-    public Date getRegistrationDate() {
-        return registrationDate;
-    }
-
-    public void setRegistrationDate(Date registrationDate) {
-        this.registrationDate = registrationDate;
-    }
-
     public Set<Project> getProjects() {
         return projects;
     }
@@ -134,5 +130,4 @@ public class User {
             return String.format("%s (%d)", email, getId());
         }
     }
-
 }

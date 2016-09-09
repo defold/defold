@@ -4,7 +4,7 @@ function init(self)
 end
 
 function update(self, dt)
-    assert(self.pongs == 2)
+    assert(self.pongs == 5)
 end
 
 function on_message(self, message_id, message, sender)

@@ -277,16 +277,14 @@
     (with-build-results "/model/book_of_defold.dae"
       (let [content (get content-by-source "/model/book_of_defold.dae")
             desc    (Mesh$MeshDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "Book" (-> desc (.getComponentsList) (first) (.getName))))))))
 
 (deftest build-model
   (testing "Building model"
     (with-build-results "/model/book_of_defold.model"
       (let [content (get content-by-source "/model/book_of_defold.model")
             desc    (Model$ModelDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
 
 (deftest build-script-properties
   (with-build-results "/script/props.collection"

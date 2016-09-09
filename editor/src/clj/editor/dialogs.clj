@@ -603,6 +603,7 @@
                                            (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
                                            (= code (KeyCode/ENTER)) (close (ui/selection list-view))
                                            (= code (KeyCode/TAB)) (close (ui/selection list-view))
+                                           (= code (KeyCode/ESCAPE)) (close nil)
 
                                            (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
                                            (do

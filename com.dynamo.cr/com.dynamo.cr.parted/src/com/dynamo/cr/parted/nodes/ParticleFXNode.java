@@ -159,7 +159,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
         updateTileSources();
 
-        instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
+        instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null);
         if (Pointer.nativeValue(instance) == 0) {
             unbindContext();
             logger.error("Could not create a particle FX instance.");

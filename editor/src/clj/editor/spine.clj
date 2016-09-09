@@ -239,7 +239,7 @@
                                                                                           (= (:attachment slot-data) attachment))
                                                                             field (timeline-type->pb-field type)
                                                                             pb-track {:mesh-index mesh-index
-                                                                                      :skin-id skin-id
+                                                                                      :mesh-id skin-id
                                                                                       field (sample type keys duration sample-rate spf val-fn default-val interpolate?)}]
                                                                         (merge track pb-track)))
                                                                     {} timeline))

@@ -33,11 +33,11 @@ public class Main {
     private static Main instance;
     protected static Logger logger = LoggerFactory.getLogger(Main.class);
 
-    class Module extends AbstractModule {
+    private class Module extends AbstractModule {
 
         private String configurationFile;
 
-        public Module(String configurationFile) {
+        Module(String configurationFile) {
             this.configurationFile = configurationFile;
         }
 

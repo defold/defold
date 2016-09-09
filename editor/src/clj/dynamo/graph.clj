@@ -23,7 +23,7 @@
 
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
+(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? error-aggregate worse-than])
 
 (namespaces/import-vars [internal.node value-type-schema value-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
