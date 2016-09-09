@@ -7,6 +7,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
@@ -209,6 +210,9 @@
 (handler/defhandler :documentation :global
   (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
 
+(handler/defhandler :report-issue :global
+  (run [] (.browse (Desktop/getDesktop) (github/new-issue-link))))
+
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
 
@@ -298,6 +302,8 @@
                               :command :reload-stylesheet}
                              {:label "Documentation"
                               :command :documentation}
+                             {:label "Report Issue"
+                              :command :report-issue}
                              {:label "About"
                               :command :about}]}])
 
