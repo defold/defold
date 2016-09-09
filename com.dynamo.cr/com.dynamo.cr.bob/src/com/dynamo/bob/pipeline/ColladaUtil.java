@@ -103,10 +103,16 @@ public class ColladaUtil {
         List<Float> position_list = new ArrayList<Float>();
         List<Float> normal_list = new ArrayList<Float>();
         List<Float> texcoord_list = new ArrayList<Float>();
+        List<Integer> indices_list = new ArrayList<Integer>();
 
         float meter = collada.asset.unit.meter;
         for (int i = 0; i < mesh.triangles.count; ++i) {
             int idx = i * stride * 3 + vertex_input.offset;
+            
+            // TMP since rig needs indexed rendering for now...
+            indices_list.add(i*3);
+            indices_list.add(i*3+1);
+            indices_list.add(i*3+2);
 
             for (int j = 0; j < 3; ++j) {
                 int tri_ind = mesh.triangles.p[idx + stride * j];
@@ -164,6 +170,7 @@ public class ColladaUtil {
         b.addAllPositions(position_list);
         b.addAllNormals(normal_list);
         b.addAllTexcoord0(texcoord_list);
+        b.addAllIndices(indices_list);
         return b.build();
     }
 

@@ -32,6 +32,12 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
+        for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i]);
+        }
+
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Mesh);
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
@@ -53,6 +59,34 @@ namespace dmGameSystem
             ReleaseResources(params.m_Factory, model_resource);
             delete model_resource;
         }
+
+        dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
+
+        dmResource::Result tmp_r = dmResource::RESULT_OK;
+        dmResource::Result first_error = dmResource::RESULT_OK;
+        for (uint32_t i = 0; i < model_resource->m_Model->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            r = dmResource::Get(params.m_Factory, model_resource->m_Model->m_Textures[i], (void**) &textures[i]);
+            if (r != dmResource::RESULT_OK)
+            {
+                if (first_error == dmResource::RESULT_OK)
+                    first_error = r;
+            }
+        }
+
+        if (first_error != dmResource::RESULT_OK)
+        {
+            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+                if (textures[i]) dmResource::Release(params.m_Factory, (void*) textures[i]);
+
+            ReleaseResources(params.m_Factory, model_resource);
+            delete model_resource;
+            return first_error;
+        }
+
+        memcpy(model_resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+
         return r;
     }
 
@@ -60,6 +94,10 @@ namespace dmGameSystem
     {
         ModelResource* model_resource = (ModelResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, model_resource);
+
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+            if (model_resource->m_Textures[i]) dmResource::Release(params.m_Factory, (void*)model_resource->m_Textures[i]);
+
         delete model_resource;
         return dmResource::RESULT_OK;
     }

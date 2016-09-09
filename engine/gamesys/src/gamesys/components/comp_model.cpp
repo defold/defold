@@ -97,7 +97,7 @@ namespace dmGameSystem
         return false;
     }
 
-    static void CompModelEventCallback(void* user_data, const dmRig::RigEventData& event_data)
+    static void CompModelEventCallback(void* user_data, const dmRig::RigEventType event_type, const void* event_data)
     {
         ModelComponent* component = (ModelComponent*)user_data;
 
@@ -195,65 +195,6 @@ namespace dmGameSystem
         component->m_MixedHash = dmHashFinal32(&state);
     }
 
-    static bool CreateGOBones(ModelWorld* world, ModelComponent* component)
-    {
-        dmGameObject::HInstance instance = component->m_Instance;
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-
-        const dmArray<dmRig::RigBone>& bind_pose = component->m_Resource->m_RigScene->m_BindPose;
-        const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-
-        component->m_NodeInstances.SetCapacity(bone_count);
-        component->m_NodeInstances.SetSize(bone_count);
-        if (bone_count > world->m_ScratchInstances.Capacity()) {
-            world->m_ScratchInstances.SetCapacity(bone_count);
-        }
-        world->m_ScratchInstances.SetSize(0);
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
-            if (inst == 0x0) {
-                component->m_NodeInstances.SetSize(i);
-                return false;
-            }
-
-            dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
-            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
-            if (dmGameObject::RESULT_OK != result) {
-                dmGameObject::Delete(collection, inst);
-                component->m_NodeInstances.SetSize(i);
-                return false;
-            }
-
-            dmGameObject::SetBone(inst, true);
-            dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-            if (i == 0)
-            {
-                transform = dmTransform::Mul(component->m_Transform, transform);
-            }
-            dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
-            dmGameObject::SetRotation(inst, transform.GetRotation());
-            dmGameObject::SetScale(inst, transform.GetScale());
-            component->m_NodeInstances[i] = inst;
-            world->m_ScratchInstances.Push(inst);
-        }
-        // Set parents in reverse to account for child-prepending
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            uint32_t index = bone_count - 1 - i;
-            dmGameObject::HInstance inst = world->m_ScratchInstances[index];
-            dmGameObject::HInstance parent = instance;
-            if (index > 0)
-            {
-                parent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
-            }
-            dmGameObject::SetParent(inst, parent);
-        }
-
-        return true;
-    }
-
     dmGameObject::CreateResult CompModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -291,7 +232,7 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_Skin             = 0; //dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_MeshId           = 0; //dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = 0; // dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
@@ -303,7 +244,7 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
-        CreateGOBones(world, component);
+        // CreateGOBones(world, component);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -337,7 +278,7 @@ namespace dmGameSystem
 
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
 
-        TextureSetResource* texture_set = first->m_Resource->m_RigScene->m_TextureSet;
+        // TextureSetResource* texture_set = first->m_Resource->m_RigScene->m_TextureSet;
 
         uint32_t vertex_count = 0;
         for (uint32_t *i=begin;i!=end;i++)
@@ -345,6 +286,7 @@ namespace dmGameSystem
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             vertex_count += dmRig::GetVertexCount(c->m_RigInstance);
         }
+        assert(vertex_count > 0);
 
         dmArray<ModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
@@ -357,7 +299,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            params.m_ModelMatrix = c->m_World;
+            params.m_ModelMatrix = Matrix4::identity();
             params.m_VertexData = (void**)&vb_end;
             params.m_VertexStride = sizeof(ModelVertex);
 
@@ -376,8 +318,10 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
-        ro.m_Textures[0] = texture_set->m_Texture;
         ro.m_WorldTransform = first->m_World;
+        // ro.m_Textures[0] = texture_set->m_Texture;
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+            ro.m_Textures[i] = first->m_Resource->m_Textures[i];
 
         const dmArray<dmRender::Constant>& constants = first->m_RenderConstants;
         uint32_t size = constants.Size();
@@ -701,7 +645,7 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_Skin             = 0; //dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_MeshId           = 0; //dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = 0; //dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
@@ -713,7 +657,7 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
-        CreateGOBones(world, component);
+        // CreateGOBones(world, component);
         return true;
     }
 
@@ -731,7 +675,7 @@ namespace dmGameSystem
         ModelComponent* component = world->m_Components.Get(*params.m_UserData);
         if (params.m_PropertyId == PROP_SKIN)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetSkin(component->m_RigInstance));
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetMesh(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_ANIMATION)
@@ -751,8 +695,8 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
 
-            dmRig::Result res = dmRig::SetSkin(component->m_RigInstance, params.m_Value.m_Hash);
-            if (res == dmRig::RESULT_FAILED)
+            dmRig::Result res = dmRig::SetMesh(component->m_RigInstance, params.m_Value.m_Hash);
+            if (res == dmRig::RESULT_ERROR)
             {
                 dmLogError("Could not find skin '%s' on the model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;

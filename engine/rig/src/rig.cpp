@@ -889,17 +889,23 @@ namespace dmRig
                 uint32_t e = vi*3;
                 Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
                 Point3 out_p(0.0f, 0.0f, 0.0f);
-                uint32_t bi_offset = vi * 4;
-                const uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
-                const float* bone_weights = &mesh->m_Weights[bi_offset];
-                for (uint32_t bi = 0; bi < 4; ++bi)
-                {
-                    if (bone_weights[bi] > 0.0f)
+
+                if (mesh->m_BoneIndices.m_Count > 0) {
+                    uint32_t bi_offset = vi * 4;
+                    const uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
+                    const float* bone_weights = &mesh->m_Weights[bi_offset];
+                    for (uint32_t bi = 0; bi < 4; ++bi)
                     {
-                        uint32_t bone_index = bone_indices[bi];
-                        out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
+                        if (bone_weights[bi] > 0.0f)
+                        {
+                            uint32_t bone_index = bone_indices[bi];
+                            out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
+                        }
                     }
+                } else {
+                    out_p = in_p;
                 }
+
                 Vector4 posed_vertex = model_matrix * out_p;
                 write_ptr->x = posed_vertex[0];
                 write_ptr->y = posed_vertex[1];

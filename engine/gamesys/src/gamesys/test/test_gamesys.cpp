@@ -234,7 +234,7 @@ TEST_F(WindowEventTest, Test)
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    
+
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -465,12 +465,12 @@ INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, ::testing::ValuesIn(invalid_
 
 /* Mesh */
 
-const char* valid_mesh_resources[] = {"/mesh/valid.meshc"};
+const char* valid_mesh_resources[] = {"/mesh/valid.rigscenec"};
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, ::testing::ValuesIn(valid_mesh_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
-    {"/mesh/valid.meshc", "/mesh/missing.meshc"},
+    {"/mesh/valid.rigscenec", "/mesh/missing.rigscenec"},
 };
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, ::testing::ValuesIn(invalid_mesh_resources));
 

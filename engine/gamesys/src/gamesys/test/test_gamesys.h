@@ -164,6 +164,11 @@ void GamesysTest<T>::SetUp()
     m_SpineModelContext.m_RigContext = m_RigContext;
     m_SpineModelContext.m_MaxSpineModelCount = 32;
 
+    m_ModelContext.m_RenderContext = m_RenderContext;
+    m_ModelContext.m_RigContext = m_RigContext;
+    m_ModelContext.m_Factory = m_Factory;
+    m_ModelContext.m_MaxModelCount = 128;
+
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
     assert(dmResource::RESULT_OK == r);
 
