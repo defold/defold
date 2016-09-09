@@ -1,23 +1,26 @@
 (ns editor.boot
-  (:require [clojure.java.io :as io]
-            [clojure.stacktrace :as stack]
-            [clojure.pprint :as pprint]
-            [dynamo.graph :as g]
-            [editor.dialogs :as dialogs]
-            [editor.import :as import]
-            [editor.prefs :as prefs]
-            [editor.progress :as progress]
-            [editor.ui :as ui]
-            [service.log :as log])
-  (:import [com.defold.control ListCell]
-           [javafx.scene Scene Parent]
-           [javafx.scene.control Button Control Label ListView]
-           [javafx.scene.input MouseEvent]
-           [javafx.scene.layout VBox]
-           [javafx.stage Stage]
-           [javafx.util Callback]
-           [java.io File]
-           [java.util.concurrent.atomic AtomicReference]))
+  (:require
+   [clojure.java.io :as io]
+   [clojure.pprint :as pprint]
+   [clojure.stacktrace :as stack]
+   [dynamo.graph :as g]
+   [editor.dialogs :as dialogs]
+   [editor.import :as import]
+   [editor.prefs :as prefs]
+   [editor.progress :as progress]
+   [editor.sentry :as sentry]
+   [editor.ui :as ui]
+   [service.log :as log])
+  (:import
+   [com.defold.control ListCell]
+   [java.io File]
+   [java.util.concurrent.atomic AtomicReference]
+   [javafx.scene Scene Parent]
+   [javafx.scene.control Button Control Label ListView]
+   [javafx.scene.input MouseEvent]
+   [javafx.scene.layout VBox]
+   [javafx.stage Stage]
+   [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -148,15 +151,23 @@
       (let [message (with-out-str (clojure.pprint/pprint ex-map))]
         (ui/run-now (dialogs/make-alert-dialog message))))))
 
+(defn setup-exception-handling!
+  []
+  (let [exception-reporter (sentry/make-exception-reporter {:project-id "97739"
+                                                            :key "9e25fea9bc334227b588829dd60265c1"
+                                                            :secret "f694ef98d47d42cf8bb67ef18a4e9cdb"})]
+    (Thread/setDefaultUncaughtExceptionHandler
+      (reify Thread$UncaughtExceptionHandler
+        (uncaughtException [_ thread exception]
+          (log/error :exception exception :msg "uncaught exception")
+          (exception-reporter exception thread)
+          (display-exception exception))))))
+
 (defn main [args]
   ;; note - the default exception handler gets reset each time a new
   ;; project is opened. this _probably_ doesn't cause any issues, just
   ;; don't rely on the identity of the handler.
-  (Thread/setDefaultUncaughtExceptionHandler
-   (reify Thread$UncaughtExceptionHandler
-     (uncaughtException [_ thread exception]
-       (log/error :exception exception :msg "uncaught exception")
-       (display-exception exception))))
+  (setup-exception-handling!)
   (let [namespace-loader (load-namespaces-in-background)
         prefs            (prefs/make-prefs "defold")]
     (try
