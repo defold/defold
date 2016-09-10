@@ -231,10 +231,17 @@
                                             [:anim-data :anim-data]
                                             [:gpu-texture :gpu-texture]
                                             [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource image)))
+            (dynamic error (g/fnk [_node-id image anim-data]
+                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
+                                      (validation/prop-error :severe _node-id :image validation/prop-resource-not-exists? image "Image")))))
 
   (property default-animation g/Str
-            (validate (validation/validate-animation default-animation anim-data))
+            (dynamic error (g/fnk [_node-id image default-animation anim-data]
+                                  (when image
+                                    (validation/prop-error :severe _node-id :default-animation (fn [a]
+                                                                                                (when (not (contains? anim-data default-animation))
+                                                                                                  (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
+                                                          default-animation))))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material resource/Resource
@@ -243,8 +250,9 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource material)))
-
+            (dynamic error (g/fnk [_node-id material]
+                                  (or (validation/prop-error :severe _node-id :material validation/prop-nil? material "Material")
+                                      (validation/prop-error :severe _node-id :material validation/prop-resource-not-exists? material "Material")))))
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
@@ -255,7 +263,7 @@
                                                     (map (comp :display-name second) options))}))))
 
   (input image-resource resource/Resource)
-  (input anim-data g/Any)
+  (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
 

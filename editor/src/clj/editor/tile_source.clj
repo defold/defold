@@ -22,7 +22,8 @@
    [editor.scene :as scene]
    [editor.outline :as outline]
    [editor.protobuf :as protobuf]
-   [editor.validation :as validation])
+   [editor.validation :as validation]
+   [editor.properties :as properties])
   (:import
    [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
    [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -61,11 +62,8 @@
   (assoc tile->collision-group tile group-node-id))
 
 (g/defnk produce-pb
-  ;; this will be called both
-  ;; * during save-data production with ignore-errors <severe> meaning f.i. image may be unvalidated (nil)
-  ;; * during produce-build-targets with normal validation
   [image tile-width tile-height tile-margin tile-spacing collision material-tag
-   convex-hulls collision-groups animation-ddfs extrude-borders inner-padding]
+   cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding]
   {:image (resource/resource->proj-path image)
    :tile-width tile-width
    :tile-height tile-height
@@ -76,8 +74,8 @@
    :convex-hulls (mapv (fn [{:keys [index count collision-group]}]
                          {:index index
                           :count count
-                          :collision-group (or collision-group "")}) convex-hulls)
-   :convex-hull-points (vec (mapcat :points convex-hulls))
+                          :collision-group (or collision-group "")}) cleaned-convex-hulls)
+   :convex-hull-points (vec (mapcat :points cleaned-convex-hulls))
    :collision-groups (sort collision-groups)
    :animations (sort-by :id animation-ddfs)
    :extrude-borders extrude-borders
@@ -143,10 +141,10 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str
-            ;; can't do this b/c cycle
-            #_(validate (g/fnk [collision-groups-data]
-                          (when (collision-groups/overallocated? collision-groups-data)
-                            (g/error-warning "More than 16 collision groups in use.")))))
+            (dynamic error (g/fnk [_node-id id collision-groups-data]
+                                  (or (validation/prop-error :severe _node-id :id validation/prop-empty? id "Id")
+                                      (when (collision-groups/overallocated? collision-groups-data)
+                                        (validation/prop-error :warning _node-id :id (constantly "More than 16 collision groups in use.") id "Id"))))))
 
   (input collision-groups-data g/Any)
 
@@ -172,11 +170,20 @@
       (update :flip-horizontal boolean->int)
       (update :flip-vertical boolean->int)))
 
+(defn- prop-tile-range? [max v name]
+  (when (or (< v 1) (< max v))
+    (format "%s is outside the tile range (1-%d)" name max)))
+
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
-  (property id g/Str)
-  (property start-tile g/Int)
-  (property end-tile g/Int)
+  (property id g/Str
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-empty? id)))
+  (property start-tile g/Int
+            (dynamic error (g/fnk [_node-id start-tile tile-count]
+                                  (validation/prop-error :severe _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))))
+  (property end-tile g/Int
+            (dynamic error (g/fnk [_node-id end-tile tile-count]
+                                  (validation/prop-error :severe _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
             (dynamic edit-type (g/always
@@ -184,20 +191,27 @@
                                   {:type :choicebox
                                    :options (zipmap (map first options)
                                                     (map (comp :display-name second) options))}))))
-  (property fps g/Int (default 30))
+  (property fps g/Int (default 30)
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
   (property flip-vertical g/Bool (default false))
   (property cues g/Any (dynamic visible (g/always false)))
 
+  (input tile-count g/Int)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
-  (output ddf-message g/Any produce-animation-ddf))
+  (output ddf-message g/Any produce-animation-ddf)
+  (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message})))
 
 (defn- attach-animation-node [self animation-node]
-  (for [[from to] [[:_node-id :nodes]
-                   [:node-outline :child-outlines]
-                   [:ddf-message :animation-ddfs]
-                   [:id :animation-ids]]]
-    (g/connect animation-node from self to)))
+  (concat
+    (for [[from to] [[:_node-id :nodes]
+                     [:node-outline :child-outlines]
+                     [:ddf-message :animation-ddfs]
+                     [:animation-data :animation-data]
+                     [:id :animation-ids]]]
+      (g/connect animation-node from self to))
+    (for [[from to] [[:tile-count :tile-count]]]
+      (g/connect self from animation-node to))))
 
 (defn- attach-collision-group-node
   [self collision-group-node]
@@ -298,7 +312,6 @@
 
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes texture-set-data scale-factor]
-  (def nid node-id)
   (let [vbuf (gen-tiles-vbuf tile-source-attributes texture-set-data scale-factor)
         vb (vtx/use-with node-id vbuf tile-shader)]
     (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vb]
@@ -411,24 +424,6 @@
                               :collision-groups-data collision-groups-data}
                   :passes [pass/transparent pass/outline]}}))
 
-(g/defnk validate-tile-width [tile-width tile-margin ^BufferedImage image-content ^BufferedImage collision-content]
-  (if-let [max-width (or (and image-content (.getWidth image-content))
-                         (and collision-content (.getWidth collision-content)))]
-    (let [total-width (+ tile-width tile-margin)]
-      (when (> total-width max-width)
-        (g/error-severe (format "The total tile width (including margin) %d is greater than the image width %d" total-width max-width))))))
-
-(g/defnk validate-tile-height [tile-height tile-margin ^BufferedImage image-content ^BufferedImage collision-content]
-  (if-let [max-height (or (and image-content (.getHeight image-content))
-                          (and collision-content (.getHeight collision-content)))]
-    (let [total-height (+ tile-height tile-margin)]
-      (when (> total-height max-height)
-        (g/error-severe (format "The total tile height (including margin) %d is greater than the image height %d" total-height max-height))))))
-
-(g/defnk validate-tile-dimensions [tile-width tile-height tile-margin image-content collision-content :as all]
-  (validation/error-aggregate [(validate-tile-width all) (validate-tile-height all)]))
-
-
 (g/defnk produce-convex-hull-points
   [collision-content original-convex-hulls tile-source-attributes]
   (if collision-content
@@ -454,20 +449,33 @@
 
 (g/defnk produce-tile-source-attributes
   [_node-id image-content tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-content]
-  (def nid _node-id)
-  (let [properties {:width tile-width
-                    :height tile-height
-                    :margin tile-margin
-                    :spacing tile-spacing
-                    :extrude-borders extrude-borders
-                    :inner-padding inner-padding}
-        metrics (texture-set-gen/calculate-tile-metrics image-content properties collision-content)]
-    (when metrics
-      (merge properties metrics))))
+  (or (let [properties {:width tile-width
+                        :height tile-height
+                        :margin tile-margin
+                        :spacing tile-spacing
+                        :extrude-borders extrude-borders
+                        :inner-padding inner-padding}
+            metrics (texture-set-gen/calculate-tile-metrics image-content properties collision-content)]
+        (when metrics
+          (merge properties metrics)))
+      (g/error-severe "tile data could not be generated due to invalid values")))
+
+(defn- check-anim-error [tile-count anim-data]
+  (let [node-id (:node-id anim-data)
+        anim (:ddf-message anim-data)
+        tile-range-f (partial prop-tile-range? tile-count)]
+    (->> [[:id validation/prop-empty?]
+          [:start-tile tile-range-f]
+          [:end-tile tile-range-f]]
+      (keep (fn [[prop-kw f]]
+              (validation/prop-error :severe node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
 (g/defnk produce-texture-set-data
-  [image image-content tile-source-attributes animation-ddfs collision-groups convex-hulls collision collision-content]
-  (texture-set-gen/tile-source->texture-set-data image-content tile-source-attributes convex-hulls collision-groups animation-ddfs))
+  [image image-content tile-source-attributes animation-data collision-groups convex-hulls collision collision-content tile-count]
+  (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
+        (g/error-aggregate errors))
+      (let [animation-ddfs (mapv :ddf-message animation-data)]
+        (texture-set-gen/tile-source->texture-set-data image-content tile-source-attributes convex-hulls collision-groups animation-ddfs))))
 
 (g/defnode TileSourceNode
   (inherits project/ResourceNode)
@@ -478,47 +486,53 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :image-resource]
                                             [:content :image-content])))
-            (validate (validation/validate-resource image-resource "Missing image"
-                                                    [image-content])))
+            (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
+                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
+                                      (validation/prop-error :severe _node-id :image validation/prop-resource-not-exists? image "Image")))))
 
   (property tile-width g/Int
             (default 0)
-            (validate validate-tile-width))
+            (dynamic error (g/fnk [_node-id tile-width tile-width-error]
+                                  (validation/prop-error :severe _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
 
   (property tile-height g/Int
             (default 0)
-            (validate validate-tile-height))
+            (dynamic error (g/fnk [_node-id tile-height tile-height-error]
+                                  (validation/prop-error :severe _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
 
   (property tile-margin g/Int
             (default 0)
-            (validate validate-tile-dimensions))
-
-  (property tile-spacing g/Int (default 0))
-
+            (dynamic error (g/fnk [_node-id tile-margin tile-width-error tile-height-error]
+                                  (validation/prop-error :severe _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
+  (property tile-spacing g/Int (default 0)
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? tile-spacing)))
+  (property extrude-borders g/Int (default 0)
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? extrude-borders)))
+  (property inner-padding g/Int (default 0)
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; optional
             (value (gu/passthrough collision-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-resource]
                                             [:content :collision-content])))
-            (validate (g/fnk [collision-resource collision-content]
-                        ;; collision-resource is optional, but depend on resource & content to trigg auto error aggregation
-                        )))
+            (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
+                                  (validation/prop-error :severe _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
 
-  (property material-tag g/Str (default "tile"))
-  (property extrude-borders g/Int (default 0))
-  (property inner-padding g/Int (default 0))
+  (property material-tag g/Str (default "tile") (dynamic visible (g/always false)))
   (property original-convex-hulls g/Any (dynamic visible (g/always false)))
   (property tile->collision-group-node g/Any (dynamic visible (g/always false)))
 
   (input collision-groups g/Any :array)
   (input animation-ddfs g/Any :array)
+  (input animation-data g/Any :array)
   (input animation-ids g/Str :array)
   (input image-resource resource/Resource)
   (input image-content BufferedImage)
   (input collision-resource resource/Resource)
   (input collision-content BufferedImage)
   (input collision-groups-data g/Any)
+  (input cleaned-convex-hulls g/Any :substitute [])
 
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
@@ -538,7 +552,38 @@
   (output anim-data g/Any :cached produce-anim-data)
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 
-  (output collision-groups-data g/Any :cached (gu/passthrough collision-groups-data)))
+  (output collision-groups-data g/Any :cached (gu/passthrough collision-groups-data))
+  (output tile-count g/Int (g/fnk [tile-source-attributes]
+                                       (* (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))))
+  (output image-dims g/Any (g/fnk [^BufferedImage image-content] (when image-content
+                                                                   [(.getWidth image-content) (.getHeight image-content)])))
+  (output collision-dims g/Any (g/fnk [^BufferedImage collision-content] (when collision-content
+                                                                           [(.getWidth collision-content) (.getHeight collision-content)])))
+  (output image-dim-error g/Err (g/fnk [image-dims collision-dims]
+                                       (when (and image-dims collision-dims)
+                                         (let [[img-w img-h] image-dims
+                                               [coll-w coll-h] collision-dims]
+                                           (when (or (not= img-w coll-w)
+                                                     (not= img-h coll-h))
+                                             (g/error-severe (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
+                                                                     img-w img-h
+                                                                     coll-w coll-h)))))))
+  (output tile-width-error g/Err (g/fnk [image-dims collision-dims tile-width tile-margin]
+                                        (let [dims (or image-dims collision-dims)]
+                                          (when dims
+                                            (let [[w _] dims
+                                                  total-w (+ tile-width tile-margin)]
+                                              (when (< w total-w)
+                                                (g/error-severe (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
+                                                                        total-w w))))))))
+  (output tile-height-error g/Err (g/fnk [image-dims collision-dims tile-height tile-margin]
+                                         (let [dims (or image-dims collision-dims)]
+                                           (when dims
+                                             (let [[_ h] dims
+                                                   total-h (+ tile-height tile-margin)]
+                                               (when (< h total-h)
+                                                 (g/error-severe (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
+                                                                         total-h h)))))))))
 
 
 ;;--------------------------------------------------------------------
@@ -709,7 +754,7 @@
 (defn- int->boolean [i]
   (not= 0 i))
 
-(defn- make-animation-node [self animation]
+(defn- make-animation-node [self project select? animation]
   (g/make-nodes
    (g/node-id->graph-id self)
    [animation-node [TileAnimationNode
@@ -721,13 +766,17 @@
                     :flip-horizontal (int->boolean (:flip-horizontal animation))
                     :flip-vertical (int->boolean (:flip-vertical animation))
                     :cues (:cues animation)]]
-   (attach-animation-node self animation-node)))
+   (attach-animation-node self animation-node)
+   (when select?
+     (project/select project [animation-node]))))
 
-(defn- make-collision-group-node [self collision-group]
+(defn- make-collision-group-node [self project select? collision-group]
   (g/make-nodes
    (g/node-id->graph-id self)
    [collision-group-node [CollisionGroupNode :id collision-group]]
-   (attach-collision-group-node self collision-group-node)))
+   (attach-collision-group-node self collision-group-node)
+   (when select?
+     (project/select project [collision-group-node]))))
 
 (defn- load-convex-hulls
   [{:keys [convex-hulls convex-hull-points]}]
@@ -751,8 +800,8 @@
   (let [tile-source (protobuf/read-text Tile$TileSet resource)
         image (workspace/resolve-resource resource (:image tile-source))
         collision (workspace/resolve-resource resource (:collision tile-source))
-        collision-group-nodes (map (partial make-collision-group-node self) (set (:collision-groups tile-source)))
-        animation-nodes (map (partial make-animation-node self) (:animations tile-source))]
+        collision-group-nodes (map (partial make-collision-group-node self project false) (set (:collision-groups tile-source)))
+        animation-nodes (map (partial make-animation-node self project false) (:animations tile-source))]
     (concat
      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
        (g/set-property self field (field tile-source)))
@@ -760,6 +809,7 @@
      (g/set-property self :tile->collision-group-node (make-tile->collision-group-node tile-source collision-group-nodes))
      (g/set-property self :image image)
      (g/set-property self :collision collision)
+     (g/connect self :convex-hulls self :cleaned-convex-hulls)
      animation-nodes
      collision-group-nodes
      (g/connect project :collision-groups-data self :collision-groups-data))))
@@ -776,8 +826,8 @@
    :flip-vertical 0 ; yes, wierd integer booleans
    :cues '()})
 
-(defn- add-animation-node [self]
-  (g/transact (make-animation-node self default-animation)))
+(defn add-animation-node! [self]
+  (g/transact (make-animation-node self (project/get-project self) true default-animation)))
 
 (defn- gen-unique-name
   [basename existing-names]
@@ -788,12 +838,13 @@
           (recur (inc postfix))
           name)))))
 
-(defn- add-collision-group-node
+(defn add-collision-group-node!
   [self]
   (let [project (project/get-project self)
         collision-groups-data (g/node-value project :collision-groups-data)
         collision-group (gen-unique-name "New Collision Group" (collision-groups/collision-groups collision-groups-data))]
-    (g/transact (make-collision-group-node self collision-group))))
+    (g/transact
+      (make-collision-group-node self project true collision-group))))
 
 (handler/defhandler :add :global
   (active? [selection] (handler/single-selection? selection TileSourceNode))
@@ -806,11 +857,11 @@
              [{:label "Animation"
                :icon animation-icon
                :command :add
-               :user-data {:action add-animation-node}}
+               :user-data {:action add-animation-node!}}
               {:label "Collision Group"
                :icon collision-icon
                :command :add
-               :user-data {:action add-collision-group-node}}
+               :user-data {:action add-collision-group-node!}}
               ]))
   (run [selection user-data]
     ((:action user-data) (first selection))))

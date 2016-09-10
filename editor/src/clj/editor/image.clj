@@ -44,7 +44,6 @@
                                                               (g/error-severe {:type :invalid-content
                                                                         :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
                                                             (catch java.io.FileNotFoundException e
-                                                              (log/warn :exception e)
                                                               (g/error-severe {:type :file-not-found
                                                                                :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
   (output build-targets g/Any :cached produce-build-targets))

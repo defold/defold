@@ -17,6 +17,9 @@
 (def error-severe  (partial error-value SEVERE))
 (def error-fatal   (partial error-value FATAL))
 
+(defn ->error [node-id label severity value user-data]
+  (->ErrorValue node-id label severity value nil user-data))
+
 (defn error?
   [x]
   (cond

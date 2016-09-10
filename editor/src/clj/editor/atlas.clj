@@ -100,7 +100,8 @@
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
   (output path g/Str (g/fnk [src-resource] (resource/proj-path src-resource)))
   (output id g/Str (g/fnk [path] (path->id path)))
-  (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
+  (output image Image (g/fnk [_node-id path ^BufferedImage src-image]
+                             (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image id] (image->animation image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id path order] {:node-id _node-id
                                                                                  :label (format "%s - %s" (path->id path) path)
@@ -152,10 +153,11 @@
 (g/defnode AtlasAnimation
   (inherits outline/OutlineNode)
 
-  (property id  g/Str)
+  (property id g/Str
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-empty? id)))
   (property fps g/Int
             (default 30)
-            (validate (validation/validate-positive fps "FPS must be greater than or equal to zero")))
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? fps)))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -242,8 +244,15 @@
                                    (= pass pass/transparent) (render-texture-set gl render-args vertex-binding gpu-texture))))
                   :passes [pass/overlay pass/transparent]}}))
 
-(g/defnk produce-texture-set-data [animations images margin inner-padding extrude-borders]
-  (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders))
+(g/defnk produce-texture-set-data [_node-id animations images margin inner-padding extrude-borders]
+  (or (when-let [errors (->> [[margin "Margin"]
+                              [inner-padding "Inner Padding"]
+                              [extrude-borders "Extrude Borders"]]
+                          (keep (fn [[v name]]
+                                  (validation/prop-error :severe _node-id :texture-set-data validation/prop-negative? v name)))
+                          not-empty)]
+        (g/error-aggregate errors))
+      (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders)))
 
 (defn- ->uv-vertex [vert-index ^FloatBuffer tex-coords]
   (let [index (* vert-index 2)]
@@ -288,13 +297,13 @@
 
   (property margin g/Int
             (default 0)
-            (validate (validation/validate-positive margin "Margin must be greater than or equal to zero")))
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? margin)))
   (property inner-padding g/Int
             (default 0)
-            (validate (validation/validate-positive inner-padding "Inner padding must be greater than or equal to zero")))
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? inner-padding)))
   (property extrude-borders g/Int
             (default 0)
-            (validate (validation/validate-positive extrude-borders "Extrude borders must be greater than or equal to zero")))
+            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? extrude-borders)))
 
   (input animations Animation :array)
   (input animation-ids g/Str :array)
@@ -312,7 +321,9 @@
   (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id
                                                                                          :label "Atlas"
-                                                                                         :children (sort-by atlas-outline-sort-by-fn child-outlines)
+                                                                                         :children (->> child-outlines
+                                                                                                     (sort-by atlas-outline-sort-by-fn)
+                                                                                                     vec)
                                                                                          :icon atlas-icon
                                                                                          :child-reqs [{:node-type AtlasImage
                                                                                                        :tx-attach-fn tx-attach-image-to-atlas

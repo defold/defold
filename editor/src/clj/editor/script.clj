@@ -78,7 +78,7 @@
                                     prop (-> (select-keys p [:value])
                                            (assoc :node-id _node-id
                                                   :type (go-prop-type->property-types type)
-                                                  :validation-problems (status-errors (:status p))
+                                                  :error (status-errors (:status p))
                                                   :edit-type {:type (go-prop-type->property-types type)}
                                                   :go-prop-type type
                                                   :read-only? (nil? (g/override-original _node-id))))]

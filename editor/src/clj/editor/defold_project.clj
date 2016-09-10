@@ -19,6 +19,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.properties :as properties]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -73,7 +74,6 @@
          (when (instance? FileResource resource)
            (g/connect node-id :save-data project :save-data)))
         (catch java.io.IOException e
-          (log/warn :exception e)
           (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
@@ -168,7 +168,7 @@
          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
         (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
       ;; TODO: error message somewhere...
-      (println (validation/error-message save-data)))))
+      (println (properties/error-message save-data)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"

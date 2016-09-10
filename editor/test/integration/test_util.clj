@@ -192,6 +192,9 @@
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
+(defn prop-error [node-id label]
+  (get-in (g/node-value node-id :_properties) [:properties label :error]))
+
 (defn prop-node-id [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :node-id]))
 
@@ -248,3 +251,10 @@
 (defn handler-run [command command-contexts user-data]
   (-> (handler/active command command-contexts user-data)
     handler/run))
+
+(defmacro with-prop [binding & forms]
+  (let [[node-id# property# value#] binding]
+    `(let [old-value# (g/node-value ~node-id# ~property#)]
+       (g/set-property! ~node-id# ~property# ~value#)
+       ~@forms
+       (g/set-property! ~node-id# ~property# old-value#))))
