@@ -726,7 +726,7 @@
             (value (g/fnk [skin scene-structure] (or (not-empty skin) (first (:skins scene-structure)))))
             (validate (g/fnk [skin scene-structure]
                              (when (and (some? scene-structure) (not (contains? (into #{} (:skins scene-structure)) skin)))
-                               (g/error-severe (format "The skin \"%s\" could not be found in the specified scene" skin)))))
+                               (g/error-fatal (format "The skin \"%s\" could not be found in the specified scene" skin)))))
             (dynamic edit-type (g/fnk [scene-structure]
                                       (properties/->choicebox (:skins scene-structure)))))
 

@@ -38,7 +38,7 @@
 (defmacro validate-greater-than-zero [field message]
   `(g/fnk [~field]
      (when (<= ~field 0.0)
-       (g/error-severe ~message))))
+       (g/error-fatal ~message))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
@@ -396,7 +396,7 @@
   (property dimensions types/Vec3
             (validate (g/fnk [dimensions]
                         (when (some #(<= % 0.0) dimensions)
-                          (g/error-severe "All dimensions must be greater than zero"))))
+                          (g/error-fatal "All dimensions must be greater than zero"))))
             (dynamic edit-type (g/always {:type types/Vec3 :labels ["W" "H" "D"]})))
 
   (display-order [Shape :dimensions])
@@ -601,7 +601,7 @@
                                   (not= :collision-object-type-dynamic type)))
             (validate (g/fnk [mass type]
                         (when (and (= :collision-object-type-dynamic type) (< mass 1))
-                          (g/error-severe "Must be greater than zero")))))
+                          (g/error-fatal "Must be greater than zero")))))
 
   (property friction g/Num)
   (property restitution g/Num)

@@ -41,9 +41,9 @@
   (output content BufferedImage :cached (g/fnk [resource] (try
                                                             (if-let [img (ImageIO/read (io/input-stream resource))]
                                                               img
-                                                              (g/error-severe (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
+                                                              (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                                             (catch java.io.FileNotFoundException e
-                                                              (g/error-severe (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+                                                              (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics

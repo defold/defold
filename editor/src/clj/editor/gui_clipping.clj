@@ -177,7 +177,7 @@
                             (if (= new-root-count 0)
                               (if (> (count roots) 1)
                                 (recur (into [(subvec roots 0 1) (subvec roots 1)] (rest all-roots)) true result)
-                                (g/error-severe "bit overflow" {:type :bit-overflow :source-id (get-in (last roots) [0 :node-id])}))
+                                (g/error-fatal "bit overflow" {:type :bit-overflow :source-id (get-in (last roots) [0 :node-id])}))
                               (let [new-roots (cond-> new-roots
                                                 clear?
                                                 (assoc-in [0 0 :renderable :user-data :clipping-state :clear] true))]

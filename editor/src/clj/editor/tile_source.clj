@@ -142,7 +142,7 @@
 
   (property id g/Str
             (dynamic error (g/fnk [_node-id id collision-groups-data]
-                                  (or (validation/prop-error :severe _node-id :id validation/prop-empty? id "Id")
+                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
                                       (when (collision-groups/overallocated? collision-groups-data)
                                         (validation/prop-error :warning _node-id :id (constantly "More than 16 collision groups in use.") id "Id"))))))
 
@@ -177,13 +177,13 @@
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
   (property id g/Str
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-empty? id)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
   (property start-tile g/Int
             (dynamic error (g/fnk [_node-id start-tile tile-count]
-                                  (validation/prop-error :severe _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))))
+                                  (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))))
   (property end-tile g/Int
             (dynamic error (g/fnk [_node-id end-tile tile-count]
-                                  (validation/prop-error :severe _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
+                                  (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
             (dynamic edit-type (g/always
@@ -192,7 +192,7 @@
                                    :options (zipmap (map first options)
                                                     (map (comp :display-name second) options))}))))
   (property fps g/Int (default 30)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? fps)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
   (property flip-vertical g/Bool (default false))
   (property cues g/Any (dynamic visible (g/always false)))
@@ -458,7 +458,7 @@
             metrics (texture-set-gen/calculate-tile-metrics image-content properties collision-content)]
         (when metrics
           (merge properties metrics)))
-      (g/error-severe "tile data could not be generated due to invalid values")))
+      (g/error-fatal "tile data could not be generated due to invalid values")))
 
 (defn- check-anim-error [tile-count anim-data]
   (let [node-id (:node-id anim-data)
@@ -468,7 +468,7 @@
           [:start-tile tile-range-f]
           [:end-tile tile-range-f]]
       (keep (fn [[prop-kw f]]
-              (validation/prop-error :severe node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
+              (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
 (g/defnk produce-texture-set-data
   [image image-content tile-source-attributes animation-data collision-groups convex-hulls collision collision-content tile-count]
@@ -488,28 +488,28 @@
                                             [:content :image-content])))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                      (validation/prop-error :severe _node-id :image validation/prop-resource-not-exists? image "Image")))))
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
 
   (property tile-width g/Int
             (default 0)
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
-                                  (validation/prop-error :severe _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
+                                  (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
 
   (property tile-height g/Int
             (default 0)
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
-                                  (validation/prop-error :severe _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
+                                  (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
 
   (property tile-margin g/Int
             (default 0)
             (dynamic error (g/fnk [_node-id tile-margin tile-width-error tile-height-error]
-                                  (validation/prop-error :severe _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
+                                  (validation/prop-error :fatal _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
   (property tile-spacing g/Int (default 0)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? tile-spacing)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? tile-spacing)))
   (property extrude-borders g/Int (default 0)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? extrude-borders)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
   (property inner-padding g/Int (default 0)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? inner-padding)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; optional
             (value (gu/passthrough collision-resource))
             (set (fn [basis self old-value new-value]
@@ -517,7 +517,7 @@
                                             [:resource :collision-resource]
                                             [:content :collision-content])))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
-                                  (validation/prop-error :severe _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
+                                  (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
 
   (property material-tag g/Str (default "tile") (dynamic visible (g/always false)))
   (property original-convex-hulls g/Any (dynamic visible (g/always false)))
@@ -565,25 +565,25 @@
                                                [coll-w coll-h] collision-dims]
                                            (when (or (not= img-w coll-w)
                                                      (not= img-h coll-h))
-                                             (g/error-severe (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
-                                                                     img-w img-h
-                                                                     coll-w coll-h)))))))
+                                             (g/error-fatal (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
+                                                                    img-w img-h
+                                                                    coll-w coll-h)))))))
   (output tile-width-error g/Err (g/fnk [image-dims collision-dims tile-width tile-margin]
                                         (let [dims (or image-dims collision-dims)]
                                           (when dims
                                             (let [[w _] dims
                                                   total-w (+ tile-width tile-margin)]
                                               (when (< w total-w)
-                                                (g/error-severe (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
-                                                                        total-w w))))))))
+                                                (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
+                                                                       total-w w))))))))
   (output tile-height-error g/Err (g/fnk [image-dims collision-dims tile-height tile-margin]
                                          (let [dims (or image-dims collision-dims)]
                                            (when dims
                                              (let [[_ h] dims
                                                    total-h (+ tile-height tile-margin)]
                                                (when (< h total-h)
-                                                 (g/error-severe (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
-                                                                         total-h h)))))))))
+                                                 (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
+                                                                        total-h h)))))))))
 
 
 ;;--------------------------------------------------------------------

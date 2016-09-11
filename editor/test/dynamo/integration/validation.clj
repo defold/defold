@@ -21,7 +21,7 @@
             (value (g/fnk [data-input]
                           (if data-input
                             data-input
-                            (g/error-severe :no-connection))))
+                            (g/error-fatal :no-connection))))
             (set (fn [basis self old-value new-value]
                    (let [producer-store (g/node-value self :producer-store {:basis basis})]
                      (concat
@@ -57,11 +57,11 @@
   (property own-data g/Str
             (validate (g/fnk [data own-data next-data]
                              (when-not (= data own-data next-data)
-                               (g/error-severe :not-equal)))))
+                               (g/error-fatal :not-equal)))))
   (property next-data g/Str
             (validate (g/fnk [data own-data next-data]
                               (when-not (= data own-data next-data)
-                                (g/error-severe :not-equal))))))
+                                (g/error-fatal :not-equal))))))
 
 (deftest test-complex-validation
   (with-clean-system
@@ -97,7 +97,7 @@
 
 (g/defnode ComponentNode
   (property my-data g/Any
-            (validate (g/fnk [] (g/error-severe :failure)))))
+            (validate (g/fnk [] (g/error-fatal :failure)))))
 
 (g/defnode ResourceNode
   (input sub-data g/Any :array)
@@ -143,13 +143,13 @@
   (if-let [max-width 200]
     (let [total-width (+ tile-width tile-margin)]
       (when (> total-width max-width)
-        (g/error-severe (format "The total tile width (including margin) %d is greater than the image width %d" total-width max-width))))))
+        (g/error-fatal (format "The total tile width (including margin) %d is greater than the image width %d" total-width max-width))))))
 
 (g/defnk validate-tile-height [tile-height tile-margin]
   (if-let [max-height 200]
     (let [total-height (+ tile-height tile-margin)]
       (when (> total-height max-height)
-        (g/error-severe (format "The total tile height (including margin) %d is greater than the image height %d" total-height max-height))))))
+        (g/error-fatal (format "The total tile height (including margin) %d is greater than the image height %d" total-height max-height))))))
 
 (g/defnk validate-tile-dimensions [tile-width tile-height tile-margin :as all]
   (or (validate-tile-width all)
@@ -185,14 +185,14 @@
 
 (g/defnode CustomSetterNode
   (property plain-prop g/Int
-    (validate (g/fnk [plain-prop] (when (< plain-prop 0) (g/error-severe "plain-prop must be positive")))))
+    (validate (g/fnk [plain-prop] (when (< plain-prop 0) (g/error-fatal "plain-prop must be positive")))))
 
   (property the-prop g/Int
     (value (g/fnk [] -4711))
     (set (fn [_ _ _ _]))
     (validate (g/fnk [the-prop]
                 (when (< the-prop 0)
-                  (g/error-severe "the-prop must be positive")))))
+                  (g/error-fatal "the-prop must be positive")))))
 
   (output output-probe g/Int (g/fnk [the-prop] "this should not be returned as the-prop is an error"))
 
@@ -228,12 +228,12 @@
   (property prop-or-out-in-validation-kw g/Keyword
     (value (g/fnk [] :prop))
     (validate (g/fnk [prop-or-out-in-validation-kw]
-                (g/error-severe "some error" {:value prop-or-out-in-validation-kw}))))
+                (g/error-fatal "some error" {:value prop-or-out-in-validation-kw}))))
   (output prop-or-out-in-validation-kw g/Keyword (g/fnk [] :out))
 
   (property validate-prop-or-out-kw g/Keyword
     (default :validate-prop)
-    (validate (g/fnk [prop-or-out-kw] (g/error-severe "some error" {:value prop-or-out-kw}))))
+    (validate (g/fnk [prop-or-out-kw] (g/error-fatal "some error" {:value prop-or-out-kw}))))
 
   (property dynamic-prop-or-out-kw g/Keyword
     (default :dummy)

@@ -233,14 +233,14 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                      (validation/prop-error :severe _node-id :image validation/prop-resource-not-exists? image "Image")))))
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
 
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id image default-animation anim-data]
                                   (when image
-                                    (validation/prop-error :severe _node-id :default-animation (fn [a]
-                                                                                                (when (not (contains? anim-data default-animation))
-                                                                                                  (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
+                                    (validation/prop-error :fatal _node-id :default-animation (fn [a]
+                                                                                               (when (not (contains? anim-data default-animation))
+                                                                                                 (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
                                                           default-animation))))
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
@@ -251,8 +251,8 @@
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id material]
-                                  (or (validation/prop-error :severe _node-id :material validation/prop-nil? material "Material")
-                                      (validation/prop-error :severe _node-id :material validation/prop-resource-not-exists? material "Material")))))
+                                  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                                      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))

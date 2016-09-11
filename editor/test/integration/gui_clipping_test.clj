@@ -855,7 +855,7 @@
         (when (> i 0)
           (let [x (add-clipper! project scene parent false true)]
             (recur (dec i) x))))
-      (is (g/error-severe? (g/node-value scene :scene))))))
+      (is (g/error-fatal? (g/node-value scene :scene))))))
 
 ;; Verify that an overflow is handled with an error.
 ;;
@@ -882,10 +882,10 @@
           (let [x (add-inv-clipper! project scene parent true)]
             (recur (dec i) x))))
       (let [error (g/node-value scene :scene)]
-        (is (g/error-severe? error))
+        (is (g/error-fatal? error))
         ;; Recover from the error
         (g/set-property! (get-in error [:user-data :source-id]) :clipping-mode :clipping-mode-none)
-        (is (not (g/error-severe? (g/node-value scene :scene))))))))
+        (is (not (g/error-fatal? (g/node-value scene :scene))))))))
 
 ;; Verify that an overflow is handled with a clear.
 ;;
@@ -923,7 +923,7 @@
           j (add-inv-clipper! project scene i true)
           k (add-inv-clipper! project scene j true)]
       (let [non-error (g/node-value scene :scene)]
-        (is (not (g/error-severe? non-error)))))))
+        (is (not (g/error-fatal? non-error)))))))
 
 ;; Verify that an overflow is handled with a clear.
 ;;
@@ -962,7 +962,7 @@
           j (add-inv-clipper! project scene i true)
           k (add-inv-clipper! project scene j true)]
       (let [non-error (g/node-value scene :scene)]
-        (is (not (g/error-severe? non-error)))))))
+        (is (not (g/error-fatal? non-error)))))))
 
 ;; Verify that an overflow is handled with a clear.
 ;;
@@ -1000,4 +1000,4 @@
           g (add-inv-clipper! project scene f true)
           h (add-inv-clipper! project scene b true)]
       (let [non-error (g/node-value scene :scene)]
-        (is (not (g/error-severe? non-error)))))))
+        (is (not (g/error-fatal? non-error)))))))

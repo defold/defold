@@ -154,10 +154,10 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-empty? id)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
   (property fps g/Int
             (default 30)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? fps)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -249,7 +249,7 @@
                               [inner-padding "Inner Padding"]
                               [extrude-borders "Extrude Borders"]]
                           (keep (fn [[v name]]
-                                  (validation/prop-error :severe _node-id :texture-set-data validation/prop-negative? v name)))
+                                  (validation/prop-error :fatal _node-id :texture-set-data validation/prop-negative? v name)))
                           not-empty)]
         (g/error-aggregate errors))
       (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders)))
@@ -297,13 +297,13 @@
 
   (property margin g/Int
             (default 0)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? margin)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? margin)))
   (property inner-padding g/Int
             (default 0)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? inner-padding)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property extrude-borders g/Int
             (default 0)
-            (dynamic error (validation/prop-error-fnk :severe validation/prop-negative? extrude-borders)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
 
   (input animations Animation :array)
   (input animation-ids g/Str :array)

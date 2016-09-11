@@ -244,14 +244,14 @@
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective base"
-               (let [error (g/error-severe "Something went wrong" {:type :some-error})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (g/transact
                    (g/mark-defective main error))
                  (is (g/error? (g/node-value or-main :a-property))))))
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective override, which throws exception"
-               (let [error (g/error-severe "Something went wrong" {:type :some-error})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (is (thrown? Exception (g/transact
                                           (g/mark-defective or-main error)))))))))
 

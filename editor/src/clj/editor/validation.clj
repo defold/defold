@@ -13,7 +13,7 @@
   ([field message]
     `(g/fnk [~field]
        (when (neg? ~field)
-         (g/error-severe ~message)))))
+         (g/error-fatal ~message)))))
 
 (defmacro blend-mode-tip [field pb-blend-type]
   `(g/fnk [~field]
@@ -37,7 +37,7 @@
 (defmacro validate-animation [animation anim-data]
   `(g/fnk [~animation ~anim-data]
      (when (and (some? ~anim-data) (not (contains? ~anim-data ~animation)))
-       (g/error-severe (format "The animation \"%s\" could not be found in the specified image" ~animation)))))
+       (g/error-fatal (format "The animation \"%s\" could not be found in the specified image" ~animation)))))
 
 (defn prop-negative? [v name]
   (when (< v 0)
@@ -54,15 +54,10 @@
 (defn prop-resource-not-exists? [v name]
   (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource-name v))))
 
-(def ^:private ->severity {:info g/INFO
-                           :warning g/WARNING
-                           :severe g/SEVERE
-                           :fatal g/FATAL})
-
 (defn prop-error
   ([severity _node-id prop-kw f prop-value & args]
   (when-let [msg (apply f prop-value args)]
-    (g/->error _node-id prop-kw (->severity severity) prop-value msg {}))))
+    (g/->error _node-id prop-kw severity prop-value msg {}))))
 
 (defmacro prop-error-fnk
   [severity f property]

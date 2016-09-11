@@ -65,8 +65,8 @@
 
 (def ^:private status-errors
   {:ok nil
-   :invalid-args (g/error-severe "Invalid arguments to go.property call") ; TODO: not used for now
-   :invalid-value (g/error-severe "Invalid value in go.property call")})
+   :invalid-args (g/error-fatal "Invalid arguments to go.property call") ; TODO: not used for now
+   :invalid-value (g/error-fatal "Invalid value in go.property call")})
 
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
