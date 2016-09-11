@@ -74,7 +74,7 @@
          (when (instance? FileResource resource)
            (g/connect node-id :save-data project :save-data)))
         (catch java.io.IOException e
-          (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+          (g/mark-defective node-id node-type (g/error-severe (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
       [])))
 
 (defn load-resource-nodes [project node-ids render-progress!]
@@ -453,7 +453,7 @@
             outputs-to-make (remove new-outputs current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-severe (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))

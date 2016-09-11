@@ -85,7 +85,7 @@
           (g/set-property self (path->property p) root))))
      (catch java.lang.Exception e
        (log/warn :exception e)
-       (g/mark-defective self (g/error-severe {:type :invalid-content :message (.getMessage e)}))))
+       (g/mark-defective self (g/error-severe (.getMessage e) {:type :invalid-content}))))
    (g/connect self :settings-map proxy :settings-map)))
 
 (g/defnk produce-save-data [resource raw-settings meta-info _declared-properties]

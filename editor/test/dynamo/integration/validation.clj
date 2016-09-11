@@ -228,12 +228,12 @@
   (property prop-or-out-in-validation-kw g/Keyword
     (value (g/fnk [] :prop))
     (validate (g/fnk [prop-or-out-in-validation-kw]
-                (g/error-severe {:value prop-or-out-in-validation-kw}))))
+                (g/error-severe "some error" {:value prop-or-out-in-validation-kw}))))
   (output prop-or-out-in-validation-kw g/Keyword (g/fnk [] :out))
 
   (property validate-prop-or-out-kw g/Keyword
     (default :validate-prop)
-    (validate (g/fnk [prop-or-out-kw] (g/error-severe {:value prop-or-out-kw}))))
+    (validate (g/fnk [prop-or-out-kw] (g/error-severe "some error" {:value prop-or-out-kw}))))
 
   (property dynamic-prop-or-out-kw g/Keyword
     (default :dummy)

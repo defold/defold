@@ -428,12 +428,7 @@
   (tree-seq :causes :causes e))
 
 (defn- error-messages [e]
-  (letfn [(extract-message [user-data]
-          (cond
-            (string? user-data) user-data
-            (map? user-data) (:message user-data)
-            true nil))]
-    (distinct (keep (comp extract-message :user-data) (error-seq e)))))
+  (distinct (keep :message (error-seq e))))
 
 (defn error-message [e]
   (str/join "\n" (error-messages e)))

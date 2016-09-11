@@ -62,7 +62,7 @@
 (defn prop-error
   ([severity _node-id prop-kw f prop-value & args]
   (when-let [msg (apply f prop-value args)]
-    (g/->error _node-id prop-kw (->severity severity) prop-value msg))))
+    (g/->error _node-id prop-kw (->severity severity) prop-value msg {}))))
 
 (defmacro prop-error-fnk
   [severity f property]

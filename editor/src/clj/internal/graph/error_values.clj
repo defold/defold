@@ -8,17 +8,24 @@
 (def SEVERE  20)
 (def FATAL   30)
 
-(defrecord ErrorValue [_node-id _label severity value causes user-data])
+(defrecord ErrorValue [_node-id _label severity value message causes user-data])
 
-(defn error-value [severity user-data] (map->ErrorValue {:severity severity :user-data user-data}))
+(defn error-value
+  ([severity message]
+    (error-value severity message {}))
+  ([severity message user-data]
+    (map->ErrorValue {:severity severity :message message :user-data user-data})))
 
 (def error-info    (partial error-value INFO))
 (def error-warning (partial error-value WARNING))
 (def error-severe  (partial error-value SEVERE))
 (def error-fatal   (partial error-value FATAL))
 
-(defn ->error [node-id label severity value user-data]
-  (->ErrorValue node-id label severity value nil user-data))
+(defn ->error
+  ([node-id label severity value message]
+    (->error node-id label severity value message nil {}))
+  ([node-id label severity value message user-data]
+    (->ErrorValue node-id label severity value message nil user-data)))
 
 (defn error?
   [x]
