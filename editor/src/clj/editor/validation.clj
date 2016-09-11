@@ -43,6 +43,10 @@
   (when (< v 0)
     (format "'%s' must be positive" name)))
 
+(defn prop-zero-or-below? [v name]
+  (when (<= v 0)
+    (format "'%s' must be greater than zero" name)))
+
 (defn prop-nil? [v name]
   (when (nil? v)
     (format "'%s' must be specified" name)))
