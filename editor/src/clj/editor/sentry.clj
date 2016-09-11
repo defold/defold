@@ -18,18 +18,21 @@
   [^Exception ex]
   {:frames (vec (for [^StackTraceElement frame (reverse (.getStackTrace ex))]
                   {:filename (.getFileName frame)
-                   :lineo (.getLineNumber frame)
+                   :lineno (.getLineNumber frame)
                    :function (.getMethodName frame)
                    :module (.getClassName frame)}))})
 
+(defn module-name
+  [frames]
+  (when-let [^StackTraceElement top (first (seq frames))]
+    (str (.getClassName top) "." (.getMethodName top))))
+
 (defn- exception-data
   [^Exception ex ^Thread thread]
-  (let [frames (seq (.getStackTrace ex))
-        ^StackTraceElement top (first frames)]
-    [{:type (str (.getClass ex))
-      :value (.getMessage ex)
-      :module (str (.getClassName top) "." (.getMethodName top))
-      :thread_id (.getId thread)}]))
+  [{:type (str (.getClass ex))
+    :value (.getMessage ex)
+    :module (module-name (.getStackTrace ex))
+    :thread_id (.getId thread)}])
 
 (defn- thread-data
   [^Thread thread ^Exception ex]
@@ -40,22 +43,22 @@
 
 (defn make-event
   [^Exception ex ^Thread thread]
-  {:event_id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
-   :message (.getMessage ex)
-   :timestamp (LocalDateTime/now ZoneOffset/UTC)
-   :level "error"
-   :logger ""
-   :platform "java"
-   :sdk {:name "sentry-defold" :version "1.0"}
-   :device {:name (system/os-name)
-            :version (system/os-version)}
-   :release (or (system/defold-version) "dev")
-   :tags {:sha1 (system/defold-sha1)}
+  {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+   :message     (.getMessage ex)
+   :timestamp   (LocalDateTime/now ZoneOffset/UTC)
+   :level       "error"
+   :logger      ""
+   :platform    "java"
+   :sdk         {:name "sentry-defold" :version "1.0"}
+   :device      {:name (system/os-name) :version (system/os-version)}
+   :culprit     (module-name (.getStackTrace ex))
+   :release     (or (system/defold-version) "dev")
+   :tags        {:sha1 (system/defold-sha1)}
    :environment (if (system/defold-version) "release" "dev")
-   :extra (ex-data ex)
+   :extra       (ex-data ex)
    ;;:fingerprint []
-   :exception (exception-data ex thread)
-   :threads (thread-data thread ex)})
+   :exception   (exception-data ex thread)
+   :threads     (thread-data thread ex)})
 
 (defn x-sentry-auth
   [^LocalDateTime ts key secret]
@@ -112,4 +115,3 @@
        (vreset! run? false))
       ([exception thread]
        (.offer queue [exception thread])))))
-
