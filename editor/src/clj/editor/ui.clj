@@ -1,31 +1,34 @@
 (ns editor.ui
-  (:require [clojure.java.io :as io]
-            [editor.progress :as progress]
-            [editor.handler :as handler]
-            [editor.jfx :as jfx]
-            [editor.workspace :as workspace]
-            [service.log :as log]
-            [util.profiler :as profiler]
-            [dynamo.graph :as g])
-  (:import [com.defold.control LongField]
-           [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
-           [javafx.application Platform]
-           [javafx.beans.value ChangeListener ObservableValue]
-           [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
-           [javafx.event ActionEvent EventHandler WeakEventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.scene Parent Node Scene Group]
-           [javafx.scene.layout Region]
-           [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip]
-           [com.defold.control ListCell]
-           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
-           [javafx.scene.layout AnchorPane Pane HBox]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.stage Stage Modality Window]
-           [javafx.css Styleable]
-           [javafx.util Callback Duration StringConverter]
-           [javafx.geometry Orientation]
-           [com.defold.control TreeCell]))
+  (:require
+   [clojure.java.io :as io]
+   [clojure.string :as string]
+   [dynamo.graph :as g]
+   [editor.handler :as handler]
+   [editor.jfx :as jfx]
+   [editor.progress :as progress]
+   [editor.workspace :as workspace]
+   [service.log :as log]
+   [util.profiler :as profiler])
+  (:import
+   [com.defold.control LongField]
+   [com.defold.control ListCell]
+   [com.defold.control TreeCell]
+   [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
+   [javafx.application Platform]
+   [javafx.beans.value ChangeListener ObservableValue]
+   [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
+   [javafx.css Styleable]
+   [javafx.event ActionEvent EventHandler WeakEventHandler]
+   [javafx.fxml FXMLLoader]
+   [javafx.geometry Orientation]
+   [javafx.scene Parent Node Scene Group]
+   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip]
+   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
+   [javafx.scene.layout Region]
+   [javafx.scene.layout AnchorPane Pane HBox]
+   [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
+   [javafx.stage Stage Modality Window]
+   [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
 
@@ -502,6 +505,40 @@
                       (vec))))
 
 
+;; context handling
+
+;; context for TextInputControls so that we can retain default behaviours
+
+(defn make-text-input-control-context
+  [control]
+  {:name :text-input-control
+   :env {:control control}})
+
+(defn- has-selection?
+  [^TextInputControl control]
+  (not (string/blank? (.getSelectedText control))))
+
+(handler/defhandler :copy :text-input-control
+  (enabled? [^TextInputControl control] (has-selection? control))
+  (run [^TextInputControl control] (.copy control)))
+
+(handler/defhandler :cut :text-input-control
+  (enabled? [^TextInputControl control] (has-selection? control))
+  (run [^TextInputControl control] (.cut control)))
+
+(handler/defhandler :paste :text-input-control
+  (enabled? [] (.. Clipboard getSystemClipboard hasString))
+  (run [^TextInputControl control] (.paste control)))
+
+(handler/defhandler :undo :text-input-control
+  (enabled? [^TextInputControl control] (.isUndoable control))
+  (run [^TextInputControl control] (.undo control)))
+
+(handler/defhandler :redo :text-input-control
+  (enabled? [^TextInputControl control] (.isRedoable control))
+  (run [^TextInputControl control] (.redo control)))
+
+
 (defn context!
   ([^Node node name env selection-provider]
     (context! node name env selection-provider {}))
@@ -511,27 +548,40 @@
                                 :selection-provider selection-provider
                                 :dynamics dynamics})))
 
+(defn context
+  [^Node node]
+  (cond
+    (instance? TabPane node)
+    (let [^TabPane tab-pane node
+          ^Tab tab (.getSelectedItem (.getSelectionModel tab-pane))]
+      (or (and tab (.getContent tab) (user-data (.getContent tab) ::context))
+          (user-data node ::context)))
+    
+    (instance? TextInputControl node)
+    (make-text-input-control-context node)
+    
+    :else
+    (user-data node ::context)))
+
+(defn complete-context
+  [{:keys [selection-provider dynamics] :as context}]
+  (cond-> context
+    selection-provider
+    (assoc-in [:env :selection] (workspace/selection selection-provider))
+
+    dynamics
+    (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) dynamics)))))
+
 (defn- contexts []
   (let [main-scene (.getScene ^Stage @*main-stage*)
         initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
-    (->>
-      (loop [^Node node initial-node
-             ctxs []]
-        (if-not node
-          ctxs
-          (let [ctx (if (instance? TabPane node)
-                      (let [^TabPane tab-pane node
-                            ^Tab tab (.getSelectedItem (.getSelectionModel tab-pane))]
-                        (or (and tab (.getContent tab) (user-data (.getContent tab) ::context))
-                            (user-data node ::context)))
-                      (user-data node ::context))]
-            (recur (.getParent node) (conj ctxs ctx)))))
-      (remove nil?)
-      (map (fn [ctx]
-             (-> ctx
-               (assoc-in [:env :selection] (workspace/selection (:selection-provider ctx)))
-               (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in ctx [:env node]) v)]) (:dynamics ctx))))))))))
-
+    (loop [^Node node initial-node
+           ctxs []]
+      (if-not node
+        ctxs
+        (if-let [ctx (context node)]
+          (recur (.getParent node) (conj ctxs (complete-context ctx)))
+          (recur (.getParent node) ctxs))))))
 
 (defn extend-menu [id location menu]
   (swap! *menus* update id (comp distinct concat) (list {:location location :menu menu})))
@@ -647,11 +697,7 @@
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id)]
        (user-data! root ::menubar desc))
-     (log/warn :message (format "menubar %s not found" menubar-id))))
-  (.addEventFilter scene KeyEvent/KEY_PRESSED
-                   (event-handler event
-                                  (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
-                                    (.consume event)))))
+     (log/warn :message (format "menubar %s not found" menubar-id)))))
 
 (def ^:private invalidate-menus? (atom false))
 

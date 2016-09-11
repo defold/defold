@@ -17,7 +17,8 @@
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline])
+            [editor.outline :as outline]
+            [editor.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
@@ -256,7 +257,7 @@
   {:node-id _node-id
    :label "Game Object"
    :icon game-object-icon
-   :children child-outlines
+   :children (vec (sort-by :label util/natural-order child-outlines))
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn attach-ref-component}
                 {:node-type EmbeddedComponent
