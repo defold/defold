@@ -20,7 +20,9 @@ enum Type
     FUNCTION = 0;
     VARIABLE = 1;
     MESSAGE = 2;
-    PROPERTY = 3;
+    NAMESPACE = 3;
+    PROPERTY = 4;
+    PACKAGE = 5;
 }
 
 message Element
