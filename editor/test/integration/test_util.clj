@@ -42,7 +42,7 @@
            [org.apache.commons.io FilenameUtils FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
-(def project-path "resources/test_project")
+(def project-path "test/resources/test_project")
 
 (defn setup-workspace!
   ([graph]
@@ -218,11 +218,11 @@
 (defn ->lib-server []
   (doto (http-server/->server 0 {"/lib" (fn [request]
                                           (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "resources/%s/" lib))
+                                                path-offset (count (format "test/resources/%s/" lib))
                                                 ignored #{".internal" "build"}
                                                 file-filter (reify FilenameFilter
                                                               (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "resources/%s" lib)))
+                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "test/resources/%s" lib)))
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]
