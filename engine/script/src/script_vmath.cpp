@@ -1051,7 +1051,7 @@ namespace dmScript
 
     /*# creates a new quaternion from its coordinates
      * 
-     * Creates a new quartenion with the components set
+     * Creates a new quaternion with the components set
      * according to the supplied parameter values.
      * 
      * @name vmath.quat
