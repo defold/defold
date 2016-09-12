@@ -382,11 +382,12 @@
 (defn- drag-done [^DragEvent e selection])
 
 (defn- drag-entered [^DragEvent e]
-  (when-let [^TreeCell cell (target (.getTarget e))]
-    (let [resource (.getValue (.getTreeItem cell))]
-      (when (and (= :folder (resource/source-type resource))
-                 (not (resource/read-only? resource)))
-        (ui/add-style! cell "drop-target")))))
+  (let [^TreeCell cell (target (.getTarget e))]
+    (when (and cell (not (.isEmpty cell)))
+      (let [resource (.getValue (.getTreeItem cell))]
+        (when (and (= :folder (resource/source-type resource))
+                   (not (resource/read-only? resource)))
+          (ui/add-style! cell "drop-target"))))))
 
 (defn- drag-exited [^DragEvent e]
   (when-let [cell (target (.getTarget e))]
