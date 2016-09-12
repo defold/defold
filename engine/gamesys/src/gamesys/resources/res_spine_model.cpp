@@ -6,7 +6,7 @@ namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, SpineModelResource* resource, const char* filename)
     {
-        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_SpineScene, (void**) &resource->m_Scene);
+        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_SpineScene, (void**) &resource->m_RigScene);
         if (result != dmResource::RESULT_OK)
             return result;
         result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &resource->m_Material);
@@ -17,8 +17,8 @@ namespace dmGameSystem
     {
         if (resource->m_Model != 0x0)
             dmDDF::FreeMessage(resource->m_Model);
-        if (resource->m_Scene != 0x0)
-            dmResource::Release(factory, resource->m_Scene);
+        if (resource->m_RigScene != 0x0)
+            dmResource::Release(factory, resource->m_RigScene);
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
     }

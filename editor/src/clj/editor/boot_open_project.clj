@@ -1,55 +1,57 @@
 (ns editor.boot-open-project
-  (:require [editor.defold-project :as project]
-            [editor.progress :as progress]
-            [editor.workspace :as workspace]
-            [editor.ui :as ui]
-            [editor.dialogs :as dialogs]
-            [editor.changes-view :as changes-view]
-            [editor.properties-view :as properties-view]
-            [editor.text :as text]
+  (:require [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.asset-browser :as asset-browser]
+            [editor.atlas :as atlas]
             [editor.build-errors-view :as build-errors-view]
+            [editor.camera-editor :as camera]
+            [editor.changes-view :as changes-view]
             [editor.code-view :as code-view]
+            [editor.collection :as collection]
             [editor.collision-object :as collision-object]
-            [editor.scene :as scene]
-            [editor.form-view :as form-view]
+            [editor.console :as console]
+            [editor.core :as core]
+            [editor.cubemap :as cubemap]
+            [editor.curve-view :as curve-view]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.display-profiles :as display-profiles]
             [editor.factory :as factory]
-            [editor.collection :as colleciton]
             [editor.font :as font]
+            [editor.form-view :as form-view]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.gl.shader :as shader]
+            [editor.graph-view :as graph-view]
+            [editor.gui :as gui]
             [editor.hot-reload :as hotload]
-            [editor.console :as console]
-            [editor.cubemap :as cubemap]
             [editor.image :as image]
-            [editor.workspace :as workspace]
-            [editor.collection :as collection]
-            [editor.atlas :as atlas]
+            [editor.json :as json]
+            [editor.login :as login]
+            [editor.material :as material]
+            [editor.mesh :as mesh]
+            [editor.model :as model]
+            [editor.outline-view :as outline-view]
+            [editor.particlefx :as particlefx]
             [editor.platformer :as platformer]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
+            [editor.properties-view :as properties-view]
             [editor.protobuf-types :as protobuf-types]
+            [editor.rig :as rig]
+            [editor.scene :as scene]
             [editor.script :as script]
-            [editor.switcher :as switcher]
-            [editor.sprite :as sprite]
-            [editor.gl.shader :as shader]
-            [editor.tile-source :as tile-source]
-            [editor.targets :as targets]
             [editor.sound :as sound]
             [editor.spine :as spine]
-            [editor.json :as json]
-            [editor.mesh :as mesh]
-            [editor.material :as material]
-            [editor.particlefx :as particlefx]
-            [editor.gui :as gui]
-            [editor.app-view :as app-view]
-            [editor.outline-view :as outline-view]
-            [editor.asset-browser :as asset-browser]
-            [editor.graph-view :as graph-view]
-            [editor.core :as core]
-            [dynamo.graph :as g]
-            [editor.display-profiles :as display-profiles]
+            [editor.sprite :as sprite]
+            [editor.switcher :as switcher]
+            [editor.targets :as targets]
+            [editor.text :as text]
+            [editor.tile-map :as tile-map]
+            [editor.tile-source :as tile-source]
+            [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
-            [editor.curve-view :as curve-view]
-            [editor.login :as login]
+            [editor.workspace :as workspace]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
@@ -85,31 +87,35 @@
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)))
     (g/transact
-     (concat
-      (collection/register-resource-types workspace)
-      (collision-object/register-resource-types workspace)
-      (font/register-resource-types workspace)
-      (factory/register-resource-types workspace)
-      (game-object/register-resource-types workspace)
-      (game-project/register-resource-types workspace)
-      (cubemap/register-resource-types workspace)
-      (image/register-resource-types workspace)
-      (atlas/register-resource-types workspace)
-      (platformer/register-resource-types workspace)
-      (protobuf-types/register-resource-types workspace)
-      (script/register-resource-types workspace)
-      (switcher/register-resource-types workspace)
-      (sprite/register-resource-types workspace)
-      (shader/register-resource-types workspace)
-      (tile-source/register-resource-types workspace)
-      (sound/register-resource-types workspace)
-      (spine/register-resource-types workspace)
-      (json/register-resource-types workspace)
-      (mesh/register-resource-types workspace)
-      (material/register-resource-types workspace)
-      (particlefx/register-resource-types workspace)
-      (gui/register-resource-types workspace)
-      (display-profiles/register-resource-types workspace)))
+      (concat
+        (atlas/register-resource-types workspace)
+        (camera/register-resource-types workspace)
+        (collection/register-resource-types workspace)
+        (collision-object/register-resource-types workspace)
+        (cubemap/register-resource-types workspace)
+        (display-profiles/register-resource-types workspace)
+        (factory/register-resource-types workspace)
+        (font/register-resource-types workspace)
+        (game-object/register-resource-types workspace)
+        (game-project/register-resource-types workspace)
+        (gui/register-resource-types workspace)
+        (image/register-resource-types workspace)
+        (json/register-resource-types workspace)
+        (material/register-resource-types workspace)
+        (mesh/register-resource-types workspace)
+        (model/register-resource-types workspace)
+        (particlefx/register-resource-types workspace)
+        (platformer/register-resource-types workspace)
+        (protobuf-types/register-resource-types workspace)
+        (rig/register-resource-types workspace)
+        (script/register-resource-types workspace)
+        (shader/register-resource-types workspace)
+        (sound/register-resource-types workspace)
+        (spine/register-resource-types workspace)
+        (sprite/register-resource-types workspace)
+        (switcher/register-resource-types workspace)
+        (tile-map/register-resource-types workspace)
+        (tile-source/register-resource-types workspace)))
     (workspace/resource-sync! workspace)
     workspace))
 
@@ -160,7 +166,7 @@
     (ui/on-close-request! stage
                           (fn [_]
                             (g/transact
-                             (g/delete-node project))))
+                              (g/delete-node project))))
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
@@ -226,13 +232,13 @@
                          :splits            splits}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
-       (concat
-        (g/connect project :selected-node-ids outline-view :selection)
-        (for [label [:active-resource :active-outline :open-resources]]
-          (g/connect app-view label outline-view label))
-        (for [view [outline-view asset-browser]]
-          (g/update-property app-view :auto-pulls conj [view :tree-view]))
-        (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
+        (concat
+          (g/connect project :selected-node-ids outline-view :selection)
+          (for [label [:active-resource :active-outline :open-resources]]
+            (g/connect app-view label outline-view label))
+          (for [view [outline-view asset-browser]]
+            (g/update-property app-view :auto-pulls conj [view :tree-view]))
+          (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
     (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))

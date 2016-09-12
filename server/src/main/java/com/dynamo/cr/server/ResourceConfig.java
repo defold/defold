@@ -1,7 +1,6 @@
 package com.dynamo.cr.server;
 
 import com.dynamo.cr.server.auth.AuthenticationExceptionMapper;
-import com.dynamo.cr.server.auth.AuthorizationExceptionMapper;
 import com.dynamo.cr.server.providers.JsonProviders;
 import com.dynamo.cr.server.providers.ProtobufProviders;
 import com.dynamo.cr.server.resources.*;
@@ -29,7 +28,6 @@ public class ResourceConfig extends DefaultResourceConfig {
 
         classes.add(ServerExceptionMapper.class);
         classes.add(AuthenticationExceptionMapper.class);
-        classes.add(AuthorizationExceptionMapper.class);
 
         classes.add(ProtobufProviders.class);
         classes.add(ProtobufProviders.ProtobufMessageBodyWriter.class);

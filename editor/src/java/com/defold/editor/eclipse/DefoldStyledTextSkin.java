@@ -284,6 +284,10 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		return contentView;
 	}
 
+	public LineRuler getLineRuler() {
+	    return lineRuler;
+	}
+
 	DefoldStyledTextBehavior getBehavior() {
 		return this.behavior;
 	}

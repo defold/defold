@@ -77,10 +77,16 @@
    :wrap-s     gl/clamp
    :wrap-t     gl/clamp})
 
-(defn- channels->format [^long channels]
+(defn- channels->internal-format [^long channels]
   (case channels
     1 GL2/GL_LUMINANCE
     3 GL2/GL_RGB
+    4 GL2/GL_RGBA))
+
+(defn- channels->pixel-format [^long channels]
+  (case channels
+    1 GL2/GL_LUMINANCE
+    3 GL2/GL_BGR
     4 GL2/GL_RGBA))
 
 (defn- channels->type [^long channels]
@@ -90,11 +96,12 @@
     4 GL2/GL_UNSIGNED_INT_8_8_8_8))
 
 (defn- ->texture-data [width height channels data mipmap]
-  (let [internal-format (channels->format channels)
+  (let [internal-format (channels->internal-format channels)
+        pixel-format (channels->pixel-format channels)
         _ (assert internal-format (format "Invalid channel count %d" channels))
         type (channels->type channels)
         border 0]
-    (TextureData. (GLProfile/getGL2GL3) internal-format width height border internal-format type mipmap false false data nil)))
+    (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil)))
 
 (defn- image->texture-data ^TextureData [img mipmap]
   (let [channels (image/image-color-components img)
@@ -117,7 +124,7 @@ can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents f
 If you supply parameters, then those parameters are used. If you do not supply parameters,
 then defaults in `default-image-texture-params` are used.
 
-If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0."
+If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The default is 0."
   ([request-id img]
    (image-texture request-id img default-image-texture-params 0))
   ([request-id img params]
