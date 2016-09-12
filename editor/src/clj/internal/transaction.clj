@@ -503,12 +503,11 @@
   [ctx {:keys [source-id source-label target-id target-label] :as tx-data}]
   (ctx-connect ctx source-id source-label target-id target-label))
 
-(defn- ctx-remove-overrides [ctx source source-label target target-label]
-  (let [basis (:basis ctx)]
+(defn- ctx-remove-overrides [ctx source-id source-label target-id target-label]
+  (let [basis (:basis ctx)
+        target (gt/node-by-id-at basis target-id)]
     (if (contains? (in/cascade-deletes (gt/node-type target basis)) target-label)
-      (let [source-id (gt/node-id source)
-            target-id (gt/node-id target)
-            src-or-nodes (map (partial gt/node-by-id-at basis) (ig/get-overrides basis source-id))]
+      (let [src-or-nodes (map (partial gt/node-by-id-at basis) (ig/get-overrides basis source-id))]
         (loop [tgt-overrides (ig/get-overrides basis target-id)
                ctx ctx]
           (if-let [or (first tgt-overrides)]
@@ -524,15 +523,11 @@
       ctx)))
 
 (defn- ctx-disconnect [ctx source-id source-label target-id target-label]
-  (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
-    (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
-      (-> ctx
-        (mark-input-activated target-id target-label)
-        (update :basis gt/disconnect source-id source-label target-id target-label)
-        (flag-successors-changed [[source-id source-label]])
-        (ctx-remove-overrides source source-label target target-label))
-      ctx)
-    ctx))
+  (-> ctx
+      (mark-input-activated target-id target-label)
+      (update :basis gt/disconnect source-id source-label target-id target-label)
+      (flag-successors-changed [[source-id source-label]])
+      (ctx-remove-overrides source-id source-label target-id target-label)))
 
 (defmethod perform :disconnect
   [ctx {:keys [source-id source-label target-id target-label]}]
