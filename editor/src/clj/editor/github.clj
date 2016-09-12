@@ -19,8 +19,8 @@
                 "### Steps to reproduce"
                 ""
                 "<hr/>"
-                (format "Version:" (or (system/defold-version) "dev"))
-                (format "Sha:" (system/defold-sha1))
+                (format "Version: %s" (or (system/defold-version) "dev"))
+                (format "Sha: %s" (system/defold-sha1))
                 (format "Platform: %s %s" (system/os-name) (system/os-version))]))
 
 (defn new-issue-link
