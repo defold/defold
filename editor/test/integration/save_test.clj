@@ -11,7 +11,7 @@
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineScene Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
@@ -42,7 +42,13 @@
                  "**/spineboy.spinescene"
                  "**/spineboy.spinemodel"
                  "**/new.factory"
-                 "**/with_prototype.factory"]]
+                 "**/with_prototype.factory"
+                 "**/new.sound"
+                 "**/tink.sound"
+                 "**/new.camera"
+                 "**/non_default.camera"
+                 "**/new.tilemap"
+                 "**/with_layers.tilemap"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)

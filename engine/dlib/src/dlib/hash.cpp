@@ -5,6 +5,7 @@
 #include "hash.h"
 #include "mutex.h"
 #include "hashtable.h"
+#include "log.h"
 
 struct dmHashIncrementalStateKey32
 {

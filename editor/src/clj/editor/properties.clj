@@ -364,12 +364,14 @@
         (:original-values property (repeat nil))
         (:validation-problems property)))
 
-(defn- set-values [property values]
-  (let [key (:key property)]
-    (for [[node-id value] (map vector (:node-ids property) values)]
-      (if (vector? key)
-        (g/update-property node-id (first key) assoc-in (rest key) value)
-        (g/set-property node-id (:key property) value)))))
+(defn- set-values [basis property values]
+  (let [key (:key property)
+        set-fn (get-in property [:edit-type :set-fn])]
+    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) values)]
+      (cond
+        set-fn (set-fn basis node-id old-value new-value)
+        (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
+        true (g/set-property node-id key new-value)))))
 
 (defn keyword->name [kw]
   (-> kw
@@ -392,11 +394,12 @@
     (set-values! property values (gensym)))
   ([property values op-seq]
     (when (not (read-only? property))
-      (g/transact
-        (concat
-          (g/operation-label (str "Set " (label property)))
-          (g/operation-sequence op-seq)
-          (set-values property values))))))
+      (let [basis (g/now)]
+        (g/transact
+          (concat
+            (g/operation-label (str "Set " (label property)))
+            (g/operation-sequence op-seq)
+            (set-values basis property values)))))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new

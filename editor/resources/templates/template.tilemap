@@ -4,3 +4,4 @@ layers {
   z: 0.0
   is_visible: 1
 }
+material: "/builtins/materials/tile_map.material"

@@ -96,7 +96,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
          [javax.media.opengl GL GL2 GLContext]
-         [javax.vecmath Matrix4d Vector4f Point3d]))
+         [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -294,6 +294,10 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defmethod set-uniform-at-index Vector4f
   [^GL2 gl progn loc ^Vector4f val]
+  (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
+
+(defmethod set-uniform-at-index Vector4d
+  [^GL2 gl progn loc ^Vector4d val]
   (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
 
 (defmethod set-uniform-at-index Point3d

@@ -107,7 +107,8 @@
         update-fn    (fn [_] (if-let [v (to-double (.getText text))]
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
-                                             (properties/validation-message (property-fn)))))]
+                                             (properties/validation-message (property-fn))
+                                             (properties/read-only? (property-fn)))))]
     (doto text
       (.setPrefWidth Double/MAX_VALUE)
       (ui/on-action! update-fn)

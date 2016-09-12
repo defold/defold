@@ -185,6 +185,12 @@ public class Start extends Application {
     private void kickLoading(Splash splash) {
         threadPool.submit(() -> {
             try {
+                // A terrible hack as an attempt to avoid a deadlock when loading native libraries
+                // Prism might be loading native libraries at this point, although we kick this loading after the splash has been shown.
+                // The current hypothesis is that the splash is "onShown" before the loading has finished and rendering can start.
+                // Occular inspection shows the splash as grey for a few frames (1-3?) before filled in with graphics. That grey-time also seems to differ between runs.
+                // This is an attempt to make the deadlock less likely to happen and hopefully avoid it altogether. No guarantees.
+                Thread.sleep(200);
                 NativeArtifacts.extractNatives();
                 ClassLoader parent = ClassLoader.getSystemClassLoader();
                 Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");

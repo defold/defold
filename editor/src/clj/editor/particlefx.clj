@@ -662,7 +662,7 @@
   (if (g/node-instance? ParticleFXNode node-id)
     node-id
     (when (contains? (g/declared-inputs node-type) :source-id)
-      (let [source-id (g/node-value node-id :source-id)]
+      (when-let [source-id (g/node-value node-id :source-id)]
         (when (g/node-instance? ParticleFXNode source-id)
           source-id)))))
 

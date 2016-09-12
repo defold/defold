@@ -16,7 +16,7 @@
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.spine.proto Spine$SpineScene]
+           [com.dynamo.rig.proto Rig$RigScene]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
@@ -266,26 +266,25 @@
   (testing "Building spine scene"
     (with-build-results "/player/spineboy.spinescene"
       (let [content (get content-by-source "/player/spineboy.spinescene")
-            desc    (Spine$SpineScene/parseFrom content)
-            bones   (-> desc (.getSkeleton) (.getBonesList))
-            meshes  (-> desc (.getMeshSet) (.getMeshEntriesList) (first) (.getMeshesList))]
-        (is (contains? content-by-target (.getTextureSet desc)))))))
+            desc    (Rig$RigScene/parseFrom content)]
+        (is (contains? content-by-target (.getTextureSet desc)))
+        (is (contains? content-by-target (.getSkeleton desc)))
+        (is (contains? content-by-target (.getAnimationSet desc)))        
+        (is (contains? content-by-target (.getMeshSet desc)))))))
 
 (deftest build-mesh
   (testing "Building mesh"
     (with-build-results "/model/book_of_defold.dae"
       (let [content (get content-by-source "/model/book_of_defold.dae")
             desc    (Mesh$MeshDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "Book" (-> desc (.getComponentsList) (first) (.getName))))))))
 
 (deftest build-model
   (testing "Building model"
     (with-build-results "/model/book_of_defold.model"
       (let [content (get content-by-source "/model/book_of_defold.model")
             desc    (Model$ModelDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
 
 (deftest build-script-properties
   (with-build-results "/script/props.collection"

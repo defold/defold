@@ -196,7 +196,7 @@
         (code/combine-matches match-open match-body)))))
 
 (defn increase-indent? [s]
-  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end).)*$|\{\s*$" s))
+  (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$" s))
 
 (defn decrease-indent? [s]
   (re-find #"^\s*(elseif|else|end|\}).*$" s))
@@ -211,8 +211,7 @@
 (def lua {:language "lua"
           :syntax
           {:line-comment "-- "
-           :indentation {:indent-chars "\t"
-                         :increase? increase-indent?
+           :indentation {:increase? increase-indent?
                          :decrease? decrease-indent?}
            :scanner
            [#_{:partition "__multicomment"

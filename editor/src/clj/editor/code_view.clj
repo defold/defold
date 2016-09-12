@@ -362,8 +362,8 @@
        (.setSkin text-area skin)
        (.addEventHandler  ^ListView (.getListView skin)
                           MouseEvent/MOUSE_CLICKED
-                          (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer))))
-
+                          (ui/event-handler e (cvx/handle-mouse-clicked e source-viewer)))
+       (.setMinWidth (.getLineRuler skin) 50)) ; make it fit reasonably large line numbers to avoid jumps when scrolling
 
       (ui/user-data! text-area ::behavior styled-text-behavior)
       (ui/user-data! source-viewer ::assist (:assist opts))

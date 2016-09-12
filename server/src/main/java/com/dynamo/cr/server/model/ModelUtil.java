@@ -41,6 +41,7 @@ public class ModelUtil {
      * @param email user email
      * @return user. null if user is not found
      */
+    @Deprecated // Use UserService.findByEmail() instead
     public static User findUserByEmail(EntityManager entityManager, String email) {
         List<User> list = entityManager.createQuery("select u from User u where u.email = :email", User.class).setParameter("email", email).getResultList();
         if (list.size() == 0) {
