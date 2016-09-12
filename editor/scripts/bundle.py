@@ -119,7 +119,7 @@ def add_native_libs(platform, in_jar_name, out_jar):
 
 def bundle_natives(in_jar_name, out_jar_name):
     with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
-        for platform in ['x86-linux', 'x86_64-darwin', 'x86-win32']:
+        for platform in ['x86-linux', 'x86_64-linux', 'x86_64-darwin', 'x86-win32']:
             jogl_platform = platform_to_jogl[platform]
             add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
             add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
@@ -127,7 +127,8 @@ def bundle_natives(in_jar_name, out_jar_name):
         with zipfile.ZipFile(os.path.expanduser("~/.m2/repository/net/java/dev/jna/jna/%s/jna-%s.jar" % (JNA_VERSION, JNA_VERSION)), 'r') as in_jar:
             for jna_p, p, lib in [("darwin", "x86_64-darwin", "libjnidispatch.jnilib"),
                                   ("win32-x86", "x86-win32", "jnidispatch.dll"),
-                                  ("linux-x86", "x86-linux", "libjnidispatch.so")]:
+                                  ("linux-x86", "x86-linux", "libjnidispatch.so"),
+                                  ("linux-x86-64", "x86_64-linux", "libjnidispatch.so")]:
                 d = in_jar.read('com/sun/jna/%s/%s' % (jna_p, lib))
                 n = 'lib/%s/%s' % (p, lib)
                 print "adding", n
@@ -140,7 +141,9 @@ def bundle_natives(in_jar_name, out_jar_name):
                      'x86-win32' : {'exes' : ['dmengine.exe', 'dmengine_release.exe'],
                                     'libs' : ['particle_shared.dll', 'texc_shared.dll'] },
                      'x86-linux' : {'exes' : ['dmengine', 'dmengine_release'],
-                                    'libs' : ['libparticle_shared.so', 'libtexc_shared.so'] }}
+                                    'libs' : ['libparticle_shared.so', 'libtexc_shared.so'] },
+                     'x86_64-linux' : {'exes' : ['dmengine', 'dmengine_release'],
+                                       'libs' : ['libparticle_shared.so', 'libtexc_shared.so'] }}
 
         base_url = 'http://d.defold.com/archive/%s/engine' % (sha1)
         for p in artifacts.keys():
