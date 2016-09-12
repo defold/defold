@@ -175,4 +175,6 @@ function on_message(self, message_id, message, sender)
         msg.post(self.unloader, "level_ended")
     end
 end
-</pre>
+</pre>Ã
+collection_proxyCollection proxy"Collection proxy API documentation"ÅMessages for controlling and interacting with collection proxies
+which are used to dynamically load collections into the runtime.
