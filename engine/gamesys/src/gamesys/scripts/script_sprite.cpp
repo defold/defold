@@ -22,6 +22,14 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Sprite API documentation
+     *
+     * Functions, messages and properties used to manipulate sprite components.
+     *
+     * @name Sprite
+     * @namespace sprite
+     */
+
     /*# sprite size (vector3)
      *
      * [READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.

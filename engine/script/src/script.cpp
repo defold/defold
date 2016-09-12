@@ -26,6 +26,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Built-ins API documentation
+     *
+     * Built-in scripting functions.
+     * 
+     * @name Built-ins
+     * @namespace builtins
+     */
+
     const char* INSTANCE_NAME = "__dm_script_instance__";
     const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 

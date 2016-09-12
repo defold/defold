@@ -22,6 +22,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Spine model API documentation
+     *
+     * Functions and messages for interacting with the 'Spine' 2D bone 
+     * animation system.
+     *
+     * @name Spine
+     * @namespace spine
+     */
+
     /*# play an animation on a spine model
      *
      * @name spine.play
