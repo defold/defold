@@ -282,11 +282,11 @@ message RayCastResponse
 }
 
 /*# (DEPRECATED) requests the velocity of a collision object
- * <b>DEPRECATED!</b> Post this message to a collision-object-component to retrieve its velocity.
  *
- * Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
+ * Post this message to a collision-object-component to retrieve its velocity.
+ *
+ * @deprecated Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
  * with <code>go.get()</code> instead.
- *
  * @message
  * @name request_velocity
  * @examples
@@ -311,12 +311,12 @@ message RayCastResponse
 message RequestVelocity {}
 
 /*# (DEPRECATED) reports the velocity of a collision object
- * <b>DEPRECATED!</b> This message is sent back to the sender of a <code>request_velocity</code> message.
  * See <code>request_velocity</code> for examples on how to use it.
  *
- * Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
- * with <code>go.get()</code> instead.
+ *  This message is sent back to the sender of a <code>request_velocity</code> message.
  *
+ * @deprecated Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
+ * with <code>go.get()</code> instead.
  * @message
  * @name velocity_response
  * @param linear_velocity the linear velocity, i.e. translation, of the collision object in units/s (pixels/s (vector3)

@@ -6,6 +6,12 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.engine.proto";
 option java_outer_classname = "Engine";
 
+/*# System API documentation
+ *
+ * @name System
+ * @namespace sys
+ */
+
 /*# exits application
  * Terminates the game application and reports the specified <code>code</code> to the OS.
  * This message can only be sent to the designated <code>@system</code> socket.

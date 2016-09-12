@@ -25,6 +25,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Particle effects API documentation
+     *
+     * Functions for controlling particle effect component playback and
+     * shader constants.
+     *
+     * @name Particle effects
+     * @namespace particlefx
+     */
+
     /*# sleeping state
      *
      * @name particlefx.EMITTER_STATE_SLEEPING
@@ -89,13 +98,6 @@ namespace dmGameSystem
 
         assert(top == lua_gettop(data.m_L));
     }
-
-    /*# ParticleFX documentation
-     *
-     * ParticleFX documentation
-     * @name
-     * @package
-     */
 
     /*# start playing a particle FX
      * Particle FX started this way need to be manually stopped through particlefx.stop.
