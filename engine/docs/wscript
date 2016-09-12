@@ -11,141 +11,17 @@ import Task, TaskGen
 from TaskGen import extension
 import waf_dynamo
 
-def scan_asciidoc(task):
-    deps = []
-    with open(task.inputs[0].abspath()) as f:
-        for line in f:
-            line.strip()
-            if line.startswith('image:'):
-                m = re.search(r'^image::?(\S+?)(\[\S+?\])$', line)
-                if (m != None):
-                    name = m.groups(1)[0]
-                    res = task.inputs[0].parent.find_resource(name)
-                    if res:
-                        deps.append(res)
-                    else:
-                        print >>sys.stderr, "Unable to find image %s" % name
-    return (deps, [])
-
 def init():
     pass
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.env['ASCIIDOC_PATH'] = os.path.join(conf.env.DYNAMO_HOME, 'ext', 'lib', 'asciidoc')
-    #conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
-
-asciidoc = Task.simple_task_type('asciidoc', 'python ${ASCIIDOC_PATH}/asciidoc.py -f ../defold.conf -o ${TGT} ${SRC}',
-                                 shell=True)
-asciidoc.scan = scan_asciidoc
-
-#embed_video = Task.simple_task_type('embed_video', 'python ${EMBED_VIDEO} ${SRC} ${TGT}',
-#                                    shell=True,
-#                                    after = 'asciidoc')
-
-@extension('.txt')
-def proto_file(self, node):
-        doc = self.create_task('asciidoc')
-        doc.set_inputs(node)
-        out = node.change_ext('.html')
-        doc.set_outputs(out)
-
-        # Note 14 Dec, 2015:
-        #   Embedding YouTube videos broke after we uploaded new videos to our channel,
-        #   due to the YT API only returns the latest 15 videos.
-        #embed = self.create_task('embed_video')
-        #embed.set_inputs(out)
-        #embed_out = node.change_ext('.html')
-        #embed.set_outputs(embed_out)
-
-        self.bld.install_files('${PREFIX}/share/doc',
-                               out.abspath(self.env), self.env)
-                               #embed_out.abspath(self.env), self.env)
+    pass
 
 def build(bld):
-    dirs = ['src/business_plan', 'src/guides', 'src/presentation',
-            'src/demos/docs', 'src/tutorials/docs', 'src/blog',
-            'src/content']
-    tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
-    tsk.find_sources_in_dirs(dirs)
-
-    # copy images
-    img_pattern = '*.png'
-    img_dirs = ['src/guides/images', 'src/blog/images', 'src/tutorials/docs/images']
-    for img_dir in img_dirs:
-        for root, dirs, files in os.walk(img_dir):
-            for dir in dirs:
-                bld.install_files('${PREFIX}/share/doc/images/%s' % (os.path.join(os.path.relpath(root, img_dir), dir)), os.path.join(root, dir, img_pattern))
-
-GAME_PROJECT = """
-[project]
-title = %(title)s
-[bootstrap]
-main_collection = %(main_collection)s
-[input]
-game_binding = /input/game.input_bindingc
-[display]
-width = 1280
-height = 720
-[physics]
-scale = 0.02
-[script]
-shared_state = 1
-"""
-
-GIT_IGNORE="""
-.externalToolBuilders
-.DS_Store
-.lock-wscript
-build
-*.pyc
-.project
-.cproject
-builtins
-.internal
-"""
-
-def install_sample(bld, sample_dir):
-    name = os.path.basename(sample_dir)
-    target_dir = '%s/content/samples/%s' % (bld.env.PREFIX, name)
-    print >> sys.stderr, 'installing %s' % target_dir
-    import shutil
-    if os.path.exists(target_dir):
-        shutil.rmtree(target_dir)
-
-    shutil.copytree(sample_dir, '%s/%s' % (target_dir, name))
-    shutil.copytree('%s/../input' % sample_dir, '%s/input' % target_dir)
-
-    f = open('%s/game.project' % target_dir, 'w')
-    f.write(GAME_PROJECT % { 'title' : name, 'main_collection' : ('/%s/main.collectionc' % name) } )
-    f.close()
-
-    f = open('%s/.gitignore' % target_dir, 'w')
-    f.write(GIT_IGNORE)
-    f.close()
-
-    os.system('cd %s && git init && git add . && git commit -m "Initial import"' % target_dir)
-
-def install_tutorial(bld, tutorial_dir):
-    name = os.path.basename(tutorial_dir)
-    target_dir = '%s/content/tutorials/%s' % (bld.env.PREFIX, name)
-    print >> sys.stderr, 'installing %s' % target_dir
-    import shutil
-    if os.path.exists(target_dir):
-        shutil.rmtree(target_dir)
-
-    shutil.copytree(tutorial_dir, target_dir)
-
-    os.system('cd %s && git init && git add . && git commit -m "Initial import"' % target_dir)
+    pass
 
 def install(bld):
-    import Scripting
-    Scripting.install(bld)
-    for sample in ['hud', 'level_complete', 'main_menu', 'parallax']:
-        install_sample(bld, 'src/demos/%s' % sample)
-    for tutorial in ['side_scroller', 'platformer']:
-        install_tutorial(bld, 'src/tutorials/%s' % tutorial)
+    pass
 
 def set_options(opt):
-    opt.tool_options('waf_dynamo')
-    opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
+    pass
