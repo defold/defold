@@ -85,7 +85,8 @@
   :jvm-opts          ["-Djava.net.preferIPv4Stack=true"]
   :main ^:skip-aot   com.defold.editor.Start
 
-  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
+  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]
+                                :resource-paths ["test/resources"]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
