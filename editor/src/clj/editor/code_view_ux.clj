@@ -1,6 +1,5 @@
 (ns editor.code-view-ux
   (:require [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.code :as code]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
@@ -64,8 +63,12 @@
   (styles [this]))
 
 (defprotocol TextUndo
-  (typing-changes! [this])
-  (changes! [this]))
+  (typing-changes! [this] [this merge-changes])
+  (state-changes! [this]))
+
+(defprotocol CommandHistory
+  (last-command [this])
+  (last-command! [this cmd]))
 
 (defprotocol TextProposals
   (propose [this]))
@@ -190,9 +193,10 @@
 (def tab-size 4)
 (def default-indentation "\t")
 
+;; these are global for now, reasonable to search for same thing in several files
 (def last-find-text (atom ""))
 (def last-replace-text (atom ""))
-(def last-command (atom nil))
+
 (def auto-matches {"\"" "\""
                    "[" "]"
                    "{" "}"
@@ -246,7 +250,7 @@
           (:command kf)
           [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
           k-info)
-        (reset! last-command (:command kf))))))
+        (last-command! source-viewer (:command kf))))))
 
 (defn is-not-typable-modifier? [e]
   (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
@@ -267,13 +271,16 @@
   (let [tab-count (count (filter #(= \tab %) s))]
     tab-count))
 
-(defn remember-caret-col [selection np]
-  (let [line-offset (line-offset selection)
-        line-text (line selection)
-        text-before (subs line-text 0 (- np line-offset))
-        tab-count (tab-count text-before)
-        caret-col (+ (count text-before) (* tab-count (dec tab-size)))]
-    (preferred-offset! selection caret-col)))
+(defn- tab-expanded-count [s]
+  (let [tc (tab-count s)]
+    (+ (* tc tab-size)
+       (- (count s) tc))))
+
+(defn remember-caret-col [source-viewer np]
+  (let [line-offset (line-offset source-viewer)
+        line-text (line source-viewer)
+        text-before (subs line-text 0 (- np line-offset))]
+    (preferred-offset! source-viewer (tab-expanded-count text-before))))
 
 (defn handle-mouse-clicked [^MouseEvent e source-viewer]
   (let [click-count (.getClickCount e)
@@ -281,7 +288,7 @@
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
     (clear-snippet-tab-triggers! source-viewer)
-    (reset! last-command nil)
+    (last-command! source-viewer nil)
     (when cf
       (handler-run
         (:command cf)
@@ -300,7 +307,8 @@
     (text-selection! source-viewer 0 0)
     (replace! source-viewer np sel-len s)
     (caret! source-viewer (+ np (count s)) false)
-    (show-line source-viewer)))
+    (show-line source-viewer)
+    (remember-caret-col source-viewer (+ np (count s)))))
 
 (defn- replace-text-and-caret [source-viewer offset length s new-caret-pos]
   (let [doc (text source-viewer)
@@ -327,7 +335,8 @@
             caret (caret selection)]
         (if (pos? (selection-length selection))
           (replace-text-selection selection clipboard-text)
-          (replace-text-and-caret selection caret 0 clipboard-text (+ caret (count clipboard-text))))))))
+          (replace-text-and-caret selection caret 0 clipboard-text (+ caret (count clipboard-text))))
+        (typing-changes! selection)))))
 
 (defn- caret-at-left-of-selection? [source-viewer]
   (= (caret source-viewer)
@@ -378,67 +387,70 @@
 (handler/defhandler :right :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (right selection)))
+    (right selection)
+    (state-changes! selection)))
 
 (handler/defhandler :left :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (left selection)))
+    (left selection)
+    (state-changes! selection)))
 
 (handler/defhandler :select-right :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (select-right selection)))
+    (select-right selection)
+    (state-changes! selection)))
 
 (handler/defhandler :select-left :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (select-left selection)))
+    (select-left selection)
+    (state-changes! selection)))
+
+(defn- effective-column [line column]
+  (loop [remaining column
+         tab-adj-col 0
+         line (seq line)]
+    (if-let [next-char (first line)]
+      (let [next-char-size (if (= next-char \tab) tab-size 1)]
+        (if (> next-char-size remaining)
+          tab-adj-col
+          (recur (- remaining next-char-size)
+                 (inc tab-adj-col)
+                 (rest line))))
+      tab-adj-col)))
 
 (defn up-line [source-viewer preferred-offset]
-  (let [pos (caret source-viewer)
-        line-offset (line-offset source-viewer)
-        line-before (prev-line source-viewer)
-        len-before (- pos line-offset)
-        prev-line-tabs (tab-count line-before)
-        prev-line-len (count line-before)
-        preferred-next-pos (min preferred-offset (+ prev-line-len (* prev-line-tabs (dec tab-size))))
-        actual-next-pos (- preferred-next-pos (* prev-line-tabs (dec tab-size)))
-        adj-next-pos (+ (- pos len-before 1 prev-line-len)
-                        (if (neg? actual-next-pos) 0 actual-next-pos))]
-      (adjust-bounds (text source-viewer) adj-next-pos)))
+  (let [line-before-num (prev-line-num source-viewer)]
+    (when-not (neg? line-before-num)
+      (let [line-before (prev-line source-viewer)
+            line-before-offset (line-offset-at-num source-viewer line-before-num)
+            target-column (effective-column line-before preferred-offset)]
+        (+ line-before-offset target-column)))))
 
 (defn down-line [source-viewer preferred-offset]
-  (let [pos (caret source-viewer)
-        line-offset (line-offset source-viewer)
-        line-text-len (count (line source-viewer))
-        len-after (- (+ line-text-len line-offset) pos)
-        line-after (next-line source-viewer)
-        next-line-tabs (tab-count line-after)
-        next-line-len (count line-after)
-        preferred-next-pos (min preferred-offset (+ next-line-len (* next-line-tabs (dec tab-size))))
-        actual-next-pos (- preferred-next-pos (* next-line-tabs (dec tab-size)))
-        adj-next-pos (+ pos len-after 1 (if (neg? actual-next-pos) 0 actual-next-pos))]
-      (adjust-bounds (text source-viewer) adj-next-pos)))
+  (when-let [line-after-num (next-line-num source-viewer)]
+    (let [line-after (next-line source-viewer)
+          line-after-offset (line-offset-at-num source-viewer line-after-num)
+          target-column (effective-column line-after preferred-offset)]
+      (adjust-bounds (text source-viewer) (+ line-after-offset target-column)))))
 
 (defn up [source-viewer show?]
   (let [doc (text source-viewer)
         preferred-offset (preferred-offset source-viewer)
         next-pos (if (pos? (selection-length source-viewer))
                    (adjust-bounds doc (selection-offset source-viewer))
-                   (up-line source-viewer preferred-offset))]
+                   (or (up-line source-viewer preferred-offset) (caret source-viewer)))]
     (caret! source-viewer next-pos false)
     (when show? (show-line source-viewer))))
 
 (defn select-up [source-viewer show?]
   (let [doc (text source-viewer)
         preferred-offset (preferred-offset source-viewer)
-        next-pos (up-line source-viewer preferred-offset)
-        start-of-doc? (= (caret source-viewer) 0)]
-    (when (not start-of-doc?)
-      (if (= (caret source-viewer) next-pos)
-        (caret! source-viewer 0 true)
-        (caret! source-viewer next-pos true)))
+        next-pos (or (up-line source-viewer preferred-offset) 0)]
+    (when (not= next-pos (caret source-viewer))
+      (caret! source-viewer next-pos true))
     (when show? (show-line source-viewer))))
 
 (defn down [source-viewer show?]
@@ -447,49 +459,50 @@
         next-pos (if (pos? (selection-length source-viewer))
                    (adjust-bounds doc (+ (selection-offset source-viewer)
                                          (selection-length source-viewer)))
-                   (down-line source-viewer preferred-offset))]
+                   (or (down-line source-viewer preferred-offset) (caret source-viewer)))]
       (caret! source-viewer next-pos false)
       (when show? (show-line source-viewer))))
 
 (defn select-down [source-viewer show?]
   (let [doc (text source-viewer)
         preferred-offset (preferred-offset source-viewer)
-        next-pos (down-line source-viewer preferred-offset)
-        end-of-doc? (= (caret source-viewer) (count doc))]
-    (when (not end-of-doc?)
-     (if (= (caret source-viewer) next-pos)
-       (caret! source-viewer (count doc) true)
-       (caret! source-viewer next-pos true))))
-  (when show? (show-line source-viewer)))
+        next-pos (or (down-line source-viewer preferred-offset) (count doc))]
+    (when (not= next-pos (caret source-viewer))
+      (caret! source-viewer next-pos true))
+    (when show? (show-line source-viewer))))
 
 (handler/defhandler :up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (up selection true)))
+    (up selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (down selection true)))
+    (down selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :select-up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (select-up selection true)))
+    (select-up selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :select-down :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (select-down selection true)))
+    (select-down selection true)
+    (state-changes! selection)))
 
 (defn do-page-up [source-viewer with-select?]
- (let [first-line (first-visible-row-number source-viewer)
-       last-line (last-visible-row-number source-viewer)]
-   (page-up source-viewer)
-   (dotimes [n (- last-line first-line)]
-     (if with-select?
-       (select-up source-viewer false)
-       (up source-viewer false)))))
+  (let [first-line (first-visible-row-number source-viewer)
+        last-line (last-visible-row-number source-viewer)]
+    (page-up source-viewer)
+    (dotimes [n (- last-line first-line)]
+      (if with-select?
+        (select-up source-viewer false)
+        (up source-viewer false)))))
 
 (defn do-page-down [source-viewer with-select?]
     (let [first-line (first-visible-row-number source-viewer)
@@ -503,22 +516,26 @@
 (handler/defhandler :page-up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (do-page-up selection false)))
+    (do-page-up selection false)
+    (state-changes! selection)))
 
 (handler/defhandler :page-down :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (do-page-down selection false)))
+    (do-page-down selection false)
+    (state-changes! selection)))
 
 (handler/defhandler :select-page-up :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (do-page-up selection true)))
+    (do-page-up selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :select-page-down :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (do-page-down selection true)))
+    (do-page-down selection true)
+    (state-changes! selection)))
 
 (def word-regex  #"\n|\s*_*[a-zA-Z0-9\=\+\-\*\!]+|.")
 
@@ -549,22 +566,26 @@
 (handler/defhandler :next-word :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (next-word selection false)))
+    (next-word selection false)
+    (state-changes! selection)))
 
 (handler/defhandler :prev-word :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (prev-word selection false)))
+    (prev-word selection false)
+    (state-changes! selection)))
 
 (handler/defhandler :select-next-word :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (next-word selection true)))
+    (next-word selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :select-prev-word :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
-    (prev-word selection true)))
+    (prev-word selection true)
+    (state-changes! selection)))
 
 (defn line-begin [source-viewer select?]
   (let [next-pos (line-offset source-viewer)]
@@ -585,48 +606,60 @@
 (handler/defhandler :line-begin :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (line-begin selection false)))
+    (line-begin selection false)
+    (state-changes! selection)))
 
 (handler/defhandler :line-end :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (line-end selection false)))
+    (line-end selection false)
+    (state-changes! selection)))
 
 (handler/defhandler :select-line-begin :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (line-begin selection true)))
+    (line-begin selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :select-line-end :code-view
   (enabled? [selection] selection)
   (run [selection]
-    (line-end selection true)))
+    (line-end selection true)
+    (state-changes! selection)))
 
 (handler/defhandler :file-begin :code-view
   (enabled? [selection] selection)
   (run [selection]
     (caret! selection 0 false)
-    (show-line selection)))
+    (show-line selection)
+    (remember-caret-col selection 0)
+    (state-changes! selection)))
 
 (handler/defhandler :file-end :code-view
   (enabled? [selection] selection)
   (run [selection]
     (let [doc (text selection)]
       (caret! selection (count doc) false)
-      (show-line selection))))
+      (show-line selection)
+      (remember-caret-col selection (caret selection))
+      (state-changes! selection))))
 
 (handler/defhandler :select-file-begin :code-view
   (enabled? [selection] selection)
   (run [selection]
     (caret! selection 0 true)
-    (show-line selection)))
+    (show-line selection)
+    (remember-caret-col selection 0)
+    (state-changes! selection)))
 
 (handler/defhandler :select-file-end :code-view
   (enabled? [selection] selection)
   (run [selection user-data]
     (let [doc (text selection)]
       (caret! selection (count doc) true)
-      (show-line selection))))
+      (show-line selection)
+      (remember-caret-col selection (caret selection))
+      (state-changes! selection))))
 
 (defn go-to-line [source-viewer line-number]
   (when line-number
@@ -638,6 +671,7 @@
                 (line-offset-at-num source-viewer line-num)
                 (count (text source-viewer)))]
        (caret! source-viewer np false)
+       (remember-caret-col source-viewer np)
        (show-line source-viewer))
      (catch Throwable  e (println "Not a valid line number" line-number (.getMessage e))))))
 
@@ -650,7 +684,8 @@
     (let [line-number (promise)
           ^Stage stage (dialogs/make-goto-line-dialog line-number)
           go-to-line-fn (fn [] (when (realized? line-number)
-                                (go-to-line selection @line-number)))]
+                                 (go-to-line selection @line-number)
+                                 (state-changes! selection)))]
       (.setOnHidden stage (ui/event-handler e (go-to-line-fn))))))
 
 (handler/defhandler :select-word :code-view
@@ -665,7 +700,8 @@
           start-pos (- np (count word-begin))
           end-pos (+ np (count word-end))
           len (- end-pos start-pos)]
-      (text-selection! selection start-pos len))))
+      (text-selection! selection start-pos len)
+      (state-changes! selection))))
 
 (handler/defhandler :select-line :code-view
   (enabled? [selection] selection)
@@ -673,18 +709,16 @@
     (let [regex #"^\w+"
           line (line selection)
           line-offset (line-offset selection)]
-      (text-selection! selection line-offset (count line)))))
+      (text-selection! selection line-offset (count line))
+      (state-changes! selection))))
 
 (handler/defhandler :select-all :code-view
   (enabled? [selection] selection)
   (run [selection]
     (caret! selection (count (text selection)) false)
-    (text-selection! selection 0 (count (text selection)))))
-
-(defn match-key-typed [source-viewer key-typed]
-  (let [np (caret source-viewer)
-        match (get auto-matches key-typed)]
-       (replace-text-and-caret source-viewer np 0 match np)))
+    (text-selection! selection 0 (count (text selection)))
+    (remember-caret-col selection (caret selection))
+    (state-changes! selection)))
 
 (defn delete [source-viewer forward?]
   (let [np (caret source-viewer)
@@ -704,15 +738,15 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (changes! selection)
-      (delete selection false))))
+      (delete selection false)
+      (typing-changes! selection true))))
 
 (handler/defhandler :delete-forward :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
     (when (editable? selection)
-      (changes! selection)
-      (delete selection true))))
+      (delete selection true)
+      (typing-changes! selection true))))
 
 (defn cut-selection [source-viewer clipboard]
   (text! clipboard (text-selection source-viewer))
@@ -732,20 +766,20 @@
     (text! clipboard line-doc)
     (text! source-viewer new-doc)
     (caret! source-viewer (adjust-bounds new-doc line-begin-offset) false)
+    (remember-caret-col source-viewer (caret source-viewer))
     (show-line source-viewer)))
 
 (handler/defhandler :cut :code-view
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
-    (changes! selection)
     (if (pos? (selection-length selection))
       (cut-selection selection clipboard)
-      (cut-line selection clipboard))))
+      (cut-line selection clipboard))
+    (typing-changes! selection)))
 
 (handler/defhandler :delete-prev-word :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           next-word-move (prev-word-move doc np)
@@ -754,64 +788,68 @@
                        (subs doc np))]
       (text! selection new-doc)
       (caret! selection new-pos false)
-      (show-line selection))))
+      (remember-caret-col selection (caret selection))
+      (show-line selection))
+    (typing-changes! selection)))
 
 (handler/defhandler :delete-next-word :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           next-word-move (next-word-move doc np)
           next-word-pos (+ np (count next-word-move))
           new-doc (str (subs doc 0 np)
                        (subs doc next-word-pos))]
-      (text! selection new-doc))))
+      (text! selection new-doc))
+    (typing-changes! selection)))
 
 (handler/defhandler :delete-to-end-of-line :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           line-end-offset (line-end-pos selection)
           new-doc (str (subs doc 0 np)
                        (subs doc line-end-offset))]
-      (text! selection new-doc))))
+      (text! selection new-doc))
+    (typing-changes! selection)))
 
 (handler/defhandler :cut-to-end-of-line :code-view
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
-    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           line-end-offset (line-end-pos selection)
           consume-pos (if (= line-end-offset np) (adjust-bounds doc (inc line-end-offset)) line-end-offset)
           new-doc (str (subs doc 0 np)
                        (subs doc consume-pos))
-          clipboard-text (if (= :cut-to-end-of-line @last-command)
+          clipboard-text (if (= :cut-to-end-of-line (last-command selection))
                            (str (text clipboard) (subs doc np consume-pos))
                            (subs doc np consume-pos))]
       (text! clipboard clipboard-text)
-      (text! selection new-doc))))
+      (text! selection new-doc))
+    (typing-changes! selection)))
 
 (handler/defhandler :delete-to-start-of-line :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           line-begin-offset (line-offset selection)
           new-doc (str (subs doc 0 line-begin-offset)
                        (subs doc np))]
       (text! selection new-doc)
-      (caret! selection line-begin-offset false))))
+      (caret! selection line-begin-offset false)
+      (remember-caret-col selection line-begin-offset))
+    (typing-changes! selection)))
 
 (defn select-found-text [source-viewer doc found-idx tlen]
   (when (<= 0 found-idx)
     (caret! source-viewer (adjust-bounds doc (+ found-idx tlen)) false)
     (show-line source-viewer)
-    (text-selection! source-viewer found-idx tlen)))
+    (text-selection! source-viewer found-idx tlen)
+    (remember-caret-col source-viewer (caret source-viewer))))
 
 (defn find-text [source-viewer find-text]
   (let [doc (text source-viewer)
@@ -828,7 +866,8 @@
     (let [text (promise)
           ^Stage stage (dialogs/make-find-text-dialog text)
           find-text-fn (fn [] (when (realized? text)
-                                (find-text selection (or @text ""))))]
+                                (find-text selection (or @text ""))
+                                (state-changes! selection)))]
       (.setOnHidden stage (ui/event-handler e (find-text-fn))))))
 
 (handler/defhandler :find-next :code-view
@@ -839,7 +878,8 @@
           search-text (text-selection selection)
           found-idx (.indexOf ^String doc ^String search-text ^int np)
           tlen (count search-text)]
-      (select-found-text selection doc found-idx tlen))))
+      (select-found-text selection doc found-idx tlen)
+      (state-changes! selection))))
 
 (handler/defhandler :find-prev :code-view
   (enabled? [selection] selection)
@@ -849,7 +889,8 @@
           search-text (text-selection selection)
           tlen (count search-text)
           found-idx (.lastIndexOf ^String doc ^String search-text ^int (adjust-bounds doc (- np (inc tlen))))]
-      (select-found-text selection doc found-idx tlen))))
+      (select-found-text selection doc found-idx tlen)
+      (state-changes! selection))))
 
 (defn do-replace [source-viewer doc found-idx rtext tlen tlen-new caret-pos]
   (when (<= 0 found-idx)
@@ -857,13 +898,13 @@
     (caret! source-viewer (adjust-bounds (text source-viewer) (+ tlen-new found-idx)) false)
     (show-line source-viewer)
     (text-selection! source-viewer found-idx tlen-new)
+    (remember-caret-col source-viewer (caret source-viewer))
     ;;Note:  trying to highlight the selection doensn't
     ;; work quite right due to rendering problems in the StyledTextSkin
     ))
 
 (defn replace-text [source-viewer {ftext :find-text rtext :replace-text :as result}]
   (when (and ftext rtext)
-    (changes! source-viewer)
     (let [doc (text source-viewer)
           found-idx (.indexOf ^String doc ^String ftext)
           tlen (count ftext)
@@ -880,14 +921,15 @@
     ;; workaround to let us use show
     (let [result (promise)
           ^Stage stage (dialogs/make-replace-text-dialog result)
-          replace-text-fn (fn [] (when (realized? result)
-                                (replace-text selection (or @result {}))))]
+          replace-text-fn (fn []
+                            (when (realized? result)
+                              (replace-text selection (or @result {}))
+                              (typing-changes! selection)))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :replace-next :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (let [np (caret selection)
           doc (text selection)
           ftext @last-find-text
@@ -896,7 +938,8 @@
           rtext @last-replace-text
           tlen-new (count rtext)]
       (when found-idx
-        (do-replace selection doc found-idx rtext tlen tlen-new np)))))
+        (do-replace selection doc found-idx rtext tlen tlen-new np)
+        (typing-changes! selection)))))
 
 (defn commented? [syntax s] (string/starts-with? s (:line-comment syntax)))
 
@@ -931,7 +974,8 @@
         op (if comment-present? uncomment-line comment-line)
         caret-delta (* (count line-comment) (if comment-present? -1 1))]
     (op source-viewer line-comment caret-line-num)
-    (caret! source-viewer (+ caret-offset caret-delta) false)))
+    (caret! source-viewer (+ caret-offset caret-delta) false)
+    (remember-caret-col source-viewer (caret source-viewer))))
 
 (defn comment-region [source-viewer]
   (let [line-comment (:line-comment (syntax source-viewer))
@@ -950,7 +994,8 @@
           caret-offset-delta (* line-comment-len (inc (- caret-line-num start-line-num)))]
      (caret! source-viewer (+ caret-offset-delta caret-offset) false)
      (text-selection! source-viewer (+ line-comment-len region-start)
-                      (+ region-len (* line-comment-len (- end-line-num start-line-num)))))))
+                      (+ region-len (* line-comment-len (- end-line-num start-line-num))))
+     (remember-caret-col source-viewer (caret source-viewer)))))
 
 (defn uncomment-region [source-viewer]
   (let [line-comment (:line-comment (syntax source-viewer))
@@ -969,7 +1014,8 @@
           caret-offset-delta (* line-comment-len (inc (- caret-line-num start-line-num)))]
       (caret! source-viewer (- caret-offset caret-offset-delta) false)
       (text-selection! source-viewer (- region-start line-comment-len)
-                      (- region-len (* line-comment-len (- end-line-num start-line-num)))))))
+                       (- region-len (* line-comment-len (- end-line-num start-line-num))))
+      (remember-caret-col source-viewer (caret source-viewer)))))
 
 (defn selected-lines [source-viewer]
   (let [region-start (selection-offset source-viewer)
@@ -982,12 +1028,12 @@
 (handler/defhandler :toggle-comment :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (if (pos? (count (text-selection selection)))
       (if (every? #(commented? (syntax selection) %) (selected-lines selection))
         (uncomment-region selection)
         (comment-region selection))
-      (toggle-line-comment selection))))
+      (toggle-line-comment selection))
+    (typing-changes! selection)))
 
 (defn enter-key-text [source-viewer key-typed]
   (let [np (caret source-viewer)
@@ -1004,14 +1050,15 @@
           exit-text (:exit tab-trigger-info)]
       (if (= :end search-text)
         (do
-          (text-selection! source-viewer pos 0)
+          (caret! source-viewer pos false)          
           (if exit-text
             (let [found-idx (string/index-of doc exit-text pos)
                   tlen (count exit-text)]
               (when found-idx
                 (caret! source-viewer (+ found-idx tlen) false)
-                (show-line source-viewer)))
-            (right source-viewer)))
+                (show-line source-viewer)
+                (remember-caret-col source-viewer (caret source-viewer)))
+              (right source-viewer))))
         (let [found-idx (string/index-of doc search-text pos)
               tlen (count search-text)]
           (when found-idx
@@ -1030,23 +1077,24 @@
 (handler/defhandler :tab :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (when (editable? selection)
       (if (has-snippet-tab-trigger? selection)
         (let [np (caret selection)
               doc (text selection)]
-          (next-tab-trigger selection np))
-        (enter-key-text selection "\t")))))
+          (next-tab-trigger selection np)
+          (typing-changes! selection))
+        (do (enter-key-text selection "\t")
+            (typing-changes! selection))))))
 
 (handler/defhandler :backwards-tab-trigger :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (when (editable? selection)
       (if (has-prev-snippet-tab-trigger? selection)
         (let [np (caret selection)
               doc (text selection)]
-          (prev-tab-trigger selection np))))))
+          (prev-tab-trigger selection np)
+          (state-changes! selection))))))
 
 (defn- trim-indentation [line]
   (second (re-find #"^[\t ]*(.*)" line)))
@@ -1143,6 +1191,7 @@
       (do
         (replace! source-viewer (adjust-bounds (text source-viewer) line-offset) (count current-line) unindent-text)
         (caret! source-viewer (+ caret-offset caret-delta) false)
+        (remember-caret-col source-viewer (caret source-viewer))
         caret-delta)
       0)))
 
@@ -1157,6 +1206,7 @@
       (do
         (replace! source-viewer (adjust-bounds (text source-viewer) line-offset) (count current-line) indent-text)
         (caret! source-viewer (+ caret-offset caret-delta) false)
+        (remember-caret-col source-viewer (caret source-viewer))
         caret-delta)
       0)))
 
@@ -1176,25 +1226,25 @@
           (do (caret! source-viewer (+ region-start region-len caret-delta) false)
               (caret! source-viewer caret-offset true))
           (do (caret! source-viewer region-start false)
-              (caret! source-viewer (+ caret-offset caret-delta) true)))))))
+              (caret! source-viewer (+ caret-offset caret-delta) true))))))
+  (remember-caret-col source-viewer (caret source-viewer)))
 
 (handler/defhandler :indent :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (when (editable? selection)
       (if (pos? (count (text-selection selection)))
         (let [region-start (selection-offset selection)
               region-len (selection-length selection)
               region-end (+ region-start region-len)]
-         (do-indent-region selection region-start region-end))
+          (do-indent-region selection region-start region-end))
         (let [line-num (line-num-at-offset selection (caret selection))]
-         (do-indent-line selection line-num))))))
+          (do-indent-line selection line-num)))
+      (typing-changes! selection))))
 
 (handler/defhandler :enter :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (changes! selection)
     (when (editable? selection)
       (clear-snippet-tab-triggers! selection)
       (if (= (caret selection) (line-end-pos selection))
@@ -1203,20 +1253,10 @@
           (enter-key-text selection (System/getProperty "line.separator"))
           (do-indent-line selection (line-num-at-offset selection (caret selection)))
           (caret! selection (+ (line-offset selection) (count (line selection))) false)
+          (remember-caret-col selection (caret selection))
           (show-line selection))
-        (enter-key-text selection (System/getProperty "line.separator"))))))
-
-(handler/defhandler :undo :code-view
-  (enabled? [selection] selection)
-  (run [view-node code-node]
-    (g/undo! (g/node-id->graph-id code-node))
-    (g/node-value view-node :new-content)))
-
-(handler/defhandler :redo :code-view
-  (enabled? [selection] selection)
-  (run [view-node code-node]
-    (g/redo! (g/node-id->graph-id code-node))
-    (g/node-value view-node :new-content)))
+        (enter-key-text selection (System/getProperty "line.separator")))
+      (typing-changes! selection))))
 
 (defn- completion-pattern [replacement loffset line-text offset]
   (let [fragment (subs line-text 0 (- offset loffset))
@@ -1250,8 +1290,9 @@
                                     (string/index-of nl "(" replacement-start)
                                     replacement-start)]
           (next-tab-trigger source-viewer (+ loffset snippet-tab-start)))
-        (do  (caret! source-viewer (+ loffset replacement-start (count replacement)) false)
-             (show-line source-viewer))))))
+        (do (caret! source-viewer (+ loffset replacement-start (count replacement)) false)
+             (show-line source-viewer)
+             (remember-caret-col source-viewer (caret source-viewer)))))))
 
 (defn show-proposals [source-viewer proposals]
   (when (pos? (count proposals))
@@ -1265,7 +1306,6 @@
                                   (do-proposal-replacement source-viewer (first @result))))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
-
 (handler/defhandler :proposals :code-view
   (enabled? [selection] selection)
   (run [selection]
@@ -1273,7 +1313,8 @@
       (if (= 1 (count proposals))
         (let [replacement (first proposals)]
           (do-proposal-replacement selection replacement))
-        (show-proposals selection proposals)))))
+        (show-proposals selection proposals))
+      (typing-changes! selection))))
 
 (defn match-key-typed [source-viewer key-typed]
   (let [np (caret source-viewer)
@@ -1297,4 +1338,5 @@
       (when (and (contains? proposal-key-triggers key-typed) (not (part-of-string? selection)))
         (show-proposals selection (propose selection)))
       (when (contains? auto-match-set key-typed)
-        (match-key-typed selection key-typed)))))
+        (match-key-typed selection key-typed))
+      (typing-changes! selection true))))
