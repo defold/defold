@@ -24,11 +24,9 @@ platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-win32': 'windows-i586',
                     'x86_64-win32': 'windows-x64'}
 
-# TODO: We use 32-bit launcher on darwin as 64-bit support isn't merged into the
-# javafx-project branch yet
 platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
                       'x86-linux': 'linux',
-                      'x86_64-darwin': 'darwin',
+                      'x86_64-darwin': 'x86_64-darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
 
@@ -181,8 +179,9 @@ def bundle(platform, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
 
-    jre_minor = 45
-    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[platform])
+    jre_minor = 102
+    ext = 'tar.gz'
+    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.%s' % (jre_minor, platform_to_java[platform], ext)
     jre = download(jre_url)
     if not jre:
         print('Failed to download %s' % jre_url)
@@ -250,9 +249,9 @@ def bundle(platform, options):
     extract(jre, 'tmp')
     print 'Creating bundle'
     if is_mac:
-        jre_glob = 'tmp/jre1.8.0_45.jre/Contents/Home/*'
+        jre_glob = 'tmp/jre1.8.0_%s.jre/Contents/Home/*' % (jre_minor)
     else:
-        jre_glob = 'tmp/jre1.8.0_45/*'
+        jre_glob = 'tmp/jre1.8.0_%s/*' % (jre_minor)
 
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
