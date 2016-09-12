@@ -57,6 +57,9 @@ Defold Orange       #fd6623             Guides etc
 @font-face {
   font-family: 'Inconsolata';
   src: url("Inconsolata.otf"); }
+@font-face {
+  font-family: 'Open Sans';
+  src: url("OpenSans-Regular.ttf"); }
 
 .root {
   -fx-base: #272b30;
@@ -86,8 +89,7 @@ Defold Orange       #fd6623             Guides etc
   -fx-hover-base: #484d54;
   -fx-pressed-base: #b0b0b0;
   -fx-accent_: red;
-  /*-fx-font: 14px 'Avenir Medium' bold;*/
-  -fx-font-family: "Avenir Heavy";
+  -fx-font-family: "Open Sans";
   -fx-font-size: 12px;
   -fx-font-weight: normal;
 

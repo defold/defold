@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
-#include "res_spine_scene.h"
+#include "res_rig_scene.h"
 #include "spine_ddf.h"
 
 namespace dmGameSystem
@@ -12,7 +12,7 @@ namespace dmGameSystem
     struct SpineModelResource
     {
         dmGameSystemDDF::SpineModelDesc*    m_Model;
-        SpineSceneResource*                 m_Scene;
+        RigSceneResource*                   m_RigScene;
         dmRender::HMaterial                 m_Material;
     };
 

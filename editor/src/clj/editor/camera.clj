@@ -7,7 +7,7 @@
             [editor.types :as types]
             [editor.graph-util :as gu])
   (:import [editor.types Camera Region AABB]
-           [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
+           [javax.vecmath Point3d Quat4d Matrix3d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -108,10 +108,10 @@
   ([t :- (s/enum :perspective :orthographic)]
     (make-camera t identity))
   ([t :- (s/enum :perspective :orthographic) filter-fn :- Runnable]
-    (let [distance 10000.0
+    (let [distance 5000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (types/->Camera t position rotation 1 2000 30 30 (Vector4d. 0 0 0 1.0) filter-fn))))
+      (types/->Camera t position rotation 0 10000 30 30 (Vector4d. 0 0 0 1.0) filter-fn))))
 
 (s/defn set-orthographic :- Camera
   [camera :- Camera fov-x :- s/Num fov-y :- s/Num z-near :- s/Num z-far :- s/Num]
@@ -136,11 +136,13 @@
 (s/defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
   (let [center (geom/aabb-center bounds)
-        view-matrix (camera-view-matrix camera)]
-    (.transform view-matrix center)
-    (set! (. center z) 0)
-    (.transform ^Matrix4d (geom/invert view-matrix) center)
-    (camera-set-position camera (.x center) (.y center) (.z center))))
+        view-matrix (camera-view-matrix camera)
+        position (Point3d. center)]
+    (.transform view-matrix position)
+    (.setZ position 0.0)
+    (.transform ^Matrix4d (geom/invert view-matrix) position)
+    (assoc camera :position position
+           :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
 
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
@@ -165,6 +167,10 @@
 
           device-y (- (.bottom viewport) (.top viewport) ry 1)]
       (Point3d. rx device-y rz))))
+
+(defn camera-view-proj-matrix ^Matrix4d [camera]
+  (doto (camera-projection-matrix camera)
+    (.mul (camera-view-matrix camera))))
 
 (defmacro scale-to-doubleunit [x x-min x-max]
   `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))
@@ -318,6 +324,16 @@
       (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
       filter-fn)))
 
+(defn camera-orthographic-realign ^Camera
+  [^Camera camera ^Region viewport ^AABB aabb]
+  (assert (= :orthographic (:type camera)))
+  (let [focus ^Vector4d (:focus-point camera)
+        delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
+                          (.sub focus))
+        dist (.length delta)]
+    (assoc camera :position (Point3d. (.x focus) (.y focus) dist)
+           :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
+
 (s/defn camera-orthographic-frame-aabb-y :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
@@ -336,7 +352,7 @@
       (let [aspect (/ (double w) h)
             filter-fn (or (:filter-fn local-camera) identity)]
         (-> local-camera
-          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) -100000 100000)
+          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) 0 10000)
           filter-fn))
       local-camera)))
 
@@ -404,15 +420,38 @@
 (defn interpolate ^Camera [^Camera from ^Camera to ^double t]
   (let [filter-fn (or (:filter-fn from) identity)
         ^Camera to (filter-fn to)]
-    (types/->Camera (:type to)
-                    (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
-                    (doto (Quat4d.) (.interpolate ^Quat4d (:rotation from) ^Quat4d (:rotation to) t))
-                    (lerp (:z-near from) (:z-near to) t)
-                    (lerp (:z-far from) (:z-far to) t)
-                    (lerp (:fov-x from) (:fov-x to) t)
-                    (lerp (:fov-y from) (:fov-y to) t)
-                    (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
-                    filter-fn)))
+    (let [p (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
+          fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
+          at (doto (Vector3d. (.x fp) (.y fp) (.z fp))
+               (.sub p)
+               (.negate)
+               (.normalize))
+          up ^Vector3d (math/rotate ^Quat4d (:rotation from) (Vector3d. 0.0 1.0 0.0))
+          to-up ^Vector3d (math/rotate ^Quat4d (:rotation to) (Vector3d. 0.0 1.0 0.0))
+          up (doto up
+               (.interpolate ^Tuple3d to-up t)
+               (.normalize))
+          up (if (< 0.9999 (Math/abs (.dot up at)))
+               (Vector3d. 0.0 0.0 1.0)
+               up)
+          right (doto (Vector3d.)
+                  (.cross up at)
+                  (.normalize))
+          up (doto up
+               (.cross at right)
+               (.normalize))
+          r (doto (Quat4d.)
+              (.set (doto (Matrix3d.)
+                      (.setColumn 0 right)
+                      (.setColumn 1 up)
+                      (.setColumn 2 at))))]
+      (types/->Camera (:type to) p r
+                      (lerp (:z-near from) (:z-near to) t)
+                      (lerp (:z-far from) (:z-far to) t)
+                      (lerp (:fov-x from) (:fov-x to) t)
+                      (lerp (:fov-y from) (:fov-y to) t)
+                      fp
+                      filter-fn))))
 
 (defn scale-factor [camera viewport]
   (let [inv-view (doto (Matrix4d. (camera-view-matrix camera)) (.invert))

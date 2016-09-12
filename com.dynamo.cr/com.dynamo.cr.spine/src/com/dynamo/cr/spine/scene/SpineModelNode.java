@@ -24,10 +24,10 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
-import com.dynamo.bob.util.SpineScene;
-import com.dynamo.bob.util.SpineScene.Bone;
-import com.dynamo.bob.util.SpineScene.Mesh;
-import com.dynamo.bob.util.SpineScene.UVTransformProvider;
+import com.dynamo.bob.util.RigScene;
+import com.dynamo.bob.util.RigScene.Bone;
+import com.dynamo.bob.util.RigScene.Mesh;
+import com.dynamo.bob.util.RigScene.UVTransformProvider;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -53,7 +53,7 @@ public class SpineModelNode extends ComponentTypeNode {
     private String spineScene = "";
 
     private transient SpineSceneDesc sceneDesc;
-    private transient SpineScene scene;
+    private transient RigScene scene;
 
     private transient TextureSetNode textureSetNode = null;
 
@@ -220,7 +220,7 @@ public class SpineModelNode extends ComponentTypeNode {
         return this.textureSetNode;
     }
 
-    public SpineScene getScene() {
+    public RigScene getScene() {
         return this.scene;
     }
 
@@ -420,13 +420,13 @@ public class SpineModelNode extends ComponentTypeNode {
         return null;
     }
 
-    private static SpineScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
+    private static RigScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
         if (!path.isEmpty()) {
             InputStream in = null;
             try {
                 IFile file = model.getFile(path);
                 in = file.getContents();
-                return SpineScene.loadJson(in, provider);
+                return RigScene.loadJson(in, provider);
             } catch (Exception e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             } finally {

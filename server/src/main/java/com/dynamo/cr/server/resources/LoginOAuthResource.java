@@ -232,7 +232,7 @@ public class LoginOAuthResource extends BaseResource {
 
         } else {
             tokenExchangeInfoBuilder.setType(Type.SIGNUP);
-            userService.signup(identity.email, identity.firstName, identity.lastName, token);
+            userService.signupOAuth(identity.email, identity.firstName, identity.lastName, token);
         }
 
         return tokenExchangeInfoBuilder.build();

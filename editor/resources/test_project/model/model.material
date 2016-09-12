@@ -1,0 +1,15 @@
+name: "Model"
+tags: "model"
+vertex_program: "/model/model.vp"
+fragment_program: "/model/model.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}
+textures: "diffuse"
+textures: "normal"
+textures: "specular"

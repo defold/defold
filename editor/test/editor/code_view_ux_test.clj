@@ -719,6 +719,19 @@
         (cut-to-end-of-line! source-viewer clipboard)
         (is (= "\nline3" (text source-viewer)))))))
 
+(deftest copy-paste-selection-preserves-caret
+  (with-clean-system
+    (let [code "line1\nline2\nline3"
+          clipboard (new TestClipboard (atom ""))
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "copy-paste-preserves-caret"
+        (text-selection! source-viewer 2 8)
+        (copy! source-viewer clipboard)
+        (paste! source-viewer clipboard)
+        (is (= 10 (caret source-viewer)))))))
+
 (defn- find-text! [source-viewer text]
   ;; bypassing handler for the dialog handling
   (find-text source-viewer text))

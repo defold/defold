@@ -163,9 +163,9 @@
                                                expect)
       "foo|"                   "food_glorious_food" "food_glorious_food|"
       "go.set|"                "go.set_property()"  "go.set_property()|"
-      "  go.set|"              "go.set_property()"  "  go.set_property()|"
-      "  assert(math.a|"       "math.abs()"         "  assert(math.abs()|"
-      "    go.set_prop = vma|" "vmath"              "    go.set_prop = vmath|"
+      "  go.set|"              "go.set_property()"  "go.set_property()|"
+      "  assert(math.a|"       "math.abs()"         "assert(math.abs()|"
+      "    go.set_prop = vma|" "vmath"              "go.set_prop = vmath|"
       "vmat| = go.set"         "vmath"              "vmath| = go.set"
       "vmatches = vm|"         "vmath"              "vmatches = vmath|")))
 
@@ -350,6 +350,22 @@
                          (should-be  "function test(x)"
                                      "end"
                                      "|")))
+      (testing "nested function immedate end deindents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "function test(x)"
+                                    "\tfunction nested(y)"
+                                    "\t\tend|")
+                         (enter!)
+                         (should-be "function test(x)"
+                                    "\tfunction nested(y)"
+                                    "\tend"
+                                    "\t|")))
+      (testing "enter after function signature containing end still indents"
+        (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+                         (should-be "function foo(sender)|")
+                         (enter!)
+                         (should-be "function foo(sender)"
+                                    "\t|")))
       (testing "no enter identation if not at an end of the line"
         (buffer-commands (load-buffer world script/ScriptNode lua/lua)
                          (should-be "fu|nction test(x)")

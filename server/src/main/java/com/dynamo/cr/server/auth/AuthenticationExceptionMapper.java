@@ -5,9 +5,6 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * <p>Map an authentication exception to an HTTP 401 response, optionally
  * including the realm for a credentials challenge at the client.</p>
@@ -15,10 +12,8 @@ import org.slf4j.LoggerFactory;
 @Provider
 public class AuthenticationExceptionMapper implements ExceptionMapper<AuthenticationException> {
 
-    protected static Logger logger = LoggerFactory.getLogger(AuthenticationExceptionMapper.class);
-
     public Response toResponse(AuthenticationException e) {
-        logger.error(e.getMessage(), e);
+
         if (e.getRealm() != null) {
             return Response.
                     status(Status.UNAUTHORIZED).
@@ -34,5 +29,4 @@ public class AuthenticationExceptionMapper implements ExceptionMapper<Authentica
                     build();
         }
     }
-
 }
