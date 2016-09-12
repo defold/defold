@@ -21,6 +21,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Collection factory API documentation
+     *
+     * Functions for controlling collection factory components which are 
+     * used to dynamically spawn collections into the runtime.
+     *
+     * @name Collection factory
+     * @namespace collection_factory
+     */
+
     static int HashTableIndex(lua_State* L)
     {
         if (lua_isstring(L, -1))

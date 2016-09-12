@@ -25,6 +25,16 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Collision object physics API documentation
+     *
+     * Functions and messages for collision object physics interaction 
+     * with other objects (collisions and ray-casting) and control of 
+     * physical behaviors.
+     *
+     * @name Collision object
+     * @namespace collision_object
+     */
+
     struct PhysicsScriptContext
     {
         dmMessage::HSocket m_Socket;

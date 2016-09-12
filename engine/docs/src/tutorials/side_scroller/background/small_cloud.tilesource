@@ -1,7 +1,0 @@
-image: "/background/small_cloud.png"
-tile_width: 128
-tile_height: 90
-tile_margin: 0
-tile_spacing: 0
-material_tag: "tile"
-collision_groups: "default"

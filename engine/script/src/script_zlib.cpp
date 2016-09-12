@@ -20,6 +20,14 @@ namespace dmScript
 {
     #define LIB_NAME "zlib"
 
+    /*# Zlib compression API documentation
+     *
+     * Functions for compression and decompression of string buffers.
+     *
+     * @name Zlib
+     * @namespace zlib
+     */
+
     static bool Writer(void* context, const void* buffer, uint32_t buffer_size)
     {
         dmArray<uint8_t>* out = (dmArray<uint8_t>*) context;

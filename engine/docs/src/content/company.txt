@@ -1,7 +1,0 @@
-Company
-=======
-
-Defold AB is based in central Stockholm, Sweden.
-
-Organization no: 556896-0925 +
-Email: info@defold.se +
