@@ -27,7 +27,7 @@ namespace dmScript
      * Functions for passing messages and constructing URL objects.
      *
      * @name Message
-     * @namespace message
+     * @namespace msg
      */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
