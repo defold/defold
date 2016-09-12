@@ -360,6 +360,7 @@ namespace dmRender
     , m_Text(0x0)
     , m_Depth(0)
     , m_RenderOrder(0)
+    , m_Height(0)
     , m_Width(FLT_MAX)
     , m_Leading(1.0f)
     , m_Tracking(0.0f)
