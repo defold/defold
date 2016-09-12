@@ -53,9 +53,15 @@
    :device      {:name (system/os-name) :version (system/os-version)}
    :culprit     (module-name (.getStackTrace ex))
    :release     (or (system/defold-version) "dev")
-   :tags        {:sha1 (system/defold-sha1)}
+   :tags        {:defold-sha1 (system/defold-sha1)
+                 :defold-version (or (system/defold-version) "dev")
+                 :os-name (system/os-name)
+                 :os-arch (system/os-arch)
+                 :os-version (system/os-version)
+                 :java-version (system/java-runtime-version)}
    :environment (if (system/defold-version) "release" "dev")
-   :extra       (ex-data ex)
+   :extra       (merge {:java-home (system/java-home)}
+                       (ex-data ex))
    ;;:fingerprint []
    :exception   (exception-data ex thread)
    :threads     (thread-data thread ex)})
