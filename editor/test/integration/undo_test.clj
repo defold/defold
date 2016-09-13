@@ -5,7 +5,6 @@
             [support.test-support :refer [with-clean-system]]
             [editor.defold-project :as project]
             [editor.outline :as outline]
-            [editor.switcher :as switcher]
             [integration.test-util :as test-util]))
 
 (deftest open-editor
