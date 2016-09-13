@@ -29,42 +29,48 @@
 
 (defn- exception-data
   [^Exception ex ^Thread thread]
-  [{:type (str (.getClass ex))
-    :value (.getMessage ex)
-    :module (module-name (.getStackTrace ex))
-    :thread_id (.getId thread)}])
+  (loop [ex ex
+         data []]
+    (if (nil? ex)
+      data
+      (recur (.getCause ex) (conj data {:type (str (.getClass ex))
+                                        :value (.getMessage ex)
+                                        :module (module-name (.getStackTrace ex))
+                                        :stacktrace (stacktrace-data ex)
+                                        :thread_id (str (.getId thread))})))))
 
 (defn- thread-data
   [^Thread thread ^Exception ex]
   [{:id (str (.getId thread))
     :current true
-    :name (.getName thread)
-    :stacktrace (stacktrace-data ex)}])
+    :crashed (= (.getState thread) Thread$State/TERMINATED)
+    :name (.getName thread)}])
 
 (defn make-event
   [^Exception ex ^Thread thread]
-  {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
-   :message     (.getMessage ex)
-   :timestamp   (LocalDateTime/now ZoneOffset/UTC)
-   :level       "error"
-   :logger      ""
-   :platform    "java"
-   :sdk         {:name "sentry-defold" :version "1.0"}
-   :device      {:name (system/os-name) :version (system/os-version)}
-   :culprit     (module-name (.getStackTrace ex))
-   :release     (or (system/defold-version) "dev")
-   :tags        {:defold-sha1 (system/defold-sha1)
-                 :defold-version (or (system/defold-version) "dev")
-                 :os-name (system/os-name)
-                 :os-arch (system/os-arch)
-                 :os-version (system/os-version)
-                 :java-version (system/java-runtime-version)}
-   :environment (if (system/defold-version) "release" "dev")
-   :extra       (merge {:java-home (system/java-home)}
-                       (ex-data ex))
-   ;;:fingerprint []
-   :exception   (exception-data ex thread)
-   :threads     (thread-data thread ex)})
+  (let [environment (if (system/defold-version) "release" "dev")]
+    {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+     :message     (.getMessage ex)
+     :timestamp   (LocalDateTime/now ZoneOffset/UTC)
+     :level       "error"
+     :logger      ""
+     :platform    "java"
+     :sdk         {:name "sentry-defold" :version "1.0"}
+     :device      {:name (system/os-name) :version (system/os-version)}
+     :culprit     (module-name (.getStackTrace ex))
+     :release     (or (system/defold-version) "dev")
+     :tags        {:defold-sha1 (system/defold-sha1)
+                   :defold-version (or (system/defold-version) "dev")
+                   :os-name (system/os-name)
+                   :os-arch (system/os-arch)
+                   :os-version (system/os-version)
+                   :java-version (system/java-runtime-version)}
+     :environment environment
+     :extra       (merge {:java-home (system/java-home)}
+                         (ex-data ex))
+     :fingerprint ["{{ default }}" environment]
+     :exception   (exception-data ex thread)
+     :threads     (thread-data thread ex)}))
 
 (defn x-sentry-auth
   [^LocalDateTime ts key secret]
