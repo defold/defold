@@ -101,16 +101,16 @@
 
 (ui/extend-menu :toolbar nil
                 [{:id :select
-                  :icon "icons/Icons_T_01_Select.png"
+                  :icon "icons/45/Icons_T_01_Select.png"
                   :command :select-tool}
                  {:id :move
-                  :icon "icons/Icons_T_02_Move.png"
+                  :icon "icons/45/Icons_T_02_Move.png"
                   :command :move-tool}
                  {:id :rotate
-                  :icon "icons/Icons_T_03_Rotate.png"
+                  :icon "icons/45/Icons_T_03_Rotate.png"
                   :command :rotate-tool}
                  {:id :scale
-                  :icon "icons/Icons_T_04_Scale.png"
+                  :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
