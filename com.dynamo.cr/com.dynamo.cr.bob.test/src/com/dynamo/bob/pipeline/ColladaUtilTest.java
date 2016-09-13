@@ -4,21 +4,32 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
-import java.nio.FloatBuffer;
+import java.util.List;
 
+import org.eclipse.swt.widgets.Display;
 import org.junit.Test;
 
+import com.dynamo.rig.proto.Rig.Mesh;
+
 public class ColladaUtilTest {
+
+    public ColladaUtilTest(){
+        // Avoid hang when running unit-test on Mac OSX
+        // Related to SWT and threads?
+        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
+            Display.getDefault();
+        }
+    }
+
 
     @Test
     public void testMayaQuad() throws Exception {
         Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"));
-
-        FloatBuffer pos = mesh.getPositions();
-        FloatBuffer nrm = mesh.getNormals();
-        FloatBuffer uvs = mesh.getTexcoord0();
-        assertThat(2 * 3 * 3, is(pos.capacity()));
-        assertThat(2 * 3 * 3, is(nrm.capacity()));
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> nrm = mesh.getNormalsList();
+        List<Float> uvs = mesh.getTexcoord0List();
+        assertThat(2 * 3 * 3, is(pos.size()));
+        assertThat(2 * 3 * 3, is(nrm.size()));
 
         assertVtx(pos, 0, -0.5, -0.5);
         assertVtx(pos, 1, 0.5, -0.5);
@@ -46,11 +57,11 @@ public class ColladaUtilTest {
     public void testBlenderPolylistQuad() throws Exception {
         Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"));
 
-        FloatBuffer pos = mesh.getPositions();
-        FloatBuffer nrm = mesh.getNormals();
-        FloatBuffer uvs = mesh.getTexcoord0();
-        assertThat(2 * 3 * 3, is(pos.capacity()));
-        assertThat(2 * 3 * 3, is(nrm.capacity()));
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> nrm = mesh.getNormalsList();
+        List<Float> uvs = mesh.getTexcoord0List();
+        assertThat(2 * 3 * 3, is(pos.size()));
+        assertThat(2 * 3 * 3, is(nrm.size()));
 
         assertVtx(pos, 0, -100, -100);
         assertVtx(pos, 1, 100, -100);
@@ -74,7 +85,7 @@ public class ColladaUtilTest {
         assertUV(uvs, 5, 0, 0);
     }
 
-    private void assertVtx(FloatBuffer pos, int i, double xe, double ye) {
+    private void assertVtx(List<Float> pos, int i, double xe, double ye) {
         float x = 100 * pos.get(i * 3 + 0);
         float y = 100 * pos.get(i * 3 + 1);
 
@@ -82,7 +93,7 @@ public class ColladaUtilTest {
         assertEquals(ye, y, 0.0001);
     }
 
-    private void assertNrm(FloatBuffer nrm, int i, double xe, double ye, float ze) {
+    private void assertNrm(List<Float> nrm, int i, double xe, double ye, float ze) {
         float x = nrm.get(i * 3 + 0);
         float y = nrm.get(i * 3 + 1);
         float z = nrm.get(i * 3 + 2);
@@ -92,7 +103,7 @@ public class ColladaUtilTest {
         assertEquals(ze, z, 0.0001);
     }
 
-    private void assertUV(FloatBuffer nrm, int i, double ue, double ve) {
+    private void assertUV(List<Float> nrm, int i, double ue, double ve) {
         float u = nrm.get(i * 2 + 0);
         float v = nrm.get(i * 2 + 1);
 
