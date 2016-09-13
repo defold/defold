@@ -326,31 +326,36 @@
 
 (declare apply-tx ctx-add-node)
 
+(defn- node-id->override-id [basis node-id]
+  (->> node-id
+    (gt/node-by-id-at basis)
+    gt/override-id))
+
 (defn- ctx-make-override-nodes [ctx override-id node-ids]
   (reduce (fn [ctx node-id]
-            (let [gid (gt/node-id->graph-id node-id)
-                  new-sub-id (next-node-id ctx gid)
-                  new-sub-node (in/make-override-node override-id new-sub-id node-id {})]
-              (-> ctx
-                (ctx-add-node new-sub-node)
-                (ctx-override-node node-id new-sub-id))))
+            (let [basis (:basis ctx)]
+              (if (some #(= override-id (node-id->override-id basis %)) (ig/get-overrides basis node-id))
+                ctx
+                (let [gid (gt/node-id->graph-id node-id)
+                     new-sub-id (next-node-id ctx gid)
+                     new-sub-node (in/make-override-node override-id new-sub-id node-id {})]
+                 (-> ctx
+                   (ctx-add-node new-sub-node)
+                   (ctx-override-node node-id new-sub-id))))))
           ctx node-ids))
 
 (defn- populate-overrides [ctx node-id]
   (let [basis (:basis ctx)
-        override-nodes (ig/get-overrides basis node-id)
-        overrides (map #(->> %
-                          (gt/node-by-id-at basis)
-                          gt/override-id)
-                       override-nodes)]
-    (reduce (fn [ctx oid]
-              (let [o (ig/override-by-id basis oid)
+        override-nodes (ig/get-overrides basis node-id)]
+    (reduce (fn [ctx override-node-id]
+              (let [oid (node-id->override-id basis override-node-id)
+                    o (ig/override-by-id basis oid)
                     traverse-fn (:traverse-fn o)
-                    node-ids (filter #(not= node-id %) (ig/pre-traverse basis [node-id] traverse-fn))]
+                    node-ids (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1)]
                 (reduce populate-overrides
                         (ctx-make-override-nodes ctx oid node-ids)
                         override-nodes)))
-      ctx overrides)))
+      ctx override-nodes)))
 
 (defmethod perform :transfer-overrides
   [ctx {:keys [from-node-id to-node-id id-fn]}]
