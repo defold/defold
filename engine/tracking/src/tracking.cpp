@@ -219,7 +219,7 @@ namespace dmTracking
 
         dmMessage::URL url;
         url.m_Socket = context->m_Socket;
-        dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, sz);
+        dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, sz, 0);
         free(evt);
     }
 

@@ -376,7 +376,7 @@ namespace dmGameSystem
         {
             dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
         }
-        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, ddf, data_size);
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, ddf, data_size, 0);
         if (result != dmMessage::RESULT_OK)
         {
             dmLogError("Could not send %s to component: %d", DDFMessage::m_DDFDescriptor->m_Name, result);
@@ -559,7 +559,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
+                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size, 0);
                 if (message_result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Error when sending ray cast response: %d", message_result);
@@ -818,7 +818,7 @@ namespace dmGameSystem
             dmhash_t message_id = dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::VelocityResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::VelocityResponse);
-            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, descriptor, &response, data_size);
+            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, descriptor, &response, data_size, 0);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send %s to component, result: %d.", dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name, result);

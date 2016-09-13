@@ -51,9 +51,6 @@ namespace dmScript
         }
         lua_rawset(L, -3);
 
-        free(headers);
-        free(response);
-
         return RESULT_OK;
     }
 }

@@ -144,6 +144,13 @@ namespace dmHttpService
         return dmHttpClient::RESULT_OK;
     }
 
+    static void MessageDestroyCallback(dmMessage::Message* message)
+    {
+        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
+        free((void*) response->m_Headers);
+        free((void*) response->m_Response);
+    }
+
     static void SendResponse(const dmMessage::URL* requester, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length)
@@ -161,7 +168,7 @@ namespace dmHttpService
         memcpy((void*) resp.m_Response, response, response_length);
 
         if (dmMessage::IsSocketValid(requester->m_Socket)) {
-            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
+            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback);
         } else {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
@@ -289,7 +296,7 @@ namespace dmHttpService
                             message->m_UserData,
                             message->m_Descriptor,
                             message->m_Data,
-                            message->m_DataSize);
+                            message->m_DataSize, 0);
             service->m_LoadBalanceCount++;
         }
     }
@@ -378,12 +385,12 @@ namespace dmHttpService
     {
         dmMessage::URL url;
         url.m_Socket = http_service->m_Socket;
-        dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0);
+        dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
         for (uint32_t i = 0; i < THREAD_COUNT; ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             url.m_Socket = worker->m_Socket;
-            dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0);
+            dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
             dmThread::Join(worker->m_Thread);
             dmMessage::DeleteSocket(worker->m_Socket);
             if (worker->m_Client) {

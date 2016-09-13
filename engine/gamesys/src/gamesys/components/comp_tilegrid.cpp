@@ -567,7 +567,7 @@ namespace dmGameSystem
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
             dmMessage::URL receiver = params.m_Message->m_Receiver;
             receiver.m_Fragment = 0;
-            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size);
+            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size, 0);
             if (result != dmMessage::RESULT_OK)
             {
                 LogMessageError(params.m_Message, "Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);

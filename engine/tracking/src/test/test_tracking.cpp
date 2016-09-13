@@ -432,7 +432,7 @@ TEST_F(dmTrackingTest, TestDDFMessage)
 
     dmMessage::URL url;
     url.m_Socket = dmTracking::GetSocket(m_Tracking);
-    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, sz);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, sz, 0);
     dmTracking::Update(m_Tracking, 1.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_event");
@@ -476,7 +476,7 @@ TEST_F(dmTrackingTest, TestAttribute)
 
     dmMessage::URL url;
     url.m_Socket = dmTracking::GetSocket(m_Tracking);
-    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[5]);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[5], 0);
     dmTracking::Update(m_Tracking, 1.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_attribute");
@@ -518,7 +518,7 @@ TEST_F(dmTrackingTest, TestMetric)
 
     dmMessage::URL url;
     url.m_Socket = dmTracking::GetSocket(m_Tracking);
-    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[4]);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[4], 0);
     dmTracking::Update(m_Tracking, 1.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_metric");

@@ -178,6 +178,14 @@ namespace dmMessage
         MessageSocket* s = GetSocketInternal(socket, id);
         if (s != 0x0)
         {
+            Message *message_object = s->m_Header;
+            while (message_object)
+            {
+                if (message_object->m_DestroyCallback)
+                    message_object->m_DestroyCallback(message_object);
+                message_object = message_object->m_Next;
+            }
+
             free((void*) s->m_Name);
 
             MemoryPage* p = s->m_Allocator.m_FreePages;
@@ -282,7 +290,7 @@ namespace dmMessage
 
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
@@ -316,6 +324,7 @@ namespace dmMessage
         new_message->m_Descriptor = descriptor;
         new_message->m_DataSize = message_data_size;
         new_message->m_Next = 0;
+        new_message->m_DestroyCallback = destroy_callback;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
         if (!s->m_Header)
@@ -367,6 +376,8 @@ namespace dmMessage
         while (message_object)
         {
             dispatch_callback(message_object, user_ptr);
+            if (message_object->m_DestroyCallback)
+                message_object->m_DestroyCallback(message_object);
             message_object = message_object->m_Next;
             dispatch_count++;
         }

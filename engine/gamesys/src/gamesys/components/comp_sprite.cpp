@@ -532,7 +532,7 @@ namespace dmGameSystem
                             sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
                             component->m_ListenerInstance = 0x0;
                             component->m_ListenerComponent = 0xff;
                             if (result != dmMessage::RESULT_OK)

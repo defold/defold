@@ -96,7 +96,7 @@ namespace dmEngine
         }
         else
         {
-            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size);
+            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size, 0);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);

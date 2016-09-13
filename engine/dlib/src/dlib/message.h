@@ -69,26 +69,36 @@ namespace dmMessage
         uint32_t m_FragmentSize;
     };
 
+
+    struct Message;
+
+    /**
+     * @see #Post
+     */
+    typedef void(*MessageDestroyCallback)(dmMessage::Message* message);
+
     /**
      * Message data desc used at dispatch callback. When a message is posted,
      * the actual object is copied into the sockets internal buffer.
      */
     struct Message
     {
-        URL                    m_Sender;       //! Sender uri
-        URL                    m_Receiver;     //! Receiver uri
-        dmhash_t               m_Id;           //! Unique id of message
-        uintptr_t              m_UserData;     //! User data pointer
-        uintptr_t              m_Descriptor;   //! User specified descriptor of the message data
-        uint32_t               m_DataSize;     //! Size of userdata in bytes
-        struct Message*        m_Next;         //! Ptr to next message (or 0 if last)
-        uint8_t DM_ALIGNED(16) m_Data[0];      //! Payload
+        URL                    m_Sender;            //! Sender uri
+        URL                    m_Receiver;          //! Receiver uri
+        dmhash_t               m_Id;                //! Unique id of message
+        uintptr_t              m_UserData;          //! User data pointer
+        uintptr_t              m_Descriptor;        //! User specified descriptor of the message data
+        uint32_t               m_DataSize;          //! Size of userdata in bytes
+        struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
+        MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
+        uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
     };
 
     /**
      * @see #Dispatch
      */
     typedef void(*DispatchCallback)(dmMessage::Message *message, void* user_ptr);
+
 
     /**
      * Create a new socket
@@ -153,9 +163,10 @@ namespace dmMessage
      * @param descriptor User specified descriptor of the message data
      * @param message_data Message data reference
      * @param message_data_size Message data size in bytes
+     * @param destroy_callback if set, will be called after each message dispatch
      * @return RESULT_OK if the message was posted
      */
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size);
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
 
     /**
      * Dispatch messages

@@ -780,7 +780,7 @@ void SendReloadThread(void*)
     url.m_Fragment = 0;
     url.m_Path = 0;
     dmMessage::GetSocket("@resource", &url.m_Socket);
-    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, buf, sizeof(buf));
+    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, buf, sizeof(buf), 0);
 
     SendReloadDone = true;
 }

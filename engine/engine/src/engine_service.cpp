@@ -150,7 +150,7 @@ namespace dmEngineService
                     url.m_Socket = socket;
                     url.m_Path = 0;
                     url.m_Fragment = 0;
-                    dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size);
+                    dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size, 0);
                     dmDDF::FreeMessage(msg);
                 }
             }
