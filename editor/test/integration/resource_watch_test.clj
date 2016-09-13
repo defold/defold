@@ -15,7 +15,7 @@
            [java.net URL]
            [org.apache.commons.io FilenameUtils FileUtils]))
 
-(def ^:dynamic *project-path* "resources/lib_resource_project")
+(def ^:dynamic *project-path* "test/resources/lib_resource_project")
 
 (def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus"))
 

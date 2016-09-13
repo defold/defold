@@ -17,7 +17,7 @@
   (alter-var-root #'*project-path* (fn [_] (-> (Files/createTempDirectory "foo" (into-array FileAttribute []))
                                              (.toFile)
                                              (.getAbsolutePath))))
-  (FileUtils/copyDirectory (File. "resources/reload_project") (File. *project-path*)))
+  (FileUtils/copyDirectory (File. "test/resources/reload_project") (File. *project-path*)))
 
 (defn- load-test-project [ws-graph]
   (let [workspace (test-util/setup-workspace! ws-graph *project-path*)

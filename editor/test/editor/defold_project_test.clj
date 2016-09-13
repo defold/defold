@@ -42,7 +42,7 @@
 (deftest loading
   (reset! load-counter 0)
   (with-clean-system
-    (let [workspace (workspace/make-workspace world "resources/load_project")]
+    (let [workspace (workspace/make-workspace world "test/resources/load_project")]
       (g/transact
        (register-resource-types workspace [{:ext "type_a"
                                             :node-type ANode
