@@ -17,7 +17,7 @@
 
 (deftest missing-tilesource-image
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/test_project"))
+    (let [[workspace project] (log/without-logging (setup world "test/resources/test_project"))
           node-id (project/get-resource-node project "/tilesource/invalid.tilesource")]
       (is (g/error? (g/node-value node-id :image)))
       ;; collision being nil is not an error
@@ -26,7 +26,7 @@
 
 (deftest replacing-sprite-image-replaces-dep-build-targets
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/test_project"))
+    (let [[workspace project] (log/without-logging (setup world "test/resources/test_project"))
           node-id (project/get-resource-node project "/logic/session/pow.sprite")
           old-image (g/node-value node-id :image)]
       (let [old-sources (g/sources-of node-id :dep-build-targets)]

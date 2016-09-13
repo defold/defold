@@ -14,7 +14,7 @@
   (:import [java.net URL]
            [org.apache.commons.io FileUtils]))
 
-(def ^:dynamic *project-path* "resources/empty_project")
+(def ^:dynamic *project-path* "test/resources/empty_project")
 
 (defn- setup-scratch
   ([ws-graph]
@@ -59,7 +59,7 @@
       (let [project-directory (workspace/project-path workspace)]
         ;; copy to proper place
         (FileUtils/copyDirectory
-         (io/file "resources/lib_resource_project/.internal/lib")
+         (io/file "test/resources/lib_resource_project/.internal/lib")
          (library/library-directory project-directory))
         (testing "libraries now present"
           (let [files (library/library-files project-directory)]
@@ -108,7 +108,7 @@
 
 (deftest open-project
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "resources/test_project")
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
           ^File project-directory (workspace/project-path workspace)
           server (test-util/->lib-server)
           url (test-util/lib-server-url server "lib_resource_project")
