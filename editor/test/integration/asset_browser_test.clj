@@ -7,11 +7,9 @@
             [editor.cubemap :as cubemap]
             [editor.game-object :as game-object]
             [editor.image :as image]
-            [editor.platformer :as platformer]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
             [editor.resource :as resource]
             [integration.test-util :as test-util])
   (:import [java.io File]
@@ -26,7 +24,7 @@
 
 (deftest asset-browser-search
   (testing "Searching for a resource produces a hit and renders a preview"
-    (let [queries ["**/atlas.atlas" "**/env.cubemap" "**/level1.platformer" "**/level01.switcher"
+    (let [queries ["**/atlas.atlas" "**/env.cubemap"
                    "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
       (with-clean-system
         (let [workspace  (test-util/setup-workspace! world)
