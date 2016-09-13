@@ -66,7 +66,7 @@
                      <graphic>
                         <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@icons/Icons_T_01_Select.png" />
+                              <Image url="@icons/45/Icons_T_01_Select.png" />
                            </image>
                         </ImageView>
                      </graphic>
@@ -75,7 +75,7 @@
                      <graphic>
                         <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@icons/Icons_T_02_Move.png" />
+                              <Image url="@icons/45/Icons_T_02_Move.png" />
                            </image>
                         </ImageView>
                      </graphic>
