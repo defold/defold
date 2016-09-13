@@ -15,7 +15,6 @@
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.0.4"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [inflections/inflections                     "0.10.0"]
                      [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
                      [org.slf4j/slf4j-api                         "1.7.14"]
