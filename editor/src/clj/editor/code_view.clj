@@ -78,18 +78,23 @@
   (let [did-update
         (some some?
               [(when (not= code (cvx/text source-viewer))
-                 (cvx/text! source-viewer code))
+                 (cvx/text! source-viewer code)
+                 :updated)
                (when (not= prefer-offset (cvx/preferred-offset source-viewer))
-                 (cvx/preferred-offset! source-viewer prefer-offset))
+                 (cvx/preferred-offset! source-viewer prefer-offset)
+                 :updated)
                (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
-                 (cvx/snippet-tab-triggers! source-viewer tab-triggers))
+                 (cvx/snippet-tab-triggers! source-viewer tab-triggers)
+                 :updated)
                (when (not= caret-position (cvx/caret source-viewer))
                  (cvx/caret! source-viewer caret-position false)
-                 (cvx/show-line source-viewer))
+                 (cvx/show-line source-viewer)
+                 :updated)
                (when (not= [selection-offset selection-length]
                            [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
                  (cvx/caret! source-viewer caret-position false)
-                 (cvx/text-selection! source-viewer selection-offset selection-length))])]
+                 (cvx/text-selection! source-viewer selection-offset selection-length)
+                 :updated)])]
     (when did-update
       (reset! (last-command-data source-viewer) nil)))
   [code-node])
@@ -459,17 +464,15 @@
                                (not= selection-length (g/node-value code-node-id :selection-length)))
         prefer-offset-changed? (not= prefer-offset (g/node-value code-node-id :prefer-offset))
         tab-triggers-changed? (not= tab-triggers (g/node-value code-node-id :tab-triggers))]
-    (when (or code-changed? caret-changed? selection-changed? prefer-offset-changed? tab-triggers-changed?)
-      (let [tx-data (remove nil?
-                            (concat
-                             (when code-changed?  [(g/set-property code-node-id :code code)])
-                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
-                             (when opseq [(g/operation-sequence opseq)])
-                             (when selection-changed?
-                               [(g/set-property code-node-id :selection-offset selection-offset)
-                                (g/set-property code-node-id :selection-length selection-length)])
-                             (when prefer-offset-changed? [(g/set-property code-node-id :prefer-offset prefer-offset)])
-                             (when tab-triggers-changed? [(g/set-property code-node-id :tab-triggers tab-triggers)])))]
+    (let [tx-data (cond-> []
+                    code-changed?          (conj (g/set-property code-node-id :code code))
+                    caret-changed?         (conj (g/set-property code-node-id :caret-position caret))
+                    opseq                  (conj (g/operation-sequence opseq))
+                    selection-changed?     (conj (g/set-property code-node-id :selection-offset selection-offset)
+                                                 (g/set-property code-node-id :selection-length selection-length))
+                    prefer-offset-changed? (conj (g/set-property code-node-id :prefer-offset prefer-offset))
+                    tab-triggers-changed?  (conj (g/set-property code-node-id :tab-triggers tab-triggers)))]
+      (when (seq tx-data)
         (g/transact tx-data)))))
 
 (extend-type SourceViewer
