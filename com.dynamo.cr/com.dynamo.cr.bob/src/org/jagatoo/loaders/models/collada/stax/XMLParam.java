@@ -61,7 +61,7 @@ public class XMLParam
         /** Integer */
         _int,
         /** Name (String) */
-        _Name,
+        _name,
         /** IDREF (String) */
         _IDREF,
         /** 4x4 float matrix */

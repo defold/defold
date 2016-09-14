@@ -13,6 +13,7 @@ import java.util.Map;
 import javax.xml.stream.XMLStreamException;
 
 import org.apache.commons.io.FilenameUtils;
+import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 
 // import com.dynamo.bob.pipeline.Mesh;
 import com.dynamo.bob.Builder;
@@ -67,14 +68,18 @@ public class ColladaModelBuilder extends Builder<Void>  {
 
         // MeshSet
         ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());
-        Mesh mesh;
+        Mesh.Builder meshBuilder = Mesh.newBuilder();
+        AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
+        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
         try {
-            mesh = ColladaUtil.loadMesh(mesh_is);
+            ColladaUtil.load(mesh_is, meshBuilder, animSetBuilder, skeletonBuilder);
+            //mesh = ColladaUtil.loadMesh(collada);
         } catch (XMLStreamException e) {
             throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh", e);
         } catch (LoaderException e) {
             throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh", e);
         }
+        Mesh mesh = meshBuilder.build();
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
         meshEntryBuilder.addMeshes(mesh);
@@ -86,14 +91,15 @@ public class ColladaModelBuilder extends Builder<Void>  {
         task.output(2).setContent(out.toByteArray());
 
         // Skeleton
-        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+        //Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
         out = new ByteArrayOutputStream(64 * 1024);
         skeletonBuilder.build().writeTo(out);
         out.close();
         task.output(1).setContent(out.toByteArray());
 
         // AnimationSet
-        AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
+        //AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
+        //animSetBuilder.addAnimations(animationBuilder.build());
         out = new ByteArrayOutputStream(64 * 1024);
         animSetBuilder.build().writeTo(out);
         out.close();

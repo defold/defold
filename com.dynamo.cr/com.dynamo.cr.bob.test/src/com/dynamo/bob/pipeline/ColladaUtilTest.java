@@ -7,8 +7,10 @@ import static org.junit.Assert.assertThat;
 import java.util.List;
 
 import org.eclipse.swt.widgets.Display;
+import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.junit.Test;
 
+import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.Mesh;
 
 public class ColladaUtilTest {
@@ -24,7 +26,8 @@ public class ColladaUtilTest {
 
     @Test
     public void testMayaQuad() throws Exception {
-        Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"));
+        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("maya_quad.dae"));
+        Mesh mesh = ColladaUtil.loadMesh(collada);
         List<Float> pos = mesh.getPositionsList();
         List<Float> nrm = mesh.getNormalsList();
         List<Float> uvs = mesh.getTexcoord0List();
@@ -55,7 +58,8 @@ public class ColladaUtilTest {
 
     @Test
     public void testBlenderPolylistQuad() throws Exception {
-        Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"));
+        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("blender_polylist_quad.dae"));
+        Mesh mesh = ColladaUtil.loadMesh(collada);
 
         List<Float> pos = mesh.getPositionsList();
         List<Float> nrm = mesh.getNormalsList();
@@ -83,6 +87,14 @@ public class ColladaUtilTest {
         assertUV(uvs, 3, 0, 0);
         assertUV(uvs, 4, 0, 0);
         assertUV(uvs, 5, 0, 0);
+    }
+    
+    @Test
+    public void testBlenderAnimations() throws Exception {
+        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("blender_animated_cube.dae"));
+        AnimationSet animation = ColladaUtil.loadAnimations(collada, 1.0f / 24.0f);
+        //assert(0.0, animation.getDuration());
+        assertEquals(1, animation.getAnimationsCount());
     }
 
     private void assertVtx(List<Float> pos, int i, double xe, double ye) {

@@ -7,13 +7,14 @@ import javax.xml.stream.XMLStreamException;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
-
 import com.dynamo.bob.pipeline.ColladaUtil;
 import com.dynamo.bob.pipeline.LoaderException;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.google.protobuf.Message;
+import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.Mesh;
+import com.dynamo.rig.proto.Rig.Skeleton;
 
 public class MeshLoader implements INodeLoader<MeshNode> {
 
@@ -23,7 +24,11 @@ public class MeshLoader implements INodeLoader<MeshNode> {
 
         Mesh mesh;
         try {
-            mesh = ColladaUtil.loadMesh(contents);
+            Mesh.Builder meshBuilder = Mesh.newBuilder();
+            Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+            AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
+            ColladaUtil.load(contents, meshBuilder, animSetBuilder, skeletonBuilder);
+            mesh = meshBuilder.build();
             return new MeshNode(mesh);
         } catch (XMLStreamException e) {
             return invalidMeshNode(e);
