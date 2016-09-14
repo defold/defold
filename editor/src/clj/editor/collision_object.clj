@@ -35,11 +35,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defmacro validate-greater-than-zero [field message]
-  `(g/fnk [~field]
-     (when (<= ~field 0.0)
-       (g/error-fatal ~message))))
-
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
