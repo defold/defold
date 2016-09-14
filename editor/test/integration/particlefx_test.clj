@@ -5,6 +5,7 @@
             [editor.collection :as collection]
             [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.types :as types]
             [editor.particle-lib :as plib]
             [integration.test-util :as test-util])
@@ -64,3 +65,22 @@
                                   (is (= 12 v-count)))))
       (testing "Dispose"
                (plib/destroy-sim sim)))))
+
+(deftest particlefx-validation
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+          emitter (:node-id (test-util/outline node-id [0]))]
+      (is (nil? (test-util/prop-error emitter :tile-source)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
+        (test-util/with-prop [emitter :tile-source v]
+          (is (g/error? (test-util/prop-error emitter :tile-source)))))
+      (is (nil? (test-util/prop-error emitter :material)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+        (test-util/with-prop [emitter :material v]
+          (is (g/error? (test-util/prop-error emitter :material)))))
+      (is (nil? (test-util/prop-error emitter :animation)))
+      (doseq [v ["" "not_found"]]
+        (test-util/with-prop [emitter :animation v]
+          (is (g/error? (test-util/prop-error emitter :animation))))))))

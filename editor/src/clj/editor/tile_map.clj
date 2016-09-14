@@ -244,9 +244,7 @@
 
   (property id g/Str)
   (property z g/Num
-            (validate (g/fnk [z]
-                        (when-not (<= -1.0 z 1.0)
-                          (g/error-warning "Z must be between -1.0 and 1.0")))))
+            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
 
   (property visible g/Bool)
 
@@ -311,7 +309,7 @@
   {:node-id  _node-id
    :label    "Tile Map"
    :icon     tile-map-icon
-   :children (sort-by :label child-outlines)})
+   :children (vec (sort-by :label child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]
@@ -347,6 +345,9 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (g/defnode TileMapNode
   (inherits project/ResourceNode)
@@ -376,7 +377,8 @@
                                             [:tile-source-attributes :tile-source-attributes]
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
-            (validate (validation/validate-resource tile-source))
+            (dynamic error (g/fnk [_node-id tile-source]
+                                  (prop-resource-error :info _node-id :tile-source tile-source "Tile Source")))
             (dynamic edit-type (g/always {:type resource/Resource :ext "tilesource"})))
 
   ;; material
@@ -387,7 +389,8 @@
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets]
                                             [:shader :material-shader])))
-            (validate (validation/validate-resource material))
+            (dynamic error (g/fnk [_node-id material]
+                                  (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/always {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any

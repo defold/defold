@@ -91,57 +91,39 @@
 (deftest node-value-allows-ignore-errors-option
   (testing "errors at or less than the ignore level are indeed ignored"
     (are [error-level ignore-level] (ignored-single? error-level ignore-level)
-      g/INFO    g/INFO
-      g/INFO    g/WARNING
-      g/INFO    g/SEVERE
-      g/INFO    g/FATAL
+      :info    :info
+      :info    :warning
+      :info    :fatal
 
-      g/WARNING g/WARNING
-      g/WARNING g/SEVERE
-      g/WARNING g/FATAL
+      :warning :warning
+      :warning :fatal
 
-      g/SEVERE  g/SEVERE
-      g/SEVERE  g/FATAL
-
-      g/FATAL   g/FATAL))
+      :fatal   :fatal))
 
   (testing "errors in an array output at or less than the ignore level are indeed ignored"
     (are [error-level ignore-level] (ignored-multiple? error-level ignore-level)
-      g/INFO    g/INFO
-      g/INFO    g/WARNING
-      g/INFO    g/SEVERE
-      g/INFO    g/FATAL
+      :info    :info
+      :info    :warning
+      :info    :fatal
 
-      g/WARNING g/WARNING
-      g/WARNING g/SEVERE
-      g/WARNING g/FATAL
+      :warning :warning
+      :warning :fatal
 
-      g/SEVERE  g/SEVERE
-      g/SEVERE  g/FATAL
-
-      g/FATAL   g/FATAL))
+      :fatal   :fatal))
 
   (testing "errors worse than the ignore level are not ignored"
     (are [error-level ignore-level] (not (ignored-single? error-level ignore-level))
-      g/WARNING g/INFO
+      :warning :info
 
-      g/SEVERE  g/INFO
-      g/SEVERE  g/WARNING
-
-      g/FATAL   g/INFO
-      g/FATAL   g/WARNING
-      g/FATAL   g/SEVERE))
+      :fatal   :info
+      :fatal   :warning))
 
   (testing "errors in an array output worse than the ignore level are not ignored"
     (are [error-level ignore-level] (not (ignored-multiple? error-level ignore-level))
-      g/WARNING g/INFO
+      :warning :info
 
-      g/SEVERE  g/INFO
-      g/SEVERE  g/WARNING
-
-      g/FATAL   g/INFO
-      g/FATAL   g/WARNING
-      g/FATAL   g/SEVERE)))
+      :fatal   :info
+      :fatal   :warning)))
 
 (defn info [value] (assoc (ie/error-info    "message not used") :value value))
 (defn warn [value] (assoc (ie/error-warning "message not used") :value value))
@@ -150,16 +132,13 @@
   (comment (testing "single-valued output"
      (ts/with-clean-system
        (let [[_ receiver] (error-test-nodes world (warn 88))]
-         (is (= 88 (g/node-value receiver :single-output {:ignore-errors g/FATAL})))
-         (is (= 88 (g/node-value receiver :single-output {:ignore-errors g/SEVERE})))
-         (is (= 88 (g/node-value receiver :single-output {:ignore-errors g/WARNING})))
-         (is (g/error? (g/node-value receiver :single-output {:ignore-errors g/INFO})))))))
+         (is (= 88 (g/node-value receiver :single-output {:ignore-errors :fatal})))
+         (is (= 88 (g/node-value receiver :single-output {:ignore-errors :warning})))
+         (is (g/error? (g/node-value receiver :single-output {:ignore-errors :info})))))))
 
   (testing "multi-valued output"
     (ts/with-clean-system
       (let [receiver (error-test-nodes-multiple world 1 2 3 (warn 4) (info 5))]
-        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors g/FATAL})))
-        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors g/SEVERE})))
-        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors g/WARNING})))
-        (is (g/error? (g/node-value receiver :array-output {:ignore-errors g/INFO})))
-        (is (= g/WARNING (:severity (g/node-value receiver :array-output {:ignore-errors g/INFO}))))))))
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output {:ignore-errors :warning})))
+        (is (g/error? (g/node-value receiver :array-output {:ignore-errors :info})))
+        (is (= :warning (:severity (g/node-value receiver :array-output {:ignore-errors :info}))))))))

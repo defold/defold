@@ -28,7 +28,7 @@
   (when-let [res (:parent-file-resource resource)]
     (ui/run-later (open-resource-fn res {:select-node (:parent-node-id resource)}))))
 
-(defn- build-resource-tree [{:keys [causes _node-id _label user-data] :as error} parent-node-id parent-file]
+(defn- build-resource-tree [{:keys [causes _node-id _label message] :as error} parent-node-id parent-file]
   (let [res            (:resource (and _node-id (g/node-by-id _node-id)))
         parent-node-id (if res
                          _node-id parent-node-id)
@@ -38,11 +38,11 @@
                             (map #(build-resource-tree % parent-node-id parent-file))
                             (remove nil?)
                             seq)
-        error-res      (and user-data (->BuildErrorResource
-                                       parent-node-id
-                                       (:resource (g/node-by-id parent-node-id))
-                                       parent-file
-                                       user-data))]
+        error-res      (and message (->BuildErrorResource
+                                     parent-node-id
+                                     (:resource (g/node-by-id parent-node-id))
+                                     parent-file
+                                     message))]
     (cond
       (and res error-res)
       (assoc res :children [error-res])

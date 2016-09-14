@@ -5,34 +5,25 @@
 (deftest error-construction
   (is (error-info?    (error-info    "this is a message")))
   (is (error-warning? (error-warning "this is a message")))
-  (is (error-severe?  (error-severe  "this is a message")))
   (is (error-fatal?   (error-fatal   "this is a message"))))
 
 (deftest severity-aggregating
   (is (error-info?    (error-aggregate [(error-info "info") (error-info "another") (error-info "third")])))
   (is (error-warning? (error-aggregate [(error-info "info") (error-info "another") (error-warning "third")])))
-  (is (error-severe?  (error-aggregate [(error-info "info") (error-info "another") (error-severe "third")])))
   (is (error-fatal?   (error-aggregate [(error-info "info") (error-info "another") (error-fatal "third")]))))
 
 (deftest severity-ordering
-  (is (worse-than INFO    (error-warning "")))
-  (is (worse-than INFO    (error-severe  "")))
-  (is (worse-than INFO    (error-fatal   "")))
-  (is (worse-than WARNING (error-severe  "")))
-  (is (worse-than WARNING (error-fatal   "")))
-  (is (worse-than SEVERE  (error-fatal   "")))
+  (is (worse-than :info    (error-warning "")))
+  (is (worse-than :info    (error-fatal   "")))
+  (is (worse-than :warning (error-fatal   "")))
 
-  (is (not (worse-than WARNING (error-info    ""))))
-  (is (not (worse-than SEVERE  (error-info    ""))))
-  (is (not (worse-than FATAL   (error-info    ""))))
-  (is (not (worse-than SEVERE  (error-warning ""))))
-  (is (not (worse-than FATAL   (error-warning ""))))
-  (is (not (worse-than FATAL   (error-severe  "")))))
+  (is (not (worse-than :warning (error-info    ""))))
+  (is (not (worse-than :fatal   (error-info    ""))))
+  (is (not (worse-than :fatal   (error-warning "")))))
 
 (deftest checking-errorness
   (is (error? (error-info    "")))
   (is (error? (error-warning "")))
-  (is (error? (error-severe  "")))
   (is (error? (error-fatal   "")))
   (is (not (error? [])))
   (is (not (error? nil)))

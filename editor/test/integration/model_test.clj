@@ -38,3 +38,17 @@
                   :properties
                   :texture2)]
           (properties/set-values! p [original-texture]))))))
+
+(deftest model-validation
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/model/test.model")]
+      (is (nil? (test-util/prop-error node-id :mesh)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.dae")]]
+        (test-util/with-prop [node-id :mesh v]
+          (is (g/error? (test-util/prop-error node-id :mesh)))))
+      (is (nil? (test-util/prop-error node-id :material)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+        (test-util/with-prop [node-id :material v]
+          (is (g/error? (test-util/prop-error node-id :material))))))))

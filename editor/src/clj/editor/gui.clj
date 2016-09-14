@@ -886,10 +886,15 @@
                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
                                   :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
 
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
 
-  (property name g/Str)
+  (property name g/Str
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name)))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
             (set (fn [basis self old-value new-value]
@@ -899,7 +904,8 @@
                                                 [:anim-data :anim-data]
                                                 [:anim-ids :anim-ids]
                                                 [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource texture)))
+            (dynamic error (g/fnk [_node-id texture]
+                                  (prop-resource-error _node-id :texture texture "Texture"))))
 
   (input texture-resource resource/Resource)
   (input image BufferedImage)
@@ -943,7 +949,8 @@
                     [:gpu-texture :gpu-texture]
                     [:material-shader :font-shader]
                     [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource font)))
+            (dynamic error (g/fnk [_node-id font]
+                                  (prop-resource-error _node-id :font font "Font"))))
 
   (input font-resource resource/Resource)
   (input font-map g/Any)
@@ -1231,7 +1238,8 @@
                     basis self old-value new-value
                     [:resource :script-resource]
                     [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource script)))
+            (dynamic error (g/fnk [_node-id script]
+                                  (prop-resource-error _node-id :script script "Script"))))
 
 
   (property material resource/Resource
@@ -1243,7 +1251,8 @@
             [:shader :material-shader]
             [:samplers :samplers]
             [:build-targets :dep-build-targets])))
-    (validate (validation/validate-resource material)))
+    (dynamic error (g/fnk [_node-id material]
+                          (prop-resource-error _node-id :material material "Material"))))
 
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))

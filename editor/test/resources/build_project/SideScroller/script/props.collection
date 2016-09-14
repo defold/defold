@@ -15,7 +15,7 @@ instances {
     }
 }
 embedded_instances {
-    id: "props"
+    id: "embedded_props"
     data: "components {\n"
     "  id: \"script\"\n"
     "  component: \"/script/props.script\"\n"

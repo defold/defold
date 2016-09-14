@@ -127,10 +127,10 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error-severe "jammed")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error-fatal "jammed")}))
 
         (is (g/error? (g/node-value source :overridden)))
-        (is (= "jammed" (:user-data (g/node-value source :overridden))))))))
+        (is (= "jammed" (:message (g/node-value source :overridden))))))))
 
 (deftest construct-with-maps
   (testing "supplying a map to make-nodes"
