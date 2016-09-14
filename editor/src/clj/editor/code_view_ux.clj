@@ -201,7 +201,9 @@
                    "[" "]"
                    "{" "}"
                    "(" ")"})
-(def auto-match-set (into #{} (keys auto-matches)))
+(def auto-match-open-set (into #{} (keys auto-matches)))
+(def auto-match-close-set (into #{} (vals auto-matches)))
+
 (def auto-delete-set (into #{} (map (fn [[k v]] (str k v)) auto-matches)))
 
 (defn- info [e]
@@ -238,7 +240,7 @@
 
 (defn handler-run [command command-contexts user-data]
   (-> (handler/active command command-contexts user-data)
-    handler/run))
+      handler/run))
 
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
@@ -253,16 +255,28 @@
         (last-command! source-viewer (:command kf))))))
 
 (defn is-not-typable-modifier? [e]
-  (if (or (.isControlDown ^KeyEvent e) (.isAltDown ^KeyEvent e) (and (is-mac-os?) (.isMetaDown ^KeyEvent e)))
-    (not (or (.isControlDown ^KeyEvent e) (and (is-mac-os?) (.isAltDown ^KeyEvent e))))))
+  (if (or (.isControlDown ^KeyEvent e)
+          (.isAltDown ^KeyEvent e)
+          (and (is-mac-os?)
+               (.isMetaDown ^KeyEvent e)))
+    (not (or (.isControlDown ^KeyEvent e)
+             (and (is-mac-os?)
+                  (.isAltDown ^KeyEvent e))))))
 
 (defn handle-key-typed [^KeyEvent e source-viewer]
   (let [key-typed (.getCharacter e)]
-    (when-not (or (.isMetaDown ^KeyEvent e) (is-not-typable-modifier? e))
-      (handler-run
-        :key-typed
-        [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
-        e))))
+    (when-not (or (.isMetaDown ^KeyEvent e)
+                  (is-not-typable-modifier? e))
+      ;; duplicated precondition from :key-typed defhandler in order to
+      ;; update last-command properly
+      (when (and (editable? selection)
+               (pos? (count key-typed))
+               (code/not-control-char-or-delete key-typed))
+        (handler-run
+         :key-typed
+         [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}]
+         e)
+        (last-command! source-viewer :key-typed)))))
 
 (defn adjust-bounds [s pos]
   (if (neg? pos) 0 (min (count s) pos)))
@@ -288,12 +302,12 @@
         pos (caret source-viewer)]
     (remember-caret-col source-viewer pos)
     (clear-snippet-tab-triggers! source-viewer)
-    (last-command! source-viewer nil)
     (when cf
       (handler-run
         (:command cf)
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-        e))
+        e)
+      (last-command! source-viewer (:command cf)))
     (.consume e)))
 
 (defn- adjust-replace-length [doc pos n]
@@ -1050,7 +1064,7 @@
           exit-text (:exit tab-trigger-info)]
       (if (= :end search-text)
         (do
-          (caret! source-viewer pos false)          
+          (caret! source-viewer pos false)
           (if exit-text
             (let [found-idx (string/index-of doc exit-text pos)
                   tlen (count exit-text)]
@@ -1303,7 +1317,8 @@
           target (completion-pattern nil (line-offset source-viewer) current-line offset)
           ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals target (text-area source-viewer))
           replace-text-fn (fn [] (when (and (realized? result) @result)
-                                  (do-proposal-replacement source-viewer (first @result))))]
+                                   (do-proposal-replacement source-viewer (first @result))
+                                   (typing-changes! source-viewer)))]
       (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
 
 (handler/defhandler :proposals :code-view
@@ -1312,14 +1327,23 @@
     (let [proposals (propose selection)]
       (if (= 1 (count proposals))
         (let [replacement (first proposals)]
-          (do-proposal-replacement selection replacement))
-        (show-proposals selection proposals))
-      (typing-changes! selection))))
+          (do-proposal-replacement selection replacement)
+          (typing-changes! selection))
+        (show-proposals selection proposals)))))
 
-(defn match-key-typed [source-viewer key-typed]
+(defn match-open-key-typed [source-viewer key-typed]
   (let [np (caret source-viewer)
         match (get auto-matches key-typed)]
-       (replace-text-and-caret source-viewer np 0 match np)))
+    (replace-text-and-caret source-viewer np 0 (str key-typed match) (+ np (count key-typed)))))
+
+(defn- text-at-offset [source-viewer offset]
+  (let [line-num (line-num-at-offset source-viewer offset)
+        line (line-at-num source-viewer line-num)
+        line-offset (line-offset source-viewer)
+        rel-offset (- offset line-offset)]
+    (if (< rel-offset (count line))
+      (subs line rel-offset (inc rel-offset))
+      "")))
 
 (defn- part-of-string? [source-viewer]
   (let [line-text (line source-viewer)
@@ -1332,11 +1356,28 @@
   (enabled? [selection] (editable? selection))
   (run [selection key-typed]
     (when (and (editable? selection)
-           (pos? (count key-typed))
-           (code/not-ascii-or-delete key-typed))
-      (enter-key-text selection key-typed)
-      (when (and (contains? proposal-key-triggers key-typed) (not (part-of-string? selection)))
-        (show-proposals selection (propose selection)))
-      (when (contains? auto-match-set key-typed)
-        (match-key-typed selection key-typed))
-      (typing-changes! selection true))))
+               (pos? (count key-typed))
+               (code/not-control-char-or-delete key-typed))
+      (cond
+        (and (contains? proposal-key-triggers key-typed)
+             (not (part-of-string? selection)))
+        (do (enter-key-text selection key-typed)
+            (typing-changes! selection true)
+            (show-proposals selection (propose selection)))
+
+        (and (contains? auto-match-open-set key-typed)
+             (let [next-text (text-at-offset selection (caret selection))]
+               (or (string/blank? next-text)
+                   (contains? auto-match-close-set next-text))))
+        (do 
+          (match-open-key-typed selection key-typed)
+          (typing-changes! selection true))
+
+        (and (contains? auto-match-close-set key-typed)
+             (= (text-at-offset selection (caret selection)) key-typed))
+        (do (caret! selection (inc (caret selection)) false)
+            (typing-changes! selection true))
+
+        :else
+        (do (enter-key-text selection key-typed)
+            (typing-changes! selection true))))))

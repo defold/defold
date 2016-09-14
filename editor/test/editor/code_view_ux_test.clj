@@ -910,7 +910,7 @@
         (propose! source-viewer)
         (is (= "string.sub(s,i)" (text source-viewer)))
         (is (= "s" (text-selection source-viewer)))
-      (typing-changes! source-viewer)
+        (typing-changes! source-viewer)
         (tab! source-viewer)
         (typing-changes! source-viewer)
         (is (= "i" (text-selection source-viewer)))

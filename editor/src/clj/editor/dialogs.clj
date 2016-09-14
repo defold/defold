@@ -624,7 +624,7 @@
                                       (let [key-typed (.getCharacter ^KeyEvent event)]
                                         (cond
 
-                                          (and (not-empty key-typed) (code/not-ascii-or-delete key-typed))
+                                          (and (not-empty key-typed) (code/not-control-char-or-delete key-typed))
                                           (do
                                             (swap! filter-text str key-typed)
                                             (update-items)
