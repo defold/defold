@@ -157,19 +157,22 @@
                               basis            (g/now)
                               cache            (g/cache)}
                          :as opts}]
-  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
-    (if-not (g/error? save-data)
-      (do
-        (progress/progress-mapv
-         (fn [{:keys [resource content]} _]
-           (when-not (resource/read-only? resource)
-             (spit resource content)))
-         save-data
-         render-progress!
-         (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
-      ;; TODO: error message somewhere...
-      (println (properties/error-message save-data)))))
+  (try
+    (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
+      (if-not (g/error? save-data)
+        (do
+          (progress/progress-mapv
+            (fn [{:keys [resource content]} _]
+              (when-not (resource/read-only? resource)
+                (spit resource content)))
+            save-data
+            render-progress!
+            (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+          (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
+        (do
+          (log/warn :msg (properties/error-message save-data)))))
+    (catch Exception e
+      (log/error :exception e))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"

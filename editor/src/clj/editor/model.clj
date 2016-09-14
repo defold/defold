@@ -30,8 +30,8 @@
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (g/defnk produce-pb-msg [mesh material textures]
-  {:mesh (resource/proj-path mesh)
-   :material (resource/proj-path material)
+  {:mesh (resource/resource->proj-path mesh)
+   :material (resource/resource->proj-path material)
    :textures (mapv resource/proj-path textures)})
 
 (g/defnk produce-save-data [resource pb-msg]

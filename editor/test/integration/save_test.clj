@@ -10,12 +10,14 @@
   (:import [java.io StringReader]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
+                           "model" Model$ModelDesc
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
                            "spinemodel" Spine$SpineModelDesc})
@@ -46,7 +48,9 @@
                  "**/new.camera"
                  "**/non_default.camera"
                  "**/new.tilemap"
-                 "**/with_layers.tilemap"]]
+                 "**/with_layers.tilemap"
+                 "**/test.model"
+                 "**/empty_mesh.model"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
