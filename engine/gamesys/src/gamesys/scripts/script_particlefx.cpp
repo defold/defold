@@ -41,7 +41,7 @@ namespace dmGameSystem
      */
 
     /*# prespawn state
-     * 
+     *
      * @name particlefx.EMITTER_STATE_PRESPAWN
      * @variable
      */
@@ -62,41 +62,43 @@ namespace dmGameSystem
     {
         EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
 
-        if(data.m_LuaCallbackRef == LUA_NOREF)
+        if (data.m_LuaCallbackRef != LUA_NOREF)
         {
-            dmLogError("No callback set");
-            return;
-        }
+            int top = lua_gettop(data.m_L);
 
-        if(data.m_LuaSelfRef == LUA_NOREF)
+            lua_rawgeti(data.m_L, LUA_REGISTRYINDEX, data.m_LuaCallbackRef);
+            lua_rawgeti(data.m_L, LUA_REGISTRYINDEX, data.m_LuaSelfRef);
+            lua_pushvalue(data.m_L, -1); // SetInstance [-1, +0, e]
+            dmScript::SetInstance(data.m_L);
+
+            if (!dmScript::IsInstanceValid(data.m_L))
+            {
+                dmLogError("Could not run particlefx callback because the instance has been deleted.");
+                lua_pop(data.m_L, 2);
+                assert(top == lua_gettop(data.m_L));
+                return;
+            }
+
+            dmScript::PushHash(data.m_L, data.m_ComponentId);
+            dmScript::PushHash(data.m_L, emitter_id);
+            lua_pushnumber(data.m_L, emitter_state);
+
+            (void) dmScript::PCall(data.m_L, 4, 0);
+
+            // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
+            if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
+            {
+                lua_unref(data.m_L, data.m_LuaCallbackRef);
+                data.m_LuaCallbackRef = LUA_NOREF;
+                data.m_LuaSelfRef = LUA_NOREF;
+            }
+
+            assert(top == lua_gettop(data.m_L));
+        }
+        else
         {
-            dmLogError("Could not run callback because the instance has been deleted.");
-            return;
+            dmLogError("No callback set for particlefx.");
         }
-
-        int top = lua_gettop(data.m_L);
-
-        // push callback reference onto stack
-        lua_rawgeti(data.m_L, LUA_REGISTRYINDEX, data.m_LuaCallbackRef);
-        
-        lua_rawgeti(data.m_L, LUA_REGISTRYINDEX, data.m_LuaSelfRef);
-        dmScript::PushHash(data.m_L, data.m_ComponentId);
-        dmScript::PushHash(data.m_L, emitter_id);
-        lua_pushnumber(data.m_L, emitter_state);
-
-        int ret = dmScript::PCall(data.m_L, 4, LUA_MULTRET);
-        if(ret != 0)
-        {
-            dmLogError("error calling particle emitter callback, error: %s", lua_tostring(data.m_L, -1));
-        }
-
-        // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
-        if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
-        {
-            lua_unref(data.m_L, data.m_LuaCallbackRef);
-        }
-
-        assert(top == lua_gettop(data.m_L));
     }
 
     /*# start playing a particle FX
@@ -108,7 +110,7 @@ namespace dmGameSystem
      * @param [emitter_state_cb] optional callback that will be called when an emitter attached to this particlefx changes state.
      * @examples
      * <p>
-     * How to play a particle fx when a game object is created. 
+     * How to play a particle fx when a game object is created.
      * The callback receives the hash of the path to the particlefx, the hash of the id
      * of the emitter, and the new state of the emitter as particlefx.EMITTER_STATE_<STATE>.
      * </p>
@@ -133,7 +135,7 @@ namespace dmGameSystem
         {
             return luaL_error(L, "particlefx.play expects atleast URL as parameter");
         }
-        
+
         EmitterStateChangedScriptData data;
         char msg_buf[sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData)];
         uint32_t msg_size = 0;
@@ -152,7 +154,7 @@ namespace dmGameSystem
 
             dmScript::GetInstance(L);
             int self = luaL_ref(L, LUA_REGISTRYINDEX);
-            
+
             // path-only url (e.g. "/level/particlefx") has empty fragment, and relative path (e.g. "#particlefx") has non-empty fragment.
             if(receiver.m_Fragment == 0)
             {
@@ -177,12 +179,12 @@ namespace dmGameSystem
         }
 
         dmMessage::Post(
-            &sender, 
-            &receiver, 
-            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, 
-            (uintptr_t)instance, 
-            (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 
-            (void*)msg_buf, 
+            &sender,
+            &receiver,
+            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
+            (uintptr_t)instance,
+            (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
+            (void*)msg_buf,
             msg_size);
 
         assert(top == lua_gettop(L));
