@@ -101,7 +101,22 @@ public class XMLParam
         /** Weight */
         WEIGHT,
         /** Joint */
-        JOINT
+        JOINT,
+
+        /** The following enums is not implemented by Xith jagatoo and is added to support reading of animation (Anims and Bones) */
+        INTERPOLATION,
+        TRANSFORM,
+
+        /** The following enums is not implemented by Xith jagatoo and is added for compatibility above Collada 1.4.0 */
+        VERTEX,
+        NORMAL,
+        TEXCOORD,
+        COLOR,
+        INPUT,
+        OUTPUT,
+        INV_BIND_MATRIX,
+        POSITION,
+        OTHER
     }
 
     public Name name = null;
