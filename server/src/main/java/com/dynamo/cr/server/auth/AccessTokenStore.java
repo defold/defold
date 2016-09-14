@@ -2,6 +2,7 @@ package com.dynamo.cr.server.auth;
 
 import com.dynamo.cr.server.model.AccessToken;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.inject.persist.Transactional;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -17,6 +18,7 @@ public class AccessTokenStore {
         this.entityManagerProvider = entityManagerProvider;
     }
 
+    @Transactional
     public void store(AccessToken accessToken) {
         entityManagerProvider.get().persist(accessToken);
     }
@@ -27,6 +29,7 @@ public class AccessTokenStore {
         return query.getResultList();
     }
 
+    @Transactional
     public void delete(AccessToken accessToken) {
         EntityManager entityManager = entityManagerProvider.get();
 
