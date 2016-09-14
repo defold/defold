@@ -85,10 +85,19 @@ public class ColladaModelBuilder extends Builder<Void>  {
         out.close();
         task.output(2).setContent(out.toByteArray());
 
+
         // Skeleton
-        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+        ByteArrayInputStream skeleton_is = new ByteArrayInputStream(task.input(0).getContent());
+        Skeleton skeleton;
+        try {
+            skeleton = ColladaUtil.loadSkeleton(skeleton_is);
+        } catch (XMLStreamException e) {
+            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile skeleton", e);
+        } catch (LoaderException e) {
+            throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton", e);
+        }
         out = new ByteArrayOutputStream(64 * 1024);
-        skeletonBuilder.build().writeTo(out);
+        skeleton.writeTo(out);
         out.close();
         task.output(1).setContent(out.toByteArray());
 

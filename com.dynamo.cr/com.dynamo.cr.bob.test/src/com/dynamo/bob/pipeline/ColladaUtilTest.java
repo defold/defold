@@ -9,7 +9,9 @@ import java.util.List;
 import org.eclipse.swt.widgets.Display;
 import org.junit.Test;
 
+import com.dynamo.rig.proto.Rig.Bone;
 import com.dynamo.rig.proto.Rig.Mesh;
+import com.dynamo.rig.proto.Rig.Skeleton;
 
 public class ColladaUtilTest {
 
@@ -110,5 +112,32 @@ public class ColladaUtilTest {
         assertEquals(ue, u, 0.0001);
         assertEquals(ve, v, 0.0001);
     }
+
+    @Test
+    public void testSkeleton() throws Exception {
+        // Temp test (and temp data)
+        Skeleton skeleton = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"));
+        List<Bone> bones = skeleton.getBonesList();
+        assertEquals(65535, bones.get(0).getParent());
+        assertEquals(0,     bones.get(1).getParent());
+        assertEquals(1,     bones.get(2).getParent());
+        assertEquals(2,     bones.get(3).getParent());
+        assertEquals(3,     bones.get(4).getParent());
+        assertEquals(0,     bones.get(5).getParent());
+        assertEquals(5,     bones.get(6).getParent());
+        assertEquals(6,     bones.get(7).getParent());
+        assertEquals(7,     bones.get(8).getParent());
+        assertEquals(8,     bones.get(9).getParent());
+        assertEquals(6,     bones.get(10).getParent());
+        assertEquals(10,    bones.get(11).getParent());
+        assertEquals(11,    bones.get(12).getParent());
+        assertEquals(6,     bones.get(13).getParent());
+        assertEquals(13,    bones.get(14).getParent());
+        assertEquals(0,     bones.get(15).getParent());
+        assertEquals(15,    bones.get(16).getParent());
+        assertEquals(16,    bones.get(17).getParent());
+        assertEquals(17,    bones.get(18).getParent());
+    }
+
 
 }
