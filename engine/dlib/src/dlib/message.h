@@ -73,6 +73,8 @@ namespace dmMessage
     struct Message;
 
     /**
+     * A callback for messages that needs cleanup after being dispatched. E.g. for freeing resources/memory.
+     *
      * @see #Post
      */
     typedef void(*MessageDestroyCallback)(dmMessage::Message* message);

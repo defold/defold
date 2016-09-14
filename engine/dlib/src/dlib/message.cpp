@@ -181,8 +181,9 @@ namespace dmMessage
             Message *message_object = s->m_Header;
             while (message_object)
             {
-                if (message_object->m_DestroyCallback)
+                if (message_object->m_DestroyCallback) {
                     message_object->m_DestroyCallback(message_object);
+                }
                 message_object = message_object->m_Next;
             }
 
@@ -376,8 +377,9 @@ namespace dmMessage
         while (message_object)
         {
             dispatch_callback(message_object, user_ptr);
-            if (message_object->m_DestroyCallback)
+            if (message_object->m_DestroyCallback) {
                 message_object->m_DestroyCallback(message_object);
+            }
             message_object = message_object->m_Next;
             dispatch_count++;
         }
