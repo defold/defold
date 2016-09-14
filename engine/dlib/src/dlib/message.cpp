@@ -99,20 +99,54 @@ namespace dmMessage
     };
 
     const uint32_t MAX_SOCKETS = 256;
-    bool g_Initialized = false;
-    int32_atomic_t g_NextVersionNumber = 0;
-    dmArray<MessageSocket> g_Sockets;
-    dmIndexPool16 g_SocketPool;
+
+    struct MessageContext
+    {
+        int32_atomic_t m_NextVersionNumber;
+        dmArray<MessageSocket> m_Sockets;
+        dmIndexPool16 m_SocketPool;
+        dmMutex::Mutex  m_Mutex;
+    };
+
+    MessageContext* g_MessageContext = 0;
+
+    static MessageContext* Create(uint32_t max_sockets)
+    {
+        MessageContext* ctx = new MessageContext;
+        ctx->m_NextVersionNumber = 0;
+        ctx->m_Sockets.SetCapacity(max_sockets);
+        ctx->m_Sockets.SetSize(max_sockets);
+        memset(&ctx->m_Sockets[0], 0, sizeof(ctx->m_Sockets[0]) * max_sockets);
+        ctx->m_SocketPool.SetCapacity(max_sockets);
+        ctx->m_Mutex = dmMutex::New();
+        return ctx;
+    }
+
+    static void Destroy(MessageContext* ctx)
+    {
+        dmMutex::Delete(ctx->m_Mutex);
+    }
+
+    // Until the Create/Destroy functions are exposed:
+    // The context is created on demand, and we also need to destroy it automatically
+    struct ContextDestroyer
+    {
+        ~ContextDestroyer()
+        {
+            if (g_MessageContext)
+            {
+                Destroy(g_MessageContext);
+                delete g_MessageContext;
+                g_MessageContext = 0;
+            }
+        }
+    } g_ContextDestroyer;
 
     Result NewSocket(const char* name, HSocket* socket)
     {
-        if (!g_Initialized)
+        if (g_MessageContext == 0)
         {
-            g_Sockets.SetCapacity(MAX_SOCKETS);
-            g_Sockets.SetSize(MAX_SOCKETS);
-            memset(&g_Sockets[0], 0, sizeof(g_Sockets[0]) * MAX_SOCKETS);
-            g_SocketPool.SetCapacity(MAX_SOCKETS);
-            g_Initialized = true;
+            g_MessageContext = Create(MAX_SOCKETS);
         }
         if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
         {
@@ -125,28 +159,31 @@ namespace dmMessage
             return RESULT_SOCKET_EXISTS;
         }
 
-        if (g_SocketPool.Remaining() == 0)
+        if (g_MessageContext->m_SocketPool.Remaining() == 0)
         {
             return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
 
-        uint16_t id  = g_SocketPool.Pop();
+        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+
+        uint16_t id = g_MessageContext->m_SocketPool.Pop();
+
         dmhash_t name_hash = dmHashString64(name);
 
         MessageSocket s;
         s.m_Header = 0;
         s.m_Tail = 0;
         s.m_NameHash = name_hash;
-        s.m_Version = dmAtomicIncrement32(&g_NextVersionNumber);
+        s.m_Version = dmAtomicIncrement32(&g_MessageContext->m_NextVersionNumber);
         s.m_Name = strdup(name);
         s.m_Mutex = dmMutex::New();
         s.m_Condition = dmConditionVariable::New();
 
         // 0 is an invalid handle. We can't use 0 as version number.
         if (s.m_Version == 0)
-            s.m_Version = dmAtomicIncrement32(&g_NextVersionNumber);
+            s.m_Version = dmAtomicIncrement32(&g_MessageContext->m_NextVersionNumber);
 
-        g_Sockets[id] = s;
+        g_MessageContext->m_Sockets[id] = s;
         *socket = s.m_Version << 16 | id;
 
         return RESULT_OK;
@@ -161,10 +198,12 @@ namespace dmMessage
 
             uint16_t id = socket & 0xffff;
 
-            if (id < g_Sockets.Size())
+            if (id < g_MessageContext->m_Sockets.Size())
             {
-                MessageSocket* s = &g_Sockets[id];
-                assert(s->m_Version == version);
+                MessageSocket* s = &g_MessageContext->m_Sockets[id];
+                if (s->m_Version != version)
+                    return 0x0;
+
                 out_id = id;
                 return s;
             }
@@ -174,10 +213,15 @@ namespace dmMessage
 
     Result DeleteSocket(HSocket socket)
     {
+        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+
         uint16_t id;
         MessageSocket* s = GetSocketInternal(socket, id);
         if (s != 0x0)
         {
+            dmMutex::Mutex mutex = s->m_Mutex;
+            dmMutex::Lock(mutex);
+
             free((void*) s->m_Name);
 
             MemoryPage* p = s->m_Allocator.m_FreePages;
@@ -198,10 +242,13 @@ namespace dmMessage
                 delete s->m_Allocator.m_CurrentPage;
 
             dmConditionVariable::Delete(s->m_Condition);
-            dmMutex::Delete(s->m_Mutex);
 
             memset(s, 0, sizeof(*s));
-            g_SocketPool.Push(id);
+
+            dmMutex::Unlock(mutex);
+            dmMutex::Delete(mutex);
+
+            g_MessageContext->m_SocketPool.Push(id);
             return RESULT_OK;
         }
         return RESULT_SOCKET_NOT_FOUND;
@@ -215,10 +262,13 @@ namespace dmMessage
         {
             return RESULT_INVALID_SOCKET_NAME;
         }
+
+        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+
         dmhash_t name_hash = dmHashString64(name);
-        for (uint32_t i = 0; i < g_Sockets.Size(); ++i)
+        for (uint32_t i = 0; i < g_MessageContext->m_Sockets.Size(); ++i)
         {
-            MessageSocket* socket = &g_Sockets[i];
+            MessageSocket* socket = &g_MessageContext->m_Sockets[i];
             if (socket->m_NameHash == name_hash)
             {
                 *out_socket = socket->m_Version << 16 | i;
@@ -230,8 +280,10 @@ namespace dmMessage
 
     const char* GetSocketName(HSocket socket)
     {
-        uint16_t index;
-        MessageSocket* message_socket = GetSocketInternal(socket, index);
+        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+
+        uint16_t id;
+        MessageSocket* message_socket = GetSocketInternal(socket, id);
         if (message_socket != 0x0)
         {
             return message_socket->m_Name;
@@ -251,9 +303,9 @@ namespace dmMessage
 
             uint16_t id = socket & 0xffff;
 
-            if (id < g_Sockets.Size())
+            if (id < g_MessageContext->m_Sockets.Size())
             {
-                MessageSocket* s = &g_Sockets[id];
+                MessageSocket* s = &g_MessageContext->m_Sockets[id];
                 return s->m_Version == version;
             }
         }
@@ -262,17 +314,15 @@ namespace dmMessage
 
     bool HasMessages(HSocket socket)
     {
+        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
         uint16_t id;
-        MessageSocket*s = GetSocketInternal(socket, id);
-        dmMutex::Lock(s->m_Mutex);
-        bool has_messages = false;
-        if (s->m_Header)
+        MessageSocket* s = GetSocketInternal(socket, id);
+        if (s != 0)
         {
-            has_messages = true;
+            DM_MUTEX_SCOPED_LOCK(s->m_Mutex);
+            return s->m_Header != 0;
         }
-        dmMutex::Unlock(s->m_Mutex);
-
-        return has_messages;
+        return false;
     }
 
     void ResetURL(const URL& url)
@@ -291,14 +341,20 @@ namespace dmMessage
         {
             return RESULT_SOCKET_NOT_FOUND;
         }
+
+        dmMutex::Lock(g_MessageContext->m_Mutex);
+
         uint16_t socket_id;
         MessageSocket* s = GetSocketInternal(receiver->m_Socket, socket_id);
         if (s == 0x0)
         {
+            dmMutex::Unlock(g_MessageContext->m_Mutex);
             return RESULT_SOCKET_NOT_FOUND;
         }
 
         dmMutex::Lock(s->m_Mutex);
+        dmMutex::Unlock(g_MessageContext->m_Mutex);
+
         MemoryAllocator* allocator = &s->m_Allocator;
         uint32_t data_size = sizeof(Message) + message_data_size;
         Message *new_message = (Message *) AllocateMessage(allocator, data_size);
@@ -336,11 +392,20 @@ namespace dmMessage
 
     uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
     {
+        dmMutex::Lock(g_MessageContext->m_Mutex);
+
         uint16_t id;
-        MessageSocket*s = GetSocketInternal(socket, id);
+        MessageSocket* s = GetSocketInternal(socket, id);
+        if (s == 0)
+        {
+            dmMutex::Unlock(g_MessageContext->m_Mutex);
+            return 0;
+        }
         DM_PROFILE(Message, dmProfile::Internalize(s->m_Name));
 
         dmMutex::Lock(s->m_Mutex);
+        dmMutex::Unlock(g_MessageContext->m_Mutex);
+
         MemoryAllocator* allocator = &s->m_Allocator;
 
         if (!s->m_Header)
@@ -359,7 +424,7 @@ namespace dmMessage
         s->m_Tail = 0;
 
         // Unlink full pages
-        MemoryPage*full_pages = allocator->m_FullPages;
+        MemoryPage* full_pages = allocator->m_FullPages;
         allocator->m_FullPages = 0;
 
         dmMutex::Unlock(s->m_Mutex);
