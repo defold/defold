@@ -7,8 +7,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
+import org.codehaus.jackson.JsonNode;
 import org.jagatoo.loaders.models.collada.Rotations;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
@@ -40,12 +42,14 @@ import org.openmali.vecmath2.Vector3f;
 
 
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.RigUtil;
 
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil.AbstractAnimationTrack;
 import com.dynamo.bob.util.RigUtil.AnimationCurve;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.AnimationTrack.Property;
+import com.dynamo.bob.util.SpineSceneUtil.JsonUtil;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -59,33 +63,6 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 
 public class ColladaUtil {
-    
-
-    public static class AnimationCurve {
-        public float x0;
-        public float y0;
-        public float x1;
-        public float y1;
-    }
-
-    public static class AnimationKey {
-        public float t;
-        public float[] value = new float[4];
-        public boolean stepped;
-        public AnimationCurve curve;
-    }
-
-    public static abstract class AbstractAnimationTrack<Key extends AnimationKey> {
-        public List<Key> keys = new ArrayList<Key>();
-    }
-
-    public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
-        public enum Property {
-            POSITION, ROTATION, SCALE
-        }
-        public Bone bone;
-        public Property property;
-    }
     
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
@@ -151,47 +128,104 @@ public class ColladaUtil {
         return samplersLUT;
     }
     
-//    private static <T,Key extends ColladaUtil.AnimationKey> void sampleTrack(ColladaUtil.AbstractAnimationTrack<Key> track, PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
-//        if (track.keys.isEmpty()) {
-//            return;
-//        }
-//        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
-//        int keyIndex = 0;
-//        int keyCount = track.keys.size();
-//        Key key = null;
-//        Key next = track.keys.get(keyIndex);
-//        T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
-//        for (int i = 0; i < sampleCount; ++i) {
-//            double cursor = i * spf;
-//            // Skip passed keys
-//            while (next != null && next.t <= cursor) {
-//                key = next;
-//                ++keyIndex;
-//                if (keyIndex < keyCount) {
-//                    next = track.keys.get(keyIndex);
-//                } else {
-//                    next = null;
-//                }
-//            }
-//            if (key != null) {
-//                if (next != null) {
-//                    if (key.stepped || !interpolate) {
-//                        // Stepped sampling only uses current key
-//                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
-//                    } else {
-//                        // Normal sampling
+    private static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty()) {
+            return;
+        }
+        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        int keyIndex = 0;
+        int keyCount = track.keys.size();
+        Key key = null;
+        Key next = track.keys.get(keyIndex);
+        T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
+        for (int i = 0; i < sampleCount; ++i) {
+            double cursor = i * spf;
+            // Skip passed keys
+            while (next != null && next.t <= cursor) {
+                key = next;
+                ++keyIndex;
+                if (keyIndex < keyCount) {
+                    next = track.keys.get(keyIndex);
+                } else {
+                    next = null;
+                }
+            }
+            if (key != null) {
+                if (next != null) {
+                    if (key.stepped || !interpolate) {
+                        // Stepped sampling only uses current key
+                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                    } else {
+                        // Normal sampling
 //                        sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                    }
+                } else {
+                    // Last key reached, use its value for remaining samples
+                    propertyBuilder.addComposite(endValue);
+                }
+            } else {
+                // No valid key yet, use default value
+                propertyBuilder.addComposite(defaultValue);
+            }
+        }
+    }
+    
+    private static void loadTrack(XMLAnimation animation, RigUtil.AnimationTrack track) {
+        float[] t = animation.getInput();
+        float[] outputs = animation.getOutput();
+        
+        boolean hasCurve = false;
+        float[] inTangents = animation.getInTangents();
+        float[] outTangents = animation.getOutTangents();
+        if (inTangents != null && outTangents != null) {
+            hasCurve = true;
+        }
+        
+        for (int i = 0; i < t.length; i++) {
+            AnimationKey key = new AnimationKey();
+            key.t = t[i];
+            switch (track.property) {
+            case POSITION_COMPONENT:
+                key.value = new float[] {outputs[i], 0.0f, 0.0f};
+                break;
+            default:
+                System.out.println("loadTrack for " + track.property.toString() + " not implemented yet!");
+                break;
+            }
+//            case ROTATION:
+//                // See the comment above why this is done for rotations
+//                float angles = JsonUtil.get(keyNode, "angle", 0.0f);
+//                if (prevAngles != null) {
+//                    float diff = angles - prevAngles;
+//                    if (Math.abs(diff) > 180.0f) {
+//                        angles += 360.0f * -Math.signum(diff);
 //                    }
-//                } else {
-//                    // Last key reached, use its value for remaining samples
-//                    propertyBuilder.addComposite(endValue);
 //                }
-//            } else {
-//                // No valid key yet, use default value
-//                propertyBuilder.addComposite(defaultValue);
+//                prevAngles = angles;
+//                key.value = new float[] {angles};
+//                break;
+//            case SCALE:
+//                key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};
+//                break;
 //            }
-//        }
-//    }
+//            if (keyNode.has("curve")) {
+//                JsonNode curveNode = keyNode.get("curve");
+            if (hasCurve) {
+                AnimationCurve curve = new AnimationCurve();
+                curve.x0 = (float)inTangents[i*2];
+                curve.y0 = (float)inTangents[i*2+1];
+                curve.x1 = (float)outTangents[i*2];
+                curve.y1 = (float)outTangents[i*2+1];
+                key.curve = curve;
+            }
+            /*
+            else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
+                key.stepped = true;
+            }
+            */
+            track.keys.add(key);
+        }
+    }
 
     private static RigAnimation toDDF(com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
         RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
@@ -208,19 +242,29 @@ public class ColladaUtil {
             if (boneToAnimations.containsKey(bone.getId())) {
                 HashMap<String, XMLAnimation> propAnimations = boneToAnimations.get(bone.getId());
 
-                com.dynamo.rig.proto.Rig.AnimationTrack.Builder trackBuilder = com.dynamo.rig.proto.Rig.AnimationTrack.newBuilder();
-                trackBuilder.setBoneIndex(bi);
+//                com.dynamo.rig.proto.Rig.AnimationTrack.Builder trackBuilder = com.dynamo.rig.proto.Rig.AnimationTrack.newBuilder();
+//                trackBuilder.setBoneIndex(bi);
                 
                 // Positions
                 if (propAnimations.containsKey("location.X") || propAnimations.containsKey("location.Y") || propAnimations.containsKey("location.Z")) {
-                    XMLAnimation locX = propAnimations.get("location.X");
-                    XMLAnimation locY = propAnimations.get("location.Y");
-                    XMLAnimation locZ = propAnimations.get("location.Z");
                     
-                    float[] positions = new float[sampleCount];
-                    for (int i = 0; i < locX.getOutput().length; i++) {
-                        
+                    if (propAnimations.containsKey("location.X")) {
+                        XMLAnimation locX = propAnimations.get("location.X");
+                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+//                        track.bone = getBone(boneName);
+                        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
+                        loadTrack(locX, track);
                     }
+//                    XMLAnimation locY = propAnimations.get("location.Y");
+//                    XMLAnimation locZ = propAnimations.get("location.Z");
+                    
+//                    float[] positions = new float[sampleCount*3];
+//                    for (int i = 0; i < locX.getOutput().length; i++) {
+//                        
+//                    }
+
+//                    loadTrack(propAnimations, track);
+//                    animation.tracks.add(track);
                     //trackBuilder.addAllPositions(positions);
                     
                 }
@@ -228,7 +272,7 @@ public class ColladaUtil {
 
                 // TODO rotations and scale
 
-                animBuilder.addTracks(trackBuilder.build());
+//                animBuilder.addTracks(trackBuilder.build());
             }
         }
         
@@ -241,6 +285,9 @@ public class ColladaUtil {
     public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) {
 
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
+        if (collada.libraryAnimations.size() != 1) {
+            return animationSetBuilder.build();
+        }
 
         // We only support one model per scene for now, get first geo entry.
         ArrayList<XMLLibraryGeometries> geometries = collada.libraryGeometries;
@@ -272,7 +319,7 @@ public class ColladaUtil {
                 String boneTarget = targetParts[0];
                 String propertyTarget = targetParts[1];
 
-                if (!boneToAnimations.containsKey(boneTarget)) {
+                if (!boneToAnimations.containsKey(MurmurHash.hash64(boneTarget))) {
                     boneToAnimations.put(MurmurHash.hash64(boneTarget), new HashMap<String, XMLAnimation>());
                 }
                 boneToAnimations.get(MurmurHash.hash64(boneTarget)).put(propertyTarget, animation);
@@ -440,6 +487,18 @@ public class ColladaUtil {
             return skeletonBuilder.build();
         }
 
+        // We only support one model per scene for now, get first geo entry.
+        ArrayList<XMLLibraryGeometries> geometries = collada.libraryGeometries;
+        String geometryName = "";
+        for (XMLGeometry geometry : geometries.get(0).geometries.values()) {
+            geometryName = geometry.name;
+            break;
+        }
+
+        // Add a fake root bone that mesh animation is performed upon
+        ArrayList<com.dynamo.rig.proto.Rig.Bone> bones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
+        Bone fakeRootBone = new Bone(geometryName, geometryName, Matrix4f.IDENTITY, Quaternion4f.IDENTITY);
+
         XMLNode rootNode = null;
         for ( XMLVisualScene scene : collada.libraryVisualScenes.get(0).scenes.values() ) {
             for ( XMLNode node : scene.nodes.values() ) {
@@ -449,6 +508,7 @@ public class ColladaUtil {
                 }
             }
         }
+        
         if(rootNode != null) {
             Vector3f upVector = new Vector3f(0.0f, 1.0f, 0.0f);
             Point3f skeletonPos;
@@ -459,12 +519,13 @@ public class ColladaUtil {
             Bone rootBone = new Bone( rootNode.sid, rootNode.name, localToWorld, new Quaternion4f( 0f, 0f, 0f, 1f ) );
             ArrayList<Bone> boneList = new ArrayList<Bone>();
             loadJoint( localToWorld, rootNode, upVector, Point3f.ZERO, Point3f.ZERO, rootBone, boneList );
-
-            ArrayList<com.dynamo.rig.proto.Rig.Bone> bones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
-            toDDF(bones, rootBone, 0xffff);
-
-            skeletonBuilder.addAllBones(bones);
+    
+            fakeRootBone.addChild(rootBone);            
         }
+        
+        toDDF(bones, fakeRootBone, 0xffff);
+
+        skeletonBuilder.addAllBones(bones);
         return skeletonBuilder.build();
     }
 

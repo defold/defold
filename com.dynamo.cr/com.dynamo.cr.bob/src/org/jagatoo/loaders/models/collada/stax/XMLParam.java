@@ -106,6 +106,8 @@ public class XMLParam
         /** The following enums is not implemented by Xith jagatoo and is added to support reading of animation (Anims and Bones) */
         INTERPOLATION,
         TRANSFORM,
+        IN_TANGENT,
+        OUT_TANGENT,
 
         /** The following enums is not implemented by Xith jagatoo and is added for compatibility above Collada 1.4.0 */
         VERTEX,

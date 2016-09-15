@@ -10,6 +10,7 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
+import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 
 /**
  * Convenience class for loading spine json data.
@@ -158,7 +159,7 @@ public class RigUtil {
 
     public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
         public enum Property {
-            POSITION, ROTATION, SCALE
+            POSITION, ROTATION, SCALE, POSITION_COMPONENT
         }
         public Bone bone;
         public Property property;
@@ -214,7 +215,7 @@ public class RigUtil {
         public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
 
-    private class Weight implements Comparable<Weight> {
+    public class Weight implements Comparable<Weight> {
         public Point3d p;
         public int boneIndex;
         public float weight;
@@ -233,6 +234,280 @@ public class RigUtil {
         @Override
         public int compareTo(Weight o) {
             return o.toCompInt() - toCompInt();
+        }
+    }
+    
+
+    public interface PropertyBuilder<T, Key extends RigUtil.AnimationKey> {
+        void addComposite(T v);
+        void add(double v);
+        T toComposite(Key key);
+    }
+
+    public static abstract class AbstractPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.AnimationKey> {
+        protected com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder;
+
+        public AbstractPropertyBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
+            this.builder = builder;
+        }
+    }
+
+    public static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.IKAnimationKey> {
+        protected com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder;
+
+        public AbstractIKPropertyBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
+            this.builder = builder;
+        }
+    }
+
+    public static abstract class AbstractMeshPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.SlotAnimationKey> {
+        protected MeshAnimationTrack.Builder builder;
+
+        public AbstractMeshPropertyBuilder(MeshAnimationTrack.Builder builder) {
+            this.builder = builder;
+        }
+    }
+
+    public static class PositionBuilder extends AbstractPropertyBuilder<Point3d> {
+        public PositionBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Point3d v) {
+            builder.addPositions((float)v.x).addPositions((float)v.y).addPositions((float)v.z);
+
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addPositions((float)v);
+        }
+
+        @Override
+        public Point3d toComposite(RigUtil.AnimationKey key) {
+            float[] v = key.value;
+            return new Point3d(v[0], v[1], 0.0);
+        }
+    }
+    
+    public static Quat4d toQuat(double angle) {
+        double halfRad = 0.5 * angle * Math.PI / 180.0;
+        double c = Math.cos(halfRad);
+        double s = Math.sin(halfRad);
+        return new Quat4d(0.0, 0.0, s, c);
+    }
+
+    public static class RotationBuilder extends AbstractPropertyBuilder<Quat4d> {
+        public RotationBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Quat4d v) {
+            this.builder.addRotations((float)v.x).addRotations((float)v.y).addRotations((float)v.z).addRotations((float)v.w);
+        }
+
+        @Override
+        public void add(double v) {
+            addComposite(toQuat(v));
+        }
+
+        @Override
+        public Quat4d toComposite(RigUtil.AnimationKey key) {
+            float[] v = key.value;
+            return toQuat(v[0]);
+        }
+    }
+
+    public static class ScaleBuilder extends AbstractPropertyBuilder<Vector3d> {
+        public ScaleBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Vector3d v) {
+            builder.addScale((float)v.x).addScale((float)v.y).addScale((float)v.z);
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addScale((float)v);
+        }
+
+        @Override
+        public Vector3d toComposite(RigUtil.AnimationKey key) {
+            float[] v = key.value;
+            return new Vector3d(v[0], v[1], 1.0);
+        }
+    }
+
+    public static class IKMixBuilder extends AbstractIKPropertyBuilder<Float> {
+        public IKMixBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Float value) {
+            builder.addMix(value);
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addMix((float)v);
+        }
+
+        @Override
+        public Float toComposite(RigUtil.IKAnimationKey key) {
+            return new Float(key.mix);
+        }
+    }
+
+    public static class IKPositiveBuilder extends AbstractIKPropertyBuilder<Boolean> {
+        public IKPositiveBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Boolean value) {
+            builder.addPositive(value);
+        }
+
+        @Override
+        public void add(double v) {
+            throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public Boolean toComposite(RigUtil.IKAnimationKey key) {
+            return new Boolean(key.positive);
+        }
+    }
+
+    public static class ColorBuilder extends AbstractMeshPropertyBuilder<float[]> {
+        public ColorBuilder(MeshAnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(float[] c) {
+            builder.addColors(c[0]).addColors(c[1]).addColors(c[2]).addColors(c[3]);
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addColors((float)v);
+        }
+
+        @Override
+        public float[] toComposite(RigUtil.SlotAnimationKey key) {
+            return key.value;
+        }
+    }
+
+    public static class VisibilityBuilder extends AbstractMeshPropertyBuilder<Boolean> {
+        private String meshName;
+
+        public VisibilityBuilder(MeshAnimationTrack.Builder builder, String meshName) {
+            super(builder);
+            this.meshName = meshName;
+        }
+
+        @Override
+        public void addComposite(Boolean value) {
+            builder.addVisible(value);
+        }
+
+        @Override
+        public void add(double v) {
+            throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public Boolean toComposite(RigUtil.SlotAnimationKey key) {
+            return this.meshName.equals(key.attachment);
+        }
+    }
+
+    public static class DrawOrderBuilder extends AbstractMeshPropertyBuilder<Integer> {
+        public DrawOrderBuilder(MeshAnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Integer value) {
+            builder.addOrderOffset(value);
+        }
+
+        @Override
+        public void add(double v) {
+            throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public Integer toComposite(RigUtil.SlotAnimationKey key) {
+            return key.orderOffset;
+        }
+    }
+    
+
+    private static double evalCurve(RigUtil.AnimationCurve curve, double x) {
+        if (curve == null) {
+            return x;
+        }
+        double t = BezierUtil.findT(x, 0.0, curve.x0, curve.x1, 1.0);
+        return BezierUtil.curve(t, 0.0, curve.y0, curve.y1, 1.0);
+    }
+
+    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
+        double length = t1 - t0;
+        double t = (cursor - t0) / length;
+        for (int i = 0; i < v0.length; ++i) {
+            double y = evalCurve(curve, t);
+            double v = (1.0 - y) * v0[i] + y * v1[i];
+            builder.add(v);
+        }
+    }
+
+    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty()) {
+            return;
+        }
+        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        int keyIndex = 0;
+        int keyCount = track.keys.size();
+        Key key = null;
+        Key next = track.keys.get(keyIndex);
+        T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
+        for (int i = 0; i < sampleCount; ++i) {
+            double cursor = i * spf;
+            // Skip passed keys
+            while (next != null && next.t <= cursor) {
+                key = next;
+                ++keyIndex;
+                if (keyIndex < keyCount) {
+                    next = track.keys.get(keyIndex);
+                } else {
+                    next = null;
+                }
+            }
+            if (key != null) {
+                if (next != null) {
+                    if (key.stepped || !interpolate) {
+                        // Stepped sampling only uses current key
+                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                    } else {
+                        // Normal sampling
+                        sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                    }
+                } else {
+                    // Last key reached, use its value for remaining samples
+                    propertyBuilder.addComposite(endValue);
+                }
+            } else {
+                // No valid key yet, use default value
+                propertyBuilder.addComposite(defaultValue);
+            }
         }
     }
 }

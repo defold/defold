@@ -98,6 +98,20 @@ public class XMLAnimation {
     }
 
     /**
+     * @return a float array with in tangents for all key frames
+     */
+    public float[] getInTangents() {
+        return getSource( samplers.get( 0 ).getInput( "IN_TANGENT" ).source ).floatArray.floats;
+    }
+
+    /**
+     * @return a float array with out tangents for all key frames
+     */
+    public float[] getOutTangents() {
+        return getSource( samplers.get( 0 ).getInput( "OUT_TANGENT" ).source ).floatArray.floats;
+    }
+
+    /**
      * Tells if the animation contains transformation key frames or rotation key frames
      */
     public ChannelType getType() {
