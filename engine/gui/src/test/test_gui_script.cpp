@@ -434,6 +434,46 @@ TEST_F(dmGuiScriptTest, TestSlice9)
     dmGui::DeleteScript(script);
 }
 
+
+TEST_F(dmGuiScriptTest, TestSizeMode)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    dmGui::Result result;
+
+    int t1, ts1;
+    result = dmGui::AddTexture(scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
+    ASSERT_EQ(result, dmGui::RESULT_OK);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n = gui.new_box_node(vmath.vector3(0, 0, 0), vmath.vector3(10, 10, 0))\n"
+            "    gui.set_texture(n, 't1')\n"
+            "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_MANUAL)\n"
+            "    assert(gui.get_size(n) == vmath.vector3(10, 10, 0))\n"
+            "    gui.set_size_mode(n, gui.SIZE_MODE_AUTOMATIC)\n"
+            "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_AUTOMATIC)\n"
+            "    assert(gui.get_size(n) == vmath.vector3(1, 1, 0))\n"
+            "end\n";
+
+    result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
