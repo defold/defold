@@ -117,7 +117,7 @@ def add_native_libs(platform, in_jar_name, out_jar):
                 print "adding", n
                 out_jar.writestr(n, d)
 
-def bundle_natives(in_jar_name, out_jar_name):
+def bundle_natives(in_jar_name, out_jar_name, ext_lib_path):
     with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
         for platform in ['x86-linux', 'x86_64-linux', 'x86_64-darwin', 'x86-win32']:
             jogl_platform = platform_to_jogl[platform]
@@ -137,15 +137,20 @@ def bundle_natives(in_jar_name, out_jar_name):
         sha1 = git_sha1()
 
         artifacts = {'x86_64-darwin' : {'exes' : ['dmengine', 'dmengine_release'],
-                                        'libs' : ['libparticle_shared.dylib', 'libtexc_shared.dylib'] },
+                                        'libs' : ['libparticle_shared.dylib', 'libtexc_shared.dylib'],
+                                        'ext_libs' : [] },
                      'x86-win32' : {'exes' : ['dmengine.exe', 'dmengine_release.exe'],
-                                    'libs' : ['particle_shared.dll', 'texc_shared.dll'] },
+                                    'libs' : ['particle_shared.dll', 'texc_shared.dll'],
+                                    'ext_libs' : ['OpenAL32.dll'] },
                      'x86-linux' : {'exes' : ['dmengine', 'dmengine_release'],
-                                    'libs' : ['libparticle_shared.so', 'libtexc_shared.so'] },
+                                    'libs' : ['libparticle_shared.so', 'libtexc_shared.so'],
+                                    'ext_libs' : [] },
                      'x86_64-linux' : {'exes' : ['dmengine', 'dmengine_release'],
-                                       'libs' : ['libparticle_shared.so', 'libtexc_shared.so'] }}
+                                       'libs' : ['libparticle_shared.so', 'libtexc_shared.so'],
+                                       'ext_libs' : [] }}
 
         base_url = 'http://d.defold.com/archive/%s/engine' % (sha1)
+
         for p in artifacts.keys():
             for l in artifacts[p]['libs']:
                 url = '%s/%s/%s' % (base_url, platform_to_legacy_java[p], l)
@@ -158,6 +163,10 @@ def bundle_natives(in_jar_name, out_jar_name):
                 path = download(url, use_cache = False)
                 out_jar.write(path, 'libexec/%s/%s' % (p, e))
                 os.unlink(path)
+
+            for e in artifacts[p]['ext_libs']:
+                path = '%s/%s/%s' % (ext_lib_path, platform_to_legacy[p], e)
+                out_jar.write(path, 'libexec/%s/%s' % (p, e))
 
         with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
             for zi in in_jar.infolist():
@@ -244,7 +253,7 @@ def bundle(platform, options):
         config.write(f)
 
     jar_file = 'defold-%s.jar' % sha1
-    bundle_natives('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/%s' % (packages_dir, jar_file))
+    bundle_natives('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/%s' % (packages_dir, jar_file), options.ext_lib_path)
     shutil.copy('%s/%s' % (packages_dir, jar_file), 'target/editor/update/%s' % jar_file)
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
@@ -280,6 +289,10 @@ if __name__ == '__main__':
                       default = None,
                       help = 'Specific local launcher. Useful when testing bundling.')
 
+    parser.add_option('--ext-lib-path', dest='ext_lib_path',
+                      default = None,
+                      help = 'Where to look for external libraries, e.g. $DYNAMO_HOME/ext/lib')
+
     options, all_args = parser.parse_args()
 
     if not options.target_platform:
@@ -287,6 +300,9 @@ if __name__ == '__main__':
 
     if not options.version:
         parser.error('No version specified')
+
+    if not options.ext_lib_path:
+        parser.error('No ext-lib-path specified')
 
     if os.path.exists('target/editor'):
         shutil.rmtree('target/editor')
