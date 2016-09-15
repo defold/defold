@@ -172,9 +172,11 @@
             (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
           (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
         (do
-          (log/warn :msg (properties/error-message save-data)))))
+          (ui/run-later
+            (throw (Exception. ^String (properties/error-message save-data)))))))
     (catch Exception e
-      (log/error :exception e))))
+      (ui/run-later
+        (throw e)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
