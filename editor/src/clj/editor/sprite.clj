@@ -177,7 +177,7 @@
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (resource/resource->proj-path image)
                :default-animation default-animation
-               :material (resource/proj-path material)
+               :material (resource/resource->proj-path material)
                :blend-mode blend-mode})})
 
 (defn anim-uvs [anim]
@@ -207,18 +207,25 @@
     {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc pb)}))
 
 (g/defnk produce-build-targets [_node-id resource image default-animation material blend-mode dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-sprite
-      :user-data {:proto-msg {:tile-set (resource/proj-path image)
-                              :default-animation default-animation
-                              :material (resource/proj-path material)
-                              :blend-mode blend-mode}
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+  (or (when-let [errors (->> [[image :image "Image"]
+                              [material :material "Material"]]
+                             (keep (fn [[v prop-kw name]]
+                                     (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
+                             not-empty)]
+        (g/error-aggregate errors))
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+            dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
+        
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-sprite
+          :user-data {:proto-msg {:tile-set (resource/proj-path image)
+                                  :default-animation default-animation
+                                  :material (resource/proj-path material)
+                                  :blend-mode blend-mode}
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
