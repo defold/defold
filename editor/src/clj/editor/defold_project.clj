@@ -66,16 +66,18 @@
 (defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
-      (try
-        (when *load-cache*
-          (swap! *load-cache* conj node-id))
-        (concat
-         (load-fn project node-id resource)
-         (when (instance? FileResource resource)
-           (g/connect node-id :save-data project :save-data)))
-        (catch Exception e
-          (log/warn :exception e)
-          (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+      (if (resource/exists? resource)
+        (try
+          (when *load-cache*
+            (swap! *load-cache* conj node-id))
+          (concat
+            (load-fn project node-id resource)
+            (when (instance? FileResource resource)
+              (g/connect node-id :save-data project :save-data)))
+          (catch Exception e
+            (log/warn :exception e)
+            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :invalid-content})))
       [])))
 
 (defn load-resource-nodes [project node-ids render-progress!]
