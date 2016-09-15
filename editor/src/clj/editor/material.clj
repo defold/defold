@@ -175,6 +175,10 @@
      :min-filter (filter-mode-min->gl (:filter-min s))
      :mag-filter (filter-mode-mag->gl (:filter-mag s))}))
 
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 (g/defnode MaterialNode
   (inherits project/ResourceNode)
 
@@ -187,7 +191,8 @@
            (project/resource-setter basis self old-value new-value
                                         [:resource :vertex-resource]
                                         [:full-source :vertex-source])))
-    (validate (validation/validate-resource vertex-program)))
+    (dynamic error (g/fnk [_node-id vertex-program]
+                          (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program"))))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/always false))
@@ -196,7 +201,8 @@
            (project/resource-setter basis self old-value new-value
                                         [:resource :fragment-resource]
                                         [:full-source :fragment-source])))
-    (validate (validation/validate-resource fragment-program)))
+    (dynamic error (g/fnk [_node-id fragment-program]
+                          (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program"))))
 
   (output form-data g/Any :cached produce-form-data)
 

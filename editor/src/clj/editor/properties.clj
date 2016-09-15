@@ -7,7 +7,6 @@
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.validation :as validation]
             [editor.core :as core]
             [schema.core :as s]
             [util.id-vec :as iv])
@@ -342,7 +341,7 @@
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
                                               :values (mapv :value v)
-                                              :validation-problems (mapv :validation-problems v)
+                                              :errors (mapv :error v)
                                               :edit-type (property-edit-type (first v))
                                               :label (:label (first v))
                                               :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
@@ -354,15 +353,12 @@
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
-  (mapv (fn [value default-value validation-problem]
-          (if-not (nil? validation-problem)
-            (:value validation-problem)
-            (if-not (nil? value)
-              value
-              default-value)))
+  (mapv (fn [value default-value]
+          (if-not (nil? value)
+            value
+            default-value))
         (:values property)
-        (:original-values property (repeat nil))
-        (:validation-problems property)))
+        (:original-values property (repeat nil))))
 
 (defn- set-values [basis property values]
   (let [key (:key property)
@@ -428,9 +424,22 @@
 (defn overridden? [property]
   (and (contains? property :original-values) (not-every? nil? (:values property))))
 
+(defn- error-seq [e]
+  (tree-seq :causes :causes e))
+
+(defn- error-messages [e]
+  (distinct (keep :message (error-seq e))))
+
+(defn error-message [e]
+  (str/join "\n" (error-messages e)))
+
+(defn error-aggregate [vals]
+  (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
+    (g/error-aggregate errors)))
+
 (defn validation-message [property]
-  (when-let [err (validation/error-aggregate (:validation-problems property))]
-    {:severity (:severity err) :message (validation/error-message err)}))
+  (when-let [err (error-aggregate (:errors property))]
+    {:severity (:severity err) :message (error-message err)}))
 
 (defn clear-override! [property]
   (when (overridden? property)

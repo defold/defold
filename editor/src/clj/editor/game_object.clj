@@ -1,5 +1,6 @@
 (ns editor.game-object
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [schema.core :as s]
@@ -79,11 +80,18 @@
    :icon ""
    :label ""})
 
+(defn- prop-id-duplicate? [id-counts id]
+  (when (> (id-counts id) 1)
+    (format "'%s' is in use by another instance" id)))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
-  (property id g/Str)
+  (property id g/Str
+            (dynamic error (g/fnk [_node-id id id-counts]
+                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
+                                      (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/always true)))
@@ -95,6 +103,7 @@
   (input scene g/Any)
   (input build-targets g/Any)
   (input base-url g/Str)
+  (input id-counts g/Any)
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
@@ -178,9 +187,9 @@
                                                   [:user-properties :user-properties]
                                                   [:scene :scene]
                                                   [:build-targets :build-targets]))))))
-            (validate (g/fnk [path]
-                        (when (nil? path)
-                          (g/error-warning "Missing component")))))
+            (dynamic error (g/fnk [_node-id source-resource]
+                                  (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
+                                      (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
   (output ddf-properties g/Any :cached
@@ -222,12 +231,15 @@
         msg {:components instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 
-(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-game-object
-    :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
-    :deps (flatten dep-build-targets)}])
+(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets id-counts]
+  (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
+        (when (not-empty dup-ids)
+          (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-game-object
+        :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
+        :deps (flatten dep-build-targets)}]))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
@@ -240,15 +252,15 @@
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
                      [:ddf-message ddf-input]
-                     [:component-id :component-ids]
+                     [:component-id :component-id-pairs]
                      [:scene :child-scenes]]]
       (g/connect comp-id from self-id to))
-    (for [[from to] [[:base-url :base-url]]]
+    (for [[from to] [[:base-url :base-url]
+                     [:id-counts :id-counts]]]
       (g/connect self-id from comp-id to))))
 
 (defn- attach-ref-component [self-id comp-id]
-  (concat
-    (attach-component self-id comp-id :ref-ddf)))
+  (attach-component self-id comp-id :ref-ddf))
 
 (defn- attach-embedded-component [self-id comp-id]
   (attach-component self-id comp-id :embed-ddf))
@@ -269,7 +281,7 @@
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
   (input child-scenes g/Any :array)
-  (input component-ids g/IdPair :array)
+  (input component-id-pairs g/IdPair :array)
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)
 
@@ -279,7 +291,7 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
-  (output component-ids g/Dict :cached (g/fnk [component-ids] (reduce conj {} component-ids)))
+  (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
                  (reduce (fn [props m]
@@ -288,7 +300,11 @@
                              (conj props (-> m
                                            (select-keys [:id :properties])
                                            (assoc :property-decls (properties/properties->decls (:properties m)))))))
-                         [] ref-ddf))))
+                         [] ref-ddf)))
+  (output id-counts g/Any :cached (g/fnk [component-id-pairs]
+                                         (reduce (fn [res id]
+                                                   (update res id (fn [id] (inc (or id 0)))))
+                                                 {} (map first component-id-pairs)))))
 
 (defn- gen-component-id [go-node base]
   (let [ids (map first (g/node-value go-node :component-ids))]
@@ -363,12 +379,13 @@
         template (workspace/template component-type)]
     (let [id (gen-component-id self (:ext component-type))
           op-seq (gensym)
-          [comp-node source-node] (g/tx-nodes-added
-                                   (g/transact
-                                    (concat
-                                     (g/operation-sequence op-seq)
-                                     (g/operation-label "Add Component")
-                                     (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true))))]
+          nodes (g/tx-nodes-added
+                 (g/transact
+                  (concat
+                   (g/operation-sequence op-seq)
+                   (g/operation-label "Add Component")
+                   (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true))))
+          [comp-node source-node] nodes]
       (g/transact
        (concat
         (g/operation-sequence op-seq)

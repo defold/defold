@@ -427,6 +427,14 @@
       (for [[from to] conns]
         (g/connect modifier-id from parent-id to)))))
 
+(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
+(defn- prop-anim-missing? [animation anim-data]
+  (when (and (some? anim-data) (not (contains? anim-data animation)))
+    (format "'%s' could not be found in the specified image" animation)))
+
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -451,11 +459,13 @@
                                                 [:texture-set-data :texture-set-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:anim-data :anim-data])))
-            (validate (validation/validate-resource tile-source "Missing image"
-                                                    [texture-set-data gpu-texture anim-data])))
+            (dynamic error (g/fnk [_node-id tile-source]
+                                  (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
 
   (property animation g/Str
-            (validate (validation/validate-animation animation anim-data))
+            (dynamic error (g/fnk [_node-id animation anim-data]
+                                  (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
+                                      (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-data))))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
@@ -465,7 +475,8 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
-            (validate (validation/validate-resource material)))
+            (dynamic error (g/fnk [_node-id material]
+                                  (prop-resource-error :fatal _node-id :material material "Material"))))
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))

@@ -134,15 +134,15 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource sound "Missing sound"))
+            (dynamic error (g/fnk [_node-id sound]
+                                  (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
+                                      (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
             (dynamic edit-type (g/always {:type resource/Resource :ext supported-audio-formats})))
 
   (property looping g/Bool (default false))
   (property group g/Str (default "master"))
   (property gain g/Num (default 1.0)
-            (validate (g/fnk [gain]
-                        (when-not (<= 0.0 gain 1.0)
-                          (g/error-warning "Gain must be between 0.0 and 1.0")))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-0-1? gain)))
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
