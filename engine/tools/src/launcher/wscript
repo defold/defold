@@ -2,12 +2,13 @@
 import os
 
 def configure(conf):
-    platform = conf.env['PLATFORM']
-    if platform == "win32":
-        conf.env.append_value('LINKFLAGS', ['/subsystem:windows'])
+    pass
 
 def build(bld):
     script = bld.new_task_gen(features = 'cc cxx cprogram',
                               uselib = 'DLIB',
                               source = 'launcher.cpp',
                               target = 'launcher')
+    platform = script.env['PLATFORM']
+    if platform == "win32":
+        script.env.append_value('LINKFLAGS', ['/subsystem:windows'])
