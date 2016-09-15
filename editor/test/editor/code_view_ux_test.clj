@@ -1,5 +1,6 @@
 (ns editor.code-view-ux-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
             [editor.code-view-ux :as cvx :refer :all]
@@ -8,7 +9,8 @@
             [editor.script :as script]
             [editor.code-view-test :as cvt :refer [setup-code-view-nodes]]
             [support.test-support :refer [with-clean-system tx-nodes]])
-  (:import [com.sun.javafx.tk Toolkit]))
+  (:import [com.sun.javafx.tk Toolkit]
+           [javafx.scene.input KeyEvent KeyCode]))
 
 
 (defrecord TestClipboard [content]
@@ -18,7 +20,15 @@
   (replace! [this offset length s]))
 
 (defn- key-typed! [source-viewer key-typed]
-  (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+  (cvx/handler-run :key-typed [{:name :code-view
+                                :env {:selection source-viewer :key-typed key-typed :key-event (KeyEvent. KeyEvent/KEY_TYPED
+                                                                                                          key-typed
+                                                                                                          ""
+                                                                                                          (KeyCode/getKeyCode key-typed)
+                                                                                                          false
+                                                                                                          false
+                                                                                                          false
+                                                                                                          false)}}] {}))
 
 (deftest key-typed-test
   (with-clean-system
@@ -910,7 +920,7 @@
         (propose! source-viewer)
         (is (= "string.sub(s,i)" (text source-viewer)))
         (is (= "s" (text-selection source-viewer)))
-      (typing-changes! source-viewer)
+        (typing-changes! source-viewer)
         (tab! source-viewer)
         (typing-changes! source-viewer)
         (is (= "i" (text-selection source-viewer)))
