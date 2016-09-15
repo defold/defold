@@ -9,6 +9,3 @@ def build(bld):
                               uselib = 'DLIB',
                               source = 'launcher.cpp',
                               target = 'launcher')
-    platform = script.env['PLATFORM']
-    if platform == "win32":
-        script.env.append_value('LINKFLAGS', ['/subsystem:windows'])
