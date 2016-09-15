@@ -6,31 +6,27 @@
 <?import java.lang.*?>
 <?import javafx.scene.image.*?>
 
-
-<VBox spacing="20.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<VBox prefHeight="448.0" prefWidth="396.0" stylesheets="@splash.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
-      <ImageView pickOnBounds="true" preserveRatio="true">
-         <image>
-            <Image url="@splash.png" />
-         </image>
-      </ImageView>
+      <StackPane prefHeight="150.0" prefWidth="200.0">
+         <children>
+            <ImageView pickOnBounds="true" preserveRatio="true">
+               <image>
+                  <Image url="@splash_alpha.png" />
+               </image>
+            </ImageView>
+            <VBox alignment="TOP_CENTER" prefHeight="200.0" prefWidth="100.0">
+               <children>
+                <Label id="launchError" text="testing" textFill="#d0c3c3" visible="false" wrapText="true" />
+                <Button id="errorButton" text="Exit" visible="false" />
+               </children>
+            </VBox>
+         </children>
+      </StackPane>
       <AnchorPane>
          <children>
-            <ProgressBar prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+            <ProgressBar prefWidth="200.0" styleClass="small-progress-bar" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
          </children>
       </AnchorPane>
-      <AnchorPane>
-        <children>
-          <Label id="launchError" visible="false" wrapText="true" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
-        </children>
-      </AnchorPane>
-      <AnchorPane>
-        <children>
-          <Button id="errorButton" visible="false" text="Exit" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0"/>
-        </children>
-      </AnchorPane>
    </children>
-   <padding>
-      <Insets bottom="40.0" left="40.0" right="40.0" top="40.0" />
-   </padding>
 </VBox>
