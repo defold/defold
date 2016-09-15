@@ -80,14 +80,21 @@
 (defn- label-sort-by-fn [v]
   (when-let [label (:label v)] (util/natural-order-key (str/lower-case label))))
 
+(defn- prop-id-duplicate? [id-counts id]
+  (when (> (id-counts id) 1)
+    (format "'%s' is in use by another instance" id)))
+
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
-  (property id g/Str)
+  (property id g/Str
+            (dynamic error (g/fnk [_node-id id id-counts]
+                                  (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
             (dynamic read-only? (g/always true)))
   (input base-url g/Str)
-  (input source-id g/Any :cascade-delete))
+  (input source-id g/Any :cascade-delete)
+  (input id-counts g/Any))
 
 (defn- child-go-go [go-id child-id]
   (for [[from to] [[:id :child-ids]
@@ -109,7 +116,8 @@
                      [:go-inst-ids :go-inst-ids]
                      [:ddf-properties :ddf-properties]]]
       (g/connect child-id from coll-id to))
-    (for [[from to] [[:base-url :base-url]]]
+    (for [[from to] [[:base-url :base-url]
+                     [:id-counts :id-counts]]]
       (g/connect coll-id from child-id to))))
 
 (defn- attach-coll-ref-go [coll-id child-id]
@@ -127,7 +135,8 @@
                      [:go-inst-ids :go-inst-ids]
                      [:sub-ddf-properties :ddf-properties]]]
       (g/connect child-id from coll-id to))
-    (for [[from to] [[:base-url :base-url]]]
+    (for [[from to] [[:base-url :base-url]
+                     [:id-counts :id-counts]]]
       (g/connect coll-id from child-id to))))
 
 (def EmbeddedGOInstanceNode nil)
@@ -182,10 +191,11 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-label g/Str (gu/passthrough id))
-  (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
-                                                                             [(assoc target :instance-data {:resource (:resource target)
-                                                                                                            :instance-msg ddf-message
-                                                                                                            :transform transform})])))
+  (output build-targets g/Any (g/fnk [build-targets build-error ddf-message transform] (let [target (first build-targets)]
+                                                                              [(assoc target :instance-data {:resource (:resource target)
+                                                                                                             :instance-msg ddf-message
+                                                                                                             :transform transform})])))
+  (output build-error g/Err (g/always nil))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
@@ -245,6 +255,10 @@
     (overridable-component? basis src-id)
     (g/node-instance? basis project/ResourceNode src-id)))
 
+(defn- path-error [node-id resource]
+  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
+      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
+
 (g/defnode ReferencedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
@@ -297,16 +311,17 @@
                                                                     [label value] p
                                                                     :let [comp-id (id-mapping id)]]
                                                                 (g/set-property comp-id label value)))))))))))
-            (validate (g/fnk [path]
-                             (when (nil? path)
-                               (g/error-warning "Missing prototype")))))
+            (dynamic error (g/fnk [_node-id source-resource]
+                                  (path-error _node-id source-resource))))
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 
   (input source-resource resource/Resource)
   (output node-outline-label g/Str (g/fnk [id source-resource] (format "%s (%s)" id (resource/resource->proj-path source-resource))))
   (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position ^Quat4d rotation-q4 scale ddf-component-properties]
-                                           (gen-ref-ddf id child-ids position rotation-q4 scale source-resource ddf-component-properties))))
+                                           (gen-ref-ddf id child-ids position rotation-q4 scale source-resource ddf-component-properties)))
+  (output build-error g/Err (g/fnk [_node-id source-resource]
+                                   (path-error _node-id source-resource))))
 
 (g/defnk produce-proto-msg [name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:name name
@@ -358,16 +373,19 @@
              :instances instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
 
-(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets]
-  (let [sub-build-targets (flatten sub-build-targets)
-        dep-build-targets (flatten dep-build-targets)
-        instance-data (map :instance-data dep-build-targets)
-        instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-collection
-      :user-data {:name name :instance-data instance-data}
-      :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}]))
+(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets id-counts]
+  (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
+        (when (not-empty dup-ids)
+          (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
+    (let [sub-build-targets (flatten sub-build-targets)
+         dep-build-targets (flatten dep-build-targets)
+         instance-data (map :instance-data dep-build-targets)
+         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
+     [{:node-id _node-id
+       :resource (workspace/make-build-resource resource)
+       :build-fn build-collection
+       :user-data {:name name :instance-data instance-data}
+       :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
 
 (def CollectionInstanceNode nil)
 
@@ -428,7 +446,11 @@
                                                                  (if (empty? (:properties m))
                                                                    props
                                                                    (conj props m)))
-                                                               [] (flatten ddf-properties)))))
+                                                               [] (flatten ddf-properties))))
+  (output id-counts g/Any :cached (g/fnk [ids]
+                                         (reduce (fn [res id]
+                                                   (update res id (fn [id] (inc (or id 0)))))
+                                                 {} ids))))
 
 (defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids ddf-properties]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
@@ -441,12 +463,13 @@
                     (doto (Matrix4d. transform) (.mul base-transform transform)))]
     {:resource resource :instance-msg instance-msg :transform transform}))
 
-(g/defnk produce-coll-inst-build-targets [id transform build-targets ddf-properties]
-  (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
-        base-id (str id path-sep)
-        instance-data (get-in build-targets [0 :user-data :instance-data])
-        child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-    (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data))))
+(g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets ddf-properties]
+  (or (path-error _node-id source-resource)
+      (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
+            base-id (str id path-sep)
+            instance-data (get-in build-targets [0 :user-data :instance-data])
+            child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
+        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data)))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id]
   (-> source-outline
@@ -516,7 +539,8 @@
                                                         (g/connect self from or-node to))
                                                       (for [[comp-id label value] component-overrides]
                                                         (g/set-property comp-id label value)))))))))))
-    (validate (validation/validate-resource path "Missing prototype" [scene])))
+    (dynamic error (g/fnk [_node-id source-resource]
+                          (path-error _node-id source-resource))))
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 
@@ -663,7 +687,7 @@
                                (selected-collection? selection) (add-game-object selection)
                                (selected-embedded-instance? selection) (game-object/add-embedded-component-handler user-data))))
 
-(defn- add-collection-instance [self source-resource id position rotation scale overrides]
+(defn add-collection-instance [self source-resource id position rotation scale overrides]
   (let [project (project/get-project self)]
     (g/make-nodes (g/node-id->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path {:resource source-resource :overrides overrides}

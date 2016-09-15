@@ -112,7 +112,7 @@ instances {
   scale: 1.0
 }
 instances {
-  id: "spaceship"
+  id: "spaceship_tile"
   prototype: "/spaceship/spaceship_tile_source.go"
   position {
     x: 209.66061

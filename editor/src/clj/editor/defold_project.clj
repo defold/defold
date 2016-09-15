@@ -19,6 +19,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.properties :as properties]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -65,16 +66,18 @@
 (defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
-      (try
-        (when *load-cache*
-          (swap! *load-cache* conj node-id))
-        (concat
-         (load-fn project node-id resource)
-         (when (instance? FileResource resource)
-           (g/connect node-id :save-data project :save-data)))
-        (catch Exception e
-          (log/warn :exception e)
-          (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+      (if (resource/exists? resource)
+        (try
+          (when *load-cache*
+            (swap! *load-cache* conj node-id))
+          (concat
+            (load-fn project node-id resource)
+            (when (instance? FileResource resource)
+              (g/connect node-id :save-data project :save-data)))
+          (catch Exception e
+            (log/warn :exception e)
+            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :invalid-content})))
       [])))
 
 (defn load-resource-nodes [project node-ids render-progress!]
@@ -168,7 +171,7 @@
          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
         (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
       ;; TODO: error message somewhere...
-      (println (validation/error-message save-data)))))
+      (println (properties/error-message save-data)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
@@ -453,7 +456,7 @@
             outputs-to-make (remove new-outputs current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))

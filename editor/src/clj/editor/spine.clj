@@ -608,6 +608,10 @@
   (let [positions (partition 3 (:positions mesh))]
     (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
 
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
@@ -620,8 +624,8 @@
                                                 [:structure :scene-structure]
                                                 [:node-outline :source-outline])))
             (dynamic edit-type (g/always {:type resource/Resource :ext "json"}))
-            (validate (validation/validate-resource spine-json "Missing spine json"
-                                                    [spine-scene])))
+            (dynamic error (g/fnk [_node-id spine-json]
+                                  (prop-resource-error _node-id :spine-json spine-json "Spine Json"))))
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
@@ -632,8 +636,8 @@
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/always {:type resource/Resource :ext "atlas"}))
-            (validate (validation/validate-resource atlas "Missing atlas"
-                                                    [anim-data])))
+            (dynamic error (g/fnk [_node-id atlas]
+                                  (prop-resource-error _node-id :atlas atlas "Atlas"))))
 
   (property sample-rate g/Num)
 
@@ -653,7 +657,8 @@
   (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
                                                       (reduce mesh->aabb (geom/null-aabb) meshes))))
   (output anim-data g/Any (gu/passthrough anim-data))
-  (output scene-structure g/Any (gu/passthrough scene-structure)))
+  (output scene-structure g/Any (gu/passthrough scene-structure))
+  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
 
 (defn load-spine-scene [project self resource]
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
@@ -700,12 +705,15 @@
                      (project/resource-setter basis self old-value new-value
                                                   [:resource :spine-scene-resource]
                                                   [:scene :spine-scene-scene]
+                                                  [:spine-anim-ids :spine-anim-ids]
                                                   [:aabb :aabb]
                                                   [:build-targets :dep-build-targets]
                                                   [:node-outline :source-outline]
                                                   [:anim-data :anim-data]
                                                   [:scene-structure :scene-structure])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"})))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"}))
+            (dynamic error (g/fnk [_node-id spine-scene]
+                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/always (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
@@ -717,16 +725,22 @@
                                                 [:shader :material-shader]
                                                 [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "material"})))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "material"}))
+            (dynamic error (g/fnk [_node-id material]
+                                  (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
-            (value (g/fnk [default-animation anim-ids] (or (not-empty default-animation) (first anim-ids))))
-            (validate (validation/validate-animation default-animation anim-data))
+            (value (g/fnk [default-animation spine-anim-ids] (or (not-empty default-animation) (first spine-anim-ids))))
+            (dynamic error (g/fnk [_node-id spine-anim-ids default-animation]
+                                  (validation/prop-error :fatal _node-id :default-animation (fn [anim ids] (when (not (contains? ids anim))
+                                                                                                             (format "animation '%s' could not be found in the specified scene" anim))) default-animation (set spine-anim-ids))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
   (property skin g/Str
             (value (g/fnk [skin scene-structure] (or (not-empty skin) (first (:skins scene-structure)))))
-            (validate (g/fnk [skin scene-structure]
-                             (when (and (some? scene-structure) (not (contains? (into #{} (:skins scene-structure)) skin)))
-                               (g/error-severe (format "The skin \"%s\" could not be found in the specified scene" skin)))))
+            (dynamic error (g/fnk [_node-id skin scene-structure]
+                                  (validation/prop-error :fatal _node-id :skin
+                                                         (fn [skin skins]
+                                                           (when (not (contains? skins skin))
+                                                             (format "skin '%s' could not be found in the specified scene" skin))) skin (set (:skins scene-structure)))))
             (dynamic edit-type (g/fnk [scene-structure]
                                       (properties/->choicebox (:skins scene-structure)))))
 
@@ -734,6 +748,7 @@
   (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
   (input scene-structure g/Any)
+  (input spine-anim-ids g/Any)
   (input aabb AABB)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)

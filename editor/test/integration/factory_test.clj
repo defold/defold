@@ -6,6 +6,7 @@
             [editor.factory :as factory]
             [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.types :as types]
             [editor.properties :as properties]
             [integration.test-util :as test-util]))
@@ -34,3 +35,15 @@
         (is (empty? (:children outline)))
         (is (= "/game_object/test.go" (get-in form-data [:values [:prototype]])))))))
 
+(deftest validation
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)]
+      (doseq [[path bad-prototype-path] [["/factory/with_prototype.factory" "/not_exists.go"]
+                                         ["/factory/with_prototype.collectionfactory" "/not_exists.collection"]]]
+        (let [node-id (test-util/resource-node project path)]
+          (is (nil? (test-util/prop-error node-id :prototype)))
+          (test-util/with-prop [node-id :prototype nil]
+            (is (g/error-info? (test-util/prop-error node-id :prototype))))
+          (test-util/with-prop [node-id :prototype (workspace/resolve-workspace-resource workspace bad-prototype-path)]
+            (is (g/error-fatal? (test-util/prop-error node-id :prototype)))))))))

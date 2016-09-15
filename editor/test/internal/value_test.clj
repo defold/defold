@@ -391,7 +391,7 @@
       (is (empty?        (:causes   error-value)))
       (is (= node        (:_node-id error-value)))
       (is (= :a-property (:_label   error-value)))
-      (is (= g/FATAL     (:severity error-value))))))
+      (is (= :fatal     (:severity error-value))))))
 
 (g/defnode ErrorReceiverNode
   (input single g/Any)
@@ -411,9 +411,9 @@
             _                 (g/mark-defective! sender (g/error-fatal "Bad news, my friend."))
             error-value       (g/node-value receiver :single-output)]
         (are [node label sev e] (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
-          receiver :single-output g/FATAL   error-value
-          receiver :single        g/FATAL   (cause error-value)
-          sender   :a-property    g/FATAL   (cause (cause error-value))))))
+          receiver :single-output :fatal   error-value
+          receiver :single        :fatal   (cause error-value)
+          sender   :a-property    :fatal   (cause (cause error-value))))))
 
   (testing "multi-valued input with an error results in a single error out."
     (with-clean-system
@@ -429,9 +429,9 @@
             _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
             error-value                        (g/node-value receiver :multi-output)]
         (are [node label sev e] (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
-          receiver :multi-output g/FATAL   error-value
-          receiver :multi        g/FATAL   (cause error-value)
-          sender2  :a-property   g/FATAL   (cause (cause error-value)))))))
+          receiver :multi-output :fatal   error-value
+          receiver :multi        :fatal   (cause error-value)
+          sender2  :a-property   :fatal   (cause (cause error-value)))))))
 
 (g/defnode ListOutput
   (output list-output       g/Any (g/fnk []                  (list 1)))
