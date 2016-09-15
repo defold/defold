@@ -197,12 +197,13 @@
       (is (= \newline (get-char-at-caret source-viewer)))
       (down! source-viewer)
       (is (= \3 (get-char-at-caret source-viewer)))
+      ;; can't move further down
       (down! source-viewer)
-      (is (nil? (get-char-at-caret source-viewer)))
+      (is (= \3 (get-char-at-caret source-viewer)))
       (testing "out of bounds down"
         (down! source-viewer)
         (down! source-viewer)
-        (is (nil? (get-char-at-caret source-viewer))))
+        (is (= \3 (get-char-at-caret source-viewer))))
       (testing "moving up"
         (up! source-viewer)
         (is (= \newline (get-char-at-caret source-viewer)))
@@ -211,10 +212,11 @@
         (up! source-viewer)
         (is (= \1 (get-char-at-caret source-viewer)))
         (up! source-viewer)
-        (is (= \l (get-char-at-caret source-viewer))))
+        ;; can't move further up
+        (is (= \1 (get-char-at-caret source-viewer))))
       (testing "out of bounds up"
         (up! source-viewer)
-        (is (= \l (get-char-at-caret source-viewer))))
+        (is (= \1 (get-char-at-caret source-viewer))))
       (testing "respects tab spacing"
         (let [new-code "line1\n\t2345"]
           (text! source-viewer new-code)
@@ -861,18 +863,21 @@
         (is (= "\nhi" (text source-viewer)))))))
 
 (defn- undo! [source-viewer view-node code-node]
-  (cvx/handler-run :undo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
+  (g/undo! (g/node-id->graph-id code-node)))
 
 (defn- redo! [source-viewer view-node code-node]
-  (cvx/handler-run :redo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
+  (g/redo! (g/node-id->graph-id code-node)))
 
 (defn- set-code-and-caret! [source-viewer code]
   (text! source-viewer code)
   (caret! source-viewer (count code) false)
-  (changes! source-viewer))
+  (typing-changes! source-viewer))
 
 (defn- propose! [source-viewer]
   (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- refresh-viewer [viewer-node]
+  (g/node-value viewer-node :new-content))
 
 (deftest undo-redo-test
   (with-clean-system
@@ -883,9 +888,9 @@
           [code-node viewer-node] (setup-code-view-nodes pgraph-id source-viewer code script/ScriptNode)]
       (testing "text editing"
         (key-typed! source-viewer "h")
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (key-typed! source-viewer "i")
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (is (= "hi" (g/node-value code-node :code)))
         (undo! source-viewer viewer-node code-node)
         (is (= "h" (g/node-value code-node :code)))
@@ -894,19 +899,21 @@
       (testing "preferred offset"
         (text! source-viewer "helllo world")
         (preferred-offset! source-viewer 4)
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (preferred-offset! source-viewer 0)
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (undo! source-viewer viewer-node code-node)
+        (refresh-viewer viewer-node)
         (is (= 4 (preferred-offset source-viewer))))
       (testing "snippet-tab-triggers"
         (set-code-and-caret! source-viewer "string.sub")
         (propose! source-viewer)
         (is (= "string.sub(s,i)" (text source-viewer)))
         (is (= "s" (text-selection source-viewer)))
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (tab! source-viewer)
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (is (= "i" (text-selection source-viewer)))
         (undo! source-viewer viewer-node code-node)
+        (refresh-viewer viewer-node)
         (is (= "s" (text-selection source-viewer)))))))

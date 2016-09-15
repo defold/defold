@@ -1,6 +1,7 @@
 (ns editor.code-view
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.code-view-ux :as cvx]
             [editor.core :as core]
             [editor.handler :as handler]
@@ -35,48 +36,68 @@
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
 
-(defn- assist [selection]
-  (ui/user-data selection ::assist))
+(defn- assist [text-area]
+  (ui/user-data text-area ::assist))
 
-(defn- syntax [selection]
-  (ui/user-data selection ::syntax))
+(defn- syntax [text-area]
+  (ui/user-data text-area ::syntax))
 
-(defn- prefer-offset [selection]
-  (ui/user-data selection ::prefer-offset))
+(defn- prefer-offset [source-viewer]
+  (ui/user-data source-viewer ::prefer-offset))
 
-(defn- tab-triggers [selection]
-  (ui/user-data selection ::tab-triggers))
+(defn- tab-triggers [source-viewer]
+  (ui/user-data source-viewer ::tab-triggers))
 
-(defmacro binding-atom [a val & body]
-  `(let [old-val# (deref ~a)]
-     (try
-       (reset! ~a ~val)
-       ~@body
-       (finally
-         (reset! ~a old-val#)))))
+(defn- typing-opseq [source-viewer]
+  (ui/user-data source-viewer ::typing-opseq))
+
+(defn- last-command-data [source-viewer]
+  (ui/user-data source-viewer ::last-command))
+
+(defn- new-typing-opseq! [^SourceViewer source-viewer merge-changes]
+  (let [graph (g/node-id->graph-id (-> source-viewer (.getTextWidget) (code-node)))
+        opseq (or (when merge-changes (when-let [typing-op @(typing-opseq source-viewer)]
+                                        (when-let [last-op (gu/prev-sequence-label graph)]
+                                          (when (= typing-op last-op)
+                                            typing-op))))
+                  (gensym))]
+    (reset! (typing-opseq source-viewer) opseq)
+    opseq))
+  
+(defn typing-timeout [source-viewer]
+  (ui/user-data source-viewer ::typing-timeout))
+
+(defn- restart-typing-timeout [source-viewer]
+  (if-let [timer @(typing-timeout source-viewer)]
+    (ui/restart timer)
+    (reset! (typing-timeout source-viewer)
+            (ui/->future 1 (fn [] (reset! (typing-opseq source-viewer) nil))))))
 
 (g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length prefer-offset tab-triggers]
   (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
-    (when (not= code (cvx/text source-viewer))
-    (try
-      (cvx/text! source-viewer code)
-      (catch Throwable e
-        (println "exception during .set!")
-        (.printStackTrace e))))
-    (cvx/preferred-offset! source-viewer prefer-offset)
-    (cvx/snippet-tab-triggers! source-viewer tab-triggers)
-  (if (pos? selection-length)
-    (do
-      ;; There is a bug somewhere in the e(fx)clipse that doesn't
-      ;; display the text selection property after you change the text programatically
-      ;; when it's resolved uncomment
-      (cvx/caret! source-viewer caret-position false)
-      (cvx/text-selection! source-viewer selection-offset selection-length)
-    )
-    (cvx/caret! source-viewer caret-position false))
-  (cvx/show-line source-viewer)
-  [code-node code caret-position])
-
+  (let [did-update
+        (some some?
+              [(when (not= code (cvx/text source-viewer))
+                 (cvx/text! source-viewer code)
+                 :updated)
+               (when (not= prefer-offset (cvx/preferred-offset source-viewer))
+                 (cvx/preferred-offset! source-viewer prefer-offset)
+                 :updated)
+               (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
+                 (cvx/snippet-tab-triggers! source-viewer tab-triggers)
+                 :updated)
+               (when (not= caret-position (cvx/caret source-viewer))
+                 (cvx/caret! source-viewer caret-position false)
+                 (cvx/show-line source-viewer)
+                 :updated)
+               (when (not= [selection-offset selection-length]
+                           [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
+                 (cvx/caret! source-viewer caret-position false)
+                 (cvx/text-selection! source-viewer selection-offset selection-length)
+                 :updated)])]
+    (when did-update
+      (reset! (last-command-data source-viewer) nil)))
+  [code-node])
 
 (defn- default-rule? [rule]
   (= (:type rule) :default))
@@ -369,7 +390,11 @@
       (ui/user-data! source-viewer ::assist (:assist opts))
       (ui/user-data! source-viewer ::syntax (:syntax opts))
       (ui/user-data! source-viewer ::prefer-offset (atom 0))
-      (ui/user-data! source-viewer ::tab-triggers (atom nil)))
+      (ui/user-data! source-viewer ::tab-triggers (atom nil))
+      (ui/user-data! source-viewer ::typing-opseq (atom nil))
+      (ui/user-data! source-viewer ::typing-timeout (atom nil))
+      (ui/user-data! source-viewer ::last-command (atom nil)))
+    
 
   source-viewer))
 
@@ -424,6 +449,31 @@
                select-value)))
 
 (declare skin)
+
+(defn- transact-changes [^SourceViewer text-area opseq]
+  (let [code-node-id (-> text-area (.getTextWidget) (code-node))
+        selection-offset (cvx/selection-offset text-area)
+        selection-length (cvx/selection-length text-area)
+        code (cvx/text text-area)
+        caret (cvx/caret text-area)
+        prefer-offset (cvx/preferred-offset text-area)
+        tab-triggers (cvx/snippet-tab-triggers text-area)
+        code-changed? (not= code (g/node-value code-node-id :code))
+        caret-changed? (not= caret (g/node-value code-node-id :caret-position))
+        selection-changed? (or (not= selection-offset (g/node-value code-node-id :selection-offset))
+                               (not= selection-length (g/node-value code-node-id :selection-length)))
+        prefer-offset-changed? (not= prefer-offset (g/node-value code-node-id :prefer-offset))
+        tab-triggers-changed? (not= tab-triggers (g/node-value code-node-id :tab-triggers))]
+    (let [tx-data (cond-> []
+                    code-changed?          (conj (g/set-property code-node-id :code code))
+                    caret-changed?         (conj (g/set-property code-node-id :caret-position caret))
+                    opseq                  (conj (g/operation-sequence opseq))
+                    selection-changed?     (conj (g/set-property code-node-id :selection-offset selection-offset)
+                                                 (g/set-property code-node-id :selection-length selection-length))
+                    prefer-offset-changed? (conj (g/set-property code-node-id :prefer-offset prefer-offset))
+                    tab-triggers-changed?  (conj (g/set-property code-node-id :tab-triggers tab-triggers)))]
+      (when (seq tx-data)
+        (g/transact tx-data)))))
 
 (extend-type SourceViewer
   workspace/SelectionProvider
@@ -492,39 +542,16 @@
                                          :stylename (.-stylename ^StyleRange sr)})]
                    (mapv style-fn style-ranges)))
   cvx/TextUndo
-  (changes! [this]
-    (let [code-node-id (-> this (.getTextWidget) (code-node))
-          selection-offset (cvx/selection-offset this)
-          selection-length (cvx/selection-length this)
-          code (cvx/text this)
-          caret (cvx/caret this)
-          prefer-offset (cvx/preferred-offset this)
-          tab-triggers (cvx/snippet-tab-triggers this)
-          code-changed? (not= code (g/node-value code-node-id :code))
-          caret-changed? (not= caret (g/node-value code-node-id :caret-position))
-          selection-changed? (or (not= selection-offset (g/node-value code-node-id :selection-offset))
-                                 (not= selection-length (g/node-value code-node-id :selection-length)))
-          prefer-offset-changed? (not= prefer-offset (g/node-value code-node-id :prefer-offset))
-          tab-triggers-changed? (not= tab-triggers (g/node-value code-node-id :tab-triggers))]
-      (when (or code-changed? caret-changed? selection-changed? prefer-offset-changed? tab-triggers-changed?)
-        (let [tx-data (remove nil?
-                            (concat
-                             (when code-changed?  [(g/set-property code-node-id :code code)])
-                             (when caret-changed? [(g/set-property code-node-id :caret-position caret)])
-                             (when selection-changed?
-                               [(g/set-property code-node-id :selection-offset selection-offset)
-                                (g/set-property code-node-id :selection-length selection-length)])
-                             (when prefer-offset-changed? [(g/set-property code-node-id :prefer-offset prefer-offset)])
-                             (when tab-triggers-changed? [(g/set-property code-node-id :tab-triggers tab-triggers)])))]
-          (g/transact tx-data)))))
-  (typing-changes! [this]
-    (let [code-node-id (-> this (.getTextWidget) (code-node))
-          code (cvx/text this)
-          caret (cvx/caret this)
-          code-changed? (not= code (g/node-value code-node-id :code))]
-      (when code-changed?
-        (g/transact [(g/set-property code-node-id :code code)
-                     (g/set-property code-node-id :caret-position caret)]))))
+  (state-changes! [this]
+    (transact-changes this (gu/prev-sequence-label (g/node-id->graph-id (-> this (.getTextWidget) (code-node))))))
+  (typing-changes!
+    ([this] (cvx/typing-changes! this false))
+    ([this merge-changes]
+     (when (transact-changes this (new-typing-opseq! this merge-changes))
+       (restart-typing-timeout this))))
+  cvx/CommandHistory
+  (last-command [this] @(last-command-data this))
+  (last-command! [this cmd] (reset! (last-command-data this) cmd))
   cvx/TextLine
   (line [this]
     (let [text-area-content (.getContent (.getTextWidget this))
@@ -627,7 +654,8 @@
 
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
-        view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))]
+        view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
+        repainter (ui/->timer 10 "refresh-code-view" (fn [dt] (g/node-value view-id :new-content)))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
@@ -635,13 +663,9 @@
                                                        (when (= true new)
                                                          (ui/run-later (cvx/refresh! source-viewer)))))
     (cvx/refresh! source-viewer)
-    (g/node-value view-id :new-content)
-    (let [refresh-timer (ui/->timer 1 "collect-text-editor-changes" (fn [_]
-                                                                     (cvx/typing-changes! source-viewer)))
-          stage (ui/parent->stage parent)]
-      (ui/timer-stop-on-close! ^Tab (:tab opts) refresh-timer)
-      (ui/timer-stop-on-close! stage refresh-timer)
-      (ui/timer-start! refresh-timer))
+    (ui/timer-start! repainter)
+    (ui/timer-stop-on-close! ^Tab (:tab opts) repainter)
+    (ui/timer-stop-on-close! (ui/parent->stage parent) repainter)
     view-id))
 
 (defn register-view-types [workspace]
