@@ -42,6 +42,10 @@ import org.openmali.vecmath2.Vector3f;
 import com.dynamo.bob.util.MathUtil;
 
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.RigUtil.AbstractAnimationTrack;
+import com.dynamo.bob.util.RigUtil.AnimationCurve;
+import com.dynamo.bob.util.RigUtil.AnimationKey;
+import com.dynamo.bob.util.RigUtil.AnimationTrack.Property;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -55,6 +59,34 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 
 public class ColladaUtil {
+    
+
+    public static class AnimationCurve {
+        public float x0;
+        public float y0;
+        public float x1;
+        public float y1;
+    }
+
+    public static class AnimationKey {
+        public float t;
+        public float[] value = new float[4];
+        public boolean stepped;
+        public AnimationCurve curve;
+    }
+
+    public static abstract class AbstractAnimationTrack<Key extends AnimationKey> {
+        public List<Key> keys = new ArrayList<Key>();
+    }
+
+    public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
+        public enum Property {
+            POSITION, ROTATION, SCALE
+        }
+        public Bone bone;
+        public Property property;
+    }
+    
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
         for (XMLInput i : inputs) {
@@ -93,23 +125,9 @@ public class ColladaUtil {
     public static boolean load(InputStream is, Mesh.Builder meshBuilder, AnimationSet.Builder animationSetBuilder, Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         meshBuilder.mergeFrom(loadMesh(collada));
-        animationSetBuilder.mergeFrom(loadAnimations(collada, 1.0f/24.0f));
-        skeletonBuilder.mergeFrom(loadSkeleton(collada));
-        // TODO skeleton
-
-        // Add root bone
-//        Bone.Builder rootBone = Bone.newBuilder();
-//        rootBone.setId(0);
-//        rootBone.setParent(0xffff);
-//        Point3 p = Point3.newBuilder().setX(0).setY(0).setZ(0).build();
-//        Quat q = Quat.newBuilder().setX(0).setY(0).setZ(0).setW(1).build();
-//        Vector3 s = Vector3.newBuilder().setX(0).setY(0).setZ(0).build();
-//        rootBone.setPosition(p);
-//        rootBone.setRotation(q);
-//        rootBone.setScale(s);
-//        rootBone.setLength(0);
-//        skeletonBuilder.addBones(rootBone.build());
-
+        Skeleton skeleton = loadSkeleton(collada);
+        skeletonBuilder.mergeFrom(skeleton);
+        animationSetBuilder.mergeFrom(loadAnimations(collada, skeleton, 1.0f/24.0f));
         return true;
     }
 
@@ -132,26 +150,95 @@ public class ColladaUtil {
         }
         return samplersLUT;
     }
+    
+//    private static <T,Key extends ColladaUtil.AnimationKey> void sampleTrack(ColladaUtil.AbstractAnimationTrack<Key> track, PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
+//        if (track.keys.isEmpty()) {
+//            return;
+//        }
+//        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+//        int keyIndex = 0;
+//        int keyCount = track.keys.size();
+//        Key key = null;
+//        Key next = track.keys.get(keyIndex);
+//        T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
+//        for (int i = 0; i < sampleCount; ++i) {
+//            double cursor = i * spf;
+//            // Skip passed keys
+//            while (next != null && next.t <= cursor) {
+//                key = next;
+//                ++keyIndex;
+//                if (keyIndex < keyCount) {
+//                    next = track.keys.get(keyIndex);
+//                } else {
+//                    next = null;
+//                }
+//            }
+//            if (key != null) {
+//                if (next != null) {
+//                    if (key.stepped || !interpolate) {
+//                        // Stepped sampling only uses current key
+//                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+//                    } else {
+//                        // Normal sampling
+//                        sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+//                    }
+//                } else {
+//                    // Last key reached, use its value for remaining samples
+//                    propertyBuilder.addComposite(endValue);
+//                }
+//            } else {
+//                // No valid key yet, use default value
+//                propertyBuilder.addComposite(defaultValue);
+//            }
+//        }
+//    }
 
-    private static RigAnimation generateAnimation(String id, String rootBoneId, HashMap<String, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
+    private static RigAnimation toDDF(com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
         RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
-        animBuilder.setId(MurmurHash.hash64(id));
+        animBuilder.setId(MurmurHash.hash64(animationId));
         animBuilder.setDuration(duration);
         animBuilder.setSampleRate(sampleRate);
-        System.out.println("boneToAnimations: " + boneToAnimations.get(rootBoneId).get("location.X"));
+        
+        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        
+        for (int bi = 0; bi < skeleton.getBonesCount(); bi++) {
+            com.dynamo.rig.proto.Rig.Bone bone = skeleton.getBones(bi);
+            
+            // Get animations for bone:
+            if (boneToAnimations.containsKey(bone.getId())) {
+                HashMap<String, XMLAnimation> propAnimations = boneToAnimations.get(bone.getId());
 
-        // TODO loop over bones here instead
-        AnimationTrack.Builder trackBuilder = AnimationTrack.newBuilder();
-        trackBuilder.setBoneIndex(0); // TODO this should match the correct index for a bone (we set 0 now since we only have one bone, the root)
-        // sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true);
+                com.dynamo.rig.proto.Rig.AnimationTrack.Builder trackBuilder = com.dynamo.rig.proto.Rig.AnimationTrack.newBuilder();
+                trackBuilder.setBoneIndex(bi);
+                
+                // Positions
+                if (propAnimations.containsKey("location.X") || propAnimations.containsKey("location.Y") || propAnimations.containsKey("location.Z")) {
+                    XMLAnimation locX = propAnimations.get("location.X");
+                    XMLAnimation locY = propAnimations.get("location.Y");
+                    XMLAnimation locZ = propAnimations.get("location.Z");
+                    
+                    float[] positions = new float[sampleCount];
+                    for (int i = 0; i < locX.getOutput().length; i++) {
+                        
+                    }
+                    //trackBuilder.addAllPositions(positions);
+                    
+                }
+                // sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true);
 
-        // TODO rotations and scale
+                // TODO rotations and scale
 
-        animBuilder.addTracks(trackBuilder.build());
+                animBuilder.addTracks(trackBuilder.build());
+            }
+        }
+        
+//        System.out.println("boneToAnimations: " + boneToAnimations.get(meshBoneId).get("location.X"));
+
+
         return animBuilder.build();
     }
 
-    public static AnimationSet loadAnimations(XMLCOLLADA collada, float sampleRate) {
+    public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) {
 
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
 
@@ -166,9 +253,9 @@ public class ColladaUtil {
         float maxAnimationLength = 0.0f;
         //for (int i = 0; i < collada.libraryAnimations.size(); i++) {
         {
-            HashMap<String, HashMap<String, XMLAnimation>> boneToAnimations = new HashMap<String, HashMap<String, XMLAnimation>>();
+            HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations = new HashMap<Long, HashMap<String, XMLAnimation>>();
 
-            // Loop through all animations (where an animation is a keyframed animation on different properties)
+            // Loop through all animations (where an animation is keyframed animation on different properties)
             //XMLLibraryAnimations libraryAnimation = collada.libraryAnimations.get(i);
             XMLLibraryAnimations libraryAnimation = collada.libraryAnimations.get(0);
             Iterator<Entry<String, XMLAnimation>> it = libraryAnimation.animations.entrySet().iterator();
@@ -186,43 +273,34 @@ public class ColladaUtil {
                 String propertyTarget = targetParts[1];
 
                 if (!boneToAnimations.containsKey(boneTarget)) {
-                    boneToAnimations.put(boneTarget, new HashMap<String, XMLAnimation>());
+                    boneToAnimations.put(MurmurHash.hash64(boneTarget), new HashMap<String, XMLAnimation>());
                 }
-                boneToAnimations.get(boneTarget).put(propertyTarget, animation);
+                boneToAnimations.get(MurmurHash.hash64(boneTarget)).put(propertyTarget, animation);
 
-                // TODO remove this check later when we support animated bones.
-                if (targetParts[0].equals(geometryName)) {
-
-                    // Figure out the total duration of the animation.
-                    HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
-                    if (samplersLUT == null || samplersLUT.isEmpty()) {
-                        System.out.println("Animation lacks samplers!");
-                        return null;
-                    }
-
-                    // Find time input
-                    if (!samplersLUT.containsKey("INPUT")) {
-                        System.out.println("Animation lacks INPUT sampler!");
-                        return null;
-                    }
-                    XMLSource inputSampler = samplersLUT.get("INPUT");
-                    if (inputSampler.techniqueCommon.accessor.params.get(0).name != XMLParam.Name.TIME) {
-                        System.out.println("Animation input is not a time channel: '" + inputSampler.techniqueCommon.accessor.params.get(0).name + "'");
-                        return null;
-                    }
-                    float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
-                    maxAnimationLength = Math.max(maxAnimationLength, animLength);
-
-                } else {
-                    System.out.println("Only support animations on geometry for now! " + geometryName);
+                // Figure out the total duration of the animation.
+                HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
+                if (samplersLUT == null || samplersLUT.isEmpty()) {
+                    System.out.println("Animation lacks samplers!");
+                    return null;
                 }
+
+                // Find time input
+                if (!samplersLUT.containsKey("INPUT")) {
+                    System.out.println("Animation lacks INPUT sampler!");
+                    return null;
+                }
+                XMLSource inputSampler = samplersLUT.get("INPUT");
+                if (inputSampler.techniqueCommon.accessor.params.get(0).name != XMLParam.Name.TIME) {
+                    System.out.println("Animation input is not a time channel: '" + inputSampler.techniqueCommon.accessor.params.get(0).name + "'");
+                    return null;
+                }
+                float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
+                maxAnimationLength = Math.max(maxAnimationLength, animLength);
 
                 assert(maxAnimationLength > 0.0f);
             }
 
-
-            //System.out.println("------");
-            animationSetBuilder.addAnimations(generateAnimation("default", geometryName, boneToAnimations, maxAnimationLength, sampleRate));
+            animationSetBuilder.addAnimations(toDDF(skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate));
 
         }
 

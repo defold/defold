@@ -94,7 +94,8 @@ public class ColladaUtilTest {
     @Test
     public void testBlenderAnimations() throws Exception {
         XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("blender_animated_cube.dae"));
-        AnimationSet animation = ColladaUtil.loadAnimations(collada, 1.0f / 24.0f);
+        Skeleton skeleton = ColladaUtil.loadSkeleton(collada);
+        AnimationSet animation = ColladaUtil.loadAnimations(collada, skeleton, 1.0f / 24.0f);
         //assert(0.0, animation.getDuration());
         assertEquals(1, animation.getAnimationsCount());
     }

@@ -32,9 +32,10 @@ import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BezierUtil;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.RigScene;
-import com.dynamo.bob.util.RigScene.LoadException;
-import com.dynamo.bob.util.RigScene.UVTransformProvider;
+import com.dynamo.bob.util.SpineSceneUtil;
+import com.dynamo.bob.util.SpineSceneUtil.LoadException;
+import com.dynamo.bob.util.RigUtil;
+import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.rig.proto.Rig;
@@ -66,13 +67,13 @@ public class SpineSceneBuilder extends Builder<Void> {
         return new Quat4d(0.0, 0.0, s, c);
     }
 
-    private interface PropertyBuilder<T, Key extends RigScene.AnimationKey> {
+    private interface PropertyBuilder<T, Key extends RigUtil.AnimationKey> {
         void addComposite(T v);
         void add(double v);
         T toComposite(Key key);
     }
 
-    private static abstract class AbstractPropertyBuilder<T> implements PropertyBuilder<T, RigScene.AnimationKey> {
+    private static abstract class AbstractPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.AnimationKey> {
         protected AnimationTrack.Builder builder;
 
         public AbstractPropertyBuilder(AnimationTrack.Builder builder) {
@@ -80,7 +81,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, RigScene.IKAnimationKey> {
+    private static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.IKAnimationKey> {
         protected IKAnimationTrack.Builder builder;
 
         public AbstractIKPropertyBuilder(IKAnimationTrack.Builder builder) {
@@ -88,7 +89,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static abstract class AbstractMeshPropertyBuilder<T> implements PropertyBuilder<T, RigScene.SlotAnimationKey> {
+    private static abstract class AbstractMeshPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.SlotAnimationKey> {
         protected MeshAnimationTrack.Builder builder;
 
         public AbstractMeshPropertyBuilder(MeshAnimationTrack.Builder builder) {
@@ -113,7 +114,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Point3d toComposite(RigScene.AnimationKey key) {
+        public Point3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return new Point3d(v[0], v[1], 0.0);
         }
@@ -135,7 +136,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Quat4d toComposite(RigScene.AnimationKey key) {
+        public Quat4d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return toQuat(v[0]);
         }
@@ -157,7 +158,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Vector3d toComposite(RigScene.AnimationKey key) {
+        public Vector3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return new Vector3d(v[0], v[1], 1.0);
         }
@@ -179,7 +180,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Float toComposite(RigScene.IKAnimationKey key) {
+        public Float toComposite(RigUtil.IKAnimationKey key) {
             return new Float(key.mix);
         }
     }
@@ -200,7 +201,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Boolean toComposite(RigScene.IKAnimationKey key) {
+        public Boolean toComposite(RigUtil.IKAnimationKey key) {
             return new Boolean(key.positive);
         }
     }
@@ -221,7 +222,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public float[] toComposite(RigScene.SlotAnimationKey key) {
+        public float[] toComposite(RigUtil.SlotAnimationKey key) {
             return key.value;
         }
     }
@@ -245,7 +246,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Boolean toComposite(RigScene.SlotAnimationKey key) {
+        public Boolean toComposite(RigUtil.SlotAnimationKey key) {
             return this.meshName.equals(key.attachment);
         }
     }
@@ -266,7 +267,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         @Override
-        public Integer toComposite(RigScene.SlotAnimationKey key) {
+        public Integer toComposite(RigUtil.SlotAnimationKey key) {
             return key.orderOffset;
         }
     }
@@ -292,10 +293,10 @@ public class SpineSceneBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    private static int reindexNodesDepthFirst(RigScene.Bone bone, Map<RigScene.Bone, List<RigScene.Bone>> children, int index) {
-        List<RigScene.Bone> c = children.get(bone);
+    private static int reindexNodesDepthFirst(RigUtil.Bone bone, Map<RigUtil.Bone, List<RigUtil.Bone>> children, int index) {
+        List<RigUtil.Bone> c = children.get(bone);
         if (c != null) {
-            for (RigScene.Bone child : c) {
+            for (RigUtil.Bone child : c) {
                 child.index = index++;
                 index = reindexNodesDepthFirst(child, children, index);
             }
@@ -303,14 +304,14 @@ public class SpineSceneBuilder extends Builder<Void> {
         return index;
     }
 
-    private static List<Integer> toDDF(List<RigScene.Bone> bones, List<RigScene.IK> iks, Skeleton.Builder skeletonBuilder) {
+    private static List<Integer> toDDF(List<RigUtil.Bone> bones, List<RigUtil.IK> iks, Skeleton.Builder skeletonBuilder) {
         // Order bones strictly breadth-first
-        Map<RigScene.Bone, List<RigScene.Bone>> children = new HashMap<RigScene.Bone, List<RigScene.Bone>>();
-        for (RigScene.Bone bone : bones) {
+        Map<RigUtil.Bone, List<RigUtil.Bone>> children = new HashMap<RigUtil.Bone, List<RigUtil.Bone>>();
+        for (RigUtil.Bone bone : bones) {
             if (bone.parent != null) {
-                List<RigScene.Bone> c = children.get(bone.parent);
+                List<RigUtil.Bone> c = children.get(bone.parent);
                 if (c == null) {
-                    c = new ArrayList<RigScene.Bone>();
+                    c = new ArrayList<RigUtil.Bone>();
                     children.put(bone.parent, c);
                 }
                 c.add(bone);
@@ -321,13 +322,13 @@ public class SpineSceneBuilder extends Builder<Void> {
         for (int i = 0; i < bones.size(); ++i) {
             indexRemap.add(bones.get(i).index);
         }
-        Collections.sort(bones, new Comparator<RigScene.Bone>() {
+        Collections.sort(bones, new Comparator<RigUtil.Bone>() {
             @Override
-            public int compare(RigScene.Bone o1, RigScene.Bone o2) {
+            public int compare(RigUtil.Bone o1, RigUtil.Bone o2) {
                 return o1.index - o2.index;
             }
         });
-        for (RigScene.Bone bone : bones) {
+        for (RigUtil.Bone bone : bones) {
             Bone.Builder boneBuilder = Bone.newBuilder();
             boneBuilder.setId(MurmurHash.hash64(bone.name));
             int parentIndex = 0xffff;
@@ -342,7 +343,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             boneBuilder.setLength((float)bone.length);
             skeletonBuilder.addBones(boneBuilder);
         }
-        for (RigScene.IK ik : iks) {
+        for (RigUtil.IK ik : iks) {
             IK.Builder ikBuilder = IK.newBuilder();
             ikBuilder.setId(MurmurHash.hash64(ik.name));
             if (ik.parent != null) {
@@ -359,7 +360,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         return indexRemap;
     }
 
-    private static void toDDF(RigScene.Mesh mesh, Mesh.Builder meshBuilder, List<Integer> boneIndexRemap, int drawOrder) {
+    private static void toDDF(RigUtil.Mesh mesh, Mesh.Builder meshBuilder, List<Integer> boneIndexRemap, int drawOrder) {
         float[] v = mesh.vertices;
         int vertexCount = v.length / 5;
         for (int i = 0; i < vertexCount; ++i) {
@@ -398,22 +399,22 @@ public class SpineSceneBuilder extends Builder<Void> {
         return indexList;
     }
 
-    private static Map<String, List<MeshIndex>> toDDF(String skinName, List<RigScene.Mesh> generics, List<RigScene.Mesh> specifics, MeshSet.Builder meshSetBuilder, List<Integer> boneIndexRemap) {
+    private static Map<String, List<MeshIndex>> toDDF(String skinName, List<RigUtil.Mesh> generics, List<RigUtil.Mesh> specifics, MeshSet.Builder meshSetBuilder, List<Integer> boneIndexRemap) {
         Map<String, List<MeshIndex>> slotIndices = new HashMap<String, List<MeshIndex>>();
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
         meshEntryBuilder.setId(MurmurHash.hash64(skinName));
-        List<RigScene.Mesh> meshes = new ArrayList<RigScene.Mesh>(generics.size() + specifics.size());
+        List<RigUtil.Mesh> meshes = new ArrayList<RigUtil.Mesh>(generics.size() + specifics.size());
         meshes.addAll(generics);
         meshes.addAll(specifics);
-        Collections.sort(meshes, new Comparator<RigScene.Mesh>() {
+        Collections.sort(meshes, new Comparator<RigUtil.Mesh>() {
             @Override
-            public int compare(com.dynamo.bob.util.RigScene.Mesh arg0,
-                    com.dynamo.bob.util.RigScene.Mesh arg1) {
+            public int compare(com.dynamo.bob.util.RigUtil.Mesh arg0,
+                    com.dynamo.bob.util.RigUtil.Mesh arg1) {
                 return arg0.slot.index - arg1.slot.index;
             }
         });
         int meshIndex = 0;
-        for (RigScene.Mesh mesh : meshes) {
+        for (RigUtil.Mesh mesh : meshes) {
             Mesh.Builder meshBuilder = Mesh.newBuilder();
             toDDF(mesh, meshBuilder, boneIndexRemap, meshIndex);
             meshEntryBuilder.addMeshes(meshBuilder);
@@ -425,7 +426,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         return slotIndices;
     }
 
-    private static double evalCurve(RigScene.AnimationCurve curve, double x) {
+    private static double evalCurve(RigUtil.AnimationCurve curve, double x) {
         if (curve == null) {
             return x;
         }
@@ -433,7 +434,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         return BezierUtil.curve(t, 0.0, curve.y0, curve.y1, 1.0);
     }
 
-    private static void sampleCurve(RigScene.AnimationCurve curve, PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
+    private static void sampleCurve(RigUtil.AnimationCurve curve, PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         for (int i = 0; i < v0.length; ++i) {
@@ -443,7 +444,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static <T,Key extends RigScene.AnimationKey> void sampleTrack(RigScene.AbstractAnimationTrack<Key> track, PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
+    private static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
         if (track.keys.isEmpty()) {
             return;
         }
@@ -485,7 +486,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(RigScene.AnimationTrack track, AnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf) {
+    private static void toDDF(RigUtil.AnimationTrack track, AnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf) {
         switch (track.property) {
         case POSITION:
             PositionBuilder posBuilder = new PositionBuilder(animTrackBuilder);
@@ -502,14 +503,14 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(RigScene.IKAnimationTrack track, IKAnimationTrack.Builder iKanimTrackBuilder, double duration, double sampleRate, double spf) {
+    private static void toDDF(RigUtil.IKAnimationTrack track, IKAnimationTrack.Builder iKanimTrackBuilder, double duration, double sampleRate, double spf) {
         IKMixBuilder mixBuilder = new IKMixBuilder(iKanimTrackBuilder);
         sampleTrack(track, mixBuilder, track.ik.mix, duration, sampleRate, spf, false);
         IKPositiveBuilder positiveBuilder = new IKPositiveBuilder(iKanimTrackBuilder);
         sampleTrack(track, positiveBuilder, track.ik.positive, duration, sampleRate, spf, false);
     }
 
-    private static void toDDF(RigScene.Slot slot, RigScene.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
+    private static void toDDF(RigUtil.Slot slot, RigUtil.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
         switch (track.property) {
         case ATTACHMENT:
             VisibilityBuilder visibilityBuilder = new VisibilityBuilder(animTrackBuilder, meshName);
@@ -526,16 +527,16 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(RigScene.EventTrack track, EventTrack.Builder builder) {
+    private static void toDDF(RigUtil.EventTrack track, EventTrack.Builder builder) {
         builder.setEventId(MurmurHash.hash64(track.name));
-        for (RigScene.EventKey key : track.keys) {
+        for (RigUtil.EventKey key : track.keys) {
             EventKey.Builder keyBuilder = EventKey.newBuilder();
             keyBuilder.setT(key.t).setInteger(key.intPayload).setFloat(key.floatPayload).setString(MurmurHash.hash64(key.stringPayload));
             builder.addKeys(keyBuilder);
         }
     }
 
-    private static void toDDF(RigScene scene, String id, RigScene.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate, Map<Long, Map<String, List<MeshIndex>>> slotIndices) {
+    private static void toDDF(SpineSceneUtil scene, String id, RigUtil.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate, Map<Long, Map<String, List<MeshIndex>>> slotIndices) {
         RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
         animBuilder.setId(MurmurHash.hash64(id));
         animBuilder.setDuration(animation.duration);
@@ -544,9 +545,9 @@ public class SpineSceneBuilder extends Builder<Void> {
         if (!animation.tracks.isEmpty()) {
             List<AnimationTrack.Builder> builders = new ArrayList<AnimationTrack.Builder>();
             AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
-            RigScene.AnimationTrack firstTrack = animation.tracks.get(0);
+            RigUtil.AnimationTrack firstTrack = animation.tracks.get(0);
             animTrackBuilder.setBoneIndex(firstTrack.bone.index);
-            for (RigScene.AnimationTrack track : animation.tracks) {
+            for (RigUtil.AnimationTrack track : animation.tracks) {
                 if (animTrackBuilder.getBoneIndex() != track.bone.index) {
                     builders.add(animTrackBuilder);
                     animTrackBuilder = AnimationTrack.newBuilder();
@@ -570,9 +571,9 @@ public class SpineSceneBuilder extends Builder<Void> {
         if (!animation.iKTracks.isEmpty()) {
             List<IKAnimationTrack.Builder> builders = new ArrayList<IKAnimationTrack.Builder>();
             IKAnimationTrack.Builder animTrackBuilder = IKAnimationTrack.newBuilder();
-            RigScene.IKAnimationTrack firstTrack = animation.iKTracks.get(0);
+            RigUtil.IKAnimationTrack firstTrack = animation.iKTracks.get(0);
             animTrackBuilder.setIkIndex(firstTrack.ik.index);
-            for (RigScene.IKAnimationTrack track : animation.iKTracks) {
+            for (RigUtil.IKAnimationTrack track : animation.iKTracks) {
                 if (animTrackBuilder.getIkIndex() != track.ik.index) {
                     builders.add(animTrackBuilder);
                     animTrackBuilder = IKAnimationTrack.newBuilder();
@@ -597,9 +598,9 @@ public class SpineSceneBuilder extends Builder<Void> {
             for (Map.Entry<Long, Map<String, List<MeshIndex>>> skinEntry : slotIndices.entrySet()) {
                 long skinId = skinEntry.getKey();
                 Map<String, List<MeshIndex>> slotToMeshIndex = skinEntry.getValue();
-                for (RigScene.SlotAnimationTrack track : animation.slotTracks) {
+                for (RigUtil.SlotAnimationTrack track : animation.slotTracks) {
                     List<MeshIndex> meshIndices = slotToMeshIndex.get(track.slot.name);
-                    RigScene.Slot slot = scene.getSlot(track.slot.name);
+                    RigUtil.Slot slot = scene.getSlot(track.slot.name);
                     if (meshIndices != null) {
                         for (MeshIndex meshIndex : meshIndices) {
                             MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
@@ -612,7 +613,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                 }
             }
         }
-        for (RigScene.EventTrack track : animation.eventTracks) {
+        for (RigUtil.EventTrack track : animation.eventTracks) {
             EventTrack.Builder builder = EventTrack.newBuilder();
             toDDF(track, builder);
             animBuilder.addEventTracks(builder);
@@ -659,7 +660,7 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         Rig.RigScene.Builder b = Rig.RigScene.newBuilder();
         try {
-            RigScene scene = RigScene.loadJson(new ByteArrayInputStream(task.input(1).getContent()), new UVTransformProvider() {
+            SpineSceneUtil scene = SpineSceneUtil.loadJson(new ByteArrayInputStream(task.input(1).getContent()), new UVTransformProvider() {
                 @Override
                 public UVTransform getUVTransform(String animId) {
                     return animToTransform.get(animId);
@@ -678,8 +679,8 @@ public class SpineSceneBuilder extends Builder<Void> {
             // MeshSet
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
             Map<Long, Map<String, List<MeshIndex>>> slotIndices = new HashMap<Long, Map<String, List<MeshIndex>>>();
-            slotIndices.put(MurmurHash.hash64(""), toDDF("", scene.meshes, Collections.<RigScene.Mesh>emptyList(), meshSetBuilder, boneIndexRemap));
-            for (Map.Entry<String, List<RigScene.Mesh>> entry : scene.skins.entrySet()) {
+            slotIndices.put(MurmurHash.hash64(""), toDDF("", scene.meshes, Collections.<RigUtil.Mesh>emptyList(), meshSetBuilder, boneIndexRemap));
+            for (Map.Entry<String, List<RigUtil.Mesh>> entry : scene.skins.entrySet()) {
                 slotIndices.put(MurmurHash.hash64(entry.getKey()), toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder, boneIndexRemap));
             }
             out = new ByteArrayOutputStream(64 * 1024);
@@ -689,7 +690,7 @@ public class SpineSceneBuilder extends Builder<Void> {
 
             // AnimationSet
             AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
-            for (Map.Entry<String, RigScene.Animation> entry : scene.animations.entrySet()) {
+            for (Map.Entry<String, RigUtil.Animation> entry : scene.animations.entrySet()) {
                 toDDF(scene, entry.getKey(), entry.getValue(), animSetBuilder, builder.getSampleRate(), slotIndices);
             }
             out = new ByteArrayOutputStream(64 * 1024);

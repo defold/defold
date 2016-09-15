@@ -23,7 +23,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.RigScene;
+import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.model.proto.Model;
 
 import com.dynamo.model.proto.Model.ModelDesc;
