@@ -50,6 +50,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.system :as system]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
@@ -136,6 +137,8 @@
                          (ui/with-progress [render-fn ui/default-render-progress!]
                            (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
 
+(defn- find-tab [^TabPane tabs id]
+  (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -199,8 +202,7 @@
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
-                                                      {:tab (some #(and (= "curve-editor-tab" (.getId ^Tab %)) %)
-                                                                  (.getTabs tool-tabs))})]
+                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})]
 
       (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
         (doall (map (fn [^SplitPane sp pos]
@@ -234,8 +236,10 @@
             (g/connect app-view label outline-view label))
           (for [view [outline-view asset-browser]]
             (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
-    (graph-view/setup-graph-view root)
+          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+      (if (system/defold-dev?)
+        (graph-view/setup-graph-view root)
+        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"])))))
     (reset! the-root root)
     root))
 
