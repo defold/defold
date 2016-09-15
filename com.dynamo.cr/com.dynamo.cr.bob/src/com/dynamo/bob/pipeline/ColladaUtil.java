@@ -94,6 +94,7 @@ public class ColladaUtil {
         XMLCOLLADA collada = loadDAE(is);
         meshBuilder.mergeFrom(loadMesh(collada));
         animationSetBuilder.mergeFrom(loadAnimations(collada, 1.0f/24.0f));
+        skeletonBuilder.mergeFrom(loadSkeleton(collada));
         // TODO skeleton
 
         // Add root bone
@@ -354,13 +355,8 @@ public class ColladaUtil {
     }
 
 
-    public static com.dynamo.rig.proto.Rig.Skeleton loadSkeleton(InputStream is) throws IOException, XMLStreamException, LoaderException {
-        XMLInputFactory factory = XMLInputFactory.newInstance();
-        XMLStreamReader stream_reader = factory.createXMLStreamReader(is);
-
+    public static com.dynamo.rig.proto.Rig.Skeleton loadSkeleton(XMLCOLLADA collada) throws IOException, XMLStreamException, LoaderException {
         com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder = com.dynamo.rig.proto.Rig.Skeleton.newBuilder();
-        XMLCOLLADA collada = new XMLCOLLADA();
-        collada.parse(stream_reader);
 
         if (collada.libraryVisualScenes.size() != 1) {
             return skeletonBuilder.build();

@@ -92,6 +92,7 @@ public class ColladaModelBuilder extends Builder<Void>  {
 
 
         // Skeleton
+        /*
         ByteArrayInputStream skeleton_is = new ByteArrayInputStream(task.input(0).getContent());
         Skeleton skeleton;
         try {
@@ -101,8 +102,9 @@ public class ColladaModelBuilder extends Builder<Void>  {
         } catch (LoaderException e) {
             throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton", e);
         }
+        */
         out = new ByteArrayOutputStream(64 * 1024);
-        skeleton.writeTo(out);
+        skeletonBuilder.build().writeTo(out);
         out.close();
         task.output(1).setContent(out.toByteArray());
 

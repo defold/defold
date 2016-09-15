@@ -128,7 +128,8 @@ public class ColladaUtilTest {
     @Test
     public void testSkeleton() throws Exception {
         // Temp test (and temp data)
-        Skeleton skeleton = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"));
+        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("simple_anim.dae"));
+        Skeleton skeleton = ColladaUtil.loadSkeleton(collada);
         List<Bone> bones = skeleton.getBonesList();
         assertEquals(65535, bones.get(0).getParent());
         assertEquals(0,     bones.get(1).getParent());
