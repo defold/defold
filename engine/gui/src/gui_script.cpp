@@ -2613,7 +2613,7 @@ namespace dmGui
      * @return node size mode (constant)
      * <ul>
      *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
-     *   <li><code>gui.SIZE_MODE_AUTOMATIC</code></li>
+     *   <li><code>gui.SIZE_MODE_AUTO</code></li>
      * </ul>
      */
     static int LuaGetSizeMode(lua_State* L)
@@ -2631,7 +2631,7 @@ namespace dmGui
      * @param size_mode size mode to set (constant)
      * <ul>
      *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
-     *   <li><code>gui.SIZE_MODE_AUTOMATIC</code></li>
+     *   <li><code>gui.SIZE_MODE_AUTO</code></li>
      * </ul>
      */
     static int LuaSetSizeMode(lua_State* L)
@@ -3508,7 +3508,7 @@ namespace dmGui
 
     /*# automatic size mode
      * The size of the node is determined by the currently assigned texture.
-     * @name gui.SIZE_MODE_AUTOMATIC
+     * @name gui.SIZE_MODE_AUTO
      * @variable
      */
 
@@ -3701,7 +3701,7 @@ namespace dmGui
         lua_pushnumber(L, (lua_Number) SIZE_MODE_MANUAL);
         lua_setfield(L, -2, "SIZE_MODE_MANUAL");
         lua_pushnumber(L, (lua_Number) SIZE_MODE_AUTO);
-        lua_setfield(L, -2, "SIZE_MODE_AUTOMATIC");
+        lua_setfield(L, -2, "SIZE_MODE_AUTO");
 
         lua_pop(L, 1);
 

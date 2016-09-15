@@ -458,8 +458,8 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
             "    gui.set_texture(n, 't1')\n"
             "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_MANUAL)\n"
             "    assert(gui.get_size(n) == vmath.vector3(10, 10, 0))\n"
-            "    gui.set_size_mode(n, gui.SIZE_MODE_AUTOMATIC)\n"
-            "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_AUTOMATIC)\n"
+            "    gui.set_size_mode(n, gui.SIZE_MODE_AUTO)\n"
+            "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_AUTO)\n"
             "    assert(gui.get_size(n) == vmath.vector3(1, 1, 0))\n"
             "end\n";
 
