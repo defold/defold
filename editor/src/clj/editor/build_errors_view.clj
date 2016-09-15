@@ -1,91 +1,97 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
-            [editor
-             [dialogs :as dialogs]
-             [resource :as resource]
-             [ui :as ui]
-             [workspace :as workspace]])
+            [editor.dialogs :as dialogs]
+            [editor.resource :as resource]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [javafx.scene.control TabPane TreeItem TreeView]
            [editor.resource FileResource]))
 
 (set! *warn-on-reflection* true)
 
-(defrecord BuildErrorResource [parent-node-id parent-resource parent-file-resource error]
-  resource/Resource
-  (children [this]      [])
-  (resource-name [this] error)
-  (resource-type [this] {:icon "icons/32/Icons_M_08_bigclose.png"})
-  (source-type [this]   (resource/source-type parent-resource))
-  (read-only? [this]    (resource/read-only? parent-resource))
-  (path [this]          (resource/path parent-resource))
-  (abs-path [this]      (resource/abs-path parent-resource))
-  (proj-path [this]     (resource/proj-path parent-resource))
-  (url [this]           (resource/url parent-resource))
-  (workspace [this]     (resource/workspace parent-resource))
-  (resource-hash [this] (resource/resource-hash parent-resource)))
+(defn persistent-queue
+  [coll]
+  (into clojure.lang.PersistentQueue/EMPTY coll))
 
-(defn- open-parent-resource [open-resource-fn resource]
-  (when-let [res (:parent-file-resource resource)]
-    (ui/run-later (open-resource-fn res {:select-node (:parent-node-id resource)}))))
+(defn root-causes
+  [error-value]
+  (letfn [(push-causes [queue error path]
+            (let [new-path (conj path error)]
+              (reduce (fn [queue error]
+                        (conj queue [error new-path])) queue (:causes error))))]
+    (loop [queue (persistent-queue [[error-value (list)]])
+           ret #{}]
+      (if-let [[error path] (peek queue)]
+        (cond
+          (seq (:causes error))
+          (recur (push-causes (pop queue) error path) ret)
 
-(defn- build-resource-tree [{:keys [causes _node-id _label message] :as error} parent-node-id parent-file]
-  (let [res            (:resource (and _node-id (g/node-by-id _node-id)))
-        parent-node-id (if res
-                         _node-id parent-node-id)
-        parent-file    (if (instance? FileResource res)
-                         res parent-file)
-        children       (->> causes
-                            (map #(build-resource-tree % parent-node-id parent-file))
-                            (remove nil?)
-                            seq)
-        error-res      (and message (->BuildErrorResource
-                                     parent-node-id
-                                     (:resource (g/node-by-id parent-node-id))
-                                     parent-file
-                                     message))]
-    (cond
-      (and res error-res)
-      (assoc res :children [error-res])
+          :else
+          (recur (pop queue) (conj ret {:error error :parents path})))
+        ret))))
 
-      res
-      (assoc res :children children)
+(defn parent-file-resource
+  [errors]
+  (->> errors
+       (map (fn [{:keys [_node-id] :as error}]
+              {:node-id _node-id
+               :resource (some-> _node-id g/node-by-id :resource)}))
+       (filter (fn [{:keys [resource]}]
+                 (instance? FileResource resource)))
+       (first)))
 
-      error-res
-      error-res
+(defn- build-resource-tree
+  [root-error]
+  (let [items (->> (root-causes root-error)
+                   (map (fn [{:keys [error parents] :as root-cause}]
+                          (assoc root-cause :parent (parent-file-resource parents))))
+                   (group-by :parent)
+                   (reduce-kv (fn [ret resource errors]
+                                (conj ret {:type :resource
+                                           :value resource
+                                           :children errors}))
+                              []))]
+    {:label "root"
+     :children items}))
 
-      :else
-      (first children))))
+(defmulti make-tree-cell
+  (fn [tree-item] (:type tree-item)))
 
-(defn- trim-resource-tree
-  "Remove top-level single-child nodes"
-  [{:keys [children] :as tree}]
-  (let [first-child (first children)]
-    (if (and (= 1 (count children))
-             (instance? FileResource first-child))
-      (trim-resource-tree first-child)
-      tree)))
+(defmethod make-tree-cell :resource
+  [tree-item]
+  (let [resource (-> tree-item :value :resource)]
+    {:text (resource/resource-name resource )
+     :icon (workspace/resource-icon resource)}))
+
+(defmethod make-tree-cell :default
+  [tree-item]
+  {:text (-> tree-item :error :message)
+   :icon "icons/32/Icons_M_08_bigclose.png"})
+
+(defn- open-error [open-resource-fn selection]
+  (when-let [error (:error selection)]
+    (ui/run-later
+      (open-resource-fn (-> selection :parent :resource) [(-> selection :parent :node-id)]))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
-  (ui/cell-factory! errors-tree (fn [r]
-                                  {:text (or (resource/resource-name r)
-                                             (:label (resource/resource-type r)))
-                                   :icon (workspace/resource-icon r)}))
-  (ui/on-double! errors-tree (fn [_]
-                               (when-let [resource (ui/selection errors-tree)]
-                                 (open-parent-resource open-resource-fn resource))))
-  errors-tree)
+  (doto errors-tree
+    (.setShowRoot false)
+    (ui/cell-factory! make-tree-cell)
+    (ui/on-double! (fn [_]
+                     (when-let [selection (ui/selection errors-tree)]
+                       (open-error open-resource-fn selection))))))
 
 (defn update-build-errors [^TreeView errors-tree build-errors]
-  (let [res-tree (build-resource-tree build-errors nil nil)
-        new-root (dialogs/tree-item (trim-resource-tree res-tree))]
+  (def err build-errors)
+  (let [res-tree (build-resource-tree build-errors)
+        new-root (dialogs/tree-item res-tree)]
     (.setRoot errors-tree new-root)
     (doseq [^TreeItem item (ui/tree-item-seq (.getRoot errors-tree))]
       (.setExpanded item true))
-    (when-let [first-match (->> (ui/tree-item-seq (.getRoot errors-tree))
-                                (filter (fn [^TreeItem item]
-                                          (instance? BuildErrorResource (.getValue item))))
+    (when-let [first-error (->> (ui/tree-item-seq (.getRoot errors-tree))
+                                (filter (fn [^TreeItem item] (.isLeaf item)))
                                 first)]
-      (.select (.getSelectionModel errors-tree) first-match))
+      (.select (.getSelectionModel errors-tree) first-error))
     ;; Select tab-pane
     (let [^TabPane tab-pane (.getParent (.getParent (.getParent errors-tree)))]
       (.select (.getSelectionModel tab-pane) 2))))
