@@ -28,8 +28,11 @@
   (workspace [this])
   (resource-hash [this]))
 
+(defn- ->unix-seps ^String [^String path]
+  (FilenameUtils/separatorsToUnix path))
+
 (defn relative-path [^File f1 ^File f2]
-  (.toString (.relativize (.toPath f1) (.toPath f2))))
+  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
