@@ -331,13 +331,13 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world "test/resources/missing_project"))]  ; no logging as purposely partially broken project
       (testing "Missing go file visible in collection outline"
-        (let [root (test-util/resource-node project "/missing_go.collection")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith (:label (outline root [0])) "non-existent"))))
+       (let [root (test-util/resource-node project "/missing_go.collection")]
+         (is (= 1 (child-count root)))
+         (is (.startsWith (:label (outline root [0])) "non-existent"))))
       (testing "Missing sub collection visible in collection outline"
-        (let [root (test-util/resource-node project "/missing_collection.collection")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith  (:label (outline root [0])) "non-existent"))))
+       (let [root (test-util/resource-node project "/missing_collection.collection")]
+         (is (= 1 (child-count root)))
+         (is (.startsWith  (:label (outline root [0])) "non-existent"))))
       (testing "Missing script visible in go outline"
         (let [root (test-util/resource-node project "/missing_component.go")]
           (is (= 1 (child-count root)))

@@ -82,6 +82,10 @@
         v (if (<= c i) (into v (repeat (- i c) nil)) v)]
     (assoc v i value)))
 
+(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 (g/defnode ModelNode
   (inherits project/ResourceNode)
 
@@ -94,7 +98,8 @@
                                             [:aabb :aabb]
                                             [:build-targets :dep-build-targets]
                                             [:scene :scene])))
-            (validate (validation/validate-resource mesh))
+            (dynamic error (g/fnk [_node-id mesh]
+                                  (prop-resource-error :info _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/always {:type resource/Resource
                                           :ext "dae"})))
   (property material resource/Resource
@@ -105,7 +110,8 @@
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
                                             [:shader :shader])))
-            (validate (validation/validate-resource material))
+            (dynamic error (g/fnk [_node-id material]
+                                  (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/always {:type resource/Resource
                                           :ext "material"})))
   (property textures resource/ResourceVec

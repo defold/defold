@@ -65,8 +65,8 @@
 
 (def ^:private status-errors
   {:ok nil
-   :invalid-args (g/error-severe "Invalid arguments to go.property call") ; TODO: not used for now
-   :invalid-value (g/error-severe "Invalid value in go.property call")})
+   :invalid-args (g/error-fatal "Invalid arguments to go.property call") ; TODO: not used for now
+   :invalid-value (g/error-fatal "Invalid value in go.property call")})
 
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
@@ -78,7 +78,7 @@
                                     prop (-> (select-keys p [:value])
                                            (assoc :node-id _node-id
                                                   :type (go-prop-type->property-types type)
-                                                  :validation-problems (status-errors (:status p))
+                                                  :error (status-errors (:status p))
                                                   :edit-type {:type (go-prop-type->property-types type)}
                                                   :go-prop-type type
                                                   :read-only? (nil? (g/override-original _node-id))))]
