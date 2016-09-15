@@ -73,7 +73,8 @@
          (load-fn project node-id resource)
          (when (instance? FileResource resource)
            (g/connect node-id :save-data project :save-data)))
-        (catch java.io.IOException e
+        (catch Exception e
+          (log/warn :exception e)
           (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
       [])))
 
