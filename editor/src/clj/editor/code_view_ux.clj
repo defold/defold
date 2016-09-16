@@ -335,7 +335,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [code (text selection)
+      (let [code (code/lf-normalize-line-endings (text selection))
             caret (caret selection)]
         (if (pos? (selection-length selection))
           (replace-text-selection selection clipboard-text)
@@ -372,7 +372,7 @@
         doc (text source-viewer)
         selected-text (text-selection source-viewer)
         next-pos (if (and (pos? (count selected-text))
-                      (not (caret-at-left-of-selection? source-viewer)))
+                          (not (caret-at-left-of-selection? source-viewer)))
                    (adjust-bounds doc (- c (count selected-text)))
                    (adjust-bounds doc (dec c)))]
     (clear-snippet-tab-triggers! source-viewer)
@@ -1249,18 +1249,21 @@
 (handler/defhandler :enter :code-view
   (enabled? [selection] (editable? selection))
   (run [selection]
-    (when (editable? selection)
-      (clear-snippet-tab-triggers! selection)
-      (if (= (caret selection) (line-end-pos selection))
-        (do
-          (do-unindent-line selection (line-num-at-offset selection (caret selection)))
-          (enter-key-text selection (System/getProperty "line.separator"))
-          (do-indent-line selection (line-num-at-offset selection (caret selection)))
-          (caret! selection (+ (line-offset selection) (count (line selection))) false)
-          (remember-caret-col selection (caret selection))
-          (show-line selection))
-        (enter-key-text selection (System/getProperty "line.separator")))
-      (typing-changes! selection))))
+    ;; e(fx)clipse doesn't like \r\n
+    ;; should really be (System/getProperty "line.separator")
+    (let [line-separator "\n"]
+      (when (editable? selection)
+        (clear-snippet-tab-triggers! selection)
+        (if (= (caret selection) (line-end-pos selection))
+          (do
+            (do-unindent-line selection (line-num-at-offset selection (caret selection)))
+            (enter-key-text selection line-separator)
+            (do-indent-line selection (line-num-at-offset selection (caret selection)))
+            (caret! selection (+ (line-offset selection) (count (line selection))) false)
+            (remember-caret-col selection (caret selection))
+            (show-line selection))
+          (enter-key-text selection line-separator))
+        (typing-changes! selection)))))
 
 (defn- completion-pattern [replacement loffset line-text offset]
   (let [fragment (subs line-text 0 (- offset loffset))
