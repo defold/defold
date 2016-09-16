@@ -921,6 +921,13 @@ Defold Orange       #fd6623             Guides etc
 #toolbar > .toggle-button:selected {
   -fx-background-color: #484d54; }
 
+/* Code view */
+
+.styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
+  -fx-font-family: "Inconsolata";
+  -fx-font-size: 14;
+}
+
 .lua.styled-text-area .comment,
 .lua.styled-text-area .comment-multi,
 .glsl.styled-text-area .comment,
