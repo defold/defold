@@ -6,6 +6,7 @@
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.asset-browser :as asset-browser]
             [integration.test-util :as test-util])
   (:import [java.io StringReader]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
@@ -84,3 +85,32 @@
                   save (first (get save-data resource))
                   file (slurp resource)]
                (is (= file (:content save))))))))))
+
+(defn- setup-scratch
+  [ws-graph]
+  (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
+        project (test-util/setup-project! workspace)]
+    [workspace project]))
+
+(defn- root-errors [error]
+  (filter #(nil? (:causes %)) (tree-seq #(not-empty (:causes %)) :causes error)))
+
+(deftest save-after-delete []
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
+      (asset-browser/delete [(g/node-value atlas-id :resource)]
+                            (fn [resources]
+                              (let [nodes (keep #(project/get-resource-node project %) resources)]
+                                (when (not-empty nodes)
+                                  (g/transact
+                                    (for [n nodes]
+                                      (g/delete-node n)))))))
+      (is (not (g/error? (project/save-data project)))))))
+
+(deftest save-after-rename []
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
+      (asset-browser/rename (g/node-value atlas-id :resource) "/switcher/switcher2.atlas")
+      (is (not (g/error? (project/save-data project)))))))
