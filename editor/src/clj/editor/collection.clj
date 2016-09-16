@@ -723,6 +723,12 @@
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
+(defn- read-scale3-or-scale
+  [{:keys [scale3 scale] :as pb-map}]
+  (if (-> pb-map meta :proto-defaults :scale3)
+    [scale scale scale]
+    scale3))
+
 (defn load-collection [project self resource]
   (let [collection (protobuf/read-text GameObject$CollectionDesc resource)
         project-graph (g/node-id->graph-id project)
@@ -740,18 +746,16 @@
       (let [tx-go-creation (flatten
                              (concat
                                (for [game-object (:instances collection)
-                                     :let [; TODO - fix non-uniform hax
-                                           scale (:scale game-object)
+                                     :let [scale (read-scale3-or-scale game-object)
                                            source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                  (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                   (v4->euler (:rotation game-object)) [scale scale scale] false (:component-properties game-object)))
+                                   (v4->euler (:rotation game-object)) scale false (:component-properties game-object)))
                                (for [embedded (:embedded-instances collection)
-                                     :let [; TODO - fix non-uniform hax
-                                           scale (:scale embedded)]]
+                                     :let [scale (read-scale3-or-scale embedded)]]
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                    (:position embedded)
                                    (v4->euler (:rotation embedded))
-                                   [scale scale scale] false false (:component-properties embedded)))))
+                                   scale false false (:component-properties embedded)))))
             new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
