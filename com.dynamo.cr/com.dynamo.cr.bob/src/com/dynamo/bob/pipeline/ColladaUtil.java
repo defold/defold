@@ -64,6 +64,8 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 
 public class ColladaUtil {
+    
+    private static float ANGLE_TO_RAD = (float)Math.PI / 180.0f;
 
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
@@ -136,11 +138,12 @@ public class ColladaUtil {
         boolean hasCurve = false;
         float[] inTangents = animation.getInTangents();
         float[] outTangents = animation.getOutTangents();
+        String[] interpolations = null;
         if (inTangents != null && outTangents != null) {
             hasCurve = true;
+            interpolations = animation.getInterpolations();
         }
 
-        String[] interpolations = animation.getInterpolations();
 
         Float prevAngles = null;
         for (int i = 0; i < t.length; i++) {
@@ -168,12 +171,12 @@ public class ColladaUtil {
             }
             if (hasCurve) {
                 AnimationCurve curve = new AnimationCurve();
-                if (interpolations[i].equals("BEZIER")) {
+                if (interpolations.length > i && interpolations[i] != null && interpolations[i].equals("BEZIER")) {
                     curve.interpolation = CurveIntepolation.BEZIER;
                 } else {
                     curve.interpolation = CurveIntepolation.LINEAR;
                 }
-                // TMP: Force linear curve interpolation!
+                // TEMP: Force linear curve interpolation!
                 curve.interpolation = CurveIntepolation.LINEAR;
                 curve.x0 = (float)inTangents[i*2];
                 curve.y0 = (float)inTangents[i*2+1];
@@ -186,6 +189,14 @@ public class ColladaUtil {
             track.keys.add(key);
         }
     }
+    
+    private static void loadComponentTrack(XMLAnimation animation, AnimationTrack.Builder trackBuilder, RigUtil.AnimationTrack.Property componentProperty, double defaultValue, float duration, float sampleRate, double spf) {
+        RigUtil.PositionComponentBuilder posXBuilder = new RigUtil.PositionComponentBuilder(trackBuilder);
+        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
+        loadTrack(animation, track);
+        RigUtil.sampleTrack(track, posXBuilder, defaultValue, duration, sampleRate, spf, true);
+    }
 
     private static void toDDF(RigAnimation.Builder animBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
         animBuilder.setId(MurmurHash.hash64(animationId));
@@ -194,51 +205,33 @@ public class ColladaUtil {
 
         double spf = 1.0 / sampleRate;
 
+        // We loop through all bones in the skeleton, this also includes the "fake root" representing the model.
         for (int bi = 0; bi < skeleton.getBonesCount(); bi++) {
             com.dynamo.rig.proto.Rig.Bone bone = skeleton.getBones(bi);
 
-            // Get animations for bone:
+            // Check if there exist any animation for the current bone
             if (boneToAnimations.containsKey(bone.getId())) {
                 HashMap<String, XMLAnimation> propAnimations = boneToAnimations.get(bone.getId());
 
                 AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
                 animTrackBuilder.setBoneIndex(bi);
+                
+                // Animation tracks in collada are split on different components of properties,
+                // i.e. X, Y and Z components of the position/location property.
+                //
+                // We load each of these tracks (for each component), then sample them individually,
+                // finally we assemble the final track by picking samples from each component-track. 
 
                 // Positions
                 if (propAnimations.containsKey("location.X") || propAnimations.containsKey("location.Y") || propAnimations.containsKey("location.Z")) {
 
                     AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
-                    RigUtil.PositionComponentBuilder posXBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderX);
-
                     AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
-                    RigUtil.PositionComponentBuilder posYBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderY);
-
                     AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
-                    RigUtil.PositionComponentBuilder posZBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderZ);
-
-                    if (propAnimations.containsKey("location.X")) {
-                        XMLAnimation locX = propAnimations.get("location.X");
-                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-                        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
-                        loadTrack(locX, track);
-                        RigUtil.sampleTrack(track, posXBuilder, new Double(0.0), duration, sampleRate, spf, true);
-                    }
-
-                    if (propAnimations.containsKey("location.Y")) {
-                        XMLAnimation locY = propAnimations.get("location.Y");
-                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-                        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
-                        loadTrack(locY, track);
-                        RigUtil.sampleTrack(track, posYBuilder, new Double(0.0), duration, sampleRate, spf, true);
-                    }
-
-                    if (propAnimations.containsKey("location.Z")) {
-                        XMLAnimation locZ = propAnimations.get("location.Z");
-                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-                        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
-                        loadTrack(locZ, track);
-                        RigUtil.sampleTrack(track, posZBuilder, new Double(0.0), duration, sampleRate, spf, true);
-                    }
+                    
+                    loadComponentTrack(propAnimations.get("location.X"), animTrackBuilderX, Property.POSITION_COMPONENT, 0.0, duration, sampleRate, spf);
+                    loadComponentTrack(propAnimations.get("location.Y"), animTrackBuilderY, Property.POSITION_COMPONENT, 0.0, duration, sampleRate, spf);                    
+                    loadComponentTrack(propAnimations.get("location.Z"), animTrackBuilderZ, Property.POSITION_COMPONENT, 0.0, duration, sampleRate, spf);
 
                     assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
                     assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
@@ -248,56 +241,28 @@ public class ColladaUtil {
                         animTrackBuilder.addPositions(animTrackBuilderZ.getPositions(i));
                         animTrackBuilder.addPositions(animTrackBuilderX.getPositions(i));
 
-                        animTrackBuilder.addScale(1.0f);
-                        animTrackBuilder.addScale(1.0f);
-                        animTrackBuilder.addScale(1.0f);
                     }
 
                 }
-
+                
+                // Euler rotations
                 if (propAnimations.containsKey("rotationX.ANGLE") || propAnimations.containsKey("rotationY.ANGLE") || propAnimations.containsKey("rotationZ.ANGLE")) {
 
                     AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
-                    RigUtil.PositionComponentBuilder posXBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderX);
-
                     AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
-                    RigUtil.PositionComponentBuilder posYBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderY);
-
                     AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
-                    RigUtil.PositionComponentBuilder posZBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderZ);
-
-                    if (propAnimations.containsKey("rotationX.ANGLE")) {
-                        XMLAnimation locX = propAnimations.get("rotationX.ANGLE");
-                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-                        track.property = RigUtil.AnimationTrack.Property.ROTATION_COMPONENT;
-                        loadTrack(locX, track);
-                        RigUtil.sampleTrack(track, posXBuilder, new Double(0.0), duration, sampleRate, spf, true);
-                    }
-
-                    if (propAnimations.containsKey("rotationY.ANGLE")) {
-                        XMLAnimation locY = propAnimations.get("rotationY.ANGLE");
-                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-                        track.property = RigUtil.AnimationTrack.Property.ROTATION_COMPONENT;
-                        loadTrack(locY, track);
-                        RigUtil.sampleTrack(track, posYBuilder, new Double(0.0), duration, sampleRate, spf, true);
-                    }
-
-                    if (propAnimations.containsKey("rotationZ.ANGLE")) {
-                        XMLAnimation locZ = propAnimations.get("rotationZ.ANGLE");
-                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-                        track.property = RigUtil.AnimationTrack.Property.ROTATION_COMPONENT;
-                        loadTrack(locZ, track);
-                        RigUtil.sampleTrack(track, posZBuilder, new Double(0.0), duration, sampleRate, spf, true);
-                    }
+                    
+                    loadComponentTrack(propAnimations.get("rotationX.ANGLE"), animTrackBuilderX, Property.ROTATION_COMPONENT, 0.0, duration, sampleRate, spf);
+                    loadComponentTrack(propAnimations.get("rotationY.ANGLE"), animTrackBuilderY, Property.ROTATION_COMPONENT, 0.0, duration, sampleRate, spf);                    
+                    loadComponentTrack(propAnimations.get("rotationZ.ANGLE"), animTrackBuilderZ, Property.ROTATION_COMPONENT, 0.0, duration, sampleRate, spf);
 
                     assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
                     assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
 
                     for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
-
-                        float toAngle = (float)Math.PI / 180.0f;
-                        Tuple3f euler = new Tuple3f(animTrackBuilderY.getPositions(i)*toAngle, animTrackBuilderZ.getPositions(i)*toAngle, animTrackBuilderX.getPositions(i)*toAngle);
-                        Quaternion4f quat = Rotations.toQuaternion( euler );
+                        Quaternion4f quat = Rotations.toQuaternion( new Tuple3f(animTrackBuilderY.getPositions(i)*ANGLE_TO_RAD,
+                                                                                animTrackBuilderZ.getPositions(i)*ANGLE_TO_RAD,
+                                                                                animTrackBuilderX.getPositions(i)*ANGLE_TO_RAD) );
 
                         animTrackBuilder.addRotations(quat.getA());
                         animTrackBuilder.addRotations(quat.getB());
@@ -305,13 +270,31 @@ public class ColladaUtil {
                         animTrackBuilder.addRotations(quat.getD());
                     }
                 }
+                
+                // Scale
+                if (propAnimations.containsKey("scale.X") || propAnimations.containsKey("scale.Y") || propAnimations.containsKey("scale.Z")) {
+
+                    AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
+                    AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
+                    AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
+                    
+                    loadComponentTrack(propAnimations.get("scale.X"), animTrackBuilderX, Property.POSITION_COMPONENT, 1.0, duration, sampleRate, spf);
+                    loadComponentTrack(propAnimations.get("scale.Y"), animTrackBuilderY, Property.POSITION_COMPONENT, 1.0, duration, sampleRate, spf);                    
+                    loadComponentTrack(propAnimations.get("scale.Z"), animTrackBuilderZ, Property.POSITION_COMPONENT, 1.0, duration, sampleRate, spf);
+
+                    assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
+                    assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
+
+                    for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
+                        animTrackBuilder.addScale(animTrackBuilderY.getPositions(i));
+                        animTrackBuilder.addScale(animTrackBuilderZ.getPositions(i));
+                        animTrackBuilder.addScale(animTrackBuilderX.getPositions(i));
+                    }
+                }
 
                 animBuilder.addTracks(animTrackBuilder.build());
             }
-
-            // TODO scale
         }
-
     }
 
     public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) throws IOException, XMLStreamException, LoaderException {
