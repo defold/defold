@@ -58,7 +58,12 @@
                 :pb-class        Physics$CollisionObjectDesc
                 :test-fn (fn [pb]
                            (is (= "" (:collision-shape pb)))
-                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}])
+                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
+               {:label           "Tile Source"
+                :path            "/tile_source/simple.tilesource"
+                :pb-class        TextureSetProto$TextureSet
+                :test-fn (fn [pb]
+                           (is (< 0 (count (:convex-hull-points pb)))))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -97,7 +102,7 @@
                        "/builtins/render/default.render"
                        "/builtins/render/default.render_script"
                        "/background/bg.png"
-                       "/builtins/graphics/particle_blob.tilesource"
+                       "/tile_source/simple.tilesource"
                        "/main/blob.tilemap"
                        "/collisionobject/tile_map.collisionobject"
                        "/collisionobject/convex_shape.collisionobject"]
