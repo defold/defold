@@ -278,7 +278,7 @@
    [:one-button   :primary   false true  true  false] :track
    [:one-button   :primary   false true  false false] :dolly
    [:three-button :primary   false false true  false] :tumble
-   [:three-button :secondary false false true  false] :track
+   [:three-button :secondary false false false false] :track
    [:three-button :middle    false false true  false] :dolly})
 
 (defn camera-movement
