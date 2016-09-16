@@ -63,6 +63,7 @@
                 :path            "/tile_source/simple.tilesource"
                 :pb-class        TextureSetProto$TextureSet
                 :test-fn (fn [pb]
+                           (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                            (is (< 0 (count (:convex-hull-points pb)))))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
