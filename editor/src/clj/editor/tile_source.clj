@@ -792,7 +792,10 @@
 
 (defn- make-tile->collision-group-node
   [{:keys [convex-hulls]} collision-group-nodes]
-  (let [collision-group->node-id (into {} (keep (fn [{:keys [_node-id id]}] (when id [_node-id id])) collision-group-nodes))]
+  (let [collision-group->node-id (into {} (keep (fn [tx]
+                                                  (let [{:keys [_node-id id]} (:node tx)]
+                                                    (when id [id _node-id])))
+                                                collision-group-nodes))]
     (into {} (map-indexed (fn [idx {:keys [collision-group]}]
                             [idx (collision-group->node-id collision-group)])
                           convex-hulls))))
@@ -802,7 +805,7 @@
   (let [tile-source (protobuf/read-text Tile$TileSet resource)
         image (workspace/resolve-resource resource (:image tile-source))
         collision (workspace/resolve-resource resource (:collision tile-source))
-        collision-group-nodes (map (partial make-collision-group-node self project false) (set (:collision-groups tile-source)))
+        collision-group-nodes (mapcat (partial make-collision-group-node self project false) (set (:collision-groups tile-source)))
         animation-nodes (map (partial make-animation-node self project false) (:animations tile-source))]
     (concat
      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
@@ -815,8 +818,6 @@
      animation-nodes
      collision-group-nodes
      (g/connect project :collision-groups-data self :collision-groups-data))))
-
-
 
 (def ^:private default-animation
   {:id "New Animation"
