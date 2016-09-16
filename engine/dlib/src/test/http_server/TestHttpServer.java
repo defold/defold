@@ -7,6 +7,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.*;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import org.eclipse.jetty.http.HttpHeaders;
 import org.eclipse.jetty.http.HttpStatus;
@@ -360,13 +363,28 @@ public class TestHttpServer extends AbstractHandler
             server.start();
 
             try {
-                PrintWriter writer = new PrintWriter("test_http_server.cfg", "UTF-8");
+                String tempname = "test_http_server.cfg.tmp";
+                String filename = "test_http_server.cfg";
+
+                PrintWriter writer = new PrintWriter(tempname, "UTF-8");
                 writer.println("# These are the sockets the test server currently listens to");
                 writer.println("[server]");
                 writer.println(String.format("socket=%d", server.getConnectors()[0].getLocalPort()));
                 writer.println(String.format("socket_ssl=%d", server.getConnectors()[1].getLocalPort()));
                 writer.println(String.format("socket_ssl_test=%d", server.getConnectors()[2].getLocalPort()));
                 writer.close();
+
+                File tempfile = new File(tempname);
+                File file = new File(filename);
+
+                try {
+                    Files.move(Paths.get(tempname), Paths.get(filename), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                }
+                catch(IOException e) {
+                    System.out.println("ERROR: Failed to move " + tempname + " to " + filename);
+                    throw new RuntimeException(e);
+                }
+                   
             }
             catch(IOException e) {
                 throw new RuntimeException(e);

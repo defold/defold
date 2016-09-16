@@ -3,6 +3,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
+            [editor.code :as code]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -152,7 +153,7 @@
                                                                                 module-nodes))))
 
 (defn load-script [project self resource]
-  (g/set-property self :code (slurp resource)))
+  (g/set-property self :code (code/lf-normalize-line-endings (slurp resource))))
 
 (defn- register [workspace def]
   (let [args (merge def
