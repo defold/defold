@@ -376,22 +376,12 @@
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
-        template (workspace/template component-type)]
-    (let [id (gen-component-id self (:ext component-type))
-          op-seq (gensym)
-          nodes (g/tx-nodes-added
-                 (g/transact
-                  (concat
-                   (g/operation-sequence op-seq)
-                   (g/operation-label "Add Component")
-                   (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true))))
-          [comp-node source-node] nodes]
-      (g/transact
-       (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Add Component")
-        ((:load-fn component-type) project source-node (io/reader (g/node-value source-node :resource)))
-        (project/select project [comp-node]))))))
+        template (workspace/template component-type)
+        id (gen-component-id self (:ext component-type))]
+    (g/transact
+     (concat
+      (g/operation-label "Add Component")
+      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -401,7 +391,7 @@
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (->> (workspace/get-resource-types workspace :component)
+    (->> (remove (comp :non-embeddable :tags) (workspace/get-resource-types workspace :component))
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
                               :command :add
