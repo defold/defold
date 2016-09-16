@@ -187,7 +187,15 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (partial app-view/remove-resource-tab editor-tabs))
+                                                                 (fn [resources]
+                                                                   (doseq [resource resources]
+                                                                     (app-view/remove-resource-tab editor-tabs resource))
+                                                                   (let [nodes (keep #(project/get-resource-node project %) resources)]
+                                                                     (when (not-empty nodes)
+                                                                       (g/transact
+                                                                         (for [n nodes]
+                                                                           (g/delete-node n)))
+                                                                       (g/reset-undo! (g/node-id->graph-id project))))))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
