@@ -274,11 +274,14 @@
         v3-fields {:position [0.0 0.0 0.0] :rotation [0.0 0.0 0.0] :scale [1.0 1.0 1.0] :size [200.0 100.0 0.0]}
         props (:properties _declared-properties)
         indices (clojure.set/map-invert (protobuf/fields-by-indices Gui$NodeDesc))
-        overrides (map first (filter (fn [[k v]] (contains? v :original-value)) props))
+        overridden-fields (->> props
+                               (keep (fn [[prop val]] (and (:original-value val) (indices prop))))
+                               (sort)
+                               (vec))
         msg (-> {:parent parent
                  :type type
                  :index index
-                 :overridden-fields (vec (sort (map indices overrides)))}
+                 :overridden-fields overridden-fields}
               (into (map (fn [[k v]] [k (:value v)])
                          (filter (fn [[k v]] (and (get v :visible true)
                                                   (not (contains? (set (keys pb-renames)) k))))
