@@ -347,9 +347,15 @@
       (profiler/profile "view" (:name @(g/node-type* node))
                         (g/node-value node label)))))
 
+;; Here only because reports indicate that isDesktopSupported does
+;; some kind of initialization behind the scenes on Linux:
+;; http://stackoverflow.com/questions/23176624/javafx-freeze-on-desktop-openfile-desktop-browseuri
+(def desktop-supported? (delay (Desktop/isDesktopSupported)))
+
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
+  (force desktop-supported?)
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)
