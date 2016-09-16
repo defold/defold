@@ -11,6 +11,14 @@
     (or (< (int n) 32)
         (= (int n) 127))))
 
+
+(defn lf-normalize-line-endings [string]
+  (loop [normalized string]
+    (let [next (string/replace normalized "\r\n" "\n")]
+      (if (= next normalized)
+        (string/replace normalized "\r" "\n")
+        (recur next)))))
+
 (defn- remove-optional-params [s]
   (string/replace s #"\[.*\]" ""))
 
