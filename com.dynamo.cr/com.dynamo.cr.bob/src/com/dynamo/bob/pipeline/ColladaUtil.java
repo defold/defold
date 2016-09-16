@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -23,14 +24,17 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
+import org.jagatoo.loaders.models.collada.stax.XMLController;
 import org.jagatoo.loaders.models.collada.stax.XMLGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLInput;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimations;
+import org.jagatoo.loaders.models.collada.stax.XMLLibraryControllers;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryGeometries;
 import org.jagatoo.loaders.models.collada.stax.XMLMesh;
 import org.jagatoo.loaders.models.collada.stax.XMLParam;
 import org.jagatoo.loaders.models.collada.stax.XMLSampler;
 import org.jagatoo.loaders.models.collada.stax.XMLNode;
+import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.openmali.FastMath;
@@ -79,16 +83,13 @@ public class ColladaUtil {
         return null;
     }
 
-    private static HashMap<String, XMLSource> getSourcesMap(XMLMesh mesh,
-            List<XMLSource> sources) {
+    private static HashMap<String, XMLSource> getSourcesMap(List<XMLSource> sources) {
         HashMap<String, XMLSource> sourcesMap;
         sourcesMap = new HashMap<String, XMLSource>();
         for (int i = 0; i < sources.size(); i++) {
             XMLSource source = sources.get(i);
-
             sourcesMap.put(source.id, source);
         }
-
         return sourcesMap;
     }
 
@@ -382,7 +383,7 @@ public class ColladaUtil {
         XMLMesh mesh = geom.mesh;
 
         List<XMLSource> sources = mesh.sources;
-        HashMap<String, XMLSource> sourcesMap = getSourcesMap(mesh, sources);
+        HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
 
         XMLInput vpos_input = findInput(mesh.vertices.inputs, "POSITION", true);
         XMLInput vertex_input = findInput(mesh.triangles.inputs, "VERTEX", true);
@@ -426,6 +427,11 @@ public class ColladaUtil {
         List<Integer> bone_indices_list= new ArrayList<Integer>();
         List<Float> bone_weights_list= new ArrayList<Float>();
 
+
+        System.out.println("PosVerts=" +  positions.floatArray.count/3 );
+
+        System.out.println("TriVerts=" +  mesh.triangles.count*3 );
+
         float meter = collada.asset.unit.meter;
         for (int i = 0; i < mesh.triangles.count; ++i) {
             int idx = i * stride * 3 + vertex_input.offset;
@@ -435,7 +441,7 @@ public class ColladaUtil {
             indices_list.add(i*3+1);
             indices_list.add(i*3+2);
 
-            for (int v = 0; v < 3; v++) {
+/*            for (int v = 0; v < 3; v++) {
                 bone_indices_list.add(0);
                 bone_indices_list.add(0);
                 bone_indices_list.add(0);
@@ -445,7 +451,7 @@ public class ColladaUtil {
                 bone_weights_list.add(0.0f);
                 bone_weights_list.add(0.0f);
             }
-
+*/
 
 
             for (int j = 0; j < 3; ++j) {
@@ -500,13 +506,16 @@ public class ColladaUtil {
 
         }
 
+        loadVertexWeights(collada, bone_weights_list, bone_indices_list);
+
         Mesh.Builder b = Mesh.newBuilder();
         b.addAllPositions(position_list);
         b.addAllNormals(normal_list);
         b.addAllTexcoord0(texcoord_list);
         b.addAllIndices(indices_list);
-        b.addAllBoneIndices(bone_indices_list);
         b.addAllWeights(bone_weights_list);
+        b.addAllBoneIndices(bone_indices_list);
+
         return b.build();
     }
 
@@ -533,7 +542,7 @@ public class ColladaUtil {
         XMLNode rootNode = null;
         for ( XMLVisualScene scene : collada.libraryVisualScenes.get(0).scenes.values() ) {
             for ( XMLNode node : scene.nodes.values() ) {
-                rootNode = findSkeleton(node);
+                rootNode = findFirstSkeleton(node);
                 if(rootNode != null) {
                     break;
                 }
@@ -560,14 +569,14 @@ public class ColladaUtil {
         return skeletonBuilder.build();
     }
 
-    private static XMLNode findSkeleton(XMLNode node) {
+    private static XMLNode findFirstSkeleton(XMLNode node) {
         if(node.type == XMLNode.Type.JOINT) {
             return node;
         }
         XMLNode rootNode = null;
         if(!node.childrenList.isEmpty()) {
             for(XMLNode childNode : node.childrenList) {
-                rootNode = findSkeleton(childNode);
+                rootNode = findFirstSkeleton(childNode);
                 if(rootNode != null) {
                     break;
                 }
@@ -676,6 +685,64 @@ public class ColladaUtil {
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
             toDDF(builderList, childBone, boneIndex);
+        }
+    }
+
+    private static XMLSkin findFirstSkin(XMLLibraryControllers controllers) {
+        for(XMLController controller : controllers.controllers.values()) {
+            if(controller.skin != null) {
+                return controller.skin;
+            }
+        }
+        return null;
+    }
+
+
+    private static void loadVertexWeights(XMLCOLLADA collada, List<Float> bone_weights_list, List<Integer> bone_indices_list) throws IOException, XMLStreamException, LoaderException {
+
+        if (collada.libraryControllers.isEmpty()) {
+            return;
+        }
+        XMLSkin skin = findFirstSkin(collada.libraryControllers.get(0));
+        if(skin == null) {
+            return;
+        }
+
+        List<XMLSource> sources = skin.sources;
+        HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
+
+        XMLInput weights_input = findInput(skin.vertexWeights.inputs, "WEIGHT", true);
+        XMLSource weightsSource = sourcesMap.get(weights_input.source);
+
+        System.out.println("VWVertex=" + skin.vertexWeights.vcount.ints.length);
+
+        int vIndex = 0;
+        for ( int i = 0; i < skin.vertexWeights.vcount.ints.length; i++ )
+        {
+            final int numBones = skin.vertexWeights.vcount.ints[ i ];
+            int j = 0;
+            for (; j < Math.min(numBones, 4); j++ ) {
+                float bw = 0f;
+                int bi = 0;
+                bi = skin.vertexWeights.v.ints[ vIndex + j * 2 + 0 ];
+                if( bi != -1 ) {
+                    final int weightIndex = skin.vertexWeights.v.ints[ vIndex + j * 2 + 1 ];
+                    bw = weightsSource.floatArray.floats[ weightIndex ];
+                    bone_indices_list.add(bi);
+                    bone_weights_list.add(bw);
+                } else {
+                    // influences[ i ][ j ] = new Influence( bindShapeMatrix.matrix4f, weight );
+                    bone_indices_list.add(0);
+                    bone_weights_list.add(0f);
+                    bi = 0;
+                }
+            }
+            for (; j < 4; j++ ) {
+                bone_indices_list.add(0);
+                bone_weights_list.add(0f);
+            }
+
+            vIndex += numBones * 2;
         }
     }
 

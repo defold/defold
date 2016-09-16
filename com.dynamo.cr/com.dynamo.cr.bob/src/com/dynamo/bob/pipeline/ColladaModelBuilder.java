@@ -3,47 +3,20 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.FloatBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import javax.xml.stream.XMLStreamException;
 
-import org.apache.commons.io.FilenameUtils;
-import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
-
-// import com.dynamo.bob.pipeline.Mesh;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.SpineSceneUtil;
-import com.dynamo.model.proto.Model;
 
-import com.dynamo.model.proto.Model.ModelDesc;
-import com.dynamo.bob.ProtoParams;
-import com.dynamo.gui.proto.Gui.SceneDesc;
-
-import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationSet;
-import com.dynamo.rig.proto.Rig.AnimationTrack;
-import com.dynamo.rig.proto.Rig.IKAnimationTrack;
-import com.dynamo.rig.proto.Rig.Bone;
-import com.dynamo.rig.proto.Rig.EventKey;
-import com.dynamo.rig.proto.Rig.EventTrack;
-import com.dynamo.rig.proto.Rig.IK;
 import com.dynamo.rig.proto.Rig.Mesh;
-import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
-import com.dynamo.rig.proto.Rig.RigAnimation;
 
 
 @BuilderParams(name="ColladaModel", inExts=".dae", outExt=".rigscenec")
@@ -73,7 +46,6 @@ public class ColladaModelBuilder extends Builder<Void>  {
         Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
         try {
             ColladaUtil.load(mesh_is, meshBuilder, animSetBuilder, skeletonBuilder);
-            //mesh = ColladaUtil.loadMesh(collada);
         } catch (XMLStreamException e) {
             throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh", e);
         } catch (LoaderException e) {
@@ -90,27 +62,13 @@ public class ColladaModelBuilder extends Builder<Void>  {
         out.close();
         task.output(2).setContent(out.toByteArray());
 
-
         // Skeleton
-        /*
-        ByteArrayInputStream skeleton_is = new ByteArrayInputStream(task.input(0).getContent());
-        Skeleton skeleton;
-        try {
-            skeleton = ColladaUtil.loadSkeleton(skeleton_is);
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile skeleton", e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton", e);
-        }
-        */
         out = new ByteArrayOutputStream(64 * 1024);
         skeletonBuilder.build().writeTo(out);
         out.close();
         task.output(1).setContent(out.toByteArray());
 
         // AnimationSet
-        //AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
-        //animSetBuilder.addAnimations(animationBuilder.build());
         out = new ByteArrayOutputStream(64 * 1024);
         animSetBuilder.build().writeTo(out);
         out.close();

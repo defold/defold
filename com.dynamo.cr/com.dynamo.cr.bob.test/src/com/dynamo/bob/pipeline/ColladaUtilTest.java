@@ -130,6 +130,11 @@ public class ColladaUtilTest {
     public void testSkeleton() throws Exception {
         // Temp test (and temp data)
         XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("simple_anim.dae"));
+
+        Mesh mesh = ColladaUtil.loadMesh(collada);
+
+
+
         Skeleton skeleton = ColladaUtil.loadSkeleton(collada);
         List<Bone> bones = skeleton.getBonesList();
         assertEquals(65535, bones.get(0).getParent()); // fake root

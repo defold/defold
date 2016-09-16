@@ -65,7 +65,9 @@ public class XMLParam
         /** IDREF (String) */
         _IDREF,
         /** 4x4 float matrix */
-        _float4x4
+        _float4x4,
+        /** _name (String) */
+        _name
     }
 
     public XMLParam.Type type = null;
