@@ -1250,7 +1250,8 @@
   (enabled? [selection] (editable? selection))
   (run [selection]
     ;; e(fx)clipse doesn't like \r\n
-    (let [line-separator "\n" #_(System/getProperty "line.separator")]
+    ;; should really be (System/getProperty "line.separator")
+    (let [line-separator "\n"]
       (when (editable? selection)
         (clear-snippet-tab-triggers! selection)
         (if (= (caret selection) (line-end-pos selection))
