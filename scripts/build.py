@@ -993,7 +993,7 @@ instructions.configure=\
 
     def upload_file(self, path, url):
         url = url.replace('\\', '/')
-        self._log('%s -> %s' % (path, url))
+        self._log('Uploading %s -> %s' % (path, url))
 
         u = urlparse.urlparse(url)
 
@@ -1020,6 +1020,7 @@ instructions.configure=\
             def upload():
                 key = bucket.new_key(p)
                 key.set_contents_from_filename(path)
+                self._log('Uploaded %s -> %s' % (path, url))
 
             f = Future(self.thread_pool, upload)
             self.futures.append(f)
