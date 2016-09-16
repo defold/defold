@@ -92,9 +92,6 @@
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
-(defn- root-errors [error]
-  (filter #(nil? (:causes %)) (tree-seq #(not-empty (:causes %)) :causes error)))
-
 (deftest save-after-delete []
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
