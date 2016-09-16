@@ -3,20 +3,18 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 
-import org.codehaus.jackson.JsonNode;
 import org.jagatoo.loaders.models.collada.Rotations;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
 import javax.vecmath.Point3d;
-import javax.vecmath.Vector3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Tuple3d;
+import javax.vecmath.Vector3d;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -45,12 +43,10 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
 
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.RigUtil.AbstractAnimationTrack;
 import com.dynamo.bob.util.RigUtil.AnimationCurve;
 import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.AnimationTrack.Property;
-import com.dynamo.bob.util.SpineSceneUtil.JsonUtil;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -59,13 +55,10 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationTrack;
 import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.RigAnimation;
-import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
 public class ColladaUtil {
-    
-    private static float ANGLE_TO_RAD = (float)Math.PI / 180.0f;
 
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
@@ -144,8 +137,6 @@ public class ColladaUtil {
             interpolations = animation.getInterpolations();
         }
 
-
-        Float prevAngles = null;
         for (int i = 0; i < t.length; i++) {
             AnimationKey key = new AnimationKey();
             key.t = t[i];
@@ -154,16 +145,7 @@ public class ColladaUtil {
                 key.value = new float[] {outputs[i]};
                 break;
             case ROTATION_COMPONENT:
-              // See the comment above why this is done for rotations
-              float angles = outputs[i];
-              if (prevAngles != null) {
-                  float diff = angles - prevAngles;
-                  if (Math.abs(diff) > 180.0f) {
-                      angles += 360.0f * -Math.signum(diff);
-                  }
-              }
-              prevAngles = angles;
-              key.value = new float[] {angles};
+              key.value = new float[] {outputs[i]};
                 break;
             default:
                 System.out.println("loadTrack for " + track.property.toString() + " not implemented yet!");
@@ -197,6 +179,32 @@ public class ColladaUtil {
         loadTrack(animation, track);
         RigUtil.sampleTrack(track, posXBuilder, defaultValue, duration, sampleRate, spf, true);
     }
+    
+    private static void eulerToQuat(Tuple3d euler, Quat4d quat) {
+        // Implementation based on:
+        // http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
+        // Rotation sequence: 231 (YZX)
+        double t1 = euler.y * Math.PI / 180;
+        double t2 = euler.z * Math.PI / 180;
+        double t3 = euler.x * Math.PI / 180;
+
+        double c1 = Math.cos(t1/2);
+        double s1 = Math.sin(t1/2);
+        double c2 = Math.cos(t2/2);
+        double s2 = Math.sin(t2/2);
+        double c3 = Math.cos(t3/2);
+        double s3 = Math.sin(t3/2);
+        double c1_c2 = c1*c2;
+        double s2_s3 = s2*s3;
+
+        quat.w = -s1*s2_s3 + c1_c2*c3;
+        quat.x =  s1*s2*c3 + s3*c1_c2;
+        quat.y =  s1*c2*c3 + s2_s3*c1;
+        quat.z = -s1*s3*c2 + s2*c1*c3;
+
+        quat.normalize();
+    }
+
 
     private static void toDDF(RigAnimation.Builder animBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
         animBuilder.setId(MurmurHash.hash64(animationId));
@@ -242,7 +250,6 @@ public class ColladaUtil {
                         animTrackBuilder.addPositions(animTrackBuilderX.getPositions(i));
 
                     }
-
                 }
                 
                 // Euler rotations
@@ -260,14 +267,18 @@ public class ColladaUtil {
                     assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
 
                     for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
-                        Quaternion4f quat = Rotations.toQuaternion( new Tuple3f(animTrackBuilderY.getPositions(i)*ANGLE_TO_RAD,
-                                                                                animTrackBuilderZ.getPositions(i)*ANGLE_TO_RAD,
-                                                                                animTrackBuilderX.getPositions(i)*ANGLE_TO_RAD) );
+                        Quat4d quat = new Quat4d();
+                        Tuple3d euler = new Tuple3d() {
+                        };
+                        euler.set(animTrackBuilderY.getPositions(i),
+                                  animTrackBuilderZ.getPositions(i),
+                                  animTrackBuilderX.getPositions(i));
+                        eulerToQuat(euler, quat);
 
-                        animTrackBuilder.addRotations(quat.getA());
-                        animTrackBuilder.addRotations(quat.getB());
-                        animTrackBuilder.addRotations(quat.getC());
-                        animTrackBuilder.addRotations(quat.getD());
+                        animTrackBuilder.addRotations((float)quat.getX());
+                        animTrackBuilder.addRotations((float)quat.getY());
+                        animTrackBuilder.addRotations((float)quat.getZ());
+                        animTrackBuilder.addRotations((float)quat.getW());
                     }
                 }
                 
