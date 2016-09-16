@@ -19,6 +19,7 @@
            [com.dynamo.rig.proto Rig$RigScene]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gui.proto Gui$SceneDesc]
@@ -47,7 +48,23 @@
                {:label           "Sound"
                 :path            "/main/sound.sound"
                 :pb-class        Sound$SoundDesc
-                :resource-fields [:sound]}])
+                :resource-fields [:sound]}
+               {:label           "Collision Object"
+                :path            "/collisionobject/tile_map.collisionobject"
+                :pb-class        Physics$CollisionObjectDesc
+                :resource-fields [:collision-shape]}
+               {:label           "Collision Object"
+                :path            "/collisionobject/convex_shape.collisionobject"
+                :pb-class        Physics$CollisionObjectDesc
+                :test-fn (fn [pb]
+                           (is (= "" (:collision-shape pb)))
+                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
+               {:label           "Tile Source"
+                :path            "/tile_source/simple.tilesource"
+                :pb-class        TextureSetProto$TextureSet
+                :test-fn (fn [pb]
+                           (is (= "default" (:collision-group (first (:convex-hulls pb)))))
+                           (is (< 0 (count (:convex-hull-points pb)))))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -86,8 +103,10 @@
                        "/builtins/render/default.render"
                        "/builtins/render/default.render_script"
                        "/background/bg.png"
-                       "/builtins/graphics/particle_blob.tilesource"
-                       "/main/blob.tilemap"]
+                       "/tile_source/simple.tilesource"
+                       "/main/blob.tilemap"
+                       "/collisionobject/tile_map.collisionobject"
+                       "/collisionobject/convex_shape.collisionobject"]
           exp-exts    ["vpc" "fpc" "texturec"]]
       (doseq [case pb-cases]
         (run-pb-case case content-by-source content-by-target))

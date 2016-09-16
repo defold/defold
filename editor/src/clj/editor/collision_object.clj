@@ -549,16 +549,41 @@
 
 (defn build-collision-object
   [self basis resource dep-resources user-data]
-  {:resource resource
-   :content (protobuf/map->bytes Physics$CollisionObjectDesc (:pb-msg user-data))})
+  (let [[shape] (vals dep-resources)
+        pb-msg (cond-> (:pb-msg user-data)
+                 shape (assoc :collision-shape (resource/proj-path shape)))]
+    {:resource resource
+     :content (protobuf/map->bytes Physics$CollisionObjectDesc pb-msg)}))
+
+(defn- merge-convex-shape [collision-shape convex-shape]
+  (if convex-shape
+    (let [collision-shape (or collision-shape {:shapes [] :data []})
+          shape {:shape-type (:shape-type convex-shape)
+                 :position [0 0 0]
+                 :rotation [0 0 0 1]
+                 :index (count (:data collision-shape))
+                 :count (count (:data convex-shape))}]
+      (-> collision-shape
+        (update :shapes conj shape)
+        (update :data into (:data convex-shape))))
+    collision-shape))
 
 (g/defnk produce-build-targets
   [_node-id resource pb-msg collision-shape dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
+        convex-shape (when (and collision-shape (= "convexshape" (:ext (resource/resource-type collision-shape))))
+                       (get-in (first dep-build-targets) [:user-data :pb]))
+        pb-msg (if convex-shape
+                 (dissoc pb-msg :collision-shape)
+                 pb-msg)
+        dep-build-targets (if convex-shape [] dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-source resource)])
-                           [[:collision-shape collision-shape]])]
+        dep-resources (if convex-shape
+                        []
+                        (map (fn [[label resource]]
+                               [label (get deps-by-source resource)])
+                             [[:collision-shape collision-shape]]))
+        pb-msg (update pb-msg :embedded-collision-shape merge-convex-shape convex-shape)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-collision-object
