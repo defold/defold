@@ -23,6 +23,7 @@ import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
+import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
 import com.dynamo.bob.util.RigUtil.Bone;
 import com.dynamo.bob.util.RigUtil.Mesh;
 import com.dynamo.bob.util.RigUtil.IK;

@@ -1,20 +1,20 @@
 /**
  * Copyright (c) 2007-2009, JAGaToo Project Group all rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * Neither the name of the 'Xith3D Project Group' nor the names of its
  * contributors may be used to endorse or promote products derived from this
  * software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -74,7 +74,7 @@ public class XMLAnimation {
         }
         throw new IncorrectFormatException( "Could not find source with id " + id );
     }
-    
+
 
     /**
      * @return the target bone name for this animation
@@ -112,6 +112,13 @@ public class XMLAnimation {
     }
 
     /**
+     * @return a float array with out tangents for all key frames
+     */
+    public String[] getInterpolations() {
+        return getSource( samplers.get( 0 ).getInput( "INTERPOLATION" ).source ).nameArray.names;
+    }
+
+    /**
      * Tells if the animation contains transformation key frames or rotation key frames
      */
     public ChannelType getType() {
@@ -126,7 +133,7 @@ public class XMLAnimation {
     public KeyFrame.Axis getRotationAxis() {
         return channels.get( 0 ).getRotationAxis();
     }
-    
+
     public void parse( XMLStreamReader parser ) throws XMLStreamException
     {
 
@@ -146,7 +153,7 @@ public class XMLAnimation {
                 JAGTLog.exception( "Unsupported ", this.getClass().getSimpleName(), " Attr tag: ", attr.getLocalPart() );
             }
         }
-        
+
         for ( int event = parser.next(); event != XMLStreamConstants.END_DOCUMENT; event = parser.next() )
         {
             switch ( event )
@@ -158,7 +165,7 @@ public class XMLAnimation {
                     {
                         if ( asset != null )
                             JAGTLog.exception( "Unsupported ", this.getClass().getSimpleName(), " too many: ", parser.getLocalName(), " tags." );
-                        
+
                         asset = new XMLAsset();
                         asset.parse( parser );
                     }

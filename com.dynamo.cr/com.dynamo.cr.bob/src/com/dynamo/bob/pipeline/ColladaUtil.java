@@ -47,6 +47,7 @@ import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil.AbstractAnimationTrack;
 import com.dynamo.bob.util.RigUtil.AnimationCurve;
+import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.AnimationTrack.Property;
 import com.dynamo.bob.util.SpineSceneUtil.JsonUtil;
@@ -63,7 +64,7 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 
 public class ColladaUtil {
-    
+
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
         for (XMLInput i : inputs) {
@@ -104,7 +105,7 @@ public class ColladaUtil {
         meshBuilder.mergeFrom(loadMesh(collada));
         Skeleton skeleton = loadSkeleton(collada);
         skeletonBuilder.mergeFrom(skeleton);
-        animationSetBuilder.mergeFrom(loadAnimations(collada, skeleton, 1.0f/24.0f));
+        animationSetBuilder.mergeFrom(loadAnimations(collada, skeleton, 30.0f)); // TODO pick the sample rate from a parameter
         return true;
     }
 
@@ -127,162 +128,193 @@ public class ColladaUtil {
         }
         return samplersLUT;
     }
-    
-    private static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
-        if (track.keys.isEmpty()) {
-            return;
-        }
-        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
-        int keyIndex = 0;
-        int keyCount = track.keys.size();
-        Key key = null;
-        Key next = track.keys.get(keyIndex);
-        T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
-        for (int i = 0; i < sampleCount; ++i) {
-            double cursor = i * spf;
-            // Skip passed keys
-            while (next != null && next.t <= cursor) {
-                key = next;
-                ++keyIndex;
-                if (keyIndex < keyCount) {
-                    next = track.keys.get(keyIndex);
-                } else {
-                    next = null;
-                }
-            }
-            if (key != null) {
-                if (next != null) {
-                    if (key.stepped || !interpolate) {
-                        // Stepped sampling only uses current key
-                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
-                    } else {
-                        // Normal sampling
-//                        sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
-                    }
-                } else {
-                    // Last key reached, use its value for remaining samples
-                    propertyBuilder.addComposite(endValue);
-                }
-            } else {
-                // No valid key yet, use default value
-                propertyBuilder.addComposite(defaultValue);
-            }
-        }
-    }
-    
+
     private static void loadTrack(XMLAnimation animation, RigUtil.AnimationTrack track) {
         float[] t = animation.getInput();
         float[] outputs = animation.getOutput();
-        
+
         boolean hasCurve = false;
         float[] inTangents = animation.getInTangents();
         float[] outTangents = animation.getOutTangents();
         if (inTangents != null && outTangents != null) {
             hasCurve = true;
         }
-        
+
+        String[] interpolations = animation.getInterpolations();
+
+        Float prevAngles = null;
         for (int i = 0; i < t.length; i++) {
             AnimationKey key = new AnimationKey();
             key.t = t[i];
             switch (track.property) {
             case POSITION_COMPONENT:
-                key.value = new float[] {outputs[i], 0.0f, 0.0f};
+                key.value = new float[] {outputs[i]};
+                break;
+            case ROTATION_COMPONENT:
+              // See the comment above why this is done for rotations
+              float angles = outputs[i];
+              if (prevAngles != null) {
+                  float diff = angles - prevAngles;
+                  if (Math.abs(diff) > 180.0f) {
+                      angles += 360.0f * -Math.signum(diff);
+                  }
+              }
+              prevAngles = angles;
+              key.value = new float[] {angles};
                 break;
             default:
                 System.out.println("loadTrack for " + track.property.toString() + " not implemented yet!");
                 break;
             }
-//            case ROTATION:
-//                // See the comment above why this is done for rotations
-//                float angles = JsonUtil.get(keyNode, "angle", 0.0f);
-//                if (prevAngles != null) {
-//                    float diff = angles - prevAngles;
-//                    if (Math.abs(diff) > 180.0f) {
-//                        angles += 360.0f * -Math.signum(diff);
-//                    }
-//                }
-//                prevAngles = angles;
-//                key.value = new float[] {angles};
-//                break;
-//            case SCALE:
-//                key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};
-//                break;
-//            }
-//            if (keyNode.has("curve")) {
-//                JsonNode curveNode = keyNode.get("curve");
             if (hasCurve) {
                 AnimationCurve curve = new AnimationCurve();
+                if (interpolations[i].equals("BEZIER")) {
+                    curve.interpolation = CurveIntepolation.BEZIER;
+                } else {
+                    curve.interpolation = CurveIntepolation.LINEAR;
+                }
+                // TMP: Force linear curve interpolation!
+                curve.interpolation = CurveIntepolation.LINEAR;
                 curve.x0 = (float)inTangents[i*2];
                 curve.y0 = (float)inTangents[i*2+1];
                 curve.x1 = (float)outTangents[i*2];
                 curve.y1 = (float)outTangents[i*2+1];
                 key.curve = curve;
-            }
-            /*
-            else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
+            } else {
                 key.stepped = true;
             }
-            */
             track.keys.add(key);
         }
     }
 
-    private static RigAnimation toDDF(com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
-        RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+    private static void toDDF(RigAnimation.Builder animBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
         animBuilder.setId(MurmurHash.hash64(animationId));
         animBuilder.setDuration(duration);
         animBuilder.setSampleRate(sampleRate);
-        
-        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
-        
+
+        double spf = 1.0 / sampleRate;
+
         for (int bi = 0; bi < skeleton.getBonesCount(); bi++) {
             com.dynamo.rig.proto.Rig.Bone bone = skeleton.getBones(bi);
-            
+
             // Get animations for bone:
             if (boneToAnimations.containsKey(bone.getId())) {
                 HashMap<String, XMLAnimation> propAnimations = boneToAnimations.get(bone.getId());
 
-//                com.dynamo.rig.proto.Rig.AnimationTrack.Builder trackBuilder = com.dynamo.rig.proto.Rig.AnimationTrack.newBuilder();
-//                trackBuilder.setBoneIndex(bi);
-                
+                AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
+                animTrackBuilder.setBoneIndex(bi);
+
                 // Positions
                 if (propAnimations.containsKey("location.X") || propAnimations.containsKey("location.Y") || propAnimations.containsKey("location.Z")) {
-                    
+
+                    AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
+                    RigUtil.PositionComponentBuilder posXBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderX);
+
+                    AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
+                    RigUtil.PositionComponentBuilder posYBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderY);
+
+                    AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
+                    RigUtil.PositionComponentBuilder posZBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderZ);
+
                     if (propAnimations.containsKey("location.X")) {
                         XMLAnimation locX = propAnimations.get("location.X");
                         RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
-//                        track.bone = getBone(boneName);
                         track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
                         loadTrack(locX, track);
+                        RigUtil.sampleTrack(track, posXBuilder, new Double(0.0), duration, sampleRate, spf, true);
                     }
-//                    XMLAnimation locY = propAnimations.get("location.Y");
-//                    XMLAnimation locZ = propAnimations.get("location.Z");
-                    
-//                    float[] positions = new float[sampleCount*3];
-//                    for (int i = 0; i < locX.getOutput().length; i++) {
-//                        
-//                    }
 
-//                    loadTrack(propAnimations, track);
-//                    animation.tracks.add(track);
-                    //trackBuilder.addAllPositions(positions);
-                    
+                    if (propAnimations.containsKey("location.Y")) {
+                        XMLAnimation locY = propAnimations.get("location.Y");
+                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+                        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
+                        loadTrack(locY, track);
+                        RigUtil.sampleTrack(track, posYBuilder, new Double(0.0), duration, sampleRate, spf, true);
+                    }
+
+                    if (propAnimations.containsKey("location.Z")) {
+                        XMLAnimation locZ = propAnimations.get("location.Z");
+                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+                        track.property = RigUtil.AnimationTrack.Property.POSITION_COMPONENT;
+                        loadTrack(locZ, track);
+                        RigUtil.sampleTrack(track, posZBuilder, new Double(0.0), duration, sampleRate, spf, true);
+                    }
+
+                    assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
+                    assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
+
+                    for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
+                        animTrackBuilder.addPositions(animTrackBuilderY.getPositions(i));
+                        animTrackBuilder.addPositions(animTrackBuilderZ.getPositions(i));
+                        animTrackBuilder.addPositions(animTrackBuilderX.getPositions(i));
+
+                        animTrackBuilder.addScale(1.0f);
+                        animTrackBuilder.addScale(1.0f);
+                        animTrackBuilder.addScale(1.0f);
+                    }
+
                 }
-                // sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true);
 
-                // TODO rotations and scale
+                if (propAnimations.containsKey("rotationX.ANGLE") || propAnimations.containsKey("rotationY.ANGLE") || propAnimations.containsKey("rotationZ.ANGLE")) {
 
-//                animBuilder.addTracks(trackBuilder.build());
+                    AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
+                    RigUtil.PositionComponentBuilder posXBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderX);
+
+                    AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
+                    RigUtil.PositionComponentBuilder posYBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderY);
+
+                    AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
+                    RigUtil.PositionComponentBuilder posZBuilder = new RigUtil.PositionComponentBuilder(animTrackBuilderZ);
+
+                    if (propAnimations.containsKey("rotationX.ANGLE")) {
+                        XMLAnimation locX = propAnimations.get("rotationX.ANGLE");
+                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+                        track.property = RigUtil.AnimationTrack.Property.ROTATION_COMPONENT;
+                        loadTrack(locX, track);
+                        RigUtil.sampleTrack(track, posXBuilder, new Double(0.0), duration, sampleRate, spf, true);
+                    }
+
+                    if (propAnimations.containsKey("rotationY.ANGLE")) {
+                        XMLAnimation locY = propAnimations.get("rotationY.ANGLE");
+                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+                        track.property = RigUtil.AnimationTrack.Property.ROTATION_COMPONENT;
+                        loadTrack(locY, track);
+                        RigUtil.sampleTrack(track, posYBuilder, new Double(0.0), duration, sampleRate, spf, true);
+                    }
+
+                    if (propAnimations.containsKey("rotationZ.ANGLE")) {
+                        XMLAnimation locZ = propAnimations.get("rotationZ.ANGLE");
+                        RigUtil.AnimationTrack track = new RigUtil.AnimationTrack();
+                        track.property = RigUtil.AnimationTrack.Property.ROTATION_COMPONENT;
+                        loadTrack(locZ, track);
+                        RigUtil.sampleTrack(track, posZBuilder, new Double(0.0), duration, sampleRate, spf, true);
+                    }
+
+                    assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
+                    assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
+
+                    for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
+
+                        float toAngle = (float)Math.PI / 180.0f;
+                        Tuple3f euler = new Tuple3f(animTrackBuilderY.getPositions(i)*toAngle, animTrackBuilderZ.getPositions(i)*toAngle, animTrackBuilderX.getPositions(i)*toAngle);
+                        Quaternion4f quat = Rotations.toQuaternion( euler );
+
+                        animTrackBuilder.addRotations(quat.getA());
+                        animTrackBuilder.addRotations(quat.getB());
+                        animTrackBuilder.addRotations(quat.getC());
+                        animTrackBuilder.addRotations(quat.getD());
+                    }
+                }
+
+                animBuilder.addTracks(animTrackBuilder.build());
             }
+
+            // TODO scale
         }
-        
-//        System.out.println("boneToAnimations: " + boneToAnimations.get(meshBoneId).get("location.X"));
 
-
-        return animBuilder.build();
     }
 
-    public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) {
+    public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) throws IOException, XMLStreamException, LoaderException {
 
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
         if (collada.libraryAnimations.size() != 1) {
@@ -327,19 +359,16 @@ public class ColladaUtil {
                 // Figure out the total duration of the animation.
                 HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
                 if (samplersLUT == null || samplersLUT.isEmpty()) {
-                    System.out.println("Animation lacks samplers!");
-                    return null;
+                    throw new LoaderException("Animation lacks samplers.");
                 }
 
                 // Find time input
                 if (!samplersLUT.containsKey("INPUT")) {
-                    System.out.println("Animation lacks INPUT sampler!");
-                    return null;
+                    throw new LoaderException("Animation lacks INPUT sampler.");
                 }
                 XMLSource inputSampler = samplersLUT.get("INPUT");
                 if (inputSampler.techniqueCommon.accessor.params.get(0).name != XMLParam.Name.TIME) {
-                    System.out.println("Animation input is not a time channel: '" + inputSampler.techniqueCommon.accessor.params.get(0).name + "'");
-                    return null;
+                    throw new LoaderException("Animation input is not a time channel: '" + inputSampler.techniqueCommon.accessor.params.get(0).name + "'.");
                 }
                 float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
                 maxAnimationLength = Math.max(maxAnimationLength, animLength);
@@ -347,7 +376,9 @@ public class ColladaUtil {
                 assert(maxAnimationLength > 0.0f);
             }
 
-            animationSetBuilder.addAnimations(toDDF(skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate));
+            RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+            toDDF(animBuilder, skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
+            animationSetBuilder.addAnimations(animBuilder.build());
 
         }
 
@@ -409,6 +440,8 @@ public class ColladaUtil {
         List<Float> normal_list = new ArrayList<Float>();
         List<Float> texcoord_list = new ArrayList<Float>();
         List<Integer> indices_list = new ArrayList<Integer>();
+        List<Integer> bone_indices_list= new ArrayList<Integer>();
+        List<Float> bone_weights_list= new ArrayList<Float>();
 
         float meter = collada.asset.unit.meter;
         for (int i = 0; i < mesh.triangles.count; ++i) {
@@ -418,6 +451,19 @@ public class ColladaUtil {
             indices_list.add(i*3);
             indices_list.add(i*3+1);
             indices_list.add(i*3+2);
+
+            for (int v = 0; v < 3; v++) {
+                bone_indices_list.add(0);
+                bone_indices_list.add(0);
+                bone_indices_list.add(0);
+                bone_indices_list.add(0);
+                bone_weights_list.add(1.0f);
+                bone_weights_list.add(0.0f);
+                bone_weights_list.add(0.0f);
+                bone_weights_list.add(0.0f);
+            }
+
+
 
             for (int j = 0; j < 3; ++j) {
                 int tri_ind = mesh.triangles.p[idx + stride * j];
@@ -476,6 +522,8 @@ public class ColladaUtil {
         b.addAllNormals(normal_list);
         b.addAllTexcoord0(texcoord_list);
         b.addAllIndices(indices_list);
+        b.addAllBoneIndices(bone_indices_list);
+        b.addAllWeights(bone_weights_list);
         return b.build();
     }
 
@@ -508,7 +556,7 @@ public class ColladaUtil {
                 }
             }
         }
-        
+
         if(rootNode != null) {
             Vector3f upVector = new Vector3f(0.0f, 1.0f, 0.0f);
             Point3f skeletonPos;
@@ -519,10 +567,10 @@ public class ColladaUtil {
             Bone rootBone = new Bone( rootNode.sid, rootNode.name, localToWorld, new Quaternion4f( 0f, 0f, 0f, 1f ) );
             ArrayList<Bone> boneList = new ArrayList<Bone>();
             loadJoint( localToWorld, rootNode, upVector, Point3f.ZERO, Point3f.ZERO, rootBone, boneList );
-    
-            fakeRootBone.addChild(rootBone);            
+
+            fakeRootBone.addChild(rootBone);
         }
-        
+
         toDDF(bones, fakeRootBone, 0xffff);
 
         skeletonBuilder.addAllBones(bones);

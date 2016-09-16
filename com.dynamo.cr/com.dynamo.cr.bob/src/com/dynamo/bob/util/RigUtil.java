@@ -10,6 +10,7 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
+import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
 import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 
 /**
@@ -140,10 +141,17 @@ public class RigUtil {
     }
 
     public static class AnimationCurve {
+        public enum CurveIntepolation {
+            BEZIER, LINEAR
+        }
         public float x0;
         public float y0;
         public float x1;
         public float y1;
+        public CurveIntepolation interpolation;
+
+        public AnimationCurve() { interpolation = CurveIntepolation.BEZIER; }
+
     }
 
     public static class AnimationKey {
@@ -159,7 +167,7 @@ public class RigUtil {
 
     public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
         public enum Property {
-            POSITION, ROTATION, SCALE, POSITION_COMPONENT
+            POSITION, ROTATION, SCALE, POSITION_COMPONENT, ROTATION_COMPONENT
         }
         public Bone bone;
         public Property property;
@@ -236,7 +244,7 @@ public class RigUtil {
             return o.toCompInt() - toCompInt();
         }
     }
-    
+
 
     public interface PropertyBuilder<T, Key extends RigUtil.AnimationKey> {
         void addComposite(T v);
@@ -268,6 +276,29 @@ public class RigUtil {
         }
     }
 
+    public static class PositionComponentBuilder extends AbstractPropertyBuilder<Double> {
+        public PositionComponentBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Double v) {
+            builder.addPositions(v.floatValue());
+
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addPositions((float)v);
+        }
+
+        @Override
+        public Double toComposite(RigUtil.AnimationKey key) {
+            float[] v = key.value;
+            return new Double(v[0]);
+        }
+    }
+
     public static class PositionBuilder extends AbstractPropertyBuilder<Point3d> {
         public PositionBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
             super(builder);
@@ -290,7 +321,7 @@ public class RigUtil {
             return new Point3d(v[0], v[1], 0.0);
         }
     }
-    
+
     public static Quat4d toQuat(double angle) {
         double halfRad = 0.5 * angle * Math.PI / 180.0;
         double c = Math.cos(halfRad);
@@ -449,7 +480,7 @@ public class RigUtil {
             return key.orderOffset;
         }
     }
-    
+
 
     private static double evalCurve(RigUtil.AnimationCurve curve, double x) {
         if (curve == null) {
@@ -463,8 +494,13 @@ public class RigUtil {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         for (int i = 0; i < v0.length; ++i) {
-            double y = evalCurve(curve, t);
-            double v = (1.0 - y) * v0[i] + y * v1[i];
+            double v = 0.0;
+            if (curve.interpolation == CurveIntepolation.BEZIER) {
+                double y = evalCurve(curve, t);
+                v = (1.0 - y) * v0[i] + y * v1[i];
+            } else {
+                v = (1.0 - t) * v0[i] + t * v1[i];
+            }
             builder.add(v);
         }
     }
