@@ -5,6 +5,11 @@ tile_margin: 0
 tile_spacing: 0
 collision: "/builtins/graphics/particle_blob.png"
 material_tag: "tile"
+convex_hulls {
+  index: 0
+  count: 16
+  collision_group: "default"
+}
 collision_groups: "default"
 animations {
   id: "anim"
