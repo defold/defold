@@ -251,14 +251,13 @@
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
         kf (key-fn k-info (.getCode e))]
-    (when (not (.isConsumed e))
+    (when (and (not (.isConsumed e)) (:command kf) (not (:label kf)))
+      (handler-run
+       (:command kf)
+       [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
+       k-info)
       (.consume e)
-      (when (and (:command kf) (not (:label kf)))
-        (handler-run
-          (:command kf)
-          [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
-          k-info)
-        (last-command! source-viewer (:command kf))))))
+      (last-command! source-viewer (:command kf)))))
 
 (defn handle-key-typed [^KeyEvent e source-viewer]
   (let [key-typed (.getCharacter e)]
@@ -266,6 +265,7 @@
            :key-typed
            [{:name :code-view :env {:selection source-viewer :key-typed key-typed :key-event e}}]
            e)
+      (.consume e)
       (last-command! source-viewer :key-typed))))
 
 (defn adjust-bounds [s pos]
@@ -297,8 +297,8 @@
         (:command cf)
         [{:name :code-view :env {:selection source-viewer :clipboard (Clipboard/getSystemClipboard)}}]
         e)
-      (last-command! source-viewer (:command cf)))
-    (.consume e)))
+      (.consume e)
+      (last-command! source-viewer (:command cf)))))
 
 (defn- adjust-replace-length [doc pos n]
   (if (> (+ pos n) (count doc))
