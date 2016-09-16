@@ -61,7 +61,7 @@
              :icon gui-icon
              :pb-class Gui$SceneDesc
              :resource-fields [:script :material [:fonts :font] [:textures :texture]]
-             :tags #{:component}})
+             :tags #{:component :non-embeddable}})
 
 ; Line shader
 

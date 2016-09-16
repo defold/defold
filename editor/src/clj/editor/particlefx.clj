@@ -824,7 +824,7 @@
                                      :node-type ParticleFXNode
                                      :load-fn load-particle-fx
                                      :icon particle-fx-icon
-                                     :tags #{:component}
+                                     :tags #{:component :non-embeddable}
                                      :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}))
 

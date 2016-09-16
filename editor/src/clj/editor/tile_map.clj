@@ -1041,5 +1041,5 @@
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid tile-map-grid/TileMapGrid
                                                         :tool-controller TileMapController}}
-                                    :tags #{:component}
+                                    :tags #{:component :non-embeddable}
                                     :label "Tile Map"))
